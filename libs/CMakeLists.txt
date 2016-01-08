@@ -82,10 +82,9 @@ ${pugixmldir}/pugiconfig.hpp
 
 # MESSAGE(${pugixml})
 
-FILE(GLOB giflib "../giflib-5.0.4/lib/*.c" "../giflib-5.0.4/lib/*.cpp" "../giflib-5.0.4/lib/*.h")
-FILE(GLOB little_cms "../little_cms/src/*.c"  "../little_cms/include/*.h")
-FILE(GLOB xxhash "../xxHash-r39/*.c"  "../xxHash-r39/*.h")
-
+FILE(GLOB giflib "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.c" "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.h")
+FILE(GLOB little_cms "${INDIGO_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${INDIGO_TRUNK_DIR_ENV}/little_cms/include/*.h")
+FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
 
 SOURCE_GROUP(fftss FILES ${fftss})
 SOURCE_GROUP(ilmbase FILES ${ilmbase})

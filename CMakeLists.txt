@@ -261,11 +261,8 @@ MESSAGE("") # New line
 
 ADD_SUBDIRECTORY(libs)
 
-# indigo qt gui
+# GUI client
 ADD_SUBDIRECTORY(gui_client gui_client)
 
-# Indigo dll
-#ADD_SUBDIRECTORY(server server)
-
-# Indigo console
-#ADD_SUBDIRECTORY(console_client console_client)
+# server
+ADD_SUBDIRECTORY(server server)

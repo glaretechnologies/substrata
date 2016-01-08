@@ -1,0 +1,104 @@
+/*=====================================================================
+listenerthread.cpp
+------------------
+File created by ClassTemplate on Thu May 05 01:07:24 2005
+Code By Nicholas Chapman.
+=====================================================================*/
+#include "ListenerThread.h"
+
+
+#include "WorkerThread.h"
+#include <ConPrint.h>
+#include <mysocket.h>
+#include <Lock.h>
+#include <StringUtils.h>
+#include <PlatformUtils.h>
+#include <KillThreadMessage.h>
+#include <ThreadShouldAbortCallback.h>
+#include <Exception.h>
+
+
+ListenerThread::ListenerThread(int listenport_, SharedRequestHandler* shared_request_handler_)
+:	listenport(listenport_), shared_request_handler(shared_request_handler_)
+{
+}
+
+
+ListenerThread::~ListenerThread()
+{
+}
+
+
+void ListenerThread::doRun()
+{
+	try
+	{
+		MySocketRef sock;
+
+		// NOTE: This code doesn't actually work properly, fails on second time through loop.
+		const int MAX_NUM_ATTEMPTS = 600;
+		bool bound = false;
+		for(int i=0; i<MAX_NUM_ATTEMPTS; ++i)
+		{
+			// Create new socket
+			sock = new MySocket();
+
+			try
+			{
+				sock->bindAndListen(listenport);
+				bound = true;
+				break;
+			}
+			catch(MySocketExcep& e)
+			{
+				conPrint("bindAndListen failed: " + e.what() + ", waiting and retrying...");
+				PlatformUtils::Sleep(5000);
+			}
+		}
+
+		if(!bound)
+			throw MySocketExcep("Failed to bind and listen.");
+
+		int next_thread_id = 0;
+		
+
+		while(1)
+		{
+			MySocketRef workersock = sock->acceptConnection(); // Blocks
+
+			conPrint("Client connected from " + IPAddress::formatIPAddressAndPort(workersock->getOtherEndIPAddress(), workersock->getOtherEndPort()));
+
+			Reference<WorkerThread> worker_thread = new WorkerThread(
+				next_thread_id,
+				workersock,
+				shared_request_handler
+			);
+
+			next_thread_id++;
+			
+			try
+			{
+				thread_manager.addThread(worker_thread);
+			}
+			catch(MyThreadExcep& e)
+			{
+				// Will get this when thread creation fails.
+				conPrint("ListenerThread failed to launch worker thread: " + e.what());
+			}
+		}
+	}
+	catch(MySocketExcep& e)
+	{
+		conPrint("ListenerThread: " + e.what());
+	}
+	catch(Indigo::Exception& e)
+	{
+		conPrint("ListenerThread Indigo::Exception: " + e.what());
+	}
+	
+
+	// Kill the child WorkerThread threads now
+	thread_manager.killThreadsBlocking();
+
+	conPrint("ListenerThread terminated.");
+}

@@ -36,6 +36,7 @@ endif()
 addIncludeDirectory("${luadir}/src")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/utils")
+addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/networking")
 #addIncludeDirectory("${CMAKE_SOURCE_DIR}/embree/common")
 #addIncludeDirectory("${CMAKE_SOURCE_DIR}/embree/rtcore")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opengl") # For Glew
@@ -115,12 +116,6 @@ if(WIN32)
 	################################
 	
 	add_definitions(/GS- /fp:fast)
-	
-	# Add SSE2 support for 32-bit.  It's implicitly on for 64-bit.
-	if(CYBERSPACE_64_BIT)
-	else()
-		add_definitions(/arch:SSE2)
-	endif()
 	
 	# Consider some options.
 	if(NO_WHOLE_PROGRAM_OPT)
