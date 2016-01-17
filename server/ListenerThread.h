@@ -15,8 +15,7 @@ Code By Nicholas Chapman.
 #include <string>
 class PrintOutput;
 class ThreadMessageSink;
-class DataStore;
-class SharedRequestHandler;
+class Server;
 
 
 /*=====================================================================
@@ -27,7 +26,7 @@ ListenerThread
 class ListenerThread : public MessageableThread
 {
 public:
-	ListenerThread(int listenport, SharedRequestHandler* shared_request_handler);
+	ListenerThread(int listenport, Server* server);
 
 	virtual ~ListenerThread();
 
@@ -38,7 +37,7 @@ private:
 
 	// Child threads are
 	// * WorkerThread's
-	ThreadManager thread_manager;
+	//ThreadManager thread_manager;
 
-	SharedRequestHandler* shared_request_handler;
+	Server* server;
 };

@@ -1,6 +1,8 @@
 /*=====================================================================
-WorkerThread.h
-----------------
+ClientThread.h
+-------------------
+Copyright Glare Technologies Limited 2016 -
+Generated at 2016-01-16 22:59:23 +1300
 =====================================================================*/
 #pragma once
 
@@ -20,27 +22,24 @@ class Server;
 
 
 /*=====================================================================
-WorkerThread
-------------
+ClientThread
+-------------------
 
 =====================================================================*/
-class WorkerThread : public MessageableThread
+class ClientThread : public MyThread
 {
 public:
-	// May throw Indigo::Exception from constructor if EventFD init fails.
-	WorkerThread(int thread_id, const Reference<MySocket>& socket, Server* server);
-	virtual ~WorkerThread();
+	ClientThread();
+	virtual ~ClientThread();
 
-	virtual void doRun();
-
+	virtual void run();
 
 	void enqueueDataToSend(const std::string& data); // threadsafe
 
 private:
 	ThreadSafeQueue<std::string> data_to_send;
-
-	int thread_id;
-	Reference<MySocket> socket;
-	Server* server;
-	EventFD event_fd;	
+	EventFD event_fd;
 };
+
+
+

@@ -1,61 +1,46 @@
 /*=====================================================================
-WorkerThread.cpp
-------------------
-File created by ClassTemplate on Thu May 05 01:07:24 2005
-Code By Nicholas Chapman.
+ClientThread.cpp
+-------------------
+Copyright Glare Technologies Limited 2016 -
+Generated at 2016-01-16 22:59:23 +1300
 =====================================================================*/
-#include "WorkerThread.h"
+#include "ClientThread.h"
 
 
-#include "../shared/UID.h"
-#include <vec3.h>
+#include "mysocket.h"
 #include <ConPrint.h>
-#include <Clock.h>
-#include <AESEncryption.h>
-#include <SHA256.h>
-#include <Base64.h>
-#include <Exception.h>
-#include <mysocket.h>
-#include <Lock.h>
-#include <StringUtils.h>
-#include <PlatformUtils.h>
-#include <KillThreadMessage.h>
-#include <ThreadShouldAbortCallback.h>
-#include <Parser.h>
-#include <MemMappedFile.h>
-#include "WorldState.h"
-#include "Server.h"
-
+#include "../server/WorldState.h"
 
 static const bool VERBOSE = false;
 
 
-WorkerThread::WorkerThread(int thread_id_, const Reference<MySocket>& socket_, Server* server_)
-:	thread_id(thread_id_),
-	socket(socket_),
-	server(server_)
+ClientThread::ClientThread()
 {
-	//if(VERBOSE) print("event_fd.efd: " + toString(event_fd.efd));
+
 }
 
 
-WorkerThread::~WorkerThread()
+ClientThread::~ClientThread()
 {
+
 }
 
 
-void WorkerThread::doRun()
+void ClientThread::run()
 {
-	WorldState* world_state = server->world_state.getPointer();
-
 	try
 	{
+		const std::string hostname = "localhost";
+		const int port = 1234;
+
+		MySocketRef socket = new MySocket(hostname, port);
+
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
 		while(1) // write to / read from socket loop
 		{
 			// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
-			if(VERBOSE) conPrint("WorkerThread: checking for pending data to send...");
+			if(VERBOSE) conPrint("ClientThread: checking for pending data to send...");
 			{
 				Lock lock(data_to_send.getMutex());
 
@@ -67,7 +52,7 @@ void WorkerThread::doRun()
 					// Write the data to the socket
 					if(!data.empty())
 					{
-						if(VERBOSE) conPrint("WorkerThread: calling writeWebsocketTextMessage() with data '" + data + "'...");
+						if(VERBOSE) conPrint("ClientThread: calling writeData with data '" + data + "'...");
 						socket->writeData(data.data(), data.size());
 					}
 				}
@@ -182,12 +167,4 @@ void WorkerThread::doRun()
 	{
 		conPrint("Indigo::Exception: " + e.what());
 	}
-}
-
-
-void WorkerThread::enqueueDataToSend(const std::string& data)
-{
-	if(VERBOSE) conPrint("WorkerThread::enqueueDataToSend(), data: '" + data + "'");
-	data_to_send.enqueue(data);
-	event_fd.notify();
 }

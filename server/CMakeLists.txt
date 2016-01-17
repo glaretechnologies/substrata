@@ -8,8 +8,10 @@ include(../cmake/winter.cmake)
 
 
 FILE(GLOB server "./*.cpp" "./*.h")
+FILE(GLOB docs "../docs/*.txt")
 
 SOURCE_GROUP(server FILES ${server})
+SOURCE_GROUP(docs FILES ${docs})
 
 if(WIN32)
 	SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
@@ -49,6 +51,7 @@ ${double_conversion}
 ${dll_src}
 ${fft2d}
 ${xxhash}
+${docs}
 )
 
 

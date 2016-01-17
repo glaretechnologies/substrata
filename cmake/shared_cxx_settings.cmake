@@ -37,6 +37,7 @@ addIncludeDirectory("${luadir}/src")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/utils")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/networking")
+addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/maths")
 #addIncludeDirectory("${CMAKE_SOURCE_DIR}/embree/common")
 #addIncludeDirectory("${CMAKE_SOURCE_DIR}/embree/rtcore")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opengl") # For Glew

@@ -7,6 +7,7 @@ Code By Nicholas Chapman.
 #include "ListenerThread.h"
 
 
+#include "Server.h"
 #include "WorkerThread.h"
 #include <ConPrint.h>
 #include <mysocket.h>
@@ -18,8 +19,9 @@ Code By Nicholas Chapman.
 #include <Exception.h>
 
 
-ListenerThread::ListenerThread(int listenport_, SharedRequestHandler* shared_request_handler_)
-:	listenport(listenport_), shared_request_handler(shared_request_handler_)
+
+ListenerThread::ListenerThread(int listenport_, Server* server_)
+:	listenport(listenport_), server(server_)
 {
 }
 
@@ -35,7 +37,6 @@ void ListenerThread::doRun()
 	{
 		MySocketRef sock;
 
-		// NOTE: This code doesn't actually work properly, fails on second time through loop.
 		const int MAX_NUM_ATTEMPTS = 600;
 		bool bound = false;
 		for(int i=0; i<MAX_NUM_ATTEMPTS; ++i)
@@ -60,8 +61,6 @@ void ListenerThread::doRun()
 			throw MySocketExcep("Failed to bind and listen.");
 
 		int next_thread_id = 0;
-		
-
 		while(1)
 		{
 			MySocketRef workersock = sock->acceptConnection(); // Blocks
@@ -71,14 +70,15 @@ void ListenerThread::doRun()
 			Reference<WorkerThread> worker_thread = new WorkerThread(
 				next_thread_id,
 				workersock,
-				shared_request_handler
+				server
 			);
 
 			next_thread_id++;
 			
 			try
 			{
-				thread_manager.addThread(worker_thread);
+				//thread_manager.addThread(worker_thread);
+				server->worker_thread_manager.addThread(worker_thread);
 			}
 			catch(MyThreadExcep& e)
 			{
@@ -98,7 +98,7 @@ void ListenerThread::doRun()
 	
 
 	// Kill the child WorkerThread threads now
-	thread_manager.killThreadsBlocking();
+	//thread_manager.killThreadsBlocking();
 
 	conPrint("ListenerThread terminated.");
 }
