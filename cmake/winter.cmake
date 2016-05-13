@@ -60,6 +60,10 @@ set(winter
 "${winterdir}/wnt_VArrayLiteral.h"
 "${winterdir}/wnt_Variable.h"
 "${winterdir}/FuzzTests.h"
+"${winterdir}/wnt_LetASTNode.cpp"
+"${winterdir}/wnt_LetASTNode.h"
+"${winterdir}/wnt_LetBlock.cpp"
+"${winterdir}/wnt_LetBlock.h"
 )
 
 SOURCE_GROUP(winter FILES ${winter})

@@ -118,6 +118,8 @@ if(WIN32)
 	
 	add_definitions(/GS- /fp:fast)
 	
+	add_definitions(-D__SSE4_1__)
+	
 	# Consider some options.
 	if(NO_WHOLE_PROGRAM_OPT)
 		SET(GL_OPT)

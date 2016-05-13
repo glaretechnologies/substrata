@@ -9,9 +9,15 @@ include(../cmake/winter.cmake)
 
 FILE(GLOB server "./*.cpp" "./*.h")
 FILE(GLOB docs "../docs/*.txt")
+SET(shared_files 
+../shared/Avatar.cpp
+../shared/Avatar.h
+)
+
 
 SOURCE_GROUP(server FILES ${server})
 SOURCE_GROUP(docs FILES ${docs})
+SOURCE_GROUP(shared_files FILES ${shared_files})
 
 if(WIN32)
 	SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
@@ -46,6 +52,7 @@ ${utils}
 ${hdr}
 ${winter}
 ${server}
+${shared_files}
 ${scripts}
 ${double_conversion}
 ${dll_src}

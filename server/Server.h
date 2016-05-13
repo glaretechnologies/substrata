@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2016 -
 #pragma once
 
 
-#include "WorldState.h"
+#include "ServerWorldState.h"
 #include "ThreadManager.h"
 
 
@@ -19,7 +19,7 @@ class Server
 public:
 	Server();
 
-	Reference<WorldState> world_state;
+	Reference<ServerWorldState> world_state;
 
 	// Connected client worker threads
 	ThreadManager worker_thread_manager;

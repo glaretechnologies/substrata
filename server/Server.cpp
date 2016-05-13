@@ -17,7 +17,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Base64.h>
 #include <ImmutableVector.h>
 #include <ArgumentParser.h>
-#include <BufferOutStream.h>
+#include <SocketBufferOutStream.h>
 #include "WorkerThread.h"
 
 
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 					if(avatar->state == Avatar::State_Alive)
 					{
 						// Send AvatarTransformUpdate packet
-						BufferOutStream packet;
+						SocketBufferOutStream packet;
 						packet.writeUInt32(AvatarTransformUpdate);
 						writeToStream(avatar->uid, packet);
 						writeToStream(avatar->pos, packet);
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 					else if(avatar->state == Avatar::State_JustCreated)
 					{
 						// Send AvatarCreated packet
-						BufferOutStream packet;
+						SocketBufferOutStream packet;
 						packet.writeUInt32(AvatarCreated);
 						writeToStream(avatar->uid, packet);
 						packet.writeStringLengthFirst(avatar->name);
@@ -125,8 +125,9 @@ int main(int argc, char *argv[])
 					else if(avatar->state == Avatar::State_Dead)
 					{
 						// Send AvatarDestroyed packet
-						BufferOutStream packet;
+						SocketBufferOutStream packet;
 						packet.writeUInt32(AvatarDestroyed);
+						writeToStream(avatar->uid, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
 						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
@@ -180,5 +181,5 @@ int main(int argc, char *argv[])
 
 Server::Server()
 {
-	world_state = new WorldState();
+	world_state = new ServerWorldState();
 }

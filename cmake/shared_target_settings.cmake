@@ -11,7 +11,7 @@ MESSAGE("Current target is: " ${CURRENT_TARGET})
 
 if(WIN32)
 	# add AuxFunctions as a dependency
-	add_dependencies(${CURRENT_TARGET} AuxFunctions)
+	#add_dependencies(${CURRENT_TARGET} AuxFunctions)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "")
 	

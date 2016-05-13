@@ -1,20 +1,21 @@
 /*=====================================================================
-WorldState.cpp
+Avatar.cpp
 -------------------
 Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-12 12:22:34 +1300
+Generated at 2016-01-12 12:24:54 +1300
 =====================================================================*/
-#include "WorldState.h"
+#include "Avatar.h"
 
 
 
-WorldState::WorldState()
+Avatar::Avatar()
 {
-
+	dirty = false;
+	opengl_engine_ob = NULL;
 }
 
 
-WorldState::~WorldState()
+Avatar::~Avatar()
 {
 
 }

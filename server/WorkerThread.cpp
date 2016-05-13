@@ -18,12 +18,13 @@ Code By Nicholas Chapman.
 #include <mysocket.h>
 #include <Lock.h>
 #include <StringUtils.h>
+#include <SocketBufferOutStream.h>
 #include <PlatformUtils.h>
 #include <KillThreadMessage.h>
 #include <ThreadShouldAbortCallback.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
-#include "WorldState.h"
+#include "ServerWorldState.h"
 #include "Server.h"
 
 
@@ -46,11 +47,47 @@ WorkerThread::~WorkerThread()
 
 void WorkerThread::doRun()
 {
-	WorldState* world_state = server->world_state.getPointer();
+	ServerWorldState* world_state = server->world_state.getPointer();
+
+	UID client_avatar_uid = 0;
 
 	try
 	{
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+
+
+		// Write avatar UID assigned to the connected client.
+		
+		{
+			Lock lock(world_state->mutex);
+			client_avatar_uid = world_state->next_avatar_uid;
+			world_state->next_avatar_uid = world_state->next_avatar_uid.value() + 1;
+		}
+
+		writeToStream(client_avatar_uid, *socket);
+
+
+		// Send all current avatar data to client
+		{
+			Lock lock(world_state->mutex);
+			for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
+			{
+				const Avatar* avatar = it->second.getPointer();
+
+				// Send AvatarCreated packet
+				SocketBufferOutStream packet;
+				packet.writeUInt32(AvatarCreated);
+				writeToStream(avatar->uid, packet);
+				packet.writeStringLengthFirst(avatar->name);
+				packet.writeStringLengthFirst(avatar->model_url);
+				writeToStream(avatar->pos, packet);
+				writeToStream(avatar->axis, packet);
+				packet.writeFloat(avatar->angle);
+
+				socket->writeData(packet.buf.data(), packet.buf.size());
+			}
+		}
+
 
 		while(1) // write to / read from socket loop
 		{
@@ -86,7 +123,7 @@ void WorkerThread::doRun()
 				{
 				case AvatarTransformUpdate:
 					{
-						conPrint("AvatarTransformUpdate");
+						//conPrint("AvatarTransformUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f axis = readVec3FromStream<float>(*socket);
@@ -104,9 +141,10 @@ void WorkerThread::doRun()
 								avatar->angle = angle;
 								avatar->dirty = true;
 
-								conPrint("updated avatar transform");
+								//conPrint("updated avatar transform");
 							}
 						}
+						break;
 					}
 				case AvatarCreated:
 					{
@@ -139,6 +177,7 @@ void WorkerThread::doRun()
 								conPrint("created new avatar");
 							}
 						}
+						break;
 					}
 				case AvatarDestroyed:
 					{
@@ -156,8 +195,15 @@ void WorkerThread::doRun()
 								avatar->dirty = true;
 							}
 						}
+						break;
+					}
+					default:
+					{
+						conPrint("Unknown message id: " + toString(msg_type));
 					}
 				}
+				
+
 			}
 			else
 			{
@@ -181,6 +227,16 @@ void WorkerThread::doRun()
 	catch(Indigo::Exception& e)
 	{
 		conPrint("Indigo::Exception: " + e.what());
+	}
+
+	// Mark avatar corresponding to client as dead
+	{
+		Lock lock(world_state->mutex);
+		if(world_state->avatars.count(client_avatar_uid) == 1)
+		{
+			world_state->avatars[client_avatar_uid]->state = Avatar::State_Dead;
+			world_state->avatars[client_avatar_uid]->dirty = true;
+		}
 	}
 }
 

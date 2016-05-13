@@ -1,20 +1,23 @@
 /*=====================================================================
-Avatar.cpp
+WorldState.cpp
 -------------------
 Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-12 12:24:54 +1300
+Generated at 2016-01-12 12:22:34 +1300
 =====================================================================*/
-#include "Avatar.h"
+#include "WorldState.h"
 
 
+#include <ConPrint.h>
+#include <StringUtils.h>
 
-Avatar::Avatar()
+
+WorldState::WorldState()
 {
-	dirty = false;
+	printVar((uint64)&mutex);
 }
 
 
-Avatar::~Avatar()
+WorldState::~WorldState()
 {
 
 }

@@ -9,7 +9,12 @@ Generated at 2016-01-16 22:59:23 +1300
 
 #include "mysocket.h"
 #include <ConPrint.h>
-#include "../server/WorldState.h"
+#include "../shared/WorldState.h"
+#include <vec3.h>
+#include <SocketBufferOutStream.h>
+#include <Exception.h>
+#include <StringUtils.h>
+
 
 static const bool VERBOSE = false;
 
@@ -36,6 +41,27 @@ void ClientThread::run()
 		MySocketRef socket = new MySocket(hostname, port);
 
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+
+		// Read assigned client avatar UID
+		this->client_avatar_uid = readUIDFromStream(*socket);
+
+
+		// Send AvatarCreated packet for this client's avatar
+		SocketBufferOutStream packet;
+		packet.writeUInt32(AvatarCreated);
+		writeToStream(client_avatar_uid, packet);
+		packet.writeStringLengthFirst("a person");
+		packet.writeStringLengthFirst("some model URI");
+		writeToStream(Vec3d(0,0,0), packet);
+		writeToStream(Vec3f(0,0,1), packet);
+		packet.writeFloat(0.f);
+
+		//std::string packet_string(packet.buf.size(), '\0');
+		//std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+		socket->writeData(packet.buf.data(), packet.buf.size());
+
+
 
 		while(1) // write to / read from socket loop
 		{
@@ -71,7 +97,7 @@ void ClientThread::run()
 				{
 				case AvatarTransformUpdate:
 					{
-						conPrint("AvatarTransformUpdate");
+						//conPrint("AvatarTransformUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f axis = readVec3FromStream<float>(*socket);
@@ -89,9 +115,10 @@ void ClientThread::run()
 								avatar->angle = angle;
 								avatar->dirty = true;
 
-								conPrint("updated avatar transform");
+								//conPrint("updated avatar transform");
 							}
 						}
+						break;
 					}
 				case AvatarCreated:
 					{
@@ -105,7 +132,8 @@ void ClientThread::run()
 
 						// Look up existing avatar in world state
 						{
-							Lock lock(world_state->mutex);
+							printVar((uint64)&world_state->mutex);
+							::Lock lock(world_state->mutex);
 							auto res = world_state->avatars.find(avatar_uid);
 							if(res == world_state->avatars.end())
 							{
@@ -124,6 +152,7 @@ void ClientThread::run()
 								conPrint("created new avatar");
 							}
 						}
+						break;
 					}
 				case AvatarDestroyed:
 					{
@@ -141,6 +170,11 @@ void ClientThread::run()
 								avatar->dirty = true;
 							}
 						}
+						break;
+					}
+				default:
+					{
+						conPrint("Unknown message id: " + ::toString(msg_type));
 					}
 				}
 			}
@@ -167,4 +201,12 @@ void ClientThread::run()
 	{
 		conPrint("Indigo::Exception: " + e.what());
 	}
+}
+
+
+void ClientThread::enqueueDataToSend(const std::string& data)
+{
+	if(VERBOSE) conPrint("ClientThread::enqueueDataToSend(), data: '" + data + "'");
+	data_to_send.enqueue(data);
+	event_fd.notify();
 }

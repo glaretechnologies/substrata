@@ -14,11 +14,25 @@ SET(qt
 ../qt/QtUtils.h
 )
 
+SET(shared_files 
+../shared/Avatar.cpp
+../shared/Avatar.h
+../shared/WorldState.cpp
+../shared/WorldState.h
+)
+
+SET(client_indigo_files 
+${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.cpp
+${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.h
+)
+
 
 # SET(rc_stuff "../vs2008/indigo_icon.rc")
 
 SOURCE_GROUP(gui_client FILES ${gui_client})
 SOURCE_GROUP(qt FILES ${qt})
+SOURCE_GROUP(shared_files FILES ${shared_files})
+SOURCE_GROUP(client_indigo_files FILES ${client_indigo_files})
 
 
 if(WIN32)
@@ -43,6 +57,7 @@ ${INDIGO_QT_LIB_DIR}
 add_executable(${CURRENT_TARGET} WIN32
 ${graphics}
 ${indigo_src}
+${client_indigo_files}
 ${indigo_console}
 ${maths}
 ${networking}
@@ -54,9 +69,11 @@ ${utils}
 ${hdr}
 ${winter}
 ${gui_client}
+${shared_files}
 ${scripts}
 ${double_conversion}
 ${opengl}
+${opengl_shaders}
 ${dll_src}
 ${fft2d}
 ${xxhash}

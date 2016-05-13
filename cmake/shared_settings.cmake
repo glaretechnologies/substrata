@@ -188,6 +188,8 @@ ${INDIGO_UTILS_DIR}/Obfuscator.cpp
 ${INDIGO_UTILS_DIR}/Obfuscator.h
 ${INDIGO_UTILS_DIR}/OutStream.cpp
 ${INDIGO_UTILS_DIR}/OutStream.h
+${INDIGO_UTILS_DIR}/OpenSSL.cpp
+${INDIGO_UTILS_DIR}/OpenSSL.h
 ${INDIGO_UTILS_DIR}/PackedVector.h
 ${INDIGO_UTILS_DIR}/ParallelFor.cpp
 ${INDIGO_UTILS_DIR}/ParallelFor.h
@@ -380,7 +382,8 @@ ${INDIGO_PHYSICS_DIR}/TriangleTest.h
 
 
 set(raytracing 
-"${INDIGO_TRUNK_DIR_ENV}/raytracing/hitinfo*"
+"${INDIGO_TRUNK_DIR_ENV}/raytracing/hitinfo.cpp"
+"${INDIGO_TRUNK_DIR_ENV}/raytracing/hitinfo.h"
 )
 
 #if(WIN32) # Need .rc file on windows
@@ -402,8 +405,31 @@ FILE(GLOB double_conversion "${INDIGO_TRUNK_DIR_ENV}/double-conversion/*.cc" "${
 FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
 
 set(fft2d "../libs/fft2d/fft4f2d.c")
-set(opengl "${INDIGO_TRUNK_DIR_ENV}/opengl/glew.c" "${INDIGO_TRUNK_DIR_ENV}/opengl/VBO.cpp" "${INDIGO_TRUNK_DIR_ENV}/opengl/VBO.h")
 
+set(opengl 
+${INDIGO_TRUNK_DIR_ENV}/opengl/gl3w.c 
+${INDIGO_TRUNK_DIR_ENV}/opengl/VAO.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/VAO.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/VBO.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/VBO.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLTexture.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLTexture.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngine.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngine.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
+)
+
+set(opengl_shaders
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/env_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/env_vert_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_vert_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
+)
 
 set(INDIGO_SRC_DIR "${INDIGO_TRUNK_DIR_ENV}/indigo")
 
@@ -440,6 +466,7 @@ SOURCE_GROUP(utils FILES ${utils})
 SOURCE_GROUP(scripts FILES ${scripts})
 SOURCE_GROUP(double_conversion FILES ${double_conversion})
 SOURCE_GROUP(opengl FILES ${opengl})
+SOURCE_GROUP(opengl\\shaders FILES ${opengl_shaders})
 SOURCE_GROUP(dll FILES ${dll_src})
 SOURCE_GROUP(fft2d FILES ${fft2d})
 SOURCE_GROUP(xxhash FILES ${xxhash})

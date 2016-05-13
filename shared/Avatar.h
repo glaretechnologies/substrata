@@ -12,6 +12,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "../shared/UID.h"
 #include "vec3.h"
 #include <string>
+struct GLObject;
 
 
 const uint32 AvatarCreated			= 1000;
@@ -47,6 +48,9 @@ public:
 
 	State state;
 	bool dirty;
+
+
+	GLObject* opengl_engine_ob;
 private:
 
 };
