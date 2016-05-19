@@ -574,6 +574,7 @@ int main(int argc, char *argv[])
 			}
 
 			// Load steps
+			if(false)
 			{
 				Indigo::MeshRef mesh = new Indigo::Mesh();
 				Indigo::Mesh::readFromFile("steps.igmesh", *mesh);

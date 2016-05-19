@@ -216,14 +216,13 @@ void GlWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 		}
 		//std::cout << "successfully loaded " << use_path << ", xres = " << tex_xres << ", yres = " << tex_yres << std::endl << std::endl;
 	}
-	catch(TextureServerExcep&)
+	catch(TextureServerExcep& e)
 	{
-
+		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
 	}
-	catch(ImFormatExcep&)
+	catch(ImFormatExcep& e)
 	{
-		//conPrint("Warning: failed to decode texture '" + use_path + "'.");
-		//throw TextureServerExcep(e.what());
+		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
 	}
 }
 
