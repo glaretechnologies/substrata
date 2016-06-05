@@ -5,9 +5,9 @@
 #require './script_utils.rb'
 
 # The config options
-$qt_version = "5.5.1" if OS.windows?
-$qt_version = "5.5.1" if OS.mac?
-$qt_version = "5.5.1" if OS.linux?
+$qt_version = "5.6.0" if OS.windows?
+$qt_version = "5.6.0" if OS.mac?
+$qt_version = "5.6.0" if OS.linux?
 
 $vs_version = 2012
 

@@ -63,6 +63,9 @@ GlWidget::GlWidget(QWidget *parent)
 	D_down = false;
 
 	viewport_w = viewport_h = 100;
+
+	// Needed to get keyboard events.
+	setFocusPolicy(Qt::StrongFocus);
 }
 
 
@@ -157,6 +160,8 @@ void GlWidget::paintGL()
 
 void GlWidget::addObject(const Reference<GLObject>& object)
 {
+	this->makeCurrent();
+
 	// Build materials
 	for(size_t i=0; i<object->materials.size(); ++i)
 		buildMaterial(object->materials[i]);
@@ -167,6 +172,8 @@ void GlWidget::addObject(const Reference<GLObject>& object)
 
 void GlWidget::addOverlayObject(const Reference<OverlayObject>& object)
 {
+	this->makeCurrent();
+
 	buildMaterial(object->material);
 
 	opengl_engine->addOverlayObject(object);
@@ -175,6 +182,8 @@ void GlWidget::addOverlayObject(const Reference<OverlayObject>& object)
 
 void GlWidget::setEnvMat(OpenGLMaterial& mat)
 {
+	this->makeCurrent();
+
 	buildMaterial(mat);
 	opengl_engine->setEnvMat(mat);
 }

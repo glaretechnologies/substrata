@@ -34,7 +34,7 @@ signals:;
 public slots:;
 	void timerEvent();
 private slots:;
-
+	void on_actionAvatarSettings_triggered();
 private:
 
 	std::string base_dir_path;
@@ -61,4 +61,8 @@ public:
 
 	std::map<const Avatar*, GLObjectRef> avatar_gl_objects;
 	//std::map<GLObjectRef*, bool> avatars_
+
+	TextureServer* texture_server;
+
+	QSettings* settings;
 };

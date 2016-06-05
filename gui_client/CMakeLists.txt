@@ -12,6 +12,9 @@ FILE(GLOB gui_client "./*.cpp" "./*.h" "./*.ui")
 SET(qt 
 ../qt/QtUtils.cpp
 ../qt/QtUtils.h
+../qt/FileSelectWidget.cpp
+../qt/FileSelectWidget.h
+../qt/moc_FileSelectWidget.cpp
 )
 
 SET(shared_files 
