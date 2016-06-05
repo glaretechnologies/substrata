@@ -89,4 +89,9 @@ FileUtils.cd("../gui_client")
 generateIfChanged("MainWindow")
 generateIfChanged("GuiClientApplication")
 generateIfChanged("GlWidget")
+generateIfChanged("AvatarSettingsDialog")
+generateIfChanged("AvatarPreviewWidget")
 
+FileUtils.cd("../qt")
+
+generateIfChanged("FileSelectWidget")

@@ -9,6 +9,7 @@
 #pragma warning(push, 0) // Disable warnings
 #endif
 #include "MainWindow.h"
+#include "AvatarSettingsDialog.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QTimer>
 #include <QtCore/QProcess>
@@ -67,6 +68,12 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	QMainWindow(parent)
 {
 	setupUi(this);
+
+	settings = new QSettings("Glare Technologies", "Cyberspace");
+
+	// Load main window geometry and state
+	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
+	this->restoreState(settings->value("mainwindow/windowState").toByteArray());
 }
 
 
@@ -79,8 +86,12 @@ void MainWindow::initialise()
     timer->start(10);
 }
 
+
 MainWindow::~MainWindow()
 {
+	// Save main window geometry and state
+	settings->setValue("mainwindow/geometry", saveGeometry());
+	settings->setValue("mainwindow/windowState", saveState());
 }
 
 
@@ -235,6 +246,13 @@ void MainWindow::timerEvent()
 }
 
 
+void MainWindow::on_actionAvatarSettings_triggered()
+{
+	AvatarSettingsDialog d(this->settings, this->texture_server);
+	d.exec();
+}
+
+
 Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
 {
 	Reference<PhysicsObject> phy_ob = new PhysicsObject();
@@ -317,7 +335,7 @@ int main(int argc, char *argv[])
 
 		mw.raise();
 
-		mw.setGeometry(600, 100, 1000, 800);
+
 
 		Mutex temp_mutex;
 
@@ -337,6 +355,7 @@ int main(int argc, char *argv[])
 		mw.cam_controller.setMoveScale(0.3f);
 
 		TextureServer texture_server;
+		mw.texture_server = &texture_server;
 		mw.glWidget->texture_server_ptr = &texture_server;
 
 		const float sun_phi = 1.f;
