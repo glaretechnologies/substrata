@@ -51,12 +51,6 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 	settings.shadow_mapping = true;
 	opengl_engine = new OpenGLEngine(settings);
 
-	SHIFT_down = false;
-	W_down = false;
-	A_down = false;
-	S_down = false;
-	D_down = false;
-
 	viewport_w = viewport_h = 100;
 
 	// Needed to get keyboard events.
@@ -147,16 +141,11 @@ void AvatarPreviewWidget::initializeGL()
 
 void AvatarPreviewWidget::paintGL()
 {
-	Matrix4f T;
-	T.setToTranslationMatrix(0.f, cam_dist, -1.f);
-
-	Matrix4f z_rot;
-	z_rot.setToRotationMatrix(Vec4f(0,0,1,0), cam_phi);
-	Matrix4f x_rot;
-	x_rot.setToRotationMatrix(Vec4f(1,0,0,0), -(cam_theta - Maths::pi_2<float>()));
-	Matrix4f rot = x_rot * z_rot;
-
-	Matrix4f world_to_camera_space_matrix = T * rot;
+	const Matrix4f T = Matrix4f::translationMatrix(0.f, cam_dist, -1.f);
+	const Matrix4f z_rot = Matrix4f::rotationMatrix(Vec4f(0,0,1,0), cam_phi);
+	const Matrix4f x_rot = Matrix4f::rotationMatrix(Vec4f(1,0,0,0), -(cam_theta - Maths::pi_2<float>()));
+	const Matrix4f rot = x_rot * z_rot;
+	const Matrix4f world_to_camera_space_matrix = T * rot;
 
 	const float sensor_width = 0.035f;
 	const float lens_sensor_dist = 0.03f;

@@ -18,9 +18,6 @@ class TextureServer;
 class EnvEmitter;
 
 
-typedef std::map<Reference<Indigo::Mesh>, Reference<OpenGLMeshRenderData> > GLRenderDataMap;
-
-
 class AvatarPreviewWidget : public QGLWidget
 {
 	Q_OBJECT        // must include this if you use Qt signals/slots
@@ -55,8 +52,6 @@ signals:;
 	void widgetShowSignal();
 
 private:
-	GLRenderDataMap mesh_render_data; // mesh node SceneNodeUID to tri and quad data
-
 	QPoint mouse_prev_pos;
 	QPoint mouse_move_origin;
 
@@ -64,8 +59,6 @@ private:
 
 	float viewport_aspect_ratio;
 	int viewport_w, viewport_h;
-
-	bool SHIFT_down, A_down, W_down, S_down, D_down;
 
 	float cam_phi, cam_theta, cam_dist;
 public:
