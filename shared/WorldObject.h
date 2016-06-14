@@ -1,8 +1,7 @@
 /*=====================================================================
-Avatar.h
+WorldObject.h
 -------------------
 Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-12 12:24:54 +1300
 =====================================================================*/
 #pragma once
 
@@ -13,28 +12,28 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "vec3.h"
 #include <string>
 struct GLObject;
+class PhysicsObject;
 
 
-const uint32 AvatarCreated			= 1000;
-const uint32 AvatarDestroyed		= 1001;
-const uint32 AvatarTransformUpdate	= 1002;
-
-const uint32 ChatMessageID = 2000;//TEMP HACK move elsewhere
+//TEMP HACK move elsewhere
+const uint32 ObjectCreated			= 3000;
+const uint32 ObjectDestroyed		= 3001;
+const uint32 ObjectTransformUpdate	= 3002;
 
 
 /*=====================================================================
-Avatar
+Object
 -------------------
 
 =====================================================================*/
-class Avatar : public ThreadSafeRefCounted
+class WorldObject : public ThreadSafeRefCounted
 {
 public:
-	Avatar();
-	~Avatar();
+	WorldObject();
+	~WorldObject();
 
 	UID uid;
-	std::string name;
+	//std::string name;
 	std::string model_url;
 	Vec3d pos;
 	Vec3f axis;
@@ -52,10 +51,11 @@ public:
 	bool dirty;
 
 
-	GLObject* opengl_engine_ob;
+	Reference<GLObject> opengl_engine_ob;
+	Reference<PhysicsObject> physics_object;
 private:
 
 };
 
 
-typedef Reference<Avatar> AvatarRef;
+typedef Reference<WorldObject> WorldObjectRef;

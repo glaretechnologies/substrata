@@ -51,7 +51,9 @@ protected:
 	virtual void keyPressEvent(QKeyEvent* e);
 	virtual void keyReleaseEvent(QKeyEvent* e);
 	virtual void mousePressEvent(QMouseEvent* e);
+	virtual void mouseReleaseEvent(QMouseEvent* e);
 	virtual void mouseMoveEvent(QMouseEvent* e);
+	virtual void wheelEvent(QWheelEvent* e);
 	
 	void showEvent(QShowEvent* e);
 
@@ -60,24 +62,28 @@ protected:
 signals:;
 	void cameraUpdated();
 	void widgetShowSignal();
+	void mouseClicked(QMouseEvent* e);
+	void mouseMoved(QMouseEvent* e);
+	void keyPressed(QKeyEvent* e);
+	void mouseWheelSignal(QWheelEvent* e);
 
 private:
 	GLRenderDataMap mesh_render_data; // mesh node SceneNodeUID to tri and quad data
 	//GLMaterialMap material_data; // material node SceneNodeUID to OpenGLMaterial.
 	//std::map<std::string, OpenGLMaterial> opengl_resized_textures;
 
-	QPoint mouse_prev_pos;
 	QPoint mouse_move_origin;
+	QPoint last_mouse_press_pos;
 	CameraController* cam_controller;
 	PlayerPhysics* player_physics;
 
 	std::string indigo_base_dir;
 
-	float viewport_aspect_ratio;
 	int viewport_w, viewport_h;
 
 	bool SHIFT_down, A_down, W_down, S_down, D_down;
 public:
+	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;
 };

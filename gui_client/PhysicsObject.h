@@ -29,7 +29,7 @@ public:
 	~PhysicsObject();
 
 
-	float traceRay(const Ray& ray, float max_t, double time, ThreadContext& thread_context, HitInfo& hitinfo_out) const;
+	void traceRay(const Ray& ray, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
 	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, const js::AABBox& spherepath_aabb_ws, RayTraceResult& results_out) const;
 
@@ -42,6 +42,11 @@ public:
 	js::AABBox aabb_ws;
 
 	Reference<RayMesh> geometry;
+
+	void* userdata;
 private:
 	
 };
+
+
+typedef Reference<PhysicsObject> PhysicsObjectRef;

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>580</width>
-    <height>284</height>
+    <width>1090</width>
+    <height>639</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -25,7 +25,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>580</width>
+     <width>1090</width>
      <height>21</height>
     </rect>
    </property>
@@ -42,10 +42,69 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionAvatarSettings"/>
+   <addaction name="actionAddObject"/>
+  </widget>
+  <widget class="QDockWidget" name="chatDockWidget">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="windowTitle">
+    <string>Chat</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents">
+    <layout class="QVBoxLayout" name="verticalLayout_3">
+     <item>
+      <widget class="QWidget" name="chatWidget" native="true">
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QTextEdit" name="chatMessagesTextEdit">
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="widget" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <item>
+            <widget class="QLineEdit" name="chatMessageLineEdit"/>
+           </item>
+           <item>
+            <widget class="QPushButton" name="chatPushButton">
+             <property name="text">
+              <string>Chat</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </widget>
   </widget>
   <action name="actionAvatarSettings">
    <property name="text">
-    <string>AvatarSettings</string>
+    <string>Avatar Settings</string>
+   </property>
+  </action>
+  <action name="actionAddObject">
+   <property name="text">
+    <string>Add Object</string>
    </property>
   </action>
  </widget>

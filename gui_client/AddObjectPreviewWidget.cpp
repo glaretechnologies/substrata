@@ -1,4 +1,4 @@
-#include "AvatarPreviewWidget.h"
+#include "AddObjectPreviewWidget.h"
 
 
 #include "PlayerPhysics.h"
@@ -42,15 +42,13 @@ static QGLFormat makeFormat()
 }
 
 
-AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
+AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget *parent)
 :	QGLWidget(makeFormat(), parent)
 {
 	viewport_aspect_ratio = 1;
 
 	OpenGLEngineSettings settings;
 	settings.shadow_mapping = true;
-	settings.shadow_map_scene_half_width = 4.f;
-	settings.shadow_map_scene_half_depth = 4.f;
 	opengl_engine = new OpenGLEngine(settings);
 
 	viewport_w = viewport_h = 100;
@@ -60,7 +58,7 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 }
 
 
-AvatarPreviewWidget::~AvatarPreviewWidget()
+AddObjectPreviewWidget::~AddObjectPreviewWidget()
 {
 	// Make context current as we destroy the opengl enegine.
 	this->makeCurrent();
@@ -68,7 +66,7 @@ AvatarPreviewWidget::~AvatarPreviewWidget()
 }
 
 
-void AvatarPreviewWidget::resizeGL(int width_, int height_)
+void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 {
 	viewport_w = width_;
 	viewport_h = height_;
@@ -79,7 +77,7 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 }
 
 
-void AvatarPreviewWidget::initializeGL()
+void AddObjectPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
 		//"n:/indigo/trunk/opengl/shaders" // shader dir
@@ -87,7 +85,7 @@ void AvatarPreviewWidget::initializeGL()
 	);
 	if(!opengl_engine->initSucceeded())
 	{
-		conPrint("AvatarPreviewWidget opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
+		conPrint("AddObjectPreviewWidget opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
 	}
 
 
@@ -105,6 +103,25 @@ void AvatarPreviewWidget::initializeGL()
 
 		opengl_engine->setEnvMat(env_mat);
 	}
+
+
+	// Make axis arrows
+	{
+		GLObjectRef arrow = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
+		opengl_engine->addObject(arrow);
+	}
+	{
+		GLObjectRef arrow = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0,1,0,1), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
+		opengl_engine->addObject(arrow);
+	}
+	{
+		GLObjectRef arrow = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0,0,1,1), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
+		opengl_engine->addObject(arrow);
+	}
+
+
+	target_marker_ob = opengl_engine->makeAABBObject(cam_target_pos + Vec4f(0,0,0,0), cam_target_pos + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f));
+	opengl_engine->addObject(target_marker_ob);
 
 
 	/*
@@ -142,7 +159,7 @@ void AvatarPreviewWidget::initializeGL()
 }
 
 
-void AvatarPreviewWidget::paintGL()
+void AddObjectPreviewWidget::paintGL()
 {
 	const Matrix4f T = Matrix4f::translationMatrix(0.f, cam_dist, 0.f);
 	const Matrix4f z_rot = Matrix4f::rotationMatrix(Vec4f(0,0,1,0), cam_phi);
@@ -161,7 +178,7 @@ void AvatarPreviewWidget::paintGL()
 }
 
 
-void AvatarPreviewWidget::addObject(const Reference<GLObject>& object)
+void AddObjectPreviewWidget::addObject(const Reference<GLObject>& object)
 {
 	this->makeCurrent();
 
@@ -173,7 +190,7 @@ void AvatarPreviewWidget::addObject(const Reference<GLObject>& object)
 }
 
 
-void AvatarPreviewWidget::addOverlayObject(const Reference<OverlayObject>& object)
+void AddObjectPreviewWidget::addOverlayObject(const Reference<OverlayObject>& object)
 {
 	this->makeCurrent();
 
@@ -183,7 +200,7 @@ void AvatarPreviewWidget::addOverlayObject(const Reference<OverlayObject>& objec
 }
 
 
-void AvatarPreviewWidget::setEnvMat(OpenGLMaterial& mat)
+void AddObjectPreviewWidget::setEnvMat(OpenGLMaterial& mat)
 {
 	this->makeCurrent();
 
@@ -192,7 +209,7 @@ void AvatarPreviewWidget::setEnvMat(OpenGLMaterial& mat)
 }
 
 
-void AvatarPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
+void AddObjectPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 {
 	try
 	{
@@ -239,29 +256,29 @@ void AvatarPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 }
 
 
-void AvatarPreviewWidget::keyPressEvent(QKeyEvent* e)
+void AddObjectPreviewWidget::keyPressEvent(QKeyEvent* e)
 {
 }
 
 
-void AvatarPreviewWidget::keyReleaseEvent(QKeyEvent* e)
+void AddObjectPreviewWidget::keyReleaseEvent(QKeyEvent* e)
 {
 }
 
 
-void AvatarPreviewWidget::mousePressEvent(QMouseEvent* e)
+void AddObjectPreviewWidget::mousePressEvent(QMouseEvent* e)
 {
 	mouse_move_origin = QCursor::pos();
 }
 
 
-void AvatarPreviewWidget::showEvent(QShowEvent* e)
+void AddObjectPreviewWidget::showEvent(QShowEvent* e)
 {
 	emit widgetShowSignal();
 }
 
 
-void AvatarPreviewWidget::mouseMoveEvent(QMouseEvent* e)
+void AddObjectPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 {
 	Qt::MouseButtons mb = e->buttons();
 
@@ -276,6 +293,9 @@ void AvatarPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 		cam_theta = myClamp<float>(cam_theta - (float)delta.y() * move_scale, 0.01f, Maths::pi<float>() - 0.01f);
 	}
 
+	printVar(cam_phi);
+	printVar(cam_theta);
+
 	if((mb & Qt::MiddleButton) || (mb & Qt::RightButton))
 	{
 		const float move_scale = 0.005f;
@@ -283,8 +303,18 @@ void AvatarPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 		const Vec4f forwards = GeometrySampling::dirForSphericalCoords(-cam_phi + Maths::pi_2<float>(), Maths::pi<float>() - cam_theta);
 		const Vec4f right = normalise(crossProduct(forwards, Vec4f(0,0,1,0)));
 		const Vec4f up = crossProduct(right, forwards);
+		//const Vec4f right(1,0,0,0);
+		//const Vec4f up(0,0,1,0);
 
 		cam_target_pos += right * -(float)delta.x() * move_scale + up * (float)delta.y() * move_scale;
+		
+		conPrint("forwards: " + forwards.toStringNSigFigs(3));
+		conPrint("right: " + right.toStringNSigFigs(3));
+		conPrint("up: " + up.toStringNSigFigs(3));
+		conPrint("cam_target_pos: " + cam_target_pos.toStringNSigFigs(3));
+
+		target_marker_ob->ob_to_world_matrix.setColumn(3, cam_target_pos);
+		opengl_engine->updateObjectTransformData(*target_marker_ob);
 	}
 
 	//if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
@@ -294,7 +324,7 @@ void AvatarPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 }
 
 
-void AvatarPreviewWidget::wheelEvent(QWheelEvent* ev)
+void AddObjectPreviewWidget::wheelEvent(QWheelEvent* ev)
 {
 	// Make change proportional to distance value.
 	// Mouse wheel scroll up reduces distance.

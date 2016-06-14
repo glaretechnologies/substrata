@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>AvatarSettingsDialog</class>
- <widget class="QDialog" name="AvatarSettingsDialog">
+ <class>AddObjectDialog</class>
+ <widget class="QDialog" name="AddObjectDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -11,31 +11,9 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Avatar Settings</string>
+   <string>Add Object</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QWidget" name="widget" native="true">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <layout class="QHBoxLayout" name="horizontalLayout">
-      <item>
-       <widget class="QLabel" name="label">
-        <property name="text">
-         <string>User name:</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="usernameLineEdit"/>
-      </item>
-     </layout>
-    </widget>
-   </item>
    <item>
     <widget class="FileSelectWidget" name="avatarSelectWidget" native="true">
      <property name="maximumSize">
@@ -50,7 +28,7 @@
     <widget class="QWidget" name="centralWidget" native="true">
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
-       <widget class="AvatarPreviewWidget" name="avatarPreviewGLWidget" native="true"/>
+       <widget class="AddObjectPreviewWidget" name="avatarPreviewGLWidget" native="true"/>
       </item>
      </layout>
     </widget>
@@ -75,9 +53,9 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>AvatarPreviewWidget</class>
+   <class>AddObjectPreviewWidget</class>
    <extends>QWidget</extends>
-   <header>AvatarPreviewWidget.h</header>
+   <header>AddObjectPreviewWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
@@ -86,7 +64,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>accepted()</signal>
-   <receiver>AvatarSettingsDialog</receiver>
+   <receiver>AddObjectDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -102,7 +80,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>rejected()</signal>
-   <receiver>AvatarSettingsDialog</receiver>
+   <receiver>AddObjectDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">

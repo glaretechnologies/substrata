@@ -18,13 +18,13 @@ class TextureServer;
 class EnvEmitter;
 
 
-class AvatarPreviewWidget : public QGLWidget
+class AddObjectPreviewWidget : public QGLWidget
 {
 	Q_OBJECT        // must include this if you use Qt signals/slots
 
 public:
-	AvatarPreviewWidget(QWidget *parent = 0);
-	~AvatarPreviewWidget();
+	AddObjectPreviewWidget(QWidget *parent = 0);
+	~AddObjectPreviewWidget();
 
 	void addObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
@@ -65,4 +65,6 @@ private:
 public:
 	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;
+
+	Reference<GLObject> target_marker_ob; // For debugging camera
 };

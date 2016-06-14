@@ -190,26 +190,28 @@ stack_pop:
         const size_t num = size_t(cur) & 0x1F;
         for (size_t i=ofs; i<ofs+num; i++)
 		{
-			const PhysicsObject* ob = leaf_objects[i];
+	//		const PhysicsObject* ob = leaf_objects[i];
 
-			const Real dist = ob->traceRay(
-				ray,
-				closest_dist,
-				time,
-				thread_context,
-				ob_hit_info
-			);
+			// TODO: Fix
+			assert(0);
+			//const Real dist = ob->traceRay(
+			//	ray,
+			//	closest_dist,
+			//	//time,
+			//	thread_context,
+			//	ob_hit_info
+			//);
 
-			if(dist >= 0 && dist < closest_dist)
-			{
-				closest_dist = dist;
-				hitob_out = ob;
-				hitinfo_out = ob_hit_info;
+			//if(dist >= 0 && dist < closest_dist)
+			//{
+			//	closest_dist = dist;
+			//	hitob_out = ob;
+			//	hitinfo_out = ob_hit_info;
 
-				// Update far to min(dist, far)
-				const Vec4f new_neg_far = Vec4f(_mm_max_ps(Vec4f(-dist).v, near_far.v)); // (., ., -min(far, dist), -min(far, dist))
-				near_far = _mm_shuffle_ps(near_far.v, new_neg_far.v, _MM_SHUFFLE(3, 2, 1, 0)); // (near, near, -far, -far)
-			}
+			//	// Update far to min(dist, far)
+			//	const Vec4f new_neg_far = Vec4f(_mm_max_ps(Vec4f(-dist).v, near_far.v)); // (., ., -min(far, dist), -min(far, dist))
+			//	near_far = _mm_shuffle_ps(near_far.v, new_neg_far.v, _MM_SHUFFLE(3, 2, 1, 0)); // (near, near, -far, -far)
+			//}
 		}
 	}
 
@@ -345,5 +347,5 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 	objects.clearAndFreeMem();
 
 	//conPrint("BVHObjectTree::build done  (Elapsed: " + timer.elapsedStringNPlaces(4) + ")");
-	print_output.print("PhysicsObjectBVH build done. (Time Taken: " + timer.elapsedStringNPlaces(3) + ")");
+	//print_output.print("PhysicsObjectBVH build done. (Time Taken: " + timer.elapsedStringNPlaces(3) + ")");
 }

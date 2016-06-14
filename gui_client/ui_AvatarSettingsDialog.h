@@ -1,13 +1,13 @@
 /********************************************************************************
-** Form generated from reading UI file 'AvatarSettingsDialogfn6616.ui'
+** Form generated from reading UI file 'AvatarSettingsDialogh11236.ui'
 **
 ** Created by: Qt User Interface Compiler version 5.5.1
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
 ********************************************************************************/
 
-#ifndef AVATARSETTINGSDIALOGFN6616_H
-#define AVATARSETTINGSDIALOGFN6616_H
+#ifndef AVATARSETTINGSDIALOGH11236_H
+#define AVATARSETTINGSDIALOGH11236_H
 
 #include <QtCore/QVariant>
 #include <QtWidgets/QAction>
@@ -15,7 +15,10 @@
 #include <QtWidgets/QButtonGroup>
 #include <QtWidgets/QDialog>
 #include <QtWidgets/QDialogButtonBox>
+#include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QHeaderView>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QWidget>
 #include "../qt/FileSelectWidget.h"
@@ -27,6 +30,10 @@ class Ui_AvatarSettingsDialog
 {
 public:
     QVBoxLayout *verticalLayout;
+    QWidget *widget;
+    QHBoxLayout *horizontalLayout;
+    QLabel *label;
+    QLineEdit *usernameLineEdit;
     FileSelectWidget *avatarSelectWidget;
     QWidget *centralWidget;
     QVBoxLayout *verticalLayout_2;
@@ -40,6 +47,28 @@ public:
         AvatarSettingsDialog->resize(400, 300);
         verticalLayout = new QVBoxLayout(AvatarSettingsDialog);
         verticalLayout->setObjectName(QStringLiteral("verticalLayout"));
+        widget = new QWidget(AvatarSettingsDialog);
+        widget->setObjectName(QStringLiteral("widget"));
+        QSizePolicy sizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+        sizePolicy.setHorizontalStretch(0);
+        sizePolicy.setVerticalStretch(0);
+        sizePolicy.setHeightForWidth(widget->sizePolicy().hasHeightForWidth());
+        widget->setSizePolicy(sizePolicy);
+        horizontalLayout = new QHBoxLayout(widget);
+        horizontalLayout->setObjectName(QStringLiteral("horizontalLayout"));
+        label = new QLabel(widget);
+        label->setObjectName(QStringLiteral("label"));
+
+        horizontalLayout->addWidget(label);
+
+        usernameLineEdit = new QLineEdit(widget);
+        usernameLineEdit->setObjectName(QStringLiteral("usernameLineEdit"));
+
+        horizontalLayout->addWidget(usernameLineEdit);
+
+
+        verticalLayout->addWidget(widget);
+
         avatarSelectWidget = new FileSelectWidget(AvatarSettingsDialog);
         avatarSelectWidget->setObjectName(QStringLiteral("avatarSelectWidget"));
         avatarSelectWidget->setMaximumSize(QSize(16777215, 20));
@@ -76,6 +105,7 @@ public:
     void retranslateUi(QDialog *AvatarSettingsDialog)
     {
         AvatarSettingsDialog->setWindowTitle(QApplication::translate("AvatarSettingsDialog", "Avatar Settings", 0));
+        label->setText(QApplication::translate("AvatarSettingsDialog", "User name:", 0));
     } // retranslateUi
 
 };
@@ -86,4 +116,4 @@ namespace Ui {
 
 QT_END_NAMESPACE
 
-#endif // AVATARSETTINGSDIALOGFN6616_H
+#endif // AVATARSETTINGSDIALOGH11236_H

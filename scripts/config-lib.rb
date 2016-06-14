@@ -15,3 +15,19 @@ $llvm_version = "3.4"
 
 $libressl_version = "2.3.0"
 $openssl_version = "1.0.2a"
+
+# Get Qt path.
+indigo_libs_dir = ENV['INDIGO_LIBS']
+if indigo_libs_dir.nil?
+	puts "INDIGO_LIBS env var not defined."
+	exit(1)
+end
+
+indigo_qt_base_dir = "#{indigo_libs_dir}/Qt"
+
+$indigo_qt_dir = ""
+if OS.unix?
+	$indigo_qt_dir = "#{indigo_qt_base_dir}/#{$qt_version}"
+else
+	$indigo_qt_dir = "#{indigo_qt_base_dir}/#{$qt_version}-vs#{$vs_version}-64"
+end

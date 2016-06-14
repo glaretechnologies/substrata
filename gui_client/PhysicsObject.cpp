@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2016 -
 
 
 PhysicsObject::PhysicsObject()
+:	userdata(NULL)
 {
 }
 
@@ -22,8 +23,10 @@ PhysicsObject::~PhysicsObject()
 }
 
 
-float PhysicsObject::traceRay(const Ray& ray, float max_t, double time, ThreadContext& thread_context, HitInfo& hitinfo_out) const
+void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const
 {
+	results_out.hitdist = -1;
+
 	const Vec4f dir_os = this->world_to_ob.mul3Vector(ray.unitDirF());
 	const Vec4f pos_os = this->world_to_ob * ray.startPosF();
 
@@ -33,12 +36,22 @@ float PhysicsObject::traceRay(const Ray& ray, float max_t, double time, ThreadCo
 		ray.minT() // min_t - Use the world space ray min_t.
 	);
 
-	return (float)geometry->traceRay(
+	HitInfo hitinfo;
+	const float dist = (float)geometry->traceRay(
 		localray,
 		max_t,
 		thread_context,
-		hitinfo_out
+		hitinfo
 	);
+
+	if(dist > 0)
+	{
+		results_out.hit_object = this;
+		results_out.coords = hitinfo.sub_elem_coords;
+		results_out.hit_tri_index = hitinfo.sub_elem_index;
+		results_out.hitdist = dist;
+		results_out.hit_normal_ws = geometry->getGeometricNormal(hitinfo);
+	}
 }
 
 

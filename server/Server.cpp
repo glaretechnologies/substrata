@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 		}
 		//-----------------------------------------------------------------------------------------
 
-		const int listen_port = 1234;
+		const int listen_port = 7654;
 		conPrint("listen port: " + toString(listen_port));
 
 		Server server;

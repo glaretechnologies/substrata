@@ -13,7 +13,14 @@ function(getConfigOption config_name result)
 	# Execute config.rb.
 	execute_process(COMMAND "ruby" "${CMAKE_SOURCE_DIR}/scripts/config.rb" "${config_name}"
 		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/scripts"
-		OUTPUT_VARIABLE TEMP)
+		OUTPUT_VARIABLE TEMP
+		ERROR_VARIABLE error_var
+		RESULT_VARIABLE result_var
+		)
+		
+	if(NOT result_var STREQUAL "0")
+		MESSAGE(FATAL_ERROR "ERROR: config.rb returned ${result_var}:  ${TEMP}, ${error_var}.")
+	endif()
 	
 	# Remove newlines.
 	string(REPLACE "\n" "" TEMP ${TEMP})
@@ -37,4 +44,13 @@ function(checkAndGetEnvVar envvar result)
 	else()
 		MESSAGE(FATAL_ERROR "ERROR: Environment variable ${envvar} not defined.")
 	endif()
+endfunction()
+
+# Function for adding a rebuild-mocfile command/depenedency
+function(addMocFileRule dir header_name)
+	add_custom_command(
+		OUTPUT ${CMAKE_SOURCE_DIR}/${dir}/moc_${header_name}.cpp
+		COMMAND ${INDIGO_QT_DIR}/bin/moc ${CMAKE_SOURCE_DIR}/${dir}/${header_name}.h > ${CMAKE_SOURCE_DIR}/${dir}/moc_${header_name}.cpp
+		DEPENDS ${CMAKE_SOURCE_DIR}/${dir}/${header_name}.h
+	)
 endfunction()

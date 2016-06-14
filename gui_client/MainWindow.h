@@ -2,6 +2,7 @@
 
 
 #include "PhysicsWorld.h"
+#include "../shared/WorldObject.h"
 #include "../utils/CameraController.h"
 #include "PlayerPhysics.h"
 #include "ClientThread.h"
@@ -35,7 +36,16 @@ public slots:;
 	void timerEvent();
 private slots:;
 	void on_actionAvatarSettings_triggered();
+	void on_actionAddObject_triggered();
+
+	void sendChatMessageSlot();
+
+	void glWidgetMouseClicked(QMouseEvent* e);
+	void glWidgetMouseMoved(QMouseEvent* e);
+	void glWidgetKeyPressed(QKeyEvent* e);
+	void glWidgetMouseWheelEvent(QWheelEvent* e);
 private:
+	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 
 	std::string base_dir_path;
 	std::string appdata_path;
@@ -65,4 +75,11 @@ public:
 	TextureServer* texture_server;
 
 	QSettings* settings;
+
+	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue; // for messages from ClientThread etc..
+
+	WorldObjectRef selected_ob;
+	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
+	Vec4f selection_point_ws; // Point on selected object where selection ray hit, in world space.
+	Vec4f selected_ob_pos_upon_selection;
 };

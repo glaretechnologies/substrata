@@ -10,11 +10,14 @@
 #endif
 #include "MainWindow.h"
 #include "AvatarSettingsDialog.h"
+#include "AddObjectDialog.h"
+#include "ModelLoading.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QTimer>
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtWidgets/QApplication>
+#include <QtGui/QMouseEvent>
 #include <QtGui/QClipboard>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QGraphicsTextItem>
@@ -42,6 +45,7 @@
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../indigo/TextureServer.h"
+#include "../indigo/ThreadContext.h"
 #include <clocale>
 #include "../indigo/StandardPrintOutput.h"
 
@@ -61,6 +65,9 @@
 #endif
 
 
+static int64 next_uid = 10000;//TEMP HACK
+
+
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
 :	base_dir_path(base_dir_path_),
 	appdata_path(appdata_path_),
@@ -74,6 +81,13 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
 	this->restoreState(settings->value("mainwindow/windowState").toByteArray());
+
+	connect(this->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
+	connect(this->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
+	connect(this->glWidget, SIGNAL(mouseClicked(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
+	connect(this->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
+	connect(this->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
+	connect(this->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 }
 
 
@@ -103,7 +117,8 @@ static Reference<GLObject> loadAvatarModel(const std::string& model_url)
 	// TEMP HACK: Just load a teapot for now :)
 
 	Indigo::MeshRef mesh = new Indigo::Mesh();
-	FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f);
+	MLTLibMaterials mats;
+	FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, true, mats);
 
 	GLObjectRef ob = new GLObject();
 	ob->materials.resize(1);
@@ -119,6 +134,23 @@ void MainWindow::timerEvent()
 {
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+
+	// Handle any messages (chat messages etc..)
+	{
+		Lock lock(this->msg_queue.getMutex());
+		while(!msg_queue.unlockedEmpty())
+		{
+			Reference<ThreadMessage> msg;
+			this->msg_queue.unlockedDequeue(msg);
+
+			if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
+			{
+				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
+				this->chatMessagesTextEdit->append(QtUtils::toQString(m->name + ": " + m->msg));
+			}
+		}
+	}
+
 
 	// Update spinning globe
 	if(globe.nonNull())
@@ -208,6 +240,34 @@ void MainWindow::timerEvent()
 	}
 
 
+	// Move selected object if there is one
+	if(this->selected_ob.nonNull())
+	{
+		// Get direction for current mouse cursor position
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+		const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+		const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+
+		// Convert selection vector to world space
+		const Vec4f selection_vec_ws(right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2]);
+
+		const Vec4f new_sel_point_ws = origin + selection_vec_ws;
+		
+		const Vec4f new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
+
+		// Set world object pos
+		this->selected_ob->pos = toVec3d(new_ob_pos);
+
+		// Set graphics object pos and update in opengl engine.
+		GLObjectRef opengl_ob(this->selected_ob->opengl_engine_ob);
+		opengl_ob->ob_to_world_matrix.setColumn(3, new_ob_pos);
+		this->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+		// Update physics object
+		this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos);
+		this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+	}
 
 	// Send an AvatarTransformUpdate packet to the server if needed.
 	if(time_since_update_packet_sent.elapsed() > 0.1)
@@ -273,6 +333,283 @@ Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f&
 }
 
 
+void MainWindow::on_actionAddObject_triggered()
+{
+	AddObjectDialog d(this->settings, this->texture_server);
+	if(d.exec() == QDialog::Accepted)
+	{
+		// Try and load model
+		try
+		{
+			this->glWidget->makeCurrent();
+
+			const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 1.0f;
+
+			// Make GL object
+			const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob_pos.x, (float)ob_pos.y, (float)ob_pos.z);
+			Indigo::MeshRef mesh;
+			GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(d.result_path, ob_to_world_matrix, mesh);
+			glWidget->addObject(gl_ob);
+
+			// Make physics object
+			StandardPrintOutput print_output;
+			Indigo::TaskManager task_manager;
+			PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
+			physics_world->addObject(physics_ob);
+
+			// Add world object
+			{
+				Lock lock(world_state->mutex);
+
+				const UID uid(next_uid++);//TEMP
+				WorldObjectRef world_ob = new WorldObject();
+				world_ob->uid = uid;
+				world_ob->angle = 0;
+				world_ob->axis = Vec3f(1,0,0);
+				world_ob->model_url = "teapot.obj";
+				world_ob->opengl_engine_ob = gl_ob.getPointer();
+				world_ob->physics_object = physics_ob.getPointer();
+				world_state->objects[uid] = world_ob;
+
+				physics_ob->userdata = world_ob.getPointer();
+			}
+		}
+		catch(Indigo::IndigoException& e)
+		{
+			// Show error
+			conPrint(toStdString(e.what()));
+			QErrorMessage m;
+			m.showMessage(QtUtils::toQString(e.what()));
+			m.exec();
+		}
+		catch(Indigo::Exception& e)
+		{
+			// Show error
+			conPrint(e.what());
+			QErrorMessage m;
+			m.showMessage(QtUtils::toQString(e.what()));
+			m.exec();
+		}
+	}
+}
+
+
+void MainWindow::sendChatMessageSlot()
+{
+	//conPrint("MainWindow::sendChatMessageSlot()");
+
+	const std::string name = QtUtils::toIndString(settings->value("username").toString());
+	const std::string message = QtUtils::toIndString(this->chatMessageLineEdit->text());
+
+	// Make message packet and enqueue to send
+	SocketBufferOutStream packet;
+	packet.writeUInt32(ChatMessageID);
+	packet.writeStringLengthFirst(name);
+	packet.writeStringLengthFirst(message);
+
+	std::string packet_string(packet.buf.size(), '\0');
+	std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+	this->client_thread->enqueueDataToSend(packet_string);
+
+	this->chatMessageLineEdit->clear();
+}
+
+
+void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
+{
+	//conPrint("MainWindow::glWidgetMouseClicked()");
+
+	// Trace ray through scene
+	ThreadContext thread_context;
+	const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+
+	const float sensor_width = 0.035f;
+	const float sensor_height = sensor_width / glWidget->viewport_aspect_ratio;
+	const float lens_sensor_dist = 0.03f;
+
+	const float s_x = sensor_width *  (float)(e->pos().x() - glWidget->geometry().width() /2) / glWidget->geometry().width(); // dist right on sensor from centre of sensor
+	const float s_y = sensor_height * (float)(e->pos().y() - glWidget->geometry().height()/2) / glWidget->geometry().height(); // dist down on sensor from centre of sensor
+
+	const float r_x = s_x / lens_sensor_dist;
+	const float r_y = s_y / lens_sensor_dist;
+
+	const Vec4f dir = normalise(forwards + right * r_x - up * r_y);
+
+	RayTraceResult results;
+	this->physics_world->traceRay(origin, dir, thread_context, results);
+
+	if(results.hit_object)
+	{
+		this->selection_point_ws = origin + dir*results.hitdist;
+		// Add an object at the hit point
+		//this->glWidget->addObject(glWidget->opengl_engine->makeAABBObject(this->selection_point_ws - Vec4f(0.03f, 0.03f, 0.03f, 0.f), this->selection_point_ws + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f)));
+
+		// Deselect any currently selected object
+		if(this->selected_ob.nonNull())
+		{
+			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
+				selected_ob->opengl_engine_ob->materials[z].selected = false;
+		}
+
+		this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
+		if(this->selected_ob.nonNull())
+		{
+			assert(this->selected_ob->getRefCount() >= 0 && this->selected_ob->getRefCount() < 10);
+			const Vec4f selection_vec_ws = this->selection_point_ws - origin;
+			// Get selection_vec_cs
+			this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);
+
+			//this->selection_point_dist = results.hitdist;
+			this->selected_ob_pos_upon_selection = results.hit_object->ob_to_world.getColumn(3);
+
+			// Mark the materials on the hit object as selected
+			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
+				selected_ob->opengl_engine_ob->materials[z].selected = true;
+		}
+	}
+	else
+	{
+		// Deselect any currently selected object
+		if(this->selected_ob.nonNull())
+		{
+			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
+				selected_ob->opengl_engine_ob->materials[z].selected = false;
+		}
+
+		// deslect object
+		this->selected_ob = NULL;
+	}
+}
+
+
+void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
+{
+//	Qt::MouseButtons mb = e->buttons();
+//
+//	if(this->selected_ob.nonNull() && (mb & Qt::LeftButton))
+//	{
+//		// Move selected object 
+//
+//		// Get direction for current mouse cursor position
+//		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+//		const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+//		const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+//		const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+//
+//		const float sensor_width = 0.035f;
+//		const float sensor_height = sensor_width / glWidget->viewport_aspect_ratio;
+//		const float lens_sensor_dist = 0.03f;
+//
+//		const float s_x = sensor_width *  (float)(e->pos().x() - glWidget->geometry().width() /2) / glWidget->geometry().width(); // dist right on sensor from centre of sensor
+//		const float s_y = sensor_height * (float)(e->pos().y() - glWidget->geometry().height()/2) / glWidget->geometry().height(); // dist down on sensor from centre of sensor
+//
+//		const float r_x = s_x / lens_sensor_dist;
+//		const float r_y = s_y / lens_sensor_dist;
+//
+//		const Vec4f dir = normalise(forwards + right * r_x - up * r_y);
+//
+//		// Convert selection vector to world space
+//		const Vec4f selection_vec_ws(right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2]);
+//
+//		const Vec4f new_sel_point_ws = origin + selection_vec_ws;
+//		//const Vec4f new_sel_point_ws = origin + dir*this->selection_point_dist;
+//
+//		
+//		const Vec4f new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
+//
+//		// Set world object pos
+//		this->selected_ob->pos = toVec3d(new_ob_pos);
+//
+//		// Set graphics object pos and update in opengl engine.
+//		GLObjectRef opengl_ob(this->selected_ob->opengl_engine_ob);
+//		opengl_ob->ob_to_world_matrix.setColumn(3, new_ob_pos);
+//		this->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+//	}
+}
+
+
+void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
+{
+	// Rotate object clockwise around z axis
+	const Matrix3f rot_matrix = Matrix3f::rotationMatrix(ob->axis, selected_ob->angle);
+	const Matrix3f new_rot = Matrix3f::rotationMatrix(toVec3f(axis), angle) * rot_matrix;
+	new_rot.rotationMatrixToAxisAngle(ob->axis, this->selected_ob->angle);
+
+	const Matrix4f new_ob_to_world = Matrix4f::translationMatrix(ob->pos.toVec4fPoint()) * Matrix4f::rotationMatrix(ob->axis.toVec4fVector(), ob->angle);
+
+	// Update in opengl engine.
+	GLObjectRef opengl_ob(ob->opengl_engine_ob);
+	opengl_ob->ob_to_world_matrix = new_ob_to_world;
+	this->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+	// Update physics object
+	ob->physics_object->ob_to_world = new_ob_to_world;
+	this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+}
+
+
+void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
+{
+	if(e->key() == Qt::Key::Key_Escape)
+	{
+		if(this->selected_ob.nonNull())
+		{
+			// Mark the materials on the hit object as unselected
+			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
+				selected_ob->opengl_engine_ob->materials[z].selected = false;
+
+			// Deselect object
+			this->selected_ob = NULL;
+		}
+	}
+	
+	if(this->selected_ob.nonNull())
+	{
+		const float angle_step = Maths::pi<float>() / 32;
+		if(e->key() == Qt::Key::Key_Left)
+		{
+			// Rotate object clockwise around z axis
+			rotateObject(this->selected_ob, Vec4f(0,0,1,0), -angle_step);
+		}
+		else if(e->key() == Qt::Key::Key_Right)
+		{
+			rotateObject(this->selected_ob, Vec4f(0,0,1,0), angle_step);
+		}
+		else if(e->key() == Qt::Key::Key_Up)
+		{
+			// Rotate object clockwise around camera right-vector
+			rotateObject(this->selected_ob, this->cam_controller.getRightVec().toVec4fVector(), -angle_step);
+		}
+		else if(e->key() == Qt::Key::Key_Down)
+		{
+			// Rotate object counter-clockwise around camera right-vector
+			rotateObject(this->selected_ob, this->cam_controller.getRightVec().toVec4fVector(), angle_step);
+		}
+		else if(e->key() == Qt::Key::Key_Equal || e->key() == Qt::Key::Key_Plus)
+		{
+			this->selection_vec_cs[1] *= 1.05f;
+		}
+		else if(e->key() == Qt::Key::Key_Minus)
+		{
+			this->selection_vec_cs[1] *= (1/1.05f);
+		}
+	}
+}
+
+
+void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
+{
+	if(this->selected_ob.nonNull())
+	{
+		this->selection_vec_cs[1] *= (1.0f + e->delta() * 0.0005f);
+	}
+}
+
+
 int main(int argc, char *argv[])
 {
 	GuiClientApplication app(argc, argv);
@@ -316,7 +653,7 @@ int main(int argc, char *argv[])
 	//TEMP:
 	//ReferenceTest::run();
 	//Matrix4f::test();
-	CameraController::test();
+	//CameraController::test();
 
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;
@@ -341,7 +678,7 @@ int main(int argc, char *argv[])
 
 		mw.world_state = new WorldState();
 
-		mw.client_thread = new ClientThread();
+		mw.client_thread = new ClientThread(&mw.msg_queue);
 		mw.client_thread->world_state = mw.world_state;
 		mw.client_thread->launch();
 
@@ -391,7 +728,7 @@ int main(int argc, char *argv[])
 		}
 
 		// TEMP: make capsule
-		{
+		/*{
 			GLObjectRef ob = new GLObject();
 
 			ob->ob_to_world_matrix.setToTranslationMatrix(0.0, 2.0, 1.0f);
@@ -405,7 +742,7 @@ int main(int argc, char *argv[])
 			ob->materials[0].albedo_rgb = Colour3f(0.5f, 0.5f, 0.2f);
 			
 			mw.glWidget->opengl_engine->addObject(ob);
-		}
+		}*/
 
 		//TEMP: make an AABB
 		/*{
@@ -622,24 +959,45 @@ int main(int argc, char *argv[])
 		
 			{
 				Indigo::MeshRef mesh = new Indigo::Mesh();
-				FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f);
+				MLTLibMaterials mats;
+				FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, false, mats);
 
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
+				// Create graphics object
+				GLObjectRef gl_ob = new GLObject();
+				gl_ob->materials.resize(1);
+				gl_ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
+				gl_ob->materials[0].fresnel_scale = 1;
 
-				ob->ob_to_world_matrix.setToTranslationMatrix(-3.0,1,0.5f);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
+				gl_ob->ob_to_world_matrix.setToTranslationMatrix(-3.0,1,0.5f);
+				gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
 
-				mw.glWidget->addObject(ob);
+				mw.glWidget->addObject(gl_ob);
 
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+				// Create physics object
+				PhysicsObjectRef physics_ob = makePhysicsObject(mesh, gl_ob->ob_to_world_matrix, print_output, task_manager);
+				mw.physics_world->addObject(physics_ob);
+
+				// Add world object
+				{
+					Lock lock(mw.world_state->mutex);
+					const UID uid(5000);
+					WorldObjectRef world_ob = new WorldObject();
+					world_ob->uid = uid;
+					world_ob->angle = 0;
+					world_ob->axis = Vec3f(1,0,0);
+					world_ob->model_url = "teapot.obj";
+					world_ob->opengl_engine_ob = gl_ob.getPointer();
+					world_ob->physics_object = physics_ob.getPointer();
+					mw.world_state->objects[uid] = world_ob;
+
+					physics_ob->userdata = world_ob.getPointer();
+				}
 			}
 
-			{
+		/*	{
 				Indigo::MeshRef mesh = new Indigo::Mesh();
-				FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f);
+				MLTLibMaterials mats;
+				FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, false, mats);
 
 				GLObjectRef ob = new GLObject();
 				ob->materials.resize(1);
@@ -654,7 +1012,7 @@ int main(int argc, char *argv[])
 				mw.glWidget->addObject(ob);
 
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}
+			}*/
 
 			// Transparent teapot
 			/*{
