@@ -108,8 +108,6 @@ ${INDIGO_UTILS_DIR}/BufferOutStream.cpp
 ${INDIGO_UTILS_DIR}/BufferOutStream.h
 ${INDIGO_UTILS_DIR}/CameraController.cpp
 ${INDIGO_UTILS_DIR}/CameraController.h
-${INDIGO_UTILS_DIR}/CheckDLLSignature.cpp
-${INDIGO_UTILS_DIR}/CheckDLLSignature.h
 ${INDIGO_UTILS_DIR}/Checksum.cpp
 ${INDIGO_UTILS_DIR}/Checksum.h
 ${INDIGO_UTILS_DIR}/CircularBuffer.cpp
@@ -197,8 +195,6 @@ ${INDIGO_UTILS_DIR}/ParkMillerCartaRNG.cpp
 ${INDIGO_UTILS_DIR}/ParkMillerCartaRNG.h
 ${INDIGO_UTILS_DIR}/Parser.cpp
 ${INDIGO_UTILS_DIR}/Parser.h
-${INDIGO_UTILS_DIR}/ParseUtils.cpp
-${INDIGO_UTILS_DIR}/ParseUtils.h
 ${INDIGO_UTILS_DIR}/PauseThreadMessage.cpp
 ${INDIGO_UTILS_DIR}/PauseThreadMessage.h
 ${INDIGO_UTILS_DIR}/Platform.h
@@ -273,8 +269,6 @@ ${INDIGO_UTILS_DIR}/Vector.h
 ${INDIGO_UTILS_DIR}/VectorUnitTests.cpp
 ${INDIGO_UTILS_DIR}/VectorUnitTests.h
 ${INDIGO_UTILS_DIR}/VRef.h
-${INDIGO_UTILS_DIR}/X509Certificate.cpp
-${INDIGO_UTILS_DIR}/X509Certificate.h
 )
 
 

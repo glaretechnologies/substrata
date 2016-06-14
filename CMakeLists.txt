@@ -175,6 +175,7 @@ set(fftssdir	"${INDIGO_LIBS_ENV}/fftss-3.0-20071031/fftss-3.0")
 
 # Config
 getConfigOption("--qtversion" INDIGO_QT_VERSION)
+getConfigOption("--qtdir" INDIGO_QT_DIR)
 getConfigOption("--llvmversion" INDIGO_LLVM_VERSION)
 getConfigOption("--libresslversion" INDIGO_LIBRESSL_VERSION)
 getConfigOption("--opensslversion" INDIGO_OPENSSL_VERSION)
@@ -182,6 +183,7 @@ MESSAGE("QT version: ${INDIGO_QT_VERSION}")
 MESSAGE("LLVM version: ${INDIGO_LLVM_VERSION}")
 MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
 MESSAGE("OpenSSL version: ${INDIGO_OPENSSL_VERSION}")
+MESSAGE("QT dir: ${INDIGO_QT_DIR}")
 
 # The llvm dirs use the version seperator "_" instead of "."
 string(REPLACE "." "_" INDIGO_LLVM_VERSION_PATH ${INDIGO_LLVM_VERSION})

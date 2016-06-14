@@ -19,7 +19,7 @@ PhysicsWorld::~PhysicsWorld()
 }
 
 
-static void updateObjectTransformData(PhysicsObject& object)
+void PhysicsWorld::updateObjectTransformData(PhysicsObject& object)
 {
 	const Vec4f min_os = object.geometry->getAABBox().min_;
 	const Vec4f max_os = object.geometry->getAABBox().max_;
@@ -58,6 +58,28 @@ void PhysicsWorld::build(Indigo::TaskManager& task_manager, PrintOutput& print_o
 	object_bvh.build(task_manager, print_output, 
 		false // verbose
 	);
+}
+
+
+void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const
+{
+	results_out.hit_object = NULL;
+
+	float closest_dist = std::numeric_limits<float>::infinity();
+
+	const Ray ray(origin, dir, 0.f);
+
+	for(size_t i=0; i<objects.size(); ++i)
+	{
+		RayTraceResult ob_results;
+		objects[i]->traceRay(ray, 1.0e30f, thread_context, ob_results);
+		if(ob_results.hit_object && ob_results.hitdist >= 0 && ob_results.hitdist < closest_dist)
+		{
+			results_out = ob_results;
+			results_out.hit_object = objects[i].getPointer();
+			closest_dist = ob_results.hitdist;
+		}
+	}
 }
 
 

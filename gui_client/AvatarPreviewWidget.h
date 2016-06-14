@@ -61,6 +61,7 @@ private:
 	int viewport_w, viewport_h;
 
 	float cam_phi, cam_theta, cam_dist;
+	Vec4f cam_target_pos;
 public:
 	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;

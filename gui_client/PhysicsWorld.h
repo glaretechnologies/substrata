@@ -43,9 +43,12 @@ public:
 	
 	void addObject(const Reference<PhysicsObject>& object);
 
+	void updateObjectTransformData(PhysicsObject& object);
+
 
 	void build(Indigo::TaskManager& task_manager, PrintOutput& print_output);
 
+	void traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
 	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, RayTraceResult& results_out) const;
 

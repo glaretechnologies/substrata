@@ -24,9 +24,6 @@ public:
 	AvatarSettingsDialog(QSettings* settings, TextureServer* texture_server_ptr);
 	~AvatarSettingsDialog();
 
-	// Strings associated with registry keys.
-	static const QString showSplashScreenKey() { return "show_splash_screen"; }
-
 private slots:;
 	void timerEvent();
 	void accepted();

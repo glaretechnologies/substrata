@@ -19,7 +19,8 @@ Generated at 2016-01-16 22:59:23 +1300
 static const bool VERBOSE = false;
 
 
-ClientThread::ClientThread()
+ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
+:	out_msg_queue(out_msg_queue_)
 {
 
 }
@@ -35,10 +36,14 @@ void ClientThread::run()
 {
 	try
 	{
-		const std::string hostname = "localhost";
-		const int port = 1234;
+		const std::string hostname = "217.155.32.43";
+		const int port = 7654;
+
+		conPrint("Connecting to " + hostname + ":" + toString(port) + "...");
 
 		MySocketRef socket = new MySocket(hostname, port);
+
+		conPrint("Connected to " + hostname + ":" + toString(port) + "!");
 
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
@@ -170,6 +175,14 @@ void ClientThread::run()
 								avatar->dirty = true;
 							}
 						}
+						break;
+					}
+				case ChatMessageID:
+					{
+						conPrint("ChatMessage");
+						const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string msg = socket->readStringLengthFirst(); //TODO: enforce max len
+						out_msg_queue->enqueue(new ChatMessage(name, msg));
 						break;
 					}
 				default:

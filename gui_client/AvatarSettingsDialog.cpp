@@ -7,6 +7,7 @@ Code By Nicholas Chapman.
 #include "AvatarSettingsDialog.h"
 
 
+#include "ModelLoading.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../dll/IndigoStringUtils.h"
@@ -29,6 +30,8 @@ AvatarSettingsDialog::AvatarSettingsDialog(QSettings* settings_, TextureServer* 
 
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("AvatarSettingsDialog/geometry").toByteArray());
+
+	this->usernameLineEdit->setText(settings->value("username").toString());
 
 	this->avatarSelectWidget->setType(FileSelectWidget::Type_File);
 	this->avatarSelectWidget->setFilename(settings->value("avatarPath").toString());
@@ -55,6 +58,7 @@ AvatarSettingsDialog::~AvatarSettingsDialog()
 void AvatarSettingsDialog::accepted()
 {
 	this->settings->setValue("avatarPath", this->avatarSelectWidget->filename());
+	this->settings->setValue("username", this->usernameLineEdit->text());
 }
 
 
@@ -72,32 +76,16 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 	// Try and load model
 	try
 	{
-		Indigo::MeshRef mesh = new Indigo::Mesh();
-		if(hasExtension(path, "obj"))
+		if(avatar_gl_ob.nonNull())
 		{
-			FormatDecoderObj::streamModel(path, *mesh, 1.f);
-		}
-		else if(hasExtension(path, "igmesh"))
-		{
-			Indigo::Mesh::readFromFile(toIndigoString(path), *mesh);
+			// Remove previous object from engine.
+			avatarPreviewGLWidget->opengl_engine->removeObject(avatar_gl_ob);
 		}
 
-		if(!mesh->vert_positions.empty())
-		{
-			// Remove existing model from preview engine.
-			if(avatar_gl_ob.nonNull())
-				avatarPreviewGLWidget->opengl_engine->removeObject(avatar_gl_ob);
-
-			avatar_gl_ob = new GLObject();
-			avatar_gl_ob->materials.resize(8);
-			avatar_gl_ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-			avatar_gl_ob->materials[0].fresnel_scale = 1;
-
-			avatar_gl_ob->ob_to_world_matrix.setToTranslationMatrix(0.0, 0.0, 0.0);
-			avatar_gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-
-			avatarPreviewGLWidget->addObject(avatar_gl_ob);
-		}
+		Indigo::MeshRef mesh;
+		avatar_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), mesh);
+		
+		avatarPreviewGLWidget->addObject(avatar_gl_ob);
 	}
 	catch(Indigo::IndigoException& e)
 	{

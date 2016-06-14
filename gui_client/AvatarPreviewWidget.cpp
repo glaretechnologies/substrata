@@ -49,6 +49,8 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 
 	OpenGLEngineSettings settings;
 	settings.shadow_mapping = true;
+	settings.shadow_map_scene_half_width = 4.f;
+	settings.shadow_map_scene_half_depth = 4.f;
 	opengl_engine = new OpenGLEngine(settings);
 
 	viewport_w = viewport_h = 100;
@@ -80,8 +82,8 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 void AvatarPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		"n:/indigo/trunk/opengl/shaders" // shader dir
-		//"./shaders" // shader dir
+		//"n:/indigo/trunk/opengl/shaders" // shader dir
+		"./shaders" // shader dir
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -92,6 +94,7 @@ void AvatarPreviewWidget::initializeGL()
 	cam_phi = 0;
 	cam_theta = 1.3f;
 	cam_dist = 3;
+	cam_target_pos = Vec4f(0,0,1,1);
 
 	// Add env mat
 	{
@@ -141,11 +144,11 @@ void AvatarPreviewWidget::initializeGL()
 
 void AvatarPreviewWidget::paintGL()
 {
-	const Matrix4f T = Matrix4f::translationMatrix(0.f, cam_dist, -1.f);
+	const Matrix4f T = Matrix4f::translationMatrix(0.f, cam_dist, 0.f);
 	const Matrix4f z_rot = Matrix4f::rotationMatrix(Vec4f(0,0,1,0), cam_phi);
 	const Matrix4f x_rot = Matrix4f::rotationMatrix(Vec4f(1,0,0,0), -(cam_theta - Maths::pi_2<float>()));
 	const Matrix4f rot = x_rot * z_rot;
-	const Matrix4f world_to_camera_space_matrix = T * rot;
+	const Matrix4f world_to_camera_space_matrix = T * rot * Matrix4f::translationMatrix(-cam_target_pos);
 
 	const float sensor_width = 0.035f;
 	const float lens_sensor_dist = 0.03f;
@@ -273,8 +276,19 @@ void AvatarPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 		cam_theta = myClamp<float>(cam_theta - (float)delta.y() * move_scale, 0.01f, Maths::pi<float>() - 0.01f);
 	}
 
-	if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
-		emit cameraUpdated();
+	if((mb & Qt::MiddleButton) || (mb & Qt::RightButton))
+	{
+		const float move_scale = 0.005f;
+
+		const Vec4f forwards = GeometrySampling::dirForSphericalCoords(-cam_phi + Maths::pi_2<float>(), Maths::pi<float>() - cam_theta);
+		const Vec4f right = normalise(crossProduct(forwards, Vec4f(0,0,1,0)));
+		const Vec4f up = crossProduct(right, forwards);
+
+		cam_target_pos += right * -(float)delta.x() * move_scale + up * (float)delta.y() * move_scale;
+	}
+
+	//if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
+	//	emit cameraUpdated();
 
 	mouse_move_origin = new_pos;
 }

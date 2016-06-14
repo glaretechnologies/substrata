@@ -13,7 +13,6 @@ Generated at 2016-01-12 12:22:34 +1300
 
 WorldState::WorldState()
 {
-	printVar((uint64)&mutex);
 }
 
 

@@ -197,7 +197,33 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-					default:
+				case ChatMessageID:
+					{
+						conPrint("ChatMessageID");
+						const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string msg = socket->readStringLengthFirst(); //TODO: enforce max len
+
+						// Enqueue chat messages to worker threads to send
+						{
+							// Send AvatarTransformUpdate packet
+							SocketBufferOutStream packet;
+							packet.writeUInt32(ChatMessageID);
+							packet.writeStringLengthFirst(name);
+							packet.writeStringLengthFirst(msg);
+
+							std::string packet_string(packet.buf.size(), '\0');
+							std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+							Lock lock(server->worker_thread_manager.getMutex());
+							for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
+							{
+								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+							}
+						}
+						break;
+					}
+				default:			
 					{
 						conPrint("Unknown message id: " + toString(msg_type));
 					}

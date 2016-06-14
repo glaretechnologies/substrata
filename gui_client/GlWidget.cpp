@@ -101,8 +101,8 @@ void GlWidget::resizeGL(int width_, int height_)
 void GlWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		"n:/indigo/trunk/opengl/shaders" // shader dir
-		//"./shaders" // shader dir
+		//"n:/indigo/trunk/opengl/shaders" // shader dir
+		"./shaders" // shader dir
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -263,6 +263,8 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 			D_down = true;
 		}
 	}
+
+	emit keyPressed(e);
 }
 
 
@@ -307,7 +309,23 @@ void GlWidget::playerPhyicsThink()
 
 void GlWidget::mousePressEvent(QMouseEvent* e)
 {
+	//conPrint("mousePressEvent at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
 	mouse_move_origin = QCursor::pos();
+	last_mouse_press_pos = QCursor::pos();
+}
+
+
+void GlWidget::mouseReleaseEvent(QMouseEvent* e)
+{
+	//conPrint("mouseReleaseEvent at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
+
+	if((QCursor::pos() - last_mouse_press_pos).manhattanLength() < 4)
+	{
+		//conPrint("Click at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
+		//conPrint("Click at " + toString(e->pos().x()) + ", " + toString(e->pos().y()));
+
+		emit mouseClicked(e);
+	}
 }
 
 
@@ -337,5 +355,13 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 			emit cameraUpdated();
 
 		mouse_move_origin = new_pos;
+
+		emit mouseMoved(e);
 	}
+}
+
+
+void GlWidget::wheelEvent(QWheelEvent* e)
+{
+	emit mouseWheelSignal(e);
 }

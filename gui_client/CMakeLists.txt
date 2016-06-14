@@ -7,7 +7,27 @@ include(../cmake/shared_cxx_settings.cmake)
 include(../cmake/winter.cmake)
 
 
+addMocFileRule(gui_client MainWindow)
+addMocFileRule(gui_client GuiClientApplication)
+addMocFileRule(gui_client GlWidget)
+addMocFileRule(gui_client AvatarSettingsDialog)
+addMocFileRule(gui_client AvatarPreviewWidget)
+addMocFileRule(gui_client AddObjectDialog)
+addMocFileRule(gui_client AddObjectPreviewWidget)
+
+addMocFileRule(qt FileSelectWidget)
+
 FILE(GLOB gui_client "./*.cpp" "./*.h" "./*.ui")
+
+SET(gui_client ${gui_client} 
+${CMAKE_SOURCE_DIR}/gui_client/moc_MainWindow.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_GuiClientApplication.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_GlWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
+)
 
 SET(qt 
 ../qt/QtUtils.cpp
@@ -22,6 +42,8 @@ SET(shared_files
 ../shared/Avatar.h
 ../shared/WorldState.cpp
 ../shared/WorldState.h
+../shared/WorldObject.cpp
+../shared/WorldObject.h
 )
 
 SET(client_indigo_files 
