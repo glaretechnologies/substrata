@@ -46,11 +46,22 @@ function(checkAndGetEnvVar envvar result)
 	endif()
 endfunction()
 
-# Function for adding a rebuild-mocfile command/depenedency
+# Function for adding a rebuild-mocfile command/dependency
 function(addMocFileRule dir header_name)
 	add_custom_command(
 		OUTPUT ${CMAKE_SOURCE_DIR}/${dir}/moc_${header_name}.cpp
 		COMMAND ${INDIGO_QT_DIR}/bin/moc ${CMAKE_SOURCE_DIR}/${dir}/${header_name}.h > ${CMAKE_SOURCE_DIR}/${dir}/moc_${header_name}.cpp
 		DEPENDS ${CMAKE_SOURCE_DIR}/${dir}/${header_name}.h
+	)
+endfunction()
+
+
+# Function for adding a rebuild- QT ui header file command/dependency
+function(addUIFileRule dir header_name)
+	MESSAGE("addUIFileRule")
+	add_custom_command(
+		OUTPUT ${CMAKE_SOURCE_DIR}/${dir}/ui_${header_name}.h
+		COMMAND ${INDIGO_QT_DIR}/bin/uic ${CMAKE_SOURCE_DIR}/${dir}/${header_name}.ui --output ${CMAKE_SOURCE_DIR}/${dir}/ui_${header_name}.h
+		DEPENDS ${CMAKE_SOURCE_DIR}/${dir}/${header_name}.ui
 	)
 endfunction()

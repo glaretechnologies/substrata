@@ -16,6 +16,7 @@ Code By Nicholas Chapman.
 #include "../utils/PlatformUtils.h"
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
+#include "../utils/FileChecksum.h"
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
@@ -106,6 +107,8 @@ void AddObjectDialog::filenameChanged(QString& filename)
 
 		Indigo::MeshRef mesh;
 		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), mesh);
+
+		this->model_hash = FileChecksum::fileChecksum(path);
 
 		//preview_gl_ob = new GLObject();
 

@@ -2,6 +2,7 @@
 
 
 #include "PhysicsWorld.h"
+#include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
 #include "../utils/CameraController.h"
 #include "PlayerPhysics.h"
@@ -41,6 +42,7 @@ private slots:;
 	void sendChatMessageSlot();
 
 	void glWidgetMouseClicked(QMouseEvent* e);
+	//void glWidgetMouseDoubleClicked(QMouseEvent* e);
 	void glWidgetMouseMoved(QMouseEvent* e);
 	void glWidgetKeyPressed(QKeyEvent* e);
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
@@ -66,6 +68,9 @@ public:
 	Timer time_since_update_packet_sent;
 
 	Reference<ClientThread> client_thread;
+	ThreadManager client_thread_manager;
+	ThreadManager resource_upload_thread_manager;
+	ThreadManager resource_download_thread_manager;
 
 	Reference<WorldState> world_state;
 
@@ -82,4 +87,7 @@ public:
 	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
 	Vec4f selection_point_ws; // Point on selected object where selection ray hit, in world space.
 	Vec4f selected_ob_pos_upon_selection;
+
+	std::string resources_dir;
+	Reference<ResourceManager> resource_manager;
 };

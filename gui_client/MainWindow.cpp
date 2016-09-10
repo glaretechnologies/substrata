@@ -12,6 +12,8 @@
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
 #include "ModelLoading.h"
+#include "UploadResourceThread.h"
+#include "DownloadResourcesThread.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QTimer>
 #include <QtCore/QProcess>
@@ -39,6 +41,7 @@
 #include "../utils/TaskManager.h"
 #include "../utils/SocketBufferOutStream.h"
 #include "../utils/StringUtils.h"
+#include "../utils/FileUtils.h"
 #include "../networking/networking.h"
 #include "../qt/QtUtils.h"
 #include "../graphics/formatdecoderobj.h"
@@ -47,7 +50,7 @@
 #include "../indigo/TextureServer.h"
 #include "../indigo/ThreadContext.h"
 #include <clocale>
-#include "../indigo/StandardPrintOutput.h"
+#include "../utils/StandardPrintOutput.h"
 
 //TEMP:
 #include "../utils/ReferenceTest.h"
@@ -66,6 +69,10 @@
 
 
 static int64 next_uid = 10000;//TEMP HACK
+
+
+static const std::string server_hostname = "217.155.32.43";
+const int server_port = 7654;
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -88,6 +95,12 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(this->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(this->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
 	connect(this->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
+
+	this->resources_dir = "resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
+	FileUtils::createDirIfDoesNotExist(this->resources_dir);
+
+	conPrint("resources_dir: " + resources_dir);
+	resource_manager = new ResourceManager(this->resources_dir);
 }
 
 
@@ -106,10 +119,39 @@ MainWindow::~MainWindow()
 	// Save main window geometry and state
 	settings->setValue("mainwindow/geometry", saveGeometry());
 	settings->setValue("mainwindow/windowState", saveState());
+
+	// Kill ClientThread
+	conPrint("killing ClientThread");
+	this->client_thread->killConnection();
+	this->client_thread = NULL;
+	this->client_thread_manager.killThreadsBlocking();
+	conPrint("killed ClientThread");
+
+	this->glWidget->makeCurrent();
 }
 
 
 Reference<GLObject> globe;
+
+
+static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
+{
+	Reference<PhysicsObject> phy_ob = new PhysicsObject();
+	phy_ob->geometry = new RayMesh("mesh", false);
+	phy_ob->geometry->fromIndigoMesh(*mesh);
+				
+	phy_ob->geometry->buildTrisFromQuads();
+	Geometry::BuildOptions options;
+	options.bih_tri_threshold = 1;
+	options.cache_trees = false;
+	options.use_embree = false;
+	phy_ob->geometry->build(".", options, print_output, false, task_manager);
+
+	phy_ob->geometry->buildJSTris();
+				
+	phy_ob->ob_to_world = ob_to_world_matrix;
+	return phy_ob;
+}
 
 
 static Reference<GLObject> loadAvatarModel(const std::string& model_url)
@@ -147,6 +189,64 @@ void MainWindow::timerEvent()
 			{
 				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
 				this->chatMessagesTextEdit->append(QtUtils::toQString(m->name + ": " + m->msg));
+			}
+			else if(dynamic_cast<const GetFileMessage*>(msg.getPointer()))
+			{
+				const GetFileMessage* m = static_cast<const GetFileMessage*>(msg.getPointer());
+
+				if(ResourceManager::isValidURL(m->URL))
+				{
+					const std::string path = resource_manager->pathForURL(m->URL);
+					if(FileUtils::fileExists(path))
+						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port));
+				}
+			}
+			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
+			{
+				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
+
+				// Since we have a new downloaded resource, iterate over objects and if they were using a placeholder model for this resource, load the proper model.
+				try
+				{
+					Lock lock(this->world_state->mutex);
+
+					for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+					{
+						WorldObject* ob = it->second.getPointer();
+						if(ob->using_placeholder_model && (ob->model_url == m->URL))
+						{
+							// Remove placeholder GL object
+							assert(ob->opengl_engine_ob.nonNull());
+							glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
+
+							conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
+							//const std::string path = resources_dir + "/" + ob->model_url;
+							const std::string path = this->resource_manager->pathForURL(ob->model_url);
+
+							// Make GL object, add to OpenGL engine
+							Indigo::MeshRef mesh;
+							const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * Matrix4f::rotationMatrix(ob->axis.toVec4fVector(), ob->angle);
+							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+							ob->opengl_engine_ob = gl_ob;
+							glWidget->addObject(gl_ob);
+
+							// Make physics object
+							StandardPrintOutput print_output;
+							Indigo::TaskManager task_manager;
+							PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
+							ob->physics_object = physics_ob;
+							physics_ob->userdata = ob;
+							physics_world->addObject(physics_ob);
+
+							ob->using_placeholder_model = false;
+						}
+					}
+				}
+				catch(Indigo::Exception& e)
+				{
+					conPrint(e.what());
+
+				}
 			}
 		}
 	}
@@ -239,6 +339,120 @@ void MainWindow::timerEvent()
 		conPrint(e.what());
 	}
 
+	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
+	try
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end();)
+		{
+			WorldObject* ob = it->second.getPointer();
+			if(ob->from_remote_dirty)
+			{
+				if(ob->state == WorldObject::State_Dead)
+				{
+					conPrint("Removing WorldObject.");
+				
+					// Remove any OpenGL object for it
+					if(ob->opengl_engine_ob.nonNull())
+						this->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
+
+					// Remove physics object  TODO
+					//if(ob->physics_object.nonNull())
+					//	physics_world->removeObject(ob->physics_object);
+
+					//// Remove object from object map
+					auto old_object_iterator = it;
+					it++;
+					this->world_state->objects.erase(old_object_iterator);
+				}
+				else
+				{
+					if(ob->opengl_engine_ob.isNull())
+					{
+						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * Matrix4f::rotationMatrix(ob->axis.toVec4fVector(), ob->angle);
+
+						// See if we have the file downloaded
+						//const std::string path = resources_dir + "/" + ob->model_url;
+						const std::string path = this->resource_manager->pathForURL(ob->model_url);
+						if(!FileUtils::fileExists(path))
+						{
+							conPrint("Don't have model '" + ob->model_url + "' on disk, using placeholder.");
+
+							// Use a temporary placeholder model.
+							GLObjectRef cube_gl_ob = glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+							cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+							ob->opengl_engine_ob = cube_gl_ob;
+							glWidget->addObject(cube_gl_ob);
+
+							ob->using_placeholder_model = true;
+
+							// Enqueue download of model
+							this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(ob->model_url));
+						}
+						else
+						{
+							conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
+
+							// Make GL object, add to OpenGL engine
+							Indigo::MeshRef mesh;
+							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+							ob->opengl_engine_ob = gl_ob;
+							glWidget->addObject(gl_ob);
+
+							// Make physics object
+							StandardPrintOutput print_output;
+							Indigo::TaskManager task_manager;
+							PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
+							ob->physics_object = physics_ob;
+							physics_ob->userdata = ob;
+							physics_world->addObject(physics_ob);
+						}
+
+						ob->from_remote_dirty = false;
+					}
+					else
+					{
+						// Update transform for object in OpenGL engine
+						if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
+						{
+							ob->opengl_engine_ob->ob_to_world_matrix.setToRotationMatrix(ob->axis.toVec4fVector(), ob->angle);
+							ob->opengl_engine_ob->ob_to_world_matrix.setColumn(3, Vec4f(ob->pos.x, ob->pos.y, ob->pos.z, 1.f));
+							this->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+
+							// Update in physics engine
+							ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
+							physics_world->updateObjectTransformData(*ob->physics_object);
+						}
+
+						ob->from_remote_dirty = false;
+					}
+
+					++it;
+				}
+			}// end if(ob->from_server_dirty)
+			/*else if(ob->from_local_dirty)
+			{
+				if(ob->state == WorldObject::State_JustCreated)
+				{
+					// Send object created message to server
+
+
+					// Clear dirty flags
+					ob->from_local_dirty = false;
+				}
+
+				++it;
+			}*/
+			else
+				++it;
+			
+		}
+	}
+	catch(Indigo::Exception& e)
+	{
+		conPrint(e.what());
+	}
 
 	// Move selected object if there is one
 	if(this->selected_ob.nonNull())
@@ -267,36 +481,68 @@ void MainWindow::timerEvent()
 		// Update physics object
 		this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos);
 		this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+
+		// Mark as from-local-dirty to send an object transform updated message to the server
+		this->selected_ob->from_local_dirty = true;
 	}
 
 	// Send an AvatarTransformUpdate packet to the server if needed.
 	if(time_since_update_packet_sent.elapsed() > 0.1)
 	{
 		// Send AvatarTransformUpdate packet
-		/*Vec3d axis;
-		double angle;
-		this->cam_controller.getAxisAngleForAngles(this->cam_controller.getAngles(), axis, angle);
+		{
+			/*Vec3d axis;
+			double angle;
+			this->cam_controller.getAxisAngleForAngles(this->cam_controller.getAngles(), axis, angle);
 
-		conPrint("cam_controller.getForwardsVec()" + this->cam_controller.getForwardsVec().toString());
-		conPrint("cam_controller.getAngles()" + this->cam_controller.getAngles().toString());
-		conPrint("axis: " + axis.toString());
-		conPrint("angle: " + toString(angle));*/
+			conPrint("cam_controller.getForwardsVec()" + this->cam_controller.getForwardsVec().toString());
+			conPrint("cam_controller.getAngles()" + this->cam_controller.getAngles().toString());
+			conPrint("axis: " + axis.toString());
+			conPrint("angle: " + toString(angle));*/
 
-		const Vec3d cam_angles = this->cam_controller.getAngles();
-		const Vec3d axis(0,0,1);
-		const double angle = cam_angles.x;
+			const Vec3d cam_angles = this->cam_controller.getAngles();
+			const Vec3d axis(0,0,1);
+			const double angle = cam_angles.x;
 
-		SocketBufferOutStream packet;
-		packet.writeUInt32(AvatarTransformUpdate);
-		writeToStream(this->client_thread->client_avatar_uid, packet);
-		writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
-		writeToStream(Vec3f(axis.x,axis.y,axis.z), packet); // TODO: rotation
-		packet.writeFloat(angle);
+			SocketBufferOutStream packet;
+			packet.writeUInt32(AvatarTransformUpdate);
+			writeToStream(this->client_thread->client_avatar_uid, packet);
+			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
+			writeToStream(Vec3f(axis.x,axis.y,axis.z), packet); // TODO: rotation
+			packet.writeFloat(angle);
 
-		std::string packet_string(packet.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+			std::string packet_string(packet.buf.size(), '\0');
+			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
 
-		this->client_thread->enqueueDataToSend(packet_string);
+			this->client_thread->enqueueDataToSend(packet_string);
+		}
+
+		//============ Send any ObjectTransformUpdates needed ===========
+		{
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+			{
+				WorldObject* world_ob = it->second.getPointer();
+				if(world_ob->from_local_dirty)
+				{
+					SocketBufferOutStream packet;
+					packet.writeUInt32(ObjectTransformUpdate);
+					writeToStream(world_ob->uid, packet);
+					writeToStream(Vec3d(world_ob->pos), packet);
+					writeToStream(Vec3f(world_ob->axis), packet); // TODO: rotation
+					packet.writeFloat(world_ob->angle);
+
+					std::string packet_string(packet.buf.size(), '\0');
+					std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+					this->client_thread->enqueueDataToSend(packet_string);
+
+					world_ob->from_local_dirty = false;
+				}
+			}
+		}
+
 
 		time_since_update_packet_sent.reset();
 	}
@@ -313,26 +559,6 @@ void MainWindow::on_actionAvatarSettings_triggered()
 }
 
 
-Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
-{
-	Reference<PhysicsObject> phy_ob = new PhysicsObject();
-	phy_ob->geometry = new RayMesh("mesh", false);
-	phy_ob->geometry->fromIndigoMesh(*mesh);
-				
-	phy_ob->geometry->buildTrisFromQuads();
-	Geometry::BuildOptions options;
-	options.bih_tri_threshold = 1;
-	options.cache_trees = false;
-	options.use_embree = false;
-	phy_ob->geometry->build(".", options, print_output, false, task_manager);
-
-	phy_ob->geometry->buildJSTris();
-				
-	phy_ob->ob_to_world = ob_to_world_matrix;
-	return phy_ob;
-}
-
-
 void MainWindow::on_actionAddObject_triggered()
 {
 	AddObjectDialog d(this->settings, this->texture_server);
@@ -346,7 +572,7 @@ void MainWindow::on_actionAddObject_triggered()
 			const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 1.0f;
 
 			// Make GL object
-			const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob_pos.x, (float)ob_pos.y, (float)ob_pos.z);
+			/*const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob_pos.x, (float)ob_pos.y, (float)ob_pos.z);
 			Indigo::MeshRef mesh;
 			GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(d.result_path, ob_to_world_matrix, mesh);
 			glWidget->addObject(gl_ob);
@@ -355,14 +581,16 @@ void MainWindow::on_actionAddObject_triggered()
 			StandardPrintOutput print_output;
 			Indigo::TaskManager task_manager;
 			PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
-			physics_world->addObject(physics_ob);
+			physics_world->addObject(physics_ob);*/
 
-			// Add world object
-			{
+			// Add world object to local world state.
+			/*{
 				Lock lock(world_state->mutex);
 
 				const UID uid(next_uid++);//TEMP
 				WorldObjectRef world_ob = new WorldObject();
+				world_ob->state = WorldObject::State_JustCreated;
+				world_ob->from_local_dirty = true;
 				world_ob->uid = uid;
 				world_ob->angle = 0;
 				world_ob->axis = Vec3f(1,0,0);
@@ -372,12 +600,41 @@ void MainWindow::on_actionAddObject_triggered()
 				world_state->objects[uid] = world_ob;
 
 				physics_ob->userdata = world_ob.getPointer();
+			}*/
+
+			const std::string URL = ResourceManager::URLForPathAndHash(d.result_path, d.model_hash);
+
+			// Copy model to local resources dir.  UploadResourceThread will read from here.
+			FileUtils::copyFile(d.result_path, this->resource_manager->pathForURL(URL));
+
+			// Send ObjectCreated message to server
+			{
+				SocketBufferOutStream packet;
+				packet.writeUInt32(ObjectCreated);
+				packet.writeStringLengthFirst(URL);
+				packet.writeUInt64(d.model_hash);
+				writeToStream(ob_pos, packet); // pos
+				writeToStream(Vec3f(0,0,1), packet); // axis
+				packet.writeFloat(0.f); // angle
+
+				std::string packet_string(packet.buf.size(), '\0');
+				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+				this->client_thread->enqueueDataToSend(packet_string);
 			}
 		}
 		catch(Indigo::IndigoException& e)
 		{
 			// Show error
 			conPrint(toStdString(e.what()));
+			QErrorMessage m;
+			m.showMessage(QtUtils::toQString(e.what()));
+			m.exec();
+		}
+		catch(FileUtils::FileUtilsExcep& e)
+		{
+			// Show error
+			conPrint(e.what());
 			QErrorMessage m;
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
@@ -678,9 +935,15 @@ int main(int argc, char *argv[])
 
 		mw.world_state = new WorldState();
 
-		mw.client_thread = new ClientThread(&mw.msg_queue);
+
+		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, server_hostname, server_port));
+
+		mw.client_thread = new ClientThread(&mw.msg_queue, server_hostname, server_port, &mw);
 		mw.client_thread->world_state = mw.world_state;
-		mw.client_thread->launch();
+		//mw.client_thread->launch();
+		mw.client_thread_manager.addThread(mw.client_thread);
+
+		
 
 		mw.physics_world = new PhysicsWorld();
 
@@ -957,6 +1220,7 @@ int main(int argc, char *argv[])
 			//TEMP:
 			// Load a teapot
 		
+			if(false)
 			{
 				Indigo::MeshRef mesh = new Indigo::Mesh();
 				MLTLibMaterials mats;

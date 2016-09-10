@@ -23,9 +23,11 @@ Code By Nicholas Chapman.
 #include <KillThreadMessage.h>
 #include <ThreadShouldAbortCallback.h>
 #include <Parser.h>
+#include <FileUtils.h>
 #include <MemMappedFile.h>
 #include "ServerWorldState.h"
 #include "Server.h"
+#include "../shared/WorldObject.h"
 
 
 static const bool VERBOSE = false;
@@ -47,44 +49,70 @@ WorkerThread::~WorkerThread()
 
 void WorkerThread::doRun()
 {
+	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
+
 	ServerWorldState* world_state = server->world_state.getPointer();
 
-	UID client_avatar_uid = 0;
+	UID client_avatar_uid = UID(0);
 
 	try
 	{
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
+		const uint32 connection_type = socket->readUInt32();
 
 		// Write avatar UID assigned to the connected client.
-		
+		if(connection_type == ConnectionTypeUpdates)
 		{
-			Lock lock(world_state->mutex);
-			client_avatar_uid = world_state->next_avatar_uid;
-			world_state->next_avatar_uid = world_state->next_avatar_uid.value() + 1;
-		}
-
-		writeToStream(client_avatar_uid, *socket);
-
-
-		// Send all current avatar data to client
-		{
-			Lock lock(world_state->mutex);
-			for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
 			{
-				const Avatar* avatar = it->second.getPointer();
+				Lock lock(world_state->mutex);
+				client_avatar_uid = world_state->next_avatar_uid;
+				world_state->next_avatar_uid = UID(world_state->next_avatar_uid.value() + 1);
+			}
 
-				// Send AvatarCreated packet
-				SocketBufferOutStream packet;
-				packet.writeUInt32(AvatarCreated);
-				writeToStream(avatar->uid, packet);
-				packet.writeStringLengthFirst(avatar->name);
-				packet.writeStringLengthFirst(avatar->model_url);
-				writeToStream(avatar->pos, packet);
-				writeToStream(avatar->axis, packet);
-				packet.writeFloat(avatar->angle);
+			writeToStream(client_avatar_uid, *socket);
 
-				socket->writeData(packet.buf.data(), packet.buf.size());
+
+			// Send all current avatar data to client
+			{
+				Lock lock(world_state->mutex);
+				for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
+				{
+					const Avatar* avatar = it->second.getPointer();
+
+					// Send AvatarCreated packet
+					SocketBufferOutStream packet;
+					packet.writeUInt32(AvatarCreated);
+					writeToStream(avatar->uid, packet);
+					packet.writeStringLengthFirst(avatar->name);
+					packet.writeStringLengthFirst(avatar->model_url);
+					writeToStream(avatar->pos, packet);
+					writeToStream(avatar->axis, packet);
+					packet.writeFloat(avatar->angle);
+
+					socket->writeData(packet.buf.data(), packet.buf.size());
+				}
+			}
+
+			// Send all current object data to client
+			{
+				Lock lock(world_state->mutex);
+				for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+				{
+					const WorldObject* ob = it->second.getPointer();
+
+					// Send AvatarCreated packet
+					SocketBufferOutStream packet;
+					packet.writeUInt32(ObjectCreated);
+					writeToStream(ob->uid, packet);
+					//packet.writeStringLengthFirst(ob->name);
+					packet.writeStringLengthFirst(ob->model_url);
+					writeToStream(ob->pos, packet);
+					writeToStream(ob->axis, packet);
+					packet.writeFloat(ob->angle);
+
+					socket->writeData(packet.buf.data(), packet.buf.size());
+				}
 			}
 		}
 
@@ -101,11 +129,14 @@ void WorkerThread::doRun()
 					std::string data;
 					data_to_send.unlockedDequeue(data);
 
-					// Write the data to the socket
-					if(!data.empty())
+					if(connection_type == ConnectionTypeUpdates)
 					{
-						if(VERBOSE) conPrint("WorkerThread: calling writeWebsocketTextMessage() with data '" + data + "'...");
-						socket->writeData(data.data(), data.size());
+						// Write the data to the socket
+						if(!data.empty())
+						{
+							if(VERBOSE) conPrint("WorkerThread: calling writeWebsocketTextMessage() with data '" + data + "'...");
+							socket->writeData(data.data(), data.size());
+						}
 					}
 				}
 			}
@@ -197,6 +228,111 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
+				case ObjectTransformUpdate:
+					{
+						conPrint("ObjectTransformUpdate");
+						const UID object_uid = readUIDFromStream(*socket);
+						const Vec3d pos = readVec3FromStream<double>(*socket);
+						const Vec3f axis = readVec3FromStream<float>(*socket);
+						const float angle = socket->readFloat();
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+								ob->pos = pos;
+								ob->axis = axis;
+								ob->angle = angle;
+								ob->from_remote_dirty = true;
+
+								//conPrint("updated object transform");
+							}
+						}
+						break;
+					}
+				case ObjectCreated:
+					{
+						conPrint("ObjectCreated");
+						//const UID object_uid = readUIDFromStream(*socket);
+						//const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
+						const uint64 model_hash = socket->readUInt64();
+						const Vec3d pos = readVec3FromStream<double>(*socket);
+						const Vec3f axis = readVec3FromStream<float>(*socket);
+						const float angle = socket->readFloat();
+
+						conPrint("model_url: '" + model_url + "', pos: " + pos.toString() + ", model_hash: " + toString(model_hash));
+
+						if(!ResourceManager::isValidURL(model_url))
+							throw Indigo::Exception("Invalid URL: '" + model_url + "'");
+
+						// See if we have this model on the server already
+						{
+							const std::string path = server->resource_manager->pathForURL(model_url);
+							if(FileUtils::fileExists(path))
+							{
+								// Check hash?
+								conPrint("resource file already present on disk.");
+							}
+							else
+							{
+								// We need the file from the client.
+								// Send the client a 'get file' message
+								SocketBufferOutStream packet;
+								packet.writeUInt32(GetFile);
+								packet.writeStringLengthFirst(model_url);
+
+								std::string packet_string(packet.buf.size(), '\0');
+								std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+								this->enqueueDataToSend(packet_string);
+							}
+						}
+
+						// Look up existing object in world state
+						{
+							::Lock lock(world_state->mutex);
+							//auto res = world_state->objects.find(object_uid);
+							//if(res == world_state->objects.end())
+							{
+								// Object for UID not already created, create it now.
+								WorldObjectRef ob = new WorldObject();
+								ob->uid = world_state->getNextObjectUID();
+								//ob->name = name;
+								ob->model_url = model_url;
+								ob->pos = pos;
+								ob->axis = axis;
+								ob->angle = angle;
+								ob->state = WorldObject::State_JustCreated;
+								ob->from_remote_dirty = true;
+								world_state->objects.insert(std::make_pair(ob->uid, ob));
+
+								conPrint("created new object");
+							}
+						}
+						break;
+					}
+				case ObjectDestroyed:
+					{
+						conPrint("ObjectDestroyed");
+						const UID object_uid = readUIDFromStream(*socket);
+
+						// Mark object as dead
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+								ob->state = WorldObject::State_Dead;
+								ob->from_remote_dirty = true;
+							}
+						}
+						break;
+					}
 				case ChatMessageID:
 					{
 						conPrint("ChatMessageID");
@@ -221,6 +357,71 @@ void WorkerThread::doRun()
 								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
 							}
 						}
+						break;
+					}
+				case UploadResource:
+					{
+						conPrint("UploadResource");
+						
+						const std::string URL = socket->readStringLengthFirst(); //TODO: enforce max len
+
+						if(!ResourceManager::isValidURL(URL))
+							throw Indigo::Exception("Invalid URL '" + URL + "'");
+
+						const uint64 file_len = socket->readUInt64();
+						if(file_len > 0)
+						{
+							// TODO: cap length in a better way
+							if(file_len > 1000000000)
+								throw Indigo::Exception("uploaded file too large.");
+
+							std::vector<uint8> buf(file_len);
+							socket->readData(buf.data(), file_len);
+
+							conPrint("Received file from client. (" + toString(file_len) + " B)");
+
+							// Save to disk
+							const std::string path = server->resource_manager->pathForURL(URL);
+							FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
+
+							conPrint("Written to disk at '" + path + "'.");
+						}
+
+						break;
+					}
+				case GetFile:
+					{
+						conPrint("GetFile");
+						
+						const std::string URL = socket->readStringLengthFirst(); //TODO: enforce max len
+
+						conPrint("Requested URL: '" + URL + "'");
+
+						if(!ResourceManager::isValidURL(URL))
+						{
+							socket->writeUInt32(1); // write error msg to client
+						}
+						else
+						{
+							const std::string path = server->resource_manager->pathForURL(URL); // TODO: sanitise
+
+							try
+							{
+								// Load resource
+								MemMappedFile file(path);
+								conPrint("Sending OK to client.");
+								socket->writeUInt32(0); // write OK msg to client
+								socket->writeUInt64(file.fileSize()); // Write file size
+								socket->writeData(file.fileData(), file.fileSize()); // Write file data
+
+								conPrint("Sent file '" + path + "' to client. (" + toString(file.fileSize()) + " B)");
+							}
+							catch(Indigo::Exception&)
+							{
+								socket->writeUInt32(1); // write error msg to client
+							}
+						}
+
 						break;
 					}
 				default:			
@@ -253,6 +454,10 @@ void WorkerThread::doRun()
 	catch(Indigo::Exception& e)
 	{
 		conPrint("Indigo::Exception: " + e.what());
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		conPrint("FileUtils::FileUtilsExcep: " + e.what());
 	}
 
 	// Mark avatar corresponding to client as dead

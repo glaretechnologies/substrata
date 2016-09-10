@@ -15,10 +15,25 @@ struct GLObject;
 class PhysicsObject;
 
 
+const uint32 ConnectionTypeUpdates	= 500;
+const uint32 ConnectionTypeUploadResource	= 501;
+const uint32 ConnectionTypeDownloadResources	= 502;
+
+
+
 //TEMP HACK move elsewhere
 const uint32 ObjectCreated			= 3000;
 const uint32 ObjectDestroyed		= 3001;
 const uint32 ObjectTransformUpdate	= 3002;
+
+
+//TEMP HACK move elsewhere
+const uint32 GetFile				= 4000;
+
+
+
+//TEMP HACK move elsewhere
+const uint32 UploadResource			= 5000;
 
 
 /*=====================================================================
@@ -42,13 +57,16 @@ public:
 
 	enum State
 	{
-		State_JustCreated,
+		State_JustCreated = 0,
 		State_Alive,
 		State_Dead
 	};
 
 	State state;
-	bool dirty;
+	bool from_remote_dirty;
+	bool from_local_dirty;
+
+	bool using_placeholder_model;
 
 
 	Reference<GLObject> opengl_engine_ob;
@@ -59,3 +77,8 @@ private:
 
 
 typedef Reference<WorldObject> WorldObjectRef;
+
+
+void writeToStream(const WorldObject& world_ob, OutStream& stream);
+void readFromStream(InStream& stream, WorldObject& ob);
+

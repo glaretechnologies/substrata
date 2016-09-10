@@ -6,7 +6,7 @@ include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
 include(../cmake/winter.cmake)
 
-
+# Rules to build moc_xx.cpp files, from xx.h files, using the program 'moc'.
 addMocFileRule(gui_client MainWindow)
 addMocFileRule(gui_client GuiClientApplication)
 addMocFileRule(gui_client GlWidget)
@@ -16,6 +16,15 @@ addMocFileRule(gui_client AddObjectDialog)
 addMocFileRule(gui_client AddObjectPreviewWidget)
 
 addMocFileRule(qt FileSelectWidget)
+
+
+# Rules to compile the .ui files into ui_xx.h, using 'uic'.
+addUIFileRule(gui_client AddObjectDialog)
+addUIFileRule(gui_client AvatarSettingsDialog)
+addUIFileRule(gui_client MainWindow)
+
+addUIFileRule(qt FileSelectWidget)
+
 
 FILE(GLOB gui_client "./*.cpp" "./*.h" "./*.ui")
 
@@ -27,6 +36,9 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
 )
 
 SET(qt 
@@ -35,11 +47,14 @@ SET(qt
 ../qt/FileSelectWidget.cpp
 ../qt/FileSelectWidget.h
 ../qt/moc_FileSelectWidget.cpp
+../qt/ui_FileSelectWidget.h
 )
 
 SET(shared_files 
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/ResourceManager.cpp
+../shared/ResourceManager.h
 ../shared/WorldState.cpp
 ../shared/WorldState.h
 ../shared/WorldObject.cpp
@@ -151,3 +166,4 @@ target_link_libraries(${CURRENT_TARGET}
 ${QT_WIN32_LIBS}
 ${QT_LINUX_LIBS}
 )
+
