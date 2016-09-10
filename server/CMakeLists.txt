@@ -12,6 +12,10 @@ FILE(GLOB docs "../docs/*.txt")
 SET(shared_files 
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/ResourceManager.cpp
+../shared/ResourceManager.h
+../shared/WorldObject.cpp
+../shared/WorldObject.h
 )
 
 

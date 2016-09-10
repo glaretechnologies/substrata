@@ -19,9 +19,9 @@ class UID
 {
 public:
 	UID() : v(invalidUID().value()) {}
-	UID(uint64 v_) : v(v_) {}
+	explicit UID(uint64 v_) : v(v_) {}
 
-	static UID invalidUID() { return std::numeric_limits<uint64>::max(); }
+	static UID invalidUID() { return UID(std::numeric_limits<uint64>::max()); }
 
 	uint64 value() const { return v; }
 

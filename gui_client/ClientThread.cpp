@@ -8,44 +8,59 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 #include "mysocket.h"
+#include "MainWindow.h"
 #include <ConPrint.h>
 #include "../shared/WorldState.h"
 #include <vec3.h>
 #include <SocketBufferOutStream.h>
 #include <Exception.h>
 #include <StringUtils.h>
+#include <PlatformUtils.h>
 
 
 static const bool VERBOSE = false;
 
 
-ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_)
-:	out_msg_queue(out_msg_queue_)
+ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_, MainWindow* main_window_)
+:	out_msg_queue(out_msg_queue_),
+	hostname(hostname_),
+	port(port_),
+	main_window(main_window_)
 {
-
+	socket = new MySocket();
 }
 
 
 ClientThread::~ClientThread()
 {
-
+	
 }
 
 
-void ClientThread::run()
+void ClientThread::killConnection()
 {
+	if(socket.nonNull())
+		socket->ungracefulShutdown();
+}
+
+
+void ClientThread::doRun()
+{
+	PlatformUtils::setCurrentThreadNameIfTestsEnabled("ClientThread");
+
 	try
 	{
-		const std::string hostname = "217.155.32.43";
-		const int port = 7654;
+		conPrint("ClientThread Connecting to " + hostname + ":" + toString(port) + "...");
 
-		conPrint("Connecting to " + hostname + ":" + toString(port) + "...");
+//		socket = new MySocket(hostname, port);
+		socket->connect(hostname, port);
 
-		MySocketRef socket = new MySocket(hostname, port);
-
-		conPrint("Connected to " + hostname + ":" + toString(port) + "!");
+		conPrint("ClientThread Connected to " + hostname + ":" + toString(port) + "!");
 
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+
+		// Write connection type
+		socket->writeUInt32(ConnectionTypeUpdates);
 
 		// Read assigned client avatar UID
 		this->client_avatar_uid = readUIDFromStream(*socket);
@@ -137,7 +152,6 @@ void ClientThread::run()
 
 						// Look up existing avatar in world state
 						{
-							printVar((uint64)&world_state->mutex);
 							::Lock lock(world_state->mutex);
 							auto res = world_state->avatars.find(avatar_uid);
 							if(res == world_state->avatars.end())
@@ -175,6 +189,94 @@ void ClientThread::run()
 								avatar->dirty = true;
 							}
 						}
+						break;
+					}
+				case ObjectTransformUpdate:
+					{
+						//conPrint("ObjectTransformUpdate");
+						const UID object_uid = readUIDFromStream(*socket);
+						const Vec3d pos = readVec3FromStream<double>(*socket);
+						const Vec3f axis = readVec3FromStream<float>(*socket);
+						const float angle = socket->readFloat();
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								
+								WorldObject* ob = res->second.getPointer();
+								if(main_window->selected_ob.getPointer() != ob) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
+								{
+									ob->pos = pos;
+									ob->axis = axis;
+									ob->angle = angle;
+									ob->from_remote_dirty = true;
+
+									//conPrint("updated object transform");
+								}
+							}
+						}
+						break;
+					}
+				case ObjectCreated:
+					{
+						conPrint("ObjectCreated");
+						const UID object_uid = readUIDFromStream(*socket);
+						//const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
+						const Vec3d pos = readVec3FromStream<double>(*socket);
+						const Vec3f axis = readVec3FromStream<float>(*socket);
+						const float angle = socket->readFloat();
+
+						// Look up existing object in world state
+						{
+							::Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res == world_state->objects.end())
+							{
+								// Object for UID not already created, create it now.
+								WorldObjectRef ob = new WorldObject();
+								ob->uid = object_uid;
+								//ob->name = name;
+								ob->model_url = model_url;
+								ob->pos = pos;
+								ob->axis = axis;
+								ob->angle = angle;
+								ob->state = WorldObject::State_JustCreated;
+								ob->from_remote_dirty = true;
+								world_state->objects.insert(std::make_pair(object_uid, ob));
+
+								conPrint("created new object");
+							}
+						}
+						break;
+					}
+				case ObjectDestroyed:
+					{
+						conPrint("ObjectDestroyed");
+						const UID object_uid = readUIDFromStream(*socket);
+
+						// Mark object as dead
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+								ob->state = WorldObject::State_Dead;
+								ob->from_remote_dirty = true;
+							}
+						}
+						break;
+					}
+				case GetFile:
+					{
+						conPrint("GetFile");
+						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
+
+						out_msg_queue->enqueue(new GetFileMessage(model_url));
 						break;
 					}
 				case ChatMessageID:

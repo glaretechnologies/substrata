@@ -1,5 +1,5 @@
 /*=====================================================================
-ServerWorldState.h
+ResourceManager.h
 -------------------
 Copyright Glare Technologies Limited 2016 -
 Generated at 2016-01-12 12:22:34 +1300
@@ -10,41 +10,28 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/Avatar.h"
 #include "../shared/WorldObject.h"
 #include <ThreadSafeRefCounted.h>
-#include <Platform.h>
-#include <Mutex.h>
 #include <map>
+#include <Mutex.h>
 
 
 /*=====================================================================
-WorldState
+ResourceManager
 -------------------
 
 =====================================================================*/
-class ServerWorldState : public ThreadSafeRefCounted
+class ResourceManager : public ThreadSafeRefCounted
 {
 public:
-	ServerWorldState();
-	~ServerWorldState();
+	ResourceManager(const std::string& base_resource_dir);
+	~ResourceManager();
 
+	// Used for importing resources into the cyberspace resource system.
+	static const std::string URLForPathAndHash(const std::string& path, uint64 hash);
 
-	void readFromDisk(const std::string& path);
-	void serialiseToDisk(const std::string& path);
-	UID getNextObjectUID();
+	static bool isValidURL(const std::string& URL);
 
+	const std::string pathForURL(const std::string& URL);
 
-
-
-	std::map<UID, Reference<Avatar>> avatars;
-
-	std::map<UID, Reference<WorldObject>> objects;
-
-	UID next_avatar_uid;
-
-	
-
-	::Mutex mutex;
 private:
-	INDIGO_DISABLE_COPY(ServerWorldState);
-
-	UID next_object_uid;
+	std::string base_resource_dir;
 };

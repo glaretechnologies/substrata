@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2016 -
 
 #include "ServerWorldState.h"
 #include "ThreadManager.h"
+#include "../shared/ResourceManager.h"
 
 
 /*=====================================================================
@@ -23,4 +24,6 @@ public:
 
 	// Connected client worker threads
 	ThreadManager worker_thread_manager;
+
+	Reference<ResourceManager> resource_manager;
 };
