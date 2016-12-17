@@ -365,3 +365,9 @@ void GlWidget::wheelEvent(QWheelEvent* e)
 {
 	emit mouseWheelSignal(e);
 }
+
+
+void GlWidget::mouseDoubleClickEvent(QMouseEvent* e)
+{
+	emit mouseDoubleClickedSignal(e);
+}

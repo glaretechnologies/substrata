@@ -39,6 +39,7 @@ const QString toQString(const Indigo::String& s);
 	Convert a QT string to an std::string.
 */
 const std::string toIndString(const QString& s);
+const std::string toStdString(const QString& s); // Same as toIndString()
 
 /*
 	Convert a QT string to an Indigo::String.

@@ -42,7 +42,7 @@ private slots:;
 	void sendChatMessageSlot();
 
 	void glWidgetMouseClicked(QMouseEvent* e);
-	//void glWidgetMouseDoubleClicked(QMouseEvent* e);
+	void glWidgetMouseDoubleClicked(QMouseEvent* e);
 	void glWidgetMouseMoved(QMouseEvent* e);
 	void glWidgetKeyPressed(QKeyEvent* e);
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
@@ -74,7 +74,7 @@ public:
 
 	Reference<WorldState> world_state;
 
-	std::map<const Avatar*, GLObjectRef> avatar_gl_objects;
+	//std::map<const Avatar*, GLObjectRef> avatar_gl_objects;
 	//std::map<GLObjectRef*, bool> avatars_
 
 	TextureServer* texture_server;

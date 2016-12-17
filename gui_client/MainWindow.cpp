@@ -42,6 +42,7 @@
 #include "../utils/SocketBufferOutStream.h"
 #include "../utils/StringUtils.h"
 #include "../utils/FileUtils.h"
+#include "../utils/FileChecksum.h"
 #include "../networking/networking.h"
 #include "../qt/QtUtils.h"
 #include "../graphics/formatdecoderobj.h"
@@ -91,7 +92,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	connect(this->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(this->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
-	connect(this->glWidget, SIGNAL(mouseClicked(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
+	connect(this->glWidget, SIGNAL(mouseClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
+	connect(this->glWidget, SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseDoubleClicked(QMouseEvent*)));
 	connect(this->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(this->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
 	connect(this->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
@@ -205,7 +207,7 @@ void MainWindow::timerEvent()
 			{
 				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
 
-				// Since we have a new downloaded resource, iterate over objects and if they were using a placeholder model for this resource, load the proper model.
+				// Since we have a new downloaded resource, iterate over objects and avatars and if they were using a placeholder model for this resource, load the proper model.
 				try
 				{
 					Lock lock(this->world_state->mutex);
@@ -239,6 +241,30 @@ void MainWindow::timerEvent()
 							physics_world->addObject(physics_ob);
 
 							ob->using_placeholder_model = false;
+						}
+					}
+
+					for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+					{
+						Avatar* avatar = it->second.getPointer();
+						if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
+						{
+							// Remove placeholder GL object
+							assert(avatar->opengl_engine_ob.nonNull());
+							glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+
+							conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
+							//const std::string path = resources_dir + "/" + ob->model_url;
+							const std::string path = this->resource_manager->pathForURL(avatar->model_url);
+
+							// Make GL object, add to OpenGL engine
+							Indigo::MeshRef mesh;
+							const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * Matrix4f::rotationMatrix(avatar->axis.toVec4fVector(), avatar->angle);
+							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+							avatar->opengl_engine_ob = gl_ob;
+							glWidget->addObject(gl_ob);
+
+							avatar->using_placeholder_model = false;
 						}
 					}
 				}
@@ -278,19 +304,15 @@ void MainWindow::timerEvent()
 	{
 		Lock lock(this->world_state->mutex);
 
-		//for(size_t i=0; i<this->world_state->avatars.size(); ++i)
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
 		{
-			const Avatar* avatar = it->second.getPointer();
+			Avatar* avatar = it->second.getPointer();
 			if(avatar->state == Avatar::State_Dead)
 			{
 				conPrint("Removing avatar.");
 				// Remove any OpenGL object for it
-				if(avatar_gl_objects.count(avatar) > 0)
-				{
-					this->glWidget->opengl_engine->removeObject(avatar_gl_objects[avatar]);
-					avatar_gl_objects.erase(avatar);
-				}
+				if(avatar->opengl_engine_ob.nonNull())
+					this->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
 
 				// Remove avatar from avatar map
 				auto old_avatar_iterator = it;
@@ -301,32 +323,47 @@ void MainWindow::timerEvent()
 			{
 				if(avatar->uid != this->client_thread->client_avatar_uid) // Don't render our own Avatar
 				{
-					bool new_object = false;
-
-					if(avatar_gl_objects.count(avatar) == 0)
+					if(avatar->opengl_engine_ob.isNull()) // If this is a new avatar that doesn't have an OpenGL model yet:
 					{
-						// No model for avatar yet
-						GLObjectRef ob = loadAvatarModel(avatar->model_url);
+						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * Matrix4f::rotationMatrix(avatar->axis.toVec4fVector(), avatar->angle);
 
-						avatar_gl_objects[avatar] = ob;
-						new_object = true;
-					}
+						// See if we have the file downloaded
+						const std::string path = this->resource_manager->pathForURL(avatar->model_url);
+						if(!FileUtils::fileExists(path))
+						{
+							conPrint("Don't have avatar model '" + avatar->model_url + "' on disk, using placeholder.");
 
-					assert(avatar_gl_objects.count(avatar) == 1);
+							// Use a temporary placeholder model.
+							GLObjectRef cube_gl_ob = glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+							cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+							avatar->opengl_engine_ob = cube_gl_ob;
+							glWidget->addObject(cube_gl_ob);
 
-					// Update transform for avatar
-					GLObjectRef ob = avatar_gl_objects[avatar];
-					ob->ob_to_world_matrix.setToRotationMatrix(avatar->axis.toVec4fVector(), avatar->angle);
-					ob->ob_to_world_matrix.setColumn(3, Vec4f(avatar->pos.x, avatar->pos.y, avatar->pos.z, 1.f));
+							avatar->using_placeholder_model = true;
 
-					if(new_object)
-					{
-						conPrint("Adding avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
-						this->glWidget->addObject(ob);
+							// Enqueue download of model
+							this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(avatar->model_url));
+						}
+						else
+						{
+							conPrint("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
+
+							// Make GL object, add to OpenGL engine
+							Indigo::MeshRef mesh;
+							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+							avatar->opengl_engine_ob = gl_ob;
+							glWidget->addObject(gl_ob);
+
+							// No physics object for avatars.
+						}
 					}
 					else
 					{
-						this->glWidget->opengl_engine->updateObjectTransformData(*ob);
+						avatar->opengl_engine_ob->ob_to_world_matrix.setToRotationMatrix(avatar->axis.toVec4fVector(), avatar->angle);
+						avatar->opengl_engine_ob->ob_to_world_matrix.setColumn(3, Vec4f(avatar->pos.x, avatar->pos.y, avatar->pos.z, 1.f));
+						this->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_ob);
+
+						//avatar->from_remote_dirty = false;
 					}
 				}
 
@@ -373,7 +410,6 @@ void MainWindow::timerEvent()
 						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * Matrix4f::rotationMatrix(ob->axis.toVec4fVector(), ob->angle);
 
 						// See if we have the file downloaded
-						//const std::string path = resources_dir + "/" + ob->model_url;
 						const std::string path = this->resource_manager->pathForURL(ob->model_url);
 						if(!FileUtils::fileExists(path))
 						{
@@ -676,6 +712,12 @@ void MainWindow::sendChatMessageSlot()
 void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 {
 	//conPrint("MainWindow::glWidgetMouseClicked()");
+}
+
+
+void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
+{
+	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
 
 	// Trace ray through scene
 	ThreadContext thread_context;
@@ -938,7 +980,15 @@ int main(int argc, char *argv[])
 
 		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, server_hostname, server_port));
 
-		mw.client_thread = new ClientThread(&mw.msg_queue, server_hostname, server_port, &mw);
+		const std::string avatar_path = QtUtils::toStdString(mw.settings->value("avatarPath").toString());
+		const std::string username    = QtUtils::toStdString(mw.settings->value("username").toString());
+
+		uint64 avatar_model_hash = 0;
+		if(FileUtils::fileExists(avatar_path))
+			avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
+		const std::string avatar_URL = mw.resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
+
+		mw.client_thread = new ClientThread(&mw.msg_queue, server_hostname, server_port, &mw, username, avatar_URL);
 		mw.client_thread->world_state = mw.world_state;
 		//mw.client_thread->launch();
 		mw.client_thread_manager.addThread(mw.client_thread);
