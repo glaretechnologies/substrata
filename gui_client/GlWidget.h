@@ -54,7 +54,8 @@ protected:
 	virtual void mouseReleaseEvent(QMouseEvent* e);
 	virtual void mouseMoveEvent(QMouseEvent* e);
 	virtual void wheelEvent(QWheelEvent* e);
-	
+	virtual void mouseDoubleClickEvent(QMouseEvent* e);
+
 	void showEvent(QShowEvent* e);
 
 	void buildMaterial(OpenGLMaterial& mat);
@@ -66,6 +67,7 @@ signals:;
 	void mouseMoved(QMouseEvent* e);
 	void keyPressed(QKeyEvent* e);
 	void mouseWheelSignal(QWheelEvent* e);
+	void mouseDoubleClickedSignal(QMouseEvent* e);
 
 private:
 	GLRenderDataMap mesh_render_data; // mesh node SceneNodeUID to tri and quad data

@@ -208,6 +208,9 @@ void WorkerThread::doRun()
 								conPrint("created new avatar");
 							}
 						}
+
+						conPrint("username: '" + name + "', model_url: '" + model_url + "'");
+
 						break;
 					}
 				case AvatarDestroyed:

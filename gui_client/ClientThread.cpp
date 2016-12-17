@@ -21,11 +21,14 @@ Generated at 2016-01-16 22:59:23 +1300
 static const bool VERBOSE = false;
 
 
-ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_, MainWindow* main_window_)
+ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_, MainWindow* main_window_,
+						   const std::string& username_, const std::string& avatar_URL_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
-	main_window(main_window_)
+	main_window(main_window_),
+	username(username_),
+	avatar_URL(avatar_URL_)
 {
 	socket = new MySocket();
 }
@@ -70,8 +73,8 @@ void ClientThread::doRun()
 		SocketBufferOutStream packet;
 		packet.writeUInt32(AvatarCreated);
 		writeToStream(client_avatar_uid, packet);
-		packet.writeStringLengthFirst("a person");
-		packet.writeStringLengthFirst("some model URI");
+		packet.writeStringLengthFirst(username);
+		packet.writeStringLengthFirst(avatar_URL);
 		writeToStream(Vec3d(0,0,0), packet);
 		writeToStream(Vec3f(0,0,1), packet);
 		packet.writeFloat(0.f);

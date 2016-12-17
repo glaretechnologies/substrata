@@ -8,9 +8,9 @@ Copyright Glare Technologies Limited 2016 -
 
 #include "../physics/BVHBuilder.h"
 #include "PhysicsObject.h"
-#include "../indigo/PrintOutput.h"
 #include "../simpleraytracer/ray.h"
 #include "../maths/Vec4i.h"
+#include "../utils/PrintOutput.h"
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/Timer.h"

@@ -51,8 +51,9 @@ public:
 	State state;
 	bool dirty;
 
+	bool using_placeholder_model;
 
-	GLObject* opengl_engine_ob;
+	Reference<GLObject> opengl_engine_ob;
 private:
 
 };

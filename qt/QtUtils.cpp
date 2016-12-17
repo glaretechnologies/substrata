@@ -59,6 +59,14 @@ const std::string toIndString(const QString& s)
 }
 
 
+const std::string toStdString(const QString& s)
+{
+	const QByteArray bytes = s.toUtf8();
+
+	return std::string(bytes.constData(), bytes.size());
+}
+
+
 /*
 	Convert a QT string to an Indigo::String.
 */

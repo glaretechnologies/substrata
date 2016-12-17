@@ -50,7 +50,8 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_
 		results_out.coords = hitinfo.sub_elem_coords;
 		results_out.hit_tri_index = hitinfo.sub_elem_index;
 		results_out.hitdist = dist;
-		results_out.hit_normal_ws = geometry->getGeometricNormal(hitinfo);
+		unsigned int mat_index;
+		results_out.hit_normal_ws = geometry->getGeometricNormalAndMatIndex(hitinfo, mat_index);
 	}
 }
 
