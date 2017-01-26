@@ -82,8 +82,8 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 void AvatarPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl/shaders" // shader dir
-		"./shaders" // shader dir
+		"n:/indigo/trunk/opengl/shaders" // shader dir
+		//"./shaders" // shader dir
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -220,7 +220,7 @@ void AvatarPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 				{
 					Reference<OpenGLTexture> opengl_tex = new OpenGLTexture();
 					opengl_tex->load(tex_xres, tex_yres, imagemap->getData(), opengl_engine, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 
-						false // nearest filtering
+						OpenGLTexture::Filtering_Fancy
 					);
 					opengl_mat.albedo_texture = opengl_tex;
 				}

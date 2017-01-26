@@ -95,14 +95,16 @@ void GlWidget::resizeGL(int width_, int height_)
 	glViewport(0, 0, width_, height_);
 
 	viewport_aspect_ratio = (double)width_ / (double)height_;
+
+	this->opengl_engine->viewportChanged(viewport_w, viewport_h);
 }
 
 
 void GlWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl/shaders" // shader dir
-		"./shaders" // shader dir
+		"n:/indigo/trunk/opengl/shaders" // shader dir
+		//"./shaders" // shader dir
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -217,7 +219,7 @@ void GlWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 				{
 					Reference<OpenGLTexture> opengl_tex = new OpenGLTexture();
 					opengl_tex->load(tex_xres, tex_yres, imagemap->getData(), opengl_engine, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 
-						false // nearest filtering
+						OpenGLTexture::Filtering_Fancy
 					);
 					opengl_mat.albedo_texture = opengl_tex;
 				}
