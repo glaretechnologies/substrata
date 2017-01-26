@@ -47,11 +47,18 @@ endif()
 #	SET(INDIGO_EMBREE_LIB embree) # Linux and OSX need to link against the static embree lib.
 #endif()
 
+if(WIN32)
+	SET(TURBOJPEG_LIB ${LIBJPEG_TURBO_DIR}/$(Configuration)/turbojpeg-static.lib)
+else()
+	SET(TURBOJPEG_LIB ${LIBJPEG_TURBO_DIR}/.libs/libjpeg.a)
+endif()
+
 
 target_link_libraries(${CURRENT_TARGET} 
 indigo_libs
 ${INDIGO_WIN32_LIBS}
 ${LINUX_LIBS}
+${TURBOJPEG_LIB}
 )
 
 

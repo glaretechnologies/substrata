@@ -1,6 +1,8 @@
 include_directories("${winterdir}")
 
 set(winter
+"${winterdir}/LanguageTestUtils.cpp"
+"${winterdir}/LanguageTestUtils.h"
 "${winterdir}/BuiltInFunctionImpl.cpp"
 "${winterdir}/LanguageTests.cpp"
 "${winterdir}/Linker.cpp"
@@ -28,7 +30,6 @@ set(winter
 "${winterdir}/FuzzTests.cpp"
 "${winterdir}/BaseException.h"
 "${winterdir}/BuiltInFunctionImpl.h"
-"${winterdir}/GeneratedTokens.h"
 "${winterdir}/LanguageTests.h"
 "${winterdir}/Linker.h"
 "${winterdir}/LLVMTypeUtils.h"

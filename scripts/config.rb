@@ -29,6 +29,9 @@ arg_parser.options.each do |opt|
 	elsif opt[0] == "--qtdir"
 		puts $indigo_qt_dir
 		exit 0
+	elsif opt[0] == "--libjpgturbodir"
+		puts $libjpgturbo_dir
+		exit 0
 	else
 		puts "Unrecognised argument: #{opt[0]}"
 		exit 1

@@ -14,16 +14,24 @@ addMocFileRule(gui_client AvatarSettingsDialog)
 addMocFileRule(gui_client AvatarPreviewWidget)
 addMocFileRule(gui_client AddObjectDialog)
 addMocFileRule(gui_client AddObjectPreviewWidget)
+addMocFileRule(gui_client ObjectEditor)
+addMocFileRule(gui_client MaterialEditor)
 
 addMocFileRule(qt FileSelectWidget)
-
+addMocFileRule(qt RealControl)
+addMocFileRule(qt IndigoDoubleSpinBox)
+#addMocFileRule(qt RgbColourPicker)
 
 # Rules to compile the .ui files into ui_xx.h, using 'uic'.
 addUIFileRule(gui_client AddObjectDialog)
 addUIFileRule(gui_client AvatarSettingsDialog)
 addUIFileRule(gui_client MainWindow)
+addUIFileRule(gui_client ObjectEditor)
+addUIFileRule(gui_client MaterialEditor)
 
 addUIFileRule(qt FileSelectWidget)
+addUIFileRule(qt RealControl)
+#addUIFileRule(qt RgbColourPicker)
 
 
 FILE(GLOB gui_client "./*.cpp" "./*.h" "./*.ui")
@@ -36,18 +44,38 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarSettingsDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AvatarPreviewWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_ObjectEditor.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialEditor.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
-${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialEditor.h
 )
 
 SET(qt 
 ../qt/QtUtils.cpp
 ../qt/QtUtils.h
+../qt/SignalBlocker.cpp
+../qt/SignalBlocker.h
+
 ../qt/FileSelectWidget.cpp
 ../qt/FileSelectWidget.h
 ../qt/moc_FileSelectWidget.cpp
 ../qt/ui_FileSelectWidget.h
+
+../qt/RealControl.cpp
+../qt/RealControl.h
+../qt/moc_RealControl.cpp
+../qt/ui_RealControl.h
+
+../qt/IndigoDoubleSpinBox.cpp
+../qt/IndigoDoubleSpinBox.h
+../qt/moc_IndigoDoubleSpinBox.cpp
+
+#../qt/RgbColourPicker.cpp
+#../qt/RgbColourPicker.h
+#../qt/moc_RgbColourPicker.cpp
+#../qt/ui_RgbColourPicker.h
 )
 
 SET(shared_files 
@@ -59,6 +87,8 @@ SET(shared_files
 ../shared/WorldState.h
 ../shared/WorldObject.cpp
 ../shared/WorldObject.h
+../shared/WorldMaterial.cpp
+../shared/WorldMaterial.h
 )
 
 SET(client_indigo_files 

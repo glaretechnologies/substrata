@@ -5,9 +5,9 @@
 #require './script_utils.rb'
 
 # The config options
-$qt_version = "5.6.0" if OS.windows?
-$qt_version = "5.6.0" if OS.mac?
-$qt_version = "5.6.0" if OS.linux?
+$qt_version = "5.7.0" if OS.windows?
+$qt_version = "5.7.0" if OS.mac?
+$qt_version = "5.7.0" if OS.linux?
 
 $vs_version = 2012
 
@@ -30,4 +30,11 @@ if OS.unix?
 	$indigo_qt_dir = "#{indigo_qt_base_dir}/#{$qt_version}"
 else
 	$indigo_qt_dir = "#{indigo_qt_base_dir}/#{$qt_version}-vs#{$vs_version}-64"
+end
+
+$libjpgturbo_dir = ""
+if OS.unix?
+	$libjpgturbo_dir = "#{indigo_libs_dir}/libjpeg-turbo-builds/build"
+else
+	$libjpgturbo_dir = "#{indigo_libs_dir}/libjpeg-turbo-builds" # vs_#{$vs_version}_64" dir suffix will be appended in CMakeLists.txt.
 end

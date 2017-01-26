@@ -84,7 +84,11 @@ ${pugixmldir}/pugiconfig.hpp
 
 FILE(GLOB giflib "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.c" "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.h")
 FILE(GLOB little_cms "${INDIGO_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${INDIGO_TRUNK_DIR_ENV}/little_cms/include/*.h")
-FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
+#FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
+FILE(GLOB zstandard "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/*.h"  "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common/*.c" "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common/*.h"
+"${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/compress/*.c" "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/compress/*.h"
+"${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/decompress/*.c" "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/decompress/*.h"
+)
 
 SOURCE_GROUP(fftss FILES ${fftss})
 SOURCE_GROUP(ilmbase FILES ${ilmbase})
@@ -100,7 +104,8 @@ SOURCE_GROUP(zlib\\minizip FILES ${minizip})
 SOURCE_GROUP(pugixml FILES ${pugixml})
 SOURCE_GROUP(giflib FILES ${giflib})
 SOURCE_GROUP(little_cms FILES ${little_cms})
-SOURCE_GROUP(xxhash FILES ${xxhash})
+#SOURCE_GROUP(xxhash FILES ${xxhash})
+SOURCE_GROUP(zstandard FILES ${zstandard})
 
 include(../cmake/shared_cxx_settings.cmake)
 
@@ -124,7 +129,7 @@ ${ilmbase}
 ${ilmthread}
 ${openexr}
 #${lib3ds}
-${libjpg}
+#${libjpg}
 ${libpng}
 ${libtiff}
 #${lua}
@@ -133,7 +138,8 @@ ${minizip}
 ${pugixml}
 ${giflib}
 ${little_cms}
-${xxhash}
+#${xxhash}
+${zstandard}
 )
 
 

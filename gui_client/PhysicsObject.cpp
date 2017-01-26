@@ -197,7 +197,7 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 				const Vec3f hit_spherecenter = sourcePoint3 + unitdir3 * dist;
 
 				//const float d = hit_spherecenter.getDist(triIntersectionPoint);
-				assert(epsEqual(hit_spherecenter.getDist(triIntersectionPoint), sphere_r_os));
+//TEMP				assert(epsEqual(hit_spherecenter.getDist(triIntersectionPoint), sphere_r_os));
 
 				closest_hit_normal = (hit_spherecenter - triIntersectionPoint) / sphere_r_os; 
 			}

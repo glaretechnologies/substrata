@@ -16,6 +16,8 @@ SET(shared_files
 ../shared/ResourceManager.h
 ../shared/WorldObject.cpp
 ../shared/WorldObject.h
+../shared/WorldMaterial.cpp
+../shared/WorldMaterial.h
 )
 
 

@@ -158,7 +158,7 @@ Library versions:")
 
 
 # External library directory (apart from llvm, openssl and Qt)
-set(jpegdir		"${INDIGO_LIBS_ENV}/jpeg-8c")
+set(jpegdir		"${INDIGO_LIBS_ENV}/libjpeg-turbo-master")
 # NOTE: pngdir variable only used on mac and windows.
 set(pngdir		"${INDIGO_LIBS_ENV}/lpng143")
 #set(pngdir		"${INDIGO_LIBS_ENV}/libpng-1.4.11")
@@ -179,11 +179,12 @@ getConfigOption("--qtdir" INDIGO_QT_DIR)
 getConfigOption("--llvmversion" INDIGO_LLVM_VERSION)
 getConfigOption("--libresslversion" INDIGO_LIBRESSL_VERSION)
 getConfigOption("--opensslversion" INDIGO_OPENSSL_VERSION)
-MESSAGE("QT version: ${INDIGO_QT_VERSION}")
-MESSAGE("LLVM version: ${INDIGO_LLVM_VERSION}")
-MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
-MESSAGE("OpenSSL version: ${INDIGO_OPENSSL_VERSION}")
-MESSAGE("QT dir: ${INDIGO_QT_DIR}")
+getConfigOption("--libjpgturbodir" LIBJPEG_TURBO_DIR)
+
+
+if(WIN32)
+	set(LIBJPEG_TURBO_DIR "${LIBJPEG_TURBO_DIR}/vs_${CYBERSPACE_VS_VER}_${CYBERSPACE_BITNESS}") # Append dir suffix for VS version and bitness.
+endif()
 
 # The llvm dirs use the version seperator "_" instead of "."
 string(REPLACE "." "_" INDIGO_LLVM_VERSION_PATH ${INDIGO_LLVM_VERSION})
@@ -197,6 +198,13 @@ endif()
 
 set(INDIGO_QT_INCLUDE_DIR	"${INDIGO_QT_DIR}/include")
 set(INDIGO_QT_LIB_DIR	"${INDIGO_QT_DIR}/lib")
+
+MESSAGE("QT version: ${INDIGO_QT_VERSION}")
+MESSAGE("LLVM version: ${INDIGO_LLVM_VERSION}")
+MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
+MESSAGE("OpenSSL version: ${INDIGO_OPENSSL_VERSION}")
+MESSAGE("QT dir: ${INDIGO_QT_DIR}")
+MESSAGE("LibJPEG Turbo dir: ${LIBJPEG_TURBO_DIR}")
 
 # LLVM, LibreSSL, OpenSSL
 if(WIN32)

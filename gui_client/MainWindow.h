@@ -38,6 +38,8 @@ public slots:;
 private slots:;
 	void on_actionAvatarSettings_triggered();
 	void on_actionAddObject_triggered();
+	void on_actionDeleteObject_triggered();
+	void on_actionReset_Layout_triggered();
 
 	void sendChatMessageSlot();
 
@@ -46,8 +48,11 @@ private slots:;
 	void glWidgetMouseMoved(QMouseEvent* e);
 	void glWidgetKeyPressed(QKeyEvent* e);
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
+
+	void objectEditedSlot();
 private:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
+	void deleteSelectedObject();
 
 	std::string base_dir_path;
 	std::string appdata_path;
@@ -90,4 +95,6 @@ public:
 
 	std::string resources_dir;
 	Reference<ResourceManager> resource_manager;
+
+	std::set<WorldObjectRef> active_objects; // Objects that have moved recently and so need interpolation done on them.
 };

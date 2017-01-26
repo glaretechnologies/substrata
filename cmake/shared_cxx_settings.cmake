@@ -12,7 +12,8 @@ macro(addIncludeDirectory dir_to_include)
 endmacro(addIncludeDirectory)
 
 addIncludeDirectory("${fftssdir}/include")
-addIncludeDirectory(${jpegdir})
+addIncludeDirectory(${jpegdir})  # libjpeg-turbo-master (jpegdir) has most of the source,
+addIncludeDirectory(${LIBJPEG_TURBO_DIR})  # LIBJPEG_TURBO_DIR has jconfig.h
 if(WIN32 OR APPLE)
 	addIncludeDirectory(${pngdir})
 endif()
@@ -47,29 +48,13 @@ addIncludeDirectory("${sparsehashdir}/src/windows")
 endif()
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/little_cms/include")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/xxHash-r39")
+addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib")
+addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common")
 
 
 # Add OpenCL paths
-if(INDIGO_USE_OPENCL)
-	if(WIN32)	
-		if(DEFINED ENV{AMDAPPSDKROOT_FWDSLASHES})
-			message("OpenCL include path: Using AMDAPPSDKROOT:")
-			message($ENV{AMDAPPSDKROOT_FWDSLASHES})
-			SET(INDIGO_SHARED_INCLUDE_DIRS "${INDIGO_SHARED_INCLUDE_DIRS} ${INCLUDE_ARG}\"$ENV{AMDAPPSDKROOT_FWDSLASHES}include\"")
-		else()
-			message("OpenCL include path: Using CUDA_INC_PATH:")
-			message("$ENV{CUDA_INC_PATH}")
-			SET(INDIGO_SHARED_INCLUDE_DIRS "${INDIGO_SHARED_INCLUDE_DIRS} ${INCLUDE_ARG}\"$ENV{CUDA_INC_PATH}\"")
-		endif()
-	elseif(APPLE)
-	else() # linux
-		# Just use the OpenCL headers from the CUDA SDK for now.
-		addIncludeDirectory("/usr/local/cuda/include")
-	endif()
-endif()
 
-
+addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opencl/khronos")
 
 # Append INDIGO_SHARED_INCLUDE_DIRS
 
@@ -218,7 +203,7 @@ SET(CMAKE_C_FLAGS_DEBUG				"${CMAKE_C_FLAGS_DEBUG}				-DBUILD_TESTS=1")
 
 
 # Add general preprocessor definitions.
-add_definitions(-DTIXML_USE_STL -DOPENEXR_SUPPORT -DPNG_ALLOW_BENIGN_ERRORS -DUSE_LLVM=1 -DGLEW_STATIC)
+add_definitions(-DTIXML_USE_STL -DOPENEXR_SUPPORT -DPNG_ALLOW_BENIGN_ERRORS -DUSE_LLVM=1 -DGLEW_STATIC -DXXH_STATIC_LINKING_ONLY)
 
 if(INDIGO_USE_OPENCL)
 	add_definitions(-DUSE_OPENCL=1)
