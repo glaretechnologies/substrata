@@ -132,10 +132,10 @@ void AvatarPreviewWidget::initializeGL()
 		GLObjectRef ob = new GLObject();
 		ob->materials.resize(1);
 		ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-		ob->materials[0].phong_exponent = 10.f;
+		ob->materials[0].roughness = 0.5f;
 
 		ob->ob_to_world_matrix.setToTranslationMatrix(0,0,0);
-		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
+		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 		opengl_engine->addObject(ob);
 	}

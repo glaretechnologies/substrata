@@ -392,6 +392,8 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/outline_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/outline_vert_shader.glsl
 )
 
 set(INDIGO_SRC_DIR "${INDIGO_TRUNK_DIR_ENV}/indigo")

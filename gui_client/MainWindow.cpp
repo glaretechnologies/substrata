@@ -72,7 +72,7 @@
 static int64 next_uid = 10000;//TEMP HACK
 
 
-static const std::string server_hostname = "217.155.32.43";
+static const std::string server_hostname = "127.0.0.1"; // "217.155.32.43";
 const int server_port = 7654;
 
 
@@ -97,6 +97,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(this->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(this->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
 	connect(this->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
+	connect(this->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 
 	this->resources_dir = "resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
 	FileUtils::createDirIfDoesNotExist(this->resources_dir);
@@ -109,6 +110,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 void MainWindow::initialise()
 {
 	setWindowTitle("Cyberspace");
+
+	objectEditor->setControlsEnabled(false);
 
 	timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(timerEvent()));
@@ -146,7 +149,6 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 	Geometry::BuildOptions options;
 	options.bih_tri_threshold = 1;
 	options.cache_trees = false;
-	options.use_embree = false;
 	phy_ob->geometry->build(".", options, print_output, false, task_manager);
 
 	phy_ob->geometry->buildJSTris();
@@ -156,23 +158,24 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 }
 
 
-static Reference<GLObject> loadAvatarModel(const std::string& model_url)
-{
-	// TEMP HACK: Just load a teapot for now :)
+//static Reference<GLObject> loadAvatarModel(const std::string& model_url)
+//{
+//	// TEMP HACK: Just load a teapot for now :)
+//
+//	Indigo::MeshRef mesh = new Indigo::Mesh();
+//	MLTLibMaterials mats;
+//	FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, true, mats);
+//
+//	GLObjectRef ob = new GLObject();
+//	ob->materials.resize(1);
+//	ob->materials[0].albedo_rgb = Colour3f(0.3f, 0.5f, 0.4f);
+//	ob->materials[0].fresnel_scale = 1;
+//
+//	ob->ob_to_world_matrix.setToTranslationMatrix(0, 0, 0);
+//	ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+//	return ob;
+//}
 
-	Indigo::MeshRef mesh = new Indigo::Mesh();
-	MLTLibMaterials mats;
-	FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, true, mats);
-
-	GLObjectRef ob = new GLObject();
-	ob->materials.resize(1);
-	ob->materials[0].albedo_rgb = Colour3f(0.3f, 0.5f, 0.4f);
-	ob->materials[0].fresnel_scale = 1;
-
-	ob->ob_to_world_matrix.setToTranslationMatrix(0, 0, 0);
-	ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-	return ob;
-}
 
 void MainWindow::timerEvent()
 {
@@ -215,32 +218,57 @@ void MainWindow::timerEvent()
 					for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 					{
 						WorldObject* ob = it->second.getPointer();
-						if(ob->using_placeholder_model && (ob->model_url == m->URL))
+
+						if(ob->using_placeholder_model)
 						{
-							// Remove placeholder GL object
-							assert(ob->opengl_engine_ob.nonNull());
-							glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
+							std::vector<std::string> dependency_URLs;
+							ob->appendDependencyURLs(dependency_URLs);
+							std::set<std::string> URL_set(dependency_URLs.begin(), dependency_URLs.end());
 
-							conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
-							//const std::string path = resources_dir + "/" + ob->model_url;
-							const std::string path = this->resource_manager->pathForURL(ob->model_url);
+							if(URL_set.count(m->URL)) // If the downloaded resource was used by this model:
+							{
+								std::map<std::string, std::string> paths_for_URLs;
 
-							// Make GL object, add to OpenGL engine
-							Indigo::MeshRef mesh;
-							const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * Matrix4f::rotationMatrix(ob->axis.toVec4fVector(), ob->angle);
-							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
-							ob->opengl_engine_ob = gl_ob;
-							glWidget->addObject(gl_ob);
+								// Do we have all the dependencies for this model downloaded?
+								bool all_downloaded = true;
+								for(size_t i=0; i<dependency_URLs.size(); ++i)
+								{
+									const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
+									paths_for_URLs[dependency_URLs[i]] = path;
 
-							// Make physics object
-							StandardPrintOutput print_output;
-							Indigo::TaskManager task_manager;
-							PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
-							ob->physics_object = physics_ob;
-							physics_ob->userdata = ob;
-							physics_world->addObject(physics_ob);
+									if(!FileUtils::fileExists(path))
+										all_downloaded = false;
+								}
 
-							ob->using_placeholder_model = false;
+								if(all_downloaded)
+								{
+									// Remove placeholder GL object
+									assert(ob->opengl_engine_ob.nonNull());
+									glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
+
+									conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
+									//const std::string path = resources_dir + "/" + ob->model_url;
+									const std::string path = this->resource_manager->pathForURL(ob->model_url);
+
+									// Make GL object, add to OpenGL engine
+									Indigo::MeshRef mesh;
+									const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * 
+										Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle);
+									GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob->materials, /*paths_for_URLs*/*this->resource_manager, ob_to_world_matrix, mesh);
+									ob->opengl_engine_ob = gl_ob;
+									glWidget->addObject(gl_ob);
+
+									// Make physics object
+									StandardPrintOutput print_output;
+									Indigo::TaskManager task_manager;
+									PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
+									ob->physics_object = physics_ob;
+									physics_ob->userdata = ob;
+									physics_world->addObject(physics_ob);
+
+									ob->using_placeholder_model = false;
+								}
+							}
 						}
 					}
 
@@ -259,7 +287,8 @@ void MainWindow::timerEvent()
 
 							// Make GL object, add to OpenGL engine
 							Indigo::MeshRef mesh;
-							const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * Matrix4f::rotationMatrix(avatar->axis.toVec4fVector(), avatar->angle);
+							const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
+								Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
 							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
 							avatar->opengl_engine_ob = gl_ob;
 							glWidget->addObject(gl_ob);
@@ -325,7 +354,14 @@ void MainWindow::timerEvent()
 				{
 					if(avatar->opengl_engine_ob.isNull()) // If this is a new avatar that doesn't have an OpenGL model yet:
 					{
-						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * Matrix4f::rotationMatrix(avatar->axis.toVec4fVector(), avatar->angle);
+						const double cur_time = Clock::getCurTimeRealSec();
+						Vec3d pos;
+						Vec3f axis;
+						float angle;
+						avatar->getInterpolatedTransform(cur_time, pos, axis, angle);
+
+						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+							Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
 
 						// See if we have the file downloaded
 						const std::string path = this->resource_manager->pathForURL(avatar->model_url);
@@ -359,8 +395,14 @@ void MainWindow::timerEvent()
 					}
 					else
 					{
-						avatar->opengl_engine_ob->ob_to_world_matrix.setToRotationMatrix(avatar->axis.toVec4fVector(), avatar->angle);
-						avatar->opengl_engine_ob->ob_to_world_matrix.setColumn(3, Vec4f(avatar->pos.x, avatar->pos.y, avatar->pos.z, 1.f));
+						const double cur_time = Clock::getCurTimeRealSec();
+						Vec3d pos;
+						Vec3f axis;
+						float angle;
+						avatar->getInterpolatedTransform(cur_time, pos, axis, angle);
+
+						avatar->opengl_engine_ob->ob_to_world_matrix.setToRotationMatrix(normalise(axis.toVec4fVector()), angle);
+						avatar->opengl_engine_ob->ob_to_world_matrix.setColumn(3, Vec4f(pos.x, pos.y, pos.z, 1.f));
 						this->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_ob);
 
 						//avatar->from_remote_dirty = false;
@@ -384,7 +426,7 @@ void MainWindow::timerEvent()
 		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end();)
 		{
 			WorldObject* ob = it->second.getPointer();
-			if(ob->from_remote_dirty)
+			if(ob->from_remote_other_dirty || ob->from_remote_transform_dirty)
 			{
 				if(ob->state == WorldObject::State_Dead)
 				{
@@ -407,13 +449,42 @@ void MainWindow::timerEvent()
 				{
 					if(ob->opengl_engine_ob.isNull())
 					{
-						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * Matrix4f::rotationMatrix(ob->axis.toVec4fVector(), ob->angle);
+						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * 
+							Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) * 
+							Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
 						// See if we have the file downloaded
-						const std::string path = this->resource_manager->pathForURL(ob->model_url);
-						if(!FileUtils::fileExists(path))
+						//const std::string model_path    = this->resource_manager->pathForURL(ob->model_url);
+						//const std::string material_path = this->resource_manager->pathForURL(ob->material_url);
+
+						std::vector<std::string> dependency_URLs;
+						ob->appendDependencyURLs(dependency_URLs);
+
+						std::map<std::string, std::string> paths_for_URLs;
+
+						// Do we have all the objects downloaded?
+						bool all_downloaded = true;
+						for(size_t i=0; i<dependency_URLs.size(); ++i)
 						{
-							conPrint("Don't have model '" + ob->model_url + "' on disk, using placeholder.");
+							const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
+							if(!FileUtils::fileExists(path))
+							{
+								all_downloaded = false;
+								// Enqueue download of resource.  TODO: check for dups
+								this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(dependency_URLs[i]));
+							}
+
+							paths_for_URLs[dependency_URLs[i]] = path;
+						}
+
+
+
+						if(!all_downloaded) // !(FileUtils::fileExists(model_path)/* && FileUtils::fileExists(material_path)*/))
+						{
+							//if(!(FileUtils::fileExists(model_path)))
+							//	conPrint("Don't have model '" + ob->model_url + "' on disk, using placeholder.");
+							//if(!(FileUtils::fileExists(material_path)))
+							//	conPrint("Don't have material '" + ob->material_url + "' on disk, using placeholder.");
 
 							// Use a temporary placeholder model.
 							GLObjectRef cube_gl_ob = glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
@@ -424,7 +495,7 @@ void MainWindow::timerEvent()
 							ob->using_placeholder_model = true;
 
 							// Enqueue download of model
-							this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(ob->model_url));
+							//this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(ob->model_url));
 						}
 						else
 						{
@@ -432,7 +503,7 @@ void MainWindow::timerEvent()
 
 							// Make GL object, add to OpenGL engine
 							Indigo::MeshRef mesh;
-							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(paths_for_URLs[ob->model_url], ob->materials, *this->resource_manager/*paths_for_URLs*/, ob_to_world_matrix, mesh);
 							ob->opengl_engine_ob = gl_ob;
 							glWidget->addObject(gl_ob);
 
@@ -445,23 +516,57 @@ void MainWindow::timerEvent()
 							physics_world->addObject(physics_ob);
 						}
 
-						ob->from_remote_dirty = false;
+						ob->from_remote_other_dirty     = false;
+						ob->from_remote_transform_dirty = false;
 					}
-					else
+					else // else if opengl ob is not null:
 					{
 						// Update transform for object in OpenGL engine
 						if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
 						{
-							ob->opengl_engine_ob->ob_to_world_matrix.setToRotationMatrix(ob->axis.toVec4fVector(), ob->angle);
-							ob->opengl_engine_ob->ob_to_world_matrix.setColumn(3, Vec4f(ob->pos.x, ob->pos.y, ob->pos.z, 1.f));
-							this->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+							if(ob->from_remote_other_dirty)
+							{
+								// TODO: handle model path change etc..
 
-							// Update in physics engine
-							ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
-							physics_world->updateObjectTransformData(*ob->physics_object);
+								// Update materials in opengl engine.
+								GLObjectRef opengl_ob = ob->opengl_engine_ob;
+
+								for(size_t i=0; i<ob->materials.size(); ++i)
+									if(i < opengl_ob->materials.size())
+									{
+										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
+									}
+
+								this->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
+							}
+							else
+							{
+								assert(ob->from_remote_transform_dirty);
+
+								const double cur_time = Clock::getCurTimeRealSec();
+								Vec3d pos;
+								Vec3f axis;
+								float angle;
+								ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+
+								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
+									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+
+								//ob->opengl_engine_ob->ob_to_world_matrix.setToRotationMatrix(ob->axis.toVec4fVector(), ob->angle);
+								//ob->opengl_engine_ob->ob_to_world_matrix.setColumn(3, Vec4f(ob->pos.x, ob->pos.y, ob->pos.z, 1.f));
+								this->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+
+								// Update in physics engine
+								ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
+								physics_world->updateObjectTransformData(*ob->physics_object);
+							}
+
+							active_objects.insert(ob);
 						}
-
-						ob->from_remote_dirty = false;
+						
+						ob->from_remote_other_dirty     = false;
+						ob->from_remote_transform_dirty = false;
 					}
 
 					++it;
@@ -490,6 +595,48 @@ void MainWindow::timerEvent()
 		conPrint(e.what());
 	}
 
+
+	// Interpolate and active objects (Objects that have moved recently and so need interpolation done on them.)
+	{
+		const double cur_time = Clock::getCurTimeRealSec();
+
+		Lock lock(this->world_state->mutex);
+		for(auto it = active_objects.begin(); it != active_objects.end();)
+		{
+			WorldObjectRef ob = *it;
+
+			if(cur_time - ob->last_snapshot_time > 1.0)
+			{
+				// Object is not active any more, remove from active_objects set.
+				auto to_erase = it;
+				it++;
+				active_objects.erase(to_erase);
+			}
+			else
+			{
+				const double cur_time = Clock::getCurTimeRealSec();
+				Vec3d pos;
+				Vec3f axis;
+				float angle;
+				ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+
+				ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+					Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
+					Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+
+				this->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+
+				// Update in physics engine
+				ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
+				physics_world->updateObjectTransformData(*ob->physics_object);
+
+				it++;
+			}
+		}
+	}
+
+
+
 	// Move selected object if there is one
 	if(this->selected_ob.nonNull())
 	{
@@ -507,7 +654,7 @@ void MainWindow::timerEvent()
 		const Vec4f new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
 
 		// Set world object pos
-		this->selected_ob->pos = toVec3d(new_ob_pos);
+		this->selected_ob->setPosAndHistory(toVec3d(new_ob_pos));
 
 		// Set graphics object pos and update in opengl engine.
 		GLObjectRef opengl_ob(this->selected_ob->opengl_engine_ob);
@@ -519,7 +666,7 @@ void MainWindow::timerEvent()
 		this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
 
 		// Mark as from-local-dirty to send an object transform updated message to the server
-		this->selected_ob->from_local_dirty = true;
+		this->selected_ob->from_local_transform_dirty = true;
 	}
 
 	// Send an AvatarTransformUpdate packet to the server if needed.
@@ -553,20 +700,36 @@ void MainWindow::timerEvent()
 			this->client_thread->enqueueDataToSend(packet_string);
 		}
 
-		//============ Send any ObjectTransformUpdates needed ===========
+		//============ Send any object updates needed ===========
 		{
 			Lock lock(this->world_state->mutex);
 
 			for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 			{
 				WorldObject* world_ob = it->second.getPointer();
-				if(world_ob->from_local_dirty)
+				if(world_ob->from_local_other_dirty)
 				{
+					// Enqueue ObjectFullUpdate
+					SocketBufferOutStream packet;
+					packet.writeUInt32(ObjectFullUpdate);
+					writeToNetworkStream(*world_ob, packet);
+					
+					std::string packet_string(packet.buf.size(), '\0');
+					std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+					this->client_thread->enqueueDataToSend(packet_string);
+
+					world_ob->from_local_other_dirty = false;
+					world_ob->from_local_transform_dirty = false;
+				}
+				else if(world_ob->from_local_transform_dirty)
+				{
+					// Enqueue ObjectTransformUpdate
 					SocketBufferOutStream packet;
 					packet.writeUInt32(ObjectTransformUpdate);
 					writeToStream(world_ob->uid, packet);
 					writeToStream(Vec3d(world_ob->pos), packet);
-					writeToStream(Vec3f(world_ob->axis), packet); // TODO: rotation
+					writeToStream(Vec3f(world_ob->axis), packet);
 					packet.writeFloat(world_ob->angle);
 
 					std::string packet_string(packet.buf.size(), '\0');
@@ -574,8 +737,9 @@ void MainWindow::timerEvent()
 
 					this->client_thread->enqueueDataToSend(packet_string);
 
-					world_ob->from_local_dirty = false;
+					world_ob->from_local_transform_dirty = false;
 				}
+
 			}
 		}
 
@@ -646,12 +810,18 @@ void MainWindow::on_actionAddObject_triggered()
 			// Send ObjectCreated message to server
 			{
 				SocketBufferOutStream packet;
+
+				//WorldObject new_ob;
+				//new_ob.uid = UID::invalidUID(); // Server will set UID.
+				//new_ob.model_url = URL;
+
 				packet.writeUInt32(ObjectCreated);
 				packet.writeStringLengthFirst(URL);
 				packet.writeUInt64(d.model_hash);
 				writeToStream(ob_pos, packet); // pos
 				writeToStream(Vec3f(0,0,1), packet); // axis
 				packet.writeFloat(0.f); // angle
+				writeToStream(Vec3f(1.f), packet); // scale
 
 				std::string packet_string(packet.buf.size(), '\0');
 				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
@@ -687,6 +857,34 @@ void MainWindow::on_actionAddObject_triggered()
 }
 
 
+void MainWindow::on_actionDeleteObject_triggered()
+{
+	if(this->selected_ob.nonNull())
+	{
+		deleteSelectedObject();
+
+		// Deselect object
+		this->selected_ob = NULL;
+		this->objectEditor->setEnabled(false);
+	}
+}
+
+
+void MainWindow::on_actionReset_Layout_triggered()
+{
+	this->editorDockWidget->setFloating(false);
+	this->addDockWidget(Qt::LeftDockWidgetArea, this->editorDockWidget);
+	editorDockWidget->show();
+
+	this->chatDockWidget->setFloating(false);
+	this->addDockWidget(Qt::RightDockWidgetArea, this->chatDockWidget, Qt::Vertical);
+	this->chatDockWidget->show();
+
+	// Enable tool bar
+	this->toolBar->setVisible(true);
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -706,6 +904,64 @@ void MainWindow::sendChatMessageSlot()
 	this->client_thread->enqueueDataToSend(packet_string);
 
 	this->chatMessageLineEdit->clear();
+}
+
+
+void MainWindow::objectEditedSlot()
+{
+	conPrint("MainWindow::objectEditedSlot()");
+
+	// Update object material(s) with values from editor.
+	if(this->selected_ob.nonNull())
+	{
+		//if(selected_ob->materials.empty())
+		//	selected_ob->materials.push_back(new WorldMaterial());
+
+		//this->matEditor->toMaterial(*this->selected_ob->materials[0]);
+		this->objectEditor->toObject(*this->selected_ob);
+
+		// Copy all dependencies into resource directory if they are not there already.
+		// URLs will actually be paths from editing for now.
+		std::vector<std::string> URLs;
+		this->selected_ob->appendDependencyURLs(URLs);
+
+		for(size_t i=0; i<URLs.size(); ++i)
+		{
+			if(FileUtils::fileExists(URLs[i])) // If this was a local path:
+			{
+				const std::string URL = ResourceManager::URLForPathAndHash(URLs[i], FileChecksum::fileChecksum(URLs[i]));
+
+				// Copy model to local resources dir.
+				FileUtils::copyFile(URLs[i], this->resource_manager->pathForURL(URL));
+			}
+		}
+
+		this->selected_ob->materials[0]->convertLocalPathsToURLS(*this->resource_manager);
+
+		// Update in opengl engine.
+		GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
+		if(opengl_ob.nonNull())
+		{
+			if(!opengl_ob->materials.empty())
+			{
+				ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[0], *this->resource_manager, 
+					opengl_ob->materials[0]
+				);
+			}
+		}
+
+		this->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
+
+		// Update transform of OpenGL object
+		opengl_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) * 
+				Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) * 
+				Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
+
+		this->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+		// Mark as from-local-dirty to send an object updated message to the server
+		this->selected_ob->from_local_other_dirty = true;
+	}
 }
 
 
@@ -768,6 +1024,21 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			// Mark the materials on the hit object as selected
 			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
 				selected_ob->opengl_engine_ob->materials[z].selected = true;
+
+
+			// Update the editor widget with values from the selected object
+			//if(selected_ob->materials.empty())
+			//	selected_ob->materials.push_back(new WorldMaterial());
+
+			//this->matEditor->setFromMaterial(*selected_ob->materials[0]);
+			this->objectEditor->setFromObject(*selected_ob);
+
+
+			this->objectEditor->setEnabled(true);
+		}
+		else
+		{
+			this->objectEditor->setEnabled(false);
 		}
 	}
 	else
@@ -781,6 +1052,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 		// deslect object
 		this->selected_ob = NULL;
+		this->objectEditor->setEnabled(false);
 	}
 }
 
@@ -838,16 +1110,34 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 	const Matrix3f new_rot = Matrix3f::rotationMatrix(toVec3f(axis), angle) * rot_matrix;
 	new_rot.rotationMatrixToAxisAngle(ob->axis, this->selected_ob->angle);
 
-	const Matrix4f new_ob_to_world = Matrix4f::translationMatrix(ob->pos.toVec4fPoint()) * Matrix4f::rotationMatrix(ob->axis.toVec4fVector(), ob->angle);
+	const Matrix4f new_ob_to_world = Matrix4f::translationMatrix(ob->pos.toVec4fPoint()) * Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) * 
+		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
 	// Update in opengl engine.
-	GLObjectRef opengl_ob(ob->opengl_engine_ob);
+	GLObjectRef opengl_ob = ob->opengl_engine_ob;
 	opengl_ob->ob_to_world_matrix = new_ob_to_world;
 	this->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 	// Update physics object
 	ob->physics_object->ob_to_world = new_ob_to_world;
 	this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+}
+
+
+void MainWindow::deleteSelectedObject()
+{
+	if(this->selected_ob.nonNull())
+	{
+		// Send ObjectDestroyed packet
+		SocketBufferOutStream packet;
+		packet.writeUInt32(ObjectDestroyed);
+		writeToStream(selected_ob->uid, packet);
+
+		std::string packet_string(packet.buf.size(), '\0');
+		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+		this->client_thread->enqueueDataToSend(packet_string);
+	}
 }
 
 
@@ -863,6 +1153,18 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 
 			// Deselect object
 			this->selected_ob = NULL;
+			this->objectEditor->setEnabled(false);
+		}
+	}
+	else if(e->key() == Qt::Key::Key_Delete)
+	{
+		if(this->selected_ob.nonNull())
+		{
+			deleteSelectedObject();
+
+			// Deselect object
+			this->selected_ob = NULL;
+			this->objectEditor->setEnabled(false);
 		}
 	}
 	
@@ -1104,16 +1406,17 @@ int main(int argc, char *argv[])
 		if(true)
 		{
 			Indigo::MeshRef mesh = new Indigo::Mesh();
-			mesh->addVertex(Indigo::Vec3f(-100, -100, 0), Indigo::Vec3f(0,0,1));
-			mesh->addVertex(Indigo::Vec3f( 100, -100, 0), Indigo::Vec3f(0,0,1));
-			mesh->addVertex(Indigo::Vec3f( 100,  100, 0), Indigo::Vec3f(0,0,1));
-			mesh->addVertex(Indigo::Vec3f(-100,  100, 0), Indigo::Vec3f(0,0,1));
+			const float r = 10000.f;
+			mesh->addVertex(Indigo::Vec3f(-r, -r, 0), Indigo::Vec3f(0,0,1));
+			mesh->addVertex(Indigo::Vec3f( r, -r, 0), Indigo::Vec3f(0,0,1));
+			mesh->addVertex(Indigo::Vec3f( r,  r, 0), Indigo::Vec3f(0,0,1));
+			mesh->addVertex(Indigo::Vec3f(-r,  r, 0), Indigo::Vec3f(0,0,1));
 			
 			mesh->num_uv_mappings = 1;
 			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,0)));
-			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(100,0)));
-			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(100,100)));
-			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,100)));
+			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(r,0)));
+			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(r,r)));
+			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,r)));
 			
 			uint32 indices[] = {0, 1, 2, 3};
 			mesh->addQuad(indices, indices, 0);
@@ -1124,10 +1427,10 @@ int main(int argc, char *argv[])
 			ob->materials.resize(1);
 			ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 			ob->materials[0].albedo_tex_path = "obstacle.png";
-			ob->materials[0].phong_exponent = 10.f;
+			ob->materials[0].roughness = 0.8f;
 
 			ob->ob_to_world_matrix.setToTranslationMatrix(0,0,0);
-			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
+			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 			mw.glWidget->addObject(ob);
 
@@ -1228,14 +1531,14 @@ int main(int argc, char *argv[])
 				ob->materials.resize(1);
 				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
 				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].phong_exponent = 1000.f;
+				ob->materials[0].roughness = 0.3f;
 
 				Matrix4f scale;
 				scale.setToUniformScaleMatrix(100.f);
 				Matrix4f trans;
 				trans.setToTranslationMatrix(10,10,0.f);
 				mul(trans, scale, ob->ob_to_world_matrix);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
+				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 				mw.glWidget->addObject(ob);
 
@@ -1252,14 +1555,14 @@ int main(int argc, char *argv[])
 				ob->materials.resize(1);
 				ob->materials[0].albedo_rgb = Colour3f(0.4f, 0.4f, 0.2f);
 				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].phong_exponent = 1000.f;
+				ob->materials[0].roughness = 0.3f;
 
 				Matrix4f scale;
 				scale.setToUniformScaleMatrix(1.f);
 				Matrix4f trans;
 				trans.setToTranslationMatrix(-10,10,0.f);
 				mul(trans, scale, ob->ob_to_world_matrix);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
+				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 				mw.glWidget->addObject(ob);
 
@@ -1283,7 +1586,7 @@ int main(int argc, char *argv[])
 				gl_ob->materials[0].fresnel_scale = 1;
 
 				gl_ob->ob_to_world_matrix.setToTranslationMatrix(-3.0,1,0.5f);
-				gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
+				gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 				mw.glWidget->addObject(gl_ob);
 

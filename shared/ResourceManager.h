@@ -30,7 +30,7 @@ public:
 
 	static bool isValidURL(const std::string& URL);
 
-	const std::string pathForURL(const std::string& URL);
+	const std::string pathForURL(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
 
 private:
 	std::string base_resource_dir;

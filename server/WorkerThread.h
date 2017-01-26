@@ -22,7 +22,7 @@ class Server;
 /*=====================================================================
 WorkerThread
 ------------
-
+This thread runs on the server, and handles communication with a single client.
 =====================================================================*/
 class WorkerThread : public MessageableThread
 {
@@ -37,6 +37,8 @@ public:
 	void enqueueDataToSend(const std::string& data); // threadsafe
 
 private:
+	void sendGetFileMessageIfNeeded(const std::string& resource_URL);
+
 	ThreadSafeQueue<std::string> data_to_send;
 
 	int thread_id;

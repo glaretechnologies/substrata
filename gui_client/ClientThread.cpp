@@ -84,7 +84,7 @@ void ClientThread::doRun()
 
 		socket->writeData(packet.buf.data(), packet.buf.size());
 
-
+		const int MAX_STRING_LEN = 10000;
 
 		while(1) // write to / read from socket loop
 		{
@@ -139,6 +139,12 @@ void ClientThread::doRun()
 								avatar->dirty = true;
 
 								//conPrint("updated avatar transform");
+
+								avatar->pos_snapshots  [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = pos;
+								avatar->axis_snapshots [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = axis;
+								avatar->angle_snapshots[Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = angle;
+								avatar->last_snapshot_time = Clock::getCurTimeRealSec();
+								avatar->next_snapshot_i++;
 							}
 						}
 						break;
@@ -147,8 +153,8 @@ void ClientThread::doRun()
 					{
 						conPrint("AvatarCreated");
 						const UID avatar_uid = readUIDFromStream(*socket);
-						const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f axis = readVec3FromStream<float>(*socket);
 						const float angle = socket->readFloat();
@@ -170,6 +176,8 @@ void ClientThread::doRun()
 								avatar->state = Avatar::State_JustCreated;
 								avatar->dirty = true;
 								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
+
+								avatar->setTransformAndHistory(pos, axis, angle);
 
 								conPrint("created new avatar");
 							}
@@ -215,11 +223,49 @@ void ClientThread::doRun()
 									ob->pos = pos;
 									ob->axis = axis;
 									ob->angle = angle;
-									ob->from_remote_dirty = true;
+									
+									ob->pos_snapshots  [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = pos;
+									ob->axis_snapshots [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = axis;
+									ob->angle_snapshots[Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = angle;
+									ob->last_snapshot_time = Clock::getCurTimeRealSec();
+									ob->next_snapshot_i++;
+
+									ob->from_remote_transform_dirty = true;
 
 									//conPrint("updated object transform");
 								}
 							}
+						}
+						break;
+					}
+				case ObjectFullUpdate:
+					{
+						conPrint("ObjectFullUpdate");
+						const UID object_uid = readUIDFromStream(*socket);
+
+						// Look up existing object in world state
+						{
+							bool read = false;
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+								if(main_window->selected_ob.getPointer() != ob) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
+								{
+									readFromNetworkStreamGivenUID(*socket, *ob);
+									read = true;
+									ob->from_remote_other_dirty = true;
+								}
+							}
+
+							// Make sure we have read the whole object from the network stream
+							if(!read)
+							{
+								WorldObject dummy;
+								readFromNetworkStreamGivenUID(*socket, dummy);
+							}
+
 						}
 						break;
 					}
@@ -228,10 +274,10 @@ void ClientThread::doRun()
 						conPrint("ObjectCreated");
 						const UID object_uid = readUIDFromStream(*socket);
 						//const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
-						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
+						//const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
+						//const Vec3d pos = readVec3FromStream<double>(*socket);
+						//const Vec3f axis = readVec3FromStream<float>(*socket);
+						//const float angle = socket->readFloat();
 
 						// Look up existing object in world state
 						{
@@ -243,15 +289,23 @@ void ClientThread::doRun()
 								WorldObjectRef ob = new WorldObject();
 								ob->uid = object_uid;
 								//ob->name = name;
-								ob->model_url = model_url;
-								ob->pos = pos;
-								ob->axis = axis;
-								ob->angle = angle;
+								readFromNetworkStreamGivenUID(*socket, *ob);
+								//ob->model_url = model_url;
+								//ob->pos = pos;
+								//ob->axis = axis;
+								//ob->angle = angle;
 								ob->state = WorldObject::State_JustCreated;
-								ob->from_remote_dirty = true;
+								ob->from_remote_other_dirty = true;
 								world_state->objects.insert(std::make_pair(object_uid, ob));
 
+								ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+
 								conPrint("created new object");
+							}
+							else
+							{
+								WorldObject dummy_object;
+								readFromNetworkStreamGivenUID(*socket, dummy_object);
 							}
 						}
 						break;
@@ -269,7 +323,7 @@ void ClientThread::doRun()
 							{
 								WorldObject* ob = res->second.getPointer();
 								ob->state = WorldObject::State_Dead;
-								ob->from_remote_dirty = true;
+								ob->from_remote_other_dirty = true;
 							}
 						}
 						break;
@@ -277,7 +331,7 @@ void ClientThread::doRun()
 				case GetFile:
 					{
 						conPrint("GetFile");
-						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 
 						out_msg_queue->enqueue(new GetFileMessage(model_url));
 						break;
@@ -285,8 +339,8 @@ void ClientThread::doRun()
 				case ChatMessageID:
 					{
 						conPrint("ChatMessage");
-						const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						const std::string msg = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 						out_msg_queue->enqueue(new ChatMessage(name, msg));
 						break;
 					}

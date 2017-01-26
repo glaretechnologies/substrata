@@ -33,6 +33,9 @@ public:
 	Avatar();
 	~Avatar();
 
+	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
+	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
+
 	UID uid;
 	std::string name;
 	std::string model_url;
@@ -54,6 +57,19 @@ public:
 	bool using_placeholder_model;
 
 	Reference<GLObject> opengl_engine_ob;
+
+	/*
+		Snapshots for client-side interpolation purposes.
+		next_i = index to write next snapshot in.
+		pos_snapshots[next_i - 1] is the last received update, received at time last_snapshot_time.
+		pos_snapshots[next_i - 2] is the update received before that, will be considerd to be received at last_snapshot_time - update_send_period.
+	*/
+	static const int HISTORY_BUF_SIZE = 4;
+	Vec3d pos_snapshots[HISTORY_BUF_SIZE];
+	Vec3f axis_snapshots[HISTORY_BUF_SIZE];
+	float angle_snapshots[HISTORY_BUF_SIZE];
+	double last_snapshot_time;
+	uint32 next_snapshot_i;
 private:
 
 };

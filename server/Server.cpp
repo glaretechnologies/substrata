@@ -188,26 +188,24 @@ int main(int argc, char *argv[])
 			for(auto i = server.world_state->objects.begin(); i != server.world_state->objects.end();)
 			{
 				WorldObject* ob = i->second.getPointer();
-				if(ob->from_remote_dirty)
+				if(ob->from_remote_other_dirty)
 				{
-					conPrint("Object dirty, sending update");
+					conPrint("Object 'other' dirty, sending full update");
 
 					if(ob->state == WorldObject::State_Alive)
 					{
-						// Send ObjectTransformUpdate packet
+						// Send ObjectFullUpdate packet
 						SocketBufferOutStream packet;
-						packet.writeUInt32(ObjectTransformUpdate);
-						writeToStream(ob->uid, packet);
-						writeToStream(ob->pos, packet);
-						writeToStream(ob->axis, packet);
-						packet.writeFloat(ob->angle);
+						packet.writeUInt32(ObjectFullUpdate);
+						writeToNetworkStream(*ob, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
 						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
 
 						broadcast_packets.push_back(packet_string);
 
-						ob->from_remote_dirty = false;
+						ob->from_remote_other_dirty = false;
+						ob->from_remote_transform_dirty = false; // transform is sent in full packet also.
 						world_state_changed = true;
 						i++;
 					}
@@ -216,12 +214,13 @@ int main(int argc, char *argv[])
 						// Send ObjectCreated packet
 						SocketBufferOutStream packet;
 						packet.writeUInt32(ObjectCreated);
-						writeToStream(ob->uid, packet);
+						//writeToStream(ob->uid, packet);
+						writeToNetworkStream(*ob, packet);
 						//packet.writeStringLengthFirst(ob->name);
-						packet.writeStringLengthFirst(ob->model_url);
+						/*packet.writeStringLengthFirst(ob->model_url);
 						writeToStream(ob->pos, packet);
 						writeToStream(ob->axis, packet);
-						packet.writeFloat(ob->angle);
+						packet.writeFloat(ob->angle);*/
 
 						std::string packet_string(packet.buf.size(), '\0');
 						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
@@ -229,7 +228,7 @@ int main(int argc, char *argv[])
 						broadcast_packets.push_back(packet_string);
 
 						ob->state = WorldObject::State_Alive;
-						ob->from_remote_dirty = false;
+						ob->from_remote_other_dirty = false;
 						world_state_changed = true;
 						i++;
 					}
@@ -258,6 +257,30 @@ int main(int argc, char *argv[])
 						conPrint("ERROR: invalid object state.");
 						assert(0);
 					}
+				}
+				else if(ob->from_remote_transform_dirty)
+				{
+					conPrint("Object 'transform' dirty, sending transform update");
+
+					if(ob->state == WorldObject::State_Alive)
+					{
+						// Send ObjectTransformUpdate packet
+						SocketBufferOutStream packet;
+						packet.writeUInt32(ObjectTransformUpdate);
+						writeToStream(ob->uid, packet);
+						writeToStream(ob->pos, packet);
+						writeToStream(ob->axis, packet);
+						packet.writeFloat(ob->angle);
+
+						std::string packet_string(packet.buf.size(), '\0');
+						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+						broadcast_packets.push_back(packet_string);
+
+						ob->from_remote_transform_dirty = false;
+						world_state_changed = true;
+					}
+					i++;
 				}
 				else
 				{
@@ -308,6 +331,11 @@ int main(int argc, char *argv[])
 	catch(Indigo::Exception& e)
 	{
 		conPrint("Indigo::Exception: " + e.what());
+		return 1;
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		conPrint("FileUtils::FileUtilsExcep: " + e.what());
 		return 1;
 	}
 

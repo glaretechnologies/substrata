@@ -47,6 +47,38 @@ WorkerThread::~WorkerThread()
 }
 
 
+void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
+{
+	if(!ResourceManager::isValidURL(resource_URL))
+		throw Indigo::Exception("Invalid URL: '" + resource_URL + "'");
+
+	// See if we have this file on the server already
+	{
+		const std::string path = server->resource_manager->pathForURL(resource_URL);
+		if(FileUtils::fileExists(path))
+		{
+			// Check hash?
+			conPrint("resource file with URL '" + resource_URL + "' already present on disk.");
+		}
+		else
+		{
+			conPrint("resource file with URL '" + resource_URL + "' not present on disk, sending get file message to client.");
+
+			// We need the file from the client.
+			// Send the client a 'get file' message
+			SocketBufferOutStream packet;
+			packet.writeUInt32(GetFile);
+			packet.writeStringLengthFirst(resource_URL);
+
+			std::string packet_string(packet.buf.size(), '\0');
+			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+			this->enqueueDataToSend(packet_string);
+		}
+	}
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -104,18 +136,20 @@ void WorkerThread::doRun()
 					// Send AvatarCreated packet
 					SocketBufferOutStream packet;
 					packet.writeUInt32(ObjectCreated);
-					writeToStream(ob->uid, packet);
-					//packet.writeStringLengthFirst(ob->name);
-					packet.writeStringLengthFirst(ob->model_url);
-					writeToStream(ob->pos, packet);
-					writeToStream(ob->axis, packet);
-					packet.writeFloat(ob->angle);
+					writeToNetworkStream(*ob, packet);
+					//writeToStream(ob->uid, packet);
+					////packet.writeStringLengthFirst(ob->name);
+					//packet.writeStringLengthFirst(ob->model_url);
+					//writeToStream(ob->pos, packet);
+					//writeToStream(ob->axis, packet);
+					//packet.writeFloat(ob->angle);
 
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
 			}
 		}
 
+		const int MAX_STRING_LEN = 10000;
 
 		while(1) // write to / read from socket loop
 		{
@@ -181,8 +215,8 @@ void WorkerThread::doRun()
 					{
 						conPrint("AvatarCreated");
 						const UID avatar_uid = readUIDFromStream(*socket);
-						const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f axis = readVec3FromStream<float>(*socket);
 						const float angle = socket->readFloat();
@@ -209,6 +243,8 @@ void WorkerThread::doRun()
 							}
 						}
 
+						sendGetFileMessageIfNeeded(model_url);
+
 						conPrint("username: '" + name + "', model_url: '" + model_url + "'");
 
 						break;
@@ -233,7 +269,7 @@ void WorkerThread::doRun()
 					}
 				case ObjectTransformUpdate:
 					{
-						conPrint("ObjectTransformUpdate");
+						//conPrint("ObjectTransformUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f axis = readVec3FromStream<float>(*socket);
@@ -249,9 +285,33 @@ void WorkerThread::doRun()
 								ob->pos = pos;
 								ob->axis = axis;
 								ob->angle = angle;
-								ob->from_remote_dirty = true;
+								ob->from_remote_transform_dirty = true;
 
 								//conPrint("updated object transform");
+							}
+						}
+						break;
+					}
+				case ObjectFullUpdate:
+					{
+						conPrint("ObjectFullUpdate");
+						const UID object_uid = readUIDFromStream(*socket);
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+								readFromNetworkStreamGivenUID(*socket, *ob);
+								ob->from_remote_other_dirty = true;
+
+								// Process resources
+								std::set<std::string> URLs;
+								ob->getDependencyURLSet(URLs);
+								for(auto it = URLs.begin(); it != URLs.end(); ++it)
+									sendGetFileMessageIfNeeded(*it);
 							}
 						}
 						break;
@@ -261,39 +321,16 @@ void WorkerThread::doRun()
 						conPrint("ObjectCreated");
 						//const UID object_uid = readUIDFromStream(*socket);
 						//const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						const std::string model_url = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const uint64 model_hash = socket->readUInt64();
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f axis = readVec3FromStream<float>(*socket);
 						const float angle = socket->readFloat();
+						const Vec3f scale = readVec3FromStream<float>(*socket);
 
 						conPrint("model_url: '" + model_url + "', pos: " + pos.toString() + ", model_hash: " + toString(model_hash));
 
-						if(!ResourceManager::isValidURL(model_url))
-							throw Indigo::Exception("Invalid URL: '" + model_url + "'");
-
-						// See if we have this model on the server already
-						{
-							const std::string path = server->resource_manager->pathForURL(model_url);
-							if(FileUtils::fileExists(path))
-							{
-								// Check hash?
-								conPrint("resource file already present on disk.");
-							}
-							else
-							{
-								// We need the file from the client.
-								// Send the client a 'get file' message
-								SocketBufferOutStream packet;
-								packet.writeUInt32(GetFile);
-								packet.writeStringLengthFirst(model_url);
-
-								std::string packet_string(packet.buf.size(), '\0');
-								std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-								this->enqueueDataToSend(packet_string);
-							}
-						}
+						sendGetFileMessageIfNeeded(model_url);
 
 						// Look up existing object in world state
 						{
@@ -309,8 +346,9 @@ void WorkerThread::doRun()
 								ob->pos = pos;
 								ob->axis = axis;
 								ob->angle = angle;
+								ob->scale = scale;
 								ob->state = WorldObject::State_JustCreated;
-								ob->from_remote_dirty = true;
+								ob->from_remote_other_dirty = true;
 								world_state->objects.insert(std::make_pair(ob->uid, ob));
 
 								conPrint("created new object");
@@ -331,7 +369,7 @@ void WorkerThread::doRun()
 							{
 								WorldObject* ob = res->second.getPointer();
 								ob->state = WorldObject::State_Dead;
-								ob->from_remote_dirty = true;
+								ob->from_remote_other_dirty = true;
 							}
 						}
 						break;
@@ -339,8 +377,8 @@ void WorkerThread::doRun()
 				case ChatMessageID:
 					{
 						conPrint("ChatMessageID");
-						const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						const std::string msg = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 
 						// Enqueue chat messages to worker threads to send
 						{
@@ -366,7 +404,7 @@ void WorkerThread::doRun()
 					{
 						conPrint("UploadResource");
 						
-						const std::string URL = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
 						if(!ResourceManager::isValidURL(URL))
 							throw Indigo::Exception("Invalid URL '" + URL + "'");
@@ -381,7 +419,7 @@ void WorkerThread::doRun()
 							std::vector<uint8> buf(file_len);
 							socket->readData(buf.data(), file_len);
 
-							conPrint("Received file from client. (" + toString(file_len) + " B)");
+							conPrint("Received file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
 
 							// Save to disk
 							const std::string path = server->resource_manager->pathForURL(URL);
@@ -390,13 +428,16 @@ void WorkerThread::doRun()
 							conPrint("Written to disk at '" + path + "'.");
 						}
 
-						break;
+						// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
+						//socket->waitForGracefulDisconnect();
+						return;
+						//break;
 					}
 				case GetFile:
 					{
 						conPrint("GetFile");
 						
-						const std::string URL = socket->readStringLengthFirst(); //TODO: enforce max len
+						const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
 						conPrint("Requested URL: '" + URL + "'");
 
