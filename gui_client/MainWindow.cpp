@@ -1005,10 +1005,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 		// Deselect any currently selected object
 		if(this->selected_ob.nonNull())
-		{
-			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
-				selected_ob->opengl_engine_ob->materials[z].selected = false;
-		}
+			this->glWidget->opengl_engine->deselectObject(selected_ob->opengl_engine_ob);
 
 		this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 		if(this->selected_ob.nonNull())
@@ -1022,8 +1019,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			this->selected_ob_pos_upon_selection = results.hit_object->ob_to_world.getColumn(3);
 
 			// Mark the materials on the hit object as selected
-			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
-				selected_ob->opengl_engine_ob->materials[z].selected = true;
+			this->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
 
 
 			// Update the editor widget with values from the selected object
@@ -1045,10 +1041,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 	{
 		// Deselect any currently selected object
 		if(this->selected_ob.nonNull())
-		{
-			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
-				selected_ob->opengl_engine_ob->materials[z].selected = false;
-		}
+			this->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
 
 		// deslect object
 		this->selected_ob = NULL;
@@ -1147,9 +1140,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	{
 		if(this->selected_ob.nonNull())
 		{
-			// Mark the materials on the hit object as unselected
-			for(size_t z=0; z<selected_ob->opengl_engine_ob->materials.size(); ++z)
-				selected_ob->opengl_engine_ob->materials[z].selected = false;
+			this->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
 
 			// Deselect object
 			this->selected_ob = NULL;
