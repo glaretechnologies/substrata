@@ -14,7 +14,8 @@ Generated at 2016-01-12 12:24:54 +1300
 
 Avatar::Avatar()
 {
-	dirty = false;
+	transform_dirty = false;
+	other_dirty = false;
 	opengl_engine_ob = NULL;
 	using_placeholder_model = false;
 
@@ -86,3 +87,22 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ax
 
 
 
+void writeToNetworkStream(const Avatar& avatar, OutStream& stream) // Write without version
+{
+	writeToStream(avatar.uid, stream);
+	stream.writeStringLengthFirst(avatar.name);
+	stream.writeStringLengthFirst(avatar.model_url);
+	writeToStream(avatar.pos, stream);
+	writeToStream(avatar.axis, stream);
+	stream.writeFloat(avatar.angle);
+}
+
+
+void readFromNetworkStreamGivenUID(InStream& stream, Avatar& avatar) // UID will have been read already
+{
+	avatar.name			= stream.readStringLengthFirst(10000);
+	avatar.model_url	= stream.readStringLengthFirst(10000);
+	avatar.pos			= readVec3FromStream<double>(stream);
+	avatar.axis			= readVec3FromStream<float>(stream);
+	avatar.angle		= stream.readFloat();
+}

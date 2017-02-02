@@ -136,7 +136,7 @@ void ClientThread::doRun()
 								avatar->pos = pos;
 								avatar->axis = axis;
 								avatar->angle = angle;
-								avatar->dirty = true;
+								avatar->transform_dirty = true;
 
 								//conPrint("updated avatar transform");
 
@@ -145,6 +145,29 @@ void ClientThread::doRun()
 								avatar->angle_snapshots[Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = angle;
 								avatar->last_snapshot_time = Clock::getCurTimeRealSec();
 								avatar->next_snapshot_i++;
+							}
+						}
+						break;
+					}
+				case AvatarFullUpdate:
+					{
+						conPrint("AvatarFullUpdate");
+						const UID avatar_uid = readUIDFromStream(*socket);
+
+						// Look up existing avatar in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->avatars.find(avatar_uid);
+							if(res != world_state->avatars.end())
+							{
+								Avatar* avatar = res->second.getPointer();
+								readFromNetworkStreamGivenUID(*socket, *avatar);
+								avatar->other_dirty = true;
+							}
+							else
+							{
+								Avatar dummy;
+								readFromNetworkStreamGivenUID(*socket, dummy);
 							}
 						}
 						break;
@@ -174,7 +197,7 @@ void ClientThread::doRun()
 								avatar->axis = axis;
 								avatar->angle = angle;
 								avatar->state = Avatar::State_JustCreated;
-								avatar->dirty = true;
+								avatar->other_dirty = true;
 								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
 
 								avatar->setTransformAndHistory(pos, axis, angle);
@@ -197,7 +220,7 @@ void ClientThread::doRun()
 							{
 								Avatar* avatar = res->second.getPointer();
 								avatar->state = Avatar::State_Dead;
-								avatar->dirty = true;
+								avatar->other_dirty = true;
 							}
 						}
 						break;
@@ -332,6 +355,7 @@ void ClientThread::doRun()
 					{
 						conPrint("GetFile");
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
+						conPrint("model_url: '" + model_url + "'");
 
 						out_msg_queue->enqueue(new GetFileMessage(model_url));
 						break;

@@ -10,16 +10,18 @@
 #include "../shared/WorldState.h"
 #include "../utils/ArgumentParser.h"
 #include "../utils/Timer.h"
-#include "ui_MainWindow.h"
 #include <QtCore/QEvent>
 #include <QtCore/QObject>
 #include <QtCore/QString>
-#include <QtCore/QSettings>
+#include <QtWidgets/QMainWindow>
 #include <string>
 class ArgumentParser;
+namespace Ui { class MainWindow; }
+class TextureServer;
+class QSettings;
 
 
-class MainWindow : public QMainWindow, public Ui::MainWindow
+class MainWindow : public QMainWindow
 {
 	Q_OBJECT
 public:
@@ -63,6 +65,8 @@ private:
 	Timer total_timer;
 
 public:
+	Ui::MainWindow* ui;
+
 	CameraController cam_controller;
 
 	Reference<PhysicsWorld> physics_world;

@@ -31,7 +31,7 @@ public:
 };
 
 
-// WHen the server wants a file from the client, it will send the client a GetFIle protocol message.  The clientthread will send this 'GetFileMessage' back to MainWindow.
+// When the server wants a file from the client, it will send the client a GetFile protocol message.  The ClientThread will send this 'GetFileMessage' back to MainWindow.
 class GetFileMessage : public ThreadMessage
 {
 public:

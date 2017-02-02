@@ -110,24 +110,22 @@ int main(int argc, char *argv[])
 			for(auto i = server.world_state->avatars.begin(); i != server.world_state->avatars.end();)
 			{
 				Avatar* avatar = i->second.getPointer();
-				if(avatar->dirty)
+				if(avatar->other_dirty)
 				{
 					if(avatar->state == Avatar::State_Alive)
 					{
-						// Send AvatarTransformUpdate packet
+						// Send AvatarFullUpdate packet
 						SocketBufferOutStream packet;
-						packet.writeUInt32(AvatarTransformUpdate);
-						writeToStream(avatar->uid, packet);
-						writeToStream(avatar->pos, packet);
-						writeToStream(avatar->axis, packet);
-						packet.writeFloat(avatar->angle);
+						packet.writeUInt32(AvatarFullUpdate);
+						writeToNetworkStream(*avatar, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
 						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
 
 						broadcast_packets.push_back(packet_string);
 
-						avatar->dirty = false;
+						avatar->other_dirty = false;
+						avatar->transform_dirty = false;
 						i++;
 					}
 					else if(avatar->state == Avatar::State_JustCreated)
@@ -148,7 +146,8 @@ int main(int argc, char *argv[])
 						broadcast_packets.push_back(packet_string);
 
 						avatar->state = Avatar::State_Alive;
-						avatar->dirty = false;
+						avatar->other_dirty = false;
+						avatar->transform_dirty = false;
 
 						i++;
 					}
@@ -175,6 +174,27 @@ int main(int argc, char *argv[])
 					{
 						assert(0);
 					}
+				}
+				else if(avatar->transform_dirty)
+				{
+					if(avatar->state == WorldObject::State_Alive)
+					{
+						// Send AvatarTransformUpdate packet
+						SocketBufferOutStream packet;
+						packet.writeUInt32(AvatarTransformUpdate);
+						writeToStream(avatar->uid, packet);
+						writeToStream(avatar->pos, packet);
+						writeToStream(avatar->axis, packet);
+						packet.writeFloat(avatar->angle);
+
+						std::string packet_string(packet.buf.size(), '\0');
+						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+						broadcast_packets.push_back(packet_string);
+
+						avatar->transform_dirty = false;
+					}
+					i++;
 				}
 				else
 				{
