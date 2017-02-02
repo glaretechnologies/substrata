@@ -18,6 +18,7 @@ struct GLObject;
 const uint32 AvatarCreated			= 1000;
 const uint32 AvatarDestroyed		= 1001;
 const uint32 AvatarTransformUpdate	= 1002;
+const uint32 AvatarFullUpdate		= 1003;
 
 const uint32 ChatMessageID = 2000;//TEMP HACK move elsewhere
 
@@ -52,7 +53,8 @@ public:
 	};
 
 	State state;
-	bool dirty;
+	bool transform_dirty;
+	bool other_dirty;
 
 	bool using_placeholder_model;
 
@@ -76,3 +78,7 @@ private:
 
 
 typedef Reference<Avatar> AvatarRef;
+
+
+void writeToNetworkStream(const Avatar& world_ob, OutStream& stream); // Write without version.  Writes UID.
+void readFromNetworkStreamGivenUID(InStream& stream, Avatar& ob); // UID will have been read already

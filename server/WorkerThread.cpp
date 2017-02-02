@@ -204,10 +204,31 @@ void WorkerThread::doRun()
 								avatar->pos = pos;
 								avatar->axis = axis;
 								avatar->angle = angle;
-								avatar->dirty = true;
+								avatar->transform_dirty = true;
 
 								//conPrint("updated avatar transform");
 							}
+						}
+						break;
+					}
+				case AvatarFullUpdate:
+					{
+						conPrint("AvatarFullUpdate");
+						const UID avatar_uid = readUIDFromStream(*socket);
+
+						// Look up existing avatar in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->avatars.find(avatar_uid);
+							if(res != world_state->avatars.end())
+							{
+								Avatar* avatar = res->second.getPointer();
+								readFromNetworkStreamGivenUID(*socket, *avatar);
+								avatar->other_dirty = true;
+
+								//conPrint("updated avatar transform");
+							}
+							// TODO: read data even if no such avatar inserted.
 						}
 						break;
 					}
@@ -236,7 +257,7 @@ void WorkerThread::doRun()
 								avatar->axis = axis;
 								avatar->angle = angle;
 								avatar->state = Avatar::State_JustCreated;
-								avatar->dirty = true;
+								avatar->other_dirty = true;
 								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
 
 								conPrint("created new avatar");
@@ -245,7 +266,7 @@ void WorkerThread::doRun()
 
 						sendGetFileMessageIfNeeded(model_url);
 
-						conPrint("username: '" + name + "', model_url: '" + model_url + "'");
+						conPrint("New Avatar creation: username: '" + name + "', model_url: '" + model_url + "'");
 
 						break;
 					}
@@ -262,7 +283,7 @@ void WorkerThread::doRun()
 							{
 								Avatar* avatar = res->second.getPointer();
 								avatar->state = Avatar::State_Dead;
-								avatar->dirty = true;
+								avatar->other_dirty = true;
 							}
 						}
 						break;
@@ -510,7 +531,7 @@ void WorkerThread::doRun()
 		if(world_state->avatars.count(client_avatar_uid) == 1)
 		{
 			world_state->avatars[client_avatar_uid]->state = Avatar::State_Dead;
-			world_state->avatars[client_avatar_uid]->dirty = true;
+			world_state->avatars[client_avatar_uid]->other_dirty = true;
 		}
 	}
 }

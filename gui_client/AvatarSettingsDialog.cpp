@@ -16,6 +16,7 @@ Code By Nicholas Chapman.
 #include "../utils/PlatformUtils.h"
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
+#include "../utils/FileChecksum.h"
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
@@ -65,6 +66,8 @@ void AvatarSettingsDialog::accepted()
 void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 {
 	const std::string path = QtUtils::toIndString(filename);
+	this->result_path = path;
+	
 
 	conPrint("AvatarSettingsDialog::avatarFilenameChanged: filename = " + path);
 
@@ -76,6 +79,8 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 	// Try and load model
 	try
 	{
+		this->model_hash = FileChecksum::fileChecksum(path);
+
 		if(avatar_gl_ob.nonNull())
 		{
 			// Remove previous object from engine.

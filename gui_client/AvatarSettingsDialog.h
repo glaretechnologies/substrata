@@ -37,4 +37,7 @@ private:
 	Reference<GLObject> avatar_gl_ob;
 
 	bool loaded_model;
+public:
+	std::string result_path;
+	uint64 model_hash;
 };
