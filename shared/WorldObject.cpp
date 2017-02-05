@@ -8,8 +8,11 @@ Copyright Glare Technologies Limited 2016 -
 
 #include <Exception.h>
 #include <StringUtils.h>
+#include <FileUtils.h>
+#include <FileChecksum.h>
 #include "opengl/OpenGLEngine.h"
 #include "../gui_client/PhysicsObject.h"
+#include "../shared/ResourceManager.h"
 
 
 WorldObject::WorldObject()
@@ -47,6 +50,18 @@ void WorldObject::getDependencyURLSet(std::set<std::string>& URLS_out)
 	this->appendDependencyURLs(URLs);
 
 	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+}
+
+
+void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
+{
+	if(FileUtils::fileExists(this->model_url)) // If the URL is a local path:
+	{
+		this->model_url = resource_manager.URLForPathAndHash(this->model_url, FileChecksum::fileChecksum(this->model_url));
+	}
+
+	for(size_t i=0; i<materials.size(); ++i)
+		materials[i]->convertLocalPathsToURLS(resource_manager);
 }
 
 

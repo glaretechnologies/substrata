@@ -30,6 +30,12 @@ Avatar::~Avatar()
 }
 
 
+void Avatar::appendDependencyURLs(std::vector<std::string>& URLs_out)
+{
+	URLs_out.push_back(model_url);
+}
+
+
 void Avatar::setTransformAndHistory(const Vec3d& pos_, const Vec3f& axis_, float angle_)
 {
 	pos = pos_;

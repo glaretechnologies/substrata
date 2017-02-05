@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <set>
 struct GLObject;
 class PhysicsObject;
+class ResourceManager;
 
 
 const uint32 ConnectionTypeUpdates	= 500;
@@ -53,6 +54,7 @@ public:
 
 	void appendDependencyURLs(std::vector<std::string>& URLs_out);
 	void getDependencyURLSet(std::set<std::string>& URLS_out);
+	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
@@ -83,6 +85,7 @@ public:
 	bool from_local_other_dirty;      // Something else has been changed locally
 
 	bool using_placeholder_model;
+	std::string loaded_model_url;
 
 	//Reference<WorldMaterial> material;
 

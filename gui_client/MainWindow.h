@@ -2,6 +2,7 @@
 
 
 #include "PhysicsWorld.h"
+#include "../opengl/OpenGLEngine.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
 #include "../utils/CameraController.h"
@@ -55,6 +56,8 @@ private slots:;
 private:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void deleteSelectedObject();
+	GLObjectRef makeNameTagGLObject(const std::string& nametag);
+	void loadModelForObject(WorldObject* ob);
 
 	std::string base_dir_path;
 	std::string appdata_path;

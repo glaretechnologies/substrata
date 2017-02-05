@@ -42,6 +42,8 @@ public:
 
 	
 	void addObject(const Reference<PhysicsObject>& object);
+	
+	void removeObject(const Reference<PhysicsObject>& object);
 
 	void updateObjectTransformData(PhysicsObject& object);
 

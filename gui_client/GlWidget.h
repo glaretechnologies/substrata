@@ -36,6 +36,7 @@ public:
 	void setPlayerPhysics(PlayerPhysics* player_physics_);
 
 	void addObject(const Reference<GLObject>& object);
+	void removeObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
 
 	void setEnvMat(OpenGLMaterial& mat);

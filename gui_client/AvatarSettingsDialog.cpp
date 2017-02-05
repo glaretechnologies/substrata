@@ -56,6 +56,12 @@ AvatarSettingsDialog::~AvatarSettingsDialog()
 }
 
 
+std::string AvatarSettingsDialog::getAvatarName()
+{
+	return QtUtils::toStdString(usernameLineEdit->text());
+}
+
+
 void AvatarSettingsDialog::accepted()
 {
 	this->settings->setValue("avatarPath", this->avatarSelectWidget->filename());

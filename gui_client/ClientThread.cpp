@@ -60,6 +60,8 @@ void ClientThread::doRun()
 
 		conPrint("ClientThread Connected to " + hostname + ":" + toString(port) + "!");
 
+		out_msg_queue->enqueue(new ClientConnectedToServerMessage());
+
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
 		// Write connection type
@@ -397,6 +399,8 @@ void ClientThread::doRun()
 	{
 		conPrint("Indigo::Exception: " + e.what());
 	}
+
+	out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage());
 }
 
 

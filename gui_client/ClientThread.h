@@ -40,6 +40,16 @@ public:
 };
 
 
+class ClientConnectedToServerMessage : public ThreadMessage
+{
+};
+
+
+class ClientDisconnectedFromServerMessage : public ThreadMessage
+{
+};
+
+
 /*=====================================================================
 ClientThread
 -------------------
