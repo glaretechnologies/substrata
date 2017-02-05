@@ -11,7 +11,9 @@ Generated at 2016-01-12 12:24:54 +1300
 #include <Reference.h>
 #include "../shared/UID.h"
 #include "vec3.h"
+#include "Matrix4f.h"
 #include <string>
+#include <vector>
 struct GLObject;
 
 
@@ -33,6 +35,10 @@ class Avatar : public ThreadSafeRefCounted
 public:
 	Avatar();
 	~Avatar();
+
+	//INDIGO_ALIGNED_NEW_DELETE
+
+	void appendDependencyURLs(std::vector<std::string>& URLs_out);
 
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
@@ -59,6 +65,7 @@ public:
 	bool using_placeholder_model;
 
 	Reference<GLObject> opengl_engine_ob;
+	Reference<GLObject> opengl_engine_nametag_ob;
 
 	/*
 		Snapshots for client-side interpolation purposes.

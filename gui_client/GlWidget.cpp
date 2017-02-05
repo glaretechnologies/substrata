@@ -172,6 +172,14 @@ void GlWidget::addObject(const Reference<GLObject>& object)
 }
 
 
+void GlWidget::removeObject(const Reference<GLObject>& object)
+{
+	this->makeCurrent();
+
+	opengl_engine->removeObject(object);
+}
+
+
 void GlWidget::addOverlayObject(const Reference<OverlayObject>& object)
 {
 	this->makeCurrent();

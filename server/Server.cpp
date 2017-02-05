@@ -310,7 +310,7 @@ int main(int argc, char *argv[])
 
 			// Enqueue packets to worker threads to send
 			{
-				Lock lock(server.worker_thread_manager.getMutex());
+				Lock lock2(server.worker_thread_manager.getMutex());
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 				{
 					for(size_t z=0; z<broadcast_packets.size(); ++z)
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
 				try
 				{
 					// Save world state to disk
-					Lock lock(server.world_state->mutex);
+					Lock lock2(server.world_state->mutex);
 
 					server.world_state->serialiseToDisk(server_state_path);
 

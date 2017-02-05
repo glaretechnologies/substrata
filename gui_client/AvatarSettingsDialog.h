@@ -24,6 +24,7 @@ public:
 	AvatarSettingsDialog(QSettings* settings, TextureServer* texture_server_ptr);
 	~AvatarSettingsDialog();
 
+	std::string getAvatarName();
 private slots:;
 	void timerEvent();
 	void accepted();

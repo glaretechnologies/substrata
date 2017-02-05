@@ -50,6 +50,18 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 }
 
 
+void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
+{
+	// NOTE: linear time
+
+	for(size_t i=0; i<objects.size(); ++i)
+		if(objects[i].getPointer() == object.getPointer())
+		{
+			objects.erase(i);
+			break;
+		}
+}
+
 void PhysicsWorld::build(Indigo::TaskManager& task_manager, PrintOutput& print_output)
 {
 	for(size_t i=0; i<objects.size(); ++i)
