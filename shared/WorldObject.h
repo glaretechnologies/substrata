@@ -102,7 +102,8 @@ public:
 	Vec3d pos_snapshots[HISTORY_BUF_SIZE];
 	Vec3f axis_snapshots[HISTORY_BUF_SIZE];
 	float angle_snapshots[HISTORY_BUF_SIZE];
-	double last_snapshot_time;
+	double snapshot_times[HISTORY_BUF_SIZE];
+	//double last_snapshot_time;
 	uint32 next_snapshot_i;
 private:
 

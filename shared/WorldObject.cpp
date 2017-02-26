@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Exception.h>
 #include <StringUtils.h>
 #include <FileUtils.h>
+#include <ConPrint.h>
 #include <FileChecksum.h>
 #include "opengl/OpenGLEngine.h"
 #include "../gui_client/PhysicsObject.h"
@@ -26,7 +27,7 @@ WorldObject::WorldObject()
 	using_placeholder_model = false;
 
 	next_snapshot_i = 0;
-	last_snapshot_time = 0;
+	//last_snapshot_time = 0;
 }
 
 
@@ -76,6 +77,7 @@ void WorldObject::setTransformAndHistory(const Vec3d& pos_, const Vec3f& axis_, 
 		pos_snapshots[i] = pos_;
 		axis_snapshots[i] = axis_;
 		angle_snapshots[i] = angle_;
+		snapshot_times[i] = 0;
 	}
 }
 
@@ -101,22 +103,48 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 	                                               ^                last snapshot
 	                                             cur_time - send_period * delay_factor
 
+
+	When 'frac' gets > 1:
+	|---------------|----------------|---------------|----------------x
+	                                                                       ^
+	                                                                      cur_time
+	                                                 ^
+	                                     ^         last snapshot
+	                                   cur_time - send_period * delay_factor
+
+
+	 So should be alright as long as it doesn't exceed 2.
+	
+	|---------------|----------------|---------------|---------------------------|
+	                                                                       ^
+	                                                                      cur_time
+	                                                 ^
+	                                     ^         last snapshot
+	                                   cur_time - send_period * delay_factor
+
+	
 	*/
 
+
 	const double send_period = 0.1; // Time between update messages from server
-	const double delay = /*send_period * */2.0; // Objects are rendered using the interpolated state at this past time.
+	const double delay = send_period * 2.0; // Objects are rendered using the interpolated state at this past time.
 
-	const int last_snapshot_i = next_snapshot_i - 1;
+	const double delayed_time = cur_time - delay;
+	// Search through history for first snapshot
+	int begin = 0;
+	for(int i=next_snapshot_i-HISTORY_BUF_SIZE; i<next_snapshot_i; ++i)
+	{
+		const int modi = Maths::intMod(i, HISTORY_BUF_SIZE);
+		if(snapshot_times[modi] > delayed_time)
+		{
+			begin = Maths::intMod(modi - 1, HISTORY_BUF_SIZE);
+			break;
+		}
+	}
 
-	const double frac = (cur_time - last_snapshot_time) / send_period; // Fraction of send period ahead of last_snapshot cur time is
-	//printVar(frac);
-	const double delayed_state_pos = (double)last_snapshot_i + frac - delay; // Delayed state position in normalised period coordinates.
-	const int delayed_state_begin_snapshot_i = myClamp(Maths::floorToInt(delayed_state_pos), last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
-	const int delayed_state_end_snapshot_i   = myClamp(delayed_state_begin_snapshot_i + 1,   last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
-	const float t  = delayed_state_pos - delayed_state_begin_snapshot_i; // Interpolation fraction
+	const int end = Maths::intMod(begin + 1, HISTORY_BUF_SIZE);
 
-	const int begin = Maths::intMod(delayed_state_begin_snapshot_i, HISTORY_BUF_SIZE);
-	const int end   = Maths::intMod(delayed_state_end_snapshot_i,   HISTORY_BUF_SIZE);
+	const float t  = (delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin]); // Interpolation fraction
 
 	pos_out   = Maths::uncheckedLerp(pos_snapshots  [begin], pos_snapshots  [end], t);
 	axis_out  = Maths::uncheckedLerp(axis_snapshots [begin], axis_snapshots [end], t);
@@ -127,6 +155,58 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 		axis_out = Vec3f(0,0,1);
 		angle_out = 0;
 	}
+
+	//const int last_snapshot_i = next_snapshot_i - 1;
+
+	//const double frac = (cur_time - last_snapshot_time) / send_period; // Fraction of send period ahead of last_snapshot cur time is
+	//printVar(frac);
+	//if(frac > 2.0f)
+	//	int a = 9;
+	//const double delayed_state_pos = (double)last_snapshot_i + frac - delay; // Delayed state position in normalised period coordinates.
+	//const int delayed_state_begin_snapshot_i = myClamp(Maths::floorToInt(delayed_state_pos), last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
+	//const int delayed_state_end_snapshot_i   = myClamp(delayed_state_begin_snapshot_i + 1,   last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
+	//const float t  = delayed_state_pos - delayed_state_begin_snapshot_i; // Interpolation fraction
+
+	//const int begin = Maths::intMod(delayed_state_begin_snapshot_i, HISTORY_BUF_SIZE);
+	//const int end   = Maths::intMod(delayed_state_end_snapshot_i,   HISTORY_BUF_SIZE);
+
+	//pos_out   = Maths::uncheckedLerp(pos_snapshots  [begin], pos_snapshots  [end], t);
+	//axis_out  = Maths::uncheckedLerp(axis_snapshots [begin], axis_snapshots [end], t);
+	//angle_out = Maths::uncheckedLerp(angle_snapshots[begin], angle_snapshots[end], t);
+
+	//if(axis_out.length2() < 1.0e-10f)
+	//{
+	//	axis_out = Vec3f(0,0,1);
+	//	angle_out = 0;
+	//}
+
+
+	//const double send_period = 0.1; // Time between update messages from server
+	//const double delay = /*send_period * */2.0; // Objects are rendered using the interpolated state at this past time.
+
+	//const int last_snapshot_i = next_snapshot_i - 1;
+
+	//const double frac = (cur_time - last_snapshot_time) / send_period; // Fraction of send period ahead of last_snapshot cur time is
+	//printVar(frac);
+	//if(frac > 2.0f)
+	//	int a = 9;
+	//const double delayed_state_pos = (double)last_snapshot_i + frac - delay; // Delayed state position in normalised period coordinates.
+	//const int delayed_state_begin_snapshot_i = myClamp(Maths::floorToInt(delayed_state_pos), last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
+	//const int delayed_state_end_snapshot_i   = myClamp(delayed_state_begin_snapshot_i + 1,   last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
+	//const float t  = delayed_state_pos - delayed_state_begin_snapshot_i; // Interpolation fraction
+
+	//const int begin = Maths::intMod(delayed_state_begin_snapshot_i, HISTORY_BUF_SIZE);
+	//const int end   = Maths::intMod(delayed_state_end_snapshot_i,   HISTORY_BUF_SIZE);
+
+	//pos_out   = Maths::uncheckedLerp(pos_snapshots  [begin], pos_snapshots  [end], t);
+	//axis_out  = Maths::uncheckedLerp(axis_snapshots [begin], axis_snapshots [end], t);
+	//angle_out = Maths::uncheckedLerp(angle_snapshots[begin], angle_snapshots[end], t);
+
+	//if(axis_out.length2() < 1.0e-10f)
+	//{
+	//	axis_out = Vec3f(0,0,1);
+	//	angle_out = 0;
+	//}
 }
 
 

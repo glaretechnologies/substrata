@@ -160,17 +160,14 @@ if(WIN32)
 		optimized qtmain
 		optimized Qt5Gui
 		optimized Qt5Core
-		optimized Qt5Network
 		optimized Qt5OpenGL
-		optimized Qt5Sql
 		optimized Qt5Widgets
 		debug qtmaind
 		debug Qt5Guid
 		debug Qt5Cored
-		debug Qt5Networkd
 		debug Qt5OpenGLd
-		debug Qt5Sqld
-		debug Qt5Widgetsd)
+		debug Qt5Widgetsd
+		)
 		
 	# Disable ASLR (/DYNAMICBASE)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
@@ -182,10 +179,9 @@ else() # linux
 	SET(QT_LINUX_LIBS GL
 		Qt5Gui
 		Qt5Core
-		Qt5Network
 		Qt5OpenGL
-		Qt5Sql
-		Qt5Widgets)
+		Qt5Widgets
+	)
 	
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN'")

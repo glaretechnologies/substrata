@@ -45,6 +45,11 @@ class ClientConnectedToServerMessage : public ThreadMessage
 };
 
 
+class ClientConnectingToServerMessage : public ThreadMessage
+{
+};
+
+
 class ClientDisconnectedFromServerMessage : public ThreadMessage
 {
 };

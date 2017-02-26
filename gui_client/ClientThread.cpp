@@ -55,6 +55,8 @@ void ClientThread::doRun()
 	{
 		conPrint("ClientThread Connecting to " + hostname + ":" + toString(port) + "...");
 
+		out_msg_queue->enqueue(new ClientConnectingToServerMessage());
+
 //		socket = new MySocket(hostname, port);
 		socket->connect(hostname, port);
 
@@ -145,7 +147,8 @@ void ClientThread::doRun()
 								avatar->pos_snapshots  [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = pos;
 								avatar->axis_snapshots [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = axis;
 								avatar->angle_snapshots[Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = angle;
-								avatar->last_snapshot_time = Clock::getCurTimeRealSec();
+								avatar->snapshot_times[Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = Clock::getCurTimeRealSec();
+								//avatar->last_snapshot_time = Clock::getCurTimeRealSec();
 								avatar->next_snapshot_i++;
 							}
 						}
@@ -252,7 +255,8 @@ void ClientThread::doRun()
 									ob->pos_snapshots  [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = pos;
 									ob->axis_snapshots [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = axis;
 									ob->angle_snapshots[Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = angle;
-									ob->last_snapshot_time = Clock::getCurTimeRealSec();
+									ob->snapshot_times[Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = Clock::getCurTimeRealSec();
+									//ob->last_snapshot_time = Clock::getCurTimeRealSec();
 									ob->next_snapshot_i++;
 
 									ob->from_remote_transform_dirty = true;
