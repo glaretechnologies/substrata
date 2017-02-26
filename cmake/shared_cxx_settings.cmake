@@ -128,14 +128,16 @@ if(WIN32)
 	
 elseif(APPLE)
 	add_definitions(-DOSX -DINDIGO_NO_OPENMP)
-	add_definitions(-D__SSSE3__ -D__NO_AVX__)
+	add_definitions(-D__NO_AVX__)
 
-	SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.7")
-	SET(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk")
-	
+	SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.8")
+	SET(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk")
+
+	add_definitions(-DOSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}")
+
 	# dead strip might be dangerous for sdk lib?
 	# NOTE: -stdlib=libc++ is needed for C++11.
-	SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -mmmx -msse -msse2 -mssse3 -arch x86_64")
+	SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -mmmx -msse -msse2 -mssse3 -msse4.1 -arch x86_64")
 	
 	SET(COMMON_C_CXX_OPTIONS_DEBUG				"${APPLE_C_CXX_OPTIONS} -gdwarf-2")
 	SET(COMMON_C_CXX_OPTIONS_SDKDEBUG			"${APPLE_C_CXX_OPTIONS} -gdwarf-2 -DNDEBUG")
