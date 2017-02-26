@@ -1647,11 +1647,13 @@ int main(int argc, char *argv[])
 
 		ArgumentParser parsed_args(args, syntax);
 
+#if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
 			Matrix4f::test();
 			return 0;
 		}
+#endif
 
 
 		MainWindow mw(indigo_base_dir_path, appdata_path, parsed_args);
