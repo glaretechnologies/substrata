@@ -87,6 +87,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 			}
+
+			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
 		mesh_out = mesh;
 		return ob;
@@ -109,6 +111,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 				ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
+				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 			}
 			
 			mesh_out = mesh;
@@ -153,6 +156,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 			}
+
+			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
 		mesh_out = mesh;
 		return ob;
@@ -216,6 +221,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 					ob->materials[i].albedo_tex_path = "obstacle.png";
 					ob->materials[i].roughness = 0.5f;
 				}
+
+				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 			}
 			mesh_out = mesh;
 			return ob;
