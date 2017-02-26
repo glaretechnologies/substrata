@@ -50,6 +50,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialEditor.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
 )
 
 SET(qt 
