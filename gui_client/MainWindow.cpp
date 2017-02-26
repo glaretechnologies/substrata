@@ -15,6 +15,8 @@
 #include "ModelLoading.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
+#include "AvatarGraphics.h"
+#include "GuiClientApplication.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QTimer>
 #include <QtCore/QProcess>
@@ -30,10 +32,10 @@
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QSplashScreen>
 #include <QtWidgets/QShortcut>
+#include "../qt/QtUtils.h"
 #ifdef _MSC_VER
 #pragma warning(pop) // Re-enable warnings
 #endif
-#include "GuiClientApplication.h"
 #include "../utils/Clock.h"
 #include "../utils/Timer.h"
 #include "../utils/PlatformUtils.h"
@@ -46,7 +48,7 @@
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
 #include "../networking/networking.h"
-#include "../qt/QtUtils.h"
+
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
 #include "../dll/include/IndigoMesh.h"
@@ -75,8 +77,12 @@
 static int64 next_uid = 10000;//TEMP HACK
 
 
-static const std::string server_hostname = "127.0.0.1"; // "217.155.32.43";
-const int server_port = 7654;
+static const std::string server_hostname = "217.155.32.43";
+const int server_port = 7600;
+
+
+AvatarGraphicsRef test_avatar;
+//Reference<WorldObject> test_object;
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -336,6 +342,10 @@ void MainWindow::timerEvent()
 
 	const double cur_time = Clock::getCurTimeRealSec();
 
+
+	//if(test_avatar.nonNull())
+	//	test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.f, cur_time);
+
 	// Handle any messages (chat messages etc..)
 	{
 		Lock lock(this->msg_queue.getMutex());
@@ -348,7 +358,11 @@ void MainWindow::timerEvent()
 			{
 				this->statusBar()->showMessage(QtUtils::toQString("Connected to " + ::server_hostname));
 			}
-			if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
+			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
+			{
+				this->statusBar()->showMessage(QtUtils::toQString("Connecting to " + ::server_hostname + "..."));
+			}
+			else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
 			{
 				this->statusBar()->showMessage("Not connected to server.");
 			}
@@ -434,30 +448,30 @@ void MainWindow::timerEvent()
 						}
 					}
 
-					for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-					{
-						Avatar* avatar = it->second.getPointer();
-						if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
-						{
-							// Remove placeholder GL object
-							assert(avatar->opengl_engine_ob.nonNull());
-							ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+					//for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+					//{
+					//	Avatar* avatar = it->second.getPointer();
+					//	if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
+					//	{
+					//		// Remove placeholder GL object
+					//		assert(avatar->opengl_engine_ob.nonNull());
+					//		ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
 
-							conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
-							//const std::string path = resources_dir + "/" + ob->model_url;
-							const std::string path = this->resource_manager->pathForURL(avatar->model_url);
+					//		conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
+					//		//const std::string path = resources_dir + "/" + ob->model_url;
+					//		const std::string path = this->resource_manager->pathForURL(avatar->model_url);
 
-							// Make GL object, add to OpenGL engine
-							Indigo::MeshRef mesh;
-							const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
-								Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
-							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
-							avatar->opengl_engine_ob = gl_ob;
-							ui->glWidget->addObject(gl_ob);
+					//		// Make GL object, add to OpenGL engine
+					//		Indigo::MeshRef mesh;
+					//		const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
+					//			Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
+					//		GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+					//		avatar->opengl_engine_ob = gl_ob;
+					//		ui->glWidget->addObject(gl_ob);
 
-							avatar->using_placeholder_model = false;
-						}
-					}
+					//		avatar->using_placeholder_model = false;
+					//	}
+					//}
 				}
 				catch(Indigo::Exception& e)
 				{
@@ -504,14 +518,21 @@ void MainWindow::timerEvent()
 				continue;
 			}
 
-			if(avatar->other_dirty || avatar->transform_dirty)
+
+			//if(avatar->other_dirty || avatar->transform_dirty)
 			{
 				if(avatar->state == Avatar::State_Dead)
 				{
 					conPrint("Removing avatar.");
 					// Remove any OpenGL object for it
-					if(avatar->opengl_engine_ob.nonNull())
-						ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+					//if(avatar->opengl_engine_ob.nonNull())
+					//	ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+					if(avatar->graphics.nonNull())
+					{
+						avatar->graphics->destroy(*ui->glWidget->opengl_engine);
+						avatar->graphics = NULL;
+					}
+
 					// Remove nametag OpenGL object
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 						ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
@@ -524,7 +545,7 @@ void MainWindow::timerEvent()
 				else
 				{
 					bool reload_opengl_model = false; // load or reload model?
-					if(avatar->opengl_engine_ob.isNull())
+					if(avatar->graphics.isNull())
 						reload_opengl_model = true;
 
 					if(avatar->other_dirty)
@@ -535,8 +556,13 @@ void MainWindow::timerEvent()
 						conPrint("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
 
 						// Remove any existing model and nametag
-						if(avatar->opengl_engine_ob.nonNull())
-							ui->glWidget->removeObject(avatar->opengl_engine_ob);
+						//if(avatar->opengl_engine_ob.nonNull())
+						//	ui->glWidget->removeObject(avatar->opengl_engine_ob);
+						if(avatar->graphics.nonNull())
+						{
+							avatar->graphics->destroy(*ui->glWidget->opengl_engine);
+							avatar->graphics = NULL;
+						}
 						if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
 							ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
 
@@ -554,43 +580,46 @@ void MainWindow::timerEvent()
 
 						// Do we have all the objects downloaded?
 						bool all_downloaded = true;
-						for(size_t i=0; i<dependency_URLs.size(); ++i)
-						{
-							const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
-							if(!FileUtils::fileExists(path))
-							{
-								all_downloaded = false;
-								// Enqueue download of resource.  TODO: check for dups
-								this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(dependency_URLs[i]));
-							}
-
-							paths_for_URLs[dependency_URLs[i]] = path;
-						}
+						//for(size_t i=0; i<dependency_URLs.size(); ++i)
+						//{
+						//	const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
+						//	if(!FileUtils::fileExists(path))
+						//	{
+						//		all_downloaded = false;
+						//		// Enqueue download of resource.  TODO: check for dups
+						//		this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(dependency_URLs[i]));
+						//	}
+						//
+						//	paths_for_URLs[dependency_URLs[i]] = path;
+						//}
 
 						// See if we have the file downloaded
-						if(!all_downloaded)
-						{
-							conPrint("Don't have avatar model '" + avatar->model_url + "' on disk, using placeholder.");
-
-							// Use a temporary placeholder model.
-							GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-							cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
-							avatar->opengl_engine_ob = cube_gl_ob;
-							ui->glWidget->addObject(cube_gl_ob);
-
-							avatar->using_placeholder_model = true;
-						}
-						else
+						//if(!all_downloaded)
+						//{
+						//	conPrint("Don't have avatar model '" + avatar->model_url + "' on disk, using placeholder.");
+						//
+						//	// Use a temporary placeholder model.
+						//	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+						//	cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+						//	avatar->opengl_engine_ob = cube_gl_ob;
+						//	ui->glWidget->addObject(cube_gl_ob);
+						//
+						//	avatar->using_placeholder_model = true;
+						//}
+						//else
 						{
 							conPrint("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
 
 							// Make GL object, add to OpenGL engine
-							Indigo::MeshRef mesh;
-							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(paths_for_URLs[avatar->model_url], ob_to_world_matrix, mesh);
-							avatar->opengl_engine_ob = gl_ob;
-							ui->glWidget->addObject(gl_ob);
+							//Indigo::MeshRef mesh;
+							//GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(paths_for_URLs[avatar->model_url], ob_to_world_matrix, mesh);
+							//avatar->opengl_engine_ob = gl_ob;
+							//ui->glWidget->addObject(gl_ob);
 
-							avatar->using_placeholder_model = false;
+							//avatar->using_placeholder_model = false;
+
+							avatar->graphics = new AvatarGraphics();
+							avatar->graphics->create(*ui->glWidget->opengl_engine);
 
 							// No physics object for avatars.
 						}
@@ -613,10 +642,14 @@ void MainWindow::timerEvent()
 					float angle;
 					avatar->getInterpolatedTransform(cur_time, pos, axis, angle);
 
-					if(avatar->opengl_engine_ob.nonNull())
+					/*if(avatar->opengl_engine_ob.nonNull())
 					{
 						avatar->opengl_engine_ob->ob_to_world_matrix = rotateThenTranslateMatrix(pos, axis, angle);
 						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_ob);
+					}*/
+					if(avatar->graphics.nonNull())
+					{
+						avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, axis, angle, cur_time);
 					}
 
 					// Update nametag transform also
@@ -624,11 +657,11 @@ void MainWindow::timerEvent()
 					{
 						// We want to rotate the nametag towards the camera.
 						const Vec4f to_cam = pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint();
-						const float angle = atan2(to_cam[1], to_cam[0]);
+						const float nametag_angle = atan2(to_cam[1], to_cam[0]);
 
 						// Rotate around z-axis, then translate to just above the avatar's head.
 						avatar->opengl_engine_nametag_ob->ob_to_world_matrix =
-							Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) * Matrix4f::rotationMatrix(Vec4f(0, 0, 1, 0), angle - Maths::pi_2<float>());
+							Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) * Matrix4f::rotationMatrix(Vec4f(0, 0, 1, 0), nametag_angle - Maths::pi_2<float>());
 
 						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
 					}
@@ -639,14 +672,20 @@ void MainWindow::timerEvent()
 					++it;
 				}
 			} // end if avatar is dirty
-			else
-				++it;
+			//else
+			//	++it;
 		} // end for each avatar
 	}
 	catch(Indigo::Exception& e)
 	{
 		conPrint(e.what());
 	}
+
+
+	//TEMP
+	if(test_avatar.nonNull())
+		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.f, cur_time);
+
 
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 	try
@@ -863,7 +902,7 @@ void MainWindow::timerEvent()
 		{
 			WorldObjectRef ob = *it;
 
-			if(cur_time - ob->last_snapshot_time > 1.0)
+			if(cur_time - ob->snapshot_times[0]/*last_snapshot_time*/ > 1.0)
 			{
 				// Object is not active any more, remove from active_objects set.
 				auto to_erase = it;
@@ -1604,8 +1643,16 @@ int main(int argc, char *argv[])
 	try
 	{
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
+		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 
 		ArgumentParser parsed_args(args, syntax);
+
+		if(parsed_args.isArgPresent("--test"))
+		{
+			Matrix4f::test();
+			return 0;
+		}
+
 
 		MainWindow mw(indigo_base_dir_path, appdata_path, parsed_args);
 
@@ -1760,7 +1807,7 @@ int main(int argc, char *argv[])
 		if(true)
 		{
 			Indigo::MeshRef mesh = new Indigo::Mesh();
-			const float r = 10000.f;
+			const float r = 1000.f;
 			mesh->addVertex(Indigo::Vec3f(-r, -r, 0), Indigo::Vec3f(0,0,1));
 			mesh->addVertex(Indigo::Vec3f( r, -r, 0), Indigo::Vec3f(0,0,1));
 			mesh->addVertex(Indigo::Vec3f( r,  r, 0), Indigo::Vec3f(0,0,1));
@@ -1874,6 +1921,15 @@ int main(int argc, char *argv[])
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
 			}*/
 
+
+			// TEMP: make an avatar
+			{
+				test_avatar = new AvatarGraphics();
+				test_avatar->create(*mw.ui->glWidget->opengl_engine);
+				test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.f, 0.0);
+				
+			}
+			
 
 			// Load a wedge
 			{

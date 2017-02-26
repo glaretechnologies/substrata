@@ -77,17 +77,19 @@ int main(int argc, char *argv[])
 			server.world_state->readFromDisk(server_state_path);
 
 		// Add a teapot object
-		if(false)
+		WorldObjectRef test_object;
+		if(true)
 		{
 			const UID uid(6000);
-			WorldObjectRef world_ob = new WorldObject();
-			world_ob->state = WorldObject::State_Alive;
-			world_ob->uid = uid;
-			world_ob->pos = Vec3d(3, 0, 1);
-			world_ob->angle = 0;
-			world_ob->axis = Vec3f(1,0,0);
-			world_ob->model_url = "teapot.obj";
-			server.world_state->objects[uid] = world_ob;
+			test_object = new WorldObject();
+			test_object->state = WorldObject::State_Alive;
+			test_object->uid = uid;
+			test_object->pos = Vec3d(3, 0, 1);
+			test_object->angle = 0;
+			test_object->axis = Vec3f(1,0,0);
+			test_object->model_url = "teapot_obj_12507117953098989663.obj";
+			test_object->scale = Vec3f(1.f);
+			server.world_state->objects[uid] = test_object;
 		}
 
 		ThreadManager thread_manager;
@@ -105,6 +107,13 @@ int main(int argc, char *argv[])
 			std::vector<std::string> broadcast_packets;
 
 			Lock lock(server.world_state->mutex);
+
+			//TEMP:
+			/*{
+				const double theta = Clock::getCurTimeRealSec();
+				test_object->pos = Vec3d(sin(theta), 2, cos(theta) + 1);
+				test_object->from_remote_transform_dirty = true;
+			}*/
 
 			// Generate packets for avatar changes
 			for(auto i = server.world_state->avatars.begin(); i != server.world_state->avatars.end();)

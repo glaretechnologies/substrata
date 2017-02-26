@@ -15,6 +15,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include <string>
 #include <vector>
 struct GLObject;
+class AvatarGraphics;
 
 
 const uint32 AvatarCreated			= 1000;
@@ -62,10 +63,12 @@ public:
 	bool transform_dirty;
 	bool other_dirty;
 
-	bool using_placeholder_model;
+	//bool using_placeholder_model;
 
-	Reference<GLObject> opengl_engine_ob;
+	//Reference<GLObject> opengl_engine_ob;
 	Reference<GLObject> opengl_engine_nametag_ob;
+
+	Reference<AvatarGraphics> graphics;
 
 	/*
 		Snapshots for client-side interpolation purposes.
@@ -77,7 +80,8 @@ public:
 	Vec3d pos_snapshots[HISTORY_BUF_SIZE];
 	Vec3f axis_snapshots[HISTORY_BUF_SIZE];
 	float angle_snapshots[HISTORY_BUF_SIZE];
-	double last_snapshot_time;
+	double snapshot_times[HISTORY_BUF_SIZE];
+	//double last_snapshot_time;
 	uint32 next_snapshot_i;
 private:
 

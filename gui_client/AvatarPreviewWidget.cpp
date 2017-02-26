@@ -82,8 +82,8 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 void AvatarPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		"n:/indigo/trunk/opengl/shaders" // shader dir
-		//"./shaders" // shader dir
+		//"n:/indigo/trunk/opengl/shaders" // shader dir
+		"./shaders" // shader dir
 	);
 	if(!opengl_engine->initSucceeded())
 	{
