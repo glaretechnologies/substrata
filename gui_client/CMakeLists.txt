@@ -125,7 +125,27 @@ ${INDIGO_QT_LIB_DIR}
 )
 
 
-add_executable(${CURRENT_TARGET} WIN32
+if(APPLE)
+	SET(EXECUTABLE_TYPE MACOSX_BUNDLE)
+	
+	# Resource files.
+	SET(MAC_ICON ../scripts/osx/Cyberspace.icns)
+	SET_SOURCE_FILES_PROPERTIES(../scripts/osx/Cyberspace.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+
+	# Plist stuff.
+	SET(MACOSX_BUNDLE_ICON_FILE Cyberspace.icns)
+	SET(MACOSX_BUNDLE_COPYRIGHT "Copyright 2017 Glare Technologies Ltd.")
+	SET(MACOSX_BUNDLE_BUNDLE_NAME "Cyberspace")
+	SET(MACOSX_BUNDLE_BUNDLE_VERSION "4.0")
+	SET(MACOSX_BUNDLE_SHORT_VERSION_STRING "0.0.1")
+	SET(MACOSX_BUNDLE_GUI_IDENTIFIER com.glaretechnologies.cyberspace)
+else()
+	SET(EXECUTABLE_TYPE WIN32)
+endif()
+
+
+add_executable(${CURRENT_TARGET} ${EXECUTABLE_TYPE}
+${MAC_ICON}
 ${graphics}
 ${indigo_src}
 ${client_indigo_files}
@@ -174,21 +194,6 @@ if(WIN32)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} /DYNAMICBASE:NO")
 elseif(APPLE)
-	SET(EXECUTABLE_TYPE MACOSX_BUNDLE)
-	
-	# Resource files.
-	SET(MAC_ICON ../scripts/osx/Cyberspace.icns)
-	SET_SOURCE_FILES_PROPERTIES(../scripts/osx/Cyberspace.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
-
-	# Plist stuff.
-	SET(MACOSX_BUNDLE_ICON_FILE Cyberspace.icns)
-	SET(MACOSX_BUNDLE_COPYRIGHT "Copyright 2017 Glare Technologies Ltd.")
-	SET(MACOSX_BUNDLE_BUNDLE_NAME "Cyberspace")
-	SET(MACOSX_BUNDLE_BUNDLE_VERSION "4.0")
-	SET(MACOSX_BUNDLE_SHORT_VERSION_STRING "0.0.1")
-	SET(MACOSX_BUNDLE_GUI_IDENTIFIER com.glaretechnologies.cyberspace)
-	
-	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 	
 
