@@ -109,7 +109,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 
-	this->resources_dir = "resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
+	this->resources_dir = appdata_path + "/resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
 	FileUtils::createDirIfDoesNotExist(this->resources_dir);
 
 	conPrint("resources_dir: " + resources_dir);
@@ -1605,9 +1605,12 @@ int main(int argc, char *argv[])
 	PlatformUtils::ignoreUnixSignals();
 
 	std::string indigo_base_dir_path;
+	std::string appdata_path;
 	try
 	{
 		indigo_base_dir_path = PlatformUtils::getResourceDirectoryPath();
+
+		appdata_path = PlatformUtils::getOrCreateAppDataDirectory(indigo_base_dir_path, "Cyberspace");
 	}
 	catch(PlatformUtils::PlatformUtilsExcep& e)
 	{
@@ -1617,10 +1620,6 @@ int main(int argc, char *argv[])
 		m.exec();
 		return 1;
 	}
-
-	// Get the 'appdata_path', which will be indigo_base_dir_path on Linux/OS-X, but something like
-	// 'C:\Users\Nicolas Chapman\AppData\Roaming\Indigo Renderer' on Windows.
-	const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectoryWithDummyFallback();
 
 	QDir::setCurrent(QtUtils::toQString(indigo_base_dir_path));
 
