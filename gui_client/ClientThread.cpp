@@ -69,20 +69,7 @@ void ClientThread::doRun()
 
 		
 
-		// Send AvatarCreated packet for this client's avatar
-		SocketBufferOutStream packet;
-		packet.writeUInt32(AvatarCreated);
-		writeToStream(client_avatar_uid, packet);
-		packet.writeStringLengthFirst(username);
-		packet.writeStringLengthFirst(avatar_URL);
-		writeToStream(Vec3d(0,0,0), packet);
-		writeToStream(Vec3f(0,0,1), packet);
-		packet.writeFloat(0.f);
-
-		//std::string packet_string(packet.buf.size(), '\0');
-		//std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-		socket->writeData(packet.buf.data(), packet.buf.size());
+		
 
 		const int MAX_STRING_LEN = 10000;
 
@@ -106,7 +93,24 @@ void ClientThread::doRun()
 		// Read assigned client avatar UID
 		this->client_avatar_uid = readUIDFromStream(*socket);
 
+
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+
+		// Send AvatarCreated packet for this client's avatar
+		SocketBufferOutStream packet;
+		packet.writeUInt32(AvatarCreated);
+		writeToStream(client_avatar_uid, packet);
+		packet.writeStringLengthFirst(username);
+		packet.writeStringLengthFirst(avatar_URL);
+		writeToStream(Vec3d(0, 0, 0), packet);
+		writeToStream(Vec3f(0, 0, 1), packet);
+		packet.writeFloat(0.f);
+
+		//std::string packet_string(packet.buf.size(), '\0');
+		//std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+		socket->writeData(packet.buf.data(), packet.buf.size());
+
 
 		while(1) // write to / read from socket loop
 		{
