@@ -18,6 +18,12 @@ struct GLObject;
 class PhysicsObject;
 class ResourceManager;
 
+const uint32 CyberspaceHello = 1357924680;
+const uint32 CyberspaceProtocolVersion = 2;
+const uint32 ClientProtocolOK		= 10000;
+const uint32 ClientProtocolTooOld	= 10001;
+const uint32 ClientProtocolTooNew	= 10002;
+
 
 const uint32 ConnectionTypeUpdates	= 500;
 const uint32 ConnectionTypeUploadResource	= 501;

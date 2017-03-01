@@ -57,21 +57,17 @@ void ClientThread::doRun()
 
 		out_msg_queue->enqueue(new ClientConnectingToServerMessage());
 
-//		socket = new MySocket(hostname, port);
 		socket->connect(hostname, port);
 
 		conPrint("ClientThread Connected to " + hostname + ":" + toString(port) + "!");
 
 		out_msg_queue->enqueue(new ClientConnectedToServerMessage());
 
-		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+		socket->writeUInt32(CyberspaceHello); // Write hello
+		socket->writeUInt32(CyberspaceProtocolVersion); // Write protocol version
+		socket->writeUInt32(ConnectionTypeUpdates); // Write connection type
 
-		// Write connection type
-		socket->writeUInt32(ConnectionTypeUpdates);
-
-		// Read assigned client avatar UID
-		this->client_avatar_uid = readUIDFromStream(*socket);
-
+		
 
 		// Send AvatarCreated packet for this client's avatar
 		SocketBufferOutStream packet;
@@ -89,6 +85,28 @@ void ClientThread::doRun()
 		socket->writeData(packet.buf.data(), packet.buf.size());
 
 		const int MAX_STRING_LEN = 10000;
+
+		// Read hello response from server
+		const uint32 hello_response = socket->readUInt32();
+		if(hello_response != CyberspaceHello)
+			throw Indigo::Exception("Invalid hello from server: " + toString(hello_response));
+
+		// Read protocol version response from server
+		const uint32 protocol_response = socket->readUInt32();
+		if(protocol_response == ClientProtocolTooOld)
+		{
+			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+			throw Indigo::Exception(msg);
+		}
+		else if(protocol_response == ClientProtocolOK)
+		{}
+		else
+			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
+
+		// Read assigned client avatar UID
+		this->client_avatar_uid = readUIDFromStream(*socket);
+
+		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
 		while(1) // write to / read from socket loop
 		{
