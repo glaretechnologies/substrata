@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 		}
 		//-----------------------------------------------------------------------------------------
 
-		const int listen_port = 7654;
+		const int listen_port = 7600;
 		conPrint("listen port: " + toString(listen_port));
 
 

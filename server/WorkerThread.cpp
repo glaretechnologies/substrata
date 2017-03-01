@@ -89,7 +89,27 @@ void WorkerThread::doRun()
 
 	try
 	{
-		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+		// Read hello bytes
+		const uint32 hello = socket->readUInt32();
+		printVar(hello);
+		if(hello != CyberspaceHello)
+			throw Indigo::Exception("Received invalid hello message (" + toString(hello) + ") from client.");
+		
+		// Write hello response
+		socket->writeUInt32(CyberspaceHello);
+
+		// Read protocol version
+		const uint32 client_version = socket->readUInt32();
+		printVar(client_version);
+		if(client_version < CyberspaceProtocolVersion)
+		{
+			socket->writeUInt32(ClientProtocolTooOld);
+			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too old, require version " + toString(CyberspaceProtocolVersion) + ".  Please update your client.");
+		}
+		else
+		{
+			socket->writeUInt32(ClientProtocolOK);
+		}
 
 		const uint32 connection_type = socket->readUInt32();
 
@@ -148,6 +168,8 @@ void WorkerThread::doRun()
 				}
 			}
 		}
+
+		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
 		const int MAX_STRING_LEN = 10000;
 
@@ -397,9 +419,11 @@ void WorkerThread::doRun()
 					}
 				case ChatMessageID:
 					{
-						conPrint("ChatMessageID");
+						
 						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+						conPrint("Received chat message: '" + name + "': '" + msg + "'");
 
 						// Enqueue chat messages to worker threads to send
 						{
