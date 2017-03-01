@@ -488,11 +488,16 @@ void WorkerThread::doRun()
 
 						if(!ResourceManager::isValidURL(URL))
 						{
+							conPrint("Requested URL: '" + URL + "' was invalid.");
 							socket->writeUInt32(1); // write error msg to client
 						}
 						else
 						{
+							conPrint("Requested URL: '" + URL + "' was valid.");
+
 							const std::string path = server->resource_manager->pathForURL(URL); // TODO: sanitise
+
+							conPrint("path: '" + path + "'");
 
 							try
 							{
@@ -505,8 +510,10 @@ void WorkerThread::doRun()
 
 								conPrint("Sent file '" + path + "' to client. (" + toString(file.fileSize()) + " B)");
 							}
-							catch(Indigo::Exception&)
+							catch(Indigo::Exception& e)
 							{
+								conPrint("Exception while trying to load file for URL: " + e.what());
+
 								socket->writeUInt32(1); // write error msg to client
 							}
 						}

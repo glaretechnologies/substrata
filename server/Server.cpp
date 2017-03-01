@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
 				}
 				else if(ob->from_remote_transform_dirty)
 				{
-					conPrint("Object 'transform' dirty, sending transform update");
+					//conPrint("Object 'transform' dirty, sending transform update");
 
 					if(ob->state == WorldObject::State_Alive)
 					{

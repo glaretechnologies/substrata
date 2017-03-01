@@ -131,14 +131,14 @@ void DownloadResourcesThread::doRun()
 								conPrint("DownloadResourcesThread: Error while writing file to disk: " + e.what());
 							}
 						}
+
+						conPrint("DownloadResourcesThread: Got file.");
 					}
 					else
 					{
 						conPrint("DownloadResourcesThread: Server couldn't send file. (Result=" + toString(result) + ")");
 					}
 				}
-
-				conPrint("DownloadResourcesThread: Got file.");
 			}
 		}
 	}
