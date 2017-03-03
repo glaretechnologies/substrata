@@ -25,7 +25,7 @@ PhysicsObject::~PhysicsObject()
 
 void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const
 {
-	results_out.hitdist = -1;
+	results_out.hitdist_ws = -1;
 
 	const Vec4f dir_os = this->world_to_ob.mul3Vector(ray.unitDirF());
 	const Vec4f pos_os = this->world_to_ob * ray.startPosF();
@@ -49,7 +49,7 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_
 		results_out.hit_object = this;
 		results_out.coords = hitinfo.sub_elem_coords;
 		results_out.hit_tri_index = hitinfo.sub_elem_index;
-		results_out.hitdist = dist;
+		results_out.hitdist_ws = dist;
 		unsigned int mat_index;
 		results_out.hit_normal_ws = geometry->getGeometricNormalAndMatIndex(hitinfo, mat_index);
 	}
@@ -60,7 +60,7 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 {
 	if(spherepath_aabb_ws.disjoint(this->aabb_ws))
 	{
-		results_out.hitdist = -1;
+		results_out.hitdist_ws = -1;
 		return;
 	}
 
@@ -207,7 +207,7 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 
 	if(smallest_dist < std::numeric_limits<float>::infinity())
 	{
-		results_out.hitdist = smallest_dist;
+		results_out.hitdist_ws = (this->ob_to_world * (unitdir * -smallest_dist)).length(); // Get length in ws.  NOTE: incorrect for non-uniform scaling.  Fix.;
 		results_out.hit_normal_ws = normalise(this->world_to_ob.transposeMult3Vector(closest_hit_normal.toVec4fVector()));
 		results_out.hit_object = this;
 		results_out.hit_tri_index = 0;//TEMP
