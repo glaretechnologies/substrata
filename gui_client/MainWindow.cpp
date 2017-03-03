@@ -1354,7 +1354,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 	if(results.hit_object)
 	{
-		this->selection_point_ws = origin + dir*results.hitdist;
+		this->selection_point_ws = origin + dir*results.hitdist_ws;
 		// Add an object at the hit point
 		//this->glWidget->addObject(glWidget->opengl_engine->makeAABBObject(this->selection_point_ws - Vec4f(0.03f, 0.03f, 0.03f, 0.f), this->selection_point_ws + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f)));
 
@@ -1936,7 +1936,6 @@ int main(int argc, char *argv[])
 			{
 				Indigo::MeshRef mesh = new Indigo::Mesh();
 				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
-				//"N:\\indigo\\trunk\\dist\\shared\\data\\preview_scenes\\other\\wedge.igmesh"
 
 				GLObjectRef ob = new GLObject();
 				ob->materials.resize(1);
@@ -1955,6 +1954,31 @@ int main(int argc, char *argv[])
 
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
 			}
+
+			// Load a windturbine mesh for testing
+			/*{
+				Indigo::MeshRef mesh = new Indigo::Mesh();
+				//Indigo::Mesh::readFromFile("D:\\cyberspace_server_state\\server_resources\\Wind_Turbines_reduced_obj_16075583468622473999.obj", *mesh);
+				MLTLibMaterials mtllib_mats;
+				FormatDecoderObj::streamModel("D:\\cyberspace_server_state\\server_resources\\Wind_Turbines_reduced_obj_16075583468622473999.obj", *mesh, 1.f, false, mtllib_mats);
+
+				GLObjectRef ob = new GLObject();
+				ob->materials.resize(1);
+				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
+				ob->materials[0].fresnel_scale = 1;
+				ob->materials[0].roughness = 0.3f;
+
+				Matrix4f scale;
+				scale.setToUniformScaleMatrix(0.1f);
+				Matrix4f trans;
+				trans.setToTranslationMatrix(20, 10, 0.f);
+				mul(trans, scale, ob->ob_to_world_matrix);
+				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+
+				mw.ui->glWidget->addObject(ob);
+
+				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+			}*/
 
 			// Load steps
 			if(false)

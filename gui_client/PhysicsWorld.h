@@ -23,7 +23,7 @@ class RayTraceResult
 public:
 	Vec4f hit_normal_ws;
 	const PhysicsObject* hit_object;
-	float hitdist;
+	float hitdist_ws;
 	unsigned int hit_tri_index;
 	Vec2f coords; // hit object barycentric coords
 };
@@ -52,7 +52,7 @@ public:
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
-	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, RayTraceResult& results_out) const;
+	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, RayTraceResult& results_out) const;
 
 
 	void getCollPoints(const js::BoundingSphere& sphere, std::vector<Vec4f>& points_out) const;

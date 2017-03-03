@@ -85,11 +85,11 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext
 	{
 		RayTraceResult ob_results;
 		objects[i]->traceRay(ray, 1.0e30f, thread_context, ob_results);
-		if(ob_results.hit_object && ob_results.hitdist >= 0 && ob_results.hitdist < closest_dist)
+		if(ob_results.hit_object && ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
 		{
 			results_out = ob_results;
 			results_out.hit_object = objects[i].getPointer();
-			closest_dist = ob_results.hitdist;
+			closest_dist = ob_results.hitdist_ws;
 		}
 	}
 }
@@ -129,11 +129,11 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 	{
 		RayTraceResult ob_results;
 		objects[i]->traceSphere(sphere, translation_ws, spherepath_aabb_ws, ob_results);
-		if(ob_results.hitdist >= 0 && ob_results.hitdist < closest_dist)
+		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
 		{
 			results_out = ob_results;
 			results_out.hit_object = objects[i].getPointer();
-			closest_dist = ob_results.hitdist;
+			closest_dist = ob_results.hitdist_ws;
 		}
 	}
 }

@@ -240,7 +240,7 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Vec4f& camp
 				{
 					//assert(traceresults.fraction >= 0 && traceresults.fraction <= 1);
 
-					const float distgot = traceresults.hitdist;
+					const float distgot = traceresults.hitdist_ws;
 					//printVar(distgot);
 
 					if(distgot < closest_dist)
