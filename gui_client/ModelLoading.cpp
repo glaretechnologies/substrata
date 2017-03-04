@@ -146,7 +146,7 @@ static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 
 // We don't have a material file, just the model file:
 GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path, 
-												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out)
+												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, float& suggested_scale_out, std::vector<WorldMaterialRef>& loaded_materials_out)
 {
 	if(hasExtension(model_path, "obj"))
 	{
@@ -156,22 +156,67 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 
 		checkValidAndSanitiseMesh(*mesh);
 
+		// Convert model coordinates to z up
+		js::AABBox aabb = js::AABBox::emptyAABBox();
+		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
+		{
+			mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
+			aabb.enlargeToHoldPoint(Vec4f(mesh->vert_positions[i].x, mesh->vert_positions[i].y, mesh->vert_positions[i].z, 1.f));
+		}
+
+		for(size_t i=0; i<mesh->vert_normals.size(); ++i)
+			mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
+
+		// Automatically scale object down until it is < x m across
+		const float max_span = 5.0f;
+		suggested_scale_out = 1.f;
+		float use_scale = 1.f;
+		float span = aabb.axisLength(aabb.longestAxis());
+		if(::isFinite(span))
+		{
+			while(span >= max_span)
+			{
+				use_scale *= 0.1f;
+				span *= 0.1f;
+			}
+		}
+
+		if(use_scale != 1.f)
+		{
+			conPrint("Scaling object by " + toString(use_scale));
+			for(size_t i=0; i<mesh->vert_positions.size(); ++i)
+				mesh->vert_positions[i] *= use_scale;
+		}
+
 		GLObjectRef ob = new GLObject();
 		ob->ob_to_world_matrix = ob_to_world_matrix;
 		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 		ob->materials.resize(mesh->num_materials_referenced);
+		loaded_materials_out.resize(mesh->num_materials_referenced);
 		for(uint32 i=0; i<ob->materials.size(); ++i)
 		{
+			loaded_materials_out[i] = new WorldMaterial();
+
 			// Have we parsed such a material from the .mtl file?
 			bool found_mat = false;
 			for(size_t z=0; z<mats.materials.size(); ++z)
-				if(mats.materials[z].name == toStdString(mesh->used_materials[z]))
+				if(mats.materials[z].name == toStdString(mesh->used_materials[i]))
 				{
+					const std::string tex_path = (!mats.materials[z].map_Kd.path.empty()) ? FileUtils::join(FileUtils::getDirectory(mats.mtl_file_path), mats.materials[z].map_Kd.path) : "";
+
 					ob->materials[i].albedo_rgb = mats.materials[z].Kd;
-					ob->materials[i].albedo_tex_path = mats.materials[z].map_Kd.path;
+					ob->materials[i].albedo_tex_path = tex_path;
 					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
+
+					if(tex_path == "")
+						loaded_materials_out[i]->colour = new ConstantSpectrumVal(mats.materials[z].Kd);
+					else
+						loaded_materials_out[i]->colour = new TextureSpectrumVal(tex_path);
+					loaded_materials_out[i]->opacity = new ConstantScalarVal(ob->materials[i].alpha);
+					loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
+
 					found_mat = true;
 				}
 
@@ -181,6 +226,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 				ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
+
+				loaded_materials_out[i]->colour = new TextureSpectrumVal("obstacle.png");
+				loaded_materials_out[i]->opacity = new ConstantScalarVal(1.f);
+				loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
 			}
 
 			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
@@ -202,6 +251,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
+			loaded_materials_out.resize(mesh->num_materials_referenced);
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
@@ -209,6 +259,11 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+
+				loaded_materials_out[i] = new WorldMaterial();
+				loaded_materials_out[i]->colour = new TextureSpectrumVal("obstacle.png");
+				loaded_materials_out[i]->opacity = new ConstantScalarVal(1.f);
+				loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
 			}
 			
 			mesh_out = mesh;

@@ -24,18 +24,29 @@ ResourceManager::~ResourceManager()
 }
 
 
+static std::string sanitiseString(const std::string& s)
+{
+	std::string res = s;
+	for(size_t i=0; i<s.size(); ++i)
+		if(!::isAlphaNumeric(s[i]))
+			res[i] = '_';
+	return res;
+}
+
+
+const std::string ResourceManager::URLForNameAndExtensionAndHash(const std::string& name, const std::string& extension, uint64 hash)
+{
+	return sanitiseString(name) + "_" + toString(hash) + "." + extension;
+}
+
+
 const std::string ResourceManager::URLForPathAndHash(const std::string& path, uint64 hash)
 {
 	const std::string filename = FileUtils::getFilename(path);
 
 	const std::string extension = ::getExtension(filename);
 	
-	std::string URL = filename;
-	for(size_t i=0; i<URL.size(); ++i)
-		if(!::isAlphaNumeric(URL[i]))
-			URL[i] = '_';
-
-	return URL + "_" + toString(hash) + "." + extension;
+	return sanitiseString(filename) + "_" + toString(hash) + "." + extension;
 }
 
 

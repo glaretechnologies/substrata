@@ -110,6 +110,16 @@ public:
 	Reference<ScalarVal> metallic_fraction;
 	Reference<ScalarVal> opacity;
 
+	Reference<WorldMaterial> clone() const
+	{
+		Reference<WorldMaterial> m = new WorldMaterial();
+		m->colour = colour;
+		m->roughness = roughness;
+		m->metallic_fraction = metallic_fraction;
+		m->opacity = opacity;
+		return m;
+	}
+
 	void appendDependencyURLs(std::vector<std::string>& paths_out);
 	
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);

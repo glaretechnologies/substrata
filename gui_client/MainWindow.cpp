@@ -259,6 +259,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 	conPrint("(Re)Loading object model. model URL: " + ob->model_url);
 	ob->loaded_model_url = ob->model_url;
 
+	ui->glWidget->makeCurrent();
+
 	// Remove any existing OpenGL and physics model
 	if(ob->opengl_engine_ob.nonNull())
 		ui->glWidget->removeObject(ob->opengl_engine_ob);
@@ -420,6 +422,7 @@ void MainWindow::timerEvent()
 								{
 									// Remove placeholder GL object
 									assert(ob->opengl_engine_ob.nonNull());
+									ui->glWidget->makeCurrent();
 									ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
 
 									conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
@@ -1044,7 +1047,7 @@ void MainWindow::timerEvent()
 		time_since_update_packet_sent.reset();
 	}
 
-
+	ui->glWidget->makeCurrent();
 	ui->glWidget->updateGL();
 }
 
@@ -1118,7 +1121,7 @@ void MainWindow::on_actionAddObject_triggered()
 		{
 			ui->glWidget->makeCurrent();
 
-			const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 1.0f;
+			const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f;
 
 			// Make GL object
 			/*const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob_pos.x, (float)ob_pos.y, (float)ob_pos.z);
@@ -1151,26 +1154,66 @@ void MainWindow::on_actionAddObject_triggered()
 				physics_ob->userdata = world_ob.getPointer();
 			}*/
 
-			const std::string URL = ResourceManager::URLForPathAndHash(d.result_path, d.model_hash);
+			// If the user selected an obj, convert it to an indigo mesh file
+			std::string igmesh_disk_path = d.result_path;
+			if(hasExtension(d.result_path, "obj"))
+			{
+				// Save as IGMESH in temp location
+				igmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.igmesh";
+				Indigo::Mesh::writeToFile(toIndigoString(igmesh_disk_path), *d.loaded_mesh);
+			}
+			else
+			{
+				igmesh_disk_path = d.result_path;
+			}
+
+			// Compute hash over model
+			const uint64 model_hash = FileChecksum::fileChecksum(igmesh_disk_path);
+
+			const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
+			const std::string URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(igmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
 
 			// Copy model to local resources dir.  UploadResourceThread will read from here.
-			FileUtils::copyFile(d.result_path, this->resource_manager->pathForURL(URL));
+			FileUtils::copyFile(igmesh_disk_path, this->resource_manager->pathForURL(URL));
+
+			
+
+
+			WorldObjectRef new_world_object = new WorldObject();
+			new_world_object->uid = UID(0); // Will be set by server
+			new_world_object->model_url = URL;
+			new_world_object->materials = d.loaded_materials;
+			new_world_object->pos = ob_pos;
+			new_world_object->axis = Vec3f(0, 0, 1);
+			new_world_object->angle = 0;
+			new_world_object->scale = Vec3f(d.suggested_scale);
+
+			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+			std::set<std::string> paths;
+			new_world_object->getDependencyURLSet(paths);
+			for(auto it = paths.begin(); it != paths.end(); ++it)
+			{
+				const std::string path = *it;
+				if(FileUtils::fileExists(path))
+				{
+					const uint64 hash = FileChecksum::fileChecksum(path);
+					FileUtils::copyFile(path, this->resource_manager->URLForPathAndHash(path, hash));
+				}
+			}
+
+
+			// Convert texture paths on the object to URLs
+			new_world_object->convertLocalPathsToURLS(*this->resource_manager);
+
+			
 
 			// Send ObjectCreated message to server
 			{
 				SocketBufferOutStream packet;
 
-				//WorldObject new_ob;
-				//new_ob.uid = UID::invalidUID(); // Server will set UID.
-				//new_ob.model_url = URL;
-
 				packet.writeUInt32(ObjectCreated);
-				packet.writeStringLengthFirst(URL);
-				packet.writeUInt64(d.model_hash);
-				writeToStream(ob_pos, packet); // pos
-				writeToStream(Vec3f(0,0,1), packet); // axis
-				packet.writeFloat(0.f); // angle
-				writeToStream(Vec3f(1.f), packet); // scale
+				packet.writeUInt64(model_hash);
+				writeToNetworkStream(*new_world_object, packet);
 
 				std::string packet_string(packet.buf.size(), '\0');
 				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
