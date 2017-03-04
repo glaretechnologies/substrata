@@ -9,7 +9,7 @@ $qt_version = "5.7.0" if OS.windows?
 $qt_version = "5.7.0" if OS.mac?
 $qt_version = "5.7.0" if OS.linux?
 
-$vs_version = 2012
+$vs_version = 2015
 
 $llvm_version = "3.4"
 
