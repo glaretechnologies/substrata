@@ -29,7 +29,8 @@
 
 
 ObjectEditor::ObjectEditor(QWidget *parent)
-:	QWidget(parent)
+:	QWidget(parent),
+	selected_mat_index(0)
 {
 	setupUi(this);
 
@@ -59,8 +60,9 @@ ObjectEditor::~ObjectEditor()
 }
 
 
-void ObjectEditor::setFromObject(const WorldObject& ob)
+void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 {
+	this->selected_mat_index = selected_mat_index_;
 	this->modelFileSelectWidget->setFilename(QtUtils::toQString(ob.model_url));
 
 	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
@@ -72,13 +74,14 @@ void ObjectEditor::setFromObject(const WorldObject& ob)
 	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, ob.axis.z);
 	SignalBlocker::setValue(this->rotAngleDoubleSpinBox, ob.angle);
 
-	WorldMaterialRef mat_0;
-	if(ob.materials.empty())
-		mat_0 = new WorldMaterial();
+	WorldMaterialRef selected_mat;
+	if(selected_mat_index >= 0 && selected_mat_index < (int)ob.materials.size())
+		selected_mat = ob.materials[selected_mat_index];
 	else
-		mat_0 = ob.materials[0];
+		selected_mat = new WorldMaterial();
+		
 
-	this->matEditor->setFromMaterial(*mat_0);
+	this->matEditor->setFromMaterial(*selected_mat);
 }
 
 
@@ -101,10 +104,13 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.angle = 0;
 	}
 
-	if(ob_out.materials.empty())
-		ob_out.materials.push_back(new WorldMaterial());
+	if(selected_mat_index >= ob_out.materials.size())
+		ob_out.materials.resize(selected_mat_index + 1);
+	for(size_t i=0; i<ob_out.materials.size(); ++i)
+		if(ob_out.materials[i].isNull())
+			ob_out.materials[i] = new WorldMaterial();
 
-	this->matEditor->toMaterial(*ob_out.materials[0]);
+	this->matEditor->toMaterial(*ob_out.materials[selected_mat_index]);
 }
 
 
