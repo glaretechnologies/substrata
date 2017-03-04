@@ -106,7 +106,7 @@ void AddObjectPreviewWidget::initializeGL()
 
 
 	// Make axis arrows
-	{
+/*	{
 		GLObjectRef arrow = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
 		opengl_engine->addObject(arrow);
 	}
@@ -122,7 +122,7 @@ void AddObjectPreviewWidget::initializeGL()
 
 	target_marker_ob = opengl_engine->makeAABBObject(cam_target_pos + Vec4f(0,0,0,0), cam_target_pos + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f));
 	opengl_engine->addObject(target_marker_ob);
-
+	*/
 
 	/*
 		Load a ground plane into the GL engine
@@ -149,12 +149,14 @@ void AddObjectPreviewWidget::initializeGL()
 		GLObjectRef ob = new GLObject();
 		ob->materials.resize(1);
 		ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+		ob->materials[0].albedo_tex_path = "obstacle.png";
 		ob->materials[0].roughness = 0.5f;
 
 		ob->ob_to_world_matrix.setToTranslationMatrix(0,0,0);
 		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
-		opengl_engine->addObject(ob);
+		//opengl_engine->addObject(ob);
+		addObject(ob);
 	}
 }
 
@@ -313,8 +315,8 @@ void AddObjectPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 		conPrint("up: " + up.toStringNSigFigs(3));
 		conPrint("cam_target_pos: " + cam_target_pos.toStringNSigFigs(3));
 
-		target_marker_ob->ob_to_world_matrix.setColumn(3, cam_target_pos);
-		opengl_engine->updateObjectTransformData(*target_marker_ob);
+		//target_marker_ob->ob_to_world_matrix.setColumn(3, cam_target_pos);
+		//opengl_engine->updateObjectTransformData(*target_marker_ob);
 	}
 
 	//if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)

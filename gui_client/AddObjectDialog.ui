@@ -28,7 +28,7 @@
     <widget class="QWidget" name="centralWidget" native="true">
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
-       <widget class="AddObjectPreviewWidget" name="avatarPreviewGLWidget" native="true"/>
+       <widget class="AddObjectPreviewWidget" name="objectPreviewGLWidget" native="true"/>
       </item>
      </layout>
     </widget>

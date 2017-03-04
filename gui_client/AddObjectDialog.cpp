@@ -38,7 +38,7 @@ AddObjectDialog::AddObjectDialog(QSettings* settings_, TextureServer* texture_se
 	connect(this->avatarSelectWidget, SIGNAL(filenameChanged(QString&)), this, SLOT(filenameChanged(QString&)));
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
 
-	this->avatarPreviewGLWidget->texture_server_ptr = texture_server_ptr;
+	this->objectPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
 	timer = new QTimer(this);
     connect(timer, SIGNAL(timeout()), this, SLOT(timerEvent()));
@@ -51,6 +51,10 @@ AddObjectDialog::AddObjectDialog(QSettings* settings_, TextureServer* texture_se
 AddObjectDialog::~AddObjectDialog()
 {
 	settings->setValue("AddObjectDialog/geometry", saveGeometry());
+
+	// Make sure we have set the gl context to current as we destroy objectPreviewGLWidget.
+	objectPreviewGLWidget->makeCurrent();
+	objectPreviewGLWidget = NULL;
 }
 
 
@@ -89,12 +93,12 @@ void AddObjectDialog::filenameChanged(QString& filename)
 	const std::string path = QtUtils::toIndString(filename);
 	this->result_path = path;
 
-	conPrint("AvatarSettingsDialog::avatarFilenameChanged: filename = " + path);
+	conPrint("AddObjectDialog::filenameChanged: filename = " + path);
 
 	if(filename.isEmpty())
 		return;
 
-	this->avatarPreviewGLWidget->makeCurrent();
+	this->objectPreviewGLWidget->makeCurrent();
 
 	// Try and load model
 	try
@@ -102,13 +106,14 @@ void AddObjectDialog::filenameChanged(QString& filename)
 		if(preview_gl_ob.nonNull())
 		{
 			// Remove previous object from engine.
-			avatarPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
+			objectPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
 		}
 
-		Indigo::MeshRef mesh;
-		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), mesh);
+		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), this->loaded_mesh, this->suggested_scale, this->loaded_materials);
 
-		this->model_hash = FileChecksum::fileChecksum(path);
+		//preview_gl_ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(0.01f);
+
+		//this->model_hash = FileChecksum::fileChecksum(path);
 
 		//preview_gl_ob = new GLObject();
 
@@ -155,7 +160,7 @@ void AddObjectDialog::filenameChanged(QString& filename)
 		//	preview_gl_ob->ob_to_world_matrix.setToTranslationMatrix(0.0, 0.0, 0.0);
 		//	preview_gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
 
-			avatarPreviewGLWidget->addObject(preview_gl_ob);
+			objectPreviewGLWidget->addObject(preview_gl_ob);
 		//}
 	}
 	catch(Indigo::IndigoException& e)
@@ -180,12 +185,13 @@ void AddObjectDialog::filenameChanged(QString& filename)
 void AddObjectDialog::timerEvent()
 {
 	// Once the OpenGL widget has initialised, we can add the model.
-	if(avatarPreviewGLWidget->opengl_engine->initSucceeded() && !loaded_model)
+	if(objectPreviewGLWidget->opengl_engine->initSucceeded() && !loaded_model)
 	{
 		QString path = settings->value("AddObjectDialogPath").toString();
 		filenameChanged(path);
 		loaded_model = true;
 	}
 
-	avatarPreviewGLWidget->updateGL();
+	objectPreviewGLWidget->makeCurrent();
+	objectPreviewGLWidget->updateGL();
 }

@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "ui_AddObjectDialog.h"
+#include "../dll/include/IndigoMesh.h"
+#include "../shared/WorldMaterial.h"
 #include <QtCore/QString>
 class QSettings;
 struct GLObject;
@@ -40,5 +42,8 @@ private:
 
 public:
 	std::string result_path;
-	uint64 model_hash;
+	//uint64 model_hash;
+	Indigo::MeshRef loaded_mesh;
+	float suggested_scale;
+	std::vector<WorldMaterialRef> loaded_materials;
 };

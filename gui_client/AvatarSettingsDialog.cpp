@@ -94,7 +94,9 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 		}
 
 		Indigo::MeshRef mesh;
-		avatar_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), mesh);
+		float suggested_scale;
+		std::vector<WorldMaterialRef> loaded_materials;
+		avatar_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), mesh, suggested_scale, loaded_materials);
 		
 		avatarPreviewGLWidget->addObject(avatar_gl_ob);
 	}

@@ -26,6 +26,9 @@ public:
 	~ResourceManager();
 
 	// Used for importing resources into the cyberspace resource system.
+	static const std::string URLForNameAndExtensionAndHash(const std::string& name, const std::string& extension, uint64 hash);
+
+	// Used for importing resources into the cyberspace resource system.
 	static const std::string URLForPathAndHash(const std::string& path, uint64 hash);
 
 	static bool isValidURL(const std::string& URL);

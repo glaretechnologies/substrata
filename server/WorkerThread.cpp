@@ -362,40 +362,30 @@ void WorkerThread::doRun()
 				case ObjectCreated:
 					{
 						conPrint("ObjectCreated");
-						//const UID object_uid = readUIDFromStream(*socket);
-						//const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const uint64 model_hash = socket->readUInt64();
-						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
-						const Vec3f scale = readVec3FromStream<float>(*socket);
 
-						conPrint("model_url: '" + model_url + "', pos: " + pos.toString() + ", model_hash: " + toString(model_hash));
+						WorldObjectRef new_ob = new WorldObject();
+						new_ob->uid = readUIDFromStream(*socket); // Read dummy UID
+						readFromNetworkStreamGivenUID(*socket, *new_ob);
 
-						sendGetFileMessageIfNeeded(model_url);
+						conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString() + ", model_hash: " + toString(model_hash));
+
+						std::set<std::string> URLs;
+						new_ob->getDependencyURLSet(URLs);
+						for(auto it = URLs.begin(); it != URLs.end(); ++it)
+							sendGetFileMessageIfNeeded(*it);
 
 						// Look up existing object in world state
 						{
 							::Lock lock(world_state->mutex);
-							//auto res = world_state->objects.find(object_uid);
-							//if(res == world_state->objects.end())
-							{
-								// Object for UID not already created, create it now.
-								WorldObjectRef ob = new WorldObject();
-								ob->uid = world_state->getNextObjectUID();
-								//ob->name = name;
-								ob->model_url = model_url;
-								ob->pos = pos;
-								ob->axis = axis;
-								ob->angle = angle;
-								ob->scale = scale;
-								ob->state = WorldObject::State_JustCreated;
-								ob->from_remote_other_dirty = true;
-								world_state->objects.insert(std::make_pair(ob->uid, ob));
+						
+							// Object for UID not already created, create it now.
+							new_ob->uid = world_state->getNextObjectUID();
+							new_ob->state = WorldObject::State_JustCreated;
+							new_ob->from_remote_other_dirty = true;
+							world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
 
-								conPrint("created new object");
-							}
+							conPrint("created new object");
 						}
 						break;
 					}
