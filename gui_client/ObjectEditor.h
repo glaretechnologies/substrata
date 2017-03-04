@@ -28,7 +28,7 @@ public:
 	ObjectEditor(QWidget *parent = 0);
 	~ObjectEditor();
 
-	void setFromObject(const WorldObject& mat);
+	void setFromObject(const WorldObject& mat, int selected_mat_index);
 	void toObject(WorldObject& mat_out);
 
 	void setControlsEnabled(bool enabled);
@@ -39,5 +39,5 @@ signals:;
 	void objectChanged();
 	
 private:
-	
+	int selected_mat_index;
 };

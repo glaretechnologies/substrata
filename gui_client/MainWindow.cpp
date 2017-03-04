@@ -1293,9 +1293,12 @@ void MainWindow::objectEditedSlot()
 		{
 			if(!opengl_ob->materials.empty())
 			{
-				ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[0], *this->resource_manager, 
-					opengl_ob->materials[0]
-				);
+				opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+
+				for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
+					ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager, 
+						opengl_ob->materials[i]
+					);
 			}
 		}
 
@@ -1381,8 +1384,10 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			//if(selected_ob->materials.empty())
 			//	selected_ob->materials.push_back(new WorldMaterial());
 
+			const int selected_mat = selected_ob->physics_object->geometry->getMaterialIndexForTri(results.hit_tri_index);
+
 			//this->matEditor->setFromMaterial(*selected_ob->materials[0]);
-			ui->objectEditor->setFromObject(*selected_ob);
+			ui->objectEditor->setFromObject(*selected_ob, selected_mat);
 
 			ui->objectEditor->setEnabled(true);
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
