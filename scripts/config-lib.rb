@@ -11,6 +11,10 @@ $qt_version = "5.7.0" if OS.linux?
 
 $vs_version = 2015
 
+$config_name_release = "Release"
+$config_name_test = "RelWithDebInfo"
+$config_name_debug = "Debug"
+
 $llvm_version = "3.4"
 
 $libressl_version = "2.3.0"
