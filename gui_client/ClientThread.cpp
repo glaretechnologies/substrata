@@ -381,7 +381,7 @@ void ClientThread::doRun()
 					}
 				case GetFile:
 					{
-						conPrint("GetFile");
+						conPrint("Received GetFile message from server.");
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						conPrint("model_url: '" + model_url + "'");
 
