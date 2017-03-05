@@ -251,6 +251,14 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 }
 
 
+static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
+{
+	return Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) *
+		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
+		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+}
+
+
 // Check if the model file and any material dependencies (textures etc..) are downloaded.
 // If so load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the downloads.
@@ -269,9 +277,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		physics_world->removeObject(ob->physics_object);
 
 
-	const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) *
-		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
-		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
 
 	// See if we have the files downloaded
 	std::vector<std::string> dependency_URLs;
@@ -382,6 +388,8 @@ void MainWindow::timerEvent()
 					const std::string path = resource_manager->pathForURL(m->URL);
 					if(FileUtils::fileExists(path))
 						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port));
+					else
+						conPrint("Could not upload resource with URL '" + m->URL + "' to server, not present on client.");
 				}
 			}
 			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
@@ -425,14 +433,17 @@ void MainWindow::timerEvent()
 									ui->glWidget->makeCurrent();
 									ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
 
+									// Remove placeholder physics object
+									if(ob->physics_object.nonNull())
+										physics_world->removeObject(ob->physics_object);
+
 									conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
 									//const std::string path = resources_dir + "/" + ob->model_url;
 									const std::string path = this->resource_manager->pathForURL(ob->model_url);
 
-									// Make GL object, add to OpenGL engine
+									// Make GL object, add to OpenGL engine 
 									Indigo::MeshRef mesh;
-									const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * 
-										Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle);
+									const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
 									GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob->materials, /*paths_for_URLs*/*this->resource_manager, ob_to_world_matrix, mesh);
 									ob->opengl_engine_ob = gl_ob;
 									ui->glWidget->addObject(gl_ob);
@@ -843,6 +854,7 @@ void MainWindow::timerEvent()
 							{
 								assert(ob->from_remote_transform_dirty);
 
+								// Compute interpolated transformation
 								const double cur_time = Clock::getCurTimeRealSec();
 								Vec3d pos;
 								Vec3f axis;
@@ -853,8 +865,6 @@ void MainWindow::timerEvent()
 									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
 									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
-								//ob->opengl_engine_ob->ob_to_world_matrix.setToRotationMatrix(ob->axis.toVec4fVector(), ob->angle);
-								//ob->opengl_engine_ob->ob_to_world_matrix.setColumn(3, Vec4f(ob->pos.x, ob->pos.y, ob->pos.z, 1.f));
 								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 
 								// Update in physics engine
@@ -1197,7 +1207,9 @@ void MainWindow::on_actionAddObject_triggered()
 				if(FileUtils::fileExists(path))
 				{
 					const uint64 hash = FileChecksum::fileChecksum(path);
-					FileUtils::copyFile(path, this->resource_manager->URLForPathAndHash(path, hash));
+					const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
+					const std::string resource_dir_path = resource_manager->pathForURL(resource_URL);
+					FileUtils::copyFile(path, resource_dir_path);
 				}
 			}
 
