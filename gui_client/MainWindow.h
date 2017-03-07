@@ -9,6 +9,7 @@
 #include "PlayerPhysics.h"
 #include "ClientThread.h"
 #include "../shared/WorldState.h"
+#include "../indigo/ThreadContext.h"
 #include "../utils/ArgumentParser.h"
 #include "../utils/Timer.h"
 #include <QtCore/QEvent>
@@ -104,4 +105,6 @@ public:
 	Reference<ResourceManager> resource_manager;
 
 	std::set<WorldObjectRef> active_objects; // Objects that have moved recently and so need interpolation done on them.
+
+	ThreadContext thread_context;
 };

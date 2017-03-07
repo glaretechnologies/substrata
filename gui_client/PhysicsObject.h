@@ -31,9 +31,9 @@ public:
 
 	void traceRay(const Ray& ray, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
-	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, const js::AABBox& spherepath_aabb_ws, RayTraceResult& results_out) const;
+	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, const js::AABBox& spherepath_aabb_ws, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
-	void appendCollPoints(const js::BoundingSphere& sphere, const js::AABBox& sphere_aabb_ws, std::vector<Vec4f>& points_ws_in_out) const;
+	void appendCollPoints(const js::BoundingSphere& sphere, const js::AABBox& sphere_aabb_ws, ThreadContext& thread_context, std::vector<Vec4f>& points_ws_in_out) const;
 
 	const js::AABBox& getAABBoxWS() const { return aabb_ws; }
 

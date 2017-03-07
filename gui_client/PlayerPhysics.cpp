@@ -12,7 +12,7 @@ File created by ClassTemplate on Mon Sep 23 15:14:04 2002
 //#include "../console/consolebool.h"
 //#include "../physics/jscol_worldcollisionsys.h"
 //#include "../physics/jscol_raytraceresult.h"
-#include "../physics/jscol_boundingsphere.h"
+
 #include <CameraController.h>
 //#include "../physics/jscol_model.h"
 //#include "globals.h"
@@ -96,17 +96,13 @@ void PlayerPhysics::processJump(CameraController& cam)
 }
 
 
-struct SpringSphereSet
-{
-	std::vector<Vec4f> collpoints;
-	js::BoundingSphere sphere;
-};
+
 
 const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,
 										bool constrain_to_vertical);
 
 
-void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Vec4f& campos_out)
+void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_out)
 {
 	//printVar(onground);
 	//conPrint("lastgroundnormal: " + lastgroundnormal.toString());
@@ -234,7 +230,7 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Vec4f& camp
 				//trace sphere through world
 				//-----------------------------------------------------------------
 				RayTraceResult traceresults;
-				physics_world.traceSphere(playersphere, dpos.toVec4fVector(), traceresults); 
+				physics_world.traceSphere(playersphere, dpos.toVec4fVector(), thread_context, traceresults); 
 
 				if(traceresults.hit_object)
 				{
@@ -323,8 +319,7 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Vec4f& camp
 			//-----------------------------------------------------------------
 			//make sure sphere is outside of any object as much as possible
 			//-----------------------------------------------------------------
-			std::vector<SpringSphereSet> springspheresets(3);
-
+			springspheresets.resize(3);
 			for(int s=0; s<3; ++s)//for each sphere in body
 			{
 				//-----------------------------------------------------------------
@@ -339,7 +334,7 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Vec4f& camp
 				//-----------------------------------------------------------------
 				//get the collision points
 				//-----------------------------------------------------------------
-				physics_world.getCollPoints(bigsphere, springspheresets[s].collpoints);
+				physics_world.getCollPoints(bigsphere, thread_context, springspheresets[s].collpoints);
 				
 			}
 

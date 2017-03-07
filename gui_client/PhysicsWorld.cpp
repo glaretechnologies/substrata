@@ -95,7 +95,7 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext
 }
 
 
-void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, RayTraceResult& results_out) const
+void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, RayTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
 
@@ -103,32 +103,15 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 	const Vec4f startpos_ws = sphere.getCenter();
 	const Vec4f endpos_ws   = sphere.getCenter() + translation_ws;
 
-	js::AABBox spherepath_aabb_ws = js::AABBox::emptyAABBox();
-
-	// Make it hold sphere at start pos
 	const float r = sphere.getRadius();
-	spherepath_aabb_ws.enlargeToHoldPoint(startpos_ws + Vec4f(0,  0,  r, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(startpos_ws + Vec4f(0,  0, -r, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(startpos_ws + Vec4f(0,  r,  0, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(startpos_ws + Vec4f(0,  -r, 0, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(startpos_ws + Vec4f(r,  0,  0, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(startpos_ws + Vec4f(-r, 0,  0, 0.f));
-
-	// Make it hold sphere at end pos
-	spherepath_aabb_ws.enlargeToHoldPoint(endpos_ws + Vec4f(0,  0,  r, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(endpos_ws + Vec4f(0,  0, -r, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(endpos_ws + Vec4f(0,  r,  0, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(endpos_ws + Vec4f(0,  -r, 0, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(endpos_ws + Vec4f(r,  0,  0, 0.f));
-	spherepath_aabb_ws.enlargeToHoldPoint(endpos_ws + Vec4f(-r, 0,  0, 0.f));
-
+	const js::AABBox spherepath_aabb_ws(min(startpos_ws, endpos_ws) - Vec4f(r,r,r,0), max(startpos_ws, endpos_ws) + Vec4f(r, r, r, 0));
 
 	float closest_dist = std::numeric_limits<float>::infinity();
 
 	for(size_t i=0; i<objects.size(); ++i)
 	{
 		RayTraceResult ob_results;
-		objects[i]->traceSphere(sphere, translation_ws, spherepath_aabb_ws, ob_results);
+		objects[i]->traceSphere(sphere, translation_ws, spherepath_aabb_ws, thread_context, ob_results);
 		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
 		{
 			results_out = ob_results;
@@ -139,24 +122,16 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 }
 
 
-void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, std::vector<Vec4f>& points_out) const
+void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const
 {
 	points_out.resize(0);
 
-	js::AABBox sphere_aabb_ws = js::AABBox::emptyAABBox();
-
-	// Make it hold sphere at start pos
 	const float r = sphere.getRadius();
-	sphere_aabb_ws.enlargeToHoldPoint(sphere.getCenter() + Vec4f(0,  0,  r, 0.f));
-	sphere_aabb_ws.enlargeToHoldPoint(sphere.getCenter() + Vec4f(0,  0, -r, 0.f));
-	sphere_aabb_ws.enlargeToHoldPoint(sphere.getCenter() + Vec4f(0,  r,  0, 0.f));
-	sphere_aabb_ws.enlargeToHoldPoint(sphere.getCenter() + Vec4f(0,  -r, 0, 0.f));
-	sphere_aabb_ws.enlargeToHoldPoint(sphere.getCenter() + Vec4f(r,  0,  0, 0.f));
-	sphere_aabb_ws.enlargeToHoldPoint(sphere.getCenter() + Vec4f(-r, 0,  0, 0.f));
+	js::AABBox sphere_aabb_ws(sphere.getCenter() - Vec4f(r, r, r, 0), sphere.getCenter() + Vec4f(r, r, r, 0));
 
 	for(size_t i=0; i<objects.size(); ++i)
 	{
-		objects[i]->appendCollPoints(sphere, sphere_aabb_ws, points_out);
+		objects[i]->appendCollPoints(sphere, sphere_aabb_ws, thread_context, points_out);
 	}
 }
 

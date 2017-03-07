@@ -52,10 +52,10 @@ public:
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
-	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, RayTraceResult& results_out) const;
+	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
 
-	void getCollPoints(const js::BoundingSphere& sphere, std::vector<Vec4f>& points_out) const;
+	void getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const;
 
 
 	js::Vector<Reference<PhysicsObject>, 32> objects;
