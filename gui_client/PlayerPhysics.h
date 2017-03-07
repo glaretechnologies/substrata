@@ -7,13 +7,20 @@ File created by ClassTemplate on Mon Sep 23 15:14:04 2002
 #pragma once
 
 
-//class Camera;
+#include "../physics/jscol_boundingsphere.h"
 #include "../maths/Vec4f.h"
 #include "../maths/vec3.h"
 #include <vector>
-//#include "agent.h"
 class CameraController;
 class PhysicsWorld;
+class ThreadContext;
+
+
+struct SpringSphereSet
+{
+	std::vector<Vec4f> collpoints;
+	js::BoundingSphere sphere;
+};
 
 
 /*=====================================================================
@@ -34,7 +41,7 @@ public:
 	void processMoveUp(float factor, bool runpressed, CameraController& cam);
 	void processJump(CameraController& cam);
 
-	void update(PhysicsWorld& physics_world, float dtime, Vec4f& campos_out);
+	void update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_out);
 	
 private:
 	Vec3f vel;
@@ -48,6 +55,8 @@ private:
 
 	float jumptimeremaining;
 	bool onground;
+
+	std::vector<SpringSphereSet> springspheresets;
 };
 
 

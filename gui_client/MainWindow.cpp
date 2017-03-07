@@ -159,7 +159,7 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 				
 	phy_ob->geometry->buildTrisFromQuads();
 	Geometry::BuildOptions options;
-	options.bih_tri_threshold = 1;
+	options.bih_tri_threshold = 0;
 	options.cache_trees = false;
 	phy_ob->geometry->build(".", options, print_output, false, task_manager);
 
@@ -211,7 +211,7 @@ static Reference<PhysicsObject> makeAABBPhysicsObject(const Matrix4f& ob_to_worl
 
 	phy_ob->geometry->buildTrisFromQuads();
 	Geometry::BuildOptions options;
-	options.bih_tri_threshold = 1;
+	options.bih_tri_threshold = 0;
 	options.cache_trees = false;
 	phy_ob->geometry->build(".", options, print_output, false, task_manager);
 
@@ -515,7 +515,7 @@ void MainWindow::timerEvent()
 
 	// Process player physics
 	Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
-	player_physics.update(*this->physics_world, dt, campos);
+	player_physics.update(*this->physics_world, dt, this->thread_context, campos);
 	this->cam_controller.setPosition(toVec3d(campos));
 
 	// Update avatar graphics
@@ -1389,7 +1389,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
 
 	// Trace ray through scene
-	ThreadContext thread_context;
 	const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
 	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
