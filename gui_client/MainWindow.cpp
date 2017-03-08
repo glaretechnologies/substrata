@@ -58,6 +58,10 @@
 #include <clocale>
 #include "../utils/StandardPrintOutput.h"
 
+// For tests:
+#include "../physics/TreeTest.h"
+#include "../utils/VectorUnitTests.h"
+
 //TEMP:
 #include "../utils/ReferenceTest.h"
 
@@ -1708,6 +1712,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			js::VectorUnitTests::test();
+			js::TreeTest::doTests(appdata_path);
 			Matrix4f::test();
 			return 0;
 		}
@@ -2002,17 +2008,91 @@ int main(int argc, char *argv[])
 				ob->materials[0].fresnel_scale = 1;
 				ob->materials[0].roughness = 0.3f;
 
-				Matrix4f scale;
-				scale.setToUniformScaleMatrix(100.f);
-				Matrix4f trans;
-				trans.setToTranslationMatrix(10,10,0.f);
-				mul(trans, scale, ob->ob_to_world_matrix);
+				ob->ob_to_world_matrix = Matrix4f::translationMatrix(10, 10, 0) * Matrix4f::uniformScaleMatrix(100.f);
 				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 				mw.ui->glWidget->addObject(ob);
 
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
 			}
+
+			// Load a wedge
+			/*{
+				Indigo::MeshRef mesh = new Indigo::Mesh();
+				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
+
+				GLObjectRef ob = new GLObject();
+				ob->materials.resize(1);
+				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
+				ob->materials[0].fresnel_scale = 1;
+				ob->materials[0].roughness = 0.3f;
+
+				ob->ob_to_world_matrix = Matrix4f::translationMatrix(-10, 10, 2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundXAxis(3.14);
+				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+
+				mw.ui->glWidget->addObject(ob);
+
+				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+			}
+
+
+			// Load a wedge
+			{
+				Indigo::MeshRef mesh = new Indigo::Mesh();
+				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
+
+				GLObjectRef ob = new GLObject();
+				ob->materials.resize(1);
+				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
+				ob->materials[0].fresnel_scale = 1;
+				ob->materials[0].roughness = 0.3f;
+
+				ob->ob_to_world_matrix = Matrix4f::translationMatrix(-30, 30, 2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundXAxis(1.57);
+				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+
+				mw.ui->glWidget->addObject(ob);
+
+				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+			}
+
+
+
+			// Load a wedge
+			{
+				Indigo::MeshRef mesh = new Indigo::Mesh();
+				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
+
+				GLObjectRef ob = new GLObject();
+				ob->materials.resize(1);
+				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.6f, 0.2f);
+				ob->materials[0].fresnel_scale = 1;
+				ob->materials[0].roughness = 0.3f;
+
+				ob->ob_to_world_matrix = Matrix4f::translationMatrix(30, 30, -2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundYAxis(1.57);
+				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+
+				mw.ui->glWidget->addObject(ob);
+
+				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+			}
+			{
+				Indigo::MeshRef mesh = new Indigo::Mesh();
+				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
+
+				GLObjectRef ob = new GLObject();
+				ob->materials.resize(1);
+				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.6f, 0.2f);
+				ob->materials[0].fresnel_scale = 1;
+				ob->materials[0].roughness = 0.3f;
+
+				ob->ob_to_world_matrix = Matrix4f::translationMatrix(32, 30, -2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundZAxis(3.14) * Matrix4f::rotationAroundYAxis(1.57);
+				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+
+				mw.ui->glWidget->addObject(ob);
+
+				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+			}*/
+
 
 			// Load a windturbine mesh for testing
 			/*{

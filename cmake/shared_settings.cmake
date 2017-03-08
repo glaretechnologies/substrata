@@ -334,6 +334,8 @@ ${INDIGO_PHYSICS_DIR}/ObjectTreeNode.h
 #${INDIGO_PHYSICS_DIR}/PointTreeTest.h
 ${INDIGO_PHYSICS_DIR}/TreeUtils.cpp
 ${INDIGO_PHYSICS_DIR}/TreeUtils.h
+${INDIGO_PHYSICS_DIR}/TreeTests.cpp
+${INDIGO_PHYSICS_DIR}/TreeTests.h
 ${INDIGO_PHYSICS_DIR}/TriangleTest.cpp
 ${INDIGO_PHYSICS_DIR}/TriangleTest.h
 )
