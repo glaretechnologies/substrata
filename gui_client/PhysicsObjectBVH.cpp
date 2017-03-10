@@ -251,7 +251,7 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 
 	// Make leaf_objects from leaf object indices.
 	const size_t result_ob_ind_size = result_ob_indices.size();
-	leaf_objects.resizeUninitialised(result_ob_ind_size);
+	leaf_objects.resizeNoCopy(result_ob_ind_size);
 	for(size_t i=0; i<result_ob_ind_size; ++i)
 		leaf_objects[i] = objects[result_ob_indices[i]];
 
@@ -278,7 +278,7 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 				new_node_indices[i] = new_index++;
 
 		const int new_num_nodes = new_index;
-		this->nodes.resizeUninitialised(new_num_nodes);
+		this->nodes.resizeNoCopy(new_num_nodes);
 
 		new_index = 0;
 		for(size_t i=0; i<result_nodes_size; ++i)
