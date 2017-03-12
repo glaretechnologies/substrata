@@ -1,0 +1,455 @@
+# Indigo Shader Language standard library functions
+# Copyright Glare Technologies Limited 2014 -
+
+
+
+struct WinterEnv {}
+
+
+
+#------------------------------ vec2 ------------------------------
+
+struct vec2
+{
+	vector<real, 2> v
+}
+
+def vec2(real x, real y) : vec2([x, y]v)
+def e0(vec2 vec) real : e0(vec.v)
+def e1(vec2 vec) real : e1(vec.v)
+
+def op_add(vec2 a, vec2 b) vec2 : vec2(a.v + b.v)
+def op_sub(vec2 a, vec2 b) vec2 : vec2(a.v - b.v)
+def op_mul(vec2 a, real x) vec2 : vec2(a.v * x)
+def op_eq(vec2 a, vec2 b) bool : (e0(a.v) == e0(b.v)) && (e1(a.v) == e1(b.v))
+def op_unary_minus(vec2 a) vec2 : vec2(-a.v)
+
+#------------------------------ vec3 ------------------------------
+
+struct vec3
+{
+	vector<real, 4> v
+}
+
+def vec3(real x, real y, real z) : vec3([x, y, z, 0.0]v)
+def e0(vec3 vec) real : e0(vec.v)
+def e1(vec3 vec) real : e1(vec.v)
+def e2(vec3 vec) real : e2(vec.v)
+
+def op_add(vec3 a, vec3 b) vec3 : vec3(a.v + b.v)
+def op_sub(vec3 a, vec3 b) vec3 : vec3(a.v - b.v)
+def op_mul(vec3 a, real x) vec3 : vec3(a.v * x)
+def op_mul(real x, vec3 a) vec3 : vec3(a.v * x)
+def op_eq(vec3 a, vec3 b) bool : (e0(a.v) == e0(b.v)) && (e1(a.v) == e1(b.v)) && (e2(a.v) == e2(b.v))
+def op_unary_minus(vec3 a) vec3 : vec3(-a.v)
+
+#------------------------------ vec4 ------------------------------
+
+struct vec4
+{
+	vector<real, 4> v
+}
+
+def vec4(real x) : vec4([x, x, x, x]v)
+def vec4(real x, real y, real z, real w) : vec4([x, y, z, w]v)
+def e0(vec4 vec) real : e0(vec.v)
+def e1(vec4 vec) real : e1(vec.v)
+def e2(vec4 vec) real : e2(vec.v)
+def e3(vec4 vec) real : e3(vec.v)
+
+def x(vec4 vec) real : e0(vec.v)
+def y(vec4 vec) real : e1(vec.v)
+def z(vec4 vec) real : e2(vec.v)
+def w(vec4 vec) real : e3(vec.v)
+
+def op_add(vec4 a, vec4 b) vec4 : vec4(a.v + b.v)
+def op_sub(vec4 a, vec4 b) vec4 : vec4(a.v - b.v)
+def op_mul(vec4 a, real x) vec4 : vec4(a.v * x)
+def op_eq(vec4 a, vec4 b) bool : (e0(a.v) == e0(b.v)) && (e1(a.v) == e1(b.v)) && (e2(a.v) == e2(b.v)) && (e3(a.v) == e3(b.v))
+def op_unary_minus(vec4 a) vec4 : vec4(-a.v)
+
+#------------------------------ mat2x2 ------------------------------
+
+struct mat2x2
+{
+	vector<real, 4> v
+}
+
+
+def mat2x2(real x0, real x1, real x2, real x3) : mat2x2([x0, x1, x2, x3]v)
+def e0(mat2x2 m) real : e0(m.v)
+def e1(mat2x2 m) real : e1(m.v)
+def e2(mat2x2 m) real : e2(m.v)
+def e3(mat2x2 m) real : e3(m.v)
+
+def op_add(mat2x2 a, mat2x2 b) mat2x2 : mat2x2(a.v + b.v)
+def op_sub(mat2x2 a, mat2x2 b) mat2x2 : mat2x2(a.v - b.v)
+
+
+def op_mul(mat2x2 m, vec2 v) vec2 :
+	vec2(
+		e0(m)*e0(v) + e1(m)*e1(v), 
+		e2(m)*e0(v) + e3(m)*e1(v)
+	)
+
+def mul(mat2x2 m, vec2 v) vec2 :
+	vec2(
+		e0(m)*e0(v) + e1(m)*e1(v), 
+		e2(m)*e0(v) + e3(m)*e1(v)
+	)
+
+def op_mul(mat2x2 a, mat2x2 b) mat2x2 :
+	mat2x2(
+		e0(a)*e0(b) + e1(a)*e2(b),  e0(a)*e1(b) + e1(a)*e3(b),
+		e2(a)*e0(b) + e3(a)*e2(b),  e2(a)*e1(b) + e3(a)*e3(b)
+	)
+
+def transpose(mat2x2 m) mat2x2 :  mat2x2([e0(m), e2(m), e1(m), e3(m)]v)
+
+def determinant(mat2x2 m) real :  m.v[0]*m.v[3] - m.v[1]*m.v[2]
+
+def inverse(mat2x2 m) mat2x2 : 
+	let
+		recip_det = 1.0 / determinant(m)
+	in
+		mat2x2([m.v[3]*recip_det, -m.v[1]*recip_det, -m.v[2]*recip_det, m.v[0]*recip_det]v)
+
+
+#------------------------------ mat3x3 ------------------------------
+
+struct mat3x3
+{
+	vector<real, 16> v
+}
+
+
+def mat3x3(real x0, real x1, real x2, real x3, real x4, real x5, real x6, real x7, real x8) : 
+	mat3x3([x0, x1, x2, x3, x4, x5, x6, x7, x8, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f]v)
+
+def e0(mat3x3 m) real : e0(m.v)
+def e1(mat3x3 m) real : e1(m.v)
+def e2(mat3x3 m) real : e2(m.v)
+def e3(mat3x3 m) real : e3(m.v)
+def e4(mat3x3 m) real : e4(m.v)
+def e5(mat3x3 m) real : e5(m.v)
+def e6(mat3x3 m) real : e6(m.v)
+def e7(mat3x3 m) real : e7(m.v)
+def e8(mat3x3 m) real : e8(m.v)
+
+def op_add(mat3x3 a, mat3x3 b) mat3x3 : mat3x3(a.v + b.v)
+def op_sub(mat3x3 a, mat3x3 b) mat3x3 : mat3x3(a.v - b.v)
+
+def op_mul(mat3x3 m, vec3 v) vec3 :
+	vec3(
+		e0(m)*e0(v) + e1(m)*e1(v) + e2(m)*e2(v), 
+		e3(m)*e0(v) + e4(m)*e1(v) + e5(m)*e2(v),
+		e6(m)*e0(v) + e7(m)*e1(v) + e8(m)*e2(v)
+	)
+
+def mul(mat3x3 m, vec3 v) vec3 :
+	vec3(
+		e0(m)*e0(v) + e1(m)*e1(v) + e2(m)*e2(v), 
+		e3(m)*e0(v) + e4(m)*e1(v) + e5(m)*e2(v),
+		e6(m)*e0(v) + e7(m)*e1(v) + e8(m)*e2(v)
+	)
+
+def op_mul(mat3x3 a, mat3x3 b) mat3x3 :
+	mat3x3(
+		e0(a)*e0(b) + e1(a)*e3(b) + e2(a)*e6(b),  e0(a)*e1(b) + e1(a)*e4(b) + e2(a)*e7(b),  e0(a)*e2(b) + e1(a)*e5(b) + e2(a)*e8(b),
+		e3(a)*e0(b) + e4(a)*e3(b) + e5(a)*e6(b),  e3(a)*e1(b) + e4(a)*e4(b) + e5(a)*e7(b),  e3(a)*e2(b) + e4(a)*e5(b) + e5(a)*e8(b),
+		e6(a)*e0(b) + e7(a)*e3(b) + e8(a)*e6(b),  e6(a)*e1(b) + e7(a)*e8(b) + e8(a)*e7(b),  e6(a)*e2(b) + e7(a)*e5(b) + e8(a)*e8(b)
+	)
+
+def transpose(mat3x3 m) mat3x3 :  mat3x3(e0(m), e3(m), e6(m), e1(m), e4(m), e7(m), e2(m), e5(m), e8(m))
+
+
+#------------------------------ mat4x4 ------------------------------
+
+struct mat4x4
+{
+	vector<real, 16> v
+}
+
+
+def mat4x4(real x0, real x1, real x2, real x3, real x4, real x5, real x6, real x7, real x8, real x9, real x10, real x11, real x12, real x13, real x14, real x15) : 
+	mat4x4([x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15]v)
+
+def e0(mat4x4 m) real : e0(m.v)
+def e1(mat4x4 m) real : e1(m.v)
+def e2(mat4x4 m) real : e2(m.v)
+def e3(mat4x4 m) real : e3(m.v)
+def e4(mat4x4 m) real : e4(m.v)
+def e5(mat4x4 m) real : e5(m.v)
+def e6(mat4x4 m) real : e6(m.v)
+def e7(mat4x4 m) real : e7(m.v)
+def e8(mat4x4 m) real : e8(m.v)
+def e9(mat4x4 m) real : e9(m.v)
+def e10(mat4x4 m) real : e10(m.v)
+def e11(mat4x4 m) real : e11(m.v)
+def e12(mat4x4 m) real : e12(m.v)
+def e13(mat4x4 m) real : e13(m.v)
+def e14(mat4x4 m) real : e14(m.v)
+def e15(mat4x4 m) real : e15(m.v)
+
+def op_add(mat4x4 a, mat4x4 b) mat4x4 : mat4x4(a.v + b.v)
+def op_sub(mat4x4 a, mat4x4 b) mat4x4 : mat4x4(a.v - b.v)
+
+
+
+def col0(mat4x4 m) vec4 : vec4(shuffle(m.v, [0, 1, 2, 3]v))
+def col1(mat4x4 m) vec4 : vec4(shuffle(m.v, [4, 5, 6, 7]v))
+def col2(mat4x4 m) vec4 : vec4(shuffle(m.v, [8, 9, 10, 11]v))
+def col3(mat4x4 m) vec4 : vec4(shuffle(m.v, [12, 13, 14, 15]v))
+
+def row0(mat4x4 m) vec4 : vec4(shuffle(m.v, [0, 4, 8, 12]v))
+def row1(mat4x4 m) vec4 : vec4(shuffle(m.v, [1, 5, 9, 13]v))
+def row2(mat4x4 m) vec4 : vec4(shuffle(m.v, [2, 6, 10, 14]v))
+def row3(mat4x4 m) vec4 : vec4(shuffle(m.v, [3, 7, 11, 15]v))
+
+def op_mul(mat4x4 m, vec4 v) vec4 :
+	col0(m) * e0(v) + 
+	col1(m) * e1(v) + 
+	col2(m) * e2(v) + 
+	col3(m) * e3(v)
+		
+# Assumes e3(v) == 0
+def transposeMulVector(mat4x4 m, vec4 v) vec4 :
+	row0(m) * e0(v) + 
+	row1(m) * e1(v) + 
+	row2(m) * e2(v)
+
+
+#------------------------------ boolean functions ------------------------------
+
+def or(bool a, bool b) bool : a || b
+def and(bool a, bool b) bool : a && b
+def not(bool b) bool : b == false
+def xor(bool a, bool b) bool : not(a && b) && (a || b)
+
+
+#------------------------------ Provide backwards-compatible mul(), add() etc.. functions ------------------------------
+
+def mul(real x, real y) real : x * y
+def add(real x, real y) real : x + y
+def sub(real x, real y) real : x - y
+def div(real x, real y) real : x / y
+
+def mul(int x, int y) int : x * y
+def add(int x, int y) int : x + y
+def sub(int x, int y) int : x - y
+def div(int x, int y) int : if(y != 0 && x != -2147483648, x / y, 0)
+
+def lt (real x, real y) bool : x < y
+def lte(real x, real y) bool : x <= y
+def gt (real x, real y) bool : x > y
+def gte(real x, real y) bool : x >= y
+def eq (real x, real y) bool : x == y
+def neq(real x, real y) bool : x != y
+
+def lt (int x, int y) bool : x < y
+def lte(int x, int y) bool : x <= y
+def gt (int x, int y) bool : x > y
+def gte(int x, int y) bool : x >= y
+def eq (int x, int y) bool : x == y
+def neq(int x, int y) bool : x != y
+
+def eq (bool x, bool y) bool : x == y
+def neq(bool x, bool y) bool : x != y
+
+
+def add(vec2 x, vec2 y) vec2 : op_add(x, y)
+def sub(vec2 x, vec2 y) vec2 : op_sub(x, y)
+
+def add(vec3 x, vec3 y) vec3 : op_add(x, y)
+def sub(vec3 x, vec3 y) vec3 : op_sub(x, y)
+
+def add(mat2x2 x, mat2x2 y) mat2x2 : op_add(x, y)
+def sub(mat2x2 x, mat2x2 y) mat2x2 : op_sub(x, y)
+
+def add(mat3x3 x, mat3x3 y) mat3x3 : op_add(x, y)
+def sub(mat3x3 x, mat3x3 y) mat3x3 : op_sub(x, y)
+
+
+
+def doti(vec2 a) real : e0(a)
+def dotj(vec2 a) real : e1(a)
+
+def doti(vec3 a) real : e0(a)
+def dotj(vec3 a) real : e1(a)
+def dotk(vec3 a) real : e2(a)
+
+def x(vec2 a) real : e0(a)
+def y(vec2 a) real : e1(a)
+
+def x(vec3 a) real : e0(a)
+def y(vec3 a) real : e1(a)
+def z(vec3 a) real : e2(a)
+
+def mul(vec2 a, real b) vec2 : a * b
+def mul(vec3 a, real b) vec3 : a * b
+
+#------------------------------ Misc. math functions ------------------------------
+
+def floor(vec2 x) vec2 : vec2(floor(x.v))
+def floor(vec3 x) vec3 : vec3(floor(x.v))
+
+def fract(real x) real : x - floor(x)
+def fract(vec2 x) vec2 : x - floor(x)
+def fract(vec3 x) vec3 : x - floor(x)
+
+
+
+
+def floorToInt(real x) int : truncateToInt(floor(x))
+def ceilToInt(real x) int : truncateToInt(ceil(x))
+
+def min(real a, real b) real : if(a < b, a, b)
+def max(real a, real b) real : if(a > b, a, b)
+
+def min(int a, int b) int : if(a < b, a, b)
+def max(int a, int b) int : if(a > b, a, b)
+
+def min(vec2 a, vec2 b) vec2 : vec2(min(a.v, b.v))
+def max(vec2 a, vec2 b) vec2 : vec2(max(a.v, b.v))
+
+def min(vec3 a, vec3 b) vec3 : vec3(min(a.v, b.v))
+def max(vec3 a, vec3 b) vec3 : vec3(max(a.v, b.v))
+
+def min(vec4 a, vec4 b) vec4 : vec4(min(a.v, b.v))
+def max(vec4 a, vec4 b) vec4 : vec4(max(a.v, b.v))
+
+
+def lerp(real a, real b, real t) real : a * (1.0 - t) + b * t
+def lerp(vec2 a, vec2 b, real t) vec2 : a * (1.0 - t) + b * t
+def lerp(vec3 a, vec3 b, real t) vec3 : a * (1.0 - t) + b * t
+
+def step(real step_x, real x) real : if(x >= step_x, 1.0, 0.0)
+
+def get_t(real a, real b, real x) real : (x - a) / (b - a)
+def smoothstep(real a, real b, real x) real : if(x < a, 0.0, if(x >= b, 1.0, get_t(a, b, x)*get_t(a, b, x) * (3.0 - 2.0*get_t(a, b, x))))
+def smootherstep(real a, real b, real x) real : 
+	let 
+		t = (x - a) / (b - a)
+	in
+		if(x < a, 0.0, if(x >= b, 1.0, t*t*t*(t*(t*6.0 - 15.0) + 10.0)))
+
+def pulse(real a, real b, real x) real : if(x < a || x > b, 0.0, 1.0)
+def smoothPulse(real a, real b, real c, real d, real x) real : smoothstep(a, b, x) - smoothstep(c, d, x)
+
+def clamp(int x, int lo, int hi) int : min(hi, max(x, lo))
+def clamp(real x, real lo, real hi) real : min(hi, max(x, lo))
+def clamp(vec2 x, vec2 lo, vec2 hi) vec2 : min(hi, max(x, lo))
+def clamp(vec3 x, vec3 lo, vec3 hi) vec3 : min(hi, max(x, lo))
+def clamp(vec4 x, vec4 lo, vec4 hi) vec4 : min(hi, max(x, lo))
+
+def vec2(real x) vec2 : vec2(x, x)
+def vec3(real x) vec3 : vec3(x, x, x)
+
+def dot(vec2 a, vec2 b) real : e0(a) * e0(b) + e1(a) * e1(b)
+def dot(vec3 a, vec3 b) real : e0(a) * e0(b) + e1(a) * e1(b) + e2(a) * e2(b)
+def dot(vec4 a, vec4 b) real : dot(a.v, b.v)
+
+def cross(vec3 a, vec3 b) vec3 : vec3(
+	e1(a) * e2(b) - e2(a) * e1(b),
+	e2(a) * e0(b) - e0(a) * e2(b),
+	e0(a) * e1(b) - e1(a) * e0(b)
+	)
+
+def cross(vec4 a, vec4 b) vec4 : vec4(
+	e1(a) * e2(b) - e2(a) * e1(b),
+	e2(a) * e0(b) - e0(a) * e2(b),
+	e0(a) * e1(b) - e1(a) * e0(b),
+	0.0
+	)
+
+def length(vec2 a) real : sqrt(dot(a, a))
+def length(vec3 a) real : sqrt(dot(a, a))
+def length(vec4 a) real : sqrt(dot(a, a))
+
+def length2(vec2 a) real : dot(a, a)
+def length2(vec3 a) real : dot(a, a)
+def length2(vec4 a) real : dot(a, a)
+
+def dist(vec2 a, vec2 b) real : length(a - b)
+def dist(vec3 a, vec3 b) real : length(a - b)
+
+def neg(real x) real : x * -1.0
+def recip(real x) real : 1.0 / x
+
+def neg(vec2 a) vec2 : a * -1.0
+def neg(vec3 a) vec3 : a * -1.0
+
+def normalise(vec2 a) vec2 : a * recip(length(a))
+def normalise(vec3 a) vec3 : a * recip(length(a))
+def normalise(vec4 a) vec4 : a * recip(length(a))
+
+def eq(vec2 a, vec2 b) bool : e0(a) == e0(b) && e1(a) == e1(b)
+def eq(vec3 a, vec3 b) bool : e0(a) == e0(b) && e1(a) == e1(b) && e2(a) == e2(b)
+def eq(mat2x2 a, mat2x2 b) bool : e0(a) == e0(b) && e1(a) == e1(b) && e2(a) == e2(b) && e3(a) == e3(b)
+def eq(mat3x3 a, mat3x3 b) bool : e0(a) == e0(b) && e1(a) == e1(b) && e2(a) == e2(b) && e3(a) == e3(b) && e4(a) == e4(b) && e5(a) == e5(b) && e6(a) == e6(b) && e7(a) == e7(b) && e8(a) == e8(b)
+def neq(vec2 a, vec2 b) bool : not(a == b)
+def neq(vec3 a, vec3 b) bool : not(a == b)
+
+
+def real(int x) real : toFloat(x)
+
+def pi() real : 3.14159265
+
+#------------------------------ Pseudo-random noise functions ------------------------------
+
+### def noise(real x) real : noise(x, 0.0)
+### def noise(vec2 a) real : noise(e0(a), e1(a))
+### def noise(vec3 a) real : noise(e0(a), e1(a), e2(a))
+### 
+### def noise3Valued(vec2 pos) vec3 :
+### 	let
+### 		v = noise4Valued(e0(pos), e1(pos))
+### 	in
+### 		vec3(e0(v), e1(v), e2(v))
+### 
+### def noise3Valued(vec3 pos) vec3 :
+### 	let
+### 		v = noise4Valued(e0(pos), e1(pos), e2(pos))
+### 	in
+### 		vec3(e0(v), e1(v), e2(v))
+### 
+### 
+### 
+### def fbm(real x, int num_octaves) real : fbm(x, 0.0, num_octaves)
+### def fbm(vec2 a, int num_octaves) real : fbm(e0(a), e1(a), num_octaves)
+### def fbm(vec3 a, int num_octaves) real : fbm(e0(a), e1(a), e2(a), num_octaves)
+### 
+### def fbm3Valued(vec2 pos, int num_octaves) vec3 :
+### 	let
+### 		v = fbm4Valued(e0(pos), e1(pos), num_octaves)
+### 	in
+### 		vec3(e0(v), e1(v), e2(v))
+### 
+### def fbm3Valued(vec3 pos, int num_octaves) vec3 :
+### 	let
+### 		v = fbm4Valued(e0(pos), e1(pos), e2(pos), num_octaves)
+### 	in
+### 		vec3(e0(v), e1(v), e2(v))
+### 
+### 
+### def noise01(real x) real : (noise(x, 0.0) + 1.0) * 0.5
+### def noise01(vec2 a) real : (noise(e0(a), e1(a)) + 1.0) * 0.5
+### def noise01(vec3 a) real : (noise(e0(a), e1(a), e2(a)) + 1.0) * 0.5
+### 
+### def fbm01(real x, int num_octaves) real : (fbm(x, 0.0, num_octaves) + 1.0) * 0.5
+### def fbm01(vec2 a, int num_octaves) real : (fbm(e0(a), e1(a), num_octaves) + 1.0) * 0.5
+### def fbm01(vec3 a, int num_octaves) real : (fbm(e0(a), e1(a), e2(a), num_octaves) + 1.0) * 0.5
+### 
+### 
+### def gridNoise(real x) real : gridNoise(x, 0.0, 0.0, 0.0)
+### def gridNoise(vec2 a) real : gridNoise(x(a), y(a), 0.0, 0.0)
+### def gridNoise(vec3 a) real : gridNoise(x(a), y(a), z(a), 0.0)
+### def gridNoise(vec3 a, real w) real : gridNoise(x(a), y(a), z(a), w)
+### 
+### 
+### def voronoiDist(vec2 p, real irregularity) real : dist(p, voronoi(p, irregularity))
+### def voronoiDist(vec3 p, real irregularity) real : dist(p, voronoi3d(p, irregularity))
+### 
+### def randomCellShade(vec3 pos, real irregularity) real : gridNoise(voronoi3d(pos, irregularity) * 1000.0)
+### def randomCellShade(vec2 pos, real irregularity) real : gridNoise(voronoi(pos, irregularity) * 1000.0)
+
