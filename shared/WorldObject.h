@@ -17,6 +17,8 @@ Copyright Glare Technologies Limited 2016 -
 struct GLObject;
 class PhysicsObject;
 class ResourceManager;
+class WinterShaderEvaluator;
+
 
 const uint32 CyberspaceHello = 1357924680;
 const uint32 CyberspaceProtocolVersion = 2;
@@ -71,6 +73,7 @@ public:
 	std::string model_url;
 	//std::string material_url;
 	std::vector<WorldMaterialRef> materials;
+	std::string script_url;
 	Vec3d pos;
 	Vec3f axis;
 	float angle;
@@ -97,6 +100,8 @@ public:
 
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
+	Reference<WinterShaderEvaluator> script_evaluator;
+
 	
 	/*
 		Snapshots for client-side interpolation purposes.
