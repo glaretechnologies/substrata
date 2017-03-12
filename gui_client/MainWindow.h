@@ -17,6 +17,7 @@
 #include <QtCore/QString>
 #include <QtWidgets/QMainWindow>
 #include <string>
+#include <fstream>
 class ArgumentParser;
 namespace Ui { class MainWindow; }
 class TextureServer;
@@ -108,4 +109,6 @@ public:
 	std::set<WorldObjectRef> active_objects; // Objects that have moved recently and so need interpolation done on them.
 
 	ThreadContext thread_context;
+
+	std::ofstream logfile;
 };
