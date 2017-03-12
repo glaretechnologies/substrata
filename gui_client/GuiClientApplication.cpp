@@ -26,9 +26,9 @@ QString GuiClientApplication::getOpenFilename()
 }
 
 
-void GuiClientApplication::setOpenFilename(QString filename)
+void GuiClientApplication::setOpenFilename(QString filename_)
 {
-	this->filename = filename;
+	this->filename = filename_;
 }
 
 
