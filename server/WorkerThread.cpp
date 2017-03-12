@@ -362,13 +362,14 @@ void WorkerThread::doRun()
 				case ObjectCreated:
 					{
 						conPrint("ObjectCreated");
-						const uint64 model_hash = socket->readUInt64();
+						//const uint64 model_hash = socket->readUInt64();
 
 						WorldObjectRef new_ob = new WorldObject();
 						new_ob->uid = readUIDFromStream(*socket); // Read dummy UID
 						readFromNetworkStreamGivenUID(*socket, *new_ob);
 
-						conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString() + ", model_hash: " + toString(model_hash));
+						//conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString() + ", model_hash: " + toString(model_hash));
+						conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 
 						std::set<std::string> URLs;
 						new_ob->getDependencyURLSet(URLs);

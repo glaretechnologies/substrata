@@ -41,6 +41,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->matEditor,				SIGNAL(materialChanged()),			this, SIGNAL(objectChanged()));
 
 	connect(this->modelFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
+	connect(this->scriptFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 
 	connect(this->scaleXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->scaleYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -64,6 +65,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 {
 	this->selected_mat_index = selected_mat_index_;
 	this->modelFileSelectWidget->setFilename(QtUtils::toQString(ob.model_url));
+	this->scriptFileSelectWidget->setFilename(QtUtils::toQString(ob.script_url));
 
 	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
 	SignalBlocker::setValue(this->scaleYDoubleSpinBox, ob.scale.y);
@@ -87,7 +89,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 
 void ObjectEditor::toObject(WorldObject& ob_out)
 {
-	ob_out.model_url = QtUtils::toIndString(this->modelFileSelectWidget->filename());
+	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
+	ob_out.script_url = QtUtils::toIndString(this->scriptFileSelectWidget->filename());
 
 	ob_out.scale.x = (float)this->scaleXDoubleSpinBox->value();
 	ob_out.scale.y = (float)this->scaleYDoubleSpinBox->value();

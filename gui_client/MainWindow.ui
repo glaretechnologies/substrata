@@ -26,7 +26,7 @@
      <x>0</x>
      <y>0</y>
      <width>1090</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuWindow">
@@ -40,6 +40,7 @@
      <string>Edit</string>
     </property>
     <addaction name="actionAddObject"/>
+    <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
    </widget>
    <addaction name="menuEdit"/>
@@ -145,6 +146,11 @@
   <action name="actionReset_Layout">
    <property name="text">
     <string>Reset Layout</string>
+   </property>
+  </action>
+  <action name="actionCloneObject">
+   <property name="text">
+    <string>Clone Object</string>
    </property>
   </action>
  </widget>

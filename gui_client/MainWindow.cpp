@@ -17,6 +17,7 @@
 #include "DownloadResourcesThread.h"
 #include "AvatarGraphics.h"
 #include "GuiClientApplication.h"
+#include "WinterShaderEvaluator.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QTimer>
 #include <QtCore/QProcess>
@@ -343,6 +344,17 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		ob->physics_object = physics_ob;
 		physics_ob->userdata = ob;
 		physics_world->addObject(physics_ob);
+
+
+		// NEW: Load script
+		if(!ob->script_url.empty())
+		{
+			const std::string script_path = resource_manager->pathForURL(ob->script_url);
+
+			const std::string script_content = FileUtils::readEntireFileTextMode(script_path);
+
+			ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
+		}
 	}
 }
 
@@ -514,6 +526,42 @@ void MainWindow::timerEvent()
 	
 		ui->glWidget->opengl_engine->updateObjectTransformData(*globe.getPointer());
 	}
+
+
+	// Evaluate scripts on objects
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+		{
+			WorldObject* ob = it->second.getPointer();
+			if(ob->script_evaluator.nonNull())
+			{
+				if(ob->script_evaluator->jitted_evalRotation)
+				{
+					const Vec4f rot = ob->script_evaluator->evalRotation(cur_time);
+					ob->angle = rot.length();
+					if(ob->angle > 0)
+						ob->axis = Vec3f(normalise(rot));
+					else
+						ob->axis = Vec3f(1, 0, 0);
+				}
+
+				// Update transform in 3d engine
+				ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(ob);
+
+				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+
+				// Update in physics engine
+				ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
+				physics_world->updateObjectTransformData(*ob->physics_object);
+			}
+		}
+	}
+
+
+
+
 
 	ui->glWidget->playerPhyicsThink();
 
@@ -1222,13 +1270,11 @@ void MainWindow::on_actionAddObject_triggered()
 			new_world_object->convertLocalPathsToURLS(*this->resource_manager);
 
 			
-
 			// Send ObjectCreated message to server
 			{
 				SocketBufferOutStream packet;
 
 				packet.writeUInt32(ObjectCreated);
-				packet.writeUInt64(model_hash);
 				writeToNetworkStream(*new_world_object, packet);
 
 				std::string packet_string(packet.buf.size(), '\0');
@@ -1261,6 +1307,54 @@ void MainWindow::on_actionAddObject_triggered()
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
 		}
+	}
+}
+
+
+void MainWindow::on_actionCloneObject_triggered()
+{
+	if(this->selected_ob.nonNull())
+	{
+		const float dist_to_ob = this->selected_ob->pos.getDist(this->cam_controller.getPosition());
+
+		const Vec3d new_ob_pos = this->selected_ob->pos + this->cam_controller.getRightVec() * dist_to_ob * 0.2;
+
+		WorldObjectRef new_world_object = new WorldObject();
+		new_world_object->uid = UID(0); // Will be set by server
+		new_world_object->model_url = this->selected_ob->model_url;
+		new_world_object->script_url = this->selected_ob->script_url;
+		new_world_object->materials = this->selected_ob->materials; // TODO: clone?
+		new_world_object->pos = new_ob_pos;
+		new_world_object->axis = selected_ob->axis;
+		new_world_object->angle = selected_ob->angle;
+		new_world_object->scale = selected_ob->scale;
+
+		// Send ObjectCreated message to server
+		{
+			SocketBufferOutStream packet;
+
+			packet.writeUInt32(ObjectCreated);
+			writeToNetworkStream(*new_world_object, packet);
+
+			std::string packet_string(packet.buf.size(), '\0');
+			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+			this->client_thread->enqueueDataToSend(packet_string);
+		}
+
+		// Deselect any currently selected object
+		if(this->selected_ob.nonNull())
+			ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
+
+		// deslect object
+		this->selected_ob = NULL;
+		ui->objectEditor->setEnabled(false);
+	}
+	else
+	{
+		QMessageBox msgBox;
+		msgBox.setText("Please select an object before cloning.");
+		msgBox.exec();
 	}
 }
 
@@ -1664,6 +1758,7 @@ int main(int argc, char *argv[])
 
 	Clock::init();
 	Networking::createInstance();
+	Winter::VirtualMachine::init();
 
 	PlatformUtils::ignoreUnixSignals();
 
@@ -1713,8 +1808,8 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test"))
 		{
 			js::VectorUnitTests::test();
-			js::TreeTest::doTests(appdata_path);
-			Matrix4f::test();
+			//js::TreeTest::doTests(appdata_path);
+			//Matrix4f::test();
 			return 0;
 		}
 #endif
@@ -2156,7 +2251,7 @@ int main(int argc, char *argv[])
 				// Create graphics object
 				GLObjectRef gl_ob = new GLObject();
 				gl_ob->materials.resize(1);
-				gl_ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
+				gl_ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.6f, 0.2f);
 				gl_ob->materials[0].fresnel_scale = 1;
 
 				gl_ob->ob_to_world_matrix.setToTranslationMatrix(-3.0,1,0.5f);
@@ -2177,12 +2272,21 @@ int main(int argc, char *argv[])
 					world_ob->angle = 0;
 					world_ob->axis = Vec3f(1,0,0);
 					world_ob->model_url = "teapot.obj";
+					world_ob->pos = Vec3d(4, 4, 1);
+					world_ob->scale = Vec3f(1.0);
 					world_ob->opengl_engine_ob = gl_ob.getPointer();
 					world_ob->physics_object = physics_ob.getPointer();
 					mw.world_state->objects[uid] = world_ob;
 
 					physics_ob->userdata = world_ob.getPointer();
+
+					// Load script
+					world_ob->script_url = "test.win";
+					const std::string script = FileUtils::readEntireFileTextMode(world_ob->script_url);
+					world_ob->script_evaluator = new WinterShaderEvaluator(indigo_base_dir_path, script);
 				}
+
+				
 			}
 
 		/*	{

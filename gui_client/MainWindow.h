@@ -42,6 +42,7 @@ public slots:;
 private slots:;
 	void on_actionAvatarSettings_triggered();
 	void on_actionAddObject_triggered();
+	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
 	void on_actionReset_Layout_triggered();
 

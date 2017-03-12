@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <FileChecksum.h>
 #include "opengl/OpenGLEngine.h"
 #include "../gui_client/PhysicsObject.h"
+#include "../gui_client/WinterShaderEvaluator.h"
 #include "../shared/ResourceManager.h"
 
 
@@ -42,6 +43,7 @@ void WorldObject::appendDependencyURLs(std::vector<std::string>& URLs_out)
 	URLs_out.push_back(model_url);
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(URLs_out);
+	URLs_out.push_back(script_url);
 }
 
 
@@ -57,12 +59,13 @@ void WorldObject::getDependencyURLSet(std::set<std::string>& URLS_out)
 void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 {
 	if(FileUtils::fileExists(this->model_url)) // If the URL is a local path:
-	{
 		this->model_url = resource_manager.URLForPathAndHash(this->model_url, FileChecksum::fileChecksum(this->model_url));
-	}
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->convertLocalPathsToURLS(resource_manager);
+	
+	if(FileUtils::fileExists(this->script_url)) // If the URL is a local path:
+		this->script_url = resource_manager.URLForPathAndHash(this->script_url, FileChecksum::fileChecksum(this->script_url));
 }
 
 
@@ -210,7 +213,7 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 3;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 4;
 
 
 void writeToStream(const WorldObject& world_ob, OutStream& stream)
@@ -225,6 +228,8 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 	stream.writeUInt32((uint32)world_ob.materials.size());
 	for(size_t i=0; i<world_ob.materials.size(); ++i)
 		writeToStream(*world_ob.materials[i], stream);
+
+	stream.writeStringLengthFirst(world_ob.script_url);
 
 	writeToStream(world_ob.pos, stream);
 	writeToStream(world_ob.axis, stream);
@@ -256,6 +261,9 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		}
 	}
 
+	if(v >= 4)
+		ob.script_url = stream.readStringLengthFirst(10000);
+
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);
 	ob.angle = stream.readFloat();
@@ -281,6 +289,8 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 	for(size_t i=0; i<world_ob.materials.size(); ++i)
 		writeToStream(*world_ob.materials[i], stream);
 
+	stream.writeStringLengthFirst(world_ob.script_url);
+
 	writeToStream(world_ob.pos, stream);
 	writeToStream(world_ob.axis, stream);
 	stream.writeFloat(world_ob.angle);
@@ -302,6 +312,8 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 			readFromStream(stream, *ob.materials[i]);
 		}
 	}
+
+	ob.script_url = stream.readStringLengthFirst(10000);
 
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);
