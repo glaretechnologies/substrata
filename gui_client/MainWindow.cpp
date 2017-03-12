@@ -99,6 +99,16 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
+	// Open Log File
+	const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
+	this->logfile.open(StringUtils::UTF8ToPlatformUnicodeEncoding(logfile_path).c_str(), std::ios_base::out);
+	if(!logfile.good())
+		conPrint("WARNING: Failed to open log file at '" + logfile_path + "' for writing.");
+	logfile << "============================= Cyberspace Started =============================" << std::endl;
+	logfile << Clock::getAsciiTime() << std::endl;
+
+
+
 	settings = new QSettings("Glare Technologies", "Cyberspace");
 
 	// Load main window geometry and state
@@ -405,7 +415,10 @@ void MainWindow::timerEvent()
 					if(FileUtils::fileExists(path))
 						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port));
 					else
+					{
+						logfile << ("Could not upload resource with URL '" + m->URL + "' to server, not present on client.") << std::endl;
 						conPrint("Could not upload resource with URL '" + m->URL + "' to server, not present on client.");
+					}
 				}
 			}
 			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
@@ -506,7 +519,7 @@ void MainWindow::timerEvent()
 				catch(Indigo::Exception& e)
 				{
 					conPrint(e.what());
-
+					logfile << ("Error while loading object: " + e.what()) << std::endl;
 				}
 			}
 		}
@@ -745,6 +758,7 @@ void MainWindow::timerEvent()
 	catch(Indigo::Exception& e)
 	{
 		conPrint(e.what());
+		logfile << ("Error while Updating avatar graphics: " + e.what()) << std::endl;
 	}
 
 
@@ -955,6 +969,7 @@ void MainWindow::timerEvent()
 	catch(Indigo::Exception& e)
 	{
 		conPrint(e.what());
+		logfile << ("Error while Updating object graphics: " + e.what()) << std::endl;
 	}
 
 
