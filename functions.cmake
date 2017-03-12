@@ -58,7 +58,6 @@ endfunction()
 
 # Function for adding a rebuild- QT ui header file command/dependency
 function(addUIFileRule dir header_name)
-	MESSAGE("addUIFileRule")
 	add_custom_command(
 		OUTPUT ${CMAKE_SOURCE_DIR}/${dir}/ui_${header_name}.h
 		COMMAND ${INDIGO_QT_DIR}/bin/uic ${CMAKE_SOURCE_DIR}/${dir}/${header_name}.ui --output ${CMAKE_SOURCE_DIR}/${dir}/ui_${header_name}.h
