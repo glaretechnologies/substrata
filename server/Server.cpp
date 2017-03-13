@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
 				}
 				else if(avatar->transform_dirty)
 				{
-					if(avatar->state == WorldObject::State_Alive)
+					if(avatar->state == Avatar::State_Alive)
 					{
 						// Send AvatarTransformUpdate packet
 						SocketBufferOutStream packet;

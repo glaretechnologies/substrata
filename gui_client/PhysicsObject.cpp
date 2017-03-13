@@ -70,7 +70,6 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 
 	float translation_len;
 	const Vec4f unitdir = normalise(translation_os, translation_len);
-	const Vec3f unitdir3 = toVec3f(unitdir);
 
 	const Ray ray_os(
 		startpos_os, // origin
