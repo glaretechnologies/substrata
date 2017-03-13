@@ -96,8 +96,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 	
-	mainwindow_creation_time = Clock::getCurTimeRealSec();
-
 	// Open Log File
 	const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
 	this->logfile.open(StringUtils::UTF8ToPlatformUnicodeEncoding(logfile_path).c_str(), std::ios_base::out);
@@ -401,7 +399,7 @@ void MainWindow::timerEvent()
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
-	const double cur_time = Clock::getCurTimeRealSec() - this->mainwindow_creation_time;
+	const double cur_time = Clock::getTimeSinceInit();
 
 
 	//if(test_avatar.nonNull())
@@ -814,7 +812,7 @@ void MainWindow::timerEvent()
 								assert(ob->from_remote_transform_dirty);
 
 								// Compute interpolated transformation
-								const double cur_time = Clock::getCurTimeRealSec();
+								const double cur_time = Clock::getTimeSinceInit();
 								Vec3d pos;
 								Vec3f axis;
 								float angle;
@@ -867,7 +865,7 @@ void MainWindow::timerEvent()
 
 	// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
 	{
-		const double cur_time = Clock::getCurTimeRealSec();
+		const double cur_time = Clock::getTimeSinceInit();
 
 		Lock lock(this->world_state->mutex);
 		for(auto it = active_objects.begin(); it != active_objects.end();)
@@ -883,7 +881,6 @@ void MainWindow::timerEvent()
 			}
 			else
 			{
-				const double cur_time = Clock::getCurTimeRealSec();
 				Vec3d pos;
 				Vec3f axis;
 				float angle;
