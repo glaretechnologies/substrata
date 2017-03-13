@@ -60,7 +60,8 @@ private:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void deleteSelectedObject();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
-	void loadModelForObject(WorldObject* ob);
+	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
+	void print(const std::string& message); // Print to log and console
 
 	std::string base_dir_path;
 	std::string appdata_path;

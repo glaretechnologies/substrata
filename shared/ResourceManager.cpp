@@ -65,3 +65,9 @@ const std::string ResourceManager::pathForURL(const std::string& URL)
 		throw Indigo::Exception("Invalid URL '" + URL + "'");
 	return base_resource_dir + "/" + URL;
 }
+
+
+bool ResourceManager::isFileForURLDownloaded(const std::string& URL) // Throws Indigo::Exception if URL is invalid.
+{
+	return FileUtils::fileExists(pathForURL(URL));
+}

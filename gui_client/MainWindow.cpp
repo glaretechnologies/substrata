@@ -79,9 +79,6 @@
 #endif
 
 
-static int64 next_uid = 10000;//TEMP HACK
-
-
 static const std::string server_hostname = "217.155.32.43";
 const int server_port = 7600;
 
@@ -127,7 +124,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	this->resources_dir = appdata_path + "/resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
 	FileUtils::createDirIfDoesNotExist(this->resources_dir);
 
-	conPrint("resources_dir: " + resources_dir);
+	print("resources_dir: " + resources_dir);
 	resource_manager = new ResourceManager(this->resources_dir);
 }
 
@@ -151,11 +148,11 @@ MainWindow::~MainWindow()
 	settings->setValue("mainwindow/windowState", saveState());
 
 	// Kill ClientThread
-	conPrint("killing ClientThread");
+	print("killing ClientThread");
 	this->client_thread->killConnection();
 	this->client_thread = NULL;
 	this->client_thread_manager.killThreadsBlocking();
-	conPrint("killed ClientThread");
+	print("killed ClientThread");
 
 	ui->glWidget->makeCurrent();
 
@@ -277,95 +274,123 @@ static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
 // Check if the model file and any material dependencies (textures etc..) are downloaded.
 // If so load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the downloads.
-void MainWindow::loadModelForObject(WorldObject* ob)
+void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_missing_files)
 {
-	conPrint("(Re)Loading object model. model URL: " + ob->model_url);
+	print("(Re)loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + ob->model_url);
 	ob->loaded_model_url = ob->model_url;
 
 	ui->glWidget->makeCurrent();
 
-	// Remove any existing OpenGL and physics model
-	if(ob->opengl_engine_ob.nonNull())
-		ui->glWidget->removeObject(ob->opengl_engine_ob);
-
-	if(ob->physics_object.nonNull())
-		physics_world->removeObject(ob->physics_object);
-
-
-	const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
-
-	// See if we have the files downloaded
-	std::vector<std::string> dependency_URLs;
-	ob->appendDependencyURLs(dependency_URLs);
-
-	std::map<std::string, std::string> paths_for_URLs;
-
-	// Do we have all the objects downloaded?
-	bool all_downloaded = true;
-	for(size_t i=0; i<dependency_URLs.size(); ++i)
+	try
 	{
-		if(resource_manager->isValidURL(dependency_URLs[i]))
+		// Sanity check position, axis, angle
+		if(!::isFinite(ob->pos.x) || !::isFinite(ob->pos.y) || !::isFinite(ob->pos.z))
+			throw Indigo::Exception("Position had non-finite component.");
+		if(!::isFinite(ob->axis.x) || !::isFinite(ob->axis.y) || !::isFinite(ob->axis.z))
+			throw Indigo::Exception("axis had non-finite component.");
+		if(!::isFinite(ob->angle))
+			throw Indigo::Exception("angle was non-finite.");
+
+
+		// See if we have the files downloaded
+		std::set<std::string> dependency_URLs;
+		ob->getDependencyURLSet(dependency_URLs);
+
+		// Do we have all the objects downloaded?
+		bool all_downloaded = true;
+		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
-			const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
-			if(!FileUtils::fileExists(path))
+			const std::string& URL = *it;
+			if(resource_manager->isValidURL(URL))
 			{
-				all_downloaded = false;
-				// Enqueue download of resource.  TODO: check for dups
-				this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(dependency_URLs[i]));
+				if(!resource_manager->isFileForURLDownloaded(URL))
+				{
+					all_downloaded = false;
+					if(start_downloading_missing_files)
+						this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(URL));
+				}
 			}
-			paths_for_URLs[dependency_URLs[i]] = path;
+			else
+				all_downloaded = false;
+		}
+
+		const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
+
+		if(!all_downloaded)
+		{
+			if(!ob->using_placeholder_model)
+			{
+				// Remove any existing OpenGL and physics model
+				if(ob->opengl_engine_ob.nonNull())
+					ui->glWidget->removeObject(ob->opengl_engine_ob);
+
+				if(ob->physics_object.nonNull())
+					physics_world->removeObject(ob->physics_object);
+
+				// Use a temporary placeholder cube model.
+				GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+				cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+				ob->opengl_engine_ob = cube_gl_ob;
+				ui->glWidget->addObject(cube_gl_ob);
+
+				// Make physics object
+				StandardPrintOutput print_output;
+				Indigo::TaskManager task_manager;
+				PhysicsObjectRef physics_ob = makeAABBPhysicsObject(ob_to_world_matrix, print_output, task_manager);
+				ob->physics_object = physics_ob;
+				physics_ob->userdata = ob;
+				physics_world->addObject(physics_ob);
+
+				ob->using_placeholder_model = true;
+			}
 		}
 		else
-			all_downloaded = false;
-	}
-
-	if(!all_downloaded)
-	{
-		// Use a temporary placeholder model.
-		GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-		cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
-		ob->opengl_engine_ob = cube_gl_ob;
-		ui->glWidget->addObject(cube_gl_ob);
-
-		// Make physics object
-		StandardPrintOutput print_output;
-		Indigo::TaskManager task_manager;
-		PhysicsObjectRef physics_ob = makeAABBPhysicsObject(ob_to_world_matrix, print_output, task_manager);
-		ob->physics_object = physics_ob;
-		physics_ob->userdata = ob;
-		physics_world->addObject(physics_ob);
-
-		ob->using_placeholder_model = true;
-	}
-	else
-	{
-		conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
-
-		// Make GL object, add to OpenGL engine
-		Indigo::MeshRef mesh;
-		GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(paths_for_URLs[ob->model_url], ob->materials, *this->resource_manager/*paths_for_URLs*/, ob_to_world_matrix, mesh);
-		ob->opengl_engine_ob = gl_ob;
-		ui->glWidget->addObject(gl_ob);
-
-		// Make physics object
-		StandardPrintOutput print_output;
-		Indigo::TaskManager task_manager;
-		PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
-		ob->physics_object = physics_ob;
-		physics_ob->userdata = ob;
-		physics_world->addObject(physics_ob);
-
-
-		// NEW: Load script
-		if(!ob->script_url.empty())
 		{
-			const std::string script_path = resource_manager->pathForURL(ob->script_url);
+			print("All resources present for object.  Adding Object to OpenGL Engine etc..");
+			
+			// Remove any existing OpenGL and physics model
+			if(ob->opengl_engine_ob.nonNull())
+				ui->glWidget->removeObject(ob->opengl_engine_ob);
 
-			const std::string script_content = FileUtils::readEntireFileTextMode(script_path);
+			if(ob->physics_object.nonNull())
+				physics_world->removeObject(ob->physics_object);
 
-			ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
+			ob->using_placeholder_model = false;
+
+			// Make GL object, add to OpenGL engine
+			Indigo::MeshRef mesh;
+			GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(ob->model_url, ob->materials, *this->resource_manager, ob_to_world_matrix, mesh);
+			ob->opengl_engine_ob = gl_ob;
+			ui->glWidget->addObject(gl_ob);
+
+			// Make physics object
+			StandardPrintOutput print_output;
+			Indigo::TaskManager task_manager;
+			PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
+			ob->physics_object = physics_ob;
+			physics_ob->userdata = ob;
+			physics_world->addObject(physics_ob);
+
+			// Load script
+			if(!ob->script_url.empty())
+			{
+				const std::string script_path = resource_manager->pathForURL(ob->script_url);
+				const std::string script_content = FileUtils::readEntireFileTextMode(script_path);
+				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
+			}
 		}
 	}
+	catch(Indigo::Exception& e)
+	{
+		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+	}
+}
+
+
+void MainWindow::print(const std::string& message) // Print to log and console
+{
+	conPrint(message);
+	this->logfile << message << std::endl;
 }
 
 
@@ -413,12 +438,12 @@ void MainWindow::timerEvent()
 				{
 					const std::string path = resource_manager->pathForURL(m->URL);
 					if(FileUtils::fileExists(path))
-						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port));
-					else
 					{
-						logfile << ("Could not upload resource with URL '" + m->URL + "' to server, not present on client.") << std::endl;
-						conPrint("Could not upload resource with URL '" + m->URL + "' to server, not present on client.");
+						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port));
+						print("Received GetFileMessage, Uploading resource with URL '" + m->URL + "' to server.");
 					}
+					else
+						print("Could not upload resource with URL '" + m->URL + "' to server, not present on client.");
 				}
 			}
 			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
@@ -436,57 +461,11 @@ void MainWindow::timerEvent()
 
 						if(ob->using_placeholder_model)
 						{
-							std::vector<std::string> dependency_URLs;
-							ob->appendDependencyURLs(dependency_URLs);
-							std::set<std::string> URL_set(dependency_URLs.begin(), dependency_URLs.end());
-
+							std::set<std::string> URL_set;
+							ob->getDependencyURLSet(URL_set);
 							if(URL_set.count(m->URL)) // If the downloaded resource was used by this model:
 							{
-								std::map<std::string, std::string> paths_for_URLs;
-
-								// Do we have all the dependencies for this model downloaded?
-								bool all_downloaded = true;
-								for(size_t i=0; i<dependency_URLs.size(); ++i)
-								{
-									const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
-									paths_for_URLs[dependency_URLs[i]] = path;
-
-									if(!FileUtils::fileExists(path))
-										all_downloaded = false;
-								}
-
-								if(all_downloaded)
-								{
-									// Remove placeholder GL object
-									assert(ob->opengl_engine_ob.nonNull());
-									ui->glWidget->makeCurrent();
-									ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
-
-									// Remove placeholder physics object
-									if(ob->physics_object.nonNull())
-										physics_world->removeObject(ob->physics_object);
-
-									conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
-									//const std::string path = resources_dir + "/" + ob->model_url;
-									const std::string path = this->resource_manager->pathForURL(ob->model_url);
-
-									// Make GL object, add to OpenGL engine 
-									Indigo::MeshRef mesh;
-									const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
-									GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob->materials, /*paths_for_URLs*/*this->resource_manager, ob_to_world_matrix, mesh);
-									ob->opengl_engine_ob = gl_ob;
-									ui->glWidget->addObject(gl_ob);
-
-									// Make physics object
-									StandardPrintOutput print_output;
-									Indigo::TaskManager task_manager;
-									PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
-									ob->physics_object = physics_ob;
-									physics_ob->userdata = ob;
-									physics_world->addObject(physics_ob);
-
-									ob->using_placeholder_model = false;
-								}
+								loadModelForObject(ob, /*start_downloading_missing_files=*/false);
 							}
 						}
 					}
@@ -518,8 +497,7 @@ void MainWindow::timerEvent()
 				}
 				catch(Indigo::Exception& e)
 				{
-					conPrint(e.what());
-					logfile << ("Error while loading object: " + e.what()) << std::endl;
+					print("Error while loading object: " + e.what());
 				}
 			}
 		}
@@ -602,7 +580,7 @@ void MainWindow::timerEvent()
 			{
 				if(avatar->state == Avatar::State_Dead)
 				{
-					conPrint("Removing avatar.");
+					print("Removing avatar.");
 					// Remove any OpenGL object for it
 					//if(avatar->opengl_engine_ob.nonNull())
 					//	ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
@@ -632,7 +610,7 @@ void MainWindow::timerEvent()
 
 					if(reload_opengl_model) // If this is a new avatar that doesn't have an OpenGL model yet:
 					{
-						conPrint("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
+						print("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
 
 						// Remove any existing model and nametag
 						//if(avatar->opengl_engine_ob.nonNull())
@@ -687,7 +665,7 @@ void MainWindow::timerEvent()
 						//}
 						//else
 						{
-							conPrint("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
+							print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
 
 							// Make GL object, add to OpenGL engine
 							//Indigo::MeshRef mesh;
@@ -757,8 +735,7 @@ void MainWindow::timerEvent()
 	}
 	catch(Indigo::Exception& e)
 	{
-		conPrint(e.what());
-		logfile << ("Error while Updating avatar graphics: " + e.what()) << std::endl;
+		print("Error while Updating avatar graphics: " + e.what());
 	}
 
 
@@ -779,7 +756,7 @@ void MainWindow::timerEvent()
 			{
 				if(ob->state == WorldObject::State_Dead)
 				{
-					conPrint("Removing WorldObject.");
+					print("Removing WorldObject.");
 				
 					// Remove any OpenGL object for it
 					if(ob->opengl_engine_ob.nonNull())
@@ -803,95 +780,9 @@ void MainWindow::timerEvent()
 					if(ob->loaded_model_url != ob->model_url)
 						reload_opengl_model = true;
 
-					if(reload_opengl_model) // ob->opengl_engine_ob.isNull())
+					if(reload_opengl_model)
 					{
-						loadModelForObject(ob);
-#if 0
-						conPrint("(Re)Loading object model. model URL: " + ob->model_url);
-						ob->loaded_model_url = ob->model_url;
-
-						// Remove any existing OpenGL and physics model
-						if(ob->opengl_engine_ob.nonNull())
-							ui->glWidget->removeObject(ob->opengl_engine_ob);
-
-						if(ob->physics_object.nonNull())
-							physics_world->removeObject(ob->physics_object);
-
-
-						const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) * 
-							Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) * 
-							Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-
-						// See if we have the files downloaded
-						std::vector<std::string> dependency_URLs;
-						ob->appendDependencyURLs(dependency_URLs);
-
-						std::map<std::string, std::string> paths_for_URLs;
-
-						// Do we have all the objects downloaded?
-						bool all_downloaded = true;
-						for(size_t i=0; i<dependency_URLs.size(); ++i)
-						{
-							if(resource_manager->isValidURL(dependency_URLs[i]))
-							{
-								const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
-								if(!FileUtils::fileExists(path))
-								{
-									all_downloaded = false;
-									// Enqueue download of resource.  TODO: check for dups
-									this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(dependency_URLs[i]));
-								}
-								paths_for_URLs[dependency_URLs[i]] = path;
-							}
-							else
-								all_downloaded = false;
-						}
-
-						if(!all_downloaded)
-						{
-							//if(!(FileUtils::fileExists(model_path)))
-							//	conPrint("Don't have model '" + ob->model_url + "' on disk, using placeholder.");
-							//if(!(FileUtils::fileExists(material_path)))
-							//	conPrint("Don't have material '" + ob->material_url + "' on disk, using placeholder.");
-
-							// Use a temporary placeholder model.
-							GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-							cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
-							ob->opengl_engine_ob = cube_gl_ob;
-							ui->glWidget->addObject(cube_gl_ob);
-
-							// Make physics object
-							StandardPrintOutput print_output;
-							Indigo::TaskManager task_manager;
-							PhysicsObjectRef physics_ob = makeAABBPhysicsObject(ob_to_world_matrix, print_output, task_manager);
-							ob->physics_object = physics_ob;
-							physics_ob->userdata = ob;
-							physics_world->addObject(physics_ob);
-
-							ob->using_placeholder_model = true;
-
-							// Enqueue download of model
-							//this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(ob->model_url));
-						}
-						else
-						{
-							conPrint("Adding Object to OpenGL Engine, UID " + toString(ob->uid.value()));
-
-							// Make GL object, add to OpenGL engine
-							Indigo::MeshRef mesh;
-							GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(paths_for_URLs[ob->model_url], ob->materials, *this->resource_manager/*paths_for_URLs*/, ob_to_world_matrix, mesh);
-							ob->opengl_engine_ob = gl_ob;
-							ui->glWidget->addObject(gl_ob);
-
-							// Make physics object
-							StandardPrintOutput print_output;
-							Indigo::TaskManager task_manager;
-							PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
-							ob->physics_object = physics_ob;
-							physics_ob->userdata = ob;
-							physics_world->addObject(physics_ob);
-						}
-#endif
+						loadModelForObject(ob, /*start_downloading_missing_files=*/true);
 
 						ob->from_remote_other_dirty     = false;
 						ob->from_remote_transform_dirty = false;
@@ -968,8 +859,7 @@ void MainWindow::timerEvent()
 	}
 	catch(Indigo::Exception& e)
 	{
-		conPrint(e.what());
-		logfile << ("Error while Updating object graphics: " + e.what()) << std::endl;
+		print("Error while Updating object graphics: " + e.what());
 	}
 
 
@@ -1163,7 +1053,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 		catch(Indigo::IndigoException& e)
 		{
 			// Show error
-			conPrint(toStdString(e.what()));
+			print(toStdString(e.what()));
 			QErrorMessage m;
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
@@ -1171,7 +1061,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 		catch(FileUtils::FileUtilsExcep& e)
 		{
 			// Show error
-			conPrint(e.what());
+			print(e.what());
 			QErrorMessage m;
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
@@ -1179,7 +1069,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 		catch(Indigo::Exception& e)
 		{
 			// Show error
-			conPrint(e.what());
+			print(e.what());
 			QErrorMessage m;
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
@@ -1301,7 +1191,7 @@ void MainWindow::on_actionAddObject_triggered()
 		catch(Indigo::IndigoException& e)
 		{
 			// Show error
-			conPrint(toStdString(e.what()));
+			print(toStdString(e.what()));
 			QErrorMessage m;
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
@@ -1309,7 +1199,7 @@ void MainWindow::on_actionAddObject_triggered()
 		catch(FileUtils::FileUtilsExcep& e)
 		{
 			// Show error
-			conPrint(e.what());
+			print(e.what());
 			QErrorMessage m;
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
@@ -1317,7 +1207,7 @@ void MainWindow::on_actionAddObject_triggered()
 		catch(Indigo::Exception& e)
 		{
 			// Show error
-			conPrint(e.what());
+			print(e.what());
 			QErrorMessage m;
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
@@ -1426,7 +1316,7 @@ void MainWindow::sendChatMessageSlot()
 
 void MainWindow::objectEditedSlot()
 {
-	conPrint("MainWindow::objectEditedSlot()");
+	//conPrint("MainWindow::objectEditedSlot()");
 
 	// Update object material(s) with values from editor.
 	if(this->selected_ob.nonNull())
@@ -1484,7 +1374,7 @@ void MainWindow::objectEditedSlot()
 
 		if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
 		{
-			loadModelForObject(this->selected_ob.getPointer());
+			loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
 			this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 		}
 	}

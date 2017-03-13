@@ -279,18 +279,19 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 }
 
 
-GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path, const std::vector<WorldMaterialRef>& materials, 
-												   //const std::map<std::string, std::string>& paths_for_URLs,
+GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
 												   ResourceManager& resource_manager,
 												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out)
 {
+	const std::string model_path = resource_manager.pathForURL(model_URL);
+
 	if(hasExtension(model_path, "obj"))
 	{
 		MLTLibMaterials mats;
 		Indigo::MeshRef mesh = new Indigo::Mesh();
 		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, false, mats);
 
-		checkValidAndSanitiseMesh(*mesh);
+		checkValidAndSanitiseMesh(*mesh); // Throws Indigo::Exception on invalid mesh.
 
 		GLObjectRef ob = new GLObject();
 		ob->ob_to_world_matrix = ob_to_world_matrix;
@@ -301,7 +302,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 		{
 			if(i < materials.size())
 			{
-				setGLMaterialFromWorldMaterial(*materials[i], /*paths_for_URLs*/resource_manager, ob->materials[i]);
+				setGLMaterialFromWorldMaterial(*materials[i], resource_manager, ob->materials[i]);
 			}
 			else
 			{
@@ -368,7 +369,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			{
 				if(i < materials.size())
 				{
-					setGLMaterialFromWorldMaterial(*materials[i], /*paths_for_URLs*/resource_manager, ob->materials[i]);
+					setGLMaterialFromWorldMaterial(*materials[i], resource_manager, ob->materials[i]);
 				}
 				else
 				{
