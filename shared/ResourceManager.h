@@ -35,6 +35,8 @@ public:
 
 	const std::string pathForURL(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
 
+	bool isFileForURLDownloaded(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
+
 private:
 	std::string base_resource_dir;
 };

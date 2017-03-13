@@ -73,7 +73,7 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ax
 	const double delayed_time = cur_time - delay;
 	// Search through history for first snapshot
 	int begin = 0;
-	for(int i=next_snapshot_i-HISTORY_BUF_SIZE; i<next_snapshot_i; ++i)
+	for(int i=(int)next_snapshot_i-HISTORY_BUF_SIZE; i<(int)next_snapshot_i; ++i)
 	{
 		const int modi = Maths::intMod(i, HISTORY_BUF_SIZE);
 		if(snapshot_times[modi] > delayed_time)

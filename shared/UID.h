@@ -10,6 +10,7 @@ Code By Nicholas Chapman.
 #include <Platform.h>
 #include <OutStream.h>
 #include <InStream.h>
+#include <StringUtils.h>
 #include <limits>
 #include <string>
 
@@ -27,7 +28,7 @@ public:
 
 	bool valid() const { return v != invalidUID().value(); }
 
-	const std::string toString() const;
+	const std::string toString() const { return ::toString(v); }
 
 	bool operator == (const UID& other) const { return v == other.v; }
 	bool operator != (const UID& other) const { return v != other.v; }
