@@ -95,6 +95,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+	
+	mainwindow_creation_time = Clock::getCurTimeRealSec();
 
 	// Open Log File
 	const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
@@ -399,7 +401,7 @@ void MainWindow::timerEvent()
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
-	const double cur_time = Clock::getCurTimeRealSec();
+	const double cur_time = Clock::getCurTimeRealSec() - this->mainwindow_creation_time;
 
 
 	//if(test_avatar.nonNull())
@@ -1685,6 +1687,8 @@ int main(int argc, char *argv[])
 	}
 
 	QDir::setCurrent(QtUtils::toQString(indigo_base_dir_path));
+	
+	conPrint("indigo_base_dir_path: " + indigo_base_dir_path);
 
 
 	// Get a vector of the args.  Note that we will use app.arguments(), because it's the only way to get the args in Unicode in Qt.
@@ -1706,6 +1710,10 @@ int main(int argc, char *argv[])
 	{
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
+		
+
+		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
+			args.resize(1); // This is some XCode debugging rubbish, remove it
 
 		ArgumentParser parsed_args(args, syntax);
 

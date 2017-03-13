@@ -112,4 +112,6 @@ public:
 	ThreadContext thread_context;
 
 	std::ofstream logfile;
+	
+	double mainwindow_creation_time;
 };
