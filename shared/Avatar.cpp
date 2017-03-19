@@ -37,23 +37,21 @@ void Avatar::appendDependencyURLs(std::vector<std::string>& URLs_out)
 }
 
 
-void Avatar::setTransformAndHistory(const Vec3d& pos_, const Vec3f& axis_, float angle_)
+void Avatar::setTransformAndHistory(const Vec3d& pos_, const Vec3f& rotation_)
 {
 	pos = pos_;
-	axis = axis_;
-	angle = angle_;
+	rotation = rotation_;
 
 	for(int i=0; i<HISTORY_BUF_SIZE; ++i)
 	{
 		pos_snapshots[i] = pos_;
-		axis_snapshots[i] = axis_;
-		angle_snapshots[i] = angle_;
+		rotation_snapshots[i] = rotation_;
 		snapshot_times[i] = 0;
 	}
 }
 
 
-void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const
+void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& rotation_out) const
 {
 	/*
 	Timeline: check marks are snapshots received:
@@ -91,15 +89,8 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ax
 	else
 		t  = (delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin]); // Interpolation fraction
 
-	pos_out   = Maths::uncheckedLerp(pos_snapshots[begin], pos_snapshots[end], t);
-	axis_out  = Maths::uncheckedLerp(axis_snapshots[begin], axis_snapshots[end], t);
-	angle_out = Maths::uncheckedLerp(angle_snapshots[begin], angle_snapshots[end], t);
-
-	if(axis_out.length2() < 1.0e-10f)
-	{
-		axis_out = Vec3f(0, 0, 1);
-		angle_out = 0;
-	}
+	pos_out      = Maths::uncheckedLerp(pos_snapshots[begin], pos_snapshots[end], t);
+	rotation_out = Maths::uncheckedLerp(rotation_snapshots[begin], rotation_snapshots[end], t);
 
 	//const double send_period = 0.1; // Time between update messages from server
 	//const double delay = /*send_period * */2.0; // Objects are rendered using the interpolated state at this past time.  In normalised period coordinates.
@@ -135,8 +126,7 @@ void writeToNetworkStream(const Avatar& avatar, OutStream& stream) // Write with
 	stream.writeStringLengthFirst(avatar.name);
 	stream.writeStringLengthFirst(avatar.model_url);
 	writeToStream(avatar.pos, stream);
-	writeToStream(avatar.axis, stream);
-	stream.writeFloat(avatar.angle);
+	writeToStream(avatar.rotation, stream);
 }
 
 
@@ -145,6 +135,5 @@ void readFromNetworkStreamGivenUID(InStream& stream, Avatar& avatar) // UID will
 	avatar.name			= stream.readStringLengthFirst(10000);
 	avatar.model_url	= stream.readStringLengthFirst(10000);
 	avatar.pos			= readVec3FromStream<double>(stream);
-	avatar.axis			= readVec3FromStream<float>(stream);
-	avatar.angle		= stream.readFloat();
+	avatar.rotation		= readVec3FromStream<float>(stream);
 }

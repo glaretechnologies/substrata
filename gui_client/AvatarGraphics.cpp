@@ -173,11 +173,17 @@ static const float ankle_data[] = {
 
 static const int NUM_FRAMES = 52;
 
-static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& axis, float angle)
+static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& rotation)
 {
-	//return Matrix4f::translationMatrix((float)translation.x, (float)translation.y, (float)translation.z) * Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
 	Matrix4f m;
-	m.setToRotationMatrix(normalise(axis.toVec4fVector()), angle);
+	const float rot_len2 = rotation.length2();
+	if(rot_len2 < 1.0e-20f)
+		m.setToIdentity();
+	else
+	{
+		const float rot_len = std::sqrt(rot_len2);
+		m.setToRotationMatrix(rotation.toVec4fVector() / rot_len, rot_len);
+	}
 	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
 	return m;
 }
@@ -207,24 +213,24 @@ static const float lower_leg_radius = 0.04f;
 //}
 
 
-void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& axis, float angle, double cur_time)
+void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time)
 {
 	if(pos.getDist(last_pos) > 0.002)
 	{
-		setWalkAnimation(engine, pos, axis, angle, cur_time);
+		setWalkAnimation(engine, pos, rotation, cur_time);
 	}
 	else
 	{
-		setStandAnimation(engine, pos, axis, angle, cur_time);
+		setStandAnimation(engine, pos, rotation, cur_time);
 	}
 
 	last_pos = pos;
 }
 
 
-void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& axis, float angle, double cur_time)
+void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time)
 {
-	const Matrix4f overall = rotateThenTranslateMatrix(pos, axis, angle);
+	const Matrix4f overall = rotateThenTranslateMatrix(pos, rotation);
 
 	const float torso_offset = 0;
 
@@ -287,9 +293,9 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 }
 
 
-void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& axis, float angle, double cur_time)
+void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time)
 {
-	const Matrix4f overall = rotateThenTranslateMatrix(pos, axis, angle);
+	const Matrix4f overall = rotateThenTranslateMatrix(pos, rotation);
 
 	//const float upper_leg_angle_0 = (float)sin(3.0 * cur_time) * 0.3f;
 	//const float upper_leg_angle_1 = (float)sin(3.0 * cur_time + Maths::pi<double>()) * 0.3f;

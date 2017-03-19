@@ -146,8 +146,7 @@ int main(int argc, char *argv[])
 						packet.writeStringLengthFirst(avatar->name);
 						packet.writeStringLengthFirst(avatar->model_url);
 						writeToStream(avatar->pos, packet);
-						writeToStream(avatar->axis, packet);
-						packet.writeFloat(avatar->angle);
+						writeToStream(avatar->rotation, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
 						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
@@ -193,8 +192,7 @@ int main(int argc, char *argv[])
 						packet.writeUInt32(AvatarTransformUpdate);
 						writeToStream(avatar->uid, packet);
 						writeToStream(avatar->pos, packet);
-						writeToStream(avatar->axis, packet);
-						packet.writeFloat(avatar->angle);
+						writeToStream(avatar->rotation, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
 						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());

@@ -80,6 +80,7 @@
 
 
 static const std::string server_hostname = "217.155.32.43";
+//static const std::string server_hostname = "127.0.0.1";
 const int server_port = 7600;
 
 
@@ -251,6 +252,22 @@ static Reference<PhysicsObject> makeAABBPhysicsObject(const Matrix4f& ob_to_worl
 //	ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 //	return ob;
 //}
+
+
+static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& rotation)
+{
+	Matrix4f m;
+	const float rot_len2 = rotation.length2();
+	if(rot_len2 < 1.0e-20f)
+		m.setToIdentity();
+	else
+	{
+		const float rot_len = std::sqrt(rot_len2);
+		m.setToRotationMatrix(rotation.toVec4fVector() / rot_len, rot_len);
+	}
+	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
+	return m;
+}
 
 
 static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& axis, float angle)
@@ -624,11 +641,10 @@ void MainWindow::timerEvent()
 							ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
 
 						Vec3d pos;
-						Vec3f axis;
-						float angle;
-						avatar->getInterpolatedTransform(cur_time, pos, axis, angle);
+						Vec3f rotation;
+						avatar->getInterpolatedTransform(cur_time, pos, rotation);
 
-						const Matrix4f ob_to_world_matrix = rotateThenTranslateMatrix(pos, axis, angle);
+						const Matrix4f ob_to_world_matrix = rotateThenTranslateMatrix(pos, rotation);
 
 						std::vector<std::string> dependency_URLs;
 						avatar->appendDependencyURLs(dependency_URLs);
@@ -695,9 +711,8 @@ void MainWindow::timerEvent()
 
 					// Update transform if we have an avatar or placeholder OpenGL model.
 					Vec3d pos;
-					Vec3f axis;
-					float angle;
-					avatar->getInterpolatedTransform(cur_time, pos, axis, angle);
+					Vec3f rotation;
+					avatar->getInterpolatedTransform(cur_time, pos, rotation);
 
 					/*if(avatar->opengl_engine_ob.nonNull())
 					{
@@ -706,7 +721,7 @@ void MainWindow::timerEvent()
 					}*/
 					if(avatar->graphics.nonNull())
 					{
-						avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, axis, angle, cur_time);
+						avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time);
 					}
 
 					// Update nametag transform also
@@ -741,7 +756,7 @@ void MainWindow::timerEvent()
 
 	//TEMP
 	if(test_avatar.nonNull())
-		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.f, cur_time);
+		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, cur_time * 0.1), cur_time);
 
 
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
@@ -950,15 +965,13 @@ void MainWindow::timerEvent()
 			conPrint("angle: " + toString(angle));*/
 
 			const Vec3d cam_angles = this->cam_controller.getAngles();
-			const Vec3d axis(0,0,1);
 			const double angle = cam_angles.x;
 
 			SocketBufferOutStream packet;
 			packet.writeUInt32(AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, packet);
 			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
-			writeToStream(Vec3f(axis.x,axis.y,axis.z), packet); // TODO: rotation
-			packet.writeFloat(angle);
+			writeToStream(Vec3f(0, 0, angle), packet);
 
 			std::string packet_string(packet.buf.size(), '\0');
 			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
@@ -1035,8 +1048,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			Avatar avatar;
 			avatar.uid = this->client_thread->client_avatar_uid;
 			avatar.pos = Vec3d(this->cam_controller.getPosition());
-			avatar.axis = Vec3f(0,0,1);
-			avatar.angle = (float)cam_angles.x;
+			avatar.rotation = Vec3f(0, 0, cam_angles.x);
 			avatar.model_url = URL;
 			avatar.name = d.getAvatarName();
 
@@ -1717,8 +1729,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			js::VectorUnitTests::test();
-			//js::TreeTest::doTests(appdata_path);
+			//js::VectorUnitTests::test();
+			js::TreeTest::doTests(appdata_path);
 			//Matrix4f::test();
 			return 0;
 		}
@@ -1997,8 +2009,7 @@ int main(int argc, char *argv[])
 			{
 				test_avatar = new AvatarGraphics();
 				test_avatar->create(*mw.ui->glWidget->opengl_engine);
-				test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.f, 0.0);
-				
+				test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.0);
 			}
 			
 
