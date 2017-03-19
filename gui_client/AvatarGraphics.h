@@ -29,7 +29,7 @@ public:
 	AvatarGraphics();
 	~AvatarGraphics();
 
-	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& axis, float angle, double cur_time);
+	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
 
 	void create(OpenGLEngine& engine);
 
@@ -50,8 +50,8 @@ public:
 	Reference<GLObject> feet[2];
 
 private:
-	void setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& axis, float angle, double cur_time);
-	void setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& axis, float angle, double cur_time);
+	void setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
+	void setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
 
 	Vec3d last_pos;
 };

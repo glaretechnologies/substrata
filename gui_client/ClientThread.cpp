@@ -149,8 +149,7 @@ void ClientThread::doRun()
 						//conPrint("AvatarTransformUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
+						const Vec3f rotation = readVec3FromStream<float>(*socket);
 
 						// Look up existing avatar in world state
 						{
@@ -160,16 +159,14 @@ void ClientThread::doRun()
 							{
 								Avatar* avatar = res->second.getPointer();
 								avatar->pos = pos;
-								avatar->axis = axis;
-								avatar->angle = angle;
+								avatar->rotation = rotation;
 								avatar->transform_dirty = true;
 
 								//conPrint("updated avatar transform");
 
-								avatar->pos_snapshots  [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = pos;
-								avatar->axis_snapshots [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = axis;
-								avatar->angle_snapshots[Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = angle;
-								avatar->snapshot_times[Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = Clock::getTimeSinceInit();
+								avatar->pos_snapshots      [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = pos;
+								avatar->rotation_snapshots [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = rotation;
+								avatar->snapshot_times     [Maths::intMod(avatar->next_snapshot_i, Avatar::HISTORY_BUF_SIZE)] = Clock::getTimeSinceInit();
 								//avatar->last_snapshot_time = Clock::getCurTimeRealSec();
 								avatar->next_snapshot_i++;
 							}
@@ -206,8 +203,7 @@ void ClientThread::doRun()
 						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
+						const Vec3f rotation = readVec3FromStream<float>(*socket);
 
 						// Look up existing avatar in world state
 						{
@@ -221,13 +217,12 @@ void ClientThread::doRun()
 								avatar->name = name;
 								avatar->model_url = model_url;
 								avatar->pos = pos;
-								avatar->axis = axis;
-								avatar->angle = angle;
+								avatar->rotation = rotation;
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
 								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
 
-								avatar->setTransformAndHistory(pos, axis, angle);
+								avatar->setTransformAndHistory(pos, rotation);
 
 								conPrint("created new avatar");
 							}

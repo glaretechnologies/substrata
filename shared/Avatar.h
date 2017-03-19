@@ -41,15 +41,14 @@ public:
 
 	void appendDependencyURLs(std::vector<std::string>& URLs_out);
 
-	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
-	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
+	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& rotation_out) const;
+	void setTransformAndHistory(const Vec3d& pos, const Vec3f& rotation);
 
 	UID uid;
 	std::string name;
 	std::string model_url;
 	Vec3d pos;
-	Vec3f axis;
-	float angle;
+	Vec3f rotation;
 
 
 	enum State
@@ -78,8 +77,7 @@ public:
 	*/
 	static const int HISTORY_BUF_SIZE = 4;
 	Vec3d pos_snapshots[HISTORY_BUF_SIZE];
-	Vec3f axis_snapshots[HISTORY_BUF_SIZE];
-	float angle_snapshots[HISTORY_BUF_SIZE];
+	Vec3f rotation_snapshots[HISTORY_BUF_SIZE];
 	double snapshot_times[HISTORY_BUF_SIZE];
 	//double last_snapshot_time;
 	uint32 next_snapshot_i;

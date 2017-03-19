@@ -139,8 +139,7 @@ void WorkerThread::doRun()
 					packet.writeStringLengthFirst(avatar->name);
 					packet.writeStringLengthFirst(avatar->model_url);
 					writeToStream(avatar->pos, packet);
-					writeToStream(avatar->axis, packet);
-					packet.writeFloat(avatar->angle);
+					writeToStream(avatar->rotation, packet);
 
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
@@ -213,8 +212,7 @@ void WorkerThread::doRun()
 						//conPrint("AvatarTransformUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
+						const Vec3f rotation = readVec3FromStream<float>(*socket);
 
 						// Look up existing avatar in world state
 						{
@@ -224,8 +222,7 @@ void WorkerThread::doRun()
 							{
 								Avatar* avatar = res->second.getPointer();
 								avatar->pos = pos;
-								avatar->axis = axis;
-								avatar->angle = angle;
+								avatar->rotation = rotation;
 								avatar->transform_dirty = true;
 
 								//conPrint("updated avatar transform");
@@ -261,8 +258,7 @@ void WorkerThread::doRun()
 						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
+						const Vec3f rotation = readVec3FromStream<float>(*socket);
 
 						// Look up existing avatar in world state
 						{
@@ -276,8 +272,7 @@ void WorkerThread::doRun()
 								avatar->name = name;
 								avatar->model_url = model_url;
 								avatar->pos = pos;
-								avatar->axis = axis;
-								avatar->angle = angle;
+								avatar->rotation = rotation;
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
 								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
