@@ -49,6 +49,11 @@ const uint32 GetFile				= 4000;
 const uint32 UploadResource			= 5000;
 
 
+//TEMP HACK move elsewhere
+const uint32 UserSelectedObject		= 6000;
+const uint32 UserDeselectedObject	= 6001;
+
+
 /*=====================================================================
 WorldObject
 -----------

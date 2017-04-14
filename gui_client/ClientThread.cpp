@@ -391,6 +391,22 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new ChatMessage(name, msg));
 						break;
 					}
+				case UserSelectedObject:
+					{
+						//conPrint("Received UserSelectedObject msg.");
+						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(*socket);
+						out_msg_queue->enqueue(new UserSelectedObjectMessage(avatar_uid, object_uid));
+						break;
+					}
+				case UserDeselectedObject:
+					{
+						//conPrint("Received UserDeselectedObject msg.");
+						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(*socket);
+						out_msg_queue->enqueue(new UserDeselectedObjectMessage(avatar_uid, object_uid));
+						break;
+					}
 				default:
 					{
 						conPrint("Unknown message id: " + ::toString(msg_type));

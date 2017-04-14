@@ -447,6 +447,26 @@ void MainWindow::timerEvent()
 				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
 				ui->chatMessagesTextEdit->append(QtUtils::toQString(m->name + ": " + m->msg));
 			}
+			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
+			{
+				//print("MainWIndow: Received UserSelectedObjectMessage");
+				const UserSelectedObjectMessage* m = static_cast<const UserSelectedObjectMessage*>(msg.getPointer());
+				Lock lock(this->world_state->mutex);
+				if(this->world_state->avatars.count(m->avatar_uid) != 0 && this->world_state->objects.count(m->object_uid) != 0)
+				{
+					this->world_state->avatars[m->avatar_uid]->selected_object_uid = m->object_uid;
+				}
+			}
+			else if(dynamic_cast<const UserDeselectedObjectMessage*>(msg.getPointer()))
+			{
+				//print("MainWIndow: Received UserDeselectedObjectMessage");
+				const UserDeselectedObjectMessage* m = static_cast<const UserDeselectedObjectMessage*>(msg.getPointer());
+				Lock lock(this->world_state->mutex);
+				if(this->world_state->avatars.count(m->avatar_uid) != 0)
+				{
+					this->world_state->avatars[m->avatar_uid]->selected_object_uid = UID::invalidUID();
+				}
+			}
 			else if(dynamic_cast<const GetFileMessage*>(msg.getPointer()))
 			{
 				const GetFileMessage* m = static_cast<const GetFileMessage*>(msg.getPointer());
@@ -738,6 +758,42 @@ void MainWindow::timerEvent()
 						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
 					}
 
+					// Update selected object beam for the avatar, if it has an object selected
+					if(avatar->selected_object_uid.valid())
+					{
+						if(avatar->graphics.nonNull())
+						{
+							auto it = world_state->objects.find(avatar->selected_object_uid);
+							if(it != world_state->objects.end())
+							{
+								WorldObject* selected_ob = it->second.getPointer();
+								Vec3d pos;
+								Vec3f axis;
+								float angle;
+								selected_ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+
+								// Replace pos with the centre of the AABB (instead of the object space origin)
+								if(selected_ob->opengl_engine_ob.nonNull())
+								{
+									selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
+										Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
+										Matrix4f::scaleMatrix(selected_ob->scale.x, selected_ob->scale.y, selected_ob->scale.z);
+
+									ui->glWidget->opengl_engine->updateObjectTransformData(*selected_ob->opengl_engine_ob);
+
+									pos = toVec3d(selected_ob->opengl_engine_ob->aabb_ws.centroid());
+								}
+
+								avatar->graphics->setSelectedObBeam(*ui->glWidget->opengl_engine, pos);
+							}
+						}
+					}
+					else
+					{
+						if(avatar->graphics.nonNull())
+							avatar->graphics->hideSelectedObBeam(*ui->glWidget->opengl_engine);
+					}
+
 					avatar->other_dirty = false;
 					avatar->transform_dirty = false;
 
@@ -756,7 +812,7 @@ void MainWindow::timerEvent()
 
 	//TEMP
 	if(test_avatar.nonNull())
-		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, cur_time * 0.1), cur_time);
+		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 0), cur_time);
 
 
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
@@ -1259,12 +1315,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		}
 
 		// Deselect any currently selected object
-		if(this->selected_ob.nonNull())
-			ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
-
-		// deslect object
-		this->selected_ob = NULL;
-		ui->objectEditor->setEnabled(false);
+		deselectObject();
 	}
 	else
 	{
@@ -1280,10 +1331,6 @@ void MainWindow::on_actionDeleteObject_triggered()
 	if(this->selected_ob.nonNull())
 	{
 		deleteSelectedObject();
-
-		// Deselect object
-		this->selected_ob = NULL;
-		ui->objectEditor->setEnabled(false);
 	}
 }
 
@@ -1431,7 +1478,8 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 		// Deselect any currently selected object
 		if(this->selected_ob.nonNull())
-			ui->glWidget->opengl_engine->deselectObject(selected_ob->opengl_engine_ob);
+			deselectObject();
+			//ui->glWidget->opengl_engine->deselectObject(selected_ob->opengl_engine_ob);
 
 		this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 		if(this->selected_ob.nonNull())
@@ -1459,6 +1507,15 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			ui->objectEditor->setEnabled(true);
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
+
+
+			// Send UserSelectedObject message to server
+			SocketBufferOutStream packet;
+			packet.writeUInt32(UserSelectedObject);
+			writeToStream(selected_ob->uid, packet);
+			std::string packet_string(packet.buf.size(), '\0');
+			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+			this->client_thread->enqueueDataToSend(packet_string);
 		}
 		else
 		{
@@ -1468,12 +1525,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 	else
 	{
 		// Deselect any currently selected object
-		if(this->selected_ob.nonNull())
-			ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
-
-		// deslect object
-		this->selected_ob = NULL;
-		ui->objectEditor->setEnabled(false);
+		deselectObject();
 	}
 }
 
@@ -1558,6 +1610,31 @@ void MainWindow::deleteSelectedObject()
 		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
 
 		this->client_thread->enqueueDataToSend(packet_string);
+
+
+		deselectObject();
+	}
+}
+
+
+void MainWindow::deselectObject()
+{
+	if(this->selected_ob.nonNull())
+	{
+		// Send UserDeselectedObject message to server
+		SocketBufferOutStream packet;
+		packet.writeUInt32(UserDeselectedObject);
+		writeToStream(selected_ob->uid, packet);
+		std::string packet_string(packet.buf.size(), '\0');
+		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+		this->client_thread->enqueueDataToSend(packet_string);
+
+		// Deselect any currently selected object
+		ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
+
+		ui->objectEditor->setEnabled(false);
+
+		this->selected_ob = NULL;
 	}
 }
 
@@ -1568,11 +1645,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	{
 		if(this->selected_ob.nonNull())
 		{
-			ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
-
-			// Deselect object
-			this->selected_ob = NULL;
-			ui->objectEditor->setEnabled(false);
+			deselectObject();
 		}
 	}
 	else if(e->key() == Qt::Key::Key_Delete)
@@ -1580,10 +1653,6 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		if(this->selected_ob.nonNull())
 		{
 			deleteSelectedObject();
-
-			// Deselect object
-			this->selected_ob = NULL;
-			ui->objectEditor->setEnabled(false);
 		}
 	}
 	

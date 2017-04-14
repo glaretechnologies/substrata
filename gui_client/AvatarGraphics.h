@@ -35,6 +35,8 @@ public:
 
 	void destroy(OpenGLEngine& engine);
 	
+	void setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target_pos); // create or update beam
+	void hideSelectedObBeam(OpenGLEngine& engine);
 
 	Reference<GLObject> upper_arms[2];
 	Reference<GLObject> lower_arms[2];
@@ -49,11 +51,18 @@ public:
 
 	Reference<GLObject> feet[2];
 
+
+	Reference<GLObject> selected_ob_beam;
+
+	
+
 private:
 	void setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
 	void setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
 
 	Vec3d last_pos;
+	Vec3d last_hand_pos;
+	Vec3d last_selected_ob_target_pos;
 };
 
 

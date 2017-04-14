@@ -59,6 +59,7 @@ private slots:;
 private:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void deleteSelectedObject();
+	void deselectObject();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
 	void print(const std::string& message); // Print to log and console

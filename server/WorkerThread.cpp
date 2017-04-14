@@ -429,6 +429,56 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
+				case UserSelectedObject:
+					{
+						//conPrint("Received UserSelectedObject msg.");
+
+						const UID object_uid = readUIDFromStream(*socket);
+
+						// Send message to connected clients
+						{
+							SocketBufferOutStream packet;
+							packet.writeUInt32(UserSelectedObject);
+							writeToStream(client_avatar_uid, packet);
+							writeToStream(object_uid, packet);
+
+							std::string packet_string(packet.buf.size(), '\0');
+							std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+							Lock lock(server->worker_thread_manager.getMutex());
+							for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
+							{
+								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+							}
+						}
+						break;
+					}
+				case UserDeselectedObject:
+					{
+						//conPrint("Received UserDeselectedObject msg.");
+
+						const UID object_uid = readUIDFromStream(*socket);
+
+						// Send message to connected clients
+						{
+							SocketBufferOutStream packet;
+							packet.writeUInt32(UserDeselectedObject);
+							writeToStream(client_avatar_uid, packet);
+							writeToStream(object_uid, packet);
+
+							std::string packet_string(packet.buf.size(), '\0');
+							std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+							Lock lock(server->worker_thread_manager.getMutex());
+							for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
+							{
+								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+							}
+						}
+						break;
+					}
 				case UploadResource:
 					{
 						conPrint("UploadResource");
