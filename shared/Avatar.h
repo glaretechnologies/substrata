@@ -50,6 +50,7 @@ public:
 	Vec3d pos;
 	Vec3f rotation;
 
+	UID selected_object_uid; // Will be set to invalidUID if no object selected.
 
 	enum State
 	{

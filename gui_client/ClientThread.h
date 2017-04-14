@@ -40,6 +40,22 @@ public:
 };
 
 
+class UserSelectedObjectMessage : public ThreadMessage
+{
+public:
+	UserSelectedObjectMessage(const UID& avatar_uid_, const UID& object_uid_) : avatar_uid(avatar_uid_), object_uid(object_uid_) {}
+	UID avatar_uid, object_uid;
+};
+
+
+class UserDeselectedObjectMessage : public ThreadMessage
+{
+public:
+	UserDeselectedObjectMessage(const UID& avatar_uid_, const UID& object_uid_) : avatar_uid(avatar_uid_), object_uid(object_uid_) {}
+	UID avatar_uid, object_uid;
+};
+
+
 class ClientConnectedToServerMessage : public ThreadMessage
 {
 };

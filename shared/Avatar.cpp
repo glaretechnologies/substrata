@@ -22,6 +22,8 @@ Avatar::Avatar()
 
 	next_snapshot_i = 0;
 //	last_snapshot_time = 0;
+
+	selected_object_uid = UID::invalidUID();
 }
 
 

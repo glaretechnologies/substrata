@@ -16,6 +16,7 @@ Generated at 2016-01-12 12:24:54 +1300
 AvatarGraphics::AvatarGraphics()
 {
 	last_pos.set(0, 0, 0);
+	last_selected_ob_target_pos.set(0, 0, 0);
 }
 
 
@@ -225,12 +226,23 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 	}
 
 	last_pos = pos;
+	this->last_hand_pos = toVec3d(this->lower_arms[0]->ob_to_world_matrix * Vec4f(0, 0, -lower_arm_length, 1));
 }
 
 
 void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time)
 {
 	const Matrix4f overall = rotateThenTranslateMatrix(pos, rotation);
+
+	// Compute elevation angle to selected object.
+	float target_angle = 0;
+	if(selected_ob_beam.nonNull())
+	{
+		Matrix4f overall_inverse;
+		overall.getInverseForRandTMatrix(overall_inverse);
+		const Vec4f to_target_os = overall_inverse * (last_selected_ob_target_pos - this->last_pos).toVec4fVector();
+		target_angle = atan2(to_target_os[2], to_target_os[0]);
+	}
 
 	const float torso_offset = 0;
 
@@ -244,11 +256,28 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 
 	const float shoulder_dist = 0.188f;
 
+
+	const float freq = 2.0f;
+	const float phase_1 = 2.0f;
+	float upper_arm_rot_angle_0 = (float)sin(freq * cur_time) * 0.04f;
+	const float upper_arm_rot_angle_1 = (float)sin(freq * cur_time + phase_1) * 0.04f;
+
+	// If the avatar has an object selected, raise the arm:
+	if(selected_ob_beam.nonNull())
+		upper_arm_rot_angle_0 = -target_angle + -0.6f + (float)sin(freq * cur_time           - 0.5) * 0.03f;
+
 	const Vec4f shoulder_pos_0(0, -shoulder_dist, torso_offset + -0.228f, 1);
 	const Vec4f shoulder_pos_1(0, shoulder_dist, torso_offset + -0.228f, 1);
 
-	const Vec4f elbow_pos_0 = shoulder_pos_0 + Vec4f(0, 0, -1, 1) * upper_arm_length;
-	const Vec4f elbow_pos_1 = shoulder_pos_1 + Vec4f(0, 0, -1, 1) * upper_arm_length;
+	const Vec4f elbow_pos_0 = shoulder_pos_0 + Vec4f(-sin(upper_arm_rot_angle_0), 0, -cos(upper_arm_rot_angle_0), 0) * upper_arm_length;
+	const Vec4f elbow_pos_1 = shoulder_pos_1 + Vec4f(-sin(upper_arm_rot_angle_1), 0, -cos(upper_arm_rot_angle_1), 0) * upper_arm_length;
+
+	float lower_arm_rot_angle_0 = myMin(upper_arm_rot_angle_0, (float)sin(freq * cur_time           - 0.5) * 0.03f); // Don't rotate more than upper arm
+	const float lower_arm_rot_angle_1 = myMin(upper_arm_rot_angle_1, (float)sin(freq * cur_time + phase_1 - 0.5) * 0.03f); // Don't rotate more than upper arm
+
+	// If the avatar has an object selected, raise the arm:
+	if(selected_ob_beam.nonNull())
+		lower_arm_rot_angle_0 = -target_angle + -2.0f + (float)sin(freq * cur_time           - 0.5) * 0.03f;
 
 	const Vec4f hip_pos_0 = hip_centre + hip_centre_to_hip_0;//(0, -0.13f, torso_offset -0.8f, 1);
 	const Vec4f hip_pos_1 = hip_centre - hip_centre_to_hip_0;// (0, 0.13f, torso_offset -0.8f, 1);
@@ -259,11 +288,17 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 	const Vec4f ankle_pos_0 = knee_pos_0 + Vec4f(0, 0, -lower_leg_length, 0);
 	const Vec4f ankle_pos_1 = knee_pos_1 + Vec4f(0, 0, -lower_leg_length, 0);
 
-	upper_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_0);
-	upper_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_1);
+	//upper_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_0);
+	//upper_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_1);
+	//
+	//lower_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0);
+	//lower_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1);
 
-	lower_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0);
-	lower_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1);
+	upper_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_0) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_0);
+	upper_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_1) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_1);
+
+	lower_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_0);
+	lower_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_1);
 
 	upper_legs[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_0);// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upp
 	upper_legs[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_1);// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upp
@@ -275,6 +310,8 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 	feet[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_0) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans);
 	feet[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_1) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans);
 
+
+	
 
 
 	engine.updateObjectTransformData(*upper_arms[0]);
@@ -296,6 +333,16 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time)
 {
 	const Matrix4f overall = rotateThenTranslateMatrix(pos, rotation);
+
+	// Compute elevation angle to selected object.
+	float target_angle = 0;
+	if(selected_ob_beam.nonNull())
+	{
+		Matrix4f overall_inverse;
+		overall.getInverseForRandTMatrix(overall_inverse);
+		const Vec4f to_target_os = overall_inverse * (last_selected_ob_target_pos - this->last_pos).toVec4fVector();
+		target_angle = atan2(to_target_os[2], to_target_os[0]);
+	}
 
 	//const float upper_leg_angle_0 = (float)sin(3.0 * cur_time) * 0.3f;
 	//const float upper_leg_angle_1 = (float)sin(3.0 * cur_time + Maths::pi<double>()) * 0.3f;
@@ -409,8 +456,12 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 
 	const float shoulder_dist = 0.188f;
 
-	const float upper_arm_rot_angle_0 = (float)sin(freq * cur_time          ) * 0.3f;
+	      float upper_arm_rot_angle_0 = (float)sin(freq * cur_time          ) * 0.3f;
 	const float upper_arm_rot_angle_1 = (float)sin(freq * cur_time + phase_1) * 0.3f;
+
+	// If the avatar has an object selected, raise the arm:
+	if(selected_ob_beam.nonNull())
+		upper_arm_rot_angle_0 = -target_angle + -0.6f + (float)sin(freq * cur_time           - 0.5) * 0.03f;
 
 	const Vec4f shoulder_pos_0(0, -shoulder_dist, torso_offset + -0.228f, 1);
 	const Vec4f shoulder_pos_1(0,  shoulder_dist, torso_offset + -0.228f, 1);
@@ -418,10 +469,12 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 	const Vec4f elbow_pos_0 = shoulder_pos_0 + Vec4f(-sin(upper_arm_rot_angle_0), 0, -cos(upper_arm_rot_angle_0), 0) * upper_arm_length;
 	const Vec4f elbow_pos_1 = shoulder_pos_1 + Vec4f(-sin(upper_arm_rot_angle_1), 0, -cos(upper_arm_rot_angle_1), 0) * upper_arm_length;
 
-	const float lower_arm_rot_angle_0 = myMin(upper_arm_rot_angle_0, (float)sin(freq * cur_time           - 0.5) * 0.45f); // Don't rotate more than upper arm
+	      float lower_arm_rot_angle_0 = myMin(upper_arm_rot_angle_0, (float)sin(freq * cur_time           - 0.5) * 0.45f); // Don't rotate more than upper arm
 	const float lower_arm_rot_angle_1 = myMin(upper_arm_rot_angle_1, (float)sin(freq * cur_time + phase_1 - 0.5) * 0.45f); // Don't rotate more than upper arm
 
-
+	// If the avatar has an object selected, raise the arm:
+	if(selected_ob_beam.nonNull())
+		lower_arm_rot_angle_0 = -target_angle + -2.0f + (float)sin(freq * cur_time           - 0.5) * 0.03f;
 	
 
 
@@ -595,4 +648,48 @@ void AvatarGraphics::destroy(OpenGLEngine& engine)
 	engine.removeObject(chest);
 	engine.removeObject(pelvis);
 	engine.removeObject(head);
+
+	if(selected_ob_beam.nonNull())
+		engine.removeObject(selected_ob_beam);
+}
+
+
+void AvatarGraphics::setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target_pos) // create or update beam
+{
+	const Vec3d src_pos = last_hand_pos;
+	this->last_selected_ob_target_pos = target_pos;
+
+	Matrix4f dir_matrix; dir_matrix.constructFromVector(normalise((target_pos - src_pos).toVec4fVector()));
+	Matrix4f scale_matrix = Matrix4f::scaleMatrix(1.f, 1.f, (float)target_pos.getDist(src_pos));
+	Matrix4f ob_to_world = Matrix4f::translationMatrix(src_pos.toVec4fPoint()) * dir_matrix * scale_matrix;
+
+	if(selected_ob_beam.isNull())
+	{
+		selected_ob_beam = new GLObject();
+		selected_ob_beam->ob_to_world_matrix = ob_to_world;
+		selected_ob_beam->mesh_data = engine.makeCylinderMesh(Vec4f(0,0,0,1), Vec4f(0,0,1,1), /*radius=*/0.03f);
+
+		OpenGLMaterial material;
+		material.albedo_rgb = Colour3f(0.5f, 0.2f, 0.2f);
+		material.transparent = true;
+		material.alpha = 0.2f;
+
+		selected_ob_beam->materials = std::vector<OpenGLMaterial>(1, material);
+		engine.addObject(selected_ob_beam);
+	}
+	else // Else if ob has already been created:
+	{
+		selected_ob_beam->ob_to_world_matrix = ob_to_world;
+		engine.updateObjectTransformData(*selected_ob_beam);
+	}
+}
+
+
+void AvatarGraphics::hideSelectedObBeam(OpenGLEngine& engine)
+{
+	if(selected_ob_beam.nonNull())
+	{
+		engine.removeObject(selected_ob_beam);
+		selected_ob_beam = NULL;
+	}
 }
