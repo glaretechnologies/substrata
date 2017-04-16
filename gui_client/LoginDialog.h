@@ -24,6 +24,9 @@ public:
 	LoginDialog(QSettings* settings);
 	~LoginDialog();
 
+	static const std::string decryptPassword(const std::string& cyphertext);
+	static const std::string encryptPassword(const std::string& password);
+
 private slots:;
 	void accepted();
 

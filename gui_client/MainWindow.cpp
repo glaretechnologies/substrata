@@ -454,7 +454,7 @@ void MainWindow::timerEvent()
 					SocketBufferOutStream packet;
 					packet.writeUInt32(LogInMessage);
 					packet.writeStringLengthFirst(QtUtils::toStdString(settings->value("LoginDialog/username").toString()));
-					packet.writeStringLengthFirst(QtUtils::toStdString(settings->value("LoginDialog/password").toString()));
+					packet.writeStringLengthFirst(LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString())));
 
 					std::string packet_string(packet.buf.size(), '\0');
 					std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
