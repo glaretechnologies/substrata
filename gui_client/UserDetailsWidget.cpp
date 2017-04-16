@@ -36,8 +36,7 @@ void UserDetailsWidget::setTextAsNotLoggedIn()
 
 void UserDetailsWidget::setTextAsLoggedIn(const std::string& username)
 {
-	// TODO: escape name
-	this->userDetailsLabel->setText("Logged in as " + QtUtils::toQString(username) + ".   <a href=\"#logout\">logout</a>");
+	this->userDetailsLabel->setText("Logged in as " + QtUtils::toQString(username).toHtmlEscaped() + ".   <a href=\"#logout\">logout</a>");
 }
 
 
