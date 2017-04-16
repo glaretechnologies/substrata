@@ -6,10 +6,12 @@ Copyright Glare Technologies Limited 2016 -
 #pragma once
 
 
+#include "TimeStamp.h"
 #include "WorldMaterial.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include "../shared/UID.h"
+#include "../shared/UserID.h"
 #include "vec3.h"
 #include <string>
 #include <vector>
@@ -21,7 +23,7 @@ class WinterShaderEvaluator;
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 4;
+const uint32 CyberspaceProtocolVersion = 5;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -39,6 +41,8 @@ const uint32 ObjectDestroyed		= 3001;
 const uint32 ObjectTransformUpdate	= 3002;
 const uint32 ObjectFullUpdate		= 3003;
 
+const uint32 CreateObject			= 3004; // Client wants to create an object.
+
 
 //TEMP HACK move elsewhere
 const uint32 GetFile				= 4000;
@@ -52,6 +56,16 @@ const uint32 UploadResource			= 5000;
 //TEMP HACK move elsewhere
 const uint32 UserSelectedObject		= 6000;
 const uint32 UserDeselectedObject	= 6001;
+
+const uint32 InfoMessageID			= 7001;
+const uint32 ErrorMessageID			= 7002;
+
+const uint32 LogInMessage			= 8000;
+const uint32 LogOutMessage			= 8001;
+const uint32 SignUpMessage			= 8002;
+const uint32 LoggedInMessageID		= 8003;
+const uint32 LoggedOutMessageID		= 8004;
+const uint32 SignedUpMessageID		= 8005;
 
 
 /*=====================================================================
@@ -83,6 +97,9 @@ public:
 	Vec3f axis;
 	float angle;
 	Vec3f scale;
+
+	TimeStamp created_time;
+	UserID creator_id;
 
 	enum State
 	{

@@ -22,12 +22,11 @@ static const bool VERBOSE = false;
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_, MainWindow* main_window_,
-						   const std::string& username_, const std::string& avatar_URL_)
+						   const std::string& avatar_URL_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
 	main_window(main_window_),
-	username(username_),
 	avatar_URL(avatar_URL_)
 {
 	socket = new MySocket();
@@ -96,11 +95,10 @@ void ClientThread::doRun()
 
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
-		// Send AvatarCreated packet for this client's avatar
+		// Send CreateAvatar packet for this client's avatar
 		SocketBufferOutStream packet;
-		packet.writeUInt32(AvatarCreated);
+		packet.writeUInt32(CreateAvatar);
 		writeToStream(client_avatar_uid, packet);
-		packet.writeStringLengthFirst(username);
 		packet.writeStringLengthFirst(avatar_URL);
 		writeToStream(Vec3d(0, 0, 0), packet);
 		writeToStream(Vec3f(0, 0, 1), packet);
@@ -405,6 +403,42 @@ void ClientThread::doRun()
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const UID object_uid = readUIDFromStream(*socket);
 						out_msg_queue->enqueue(new UserDeselectedObjectMessage(avatar_uid, object_uid));
+						break;
+					}
+				case InfoMessageID:
+					{
+						//conPrint("Received InfoMessage msg.");
+						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+						out_msg_queue->enqueue(new InfoMessage(msg));
+						break;
+					}
+				case ErrorMessageID:
+					{
+						//conPrint("Received ErrorMessage msg.");
+						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+						out_msg_queue->enqueue(new ErrorMessage(msg));
+						break;
+					}
+				case LoggedInMessageID:
+					{
+						//conPrint("Received LoggedInMessageID msg.");
+						const UserID logged_in_user_id = readUserIDFromStream(*socket); 
+						const std::string logged_in_username = socket->readStringLengthFirst(MAX_STRING_LEN);
+						out_msg_queue->enqueue(new LoggedInMessage(logged_in_user_id, logged_in_username));
+						break;
+					}
+				case LoggedOutMessageID:
+					{
+						//conPrint("Received LoggedOutMessageID msg.");
+						out_msg_queue->enqueue(new LoggedOutMessage());
+						break;
+					}
+				case SignedUpMessageID:
+					{
+						//conPrint("Received SignedUpMessageID msg.");
+						const UserID user_id = readUserIDFromStream(*socket);
+						const std::string signed_up_username = socket->readStringLengthFirst(MAX_STRING_LEN);
+						out_msg_queue->enqueue(new SignedUpMessage(user_id, signed_up_username));
 						break;
 					}
 				default:

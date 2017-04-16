@@ -97,7 +97,6 @@ int main(int argc, char *argv[])
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
 
 		Timer save_state_timer;
-		bool world_state_changed = false; // Has changed since server state or since last save.
 
 		// Main server loop
 		while(1)
@@ -233,7 +232,7 @@ int main(int argc, char *argv[])
 
 						ob->from_remote_other_dirty = false;
 						ob->from_remote_transform_dirty = false; // transform is sent in full packet also.
-						world_state_changed = true;
+						server.world_state->changed = true;
 						i++;
 					}
 					else if(ob->state == WorldObject::State_JustCreated)
@@ -256,7 +255,7 @@ int main(int argc, char *argv[])
 
 						ob->state = WorldObject::State_Alive;
 						ob->from_remote_other_dirty = false;
-						world_state_changed = true;
+						server.world_state->changed = true;
 						i++;
 					}
 					else if(ob->state == WorldObject::State_Dead)
@@ -277,7 +276,7 @@ int main(int argc, char *argv[])
 						server.world_state->objects.erase(old_ob_iterator);
 
 						conPrint("Removed object from world_state->objects");
-						world_state_changed = true;
+						server.world_state->changed = true;
 					}
 					else
 					{
@@ -305,7 +304,7 @@ int main(int argc, char *argv[])
 						broadcast_packets.push_back(packet_string);
 
 						ob->from_remote_transform_dirty = false;
-						world_state_changed = true;
+						server.world_state->changed = true;
 					}
 					i++;
 				}
@@ -329,7 +328,7 @@ int main(int argc, char *argv[])
 			}
 
 
-			if(world_state_changed && (save_state_timer.elapsed() > 5.0))
+			if(server.world_state->changed && (save_state_timer.elapsed() > 5.0))
 			{
 				try
 				{
@@ -338,7 +337,7 @@ int main(int argc, char *argv[])
 
 					server.world_state->serialiseToDisk(server_state_path);
 
-					world_state_changed = false;
+					server.world_state->changed = false;
 					save_state_timer.reset();
 				}
 				catch(Indigo::Exception& e)

@@ -57,7 +57,6 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="actionAvatarSettings"/>
    <addaction name="actionAddObject"/>
   </widget>
   <widget class="QDockWidget" name="chatDockWidget">
@@ -151,6 +150,24 @@
   <action name="actionCloneObject">
    <property name="text">
     <string>Clone Object</string>
+   </property>
+  </action>
+  <action name="actionLogIn">
+   <property name="text">
+    <string>LogIn</string>
+   </property>
+   <property name="toolTip">
+    <string>Log in</string>
+   </property>
+  </action>
+  <action name="actionSignUp">
+   <property name="text">
+    <string>SignUp</string>
+   </property>
+  </action>
+  <action name="actionLogOut">
+   <property name="text">
+    <string>LogOut</string>
    </property>
   </action>
  </widget>

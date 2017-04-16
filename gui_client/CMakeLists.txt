@@ -15,7 +15,10 @@ addMocFileRule(gui_client AvatarPreviewWidget)
 addMocFileRule(gui_client AddObjectDialog)
 addMocFileRule(gui_client AddObjectPreviewWidget)
 addMocFileRule(gui_client ObjectEditor)
+addMocFileRule(gui_client LoginDialog)
+addMocFileRule(gui_client SignUpDialog)
 addMocFileRule(gui_client MaterialEditor)
+addMocFileRule(gui_client UserDetailsWidget)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -27,7 +30,10 @@ addUIFileRule(gui_client AddObjectDialog)
 addUIFileRule(gui_client AvatarSettingsDialog)
 addUIFileRule(gui_client MainWindow)
 addUIFileRule(gui_client ObjectEditor)
+addUIFileRule(gui_client LoginDialog)
+addUIFileRule(gui_client SignUpDialog)
 addUIFileRule(gui_client MaterialEditor)
+addUIFileRule(gui_client UserDetailsWidget)
 
 addUIFileRule(qt FileSelectWidget)
 addUIFileRule(qt RealControl)
@@ -46,11 +52,17 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AddObjectPreviewWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ObjectEditor.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialEditor.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_LoginDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_SignUpDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_UserDetailsWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialEditor.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_LoginDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_SignUpDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_UserDetailsWidget.h
 )
 
 SET(qt 
@@ -84,6 +96,10 @@ SET(shared_files
 ../shared/Avatar.h
 ../shared/ResourceManager.cpp
 ../shared/ResourceManager.h
+../shared/TimeStamp.cpp
+../shared/TimeStamp.h
+../shared/UID.h
+../shared/UserID.h
 ../shared/WorldState.cpp
 ../shared/WorldState.h
 ../shared/WorldObject.cpp

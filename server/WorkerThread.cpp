@@ -79,6 +79,14 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 }
 
 
+static void writeErrorMessageToClient(MySocketRef& socket, const std::string& msg)
+{
+	SocketBufferOutStream packet;
+	packet.writeUInt32(ErrorMessageID);
+	packet.writeStringLengthFirst(msg);
+	socket->writeData(packet.buf.data(), packet.buf.size());
+}
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -86,6 +94,7 @@ void WorkerThread::doRun()
 	ServerWorldState* world_state = server->world_state.getPointer();
 
 	UID client_avatar_uid = UID(0);
+	Reference<User> client_user; // Will be a null reference if client is not logged in, otherwise will refer the user account the client is logged in to.
 
 	try
 	{
@@ -152,7 +161,7 @@ void WorkerThread::doRun()
 				{
 					const WorldObject* ob = it->second.getPointer();
 
-					// Send AvatarCreated packet
+					// Send ObjectCreated packet
 					SocketBufferOutStream packet;
 					packet.writeUInt32(ObjectCreated);
 					writeToNetworkStream(*ob, packet);
@@ -251,14 +260,15 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case AvatarCreated:
+				case CreateAvatar:
 					{
-						conPrint("AvatarCreated");
+						conPrint("CreateAvatar");
 						const UID avatar_uid = readUIDFromStream(*socket);
-						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f rotation = readVec3FromStream<float>(*socket);
+
+						const std::string use_avatar_name = client_user.isNull() ? "Anonymous" : client_user->name;
 
 						// Look up existing avatar in world state
 						{
@@ -269,7 +279,7 @@ void WorkerThread::doRun()
 								// Avatar for UID not already created, create it now.
 								AvatarRef avatar = new Avatar();
 								avatar->uid = avatar_uid;
-								avatar->name = name;
+								avatar->name = use_avatar_name;
 								avatar->model_url = model_url;
 								avatar->pos = pos;
 								avatar->rotation = rotation;
@@ -283,7 +293,7 @@ void WorkerThread::doRun()
 
 						sendGetFileMessageIfNeeded(model_url);
 
-						conPrint("New Avatar creation: username: '" + name + "', model_url: '" + model_url + "'");
+						conPrint("New Avatar creation: username: '" + use_avatar_name + "', model_url: '" + model_url + "'");
 
 						break;
 					}
@@ -313,21 +323,37 @@ void WorkerThread::doRun()
 						const Vec3f axis = readVec3FromStream<float>(*socket);
 						const float angle = socket->readFloat();
 
-						// Look up existing object in world state
+						// If client is not logged in, refuse object modification.
+						if(client_user.isNull())
 						{
-							Lock lock(world_state->mutex);
-							auto res = world_state->objects.find(object_uid);
-							if(res != world_state->objects.end())
+							writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
+						}
+						else
+						{
+							// Look up existing object in world state
 							{
-								WorldObject* ob = res->second.getPointer();
-								ob->pos = pos;
-								ob->axis = axis;
-								ob->angle = angle;
-								ob->from_remote_transform_dirty = true;
+								Lock lock(world_state->mutex);
+								auto res = world_state->objects.find(object_uid);
+								if(res != world_state->objects.end())
+								{
+									WorldObject* ob = res->second.getPointer();
 
-								//conPrint("updated object transform");
+									// See if the user has permissions to alter this object:
+									if(ob->creator_id != client_user->id)
+										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
+									else
+									{
+										ob->pos = pos;
+										ob->axis = axis;
+										ob->angle = angle;
+										ob->from_remote_transform_dirty = true;
+									}
+
+									//conPrint("updated object transform");
+								}
 							}
 						}
+
 						break;
 					}
 				case ObjectFullUpdate:
@@ -335,28 +361,49 @@ void WorkerThread::doRun()
 						conPrint("ObjectFullUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
 
-						// Look up existing object in world state
+						// If client is not logged in, refuse object modification.
+						if(client_user.isNull())
 						{
-							Lock lock(world_state->mutex);
-							auto res = world_state->objects.find(object_uid);
-							if(res != world_state->objects.end())
+							writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
+							WorldObject dummy_ob;
+							readFromNetworkStreamGivenUID(*socket, dummy_ob); // Read rest of ObjectFullUpdate message.
+						}
+						else
+						{
+							// Look up existing object in world state
 							{
-								WorldObject* ob = res->second.getPointer();
-								readFromNetworkStreamGivenUID(*socket, *ob);
-								ob->from_remote_other_dirty = true;
+								Lock lock(world_state->mutex);
+								auto res = world_state->objects.find(object_uid);
+								if(res != world_state->objects.end())
+								{
+									WorldObject* ob = res->second.getPointer();
 
-								// Process resources
-								std::set<std::string> URLs;
-								ob->getDependencyURLSet(URLs);
-								for(auto it = URLs.begin(); it != URLs.end(); ++it)
-									sendGetFileMessageIfNeeded(*it);
+									// See if the user has permissions to alter this object:
+									if(ob->creator_id != client_user->id)
+									{
+										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
+										WorldObject dummy_ob;
+										readFromNetworkStreamGivenUID(*socket, dummy_ob); // Read rest of ObjectFullUpdate message.
+									}
+									else
+									{
+										readFromNetworkStreamGivenUID(*socket, *ob);
+										ob->from_remote_other_dirty = true;
+
+										// Process resources
+										std::set<std::string> URLs;
+										ob->getDependencyURLSet(URLs);
+										for(auto it = URLs.begin(); it != URLs.end(); ++it)
+											sendGetFileMessageIfNeeded(*it);
+									}
+								}
 							}
 						}
 						break;
 					}
-				case ObjectCreated:
+				case CreateObject: // Client wants to create an object
 					{
-						conPrint("ObjectCreated");
+						conPrint("CreateObject");
 
 						WorldObjectRef new_ob = new WorldObject();
 						new_ob->uid = readUIDFromStream(*socket); // Read dummy UID
@@ -364,23 +411,38 @@ void WorkerThread::doRun()
 
 						conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 
-						std::set<std::string> URLs;
-						new_ob->getDependencyURLSet(URLs);
-						for(auto it = URLs.begin(); it != URLs.end(); ++it)
-							sendGetFileMessageIfNeeded(*it);
-
-						// Look up existing object in world state
+						// If client is not logged in, refuse object creation.
+						if(client_user.isNull())
 						{
-							::Lock lock(world_state->mutex);
-						
-							// Object for UID not already created, create it now.
-							new_ob->uid = world_state->getNextObjectUID();
-							new_ob->state = WorldObject::State_JustCreated;
-							new_ob->from_remote_other_dirty = true;
-							world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
-
-							conPrint("created new object");
+							SocketBufferOutStream packet;
+							packet.writeUInt32(ErrorMessageID);
+							packet.writeStringLengthFirst("You must be logged in to create an object.");
+							socket->writeData(packet.buf.data(), packet.buf.size());
 						}
+						else
+						{
+							new_ob->creator_id = client_user->id;
+							new_ob->created_time = TimeStamp::currentTime();
+
+							std::set<std::string> URLs;
+							new_ob->getDependencyURLSet(URLs);
+							for(auto it = URLs.begin(); it != URLs.end(); ++it)
+								sendGetFileMessageIfNeeded(*it);
+
+							// Look up existing object in world state
+							{
+								::Lock lock(world_state->mutex);
+
+								// Object for UID not already created, create it now.
+								new_ob->uid = world_state->getNextObjectUID();
+								new_ob->state = WorldObject::State_JustCreated;
+								new_ob->from_remote_other_dirty = true;
+								world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
+
+								conPrint("created new object");
+							}
+						}
+
 						break;
 					}
 				case ObjectDestroyed:
@@ -388,33 +450,52 @@ void WorkerThread::doRun()
 						conPrint("ObjectDestroyed");
 						const UID object_uid = readUIDFromStream(*socket);
 
-						// Mark object as dead
+						// If client is not logged in, refuse object modification.
+						if(client_user.isNull())
 						{
-							Lock lock(world_state->mutex);
-							auto res = world_state->objects.find(object_uid);
-							if(res != world_state->objects.end())
+							writeErrorMessageToClient(socket, "You must be logged in to destroy an object.");
+						}
+						else
+						{
+							// Mark object as dead
 							{
-								WorldObject* ob = res->second.getPointer();
-								ob->state = WorldObject::State_Dead;
-								ob->from_remote_other_dirty = true;
+								Lock lock(world_state->mutex);
+								auto res = world_state->objects.find(object_uid);
+								if(res != world_state->objects.end())
+								{
+									WorldObject* ob = res->second.getPointer();
+
+									// See if the user has permissions to alter this object:
+									if(ob->creator_id != client_user->id)
+										writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
+									else
+									{
+										ob->state = WorldObject::State_Dead;
+										ob->from_remote_other_dirty = true;
+									}
+								}
 							}
 						}
 						break;
 					}
 				case ChatMessageID:
 					{
-						
-						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
+						//const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-						conPrint("Received chat message: '" + name + "': '" + msg + "'");
+						conPrint("Received chat message: '" + msg + "'");
 
-						// Enqueue chat messages to worker threads to send
+						if(client_user.isNull())
 						{
+							writeErrorMessageToClient(socket, "You must be logged in to chat.");
+						}
+						else
+						{
+							// Enqueue chat messages to worker threads to send
 							// Send AvatarTransformUpdate packet
 							SocketBufferOutStream packet;
 							packet.writeUInt32(ChatMessageID);
-							packet.writeStringLengthFirst(name);
+							packet.writeStringLengthFirst(client_user->name);
 							packet.writeStringLengthFirst(msg);
 
 							std::string packet_string(packet.buf.size(), '\0');
@@ -488,23 +569,30 @@ void WorkerThread::doRun()
 						if(!ResourceManager::isValidURL(URL))
 							throw Indigo::Exception("Invalid URL '" + URL + "'");
 
-						const uint64 file_len = socket->readUInt64();
-						if(file_len > 0)
+						if(client_user.isNull())
 						{
-							// TODO: cap length in a better way
-							if(file_len > 1000000000)
-								throw Indigo::Exception("uploaded file too large.");
+							writeErrorMessageToClient(socket, "You must be logged in to upload a file.");
+						}
+						else
+						{
+							const uint64 file_len = socket->readUInt64();
+							if(file_len > 0)
+							{
+								// TODO: cap length in a better way
+								if(file_len > 1000000000)
+									throw Indigo::Exception("uploaded file too large.");
 
-							std::vector<uint8> buf(file_len);
-							socket->readData(buf.data(), file_len);
+								std::vector<uint8> buf(file_len);
+								socket->readData(buf.data(), file_len);
 
-							conPrint("Received file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
+								conPrint("Received file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
 
-							// Save to disk
-							const std::string path = server->resource_manager->pathForURL(URL);
-							FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
+								// Save to disk
+								const std::string path = server->resource_manager->pathForURL(URL);
+								FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
 
-							conPrint("Written to disk at '" + path + "'.");
+								conPrint("Written to disk at '" + path + "'.");
+							}
 						}
 
 						// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
@@ -554,13 +642,139 @@ void WorkerThread::doRun()
 
 						break;
 					}
+				case LogInMessage:
+					{
+						conPrint("LogInMessage");
+
+						const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+						conPrint("username: '" + username + "', password: '" + password + "'");
+						
+						bool logged_in = false;
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->users.find(username);
+							if(res != world_state->users.end())
+							{
+								User* user = res->second.getPointer();
+								if(user->isPasswordValid(password))
+								{
+									// Password is valid, log user in.
+									client_user = user;
+
+									logged_in = true;
+								}
+							}
+						}
+
+						conPrint("logged_in: " + boolToString(logged_in));
+						if(logged_in)
+						{
+							// Send logged-in message to client
+							SocketBufferOutStream packet;
+							packet.writeUInt32(LoggedInMessageID);
+							writeToStream(client_user->id, packet);
+							packet.writeStringLengthFirst(username);
+							socket->writeData(packet.buf.data(), packet.buf.size());
+						}
+						else
+						{
+							// Login failed.  Send error message back to client
+							SocketBufferOutStream packet;
+							packet.writeUInt32(ErrorMessageID);
+							packet.writeStringLengthFirst("Login failed: username or password incorrect.");
+							socket->writeData(packet.buf.data(), packet.buf.size());
+						}
+					
+						break;
+					}
+				case LogOutMessage:
+					{
+						conPrint("LogOutMessage");
+
+						client_user = NULL; // Mark the client as not logged in.
+
+						// Send logged-out message to client
+						SocketBufferOutStream packet;
+						packet.writeUInt32(LoggedOutMessageID);
+						socket->writeData(packet.buf.data(), packet.buf.size());
+						
+						break;
+					}
+				case SignUpMessage:
+					{
+						conPrint("SignUpMessage");
+
+						const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string email    = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+						conPrint("username: '" + username + "', email: '" + email + "', password: '" + password + "'");
+
+						bool signed_up = false;
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->users.find(username);
+							if(res == world_state->users.end())
+							{
+								Reference<User> new_user = new User();
+								new_user->id = UserID((uint32)world_state->users.size()); 
+								new_user->created_time = TimeStamp::currentTime();
+								new_user->name = username;
+								new_user->email_address = email;
+
+								// We need a random salt for the user.
+								// To generate this, we will hash the username, email address, current time in seconds, time since program started, and a hidden constant salt together.
+								const std::string hash_input = username + " " + email + " " +
+									toString(Clock::getSecsSince1970()) + " " + toString(Clock::getTimeSinceInit()) +
+									"qySNdBWNbLG5mFt6NnRDHwYF345345"; // from random.org
+
+								std::vector<unsigned char> binary_digest;
+								SHA256::hash(hash_input, binary_digest);
+								std::string user_salt;
+								Base64::encode(&binary_digest[0], binary_digest.size(), user_salt);
+
+								new_user->password_hash_salt = user_salt;
+								new_user->hashed_password = User::computePasswordHash(password, user_salt);
+
+								// Add new user to world state
+								world_state->users.insert(std::make_pair(username, new_user));
+								world_state->changed = true; // Mark as changed so gets saved to disk.
+
+								client_user = new_user; // Log user in as well.
+								signed_up = true;
+							}
+						}
+
+						conPrint("signed_up: " + boolToString(signed_up));
+						if(signed_up)
+						{
+							conPrint("Sign up successful");
+							// Send signed-up message to client
+							SocketBufferOutStream packet;
+							packet.writeUInt32(SignedUpMessageID);
+							writeToStream(client_user->id, packet);
+							socket->writeData(packet.buf.data(), packet.buf.size());
+						}
+						else
+						{
+							conPrint("Sign up failed.");
+
+							// signup failed.  Send error message back to client
+							SocketBufferOutStream packet;
+							packet.writeUInt32(ErrorMessageID);
+							packet.writeStringLengthFirst("Signup failed: username or password incorrect.");
+							socket->writeData(packet.buf.data(), packet.buf.size());
+						}
+
+						break;
+					}
 				default:			
 					{
 						conPrint("Unknown message id: " + toString(msg_type));
 					}
 				}
-				
-
 			}
 			else
 			{

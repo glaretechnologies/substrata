@@ -71,6 +71,47 @@ class ClientDisconnectedFromServerMessage : public ThreadMessage
 };
 
 
+class InfoMessage : public ThreadMessage
+{
+public:
+	InfoMessage(const std::string& msg_) : msg(msg_) {}
+	std::string msg;
+};
+
+
+class ErrorMessage : public ThreadMessage
+{
+public:
+	ErrorMessage(const std::string& msg_) : msg(msg_) {}
+	std::string msg;
+};
+
+
+class LoggedInMessage : public ThreadMessage
+{
+public:
+	LoggedInMessage(UserID user_id_, const std::string& username_) : user_id(user_id_), username(username_) {}
+	UserID user_id;
+	std::string username;
+};
+
+
+class LoggedOutMessage : public ThreadMessage
+{
+public:
+	LoggedOutMessage() {}
+};
+
+
+class SignedUpMessage : public ThreadMessage
+{
+public:
+	SignedUpMessage(UserID user_id_, const std::string& username_) : user_id(user_id_), username(username_) {}
+	UserID user_id;
+	std::string username;
+};
+
+
 /*=====================================================================
 ClientThread
 -------------------
@@ -80,7 +121,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port, MainWindow* main_window,
-		const std::string& username, const std::string& avatar_URL);
+		const std::string& avatar_URL);
 	virtual ~ClientThread();
 
 	virtual void doRun();
@@ -99,6 +140,5 @@ private:
 	int port;
 	MySocketRef socket;
 	MainWindow* main_window;
-	std::string username;
 	std::string avatar_URL;
 };
