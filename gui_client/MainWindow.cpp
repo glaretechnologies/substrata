@@ -474,7 +474,7 @@ void MainWindow::timerEvent()
 			else if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
 			{
 				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
-				ui->chatMessagesTextEdit->append(QtUtils::toQString(m->name + ": " + m->msg));
+				ui->chatMessagesTextEdit->append(QtUtils::toQString(m->name + ": " + m->msg).toHtmlEscaped());
 			}
 			else if(dynamic_cast<const InfoMessage*>(msg.getPointer()))
 			{
