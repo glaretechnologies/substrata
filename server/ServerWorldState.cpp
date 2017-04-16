@@ -19,6 +19,7 @@ ServerWorldState::ServerWorldState()
 {
 	next_avatar_uid = UID(0);
 	next_object_uid = UID(0);
+	changed = false;
 }
 
 
@@ -30,6 +31,7 @@ ServerWorldState::~ServerWorldState()
 static const uint32 WORLD_STATE_MAGIC_NUMBER = 487173571;
 static const uint32 WORLD_STATE_SERIALISATION_VERSION = 1;
 static const uint32 WORLD_OBJECT_CHUNK = 100;
+static const uint32 USER_CHUNK = 101;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -62,6 +64,14 @@ void ServerWorldState::readFromDisk(const std::string& path)
 
 			next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
 		}
+		else if(chunk == USER_CHUNK)
+		{
+			// Derserialise user
+			UserRef user = new User();
+			readFromStream(stream, *user);
+
+			users[user->name] = user; // Add to user map
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -72,7 +82,7 @@ void ServerWorldState::readFromDisk(const std::string& path)
 		}
 	}
 
-	conPrint("Loaded " + toString(objects.size()) + " object(s).");
+	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(users.size()) + " user(s)");
 }
 
 
@@ -101,12 +111,21 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 				}
 			}
 
+			// Write users
+			{
+				for(auto i=users.begin(); i != users.end(); ++i)
+				{
+					stream.writeUInt32(USER_CHUNK);
+					writeToStream(*i->second, stream);
+				}
+			}
+
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
 
 		FileUtils::moveFile(temp_path, path);
 
-		conPrint("Saved " + toString(objects.size()) + " object(s).");
+		conPrint("Saved " + toString(objects.size()) + " object(s), " + toString(users.size()) + " user(s)");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

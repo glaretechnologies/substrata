@@ -22,6 +22,7 @@ class ArgumentParser;
 namespace Ui { class MainWindow; }
 class TextureServer;
 class QSettings;
+class UserDetailsWidget;
 
 
 class MainWindow : public QMainWindow
@@ -46,6 +47,9 @@ private slots:;
 	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
 	void on_actionReset_Layout_triggered();
+	void on_actionLogIn_triggered();
+	void on_actionSignUp_triggered();
+	void on_actionLogOut_triggered();
 
 	void sendChatMessageSlot();
 
@@ -113,4 +117,11 @@ public:
 	ThreadContext thread_context;
 
 	std::ofstream logfile;
+
+	UserDetailsWidget* user_details;
+
+	bool connected_to_server;
+	UserID logged_in_user_id;
+
+	bool shown_object_modification_error_msg;
 };

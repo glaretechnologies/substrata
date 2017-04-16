@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>443</width>
-    <height>558</height>
+    <height>602</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -20,24 +20,24 @@
       <string>Model</string>
      </property>
      <layout class="QFormLayout" name="formLayout">
-      <item row="1" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="label">
         <property name="text">
          <string>Model</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="3" column="1">
        <widget class="FileSelectWidget" name="modelFileSelectWidget"/>
       </item>
-      <item row="3" column="0">
+      <item row="5" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
          <string>Scale x</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="5" column="1">
        <widget class="IndigoDoubleSpinBox" name="scaleXDoubleSpinBox">
         <property name="minimum">
          <double>0.000000000000000</double>
@@ -53,14 +53,14 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="label_3">
         <property name="text">
          <string>Scale y</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="6" column="1">
        <widget class="IndigoDoubleSpinBox" name="scaleYDoubleSpinBox">
         <property name="minimum">
          <double>0.000000000000000</double>
@@ -76,14 +76,14 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="7" column="0">
        <widget class="QLabel" name="label_4">
         <property name="text">
          <string>Scale z</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="7" column="1">
        <widget class="IndigoDoubleSpinBox" name="scaleZDoubleSpinBox">
         <property name="maximum">
          <double>1000000.000000000000000</double>
@@ -96,7 +96,7 @@
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="8" column="1">
        <spacer name="verticalSpacer_2">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -112,14 +112,14 @@
         </property>
        </spacer>
       </item>
-      <item row="7" column="0">
+      <item row="9" column="0">
        <widget class="QLabel" name="label_5">
         <property name="text">
          <string>Rot axis x</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="9" column="1">
        <widget class="QDoubleSpinBox" name="rotAxisXDoubleSpinBox">
         <property name="minimum">
          <double>-100.000000000000000</double>
@@ -132,14 +132,14 @@
         </property>
        </widget>
       </item>
-      <item row="8" column="0">
+      <item row="10" column="0">
        <widget class="QLabel" name="label_6">
         <property name="text">
          <string>Rot axis y</string>
         </property>
        </widget>
       </item>
-      <item row="8" column="1">
+      <item row="10" column="1">
        <widget class="QDoubleSpinBox" name="rotAxisYDoubleSpinBox">
         <property name="minimum">
          <double>-100.000000000000000</double>
@@ -152,14 +152,14 @@
         </property>
        </widget>
       </item>
-      <item row="9" column="0">
+      <item row="11" column="0">
        <widget class="QLabel" name="label_7">
         <property name="text">
          <string>Rot axis z</string>
         </property>
        </widget>
       </item>
-      <item row="9" column="1">
+      <item row="11" column="1">
        <widget class="QDoubleSpinBox" name="rotAxisZDoubleSpinBox">
         <property name="minimum">
          <double>-100.000000000000000</double>
@@ -172,14 +172,14 @@
         </property>
        </widget>
       </item>
-      <item row="10" column="0">
+      <item row="12" column="0">
        <widget class="QLabel" name="label_8">
         <property name="text">
          <string>Angle</string>
         </property>
        </widget>
       </item>
-      <item row="10" column="1">
+      <item row="12" column="1">
        <widget class="QDoubleSpinBox" name="rotAngleDoubleSpinBox">
         <property name="minimum">
          <double>-100.000000000000000</double>
@@ -192,7 +192,7 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="4" column="1">
        <spacer name="verticalSpacer">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -208,10 +208,10 @@
         </property>
        </spacer>
       </item>
-      <item row="12" column="1">
+      <item row="14" column="1">
        <widget class="FileSelectWidget" name="scriptFileSelectWidget"/>
       </item>
-      <item row="11" column="1">
+      <item row="13" column="1">
        <spacer name="verticalSpacer_3">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -227,12 +227,56 @@
         </property>
        </spacer>
       </item>
-      <item row="12" column="0">
+      <item row="14" column="0">
        <widget class="QLabel" name="label_9">
         <property name="text">
          <string>Script</string>
         </property>
        </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_10">
+        <property name="text">
+         <string>Created:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_11">
+        <property name="text">
+         <string>Created by:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLabel" name="createdByLabel">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLabel" name="createdTimeLabel">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <spacer name="verticalSpacer_4">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
       </item>
      </layout>
     </widget>

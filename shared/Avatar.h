@@ -22,6 +22,7 @@ const uint32 AvatarCreated			= 1000;
 const uint32 AvatarDestroyed		= 1001;
 const uint32 AvatarTransformUpdate	= 1002;
 const uint32 AvatarFullUpdate		= 1003;
+const uint32 CreateAvatar			= 1004;
 
 const uint32 ChatMessageID = 2000;//TEMP HACK move elsewhere
 

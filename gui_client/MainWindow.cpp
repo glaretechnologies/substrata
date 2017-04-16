@@ -10,6 +10,7 @@
 #endif
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
+#include "UserDetailsWidget.h"
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
 #include "ModelLoading.h"
@@ -18,6 +19,8 @@
 #include "AvatarGraphics.h"
 #include "GuiClientApplication.h"
 #include "WinterShaderEvaluator.h"
+#include "LoginDialog.h"
+#include "SignUpDialog.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QTimer>
 #include <QtCore/QProcess>
@@ -92,10 +95,16 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 :	base_dir_path(base_dir_path_),
 	appdata_path(appdata_path_),
 	parsed_args(args), 
-	QMainWindow(parent)
+	QMainWindow(parent),
+	connected_to_server(false),
+	logged_in_user_id(UserID::invalidUserID()),
+	shown_object_modification_error_msg(false)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+
+	user_details = new UserDetailsWidget(this);
+	ui->toolBar->addWidget(user_details);
 	
 	// Open Log File
 	const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
@@ -115,12 +124,15 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
-	connect(ui->glWidget, SIGNAL(mouseClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
+	//connect(ui->glWidget, SIGNAL(mouseClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseDoubleClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
+	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
+	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
+	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
 
 	this->resources_dir = appdata_path + "/resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
 	FileUtils::createDirIfDoesNotExist(this->resources_dir);
@@ -433,6 +445,22 @@ void MainWindow::timerEvent()
 			if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
 				this->statusBar()->showMessage(QtUtils::toQString("Connected to " + ::server_hostname));
+				this->connected_to_server = true;
+
+				// Try and log in automatically if we have saved credentials.
+				if(!settings->value("LoginDialog/username").toString().isEmpty() && !settings->value("LoginDialog/password").toString().isEmpty())
+				{
+					// Make LogInMessage packet and enqueue to send
+					SocketBufferOutStream packet;
+					packet.writeUInt32(LogInMessage);
+					packet.writeStringLengthFirst(QtUtils::toStdString(settings->value("LoginDialog/username").toString()));
+					packet.writeStringLengthFirst(QtUtils::toStdString(settings->value("LoginDialog/password").toString()));
+
+					std::string packet_string(packet.buf.size(), '\0');
+					std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+					this->client_thread->enqueueDataToSend(packet_string);
+				}
 			}
 			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
 			{
@@ -441,11 +469,117 @@ void MainWindow::timerEvent()
 			else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
 			{
 				this->statusBar()->showMessage("Not connected to server.");
+				this->connected_to_server = false;
 			}
 			else if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
 			{
 				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
 				ui->chatMessagesTextEdit->append(QtUtils::toQString(m->name + ": " + m->msg));
+			}
+			else if(dynamic_cast<const InfoMessage*>(msg.getPointer()))
+			{
+				const InfoMessage* m = static_cast<const InfoMessage*>(msg.getPointer());
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Message from server");
+				msgBox.setText(QtUtils::toQString(m->msg));
+				msgBox.exec();
+			}
+			else if(dynamic_cast<const ErrorMessage*>(msg.getPointer()))
+			{
+				const ErrorMessage* m = static_cast<const ErrorMessage*>(msg.getPointer());
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Error Message from server");
+				msgBox.setText(QtUtils::toQString(m->msg));
+				msgBox.exec();
+			}
+			else if(dynamic_cast<const LoggedInMessage*>(msg.getPointer()))
+			{
+				const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg.getPointer());
+				//QMessageBox msgBox;
+				//msgBox.setWindowTitle("Logged in");
+				//msgBox.setText("Successfully logged in.");
+				//msgBox.exec();
+
+				user_details->setTextAsLoggedIn(m->username);
+				this->logged_in_user_id = m->user_id;
+
+
+				// Send AvatarFullUpdate message, to change the nametag on our avatar.
+				const Vec3d cam_angles = this->cam_controller.getAngles();
+				Avatar avatar;
+				avatar.uid = this->client_thread->client_avatar_uid;
+				avatar.pos = Vec3d(this->cam_controller.getPosition());
+				avatar.rotation = Vec3f(0, 0, cam_angles.x);
+				avatar.model_url = "";
+				avatar.name = m->username;
+
+				SocketBufferOutStream packet;
+				packet.writeUInt32(AvatarFullUpdate);
+				writeToNetworkStream(avatar, packet);
+
+				std::string packet_string(packet.buf.size(), '\0');
+				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+				this->client_thread->enqueueDataToSend(packet_string);
+			}
+			else if(dynamic_cast<const LoggedOutMessage*>(msg.getPointer()))
+			{
+				const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg.getPointer());
+				//QMessageBox msgBox;
+				//msgBox.setWindowTitle("Logged out");
+				//msgBox.setText("Successfully logged out.");
+				//msgBox.exec();
+
+				user_details->setTextAsNotLoggedIn();
+				this->logged_in_user_id = UserID::invalidUserID();
+
+
+				// Send AvatarFullUpdate message, to change the nametag on our avatar.
+				const Vec3d cam_angles = this->cam_controller.getAngles();
+				Avatar avatar;
+				avatar.uid = this->client_thread->client_avatar_uid;
+				avatar.pos = Vec3d(this->cam_controller.getPosition());
+				avatar.rotation = Vec3f(0, 0, cam_angles.x);
+				avatar.model_url = "";
+				avatar.name = "Anonymous";
+
+				SocketBufferOutStream packet;
+				packet.writeUInt32(AvatarFullUpdate);
+				writeToNetworkStream(avatar, packet);
+
+				std::string packet_string(packet.buf.size(), '\0');
+				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+				this->client_thread->enqueueDataToSend(packet_string);
+			}
+			else if(dynamic_cast<const SignedUpMessage*>(msg.getPointer()))
+			{
+				const SignedUpMessage* m = static_cast<const SignedUpMessage*>(msg.getPointer());
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Signed up");
+				msgBox.setText("Successfully signed up and logged in.");
+				msgBox.exec();
+
+				user_details->setTextAsLoggedIn(m->username);
+				this->logged_in_user_id = m->user_id;
+
+				// Send AvatarFullUpdate message, to change the nametag on our avatar.
+				const Vec3d cam_angles = this->cam_controller.getAngles();
+				Avatar avatar;
+				avatar.uid = this->client_thread->client_avatar_uid;
+				avatar.pos = Vec3d(this->cam_controller.getPosition());
+				avatar.rotation = Vec3f(0, 0, cam_angles.x);
+				avatar.model_url = "";
+				avatar.name = m->username;
+
+				SocketBufferOutStream packet;
+				packet.writeUInt32(AvatarFullUpdate);
+				writeToNetworkStream(avatar, packet);
+
+				std::string packet_string(packet.buf.size(), '\0');
+				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+				this->client_thread->enqueueDataToSend(packet_string);
 			}
 			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
 			{
@@ -977,33 +1111,67 @@ void MainWindow::timerEvent()
 	// Move selected object if there is one
 	if(this->selected_ob.nonNull())
 	{
-		// Get direction for current mouse cursor position
-		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-		const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-		const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-		const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+		bool allow_modification = true;
+		if(!this->logged_in_user_id.valid())
+		{
+			allow_modification = false;
 
-		// Convert selection vector to world space
-		const Vec4f selection_vec_ws(right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2]);
+			// Display an error message if we have not already done so since selecting this object.
+			if(!shown_object_modification_error_msg)
+			{
+				QMessageBox msgBox;
+				msgBox.setText("You must be logged in to modify an object.");
+				msgBox.exec();
+				shown_object_modification_error_msg = true;
+			}
+		}
+		else
+		{
+			if(this->logged_in_user_id != this->selected_ob->creator_id)
+			{
+				allow_modification = false;
 
-		const Vec4f new_sel_point_ws = origin + selection_vec_ws;
-		
-		const Vec4f new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
+				// Display an error message if we have not already done so since selecting this object.
+				if(!shown_object_modification_error_msg)
+				{
+					QMessageBox msgBox;
+					msgBox.setText("You must be the owner of this object to modify it.");
+					msgBox.exec();
+					shown_object_modification_error_msg = true;
+				}
+			}
+		}
 
-		// Set world object pos
-		this->selected_ob->setPosAndHistory(toVec3d(new_ob_pos));
+		if(allow_modification)
+		{
+			// Get direction for current mouse cursor position
+			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+			const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+			const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+			const Vec4f up = cam_controller.getUpVec().toVec4fVector();
 
-		// Set graphics object pos and update in opengl engine.
-		GLObjectRef opengl_ob(this->selected_ob->opengl_engine_ob);
-		opengl_ob->ob_to_world_matrix.setColumn(3, new_ob_pos);
-		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+			// Convert selection vector to world space
+			const Vec4f selection_vec_ws(right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2]);
 
-		// Update physics object
-		this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos);
-		this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+			const Vec4f new_sel_point_ws = origin + selection_vec_ws;
 
-		// Mark as from-local-dirty to send an object transform updated message to the server
-		this->selected_ob->from_local_transform_dirty = true;
+			const Vec4f new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
+
+			// Set world object pos
+			this->selected_ob->setPosAndHistory(toVec3d(new_ob_pos));
+
+			// Set graphics object pos and update in opengl engine.
+			GLObjectRef opengl_ob(this->selected_ob->opengl_engine_ob);
+			opengl_ob->ob_to_world_matrix.setColumn(3, new_ob_pos);
+			ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+			// Update physics object
+			this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos);
+			this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+
+			// Mark as from-local-dirty to send an object transform updated message to the server
+			this->selected_ob->from_local_transform_dirty = true;
+		}
 	}
 
 	// Send an AvatarTransformUpdate packet to the server if needed.
@@ -1246,7 +1414,7 @@ void MainWindow::on_actionAddObject_triggered()
 			{
 				SocketBufferOutStream packet;
 
-				packet.writeUInt32(ObjectCreated);
+				packet.writeUInt32(CreateObject);
 				writeToNetworkStream(*new_world_object, packet);
 
 				std::string packet_string(packet.buf.size(), '\0');
@@ -1350,17 +1518,103 @@ void MainWindow::on_actionReset_Layout_triggered()
 }
 
 
+void MainWindow::on_actionLogIn_triggered()
+{
+	if(!connected_to_server)
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Can't log in");
+		msgBox.setText("You must be connected to a server to log in.");
+		msgBox.exec();
+		return;
+	}
+
+	LoginDialog dialog(settings);
+	const int res = dialog.exec();
+	if(res == QDialog::Accepted)
+	{
+		const std::string username = QtUtils::toStdString(dialog.usernameLineEdit->text());
+		const std::string password = QtUtils::toStdString(dialog.passwordLineEdit->text());
+
+		conPrint("username: " + username);
+		conPrint("password: " + password);
+		//this->last_login_username = username;
+
+		// Make LogInMessage packet and enqueue to send
+		SocketBufferOutStream packet;
+		packet.writeUInt32(LogInMessage);
+		packet.writeStringLengthFirst(username);
+		packet.writeStringLengthFirst(password);
+
+		std::string packet_string(packet.buf.size(), '\0');
+		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+		this->client_thread->enqueueDataToSend(packet_string);
+	}
+}
+
+
+void MainWindow::on_actionLogOut_triggered()
+{
+	// Make message packet and enqueue to send
+	SocketBufferOutStream packet;
+	packet.writeUInt32(LogOutMessage);
+	
+	std::string packet_string(packet.buf.size(), '\0');
+	std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+	this->client_thread->enqueueDataToSend(packet_string);
+}
+
+
+void MainWindow::on_actionSignUp_triggered()
+{
+	if(!connected_to_server)
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Can't sign up");
+		msgBox.setText("You must be connected to a server to sign up.");
+		msgBox.exec();
+		return;
+	}
+
+	SignUpDialog dialog(settings);
+	const int res = dialog.exec();
+	if(res == QDialog::Accepted)
+	{
+		const std::string username = QtUtils::toStdString(dialog.usernameLineEdit->text());
+		const std::string email    = QtUtils::toStdString(dialog.emailLineEdit->text());
+		const std::string password = QtUtils::toStdString(dialog.passwordLineEdit->text());
+
+		conPrint("username: " + username);
+		conPrint("email:    " + email);
+		conPrint("password: " + password);
+		//this->last_login_username = username;
+
+		// Make message packet and enqueue to send
+		SocketBufferOutStream packet;
+		packet.writeUInt32(SignUpMessage);
+		packet.writeStringLengthFirst(username);
+		packet.writeStringLengthFirst(email);
+		packet.writeStringLengthFirst(password);
+
+		std::string packet_string(packet.buf.size(), '\0');
+		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+		this->client_thread->enqueueDataToSend(packet_string);
+	}
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
 
-	const std::string name = QtUtils::toIndString(settings->value("username").toString());
 	const std::string message = QtUtils::toIndString(ui->chatMessageLineEdit->text());
 
 	// Make message packet and enqueue to send
 	SocketBufferOutStream packet;
 	packet.writeUInt32(ChatMessageID);
-	packet.writeStringLengthFirst(name);
 	packet.writeStringLengthFirst(message);
 
 	std::string packet_string(packet.buf.size(), '\0');
@@ -1505,7 +1759,8 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			//this->matEditor->setFromMaterial(*selected_ob->materials[0]);
 			ui->objectEditor->setFromObject(*selected_ob, selected_mat);
 
-			ui->objectEditor->setEnabled(true);
+			const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+			ui->objectEditor->setEnabled(have_edit_permissions);
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
 
 
@@ -1635,6 +1890,8 @@ void MainWindow::deselectObject()
 		ui->objectEditor->setEnabled(false);
 
 		this->selected_ob = NULL;
+
+		this->shown_object_modification_error_msg = false;
 	}
 }
 
@@ -1747,13 +2004,13 @@ int main(int argc, char *argv[])
 
 	PlatformUtils::ignoreUnixSignals();
 
-	std::string indigo_base_dir_path;
+	std::string cyberspace_base_dir_path;
 	std::string appdata_path;
 	try
 	{
-		indigo_base_dir_path = PlatformUtils::getResourceDirectoryPath();
+		cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
 
-		appdata_path = PlatformUtils::getOrCreateAppDataDirectory(indigo_base_dir_path, "Cyberspace");
+		appdata_path = PlatformUtils::getOrCreateAppDataDirectory(cyberspace_base_dir_path, "Cyberspace");
 	}
 	catch(PlatformUtils::PlatformUtilsExcep& e)
 	{
@@ -1764,9 +2021,9 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	QDir::setCurrent(QtUtils::toQString(indigo_base_dir_path));
+	QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
 	
-	conPrint("indigo_base_dir_path: " + indigo_base_dir_path);
+	conPrint("cyberspace_base_dir_path: " + cyberspace_base_dir_path);
 
 
 	// Get a vector of the args.  Note that we will use app.arguments(), because it's the only way to get the args in Unicode in Qt.
@@ -1806,7 +2063,7 @@ int main(int argc, char *argv[])
 #endif
 
 
-		MainWindow mw(indigo_base_dir_path, appdata_path, parsed_args);
+		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
 
 		mw.initialise();
 
@@ -1824,14 +2081,14 @@ int main(int argc, char *argv[])
 		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, server_hostname, server_port));
 
 		const std::string avatar_path = QtUtils::toStdString(mw.settings->value("avatarPath").toString());
-		const std::string username    = QtUtils::toStdString(mw.settings->value("username").toString());
+		//const std::string username    = QtUtils::toStdString(mw.settings->value("username").toString());
 
 		uint64 avatar_model_hash = 0;
 		if(FileUtils::fileExists(avatar_path))
 			avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
 		const std::string avatar_URL = mw.resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
 
-		mw.client_thread = new ClientThread(&mw.msg_queue, server_hostname, server_port, &mw, username, avatar_URL);
+		mw.client_thread = new ClientThread(&mw.msg_queue, server_hostname, server_port, &mw, avatar_URL);
 		mw.client_thread->world_state = mw.world_state;
 		//mw.client_thread->launch();
 		mw.client_thread_manager.addThread(mw.client_thread);
@@ -2075,6 +2332,7 @@ int main(int argc, char *argv[])
 
 
 			// TEMP: make an avatar
+			if(false)
 			{
 				test_avatar = new AvatarGraphics();
 				test_avatar->create(*mw.ui->glWidget->opengl_engine);
@@ -2273,7 +2531,7 @@ int main(int argc, char *argv[])
 					// Load script
 					world_ob->script_url = "test.win";
 					const std::string script = FileUtils::readEntireFileTextMode(world_ob->script_url);
-					world_ob->script_evaluator = new WinterShaderEvaluator(indigo_base_dir_path, script);
+					world_ob->script_evaluator = new WinterShaderEvaluator(cyberspace_base_dir_path, script);
 				}
 
 				

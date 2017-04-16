@@ -19,6 +19,8 @@ Copyright Glare Technologies Limited 2016 -
 
 WorldObject::WorldObject()
 {
+	creator_id = UserID::invalidUserID();
+
 	from_remote_transform_dirty = false;
 	from_remote_other_dirty = false;
 	from_local_transform_dirty = false;
@@ -214,7 +216,7 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 4;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 5;
 
 
 void writeToStream(const WorldObject& world_ob, OutStream& stream)
@@ -236,6 +238,9 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 	writeToStream(world_ob.axis, stream);
 	stream.writeFloat(world_ob.angle);
 	writeToStream(world_ob.scale, stream);
+
+	world_ob.created_time.writeToStream(stream); // new in v5
+	writeToStream(world_ob.creator_id, stream); // new in v5
 }
 
 
@@ -274,6 +279,17 @@ void readFromStream(InStream& stream, WorldObject& ob)
 	else
 		ob.scale = Vec3f(1.f);
 
+	if(v >= 5)
+	{
+		ob.created_time.readFromStream(stream);
+		ob.creator_id = readUserIDFromStream(stream);
+	}
+	else
+	{
+		ob.created_time = TimeStamp::currentTime();
+		ob.creator_id = UserID::invalidUserID();
+	}
+
 
 	// Set ephemeral state
 	ob.state = WorldObject::State_Alive;
@@ -296,6 +312,9 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 	writeToStream(world_ob.axis, stream);
 	stream.writeFloat(world_ob.angle);
 	writeToStream(world_ob.scale, stream);
+
+	world_ob.created_time.writeToStream(stream); // new in v5
+	writeToStream(world_ob.creator_id, stream); // new in v5
 }
 
 
@@ -322,6 +341,9 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 
 	//if(v >= 3)
 		ob.scale = readVec3FromStream<float>(stream);
+
+	ob.created_time.readFromStream(stream);
+	ob.creator_id = readUserIDFromStream(stream);
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;

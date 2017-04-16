@@ -14,6 +14,10 @@ SET(shared_files
 ../shared/Avatar.h
 ../shared/ResourceManager.cpp
 ../shared/ResourceManager.h
+../shared/TimeStamp.cpp
+../shared/TimeStamp.h
+../shared/UID.h
+../shared/UserID.h
 ../shared/WorldObject.cpp
 ../shared/WorldObject.h
 ../shared/WorldMaterial.cpp
