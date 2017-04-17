@@ -101,6 +101,8 @@ public:
 	TimeStamp created_time;
 	UserID creator_id;
 
+	std::string creator_name; // This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
+
 	enum State
 	{
 		State_JustCreated = 0,

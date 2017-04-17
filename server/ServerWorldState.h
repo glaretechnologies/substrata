@@ -39,7 +39,9 @@ public:
 
 	std::map<UID, Reference<WorldObject>> objects;
 
-	std::map<std::string, Reference<User>> users; // Username to user
+	std::map<UserID, Reference<User>> user_id_to_users;  // User id to user
+	std::map<std::string, Reference<User>> name_to_users; // Username to user
+	
 
 
 	UID next_avatar_uid;
