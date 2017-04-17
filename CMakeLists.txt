@@ -173,13 +173,18 @@ set(sparsehashdir	"${INDIGO_LIBS_ENV}/sparsehash-2.0.2")
 set(fftssdir	"${INDIGO_LIBS_ENV}/fftss-3.0-20071031/fftss-3.0")
 # set(lib3dsdir	"${INDIGO_LIBS_ENV}/lib3ds-1.2.0")
 
-if(WIN32)
-	SET(INDIGO_QT_VERSION 5.7.0)
-	SET(INDIGO_QT_DIR "${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}-vs${CYBERSPACE_VS_VER}-64")
-else() # Mac or Linux.
-	SET(INDIGO_QT_VERSION 5.8.0)
-	SET(INDIGO_QT_DIR "${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}")
-endif()
+# The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
+# So get via getConfigOption()
+getConfigOption("--qtversion" INDIGO_QT_VERSION)
+getConfigOption("--qtdir" INDIGO_QT_DIR)
+
+#if(WIN32)
+#	SET(INDIGO_QT_VERSION 5.7.0)
+#	SET(INDIGO_QT_DIR "${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}-vs${CYBERSPACE_VS_VER}-64")
+#else() # Mac or Linux.
+#	SET(INDIGO_QT_VERSION 5.8.0)
+#	SET(INDIGO_QT_DIR "${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}")
+#endif()
 
 SET(INDIGO_LLVM_VERSION 3.4)
 SET(INDIGO_LIBRESSL_VERSION 2.3.0)
