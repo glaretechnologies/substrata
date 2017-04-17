@@ -22,7 +22,6 @@
 #include "LoginDialog.h"
 #include "SignUpDialog.h"
 //#include "IndigoApplication.h"
-#include <QtCore/QTimer>
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -148,9 +147,7 @@ void MainWindow::initialise()
 
 	ui->objectEditor->setControlsEnabled(false);
 
-	timer = new QTimer(this);
-    connect(timer, SIGNAL(timeout()), this, SLOT(timerEvent()));
-    timer->start(10);
+	startTimer(10);
 }
 
 
@@ -423,7 +420,7 @@ void MainWindow::print(const std::string& message) // Print to log and console
 }
 
 
-void MainWindow::timerEvent()
+void MainWindow::timerEvent(QTimerEvent* event)
 {
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();

@@ -26,14 +26,14 @@ public:
 
 	std::string getAvatarName();
 private slots:;
-	void timerEvent();
 	void accepted();
 
 	void avatarFilenameChanged(QString& filename);
 	
 private:
+	virtual void timerEvent(QTimerEvent* event);
+
 	QSettings* settings;
-	QTimer* timer;
 
 	Reference<GLObject> avatar_gl_ob;
 

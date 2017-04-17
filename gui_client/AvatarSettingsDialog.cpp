@@ -42,9 +42,7 @@ AvatarSettingsDialog::AvatarSettingsDialog(QSettings* settings_, TextureServer* 
 
 	this->avatarPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
-	timer = new QTimer(this);
-    connect(timer, SIGNAL(timeout()), this, SLOT(timerEvent()));
-    timer->start(10);
+	startTimer(10);
 
 	loaded_model = false;
 }
@@ -119,7 +117,7 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 }
 
 
-void AvatarSettingsDialog::timerEvent()
+void AvatarSettingsDialog::timerEvent(QTimerEvent* event)
 {
 	// Once the OpenGL widget has initialised, we can add the model.
 	if(avatarPreviewGLWidget->opengl_engine->initSucceeded() && !loaded_model)

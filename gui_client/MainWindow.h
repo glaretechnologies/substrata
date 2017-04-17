@@ -35,12 +35,11 @@ public:
 
 	void initialise();
 	
+	
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
 signals:;
 	void resolutionChanged(int, int);
 
-public slots:;
-	void timerEvent();
 private slots:;
 	void on_actionAvatarSettings_triggered();
 	void on_actionAddObject_triggered();
@@ -61,6 +60,7 @@ private slots:;
 
 	void objectEditedSlot();
 private:
+	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void deleteSelectedObject();
 	void deselectObject();
@@ -71,8 +71,6 @@ private:
 	std::string base_dir_path;
 	std::string appdata_path;
 	ArgumentParser parsed_args;
-
-	QTimer *timer;
 
 	Timer total_timer;
 
