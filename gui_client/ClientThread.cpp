@@ -100,12 +100,8 @@ void ClientThread::doRun()
 		packet.writeUInt32(CreateAvatar);
 		writeToStream(client_avatar_uid, packet);
 		packet.writeStringLengthFirst(avatar_URL);
-		writeToStream(Vec3d(0, 0, 0), packet);
-		writeToStream(Vec3f(0, 0, 1), packet);
-		packet.writeFloat(0.f);
-
-		//std::string packet_string(packet.buf.size(), '\0');
-		//std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+		writeToStream(Vec3d(0, 0, 0), packet); // pos 
+		writeToStream(Vec3f(0, 0, 1), packet); // rotation
 
 		socket->writeData(packet.buf.data(), packet.buf.size());
 
