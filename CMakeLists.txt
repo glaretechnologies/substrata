@@ -173,18 +173,23 @@ set(sparsehashdir	"${INDIGO_LIBS_ENV}/sparsehash-2.0.2")
 set(fftssdir	"${INDIGO_LIBS_ENV}/fftss-3.0-20071031/fftss-3.0")
 # set(lib3dsdir	"${INDIGO_LIBS_ENV}/lib3ds-1.2.0")
 
+if(WIN32)
+	SET(INDIGO_QT_VERSION 5.7.0)
+	SET(INDIGO_QT_DIR "${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}-vs${CYBERSPACE_VS_VER}-64")
+else() # Mac or Linux.
+	SET(INDIGO_QT_VERSION 5.8.0)
+	SET(INDIGO_QT_DIR "${INDIGO_LIBS_ENV}/Qt/${INDIGO_QT_VERSION}")
+endif()
 
-# Config
-getConfigOption("--qtversion" INDIGO_QT_VERSION)
-getConfigOption("--qtdir" INDIGO_QT_DIR)
-getConfigOption("--llvmversion" INDIGO_LLVM_VERSION)
-getConfigOption("--libresslversion" INDIGO_LIBRESSL_VERSION)
-getConfigOption("--opensslversion" INDIGO_OPENSSL_VERSION)
-getConfigOption("--libjpgturbodir" LIBJPEG_TURBO_DIR)
-
+SET(INDIGO_LLVM_VERSION 3.4)
+SET(INDIGO_LIBRESSL_VERSION 2.3.0)
+SET(INDIGO_OPENSSL_VERSION 1.0.2a)
+SET(LIBJPEG_TURBO_DIR 1.0.2a)
 
 if(WIN32)
-	set(LIBJPEG_TURBO_DIR "${LIBJPEG_TURBO_DIR}/vs_${CYBERSPACE_VS_VER}_${CYBERSPACE_BITNESS}") # Append dir suffix for VS version and bitness.
+	set(LIBJPEG_TURBO_DIR "${INDIGO_LIBS_ENV}/libjpeg-turbo-builds/vs_${CYBERSPACE_VS_VER}_64")
+else()
+	set(LIBJPEG_TURBO_DIR "${INDIGO_LIBS_ENV}/libjpeg-turbo-builds/build")
 endif()
 
 # The llvm dirs use the version seperator "_" instead of "."
