@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "PhysicsWorld.h"
-#include "../utils/stringutils.h"
+#include "../utils/StringUtils.h"
 #include "../simpleraytracer/ray.h"
 #include "../physics/jscol_boundingsphere.h"
 
