@@ -27,14 +27,14 @@ public:
 	~AddObjectDialog();
 
 private slots:;
-	void timerEvent();
 	void accepted();
 
 	void filenameChanged(QString& filename);
 	
 private:
+	virtual void timerEvent(QTimerEvent* event);
+
 	QSettings* settings;
-	QTimer* timer;
 
 	Reference<GLObject> preview_gl_ob;
 

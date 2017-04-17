@@ -40,9 +40,7 @@ AddObjectDialog::AddObjectDialog(QSettings* settings_, TextureServer* texture_se
 
 	this->objectPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
-	timer = new QTimer(this);
-    connect(timer, SIGNAL(timeout()), this, SLOT(timerEvent()));
-    timer->start(10);
+	startTimer(10);
 
 	loaded_model = false;
 }
@@ -182,7 +180,7 @@ void AddObjectDialog::filenameChanged(QString& filename)
 }
 
 
-void AddObjectDialog::timerEvent()
+void AddObjectDialog::timerEvent(QTimerEvent* event)
 {
 	// Once the OpenGL widget has initialised, we can add the model.
 	if(objectPreviewGLWidget->opengl_engine->initSucceeded() && !loaded_model)
