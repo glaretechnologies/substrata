@@ -423,6 +423,7 @@ void WorkerThread::doRun()
 						{
 							new_ob->creator_id = client_user->id;
 							new_ob->created_time = TimeStamp::currentTime();
+							new_ob->creator_name = client_user->name;
 
 							std::set<std::string> URLs;
 							new_ob->getDependencyURLSet(URLs);
@@ -654,8 +655,8 @@ void WorkerThread::doRun()
 						bool logged_in = false;
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->users.find(username);
-							if(res != world_state->users.end())
+							auto res = world_state->name_to_users.find(username);
+							if(res != world_state->name_to_users.end())
 							{
 								User* user = res->second.getPointer();
 								if(user->isPasswordValid(password))
@@ -715,11 +716,11 @@ void WorkerThread::doRun()
 						bool signed_up = false;
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->users.find(username);
-							if(res == world_state->users.end())
+							auto res = world_state->name_to_users.find(username);
+							if(res == world_state->name_to_users.end())
 							{
 								Reference<User> new_user = new User();
-								new_user->id = UserID((uint32)world_state->users.size()); 
+								new_user->id = UserID((uint32)world_state->name_to_users.size());
 								new_user->created_time = TimeStamp::currentTime();
 								new_user->name = username;
 								new_user->email_address = email;
@@ -727,7 +728,7 @@ void WorkerThread::doRun()
 								// We need a random salt for the user.
 								// To generate this, we will hash the username, email address, current time in seconds, time since program started, and a hidden constant salt together.
 								const std::string hash_input = username + " " + email + " " +
-									toString(Clock::getSecsSince1970()) + " " + toString(Clock::getTimeSinceInit()) +
+									toString((uint64)Clock::getSecsSince1970()) + " " + toString(Clock::getTimeSinceInit()) +
 									"qySNdBWNbLG5mFt6NnRDHwYF345345"; // from random.org
 
 								std::vector<unsigned char> binary_digest;
@@ -739,7 +740,8 @@ void WorkerThread::doRun()
 								new_user->hashed_password = User::computePasswordHash(password, user_salt);
 
 								// Add new user to world state
-								world_state->users.insert(std::make_pair(username, new_user));
+								world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
+								world_state->name_to_users   .insert(std::make_pair(username,     new_user));
 								world_state->changed = true; // Mark as changed so gets saved to disk.
 
 								client_user = new_user; // Log user in as well.

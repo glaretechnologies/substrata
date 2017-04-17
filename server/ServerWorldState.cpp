@@ -70,7 +70,8 @@ void ServerWorldState::readFromDisk(const std::string& path)
 			UserRef user = new User();
 			readFromStream(stream, *user);
 
-			users[user->name] = user; // Add to user map
+			user_id_to_users[user->id] = user; // Add to user map
+			name_to_users[user->name] = user; // Add to user map
 		}
 		else if(chunk == EOS_CHUNK)
 		{
@@ -82,7 +83,15 @@ void ServerWorldState::readFromDisk(const std::string& path)
 		}
 	}
 
-	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(users.size()) + " user(s)");
+	// Build cached fields like creator_name
+	for(auto i=objects.begin(); i != objects.end(); ++i)
+	{
+		auto res = user_id_to_users.find(i->second->creator_id);
+		if(res != user_id_to_users.end())
+			i->second->creator_name = res->second->name;
+	}
+
+	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s)");
 }
 
 
@@ -113,7 +122,7 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 
 			// Write users
 			{
-				for(auto i=users.begin(); i != users.end(); ++i)
+				for(auto i=user_id_to_users.begin(); i != user_id_to_users.end(); ++i)
 				{
 					stream.writeUInt32(USER_CHUNK);
 					writeToStream(*i->second, stream);
@@ -125,7 +134,7 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 
 		FileUtils::moveFile(temp_path, path);
 
-		conPrint("Saved " + toString(objects.size()) + " object(s), " + toString(users.size()) + " user(s)");
+		conPrint("Saved " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s)");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

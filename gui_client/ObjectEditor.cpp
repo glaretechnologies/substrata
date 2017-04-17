@@ -63,7 +63,10 @@ ObjectEditor::~ObjectEditor()
 
 void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 {
-	this->createdByLabel->setText(QtUtils::toQString("user id: " + ob.creator_id.toString()));
+	const std::string creator_name = !ob.creator_name.empty() ? ob.creator_name :
+		(ob.creator_id.valid() ? ("user id: " + ob.creator_id.toString()) : "[Unknown]");
+
+	this->createdByLabel->setText(QtUtils::toQString(creator_name));
 	this->createdTimeLabel->setText(QtUtils::toQString(ob.created_time.timeAgoDescription()));
 
 	this->selected_mat_index = selected_mat_index_;

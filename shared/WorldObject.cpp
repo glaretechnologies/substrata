@@ -315,6 +315,8 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 
 	world_ob.created_time.writeToStream(stream); // new in v5
 	writeToStream(world_ob.creator_id, stream); // new in v5
+
+	stream.writeStringLengthFirst(world_ob.creator_name);
 }
 
 
@@ -344,6 +346,8 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 
 	ob.created_time.readFromStream(stream);
 	ob.creator_id = readUserIDFromStream(stream);
+
+	ob.creator_name = stream.readStringLengthFirst(10000);
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;

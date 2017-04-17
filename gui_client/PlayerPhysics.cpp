@@ -16,9 +16,9 @@ File created by ClassTemplate on Mon Sep 23 15:14:04 2002
 #include <CameraController.h>
 //#include "../physics/jscol_model.h"
 //#include "globals.h"
-#include "../utils/stringutils.h"
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
+#include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 
 //#include "rulesmanager.h"//TEMP
