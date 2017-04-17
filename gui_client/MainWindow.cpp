@@ -607,7 +607,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					const std::string path = resource_manager->pathForURL(m->URL);
 					if(FileUtils::fileExists(path))
 					{
-						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port));
+						const std::string username = QtUtils::toStdString(settings->value("LoginDialog/username").toString());
+						const std::string password = LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString()));
+
+						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password));
 						print("Received GetFileMessage, Uploading resource with URL '" + m->URL + "' to server.");
 					}
 					else

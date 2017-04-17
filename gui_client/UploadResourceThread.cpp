@@ -14,15 +14,18 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <StringUtils.h>
 #include <MemMappedFile.h>
 #include <PlatformUtils.h>
+#include <SocketBufferOutStream.h>
 
 
 UploadResourceThread::UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& local_path_, const std::string& model_URL_, 
-										   const std::string& hostname_, int port_)
+										   const std::string& hostname_, int port_, const std::string& username_, const std::string& password_)
 :	out_msg_queue(out_msg_queue_),
 	local_path(local_path_),
 	model_URL(model_URL_),
 	hostname(hostname_),
-	port(port_)
+	port(port_),
+	username(username_),
+	password(password_)
 {}
 
 
@@ -66,6 +69,14 @@ void UploadResourceThread::doRun()
 		}
 		else
 			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
+
+
+		// We need to log in first, otherwise upload will fail.
+
+		// Make LogInMessage packet and send
+		socket->writeUInt32(LogInMessage);
+		socket->writeStringLengthFirst(username);
+		socket->writeStringLengthFirst(password);
 
 		// Load resource
 		MemMappedFile file(local_path);

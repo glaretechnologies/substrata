@@ -568,16 +568,23 @@ void WorkerThread::doRun()
 						
 						const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
+						conPrint("URL: '" + URL + "'");
+
 						if(!ResourceManager::isValidURL(URL))
+						{
+							conPrint("Invalid URL '" + URL + "'");
 							throw Indigo::Exception("Invalid URL '" + URL + "'");
+						}
 
 						if(client_user.isNull())
 						{
+							conPrint("User was not logged in, not permitting upload.");
 							writeErrorMessageToClient(socket, "You must be logged in to upload a file.");
 						}
 						else
 						{
 							const uint64 file_len = socket->readUInt64();
+							conPrint("file_len: " + toString(file_len) + " B");
 							if(file_len > 0)
 							{
 								// TODO: cap length in a better way
