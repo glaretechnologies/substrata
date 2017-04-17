@@ -263,6 +263,7 @@ void WorkerThread::doRun()
 				case CreateAvatar:
 					{
 						conPrint("CreateAvatar");
+						// Note: not reading name, name will come from user account
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
