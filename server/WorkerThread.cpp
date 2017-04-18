@@ -87,6 +87,7 @@ static void writeErrorMessageToClient(MySocketRef& socket, const std::string& ms
 	socket->writeData(packet.buf.data(), packet.buf.size());
 }
 
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -494,7 +495,7 @@ void WorkerThread::doRun()
 						else
 						{
 							// Enqueue chat messages to worker threads to send
-							// Send AvatarTransformUpdate packet
+							// Send ChatMessageID packet
 							SocketBufferOutStream packet;
 							packet.writeUInt32(ChatMessageID);
 							packet.writeStringLengthFirst(client_user->name);
@@ -765,6 +766,7 @@ void WorkerThread::doRun()
 							SocketBufferOutStream packet;
 							packet.writeUInt32(SignedUpMessageID);
 							writeToStream(client_user->id, packet);
+							packet.writeStringLengthFirst(username);
 							socket->writeData(packet.buf.data(), packet.buf.size());
 						}
 						else
