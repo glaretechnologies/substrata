@@ -102,6 +102,11 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
+	// Add a space to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
+	QWidget* spacer = new QWidget();
+	spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+	ui->toolBar->addWidget(spacer);
+
 	user_details = new UserDetailsWidget(this);
 	ui->toolBar->addWidget(user_details);
 	
