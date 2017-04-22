@@ -85,6 +85,7 @@ private:
 	int viewport_w, viewport_h;
 
 	bool SHIFT_down, A_down, W_down, S_down, D_down;
+	Timer timer;
 public:
 	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;
