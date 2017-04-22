@@ -157,6 +157,9 @@ void GlWidget::paintGL()
 		opengl_engine->setCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio);
 		opengl_engine->draw();
 	}
+	
+	//conPrint("FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
+	//timer.reset();
 }
 
 
@@ -367,7 +370,15 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		mouse_move_origin = new_pos;
 
 		emit mouseMoved(e);
+		
+		//conPrint("mouseMoveEvent FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
+		//timer.reset();
 	}
+	
+	QGLWidget::mouseMoveEvent(e);
+	
+	//conPrint("mouseMoveEvent time since last event: " + doubleToStringNSigFigs(timer.elapsed(), 5));
+	//timer.reset();
 }
 
 
