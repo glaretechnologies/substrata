@@ -152,6 +152,7 @@ void MainWindow::initialise()
 
 	ui->objectEditor->setControlsEnabled(false);
 
+	// Set to 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
 	startTimer(17);
 }
 
