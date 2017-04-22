@@ -309,6 +309,24 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 
 void GlWidget::playerPhyicsThink()
 {
+	
+	// On Windows we will use GetAsyncKeyState() to test if a key is down.
+	// On Mac OS / Linux we will use our W_down etc.. state.
+	// This isn't as good because if we misse the keyReleaseEvent due to not having focus when the key is released, the key will act as if it's stuck down.
+	// TODO: Find an equivalent solution to GetAsyncKeyState on Mac/Linux.
+#ifdef _WIN32
+	if(hasFocus())
+	{
+		if(GetAsyncKeyState('W'))
+			this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller);
+		if(GetAsyncKeyState('S'))
+			this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller);
+		if(GetAsyncKeyState('A'))
+			this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller);
+		if(GetAsyncKeyState('D'))
+			this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
+	}
+#else
 	if(W_down)
 		this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller);
 	if(S_down)
@@ -317,6 +335,7 @@ void GlWidget::playerPhyicsThink()
 		this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller);
 	if(D_down)
 		this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
+#endif
 }
 
 
