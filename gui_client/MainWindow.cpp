@@ -152,7 +152,7 @@ void MainWindow::initialise()
 
 	ui->objectEditor->setControlsEnabled(false);
 
-	startTimer(10);
+	startTimer(17);
 }
 
 
@@ -1415,7 +1415,7 @@ void MainWindow::on_actionAddObject_triggered()
 			new_world_object->convertLocalPathsToURLS(*this->resource_manager);
 
 			
-			// Send ObjectCreated message to server
+			// Send CreateObject message to server
 			{
 				SocketBufferOutStream packet;
 
@@ -1474,11 +1474,11 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->angle = selected_ob->angle;
 		new_world_object->scale = selected_ob->scale;
 
-		// Send ObjectCreated message to server
+		// Send CreateObject message to server
 		{
 			SocketBufferOutStream packet;
 
-			packet.writeUInt32(ObjectCreated);
+			packet.writeUInt32(CreateObject);
 			writeToNetworkStream(*new_world_object, packet);
 
 			std::string packet_string(packet.buf.size(), '\0');
