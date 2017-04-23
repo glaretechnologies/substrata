@@ -15,6 +15,15 @@
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
     <item>
      <widget class="GlWidget" name="glWidget" native="true"/>
     </item>
@@ -26,7 +35,7 @@
      <x>0</x>
      <y>0</y>
      <width>1090</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuWindow">
