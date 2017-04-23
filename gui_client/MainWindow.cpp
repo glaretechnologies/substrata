@@ -154,6 +154,8 @@ void MainWindow::initialise()
 
 	// Set to 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
 	startTimer(17);
+	
+	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 }
 
 
@@ -428,6 +430,14 @@ void MainWindow::print(const std::string& message) // Print to log and console
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
+	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
+	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
+	{
+		conPrint("Positioning ui->infoDockWidget at " + toString(gl_pos.x()) + ", " + toString(gl_pos.y()));
+		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 100);
+	}
+	
+
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 

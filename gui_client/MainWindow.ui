@@ -127,6 +127,35 @@
     </layout>
    </widget>
   </widget>
+  <widget class="QDockWidget" name="infoDockWidget">
+   <property name="floating">
+    <bool>true</bool>
+   </property>
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable</set>
+   </property>
+   <property name="allowedAreas">
+    <set>Qt::NoDockWidgetArea</set>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>4</number>
+   </attribute>
+   <widget class="QWidget" name="infoDockWidgetContents">
+    <widget class="QLabel" name="label">
+     <property name="geometry">
+      <rect>
+       <x>220</x>
+       <y>0</y>
+       <width>47</width>
+       <height>13</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Hello thar</string>
+     </property>
+    </widget>
+   </widget>
+  </widget>
   <action name="actionAvatarSettings">
    <property name="text">
     <string>Avatar Settings</string>
