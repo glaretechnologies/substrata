@@ -161,7 +161,7 @@ elseif(APPLE)
 else() # Linux
 	add_definitions(-D__SSSE3__ -D__NO_AVX__)
 
-	SET(LINUX_C_CXX_OPTIONS "-Wall -fPIC -pthread -mmmx -msse -msse2 -mssse3")
+	SET(LINUX_C_CXX_OPTIONS "-Wall -fPIC -pthread -mmmx -msse -msse2 -mssse3 -msse4.1")
 	
 	# Turn on address/memory etc.. sanitizer if requested.  See http://code.google.com/p/address-sanitizer/wiki/AddressSanitizer 
 	if(NOT INDIGO_USE_SANITIZER STREQUAL "")
