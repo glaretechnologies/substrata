@@ -156,6 +156,17 @@ void MainWindow::initialise()
 	startTimer(17);
 	
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
+	ui->infoDockWidget->hide();
+
+	//this->ui->helpInfoDockWidget->hide();
+
+	// Update help text
+	this->ui->helpInfoLabel->setText("Use the W/A/S/D keys to move around.\n"
+		"Click and drag the mouse on the 3D view to look around.\n"
+		"Space key: jump\n"
+		"Double-click an object to select it."
+	);
+	this->ui->helpInfoDockWidget->show();
 }
 
 
@@ -434,7 +445,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
 	{
 		conPrint("Positioning ui->infoDockWidget at " + toString(gl_pos.x()) + ", " + toString(gl_pos.y()));
-		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 100);
+		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 30);
 	}
 	
 
@@ -1529,6 +1540,14 @@ void MainWindow::on_actionReset_Layout_triggered()
 	this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
 	ui->chatDockWidget->show();
 
+	ui->helpInfoDockWidget->setFloating(true);
+	ui->helpInfoDockWidget->show();
+	// Position near bottom right corner of glWidget.
+	ui->helpInfoDockWidget->setGeometry(QRect(ui->glWidget->mapToGlobal(ui->glWidget->geometry().bottomRight() + QPoint(-320, -120)), QSize(300, 100)));
+
+	//this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
+	//ui->chatDockWidget->show();
+
 	// Enable tool bar
 	ui->toolBar->setVisible(true);
 }
@@ -1787,6 +1806,15 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			std::string packet_string(packet.buf.size(), '\0');
 			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
 			this->client_thread->enqueueDataToSend(packet_string);
+
+
+			// Update help text
+			this->ui->helpInfoLabel->setText("Click and drag the mouse to move the object around.\n"
+				"Arrow keys rotate the object.\n"
+				"'-' and '+' keys wheel moves object near/far.\n"
+				"'Esc' key: deselect object."
+			);
+			this->ui->helpInfoDockWidget->show();
 		}
 		else
 		{
@@ -1908,6 +1936,8 @@ void MainWindow::deselectObject()
 		this->selected_ob = NULL;
 
 		this->shown_object_modification_error_msg = false;
+
+		this->ui->helpInfoDockWidget->hide();
 	}
 }
 

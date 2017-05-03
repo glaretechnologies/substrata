@@ -35,7 +35,7 @@
      <x>0</x>
      <y>0</y>
      <width>1090</width>
-     <height>22</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuWindow">
@@ -163,6 +163,28 @@
       <string>Hello thar</string>
      </property>
     </widget>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="helpInfoDockWidget">
+   <property name="floating">
+    <bool>true</bool>
+   </property>
+   <property name="windowTitle">
+    <string>Help Information</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>8</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents">
+    <layout class="QVBoxLayout" name="verticalLayout_5">
+     <item>
+      <widget class="QLabel" name="helpInfoLabel">
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
   </widget>
   <action name="actionAvatarSettings">
