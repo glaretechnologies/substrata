@@ -175,7 +175,7 @@ void AddObjectPreviewWidget::paintGL()
 
 	opengl_engine->setViewportAspectRatio(viewport_aspect_ratio, viewport_w, viewport_h);
 	opengl_engine->setMaxDrawDistance(100.f);
-	opengl_engine->setCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio);
+	opengl_engine->setCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 	opengl_engine->draw();
 }
 
