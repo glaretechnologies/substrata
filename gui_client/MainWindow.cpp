@@ -80,8 +80,8 @@
 #pragma comment(linker, "/SUBSYSTEM:CONSOLE")
 #endif
 
-
-static const std::string server_hostname = "217.155.32.43";
+static const std::string server_hostname = "207.154.228.151"; // Digital ocean droplet server
+//static const std::string server_hostname = "217.155.32.43";
 //static const std::string server_hostname = "127.0.0.1";
 const int server_port = 7600;
 
