@@ -298,14 +298,14 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 }
 
 
-static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& axis, float angle)
-{
-	//return Matrix4f::translationMatrix((float)translation.x, (float)translation.y, (float)translation.z) * Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
-	Matrix4f m;
-	m.setToRotationMatrix(normalise(axis.toVec4fVector()), angle);
-	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
-	return m;
-}
+//static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& axis, float angle)
+//{
+//	//return Matrix4f::translationMatrix((float)translation.x, (float)translation.y, (float)translation.z) * Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
+//	Matrix4f m;
+//	m.setToRotationMatrix(normalise(axis.toVec4fVector()), angle);
+//	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
+//	return m;
+//}
 
 
 static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
@@ -548,7 +548,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const LoggedOutMessage*>(msg.getPointer()))
 			{
-				const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg.getPointer());
 				//QMessageBox msgBox;
 				//msgBox.setWindowTitle("Logged out");
 				//msgBox.setText("Successfully logged out.");
@@ -821,19 +820,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
 							ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
 
-						Vec3d pos;
-						Vec3f rotation;
-						avatar->getInterpolatedTransform(cur_time, pos, rotation);
+						//Vec3d pos;
+						//Vec3f rotation;
+						//avatar->getInterpolatedTransform(cur_time, pos, rotation);
 
-						const Matrix4f ob_to_world_matrix = rotateThenTranslateMatrix(pos, rotation);
+						//const Matrix4f ob_to_world_matrix = rotateThenTranslateMatrix(pos, rotation);
 
-						std::vector<std::string> dependency_URLs;
-						avatar->appendDependencyURLs(dependency_URLs);
+						//std::vector<std::string> dependency_URLs;
+						//avatar->appendDependencyURLs(dependency_URLs);
 
-						std::map<std::string, std::string> paths_for_URLs;
+						//std::map<std::string, std::string> paths_for_URLs;
 
 						// Do we have all the objects downloaded?
-						bool all_downloaded = true;
+						//bool all_downloaded = true;
 						//for(size_t i=0; i<dependency_URLs.size(); ++i)
 						//{
 						//	const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
