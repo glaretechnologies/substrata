@@ -160,7 +160,7 @@ Library versions:")
 
 # External library directory (apart from llvm, openssl and Qt)
 set(jpegdir		"${INDIGO_LIBS_ENV}/libjpeg-turbo-master")
-# NOTE: pngdir variable only used on mac and windows.
+# NOTE: pngdir variable only used on mac and windows.  On Linux we will use system libpng (libpng-dev)
 set(pngdir		"${INDIGO_LIBS_ENV}/lpng143")
 #set(pngdir		"${INDIGO_LIBS_ENV}/libpng-1.4.11")
 set(ilmbasedir	"${INDIGO_LIBS_ENV}/ilmbase-1.0.1")
