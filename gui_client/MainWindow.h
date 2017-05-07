@@ -34,8 +34,8 @@ public:
 	~MainWindow();
 
 	void initialise();
-	
-	
+
+
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
 signals:;
 	void resolutionChanged(int, int);
@@ -66,6 +66,7 @@ private:
 	void deselectObject();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
+	void updateGroundPlane();
 	void print(const std::string& message); // Print to log and console
 
 	std::string base_dir_path;
@@ -122,4 +123,15 @@ public:
 	UserID logged_in_user_id;
 
 	bool shown_object_modification_error_msg;
+
+	Reference<Indigo::Mesh> ground_quad_mesh;
+	Reference<OpenGLMeshRenderData> ground_quad_mesh_opengl_data;
+	Reference<RayMesh> ground_quad_raymesh;
+
+	struct GroundQuad
+	{
+		GLObjectRef gl_ob;
+		Reference<PhysicsObject> phy_ob;
+	};
+	std::map<Vec2i, GroundQuad> ground_quads;
 };

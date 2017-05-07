@@ -88,6 +88,7 @@ const int server_port = 7600;
 
 AvatarGraphicsRef test_avatar;
 //Reference<WorldObject> test_object;
+static const double ground_quad_w = 1000.f;
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -441,6 +442,8 @@ void MainWindow::print(const std::string& message) // Print to log and console
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
+	updateGroundPlane();
+
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
 	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
 	{
@@ -2035,6 +2038,75 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 }
 
 
+void MainWindow::updateGroundPlane()
+{
+	// The basic idea is that we want to have a ground-plane quad under the player's feet at all times.
+	// However the quad can't get too large, or you start getting shuddering and other graphical glitches.
+	// So we'll load in 4 quads around the player position, and add new quads or remove old ones as required as the player moves.
+	
+	const Vec3d pos = cam_controller.getPosition();
+
+	// Get integer indices of nearest 4 quads to player position.
+	const int cur_x = Maths::floorToInt(pos.x / ground_quad_w);
+	const int cur_y = Maths::floorToInt(pos.y / ground_quad_w);
+
+	const int adj_x = (Maths::fract(pos.x / ground_quad_w) < 0.5) ? (cur_x - 1) : (cur_x + 1);
+	const int adj_y = (Maths::fract(pos.y / ground_quad_w) < 0.5) ? (cur_y - 1) : (cur_y + 1);
+
+	std::set<Vec2i> new_quads;
+	new_quads.insert(Vec2i(cur_x, cur_y));
+	new_quads.insert(Vec2i(adj_x, cur_y));
+	new_quads.insert(Vec2i(cur_x, adj_y));
+	new_quads.insert(Vec2i(adj_x, adj_y));
+
+	// Add any new quad not in ground_quads.
+	for(auto it = new_quads.begin(); it != new_quads.end(); ++it)
+		if(ground_quads.count(*it) == 0)
+		{
+			// Make new quad
+
+			GLObjectRef gl_ob = new GLObject();
+			gl_ob->materials.resize(1);
+			gl_ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+			//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
+			gl_ob->materials[0].albedo_tex_path = "obstacle.png";
+			gl_ob->materials[0].roughness = 0.8f;
+
+			gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * ground_quad_w, it->y * ground_quad_w, 0);
+			gl_ob->mesh_data = ground_quad_mesh_opengl_data;
+
+			ui->glWidget->addObject(gl_ob);
+
+			Reference<PhysicsObject> phy_ob = new PhysicsObject();
+			phy_ob->geometry = ground_quad_raymesh;
+			phy_ob->ob_to_world = gl_ob->ob_to_world_matrix;
+
+			physics_world->addObject(phy_ob);
+
+			GroundQuad ground_quad;
+			ground_quad.gl_ob = gl_ob;
+			ground_quad.phy_ob = phy_ob;
+
+			ground_quads.insert(std::make_pair(*it, ground_quad));
+		}
+
+	// Remove any stale ground quads.
+	for(auto it = ground_quads.begin(); it != ground_quads.end();)
+	{
+		if(new_quads.count(it->first) == 0)
+		{
+			// Remove this ground quad as it is not needed any more.
+			ui->glWidget->removeObject(it->second.gl_ob);
+			physics_world->removeObject(it->second.phy_ob);
+
+			it = ground_quads.erase(it);
+		}
+		else
+			++it;
+	}
+
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -2258,56 +2330,38 @@ int main(int argc, char *argv[])
 		/*
 		Load a ground plane into the GL engine
 		*/
-		if(true)
 		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-			const float r = 1000.f;
-			mesh->addVertex(Indigo::Vec3f(-r, -r, 0), Indigo::Vec3f(0,0,1));
-			mesh->addVertex(Indigo::Vec3f( r, -r, 0), Indigo::Vec3f(0,0,1));
-			mesh->addVertex(Indigo::Vec3f( r,  r, 0), Indigo::Vec3f(0,0,1));
-			mesh->addVertex(Indigo::Vec3f(-r,  r, 0), Indigo::Vec3f(0,0,1));
+			// Build Indigo::Mesh
+			mw.ground_quad_mesh = new Indigo::Mesh();
+			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(0,             0,             0), Indigo::Vec3f(0,0,1));
+			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(ground_quad_w, 0,             0), Indigo::Vec3f(0,0,1));
+			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(ground_quad_w, ground_quad_w, 0), Indigo::Vec3f(0,0,1));
+			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(0,             ground_quad_w, 0), Indigo::Vec3f(0,0,1));
 			
-			mesh->num_uv_mappings = 1;
-			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,0)));
-			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(r,0)));
-			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(r,r)));
-			mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,r)));
+			mw.ground_quad_mesh->num_uv_mappings = 1;
+			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,0)));
+			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(ground_quad_w, 0)));
+			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(ground_quad_w, ground_quad_w)));
+			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0, ground_quad_w)));
 			
 			uint32 indices[] = {0, 1, 2, 3};
-			mesh->addQuad(indices, indices, 0);
+			mw.ground_quad_mesh->addQuad(indices, indices, 0);
+			mw.ground_quad_mesh->endOfModel();
 
-			mesh->endOfModel();
+			// Build OpenGLMeshRenderData
+			mw.ground_quad_mesh_opengl_data = OpenGLEngine::buildIndigoMesh(mw.ground_quad_mesh, false);
 
-			GLObjectRef ob = new GLObject();
-			ob->materials.resize(1);
-			ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-			ob->materials[0].albedo_tex_path = "obstacle.png";
-			ob->materials[0].roughness = 0.8f;
+			// Build RayMesh (for physics)
+			mw.ground_quad_raymesh = new RayMesh("mesh", false);
+			mw.ground_quad_raymesh->fromIndigoMesh(*mw.ground_quad_mesh);
 
-			ob->ob_to_world_matrix.setToTranslationMatrix(0,0,0);
-			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+			mw.ground_quad_raymesh->buildTrisFromQuads();
+			Geometry::BuildOptions options;
+			options.bih_tri_threshold = 0;
+			options.cache_trees = false;
+			mw.ground_quad_raymesh->build(".", options, print_output, false, task_manager);
 
-			mw.ui->glWidget->addObject(ob);
-
-			// Load physics object
-			/*{
-				Reference<PhysicsObject> phy_ob = new PhysicsObject();
-				phy_ob->geometry = new RayMesh("ground plane", false);
-				phy_ob->geometry->fromIndigoMesh(*mesh);
-				
-				phy_ob->geometry->buildTrisFromQuads();
-				Geometry::BuildOptions options;
-				options.bih_tri_threshold = 1;
-				options.cache_trees = false;
-				options.use_embree = false;
-				phy_ob->geometry->build(".", options, print_output, false, task_manager);
-
-				phy_ob->geometry->buildJSTris();
-				
-				phy_ob->ob_to_world = ob->ob_to_world_matrix;
-				mw.physics_world->addObject(phy_ob);
-			}*/
-			mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+			mw.ground_quad_raymesh->buildJSTris();
 		}
 
 
