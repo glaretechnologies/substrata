@@ -10,12 +10,14 @@ Code By Nicholas Chapman.
 #include "../shared/ResourceManager.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../graphics/formatdecoderobj.h"
+#include "../simpleraytracer/RayMesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/Exception.h"
 #include "../utils/PlatformUtils.h"
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
+#include "../utils/StandardPrintOutput.h"
 
 
 void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
@@ -280,17 +282,19 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 
 
 GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
-												   ResourceManager& resource_manager, MeshManager& mesh_manager,
-												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out)
+												   ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
+												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
 	Indigo::MeshRef mesh;
 	Reference<OpenGLMeshRenderData> gl_meshdata;
+	Reference<RayMesh> raymesh;
 
 	if(mesh_manager.model_URL_to_mesh_map.count(model_URL) > 0)
 	{
 		mesh        = mesh_manager.model_URL_to_mesh_map[model_URL].mesh;
 		gl_meshdata = mesh_manager.model_URL_to_mesh_map[model_URL].gl_meshdata;
+		raymesh     = mesh_manager.model_URL_to_mesh_map[model_URL].raymesh;
 	}
 	else
 	{
@@ -322,10 +326,24 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 
 		gl_meshdata = OpenGLEngine::buildIndigoMesh(mesh, /*skip opengl calls=*/false);
 
+
+		raymesh = new RayMesh("mesh", false);
+		raymesh->fromIndigoMesh(*mesh);
+
+		raymesh->buildTrisFromQuads();
+		Geometry::BuildOptions options;
+		options.bih_tri_threshold = 0;
+		options.cache_trees = false;
+		StandardPrintOutput print_output;
+		raymesh->build(".", options, print_output, false, task_manager);
+
+		raymesh->buildJSTris();
+
 		// Add to map
 		MeshData mesh_data;
 		mesh_data.mesh = mesh;
 		mesh_data.gl_meshdata = gl_meshdata;
+		mesh_data.raymesh = raymesh;
 		mesh_manager.model_URL_to_mesh_map[model_URL] = mesh_data;
 	}
 
@@ -353,6 +371,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	}
 
 	mesh_out = mesh;
+	raymesh_out = raymesh;
 	return ob;
 }
 
