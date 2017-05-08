@@ -2,6 +2,7 @@
 
 
 #include "PhysicsWorld.h"
+#include "ModelLoading.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
@@ -139,4 +140,6 @@ public:
 
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;
+
+	MeshManager mesh_manager;
 };
