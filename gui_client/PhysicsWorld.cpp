@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "../utils/StringUtils.h"
+#include "../utils/ConPrint.h"
 
 
 PhysicsWorld::PhysicsWorld()
@@ -62,14 +63,19 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 		}
 }
 
-void PhysicsWorld::build(Indigo::TaskManager& task_manager, PrintOutput& print_output)
+void PhysicsWorld::rebuild(Indigo::TaskManager& task_manager, PrintOutput& print_output)
 {
-	for(size_t i=0; i<objects.size(); ++i)
-		object_bvh.objects.push_back(objects[i].getPointer());
+	//conPrint("PhysicsWorld::rebuild()");
+	
+	// object_bvh is not used currently.
 
-	object_bvh.build(task_manager, print_output, 
-		false // verbose
-	);
+	//object_bvh.objects.resizeNoCopy(objects.size());
+	//for(size_t i=0; i<objects.size(); ++i)
+	//	object_bvh.objects[i] = objects[i].getPointer();
+
+	//object_bvh.build(task_manager, print_output, 
+	//	false // verbose
+	//);
 }
 
 

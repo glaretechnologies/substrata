@@ -87,13 +87,12 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 
 		results_out.hitdist_ws = (this->ob_to_world * (unitdir * -smallest_dist)).length(); // Get length in ws.  NOTE: incorrect for non-uniform scaling.  Fix.
 		results_out.hit_normal_ws = normalise(this->world_to_ob.transposeMult3Vector(closest_hit_normal));
-		results_out.hit_object = this;
 		results_out.hit_tri_index = 0;//TEMP
 		results_out.coords = Vec2f(0,0);//TEMP
 	}
 	else
 	{
-		results_out.hit_object = NULL;
+		results_out.hitdist_ws = -1;
 	}
 }
 

@@ -48,7 +48,8 @@ public:
 	void updateObjectTransformData(PhysicsObject& object);
 
 
-	void build(Indigo::TaskManager& task_manager, PrintOutput& print_output);
+	void rebuild(Indigo::TaskManager& task_manager, PrintOutput& print_output);
+
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
@@ -58,10 +59,9 @@ public:
 	void getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const;
 
 
+private:
 	js::Vector<Reference<PhysicsObject>, 32> objects;
 
-
-private:
 	PhysicsObjectBVH object_bvh;
 };
 

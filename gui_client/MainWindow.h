@@ -12,6 +12,8 @@
 #include "../indigo/ThreadContext.h"
 #include "../utils/ArgumentParser.h"
 #include "../utils/Timer.h"
+#include "../utils/TaskManager.h"
+#include "../utils/StandardPrintOutput.h"
 #include <QtCore/QEvent>
 #include <QtCore/QObject>
 #include <QtCore/QString>
@@ -35,6 +37,7 @@ public:
 
 	void initialise();
 
+	void updateGroundPlane();
 
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
 signals:;
@@ -66,7 +69,6 @@ private:
 	void deselectObject();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
-	void updateGroundPlane();
 	void print(const std::string& message); // Print to log and console
 
 	std::string base_dir_path;
@@ -134,4 +136,7 @@ public:
 		Reference<PhysicsObject> phy_ob;
 	};
 	std::map<Vec2i, GroundQuad> ground_quads;
+
+	StandardPrintOutput print_output;
+	Indigo::TaskManager task_manager;
 };
