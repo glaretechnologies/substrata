@@ -279,118 +279,81 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 }
 
 
-GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
-												   ResourceManager& resource_manager,
+GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
+												   ResourceManager& resource_manager, MeshManager& mesh_manager,
 												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out)
 {
-	const std::string model_path = resource_manager.pathForURL(model_URL);
+	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
+	Indigo::MeshRef mesh;
+	Reference<OpenGLMeshRenderData> gl_meshdata;
 
-	if(hasExtension(model_path, "obj"))
+	if(mesh_manager.model_URL_to_mesh_map.count(model_URL) > 0)
 	{
-		MLTLibMaterials mats;
-		Indigo::MeshRef mesh = new Indigo::Mesh();
-		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, false, mats);
+		mesh        = mesh_manager.model_URL_to_mesh_map[model_URL].mesh;
+		gl_meshdata = mesh_manager.model_URL_to_mesh_map[model_URL].gl_meshdata;
+	}
+	else
+	{
+		// Load mesh from disk:
+		const std::string model_path = resource_manager.pathForURL(model_URL);
+		
+		mesh = new Indigo::Mesh();
+
+		if(hasExtension(model_path, "obj"))
+		{
+			MLTLibMaterials mats;
+			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws Indigo::Exception on failure.
+		}
+		else if(hasExtension(model_path, "igmesh"))
+		{
+			try
+			{
+				Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
+			}
+			catch(Indigo::IndigoException& e)
+			{
+				throw Indigo::Exception(toStdString(e.what()));
+			}
+		}
+		else
+			throw Indigo::Exception("unhandled model format: " + model_path);
 
 		checkValidAndSanitiseMesh(*mesh); // Throws Indigo::Exception on invalid mesh.
 
-		GLObjectRef ob = new GLObject();
-		ob->ob_to_world_matrix = ob_to_world_matrix;
-		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+		gl_meshdata = OpenGLEngine::buildIndigoMesh(mesh, /*skip opengl calls=*/false);
 
-		ob->materials.resize(mesh->num_materials_referenced);
-		for(uint32 i=0; i<ob->materials.size(); ++i)
-		{
-			if(i < materials.size())
-			{
-				setGLMaterialFromWorldMaterial(*materials[i], resource_manager, ob->materials[i]);
-			}
-			else
-			{
-				// Assign dummy mat
-				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				ob->materials[i].albedo_tex_path = "obstacle.png";
-				ob->materials[i].roughness = 0.5f;
-			}
-
-			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
-		}
-		mesh_out = mesh;
-		return ob;
-
-		/*MLTLibMaterials mats;
-		Indigo::MeshRef mesh = new Indigo::Mesh();
-		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, true, mats);
-
-		GLObjectRef ob = new GLObject();
-		ob->ob_to_world_matrix = ob_to_world_matrix;
-		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-		ob->materials.resize(mesh->num_materials_referenced);
-		for(uint32 i=0; i<ob->materials.size(); ++i)
-		{
-			// Have we parsed such a material from the .mtl file?
-			bool found_mat = false;
-			for(size_t z=0; z<mats.materials.size(); ++z)
-				if(mats.materials[z].name == toStdString(mesh->used_materials[z]))
-				{
-					ob->materials[i].albedo_rgb = mats.materials[z].Kd;
-					ob->materials[i].albedo_tex_path = mats.materials[z].map_Kd.path;
-					ob->materials[i].phong_exponent = mats.materials[z].Ns_exponent;
-					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
-					found_mat = true;
-				}
-
-			if(!found_mat)
-			{
-				// Assign dummy mat
-				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				ob->materials[i].albedo_tex_path = "obstacle.png";
-				ob->materials[i].phong_exponent = 10.f;
-			}
-		}
-		mesh_out = mesh;
-		return ob;*/
+		// Add to map
+		MeshData mesh_data;
+		mesh_data.mesh = mesh;
+		mesh_data.gl_meshdata = gl_meshdata;
+		mesh_manager.model_URL_to_mesh_map[model_URL] = mesh_data;
 	}
-	else if(hasExtension(model_path, "igmesh"))
+
+	// Make the GLObject
+	GLObjectRef ob = new GLObject();
+	ob->ob_to_world_matrix = ob_to_world_matrix;
+	ob->mesh_data = gl_meshdata;
+
+	ob->materials.resize(mesh->num_materials_referenced);
+	for(uint32 i=0; i<ob->materials.size(); ++i)
 	{
-		try
+		if(i < materials.size())
 		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-			Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
-
-			checkValidAndSanitiseMesh(*mesh);
-			
-			GLObjectRef ob = new GLObject();
-			ob->ob_to_world_matrix = ob_to_world_matrix;
-			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-			ob->materials.resize(mesh->num_materials_referenced);
-			for(uint32 i=0; i<ob->materials.size(); ++i)
-			{
-				if(i < materials.size())
-				{
-					setGLMaterialFromWorldMaterial(*materials[i], resource_manager, ob->materials[i]);
-				}
-				else
-				{
-					// Assign dummy mat
-					ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-					ob->materials[i].albedo_tex_path = "obstacle.png";
-					ob->materials[i].roughness = 0.5f;
-				}
-
-				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
-			}
-			mesh_out = mesh;
-			return ob;
+			setGLMaterialFromWorldMaterial(*materials[i], resource_manager, ob->materials[i]);
 		}
-		catch(Indigo::IndigoException& e)
+		else
 		{
-			throw Indigo::Exception(toStdString(e.what()));
+			// Assign dummy mat
+			ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+			ob->materials[i].albedo_tex_path = "obstacle.png";
+			ob->materials[i].roughness = 0.5f;
 		}
+
+		ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 	}
-	else
-		throw Indigo::Exception("unhandled model format: " + model_path);
+
+	mesh_out = mesh;
+	return ob;
 }
 
 

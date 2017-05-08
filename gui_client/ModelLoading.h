@@ -14,6 +14,25 @@ class Matrix4f;
 class ResourceManager;
 
 
+struct MeshData
+{
+	Indigo::MeshRef mesh;
+	Reference<OpenGLMeshRenderData> gl_meshdata;
+};
+
+
+/*=====================================================================
+MeshManager
+-----------
+Caches meshes and OpenGL data loaded from disk and built.
+=====================================================================*/
+class MeshManager
+{
+public:
+	std::map<std::string, MeshData> model_URL_to_mesh_map;
+};
+
+
 /*=====================================================================
 ModelLoading
 -------------
@@ -33,8 +52,8 @@ public:
 
 	// For when we have materials:
 	// Throws Indigo::Exception on invalid mesh.
-	static GLObjectRef makeGLObjectForModelFile(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
-		ResourceManager& resource_manager,
+	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
+		ResourceManager& resource_manager, MeshManager& mesh_manager,
 		const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out); // throws Indigo::Exception on failure.
 };
 
