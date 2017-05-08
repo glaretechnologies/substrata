@@ -59,7 +59,7 @@
 #include "../indigo/TextureServer.h"
 #include "../indigo/ThreadContext.h"
 #include <clocale>
-#include "../utils/StandardPrintOutput.h"
+
 
 // For tests:
 #include "../physics/TreeTest.h"
@@ -190,7 +190,7 @@ MainWindow::~MainWindow()
 }
 
 
-Reference<GLObject> globe;
+static Reference<GLObject> globe;
 
 
 static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
@@ -380,12 +380,12 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				ui->glWidget->addObject(cube_gl_ob);
 
 				// Make physics object
-				StandardPrintOutput print_output;
-				Indigo::TaskManager task_manager;
 				PhysicsObjectRef physics_ob = makeAABBPhysicsObject(ob_to_world_matrix, print_output, task_manager);
 				ob->physics_object = physics_ob;
 				physics_ob->userdata = ob;
 				physics_world->addObject(physics_ob);
+
+				physics_world->rebuild(task_manager, print_output);
 
 				ob->using_placeholder_model = true;
 			}
@@ -410,12 +410,12 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			ui->glWidget->addObject(gl_ob);
 
 			// Make physics object
-			StandardPrintOutput print_output;
-			Indigo::TaskManager task_manager;
 			PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
 			ob->physics_object = physics_ob;
 			physics_ob->userdata = ob;
 			physics_world->addObject(physics_ob);
+
+			physics_world->rebuild(task_manager, print_output);
 
 			// Load script
 			if(!ob->script_url.empty())
@@ -746,6 +746,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Update in physics engine
 				ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
 				physics_world->updateObjectTransformData(*ob->physics_object);
+
+				// TODO: Update physics world accel structure?
 			}
 		}
 	}
@@ -978,6 +980,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 0), cur_time);
 
 
+	bool need_physics_world_rebuild = false;
+
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 	try
 	{
@@ -996,9 +1000,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(ob->opengl_engine_ob.nonNull())
 						ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
 
-					// Remove physics object  TODO
-					//if(ob->physics_object.nonNull())
-					//	physics_world->removeObject(ob->physics_object);
+					// Remove physics object
+					if(ob->physics_object.nonNull())
+					{
+						physics_world->removeObject(ob->physics_object);
+						need_physics_world_rebuild = true;
+					}
 
 					//// Remove object from object map
 					auto old_object_iterator = it;
@@ -1129,6 +1136,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Update in physics engine
 				ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
 				physics_world->updateObjectTransformData(*ob->physics_object);
+				need_physics_world_rebuild = true;
 
 				it++;
 			}
@@ -1197,6 +1205,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			// Update physics object
 			this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos);
 			this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+			need_physics_world_rebuild = true;
 
 			// Mark as from-local-dirty to send an object transform updated message to the server
 			this->selected_ob->from_local_transform_dirty = true;
@@ -1281,6 +1290,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	ui->glWidget->makeCurrent();
 	ui->glWidget->updateGL();
+
+	if(need_physics_world_rebuild)
+	{
+		//Timer timer;
+		physics_world->rebuild(task_manager, print_output);
+		//conPrint("Physics world rebuild took " + timer.elapsedStringNSigFigs(5));
+	}
 }
 
 
@@ -2038,6 +2054,15 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 }
 
 
+static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
+{
+	for(size_t i=0; i<v.size(); ++i)
+		if(v[i] == p)
+			return true;
+	return false;
+}
+
+
 void MainWindow::updateGroundPlane()
 {
 	// The basic idea is that we want to have a ground-plane quad under the player's feet at all times.
@@ -2053,17 +2078,18 @@ void MainWindow::updateGroundPlane()
 	const int adj_x = (Maths::fract(pos.x / ground_quad_w) < 0.5) ? (cur_x - 1) : (cur_x + 1);
 	const int adj_y = (Maths::fract(pos.y / ground_quad_w) < 0.5) ? (cur_y - 1) : (cur_y + 1);
 
-	std::set<Vec2i> new_quads;
-	new_quads.insert(Vec2i(cur_x, cur_y));
-	new_quads.insert(Vec2i(adj_x, cur_y));
-	new_quads.insert(Vec2i(cur_x, adj_y));
-	new_quads.insert(Vec2i(adj_x, adj_y));
+	SmallVector<Vec2i, 4> new_quads(4);
+	new_quads[0] = Vec2i(cur_x, cur_y);
+	new_quads[1] = Vec2i(adj_x, cur_y);
+	new_quads[2] = Vec2i(cur_x, adj_y);
+	new_quads[3] = Vec2i(adj_x, adj_y);
 
 	// Add any new quad not in ground_quads.
 	for(auto it = new_quads.begin(); it != new_quads.end(); ++it)
 		if(ground_quads.count(*it) == 0)
 		{
 			// Make new quad
+			//conPrint("Added ground quad (" + toString(it->x) + ", " + toString(it->y) + ")");
 
 			GLObjectRef gl_ob = new GLObject();
 			gl_ob->materials.resize(1);
@@ -2093,8 +2119,10 @@ void MainWindow::updateGroundPlane()
 	// Remove any stale ground quads.
 	for(auto it = ground_quads.begin(); it != ground_quads.end();)
 	{
-		if(new_quads.count(it->first) == 0)
+		if(!contains(new_quads, it->first))
 		{
+			//conPrint("Removed ground quad (" + toString(it->first.x) + ", " + toString(it->first.y) + ")");
+
 			// Remove this ground quad as it is not needed any more.
 			ui->glWidget->removeObject(it->second.gl_ob);
 			physics_world->removeObject(it->second.phy_ob);
@@ -2154,9 +2182,6 @@ int main(int argc, char *argv[])
 	//ReferenceTest::run();
 	//Matrix4f::test();
 	//CameraController::test();
-
-	StandardPrintOutput print_output;
-	Indigo::TaskManager task_manager;
 
 	try
 	{
@@ -2359,10 +2384,12 @@ int main(int argc, char *argv[])
 			Geometry::BuildOptions options;
 			options.bih_tri_threshold = 0;
 			options.cache_trees = false;
-			mw.ground_quad_raymesh->build(".", options, print_output, false, task_manager);
+			mw.ground_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
 
 			mw.ground_quad_raymesh->buildJSTris();
 		}
+
+		mw.updateGroundPlane();
 
 
 		// Add a spinning globe
@@ -2455,7 +2482,7 @@ int main(int argc, char *argv[])
 
 				mw.ui->glWidget->addObject(ob);
 
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
 
 			// Load a wedge
@@ -2582,7 +2609,7 @@ int main(int argc, char *argv[])
 
 				mw.ui->glWidget->addObject(ob);
 
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
+				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
 
 
@@ -2607,7 +2634,7 @@ int main(int argc, char *argv[])
 				mw.ui->glWidget->addObject(gl_ob);
 
 				// Create physics object
-				PhysicsObjectRef physics_ob = makePhysicsObject(mesh, gl_ob->ob_to_world_matrix, print_output, task_manager);
+				PhysicsObjectRef physics_ob = makePhysicsObject(mesh, gl_ob->ob_to_world_matrix, mw.print_output, mw.task_manager);
 				mw.physics_world->addObject(physics_ob);
 
 				// Add world object
@@ -2704,7 +2731,7 @@ int main(int argc, char *argv[])
 		}
 
 
-		mw.physics_world->build(task_manager, print_output);
+		mw.physics_world->rebuild(mw.task_manager, mw.print_output);
 
 
 
