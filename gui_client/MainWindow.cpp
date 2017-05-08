@@ -405,12 +405,15 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 			// Make GL object, add to OpenGL engine
 			Indigo::MeshRef mesh;
-			GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, ob_to_world_matrix, mesh);
+			Reference<RayMesh> raymesh;
+			GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, this->task_manager, ob_to_world_matrix, mesh, raymesh);
 			ob->opengl_engine_ob = gl_ob;
 			ui->glWidget->addObject(gl_ob);
 
 			// Make physics object
-			PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
+			Reference<PhysicsObject> physics_ob = new PhysicsObject();
+			physics_ob->geometry = raymesh;
+			physics_ob->ob_to_world = ob_to_world_matrix;
 			ob->physics_object = physics_ob;
 			physics_ob->userdata = ob;
 			physics_world->addObject(physics_ob);

@@ -12,12 +12,16 @@ Copyright Glare Technologies Limited 2016 -
 struct GLObject;
 class Matrix4f;
 class ResourceManager;
+class RayMesh;
+namespace Indigo { class TaskManager; }
 
 
 struct MeshData
 {
 	Indigo::MeshRef mesh;
 	Reference<OpenGLMeshRenderData> gl_meshdata;
+
+	Reference<RayMesh> raymesh;
 };
 
 
@@ -53,7 +57,7 @@ public:
 	// For when we have materials:
 	// Throws Indigo::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
-		ResourceManager& resource_manager, MeshManager& mesh_manager,
-		const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out); // throws Indigo::Exception on failure.
+		ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
+		const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out); // throws Indigo::Exception on failure.
 };
 
