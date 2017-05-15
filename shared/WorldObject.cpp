@@ -11,7 +11,9 @@ Copyright Glare Technologies Limited 2016 -
 #include <FileUtils.h>
 #include <ConPrint.h>
 #include <FileChecksum.h>
+#if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
+#endif
 #include "../gui_client/PhysicsObject.h"
 #include "../gui_client/WinterShaderEvaluator.h"
 #include "../shared/ResourceManager.h"
@@ -26,8 +28,6 @@ WorldObject::WorldObject()
 	from_remote_other_dirty = false;
 	from_local_transform_dirty = false;
 	from_local_other_dirty = false;
-	opengl_engine_ob = NULL;
-	physics_object = NULL;
 	using_placeholder_model = false;
 
 	next_snapshot_i = 0;

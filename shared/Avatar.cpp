@@ -7,8 +7,10 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "Avatar.h"
 
 
+#if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "../gui_client/AvatarGraphics.h"
+#endif
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
 

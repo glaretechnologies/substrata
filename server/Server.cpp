@@ -63,16 +63,22 @@ int main(int argc, char *argv[])
 		const int listen_port = 7600;
 		conPrint("listen port: " + toString(listen_port));
 
+#if _WIN32
+		const std::string server_state_dir = "D:/cyberspace_server_state";
+#else
+		const std::string server_state_dir = "/home/nick/cyberspace_server_state";
+#endif
 
-		const std::string server_resource_dir = "D:/cyberspace_server_state/server_resources";
+		const std::string server_resource_dir = server_state_dir + "/server_resources";
 		conPrint("server_resource_dir: " + server_resource_dir);
+
 
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
 		
 		Server server;
 		server.resource_manager = new ResourceManager(server_resource_dir);
 
-		const std::string server_state_path = "D:/cyberspace_server_state/server_state.bin";
+		const std::string server_state_path = server_state_dir + "/server_state.bin";
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path);
 
