@@ -359,11 +359,18 @@ FILE(GLOB opencl "${INDIGO_TRUNK_DIR_ENV}/opencl/*.cl" "${INDIGO_TRUNK_DIR_ENV}/
 #FILE(GLOB physics "${INDIGO_TRUNK_DIR_ENV}/physics/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/physics/*.h")
 #FILE(GLOB raytracing "${INDIGO_TRUNK_DIR_ENV}/raytracing/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/raytracing/*.h")
 FILE(GLOB hdr "${INDIGO_TRUNK_DIR_ENV}/hdr/*.c" "${INDIGO_TRUNK_DIR_ENV}/hdr/*.h")
-FILE(GLOB simpleraytracer "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.h")
+#FILE(GLOB simpleraytracer "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.h")
 #FILE(GLOB utils "${INDIGO_TRUNK_DIR_ENV}/utils/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/utils/*.h")
 FILE(GLOB scripts "../scripts/*.rb")
 FILE(GLOB double_conversion "${INDIGO_TRUNK_DIR_ENV}/double-conversion/*.cc" "${INDIGO_TRUNK_DIR_ENV}/double-conversion/*.h")
 FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
+
+set(simpleraytracer
+${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/geometry.cpp 
+${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/geometry.h
+${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/raymesh.cpp 
+${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/raymesh.h
+)
 
 set(fft2d "../libs/fft2d/fft4f2d.c")
 
