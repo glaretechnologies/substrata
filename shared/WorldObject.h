@@ -132,8 +132,10 @@ public:
 
 	//Reference<WorldMaterial> material;
 
+#if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
+#endif
 	Reference<WinterShaderEvaluator> script_evaluator;
 
 	

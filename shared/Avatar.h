@@ -67,9 +67,11 @@ public:
 	//bool using_placeholder_model;
 
 	//Reference<GLObject> opengl_engine_ob;
+#if GUI_CLIENT
 	Reference<GLObject> opengl_engine_nametag_ob;
 
 	Reference<AvatarGraphics> graphics;
+#endif
 
 	/*
 		Snapshots for client-side interpolation purposes.

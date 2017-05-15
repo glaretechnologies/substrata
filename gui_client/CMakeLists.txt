@@ -187,6 +187,7 @@ ${xxhash}
 ${qt}
 )
 
+add_definitions(-DGUI_CLIENT=1)
 
 include(../cmake/shared_target_settings.cmake)
 
