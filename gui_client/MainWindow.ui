@@ -49,6 +49,7 @@
      <string>Edit</string>
     </property>
     <addaction name="actionAddObject"/>
+    <addaction name="actionAddHypercard"/>
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
    </widget>
@@ -67,6 +68,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionAddObject"/>
+   <addaction name="actionAddHypercard"/>
   </widget>
   <widget class="QDockWidget" name="chatDockWidget">
    <property name="sizePolicy">
@@ -228,6 +230,11 @@
   <action name="actionLogOut">
    <property name="text">
     <string>LogOut</string>
+   </property>
+  </action>
+  <action name="actionAddHypercard">
+   <property name="text">
+    <string>Add Hypercard</string>
    </property>
   </action>
  </widget>

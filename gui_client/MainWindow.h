@@ -47,6 +47,7 @@ signals:;
 private slots:;
 	void on_actionAvatarSettings_triggered();
 	void on_actionAddObject_triggered();
+	void on_actionAddHypercard_triggered();
 	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
 	void on_actionReset_Layout_triggered();
@@ -69,6 +70,7 @@ private:
 	void deleteSelectedObject();
 	void deselectObject();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
+	GLObjectRef makeHypercardGLObject(const std::string& content);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
 	void print(const std::string& message); // Print to log and console
 
@@ -137,6 +139,9 @@ public:
 		Reference<PhysicsObject> phy_ob;
 	};
 	std::map<Vec2i, GroundQuad> ground_quads;
+
+	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh;
+	Reference<RayMesh> hypercard_quad_raymesh;
 
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;

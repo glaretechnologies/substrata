@@ -28,11 +28,12 @@ public:
 	ObjectEditor(QWidget *parent = 0);
 	~ObjectEditor();
 
-	void setFromObject(const WorldObject& mat, int selected_mat_index);
-	void toObject(WorldObject& mat_out);
+	void setFromObject(const WorldObject& ob, int selected_mat_index);
+	void toObject(WorldObject& ob_out);
 
 	void setControlsEnabled(bool enabled);
 
+	int getSelectedMatIndex() const { return selected_mat_index; }
 protected:
 
 signals:;
