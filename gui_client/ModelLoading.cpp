@@ -10,7 +10,7 @@ Code By Nicholas Chapman.
 #include "../shared/ResourceManager.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../graphics/formatdecoderobj.h"
-#include "../simpleraytracer/RayMesh.h"
+#include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/Exception.h"
