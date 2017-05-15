@@ -23,7 +23,7 @@ class WinterShaderEvaluator;
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 5;
+const uint32 CyberspaceProtocolVersion = 6;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -87,12 +87,20 @@ public:
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
 	void setPosAndHistory(const Vec3d& pos);
 
+	enum ObjectType
+	{
+		ObjectType_Generic,
+		ObjectType_Hypercard
+	};
+
 	UID uid;
+	uint32 object_type;
 	//std::string name;
 	std::string model_url;
 	//std::string material_url;
 	std::vector<WorldMaterialRef> materials;
 	std::string script_url;
+	std::string content; // For ObjectType_Hypercard
 	Vec3d pos;
 	Vec3f axis;
 	float angle;
@@ -119,6 +127,8 @@ public:
 
 	bool using_placeholder_model;
 	std::string loaded_model_url;
+
+	std::string loaded_content;
 
 	//Reference<WorldMaterial> material;
 

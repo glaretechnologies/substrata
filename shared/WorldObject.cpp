@@ -21,6 +21,7 @@ WorldObject::WorldObject()
 {
 	creator_id = UserID::invalidUserID();
 
+	object_type = ObjectType_Generic;
 	from_remote_transform_dirty = false;
 	from_remote_other_dirty = false;
 	from_local_transform_dirty = false;
@@ -216,7 +217,7 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 5;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 7;
 
 
 void writeToStream(const WorldObject& world_ob, OutStream& stream)
@@ -225,6 +226,7 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 	stream.writeUInt32(WORLD_OBJECT_SERIALISATION_VERSION);
 
 	writeToStream(world_ob.uid, stream);
+	stream.writeUInt32((uint32)world_ob.object_type);
 	stream.writeStringLengthFirst(world_ob.model_url);
 
 	// Write materials
@@ -233,6 +235,7 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 		writeToStream(*world_ob.materials[i], stream);
 
 	stream.writeStringLengthFirst(world_ob.script_url);
+	stream.writeStringLengthFirst(world_ob.content);
 
 	writeToStream(world_ob.pos, stream);
 	writeToStream(world_ob.axis, stream);
@@ -252,6 +255,10 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		throw Indigo::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_OBJECT_SERIALISATION_VERSION) + ".");
 
 	ob.uid = readUIDFromStream(stream);
+
+	if(v >= 7)
+		ob.object_type = (WorldObject::ObjectType)stream.readUInt32(); // TODO: handle invalid values?
+
 	ob.model_url = stream.readStringLengthFirst(10000);
 	//if(v >= 2)
 	//	ob.material_url = stream.readStringLengthFirst(10000);
@@ -269,6 +276,9 @@ void readFromStream(InStream& stream, WorldObject& ob)
 
 	if(v >= 4)
 		ob.script_url = stream.readStringLengthFirst(10000);
+
+	if(v >= 6)
+		ob.content = stream.readStringLengthFirst(10000);
 
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);
@@ -299,6 +309,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Write without version
 {
 	writeToStream(world_ob.uid, stream);
+	stream.writeUInt32((uint32)world_ob.object_type);
 	stream.writeStringLengthFirst(world_ob.model_url);
 
 	// Write materials
@@ -307,6 +318,7 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 		writeToStream(*world_ob.materials[i], stream);
 
 	stream.writeStringLengthFirst(world_ob.script_url);
+	stream.writeStringLengthFirst(world_ob.content);
 
 	writeToStream(world_ob.pos, stream);
 	writeToStream(world_ob.axis, stream);
@@ -322,6 +334,7 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 
 void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID will have been read already
 {
+	ob.object_type = (WorldObject::ObjectType)stream.readUInt32(); // TODO: handle invalid values?
 	ob.model_url = stream.readStringLengthFirst(10000);
 	//if(v >= 2)
 	{
@@ -336,6 +349,7 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 	}
 
 	ob.script_url = stream.readStringLengthFirst(10000);
+	ob.content = stream.readStringLengthFirst(10000);
 
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);

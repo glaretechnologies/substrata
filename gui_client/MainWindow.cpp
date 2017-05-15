@@ -88,7 +88,7 @@ const int server_port = 7600;
 
 AvatarGraphicsRef test_avatar;
 //Reference<WorldObject> test_object;
-static const double ground_quad_w = 1000.f;
+static const double ground_quad_w = 100.f;
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -403,21 +403,40 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 			ob->using_placeholder_model = false;
 
-			// Make GL object, add to OpenGL engine
-			Indigo::MeshRef mesh;
-			Reference<RayMesh> raymesh;
-			GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, this->task_manager, ob_to_world_matrix, mesh, raymesh);
+			
+			GLObjectRef gl_ob;
+			Reference<PhysicsObject> physics_ob;
+
+			if(ob->object_type == WorldObject::ObjectType_Hypercard)
+			{
+				physics_ob = new PhysicsObject();
+				physics_ob->geometry = this->hypercard_quad_raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+
+				gl_ob = makeHypercardGLObject(ob->content);
+				gl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->loaded_content = ob->content;
+			}
+			else
+			{
+				// Make GL object, add to OpenGL engine
+				Indigo::MeshRef mesh;
+				Reference<RayMesh> raymesh;
+				gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, this->task_manager, ob_to_world_matrix, mesh, raymesh);
+				
+				// Make physics object
+				physics_ob = new PhysicsObject();
+				physics_ob->geometry = raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+			}
+
 			ob->opengl_engine_ob = gl_ob;
 			ui->glWidget->addObject(gl_ob);
 
-			// Make physics object
-			Reference<PhysicsObject> physics_ob = new PhysicsObject();
-			physics_ob->geometry = raymesh;
-			physics_ob->ob_to_world = ob_to_world_matrix;
 			ob->physics_object = physics_ob;
 			physics_ob->userdata = ob;
 			physics_world->addObject(physics_ob);
-
 			physics_world->rebuild(task_manager, print_output);
 
 			// Load script
@@ -1021,8 +1040,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(ob->opengl_engine_ob.isNull())
 						reload_opengl_model = true;
 
-					if(ob->loaded_model_url != ob->model_url)
-						reload_opengl_model = true;
+					if(ob->object_type == WorldObject::ObjectType_Generic)
+					{
+						if(ob->loaded_model_url != ob->model_url)
+							reload_opengl_model = true;
+					}
+					else if(ob->object_type == WorldObject::ObjectType_Hypercard)
+					{
+						reload_opengl_model = ob->loaded_content != ob->content;
+					}
 
 					if(reload_opengl_model)
 					{
@@ -1499,6 +1525,38 @@ void MainWindow::on_actionAddObject_triggered()
 }
 
 
+void MainWindow::on_actionAddHypercard_triggered()
+{
+	const float quad_w = 0.4f;
+	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+		this->cam_controller.getUpVec() * quad_w * 0.5f -
+		this->cam_controller.getRightVec() * quad_w * 0.5f;
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_Hypercard;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = this->cam_controller.getAngles().x - Maths::pi_2<float>();
+	new_world_object->scale = Vec3f(0.4f);
+	new_world_object->content = "Select the object to edit this text";
+
+
+	// Send CreateObject message to server
+	{
+		SocketBufferOutStream packet;
+
+		packet.writeUInt32(CreateObject);
+		writeToNetworkStream(*new_world_object, packet);
+
+		std::string packet_string(packet.buf.size(), '\0');
+		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+		this->client_thread->enqueueDataToSend(packet_string);
+	}
+}
+
+
 void MainWindow::on_actionCloneObject_triggered()
 {
 	if(this->selected_ob.nonNull())
@@ -1713,27 +1771,52 @@ void MainWindow::objectEditedSlot()
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
-		// Update in opengl engine.
-		GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
-		if(opengl_ob.nonNull())
-		{
-			if(!opengl_ob->materials.empty())
-			{
-				opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
 
-				for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-					ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager, 
-						opengl_ob->materials[i]
-					);
+		const Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
+			Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
+			Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
+
+		GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
+
+		// Update in opengl engine.
+		if(this->selected_ob->object_type == WorldObject::ObjectType_Generic)
+		{
+			// Update materials
+			if(opengl_ob.nonNull())
+			{
+				if(!opengl_ob->materials.empty())
+				{
+					opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+
+					for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
+						ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager,
+							opengl_ob->materials[i]
+						);
+				}
+			}
+
+			ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
+		}
+		else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
+		{
+			if(selected_ob->content != selected_ob->loaded_content)
+			{
+				if(opengl_ob.nonNull()) ui->glWidget->removeObject(opengl_ob);
+
+				// Re-create opengl-ob
+				ui->glWidget->makeCurrent();
+
+				opengl_ob = makeHypercardGLObject(selected_ob->content);
+				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+				selected_ob->opengl_engine_ob = opengl_ob;
+				ui->glWidget->addObject(opengl_ob);
+
+				selected_ob->loaded_content = selected_ob->content;
 			}
 		}
 
-		ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
-
 		// Update transform of OpenGL object
-		opengl_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) * 
-				Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) * 
-				Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
+		opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
 
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
@@ -1896,10 +1979,11 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 }
 
 
+// Rotate selected object.
 void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 {
 	// Rotate object clockwise around z axis
-	const Matrix3f rot_matrix = Matrix3f::rotationMatrix(ob->axis, selected_ob->angle);
+	const Matrix3f rot_matrix = Matrix3f::rotationMatrix(normalise(ob->axis), selected_ob->angle);
 	const Matrix3f new_rot = Matrix3f::rotationMatrix(toVec3f(axis), angle) * rot_matrix;
 	new_rot.rotationMatrixToAxisAngle(ob->axis, this->selected_ob->angle);
 
@@ -1914,6 +1998,9 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 	// Update physics object
 	ob->physics_object->ob_to_world = new_ob_to_world;
 	this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+
+	// Update object values in editor
+	ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
 }
 
 
@@ -2044,6 +2131,42 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	painter.setPen(QPen(QColor(30, 30, 30)));
 	painter.setFont(QFont("Times", 24, QFont::Bold));
 	painter.drawText(image.rect(), Qt::AlignCenter, QtUtils::toQString(nametag));
+
+	// Copy to map
+	for(int y=0; y<H; ++y)
+	{
+		const QRgb* line = (const QRgb*)image.scanLine(y);
+		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
+	}
+
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
+	return gl_ob;
+}
+
+
+GLObjectRef MainWindow::makeHypercardGLObject(const std::string& content)
+{
+	// conPrint("makeHypercardGLObject(), content: " + content);
+	const int W = 512;
+	const int H = 512;
+
+	if(this->hypercard_quad_opengl_mesh.isNull())
+		this->hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
+
+	GLObjectRef gl_ob = new GLObject();
+	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+	gl_ob->materials.resize(1);
+
+	// Make hypercard texture
+
+	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
+
+	QImage image(W, H, QImage::Format_RGB888);
+	image.fill(QColor(220, 220, 220));
+	QPainter painter(&image);
+	painter.setPen(QPen(QColor(30, 30, 30)));
+	painter.setFont(QFont("Times", 30, QFont::Bold));
+	painter.drawText(image.rect(), Qt::AlignCenter, QtUtils::toQString(content));
 
 	// Copy to map
 	for(int y=0; y<H; ++y)
@@ -2393,6 +2516,28 @@ int main(int argc, char *argv[])
 		}
 
 		mw.updateGroundPlane();
+
+
+		// Make hypercard physics mesh
+		{
+			mw.hypercard_quad_raymesh = new RayMesh("quad", false);
+			mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 0));
+			mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 0));
+			mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 1));
+			mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 1));
+
+			unsigned int uv_i[] ={ 0, 0, 0, 0 };
+			unsigned int v_i[]  ={ 0, 3, 2, 1 };
+			mw.hypercard_quad_raymesh->addQuad(v_i, uv_i, 0);
+
+			mw.hypercard_quad_raymesh->buildTrisFromQuads();
+			Geometry::BuildOptions options;
+			options.bih_tri_threshold = 0;
+			options.cache_trees = false;
+			mw.hypercard_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
+
+			mw.hypercard_quad_raymesh->buildJSTris();
+		}
 
 
 		// Add a spinning globe

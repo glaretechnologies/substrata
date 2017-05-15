@@ -43,6 +43,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->modelFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->scriptFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 
+	connect(this->contentTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
+
 	connect(this->scaleXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->scaleYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->scaleZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -73,6 +75,11 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	this->modelFileSelectWidget->setFilename(QtUtils::toQString(ob.model_url));
 	this->scriptFileSelectWidget->setFilename(QtUtils::toQString(ob.script_url));
 
+	{
+		SignalBlocker b(this->contentTextEdit);
+		this->contentTextEdit->setText(QtUtils::toQString(ob.content));
+	}
+
 	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
 	SignalBlocker::setValue(this->scaleYDoubleSpinBox, ob.scale.y);
 	SignalBlocker::setValue(this->scaleZDoubleSpinBox, ob.scale.z);
@@ -87,9 +94,16 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		selected_mat = ob.materials[selected_mat_index];
 	else
 		selected_mat = new WorldMaterial();
-		
-
-	this->matEditor->setFromMaterial(*selected_mat);
+	
+	if(ob.object_type == WorldObject::ObjectType_Hypercard)
+	{
+		this->matEditor->hide();
+	}
+	else
+	{
+		this->matEditor->show();
+		this->matEditor->setFromMaterial(*selected_mat);
+	}
 }
 
 
@@ -97,6 +111,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 {
 	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
 	ob_out.script_url = QtUtils::toIndString(this->scriptFileSelectWidget->filename());
+	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
 
 	ob_out.scale.x = (float)this->scaleXDoubleSpinBox->value();
 	ob_out.scale.y = (float)this->scaleYDoubleSpinBox->value();
