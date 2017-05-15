@@ -116,6 +116,11 @@ void WorkerThread::doRun()
 			socket->writeUInt32(ClientProtocolTooOld);
 			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too old, require version " + toString(CyberspaceProtocolVersion) + ".  Please update your client.");
 		}
+		else if(client_version > CyberspaceProtocolVersion)
+		{
+			socket->writeUInt32(ClientProtocolTooNew);
+			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too new, require version " + toString(CyberspaceProtocolVersion) + ".  Please update your client.");
+		}
 		else
 		{
 			socket->writeUInt32(ClientProtocolOK);
