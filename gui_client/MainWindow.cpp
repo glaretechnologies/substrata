@@ -2165,8 +2165,9 @@ GLObjectRef MainWindow::makeHypercardGLObject(const std::string& content)
 	image.fill(QColor(220, 220, 220));
 	QPainter painter(&image);
 	painter.setPen(QPen(QColor(30, 30, 30)));
-	painter.setFont(QFont("Times", 30, QFont::Bold));
-	painter.drawText(image.rect(), Qt::AlignCenter, QtUtils::toQString(content));
+	painter.setFont(QFont("helvetica", 30, QFont::Normal));
+	const int padding = 20;
+	painter.drawText(QRect(padding, padding, W - padding*2, H - padding*2), Qt::AlignLeft/* | Qt::AlignVCenter*/, QtUtils::toQString(content));
 
 	// Copy to map
 	for(int y=0; y<H; ++y)
