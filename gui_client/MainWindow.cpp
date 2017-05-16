@@ -88,7 +88,7 @@ const int server_port = 7600;
 
 AvatarGraphicsRef test_avatar;
 //Reference<WorldObject> test_object;
-static const double ground_quad_w = 100.f;
+static const double ground_quad_w = 1000.f;
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -2395,16 +2395,17 @@ int main(int argc, char *argv[])
 
 
 		//TEMP: make an arrow
+		const Vec4f arrow_origin(0, 0, 0.05f, 1);
 		{
-			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(Vec4f(1,1,1,1), Vec4f(2,1,1,1), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
+			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
 			mw.ui->glWidget->opengl_engine->addObject(arrow);
 		}
 		{
-			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(Vec4f(1,1,1,1), Vec4f(1,2,1,1), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
+			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
 			mw.ui->glWidget->opengl_engine->addObject(arrow);
 		}
 		{
-			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(Vec4f(1,1,1,1), Vec4f(1,1,2,1), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
+			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 			mw.ui->glWidget->opengl_engine->addObject(arrow);
 		}
 
@@ -2484,19 +2485,37 @@ int main(int argc, char *argv[])
 		{
 			// Build Indigo::Mesh
 			mw.ground_quad_mesh = new Indigo::Mesh();
-			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(0,             0,             0), Indigo::Vec3f(0,0,1));
-			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(ground_quad_w, 0,             0), Indigo::Vec3f(0,0,1));
-			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(ground_quad_w, ground_quad_w, 0), Indigo::Vec3f(0,0,1));
-			mw.ground_quad_mesh->addVertex(Indigo::Vec3f(0,             ground_quad_w, 0), Indigo::Vec3f(0,0,1));
-			
 			mw.ground_quad_mesh->num_uv_mappings = 1;
-			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,0)));
-			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(ground_quad_w, 0)));
-			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(ground_quad_w, ground_quad_w)));
-			mw.ground_quad_mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0, ground_quad_w)));
-			
-			uint32 indices[] = {0, 1, 2, 3};
-			mw.ground_quad_mesh->addQuad(indices, indices, 0);
+
+			// Tessalate ground mesh, to avoid texture shimmer due to large quads.
+			const int N = 10;
+			mw.ground_quad_mesh->vert_positions.reserve(N * N);
+			mw.ground_quad_mesh->vert_normals.reserve(N * N);
+			mw.ground_quad_mesh->uv_pairs.reserve(N * N);
+			mw.ground_quad_mesh->quads.reserve(N * N);
+
+			for(int y=0; y<N; ++y)
+			{
+				const float v = (float)y/((float)N - 1);
+				for(int x=0; x<N; ++x)
+				{
+					const float u = (float)x/((float)N - 1);
+					mw.ground_quad_mesh->vert_positions.push_back(Indigo::Vec3f(u * ground_quad_w, v * ground_quad_w, 0.f));
+					mw.ground_quad_mesh->vert_normals.push_back(Indigo::Vec3f(0, 0, 1));
+					mw.ground_quad_mesh->uv_pairs.push_back(Indigo::Vec2f(u * ground_quad_w, v * ground_quad_w));
+
+					if(x < N-1 && y < N-1)
+					{
+						mw.ground_quad_mesh->quads.push_back(Indigo::Quad());
+						mw.ground_quad_mesh->quads.back().mat_index = 0;
+						mw.ground_quad_mesh->quads.back().vertex_indices[0] = mw.ground_quad_mesh->quads.back().uv_indices[0] = y    *N + x;
+						mw.ground_quad_mesh->quads.back().vertex_indices[1] = mw.ground_quad_mesh->quads.back().uv_indices[1] = y    *N + x+1;
+						mw.ground_quad_mesh->quads.back().vertex_indices[2] = mw.ground_quad_mesh->quads.back().uv_indices[2] = (y+1)*N + x+1;
+						mw.ground_quad_mesh->quads.back().vertex_indices[3] = mw.ground_quad_mesh->quads.back().uv_indices[3] = (y+1)*N + x;
+					}
+				}
+			}
+
 			mw.ground_quad_mesh->endOfModel();
 
 			// Build OpenGLMeshRenderData
