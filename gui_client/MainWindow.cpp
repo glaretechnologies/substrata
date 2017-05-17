@@ -2010,9 +2010,9 @@ void MainWindow::deleteSelectedObject()
 {
 	if(this->selected_ob.nonNull())
 	{
-		// Send ObjectDestroyed packet
+		// Send DestroyObject packet
 		SocketBufferOutStream packet;
-		packet.writeUInt32(ObjectDestroyed);
+		packet.writeUInt32(DestroyObject);
 		writeToStream(selected_ob->uid, packet);
 
 		std::string packet_string(packet.buf.size(), '\0');

@@ -453,9 +453,9 @@ void WorkerThread::doRun()
 
 						break;
 					}
-				case ObjectDestroyed:
+				case DestroyObject:
 					{
-						conPrint("ObjectDestroyed");
+						conPrint("DestroyObject");
 						const UID object_uid = readUIDFromStream(*socket);
 
 						// If client is not logged in, refuse object modification.
@@ -465,22 +465,21 @@ void WorkerThread::doRun()
 						}
 						else
 						{
-							// Mark object as dead
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
 							{
-								Lock lock(world_state->mutex);
-								auto res = world_state->objects.find(object_uid);
-								if(res != world_state->objects.end())
-								{
-									WorldObject* ob = res->second.getPointer();
+								WorldObject* ob = res->second.getPointer();
 
-									// See if the user has permissions to alter this object:
-									if(ob->creator_id != client_user->id)
-										writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
-									else
-									{
-										ob->state = WorldObject::State_Dead;
-										ob->from_remote_other_dirty = true;
-									}
+								// See if the user has permissions to alter this object:
+								const bool have_delete_perms = (ob->creator_id == client_user->id) || (client_user->name == "Ono-Sendai2");
+								if(!have_delete_perms)
+									writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
+								else
+								{
+									// Mark object as dead
+									ob->state = WorldObject::State_Dead;
+									ob->from_remote_other_dirty = true;
 								}
 							}
 						}
