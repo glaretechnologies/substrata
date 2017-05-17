@@ -23,7 +23,7 @@ class WinterShaderEvaluator;
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 6;
+const uint32 CyberspaceProtocolVersion = 7;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -42,6 +42,7 @@ const uint32 ObjectTransformUpdate	= 3002;
 const uint32 ObjectFullUpdate		= 3003;
 
 const uint32 CreateObject			= 3004; // Client wants to create an object.
+const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
 
 
 //TEMP HACK move elsewhere
