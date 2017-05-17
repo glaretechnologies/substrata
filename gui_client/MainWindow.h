@@ -70,7 +70,7 @@ private:
 	void deleteSelectedObject();
 	void deselectObject();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
-	GLObjectRef makeHypercardGLObject(const std::string& content);
+	Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& content);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
 	void print(const std::string& message); // Print to log and console
 
