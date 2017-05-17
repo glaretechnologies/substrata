@@ -413,7 +413,10 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				physics_ob->geometry = this->hypercard_quad_raymesh;
 				physics_ob->ob_to_world = ob_to_world_matrix;
 
-				gl_ob = makeHypercardGLObject(ob->content);
+				gl_ob = new GLObject();
+				gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+				gl_ob->materials.resize(1);
+				gl_ob->materials[0].albedo_texture = makeHypercardTexMap(ob->content);
 				gl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 				ob->loaded_content = ob->content;
@@ -1801,15 +1804,14 @@ void MainWindow::objectEditedSlot()
 		{
 			if(selected_ob->content != selected_ob->loaded_content)
 			{
-				if(opengl_ob.nonNull()) ui->glWidget->removeObject(opengl_ob);
-
 				// Re-create opengl-ob
 				ui->glWidget->makeCurrent();
 
-				opengl_ob = makeHypercardGLObject(selected_ob->content);
+				opengl_ob->materials.resize(1);
+				opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content);
+
 				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
 				selected_ob->opengl_engine_ob = opengl_ob;
-				ui->glWidget->addObject(opengl_ob);
 
 				selected_ob->loaded_content = selected_ob->content;
 			}
@@ -2144,18 +2146,11 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 }
 
 
-GLObjectRef MainWindow::makeHypercardGLObject(const std::string& content)
+Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& content)
 {
 	// conPrint("makeHypercardGLObject(), content: " + content);
 	const int W = 512;
 	const int H = 512;
-
-	if(this->hypercard_quad_opengl_mesh.isNull())
-		this->hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
-
-	GLObjectRef gl_ob = new GLObject();
-	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-	gl_ob->materials.resize(1);
 
 	// Make hypercard texture
 
@@ -2176,8 +2171,7 @@ GLObjectRef MainWindow::makeHypercardGLObject(const std::string& content)
 		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
 	}
 
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
-	return gl_ob;
+	return ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
 }
 
 
@@ -2559,6 +2553,8 @@ int main(int argc, char *argv[])
 			mw.hypercard_quad_raymesh->buildJSTris();
 		}
 
+
+		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
 
 		// Add a spinning globe
 		/*{
