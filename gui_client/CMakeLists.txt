@@ -19,6 +19,7 @@ addMocFileRule(gui_client LoginDialog)
 addMocFileRule(gui_client SignUpDialog)
 addMocFileRule(gui_client MaterialEditor)
 addMocFileRule(gui_client UserDetailsWidget)
+addMocFileRule(gui_client URLWidget)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -34,6 +35,7 @@ addUIFileRule(gui_client LoginDialog)
 addUIFileRule(gui_client SignUpDialog)
 addUIFileRule(gui_client MaterialEditor)
 addUIFileRule(gui_client UserDetailsWidget)
+addUIFileRule(gui_client URLWidget)
 
 addUIFileRule(qt FileSelectWidget)
 addUIFileRule(qt RealControl)
@@ -55,6 +57,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialEditor.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_LoginDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_SignUpDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_UserDetailsWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_URLWidget.cpp
+
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ObjectEditor.h
@@ -63,6 +67,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_LoginDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_SignUpDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_UserDetailsWidget.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_URLWidget.h
 )
 
 SET(qt 

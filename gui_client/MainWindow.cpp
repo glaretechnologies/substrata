@@ -21,6 +21,7 @@
 #include "WinterShaderEvaluator.h"
 #include "LoginDialog.h"
 #include "SignUpDialog.h"
+#include "URLWidget.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
@@ -50,6 +51,7 @@
 #include "../utils/StringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
+#include "../utils/Parser.h"
 #include "../networking/networking.h"
 
 #include "../graphics/formatdecoderobj.h"
@@ -105,11 +107,19 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	// Add a space to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
 	QWidget* spacer = new QWidget();
-	spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+	spacer->setMinimumWidth(200);
+	spacer->setMaximumWidth(200);
+	//spacer->setGeometry(QRect()
+	//spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	ui->toolBar->addWidget(spacer);
+
+	url_widget = new URLWidget(this);
+	ui->toolBar->addWidget(url_widget);
 
 	user_details = new UserDetailsWidget(this);
 	ui->toolBar->addWidget(user_details);
+
+	
 	
 	// Open Log File
 	const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
@@ -138,6 +148,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
+	connect(url_widget, SIGNAL(URLChanged()), this, SLOT(URLChangedSlot()));
 
 	this->resources_dir = appdata_path + "/resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
 	FileUtils::createDirIfDoesNotExist(this->resources_dir);
@@ -468,6 +479,10 @@ void MainWindow::print(const std::string& message) // Print to log and console
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	updateGroundPlane();
+
+	// Update URL Bar
+	if(!this->url_widget->hasFocus())
+		this->url_widget->setURL("cyb://" + server_hostname + "?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().x, 1) + "&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().y, 1));
 
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
 	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
@@ -1830,6 +1845,68 @@ void MainWindow::objectEditedSlot()
 			loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
 			this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 		}
+	}
+}
+
+
+void MainWindow::URLChangedSlot()
+{
+	// Set the play position to the coordinates in the URL
+	try
+	{
+		const std::string URL = this->url_widget->getURL();
+		Parser parser(URL.c_str(), (unsigned int)URL.size());
+		// Parse protocol
+		string_view protocol;
+		parser.parseAlphaToken(protocol);
+		if(protocol != "cyb")
+			throw Indigo::Exception("Unhandled protocol scheme '" + protocol + "'.");
+		if(!parser.parseString("://"))
+			throw Indigo::Exception("Expected '://' after protocol scheme.");
+
+		string_view host;
+		//parser.parseAlphaToken(host);
+
+		parser.parseToCharOrEOF('?', host);
+		
+		// TEMP: ignore host for now.
+
+		if(!parser.parseChar('?'))
+			throw Indigo::Exception("Expected '?' after host.");
+
+		if(!parser.parseChar('x'))
+			throw Indigo::Exception("Expected 'x' after '?'.");
+
+		if(!parser.parseChar('='))
+			throw Indigo::Exception("Expected '=' after 'x'.");
+
+		double x, y;
+		if(!parser.parseDouble(x))
+			throw Indigo::Exception("Failed to parse x coord.");
+
+		if(!parser.parseChar('&'))
+			throw Indigo::Exception("Expected '&' after x coodinate.");
+
+		if(!parser.parseChar('y'))
+			throw Indigo::Exception("Expected 'y' after '?'.");
+
+		if(!parser.parseChar('='))
+			throw Indigo::Exception("Expected '=' after 'y'.");
+
+		if(!parser.parseDouble(y))
+			throw Indigo::Exception("Failed to parse y coord.");
+
+		conPrint("x: " + toString(x) + ", y: " + toString(y));
+
+		this->cam_controller.setPosition(Vec3d(x, y, 2));
+	}
+	catch(Indigo::Exception& e)
+	{
+		conPrint(e.what());
+		QMessageBox msgBox;
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
+
 	}
 }
 
