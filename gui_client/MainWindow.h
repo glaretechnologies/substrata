@@ -26,6 +26,7 @@ namespace Ui { class MainWindow; }
 class TextureServer;
 class QSettings;
 class UserDetailsWidget;
+class URLWidget;
 
 
 class MainWindow : public QMainWindow
@@ -64,6 +65,7 @@ private slots:;
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 
 	void objectEditedSlot();
+	void URLChangedSlot();
 private:
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
@@ -123,6 +125,7 @@ public:
 	std::ofstream logfile;
 
 	UserDetailsWidget* user_details;
+	URLWidget* url_widget;
 
 	bool connected_to_server;
 	UserID logged_in_user_id;
