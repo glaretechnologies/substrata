@@ -150,7 +150,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
 	connect(url_widget, SIGNAL(URLChanged()), this, SLOT(URLChangedSlot()));
 
-	this->resources_dir = appdata_path + "/resources"; // "./resources_" + toString(PlatformUtils::getProcessID());
+	this->resources_dir = appdata_path + "/resources";
+	//this->resources_dir = appdata_path + "/resources_" + toString(PlatformUtils::getProcessID());
 	FileUtils::createDirIfDoesNotExist(this->resources_dir);
 
 	print("resources_dir: " + resources_dir);
@@ -686,6 +687,39 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						print("Could not upload resource with URL '" + m->URL + "' to server, not present on client.");
 				}
 			}
+			else if(dynamic_cast<const NewResourceOnServerMessage*>(msg.getPointer()))
+			{
+				const NewResourceOnServerMessage* m = static_cast<const NewResourceOnServerMessage*>(msg.getPointer());
+
+				conPrint("Got NewResourceOnServerMessage, URL: " + m->URL);
+
+				if(ResourceManager::isValidURL(m->URL))
+				{
+					const std::string path = resource_manager->pathForURL(m->URL);
+					if(!FileUtils::fileExists(path)) // If we don't have this file already:
+					{
+						// Iterate over objects and see if they were using a placeholder model for this resource.
+						Lock lock(this->world_state->mutex);
+						bool need_resource = false;
+						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						{
+							WorldObject* ob = it->second.getPointer();
+							//if(ob->using_placeholder_model)
+							{
+								std::set<std::string> URL_set;
+								ob->getDependencyURLSet(URL_set);
+								need_resource = need_resource || (URL_set.count(m->URL) != 0);
+							}
+						}
+
+						if(need_resource)
+						{
+							conPrint("Need resource, downloading: " + m->URL);
+							this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(m->URL));
+						}
+					}
+				}
+			}
 			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
 			{
 				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
@@ -699,7 +733,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						WorldObject* ob = it->second.getPointer();
 
-						if(ob->using_placeholder_model)
+						//if(ob->using_placeholder_model)
 						{
 							std::set<std::string> URL_set;
 							ob->getDependencyURLSet(URL_set);

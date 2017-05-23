@@ -606,6 +606,24 @@ void WorkerThread::doRun()
 								FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
 
 								conPrint("Written to disk at '" + path + "'.");
+
+
+								// Send NewResourceOnServer message to connected clients
+								{
+									SocketBufferOutStream packet;
+									packet.writeUInt32(NewResourceOnServer);
+									packet.writeStringLengthFirst(URL);
+
+									std::string packet_string(packet.buf.size(), '\0');
+									std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+									Lock lock(server->worker_thread_manager.getMutex());
+									for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
+									{
+										assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+										static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+									}
+								}
 							}
 						}
 

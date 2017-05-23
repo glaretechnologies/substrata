@@ -377,6 +377,15 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new GetFileMessage(model_url));
 						break;
 					}
+				case NewResourceOnServer:
+					{
+						conPrint("Received NewResourceOnServer message from server.");
+						const std::string url = socket->readStringLengthFirst(MAX_STRING_LEN);
+						conPrint("url: '" + url + "'");
+
+						out_msg_queue->enqueue(new NewResourceOnServerMessage(url));
+						break;
+					}
 				case ChatMessageID:
 					{
 						conPrint("ChatMessage");

@@ -48,6 +48,8 @@ const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
 //TEMP HACK move elsewhere
 const uint32 GetFile				= 4000;
 
+const uint32 NewResourceOnServer	= 4100; // A file has been uploaded to the server
+
 
 
 //TEMP HACK move elsewhere
