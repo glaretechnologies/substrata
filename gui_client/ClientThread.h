@@ -40,6 +40,15 @@ public:
 };
 
 
+// When the server has file uploaded to it, it will send a message to clients, so they can download it.
+class NewResourceOnServerMessage : public ThreadMessage
+{
+public:
+	NewResourceOnServerMessage(const std::string& URL_) : URL(URL_) {}
+	std::string URL;
+};
+
+
 class UserSelectedObjectMessage : public ThreadMessage
 {
 public:
