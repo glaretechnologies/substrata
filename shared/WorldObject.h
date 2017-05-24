@@ -23,7 +23,7 @@ class WinterShaderEvaluator;
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 7;
+const uint32 CyberspaceProtocolVersion = 8;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
