@@ -7,6 +7,7 @@ Code By Nicholas Chapman.
 #include "WorkerThread.h"
 
 
+#include "../shared/Protocol.h"
 #include "../shared/UID.h"
 #include <vec3.h>
 #include <ConPrint.h>

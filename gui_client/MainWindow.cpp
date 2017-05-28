@@ -22,6 +22,7 @@
 #include "LoginDialog.h"
 #include "SignUpDialog.h"
 #include "URLWidget.h"
+#include "../shared/Protocol.h"
 //#include "IndigoApplication.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
@@ -170,8 +171,6 @@ void MainWindow::initialise()
 	
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 	ui->infoDockWidget->hide();
-
-	//this->ui->helpInfoDockWidget->hide();
 
 	// Update help text
 	this->ui->helpInfoLabel->setText("Use the W/A/S/D keys to move around.\n"
@@ -477,9 +476,56 @@ void MainWindow::print(const std::string& message) // Print to log and console
 }
 
 
+void MainWindow::showErrorNotification(const std::string& message)
+{
+	QLabel* label = new QLabel(ui->notificationContainer);
+	label->setText(QtUtils::toQString(message));
+	label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+	label->setStyleSheet("QLabel { padding: 6px; background-color : rgb(255, 200, 200); }");
+
+	ui->notificationContainer->layout()->addWidget(label);
+
+	Notification n;
+	n.creation_time = Clock::getTimeSinceInit();
+	n.label = label;
+	notifications.push_back(n);
+
+	if(notifications.size() == 1)
+		ui->infoDockWidget->show();
+}
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
+	const double cur_time = Clock::getTimeSinceInit();
+
 	updateGroundPlane();
+
+	//------------- Check to see if we should remove any old notifications ------------
+	const double notification_display_time = 5;
+	for(auto it = notifications.begin(); it != notifications.end();)
+	{
+		if(cur_time >  it->creation_time + notification_display_time)
+		{
+			// Remove the notification
+			ui->notificationContainer->layout()->removeWidget(it->label);
+			it->label->deleteLater();
+			it = notifications.erase(it); // remove from list
+
+			// Make the info dock widget resize.  See https://stackoverflow.com/a/30472749/7495926
+			QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+			ui->infoDockWidget->resize(ui->infoDockWidget->sizeHint());
+
+			// Hide the info dock widget if there are no remaining widgets.
+			if(notifications.empty())
+				ui->infoDockWidget->hide();
+		}		
+		else
+			++it;
+	}
+
+
 
 	// Update URL Bar
 	if(!this->url_widget->hasFocus())
@@ -488,17 +534,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
 	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
 	{
-		conPrint("Positioning ui->infoDockWidget at " + toString(gl_pos.x()) + ", " + toString(gl_pos.y()));
-		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 30);
+		// conPrint("Positioning ui->infoDockWidget at " + toString(gl_pos.x()) + ", " + toString(gl_pos.y()));
+		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 1);
 	}
 	
 
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
-	const double cur_time = Clock::getTimeSinceInit();
-
-
+	
 	//if(test_avatar.nonNull())
 	//	test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.f, cur_time);
 
@@ -1237,9 +1281,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			// Display an error message if we have not already done so since selecting this object.
 			if(!shown_object_modification_error_msg)
 			{
-				QMessageBox msgBox;
-				msgBox.setText("You must be logged in to modify an object.");
-				msgBox.exec();
+				showErrorNotification("You must be logged in to modify an object.");
 				shown_object_modification_error_msg = true;
 			}
 		}
@@ -1252,9 +1294,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Display an error message if we have not already done so since selecting this object.
 				if(!shown_object_modification_error_msg)
 				{
-					QMessageBox msgBox;
-					msgBox.setText("You must be the owner of this object to modify it.");
-					msgBox.exec();
+					showErrorNotification("You must be the owner of this object to modify it.");
 					shown_object_modification_error_msg = true;
 				}
 			}
@@ -1930,9 +1970,29 @@ void MainWindow::URLChangedSlot()
 		if(!parser.parseDouble(y))
 			throw Indigo::Exception("Failed to parse y coord.");
 
-		conPrint("x: " + toString(x) + ", y: " + toString(y));
+		double z = 2;
+		if(parser.currentIsChar('&'))
+		{
+			parser.advance();
 
-		this->cam_controller.setPosition(Vec3d(x, y, 2));
+			string_view URL_arg_name;
+			if(!parser.parseToChar('=', URL_arg_name))
+				throw Indigo::Exception("Failed to parse URL argument after &");
+			if(URL_arg_name == "z")
+			{
+				if(!parser.parseChar('='))
+					throw Indigo::Exception("Expected '=' after 'z'.");
+
+				if(!parser.parseDouble(z))
+					throw Indigo::Exception("Failed to parse z coord.");
+			}
+			else
+				throw Indigo::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
+		}
+
+		conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
+
+		this->cam_controller.setPosition(Vec3d(x, y, z));
 	}
 	catch(Indigo::Exception& e)
 	{
@@ -1940,7 +2000,6 @@ void MainWindow::URLChangedSlot()
 		QMessageBox msgBox;
 		msgBox.setText(QtUtils::toQString(e.what()));
 		msgBox.exec();
-
 	}
 }
 

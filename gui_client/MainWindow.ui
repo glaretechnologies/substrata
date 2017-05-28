@@ -152,19 +152,28 @@
     <number>4</number>
    </attribute>
    <widget class="QWidget" name="infoDockWidgetContents">
-    <widget class="QLabel" name="label">
-     <property name="geometry">
-      <rect>
-       <x>220</x>
-       <y>0</y>
-       <width>47</width>
-       <height>13</height>
-      </rect>
+    <layout class="QVBoxLayout" name="verticalLayout_6">
+     <property name="spacing">
+      <number>0</number>
      </property>
-     <property name="text">
-      <string>Hello thar</string>
+     <property name="leftMargin">
+      <number>0</number>
      </property>
-    </widget>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QWidget" name="notificationContainer" native="true">
+       <layout class="QVBoxLayout" name="verticalLayout_7"/>
+      </widget>
+     </item>
+    </layout>
    </widget>
   </widget>
   <widget class="QDockWidget" name="helpInfoDockWidget">
