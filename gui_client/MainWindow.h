@@ -27,6 +27,7 @@ class TextureServer;
 class QSettings;
 class UserDetailsWidget;
 class URLWidget;
+class QLabel;
 
 
 class MainWindow : public QMainWindow
@@ -75,6 +76,7 @@ private:
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
 	void print(const std::string& message); // Print to log and console
+	void showErrorNotification(const std::string& message);
 
 	std::string base_dir_path;
 	std::string appdata_path;
@@ -150,4 +152,12 @@ public:
 	Indigo::TaskManager task_manager;
 
 	MeshManager mesh_manager;
+
+	struct Notification
+	{
+		double creation_time;
+		QLabel* label;
+	};
+
+	std::list<Notification> notifications;
 };

@@ -10,6 +10,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #include "mysocket.h"
 #include "MainWindow.h"
 #include <ConPrint.h>
+#include "../shared/Protocol.h"
 #include "../shared/WorldState.h"
 #include <vec3.h>
 #include <SocketBufferOutStream.h>

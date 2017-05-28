@@ -99,6 +99,7 @@ SET(qt
 SET(shared_files 
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/Protocol.h
 ../shared/ResourceManager.cpp
 ../shared/ResourceManager.h
 ../shared/TimeStamp.cpp

@@ -7,9 +7,11 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "ListenerThread.h"
+#include "WorkerThread.h"
+#include "../shared/Protocol.h"
+#include "../networking/networking.h"
 #include <ThreadManager.h>
 #include <PlatformUtils.h>
-#include "../networking/networking.h"
 #include <Clock.h>
 #include <Timer.h>
 #include <FileUtils.h>
@@ -17,10 +19,8 @@ Copyright Glare Technologies Limited 2016 -
 #include <Exception.h>
 #include <Parser.h>
 #include <Base64.h>
-#include <ImmutableVector.h>
 #include <ArgumentParser.h>
 #include <SocketBufferOutStream.h>
-#include "WorkerThread.h"
 
 
 int main(int argc, char *argv[])
