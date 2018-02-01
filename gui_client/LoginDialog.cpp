@@ -56,7 +56,7 @@ const std::string LoginDialog::decryptPassword(const std::string& cyphertext_bas
 		// AES decrypt
 		const std::string key = "RHJKEF_ZAepxYxYkrL3c6rWD";
 		const std::string salt = "P6A3uZ4P";
-		AESEncryption aes((const unsigned char*)key.c_str(), (int)key.size(), (const unsigned char*)salt.c_str());
+		AESEncryption aes(key, salt);
 		std::vector<unsigned char> plaintext_v = aes.decrypt(cyphertex_binary);
 
 		// Convert to std::string
@@ -84,7 +84,7 @@ const std::string LoginDialog::encryptPassword(const std::string& password_plain
 		// AES encrypt
 		const std::string key = "RHJKEF_ZAepxYxYkrL3c6rWD";
 		const std::string salt = "P6A3uZ4P";
-		AESEncryption aes((const unsigned char*)key.c_str(), (int)key.size(), (const unsigned char*)salt.c_str());
+		AESEncryption aes(key, salt);
 		std::vector<unsigned char> cyphertext = aes.encrypt(plaintext_v);
 
 		// Encode in base64.
