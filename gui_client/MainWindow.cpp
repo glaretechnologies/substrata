@@ -212,8 +212,6 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 				
 	phy_ob->geometry->buildTrisFromQuads();
 	Geometry::BuildOptions options;
-	options.bih_tri_threshold = 0;
-	options.cache_trees = false;
 	phy_ob->geometry->build(".", options, print_output, false, task_manager);
 
 	phy_ob->geometry->buildJSTris();
@@ -264,8 +262,6 @@ static Reference<PhysicsObject> makeAABBPhysicsObject(const Matrix4f& ob_to_worl
 
 	phy_ob->geometry->buildTrisFromQuads();
 	Geometry::BuildOptions options;
-	options.bih_tri_threshold = 0;
-	options.cache_trees = false;
 	phy_ob->geometry->build(".", options, print_output, false, task_manager);
 
 	phy_ob->geometry->buildJSTris();
@@ -2692,8 +2688,6 @@ int main(int argc, char *argv[])
 
 			mw.ground_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			options.bih_tri_threshold = 0;
-			options.cache_trees = false;
 			mw.ground_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
 
 			mw.ground_quad_raymesh->buildJSTris();
@@ -2716,8 +2710,6 @@ int main(int argc, char *argv[])
 
 			mw.hypercard_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			options.bih_tri_threshold = 0;
-			options.cache_trees = false;
 			mw.hypercard_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
 
 			mw.hypercard_quad_raymesh->buildJSTris();

@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "PhysicsObjectBVH.h"
 
 
-#include "../physics/BVHBuilder.h"
+#include "../physics/BinningBVHBuilder.h"
 #include "PhysicsObject.h"
 #include "../simpleraytracer/ray.h"
 #include "../maths/Vec4i.h"
@@ -230,17 +230,17 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 	for(size_t i=0; i<objects_size; ++i)
 		aabbs[i] = objects[i]->getAABBoxWS();
 
-	BVHBuilder builder(
+	BinningBVHBuilder builder(
 		1, // leaf_num_object_threshold
 		31, // max_num_objects_per_leaf (2^5 - 1)
-		100 // intersection_cost.  Set this quite high, since intersecting objects is probably quite expensive.
+		100, // intersection_cost.  Set this quite high, since intersecting objects is probably quite expensive.
+		aabbs.data(),
+		(int)objects.size()
 	);
 
 	js::Vector<ResultNode, 64> result_nodes;
 	builder.build(
 		task_manager,
-		aabbs.data(),
-		(int)objects.size(),
 		print_output,
 		verbose,
 		result_nodes
@@ -288,12 +288,12 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 			{
 				PhysicsObjectBVHNode& node = this->nodes[new_index++];
 
-				node.x = Vec4f(result_node.left_aabb.min_.x[0], result_node.right_aabb.min_.x[0], result_node.left_aabb.max_.x[0], result_node.right_aabb.max_.x[0]);
-				node.y = Vec4f(result_node.left_aabb.min_.x[1], result_node.right_aabb.min_.x[1], result_node.left_aabb.max_.x[1], result_node.right_aabb.max_.x[1]);
-				node.z = Vec4f(result_node.left_aabb.min_.x[2], result_node.right_aabb.min_.x[2], result_node.left_aabb.max_.x[2], result_node.right_aabb.max_.x[2]);
-
 				const ResultNode& result_left_child  = result_nodes[result_node.left];
 				const ResultNode& result_right_child = result_nodes[result_node.right];
+
+				node.x = Vec4f(result_left_child.aabb.min_.x[0], result_right_child.aabb.min_.x[0], result_left_child.aabb.max_.x[0], result_right_child.aabb.max_.x[0]);
+				node.y = Vec4f(result_left_child.aabb.min_.x[1], result_right_child.aabb.min_.x[1], result_left_child.aabb.max_.x[1], result_right_child.aabb.max_.x[1]);
+				node.z = Vec4f(result_left_child.aabb.min_.x[2], result_right_child.aabb.min_.x[2], result_left_child.aabb.max_.x[2], result_right_child.aabb.max_.x[2]);
 
 				// Set node.child[0] and node.child[1]
 				if(result_left_child.interior)

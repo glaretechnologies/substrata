@@ -332,8 +332,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 
 		raymesh->buildTrisFromQuads();
 		Geometry::BuildOptions options;
-		options.bih_tri_threshold = 0;
-		options.cache_trees = false;
 		StandardPrintOutput print_output;
 		raymesh->build(".", options, print_output, false, task_manager);
 

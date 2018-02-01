@@ -287,8 +287,6 @@ ${INDIGO_PHYSICS_DIR}/HashedGridTests.cpp
 ${INDIGO_PHYSICS_DIR}/HashedGridTests.h
 ${INDIGO_PHYSICS_DIR}/jscol_aabbox.cpp
 ${INDIGO_PHYSICS_DIR}/jscol_aabbox.h
-${INDIGO_PHYSICS_DIR}/jscol_BadouelTri.cpp
-${INDIGO_PHYSICS_DIR}/jscol_BadouelTri.h
 ${INDIGO_PHYSICS_DIR}/jscol_boundingsphere.h
 ${INDIGO_PHYSICS_DIR}/jscol_ObjectTreePerThreadData.cpp
 ${INDIGO_PHYSICS_DIR}/jscol_ObjectTreePerThreadData.h
@@ -318,6 +316,12 @@ ${INDIGO_PHYSICS_DIR}/MollerTrumboreTriNotes.txt
 #${INDIGO_PHYSICS_DIR}/MultiLevelGridNode.h
 #${INDIGO_PHYSICS_DIR}/MultiLevelGridTests.cpp
 #${INDIGO_PHYSICS_DIR}/MultiLevelGridTests.h
+${INDIGO_PHYSICS_DIR}/BinningBVHBuilder.cpp
+${INDIGO_PHYSICS_DIR}/BinningBVHBuilder.h
+${INDIGO_PHYSICS_DIR}/NonBinningBVHBuilder.cpp
+${INDIGO_PHYSICS_DIR}/NonBinningBVHBuilder.h
+${INDIGO_PHYSICS_DIR}/SBVHBuilder.cpp
+${INDIGO_PHYSICS_DIR}/SBVHBuilder.h
 ${INDIGO_PHYSICS_DIR}/NLogNKDTreeBuilder.cpp
 ${INDIGO_PHYSICS_DIR}/NLogNKDTreeBuilder.h
 ${INDIGO_PHYSICS_DIR}/ObjectMLG.cpp
