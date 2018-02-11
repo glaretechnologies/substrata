@@ -205,49 +205,51 @@ def printUsage()
 	puts ""
 end
 
-
-arg_parser = ArgumentParser.new(ARGV)
-arg_parser.options.each do |opt|
-	if opt[0] == "--release" || opt[0] == "-R"
-		if opt[1] == nil
-			puts "Using default version: #{$libressl_version}"
-		else
-			$libressl_version = opt[1]
-		end
-	elsif opt[0] == "--vsversion" || opt[0] == "-v"
-		if opt[1] == "2013"
-			$vs_version = 2013
-		elsif opt[1] == "2015"
-			$vs_version = 2015
-		elsif opt[1] == "2017"
-			$vs_version = 2017
-		else
-			puts "Invalid vsversion: #{opt[1]}"
-			exit 1
-		end
-	elsif opt[0] == "--config" || opt[0] == "-c"
-		if opt[1] == nil
-			puts "Using default config: #{$config}"
-		else
-			$config = opt[1]
-		end
-	elsif opt[0] == "--targetxp"
-		if opt[1].downcase == "true" || opt[1].downcase == "1"
-			$target_xp = true
-		elsif opt[1].downcase == "false" || opt[1].downcase == "0"
-			$target_xp = false
-		else
-			puts "Invalid boolean for targetxp: #{opt[0]}"
-			exit 1
-		end
-	elsif opt[0] == "--help" || opt[0] == "-h"
-		printUsage()
-		exit 0
-	else
-		puts "Unrecognised argument: #{opt[0]}"
-		exit 1
-	end
-end
+# Don't parse args as may be required from build.rb
+puts "Using default version: #{$libressl_version}"
+puts "Using default config: #{$config}"
+#arg_parser = ArgumentParser.new(ARGV)
+#arg_parser.options.each do |opt|
+#	if opt[0] == "--release" || opt[0] == "-R"
+#		if opt[1] == nil
+#			puts "Using default version: #{$libressl_version}"
+#		else
+#			$libressl_version = opt[1]
+#		end
+#	elsif opt[0] == "--vsversion" || opt[0] == "-v"
+#		if opt[1] == "2013"
+#			$vs_version = 2013
+#		elsif opt[1] == "2015"
+#			$vs_version = 2015
+#		elsif opt[1] == "2017"
+#			$vs_version = 2017
+#		else
+#			puts "Invalid vsversion: #{opt[1]}"
+#			exit 1
+#		end
+#	elsif opt[0] == "--config" || opt[0] == "-c"
+#		if opt[1] == nil
+#			puts "Using default config: #{$config}"
+#		else
+#			$config = opt[1]
+#		end
+#	elsif opt[0] == "--targetxp"
+#		if opt[1].downcase == "true" || opt[1].downcase == "1"
+#			$target_xp = true
+#		elsif opt[1].downcase == "false" || opt[1].downcase == "0"
+#			$target_xp = false
+#		else
+#			puts "Invalid boolean for targetxp: #{opt[0]}"
+#			exit 1
+#		end
+#	elsif opt[0] == "--help" || opt[0] == "-h"
+#		printUsage()
+#		exit 0
+#	else
+#		puts "Unrecognised argument: #{opt[0]}"
+#		exit 1
+#	end
+#end
 
 
 if($config != "Release" and $config != "Debug" and $config != "Both")
