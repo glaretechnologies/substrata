@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2018 -
 #pragma once
 
 
-#include "Ui_ResetPasswordDialog.h"
+#include "ui_ResetPasswordDialog.h"
 #include <QtCore/QString>
 class QSettings;
 struct GLObject;
