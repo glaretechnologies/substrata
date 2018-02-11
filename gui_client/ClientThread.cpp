@@ -487,3 +487,16 @@ void ClientThread::enqueueDataToSend(const std::string& data)
 	data_to_send.enqueue(data);
 	event_fd.notify();
 }
+
+
+void ClientThread::enqueueDataToSend(const SocketBufferOutStream& packet) // threadsafe
+{
+	if(packet.buf.size() > 0)
+	{
+		std::string packet_string(packet.buf.size(), '\0');
+		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+		data_to_send.enqueue(packet_string);
+		event_fd.notify();
+	}
+}

@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Base64.h>
 #include <ArgumentParser.h>
 #include <SocketBufferOutStream.h>
+#include <TLSSocket.h>
 
 
 int main(int argc, char *argv[])
@@ -28,6 +29,7 @@ int main(int argc, char *argv[])
 	Clock::init();
 	Networking::createInstance();
 	PlatformUtils::ignoreUnixSignals();
+	TLSSocket::initTLS();
 
 	try
 	{

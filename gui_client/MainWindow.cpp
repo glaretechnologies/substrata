@@ -21,6 +21,8 @@
 #include "WinterShaderEvaluator.h"
 #include "LoginDialog.h"
 #include "SignUpDialog.h"
+#include "ResetPasswordDialog.h"
+#include "ChangePasswordDialog.h"
 #include "URLWidget.h"
 #include "../shared/Protocol.h"
 //#include "IndigoApplication.h"
@@ -54,6 +56,8 @@
 #include "../utils/FileChecksum.h"
 #include "../utils/Parser.h"
 #include "../networking/networking.h"
+#include "../networking/SMTPClient.h" // Just for testing
+#include "../networking/TLSSocket.h" // Just for testing
 
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
@@ -157,6 +161,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	print("resources_dir: " + resources_dir);
 	resource_manager = new ResourceManager(this->resources_dir);
+
+	cam_controller.setMouseSensitivity(0.3f);
 }
 
 
@@ -1720,6 +1726,45 @@ void MainWindow::on_actionReset_Layout_triggered()
 }
 
 
+void MainWindow::passwordResetRequested()
+{
+	conPrint("passwordResetRequested()");
+
+	ResetPasswordDialog dialog(settings);
+	const int res = dialog.exec();
+	if(res == QDialog::Accepted)
+	{
+		// Make RequestPasswordReset packet and enqueue to send
+		const std::string email_addr = QtUtils::toIndString(dialog.emailLineEdit->text());
+		SocketBufferOutStream packet;
+		packet.writeUInt32(RequestPasswordReset);
+		packet.writeStringLengthFirst(email_addr);
+		this->client_thread->enqueueDataToSend(packet);
+
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Password Reset Requested");
+		msgBox.setText("A reset-password email has been sent to the email address you entered.");
+		msgBox.exec();
+
+		ChangePasswordDialog change_password_dialog(settings);
+		change_password_dialog.setResetCodeLineEditVisible(true);
+		const int res2 = change_password_dialog.exec();
+		if(res2 == QDialog::Accepted)
+		{
+			// Send a ChangePasswordWithResetToken packet
+			const std::string reset_token = QtUtils::toIndString(change_password_dialog.resetCodeLineEdit->text());
+			const std::string new_password = QtUtils::toIndString(change_password_dialog.passwordLineEdit->text());
+			SocketBufferOutStream packet2;
+			packet2.writeUInt32(ChangePasswordWithResetToken);
+			packet2.writeStringLengthFirst(email_addr);
+			packet2.writeStringLengthFirst(reset_token);
+			packet2.writeStringLengthFirst(new_password);
+			this->client_thread->enqueueDataToSend(packet2);
+		}
+	}
+}
+
+
 void MainWindow::on_actionLogIn_triggered()
 {
 	if(!connected_to_server)
@@ -1732,6 +1777,7 @@ void MainWindow::on_actionLogIn_triggered()
 	}
 
 	LoginDialog dialog(settings);
+	connect(&dialog, SIGNAL(passWordResetRequested()), this, SLOT(passwordResetRequested()));
 	const int res = dialog.exec();
 	if(res == QDialog::Accepted)
 	{
@@ -2433,6 +2479,7 @@ int main(int argc, char *argv[])
 	Clock::init();
 	Networking::createInstance();
 	Winter::VirtualMachine::init();
+	TLSSocket::initTLS();
 
 	PlatformUtils::ignoreUnixSignals();
 
@@ -2484,8 +2531,9 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			SMTPClient::test();
 			//js::VectorUnitTests::test();
-			js::TreeTest::doTests(appdata_path);
+			//js::TreeTest::doTests(appdata_path);
 			//Matrix4f::test();
 			return 0;
 		}

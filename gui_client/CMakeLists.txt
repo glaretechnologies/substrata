@@ -2,6 +2,9 @@
 
 set(CURRENT_TARGET gui_client)
 
+
+programAvailable(${INDIGO_QT_DIR}/bin/moc)
+
 include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
 include(../cmake/winter.cmake)
@@ -20,6 +23,8 @@ addMocFileRule(gui_client SignUpDialog)
 addMocFileRule(gui_client MaterialEditor)
 addMocFileRule(gui_client UserDetailsWidget)
 addMocFileRule(gui_client URLWidget)
+addMocFileRule(gui_client ResetPasswordDialog)
+addMocFileRule(gui_client ChangePasswordDialog)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -36,6 +41,8 @@ addUIFileRule(gui_client SignUpDialog)
 addUIFileRule(gui_client MaterialEditor)
 addUIFileRule(gui_client UserDetailsWidget)
 addUIFileRule(gui_client URLWidget)
+addUIFileRule(gui_client ResetPasswordDialog)
+addUIFileRule(gui_client ChangePasswordDialog)
 
 addUIFileRule(qt FileSelectWidget)
 addUIFileRule(qt RealControl)
@@ -58,6 +65,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_LoginDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_SignUpDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_UserDetailsWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_URLWidget.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_ResetPasswordDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_ChangePasswordDialog.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
@@ -68,6 +77,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_SignUpDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MainWindow.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_UserDetailsWidget.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_URLWidget.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_ResetPasswordDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_ChangePasswordDialog.h
 )
 
 SET(qt 

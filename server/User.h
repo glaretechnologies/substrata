@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2017 -
 #pragma once
 
 
+#include "PasswordReset.h"
 #include "../shared/TimeStamp.h"
 #include "../shared/UserID.h"
 #include <ThreadSafeRefCounted.h>
@@ -34,6 +35,10 @@ public:
 	bool isPasswordValid(const std::string& password) const;
 
 
+	void sendPasswordResetEmail(); // throws Indigo::Exception on error
+
+	bool resetPasswordWithToken(const std::string& reset_token, const std::string& new_password);
+
 	UserID id;
 
 	TimeStamp created_time;
@@ -43,6 +48,8 @@ public:
 
 	std::string hashed_password;
 	std::string password_hash_salt;
+
+	std::vector<PasswordReset> password_resets; // pending password reset tokens
 };
 
 

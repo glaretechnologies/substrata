@@ -805,6 +805,68 @@ void WorkerThread::doRun()
 
 						break;
 					}
+				case RequestPasswordReset:
+					{
+						conPrint("RequestPasswordReset");
+
+						const std::string email    = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+						conPrint("email: " + email);
+
+						// TEMP: Send password reset email in this thread for now. 
+						// TODO: move to another thread (make some kind of background task?)
+						{
+							Lock lock(world_state->mutex);
+							for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+								if(it->second->email_address == email)
+								{
+									User* user = it->second.getPointer();
+									try
+									{
+										user->sendPasswordResetEmail();
+										world_state->changed = true; // Mark as changed so gets saved to disk.
+										conPrint("Sent user password reset email to " + email);
+									}
+									catch(Indigo::Exception& e)
+									{
+										conPrint("Sending password reset email failed: " + e.what());
+									}
+								}
+						}
+					
+						break;
+					}
+				case ChangePasswordWithResetToken:
+					{
+						conPrint("ChangePasswordWithResetToken");
+						
+						const std::string email			= socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string reset_token	= socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string new_password	= socket->readStringLengthFirst(MAX_STRING_LEN);
+
+						conPrint("email: " + email);
+						conPrint("reset_token: " + reset_token);
+						conPrint("new_password: " + new_password);
+
+						{
+							Lock lock(world_state->mutex);
+
+							// Find user with the given email address:
+							for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+								if(it->second->email_address == email)
+								{
+									User* user = it->second.getPointer();
+									const bool reset = user->resetPasswordWithToken(reset_token, new_password);
+									if(reset)
+									{
+										world_state->changed = true; // Mark as changed so gets saved to disk.
+										conPrint("User password successfully updated to '" + new_password + "'");
+									}
+								}
+						}
+
+						break;
+					}
 				default:			
 					{
 						conPrint("Unknown message id: " + toString(msg_type));
