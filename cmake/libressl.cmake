@@ -29,8 +29,13 @@ if(WIN32)
 	SET(CMAKE_MODULE_LINKER_FLAGS_SDKDEBUG			"${CMAKE_MODULE_LINKER_FLAGS_SDKDEBUG} ${LIBRESSL_LINK_FLAGS_SDKDEBUG}")
 
 	target_link_libraries(${CURRENT_TARGET} 
-		crypto)
+		crypto
+		ssl  # ssl and tls libs are needed for using LibreSSL's LibTLS API.
+		tls
+		)
 else()
 	target_link_libraries(${CURRENT_TARGET} 
+		"${libressldir}/lib/libtls.a"
+		"${libressldir}/lib/libssl.a"
 		"${libressldir}/lib/libcrypto.a")
 endif()

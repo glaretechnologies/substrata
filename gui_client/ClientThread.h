@@ -11,6 +11,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <MessageableThread.h>
 #include <Platform.h>
 #include <MyThread.h>
+#include <SocketBufferOutStream.h>
 #include <EventFD.h>
 #include <ThreadManager.h>
 #include <mysocket.h>
@@ -136,6 +137,7 @@ public:
 	virtual void doRun();
 
 	void enqueueDataToSend(const std::string& data); // threadsafe
+	void enqueueDataToSend(const SocketBufferOutStream& packet); // threadsafe
 
 	void killConnection();
 

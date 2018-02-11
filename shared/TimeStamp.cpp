@@ -32,32 +32,6 @@ TimeStamp::~TimeStamp()
 }
 
 
-// day_of_week = days since Sunday - [0,6]
-static const std::string dayAsString(int day_of_week)
-{
-	switch(day_of_week)
-	{
-	case 0:
-		return "Sun";
-	case 1:
-		return "Mon";
-	case 2:
-		return "Tue";
-	case 3:
-		return "Wed";
-	case 4:
-		return "Thu";
-	case 5:
-		return "Fri";
-	case 6:
-		return "Sat";
-	default:
-		assert(0);
-		return "";
-	};
-}
-
-
 static const std::string monthString(int month)
 {
 	std::string monthstr;
@@ -131,31 +105,11 @@ const std::string TimeStamp::dayString() const
 }
 
 
-static const std::string twoDigitString(int x)
-{
-	return ::leftPad(::toString(x), '0', 2);
-}
-
-
 const std::string TimeStamp::RFC822FormatedString() const // http://www.faqs.org/rfcs/rfc822.html
 {
 	time_t t = this->time;
-	tm thetime;
 
-	// Use threadsafe versions of localtime: 
-#ifdef _WIN32
-	localtime_s(&thetime, &t);
-#else
-	localtime_r(&t, &thetime);
-#endif
-	
-	const int day_of_week = thetime.tm_wday; // days since Sunday - [0,6]
-	const int day = thetime.tm_mday; // Day of month (1 – 31).
-	const int month = thetime.tm_mon; // Month (0 – 11; January = 0).
-	const int year = thetime.tm_year + 1900; // tm_year = Year (current year minus 1900).
-
-	return dayAsString(day_of_week) + ", " + toString(day) + " " + monthString(month) + " " + toString(year) + " " + 
-		twoDigitString(thetime.tm_hour) + ":" + twoDigitString(thetime.tm_min) + ":" + twoDigitString(thetime.tm_sec) + " GMT";
+	return Clock::RFC822FormatedString(t);
 }
 
 
@@ -185,6 +139,12 @@ void TimeStamp::readFromStream(InStream& stream)
 		throw Indigo::Exception("Unhandled version " + toString(v) + ", expected " + toString(TIMESTAMP_SERIALISATION_VERSION) + ".");
 
 	time = stream.readUInt64();
+}
+
+
+int64 TimeStamp::numSecondsAgo() const
+{
+	return (int64)currentTime().time - (int64)this->time;
 }
 
 

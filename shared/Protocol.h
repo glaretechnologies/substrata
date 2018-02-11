@@ -61,3 +61,6 @@ const uint32 SignUpMessage			= 8002;
 const uint32 LoggedInMessageID		= 8003;
 const uint32 LoggedOutMessageID		= 8004;
 const uint32 SignedUpMessageID		= 8005;
+
+const uint32 RequestPasswordReset	= 8010; // Client wants to reset the password for a given email address.
+const uint32 ChangePasswordWithResetToken = 8011; // Client is sending the password reset token, email address, and the new password.

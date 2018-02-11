@@ -71,6 +71,10 @@ endif()
 
 add_definitions(-DNO_EMBREE)
 
+if(INDIGO_USE_LIBRESSL)
+	add_definitions(-DUSING_LIBRESSL)
+endif()
+
 if(WIN32)
 	add_definitions(-DUNICODE -D_UNICODE)
 	add_definitions(/MP)

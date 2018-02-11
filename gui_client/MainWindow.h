@@ -56,6 +56,8 @@ private slots:;
 	void on_actionLogIn_triggered();
 	void on_actionSignUp_triggered();
 	void on_actionLogOut_triggered();
+	
+	void passwordResetRequested();
 
 	void sendChatMessageSlot();
 
