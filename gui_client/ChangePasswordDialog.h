@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2018 -
 #pragma once
 
 
-#include "Ui_ChangePasswordDialog.h"
+#include "ui_ChangePasswordDialog.h"
 #include <QtCore/QString>
 class QSettings;
 struct GLObject;
