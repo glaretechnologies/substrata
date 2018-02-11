@@ -10,7 +10,7 @@
 $vs_version = 2015 # Visual studio option used to build distribution.  Used in build.rb
 
 
-$qt_version = "5.7.1" if OS.windows?
+$qt_version = "5.8.0" if OS.windows?
 $qt_version = "5.8.0" if OS.mac?
 $qt_version = "5.8.0" if OS.linux?
 
