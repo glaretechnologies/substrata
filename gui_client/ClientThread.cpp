@@ -457,13 +457,13 @@ void ClientThread::doRun()
 			{
 #if defined(_WIN32) || defined(OSX)
 #else
-				if(VERBOSE) print("WorkerThread: event FD was signalled.");
+				if(VERBOSE) conPrint("WorkerThread: event FD was signalled.");
 
 				// The event FD was signalled, which means there is some data to send on the socket.
 				// Reset the event fd by reading from it.
 				event_fd.read();
 
-				if(VERBOSE) print("WorkerThread: event FD has been reset.");
+				if(VERBOSE) conPrint("WorkerThread: event FD has been reset.");
 #endif
 			}
 		}
