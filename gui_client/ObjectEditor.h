@@ -33,6 +33,8 @@ public:
 
 	void setControlsEnabled(bool enabled);
 
+	void setControlsEditable(bool editable);
+
 	int getSelectedMatIndex() const { return selected_mat_index; }
 protected:
 

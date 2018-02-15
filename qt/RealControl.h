@@ -56,6 +56,8 @@ public:
 	void setSliderMaximum(double max);
 	void setSliderSteps(int steps);
 
+	void setReadOnly(bool readonly);
+
 signals:;
 	void valueChanged(double v);
 

@@ -825,7 +825,7 @@ void WorkerThread::doRun()
 									{
 										user->sendPasswordResetEmail();
 										world_state->changed = true; // Mark as changed so gets saved to disk.
-										conPrint("Sent user password reset email to " + email);
+										conPrint("Sent user password reset email to '" + email + ", username '" + user->name + "'");
 									}
 									catch(Indigo::Exception& e)
 									{

@@ -53,8 +53,6 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->rotAxisYDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAxisZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	
-	//setControlsEnabled(false);
 }
 
 
@@ -141,4 +139,23 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 void ObjectEditor::setControlsEnabled(bool enabled)
 {
 	this->setEnabled(enabled);
+}
+
+
+void ObjectEditor::setControlsEditable(bool editable)
+{
+	this->modelFileSelectWidget->setReadOnly(!editable);
+	this->scriptFileSelectWidget->setReadOnly(!editable);
+	this->contentTextEdit->setReadOnly(!editable);
+
+	this->scaleXDoubleSpinBox->setReadOnly(!editable);
+	this->scaleYDoubleSpinBox->setReadOnly(!editable);
+	this->scaleZDoubleSpinBox->setReadOnly(!editable);
+
+	this->rotAxisXDoubleSpinBox->setReadOnly(!editable);
+	this->rotAxisYDoubleSpinBox->setReadOnly(!editable);
+	this->rotAxisZDoubleSpinBox->setReadOnly(!editable);
+	this->rotAngleDoubleSpinBox->setReadOnly(!editable);
+
+	this->matEditor->setControlsEditable(editable);
 }

@@ -127,6 +127,13 @@ void FileSelectWidget::openFileDialog()
 }
 
 
+void FileSelectWidget::setReadOnly(bool readonly)
+{
+	this->fileSelectButton->setEnabled(!readonly);
+	this->filePath->setReadOnly(readonly);
+}
+
+
 void FileSelectWidget::on_fileSelectButton_clicked(bool v)
 {
 	openFileDialog();

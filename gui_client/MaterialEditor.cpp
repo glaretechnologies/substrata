@@ -115,9 +115,19 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 
 void MaterialEditor::setControlsEnabled(bool enabled)
 {
-	/*this->colourRDoubleSpinBox->setEnabled(enabled);
-	this->colourGDoubleSpinBox->setEnabled(enabled);
-	this->colourBDoubleSpinBox->setEnabled(enabled);
-	this->textureFileSelectWidget->setEnabled(enabled);*/
 	this->setEnabled(enabled);
 }
+
+
+void MaterialEditor::setControlsEditable(bool editable)
+{
+	this->colourRDoubleSpinBox->setReadOnly(!editable);
+	this->colourGDoubleSpinBox->setReadOnly(!editable);
+	this->colourBDoubleSpinBox->setReadOnly(!editable);
+
+	this->textureFileSelectWidget->setReadOnly(!editable);
+
+	this->roughnessDoubleSpinBox->setReadOnly(!editable);
+	this->opacityDoubleSpinBox->setReadOnly(!editable);
+}
+

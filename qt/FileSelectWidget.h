@@ -45,6 +45,9 @@ public:
 	const QString& settingsKey();
 	void setSettingsKey(const QString& key);
 
+
+	void setReadOnly(bool readonly);
+
 signals:;
 	void filenameChanged(QString& filename);
 
