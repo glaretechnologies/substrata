@@ -105,6 +105,13 @@ void RealControl::setSliderSteps(int steps)
 }
 
 
+void RealControl::setReadOnly(bool readonly)
+{
+	this->realSlider->setEnabled(!readonly); // QSlider doesn't have setReadOnly
+	this->realSpin->setReadOnly(readonly);
+}
+
+
 void RealControl::setSuffix(const QString& suffix)
 {
 	this->realSpin->setSuffix(suffix);

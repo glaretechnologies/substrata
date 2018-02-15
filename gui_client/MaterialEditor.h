@@ -33,6 +33,8 @@ public:
 
 	void setControlsEnabled(bool enabled);
 
+	void setControlsEditable(bool editable);
+
 protected:
 
 signals:;

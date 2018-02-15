@@ -2064,9 +2064,10 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			//this->matEditor->setFromMaterial(*selected_ob->materials[0]);
 			ui->objectEditor->setFromObject(*selected_ob, selected_mat);
+			ui->objectEditor->setEnabled(true);
 
 			const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
-			ui->objectEditor->setEnabled(have_edit_permissions);
+			ui->objectEditor->setControlsEditable(have_edit_permissions);
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
 
 
