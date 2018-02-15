@@ -570,10 +570,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					packet.writeStringLengthFirst(QtUtils::toStdString(settings->value("LoginDialog/username").toString()));
 					packet.writeStringLengthFirst(LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString())));
 
-					std::string packet_string(packet.buf.size(), '\0');
-					std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-					this->client_thread->enqueueDataToSend(packet_string);
+					this->client_thread->enqueueDataToSend(packet);
 				}
 			}
 			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
@@ -631,10 +628,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				packet.writeUInt32(AvatarFullUpdate);
 				writeToNetworkStream(avatar, packet);
 
-				std::string packet_string(packet.buf.size(), '\0');
-				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-				this->client_thread->enqueueDataToSend(packet_string);
+				this->client_thread->enqueueDataToSend(packet);
 			}
 			else if(dynamic_cast<const LoggedOutMessage*>(msg.getPointer()))
 			{
@@ -660,10 +654,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				packet.writeUInt32(AvatarFullUpdate);
 				writeToNetworkStream(avatar, packet);
 
-				std::string packet_string(packet.buf.size(), '\0');
-				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-				this->client_thread->enqueueDataToSend(packet_string);
+				this->client_thread->enqueueDataToSend(packet);
 			}
 			else if(dynamic_cast<const SignedUpMessage*>(msg.getPointer()))
 			{
@@ -689,10 +680,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				packet.writeUInt32(AvatarFullUpdate);
 				writeToNetworkStream(avatar, packet);
 
-				std::string packet_string(packet.buf.size(), '\0');
-				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-				this->client_thread->enqueueDataToSend(packet_string);
+				this->client_thread->enqueueDataToSend(packet);
 			}
 			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
 			{
@@ -1358,10 +1346,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
 			writeToStream(Vec3f(0, 0, angle), packet);
 
-			std::string packet_string(packet.buf.size(), '\0');
-			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-			this->client_thread->enqueueDataToSend(packet_string);
+			this->client_thread->enqueueDataToSend(packet);
 		}
 
 		//============ Send any object updates needed ===========
@@ -1378,10 +1363,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					packet.writeUInt32(ObjectFullUpdate);
 					writeToNetworkStream(*world_ob, packet);
 					
-					std::string packet_string(packet.buf.size(), '\0');
-					std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-					this->client_thread->enqueueDataToSend(packet_string);
+					this->client_thread->enqueueDataToSend(packet);
 
 					world_ob->from_local_other_dirty = false;
 					world_ob->from_local_transform_dirty = false;
@@ -1396,10 +1378,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					writeToStream(Vec3f(world_ob->axis), packet);
 					packet.writeFloat(world_ob->angle);
 
-					std::string packet_string(packet.buf.size(), '\0');
-					std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-					this->client_thread->enqueueDataToSend(packet_string);
+					this->client_thread->enqueueDataToSend(packet);
 
 					world_ob->from_local_transform_dirty = false;
 				}
@@ -1448,10 +1427,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			packet.writeUInt32(AvatarFullUpdate);
 			writeToNetworkStream(avatar, packet);
 
-			std::string packet_string(packet.buf.size(), '\0');
-			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-			this->client_thread->enqueueDataToSend(packet_string);
+			this->client_thread->enqueueDataToSend(packet);
 		}
 		catch(Indigo::IndigoException& e)
 		{
@@ -1585,10 +1561,7 @@ void MainWindow::on_actionAddObject_triggered()
 				packet.writeUInt32(CreateObject);
 				writeToNetworkStream(*new_world_object, packet);
 
-				std::string packet_string(packet.buf.size(), '\0');
-				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-				this->client_thread->enqueueDataToSend(packet_string);
+				this->client_thread->enqueueDataToSend(packet);
 			}
 		}
 		catch(Indigo::IndigoException& e)
@@ -1643,10 +1616,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 		packet.writeUInt32(CreateObject);
 		writeToNetworkStream(*new_world_object, packet);
 
-		std::string packet_string(packet.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-		this->client_thread->enqueueDataToSend(packet_string);
+		this->client_thread->enqueueDataToSend(packet);
 	}
 }
 
@@ -1676,10 +1646,7 @@ void MainWindow::on_actionCloneObject_triggered()
 			packet.writeUInt32(CreateObject);
 			writeToNetworkStream(*new_world_object, packet);
 
-			std::string packet_string(packet.buf.size(), '\0');
-			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-			this->client_thread->enqueueDataToSend(packet_string);
+			this->client_thread->enqueueDataToSend(packet);
 		}
 
 		// Deselect any currently selected object
@@ -1793,11 +1760,7 @@ void MainWindow::on_actionLogIn_triggered()
 		packet.writeUInt32(LogInMessage);
 		packet.writeStringLengthFirst(username);
 		packet.writeStringLengthFirst(password);
-
-		std::string packet_string(packet.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-		this->client_thread->enqueueDataToSend(packet_string);
+		this->client_thread->enqueueDataToSend(packet);
 	}
 }
 
@@ -1807,11 +1770,7 @@ void MainWindow::on_actionLogOut_triggered()
 	// Make message packet and enqueue to send
 	SocketBufferOutStream packet;
 	packet.writeUInt32(LogOutMessage);
-	
-	std::string packet_string(packet.buf.size(), '\0');
-	std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-	this->client_thread->enqueueDataToSend(packet_string);
+	this->client_thread->enqueueDataToSend(packet);
 }
 
 
@@ -1846,10 +1805,7 @@ void MainWindow::on_actionSignUp_triggered()
 		packet.writeStringLengthFirst(email);
 		packet.writeStringLengthFirst(password);
 
-		std::string packet_string(packet.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-		this->client_thread->enqueueDataToSend(packet_string);
+		this->client_thread->enqueueDataToSend(packet);
 	}
 }
 
@@ -1865,10 +1821,7 @@ void MainWindow::sendChatMessageSlot()
 	packet.writeUInt32(ChatMessageID);
 	packet.writeStringLengthFirst(message);
 
-	std::string packet_string(packet.buf.size(), '\0');
-	std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-	this->client_thread->enqueueDataToSend(packet_string);
+	this->client_thread->enqueueDataToSend(packet);
 
 	ui->chatMessageLineEdit->clear();
 }
@@ -2121,9 +2074,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			SocketBufferOutStream packet;
 			packet.writeUInt32(UserSelectedObject);
 			writeToStream(selected_ob->uid, packet);
-			std::string packet_string(packet.buf.size(), '\0');
-			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-			this->client_thread->enqueueDataToSend(packet_string);
+			this->client_thread->enqueueDataToSend(packet);
 
 
 			// Update help text
@@ -2227,10 +2178,7 @@ void MainWindow::deleteSelectedObject()
 		packet.writeUInt32(DestroyObject);
 		writeToStream(selected_ob->uid, packet);
 
-		std::string packet_string(packet.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-		this->client_thread->enqueueDataToSend(packet_string);
+		this->client_thread->enqueueDataToSend(packet);
 
 
 		deselectObject();
@@ -2246,9 +2194,7 @@ void MainWindow::deselectObject()
 		SocketBufferOutStream packet;
 		packet.writeUInt32(UserDeselectedObject);
 		writeToStream(selected_ob->uid, packet);
-		std::string packet_string(packet.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-		this->client_thread->enqueueDataToSend(packet_string);
+		this->client_thread->enqueueDataToSend(packet);
 
 		// Deselect any currently selected object
 		ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
