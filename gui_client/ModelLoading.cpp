@@ -22,16 +22,8 @@ Code By Nicholas Chapman.
 
 void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
-	if(mat.colour->type == SpectrumVal::SpectrumValType_Constant)
-	{
-		opengl_mat.albedo_rgb = mat.colour.downcastToPtr<ConstantSpectrumVal>()->rgb;
-		opengl_mat.albedo_tex_path = "";
-	}
-	else if(mat.colour->type == SpectrumVal::SpectrumValType_Texture)
-	{
-		opengl_mat.albedo_rgb = Colour3f(0.5f);
-		opengl_mat.albedo_tex_path = resource_manager.pathForURL(mat.colour.downcastToPtr<TextureSpectrumVal>()->texture_url);
-	}
+	opengl_mat.albedo_rgb = mat.colour_rgb;
+	opengl_mat.albedo_tex_path = (mat.colour_texture_url.empty() ? "" : resource_manager.pathForURL(mat.colour_texture_url));
 
 	if(mat.roughness->type == ScalarVal::ScalarValType_Constant)
 	{
@@ -50,6 +42,17 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, Reso
 	{
 		opengl_mat.transparent = false;
 	}
+	
+	if(mat.metallic_fraction->type == ScalarVal::ScalarValType_Constant)
+	{
+		opengl_mat.metallic_frac = mat.metallic_fraction.downcastToPtr<ConstantScalarVal>()->val;
+	}
+	else
+	{
+		opengl_mat.metallic_frac = 0.f;
+	}
+
+	opengl_mat.fresnel_scale = 0.3f; // TEMP HACK IMPORTANT
 }
 
 
@@ -212,10 +215,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
 
-					if(tex_path == "")
-						loaded_materials_out[i]->colour = new ConstantSpectrumVal(mats.materials[z].Kd);
-					else
-						loaded_materials_out[i]->colour = new TextureSpectrumVal(tex_path);
+					loaded_materials_out[i]->colour_rgb = mats.materials[z].Kd;
+					loaded_materials_out[i]->colour_texture_url = tex_path;
 					loaded_materials_out[i]->opacity = new ConstantScalarVal(ob->materials[i].alpha);
 					loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
 
@@ -229,7 +230,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 
-				loaded_materials_out[i]->colour = new TextureSpectrumVal("obstacle.png");
+				loaded_materials_out[i]->colour_texture_url = "obstacle.png";
 				loaded_materials_out[i]->opacity = new ConstantScalarVal(1.f);
 				loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
 			}
@@ -263,7 +264,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
 				loaded_materials_out[i] = new WorldMaterial();
-				loaded_materials_out[i]->colour = new TextureSpectrumVal("obstacle.png");
+				loaded_materials_out[i]->colour_texture_url = "obstacle.png";
 				loaded_materials_out[i]->opacity = new ConstantScalarVal(1.f);
 				loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
 			}

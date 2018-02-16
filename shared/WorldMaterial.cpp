@@ -15,7 +15,7 @@ Copyright Glare Technologies Limited 2016 -
 
 WorldMaterial::WorldMaterial()
 {
-	colour = new ConstantSpectrumVal(Colour3f(0.5f));
+	colour_rgb = Colour3f(0.7f);
 	roughness = new ConstantScalarVal(0.5f);
 	metallic_fraction = new ConstantScalarVal(0.0f);
 	opacity = new ConstantScalarVal(1.0f);
@@ -30,7 +30,9 @@ WorldMaterial::~WorldMaterial()
 
 void WorldMaterial::appendDependencyURLs(std::vector<std::string>& paths_out)
 {
-	colour->appendDependencyURLs(paths_out);
+	if(!colour_texture_url.empty())
+		paths_out.push_back(colour_texture_url);
+
 	roughness->appendDependencyURLs(paths_out);
 	metallic_fraction->appendDependencyURLs(paths_out);
 	opacity->appendDependencyURLs(paths_out);
@@ -39,7 +41,9 @@ void WorldMaterial::appendDependencyURLs(std::vector<std::string>& paths_out)
 
 void WorldMaterial::convertLocalPathsToURLS(ResourceManager& resource_manager)
 {
-	colour->convertLocalPathsToURLS(resource_manager);
+	if(FileUtils::fileExists(this->colour_texture_url)) // If the URL is a local path:
+		this->colour_texture_url = resource_manager.URLForPathAndHash(this->colour_texture_url, FileChecksum::fileChecksum(this->colour_texture_url));
+
 	roughness->convertLocalPathsToURLS(resource_manager);
 	metallic_fraction->convertLocalPathsToURLS(resource_manager);
 	opacity->convertLocalPathsToURLS(resource_manager);
@@ -75,38 +79,25 @@ void TextureScalarVal::convertLocalPathsToURLS(ResourceManager& resource_manager
 }
 
 
-void ConstantSpectrumVal::writeToStream(OutStream& stream)
+static void writeToStream(OutStream& stream, const Colour3f& col)
 {
-	stream.writeUInt32(200);
-	stream.writeFloat(this->rgb.r);
-	stream.writeFloat(this->rgb.g);
-	stream.writeFloat(this->rgb.b);
+	stream.writeFloat(col.r);
+	stream.writeFloat(col.g);
+	stream.writeFloat(col.b);
 }
 
 
-void TextureSpectrumVal::writeToStream(OutStream& stream)
+static Colour3f readColour3fFromStram(InStream& stream)
 {
-	stream.writeUInt32(201);
-	stream.writeStringLengthFirst(this->texture_url);
+	Colour3f col;
+	col.r = stream.readFloat();
+	col.g = stream.readFloat();
+	col.b = stream.readFloat();
+	return col;
 }
 
 
-void TextureSpectrumVal::convertLocalPathsToURLS(ResourceManager& resource_manager)
-{
-	if(FileUtils::fileExists(this->texture_url)) // If the URL is a local path:
-	{
-		this->texture_url = resource_manager.URLForPathAndHash(this->texture_url, FileChecksum::fileChecksum(this->texture_url));
-	}
-}
-
-
-void TextureSpectrumVal::appendDependencyURLs(std::vector<std::string>& paths_out)
-{
-	paths_out.push_back(this->texture_url);
-}
-
-
-static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 1;
+static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 2;
 
 
 void writeToStream(const WorldMaterial& mat, OutStream& stream)
@@ -114,7 +105,9 @@ void writeToStream(const WorldMaterial& mat, OutStream& stream)
 	// Write version
 	stream.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
 
-	writeToStream(mat.colour, stream);
+	writeToStream(stream, mat.colour_rgb);
+	stream.writeStringLengthFirst(mat.colour_texture_url);
+
 	writeToStream(mat.roughness, stream);
 	writeToStream(mat.metallic_fraction, stream);
 	writeToStream(mat.opacity, stream);
@@ -128,7 +121,32 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 	if(v > WORLD_MATERIAL_SERIALISATION_VERSION)
 		throw Indigo::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".");
 
-	readFromStream(stream, mat.colour);
+	if(v == 1)
+	{
+		const uint32 id = stream.readUInt32();
+		switch(id)
+		{
+		case 200:
+		{
+			mat.colour_rgb.r = stream.readFloat();
+			mat.colour_rgb.g = stream.readFloat();
+			mat.colour_rgb.b = stream.readFloat();
+			break;
+		}
+		case 201:
+		{
+			mat.colour_texture_url = stream.readStringLengthFirst(10000);
+			break;
+		}
+		default:
+			throw Indigo::Exception("Invalid spectrum material value.");
+		};
+	}
+	else
+	{
+		mat.colour_rgb = readColour3fFromStram(stream);
+		mat.colour_texture_url = stream.readStringLengthFirst(10000);
+	}
 	readFromStream(stream, mat.roughness);
 	readFromStream(stream, mat.metallic_fraction);
 	readFromStream(stream, mat.opacity);
@@ -136,12 +154,6 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 
 
 void writeToStream(const ScalarValRef& val, OutStream& stream)
-{
-	val->writeToStream(stream);
-}
-
-
-void writeToStream(const SpectrumValRef& val, OutStream& stream)
 {
 	val->writeToStream(stream);
 }
@@ -164,30 +176,5 @@ void readFromStream(InStream& stream, ScalarValRef& ob)
 		}
 	default:
 		throw Indigo::Exception("Invalid scalar material value.");
-	};
-}
-
-
-void readFromStream(InStream& stream, SpectrumValRef& ob)
-{
-	const uint32 id = stream.readUInt32();
-	switch(id)
-	{
-	case 200:
-		{
-			Colour3f col;
-			col.r = stream.readFloat();
-			col.g = stream.readFloat();
-			col.b = stream.readFloat();
-			ob = new ConstantSpectrumVal(col);
-			break;
-		}
-	case 201:
-		{
-			ob = new TextureSpectrumVal(stream.readStringLengthFirst(10000));
-			break;
-		}
-	default:
-		throw Indigo::Exception("Invalid spectrum material value.");
 	};
 }

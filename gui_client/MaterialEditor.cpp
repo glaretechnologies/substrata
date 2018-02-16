@@ -33,14 +33,15 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 {
 	setupUi(this);	
 
-	connect(this->colourRDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
-	connect(this->colourGDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
-	connect(this->colourBDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
-	connect(this->textureFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
+	connect(this->colourRDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	connect(this->colourGDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	connect(this->colourBDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	connect(this->textureFileSelectWidget,			SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
 
-	connect(this->roughnessDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	connect(this->roughnessDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	connect(this->metallicFractionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 
-	connect(this->opacityDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	connect(this->opacityDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 	//setControlsEnabled(false);
 }
 
@@ -53,24 +54,11 @@ MaterialEditor::~MaterialEditor()
 void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 {
 	// Set colour controls
-	if(mat.colour->type == SpectrumVal::SpectrumValType_Constant)
-	{
-		SignalBlocker::setValue(this->colourRDoubleSpinBox, mat.colour.downcastToPtr<ConstantSpectrumVal>()->rgb.r);
-		SignalBlocker::setValue(this->colourGDoubleSpinBox, mat.colour.downcastToPtr<ConstantSpectrumVal>()->rgb.g);
-		SignalBlocker::setValue(this->colourBDoubleSpinBox, mat.colour.downcastToPtr<ConstantSpectrumVal>()->rgb.b);
-		this->textureFileSelectWidget->setFilename("");
-	}
-	else if(mat.colour->type == SpectrumVal::SpectrumValType_Texture)
-	{
-		SignalBlocker::setValue(this->colourRDoubleSpinBox, 0.6f);
-		SignalBlocker::setValue(this->colourGDoubleSpinBox, 0.6f);
-		SignalBlocker::setValue(this->colourBDoubleSpinBox, 0.6f);
-		this->textureFileSelectWidget->setFilename(QtUtils::toQString(mat.colour.downcastToPtr<TextureSpectrumVal>()->texture_url));
-	}
-	else
-	{
-		assert(0);
-	}
+	SignalBlocker::setValue(this->colourRDoubleSpinBox, mat.colour_rgb.r);
+	SignalBlocker::setValue(this->colourGDoubleSpinBox, mat.colour_rgb.g);
+	SignalBlocker::setValue(this->colourBDoubleSpinBox, mat.colour_rgb.b);
+	this->textureFileSelectWidget->setFilename(QtUtils::toQString(mat.colour_texture_url));
+
 
 	if(mat.roughness->type == ScalarVal::ScalarValType_Constant)
 	{
@@ -89,27 +77,31 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 	{
 		SignalBlocker::setValue(this->opacityDoubleSpinBox, 0.5f);
 	}
+	
+	if(mat.metallic_fraction->type == ScalarVal::ScalarValType_Constant)
+	{
+		SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, mat.metallic_fraction.downcastToPtr<ConstantScalarVal>()->val);
+	}
+	else
+	{
+		SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, 0.5f);
+	}
 }
 
 
 void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 {
-	if(this->textureFileSelectWidget->filename().isEmpty())
-	{
-		mat_out.colour = new ConstantSpectrumVal(Colour3f(
-			(float)this->colourRDoubleSpinBox->value(), 
-			(float)this->colourGDoubleSpinBox->value(), 
-			(float)this->colourBDoubleSpinBox->value()
-		));
-	}
-	else
-	{
-		mat_out.colour = new TextureSpectrumVal(QtUtils::toIndString(this->textureFileSelectWidget->filename()));
-	}
+	mat_out.colour_rgb = Colour3f(
+		(float)this->colourRDoubleSpinBox->value(),
+		(float)this->colourGDoubleSpinBox->value(),
+		(float)this->colourBDoubleSpinBox->value()
+	);
+	mat_out.colour_texture_url = QtUtils::toIndString(this->textureFileSelectWidget->filename());
 
-	mat_out.roughness = new ConstantScalarVal(this->roughnessDoubleSpinBox->value());
-	
-	mat_out.opacity = new ConstantScalarVal(this->opacityDoubleSpinBox->value());
+
+	mat_out.roughness			= new ConstantScalarVal(this->roughnessDoubleSpinBox->value());
+	mat_out.metallic_fraction	= new ConstantScalarVal(this->metallicFractionDoubleSpinBox->value());
+	mat_out.opacity				= new ConstantScalarVal(this->opacityDoubleSpinBox->value());
 }
 
 

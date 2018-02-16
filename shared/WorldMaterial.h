@@ -56,43 +56,6 @@ struct TextureScalarVal : public ScalarVal
 	std::string texture_url;
 };
 
-struct SpectrumVal : public ThreadSafeRefCounted
-{
-	enum SpectrumValType
-	{
-		SpectrumValType_Constant,
-		SpectrumValType_Texture
-	};
-
-	SpectrumVal(SpectrumValType t) : type(t) {}
-	virtual void writeToStream(OutStream& stream) = 0;
-	virtual void appendDependencyURLs(std::vector<std::string>& paths_out) = 0;
-	virtual void convertLocalPathsToURLS(ResourceManager& resource_manager) = 0;
-
-	SpectrumValType type;
-};
-typedef Reference<SpectrumVal> SpectrumValRef;
-
-struct ConstantSpectrumVal : public SpectrumVal
-{
-	ConstantSpectrumVal(const Colour3f& rgb_) : SpectrumVal(SpectrumValType_Constant), rgb(rgb_) {}
-	ConstantSpectrumVal() : SpectrumVal(SpectrumValType_Constant) {}
-	virtual void writeToStream(OutStream& stream);
-	virtual void appendDependencyURLs(std::vector<std::string>& paths_out) {}
-	virtual void convertLocalPathsToURLS(ResourceManager& resource_manager) {}
-	Colour3f rgb;
-};
-
-struct TextureSpectrumVal : public SpectrumVal
-{
-	TextureSpectrumVal() : SpectrumVal(SpectrumValType_Texture) {}
-	TextureSpectrumVal(const std::string& texture_url_) : SpectrumVal(SpectrumValType_Texture), texture_url(texture_url_) {}
-	virtual void writeToStream(OutStream& stream);
-	virtual void appendDependencyURLs(std::vector<std::string>& paths_out);
-	virtual void convertLocalPathsToURLS(ResourceManager& resource_manager);
-	std::string texture_url;
-};
-
 
 /*=====================================================================
 WorldMaterial
@@ -105,7 +68,9 @@ public:
 	WorldMaterial();
 	~WorldMaterial();
 
-	Reference<SpectrumVal> colour;
+	Colour3f colour_rgb;
+	std::string colour_texture_url;
+
 	Reference<ScalarVal> roughness;
 	Reference<ScalarVal> metallic_fraction;
 	Reference<ScalarVal> opacity;
@@ -113,7 +78,8 @@ public:
 	Reference<WorldMaterial> clone() const
 	{
 		Reference<WorldMaterial> m = new WorldMaterial();
-		m->colour = colour;
+		m->colour_rgb = colour_rgb;
+		m->colour_texture_url = colour_texture_url;
 		m->roughness = roughness;
 		m->metallic_fraction = metallic_fraction;
 		m->opacity = opacity;
@@ -135,7 +101,3 @@ void readFromStream(InStream& stream, WorldMaterial& ob);
 
 void writeToStream(const ScalarValRef& val, OutStream& stream);
 void readFromStream(InStream& stream, ScalarValRef& ob);
-
-void writeToStream(const SpectrumValRef& val, OutStream& stream);
-void readFromStream(InStream& stream, SpectrumValRef& ob);
-	
