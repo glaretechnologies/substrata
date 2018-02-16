@@ -43,14 +43,14 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, Reso
 		opengl_mat.transparent = false;
 	}
 	
-	if(mat.metallic_fraction->type == ScalarVal::ScalarValType_Constant)
+	/*if(mat.metallic_fraction->type == ScalarVal::ScalarValType_Constant)
 	{
 		opengl_mat.metallic_frac = mat.metallic_fraction.downcastToPtr<ConstantScalarVal>()->val;
 	}
 	else
 	{
 		opengl_mat.metallic_frac = 0.f;
-	}
+	}*/
 
 	opengl_mat.fresnel_scale = 0.3f; // TEMP HACK IMPORTANT
 }
