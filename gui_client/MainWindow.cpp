@@ -61,6 +61,7 @@
 
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
+//#include "../opengl/EnvMapProcessing.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../indigo/TextureServer.h"
@@ -429,6 +430,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				gl_ob = new GLObject();
 				gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
 				gl_ob->materials.resize(1);
+				gl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
 				gl_ob->materials[0].albedo_texture = makeHypercardTexMap(ob->content);
 				gl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
@@ -531,7 +533,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Update URL Bar
 	if(!this->url_widget->hasFocus())
-		this->url_widget->setURL("cyb://" + server_hostname + "?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().x, 1) + "&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().y, 1));
+		this->url_widget->setURL("cyb://" + server_hostname + 
+			"?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().x, 1) + 
+			"&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().y, 1) +
+			"&z=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().z, 1));
 
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
 	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
@@ -1284,7 +1289,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Display an error message if we have not already done so since selecting this object.
 				if(!shown_object_modification_error_msg)
 				{
-					showErrorNotification("You must be the owner of this object to modify it.");
+					showErrorNotification("You must be the owner of this object to modify it.  This object is owned by '" + this->selected_ob->creator_name + "'.");
 					shown_object_modification_error_msg = true;
 				}
 			}
@@ -1940,52 +1945,56 @@ void MainWindow::URLChangedSlot()
 		
 		// TEMP: ignore host for now.
 
-		if(!parser.parseChar('?'))
-			throw Indigo::Exception("Expected '?' after host.");
-
-		if(!parser.parseChar('x'))
-			throw Indigo::Exception("Expected 'x' after '?'.");
-
-		if(!parser.parseChar('='))
-			throw Indigo::Exception("Expected '=' after 'x'.");
-
-		double x, y;
-		if(!parser.parseDouble(x))
-			throw Indigo::Exception("Failed to parse x coord.");
-
-		if(!parser.parseChar('&'))
-			throw Indigo::Exception("Expected '&' after x coodinate.");
-
-		if(!parser.parseChar('y'))
-			throw Indigo::Exception("Expected 'y' after '?'.");
-
-		if(!parser.parseChar('='))
-			throw Indigo::Exception("Expected '=' after 'y'.");
-
-		if(!parser.parseDouble(y))
-			throw Indigo::Exception("Failed to parse y coord.");
-
+		double x = 0;
+		double y = 0;
 		double z = 2;
-		if(parser.currentIsChar('&'))
+		if(parser.currentIsChar('?'))
 		{
-			parser.advance();
+			if(!parser.parseChar('?'))
+				throw Indigo::Exception("Expected '?' after host.");
 
-			string_view URL_arg_name;
-			if(!parser.parseToChar('=', URL_arg_name))
-				throw Indigo::Exception("Failed to parse URL argument after &");
-			if(URL_arg_name == "z")
+			if(!parser.parseChar('x'))
+				throw Indigo::Exception("Expected 'x' after '?'.");
+
+			if(!parser.parseChar('='))
+				throw Indigo::Exception("Expected '=' after 'x'.");
+
+			if(!parser.parseDouble(x))
+				throw Indigo::Exception("Failed to parse x coord.");
+
+			if(!parser.parseChar('&'))
+				throw Indigo::Exception("Expected '&' after x coodinate.");
+
+			if(!parser.parseChar('y'))
+				throw Indigo::Exception("Expected 'y' after '?'.");
+
+			if(!parser.parseChar('='))
+				throw Indigo::Exception("Expected '=' after 'y'.");
+
+			if(!parser.parseDouble(y))
+				throw Indigo::Exception("Failed to parse y coord.");
+
+			if(parser.currentIsChar('&'))
 			{
-				if(!parser.parseChar('='))
-					throw Indigo::Exception("Expected '=' after 'z'.");
+				parser.advance();
 
-				if(!parser.parseDouble(z))
-					throw Indigo::Exception("Failed to parse z coord.");
+				string_view URL_arg_name;
+				if(!parser.parseToChar('=', URL_arg_name))
+					throw Indigo::Exception("Failed to parse URL argument after &");
+				if(URL_arg_name == "z")
+				{
+					if(!parser.parseChar('='))
+						throw Indigo::Exception("Expected '=' after 'z'.");
+
+					if(!parser.parseDouble(z))
+						throw Indigo::Exception("Failed to parse z coord.");
+				}
+				else
+					throw Indigo::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
 			}
-			else
-				throw Indigo::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
-		}
 
-		conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
+			conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
+		}
 
 		this->cam_controller.setPosition(Vec3d(x, y, z));
 	}
@@ -2373,10 +2382,11 @@ void MainWindow::updateGroundPlane()
 
 			GLObjectRef gl_ob = new GLObject();
 			gl_ob->materials.resize(1);
-			gl_ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+			gl_ob->materials[0].albedo_rgb = Colour3f(0.75f);
 			//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
 			gl_ob->materials[0].albedo_tex_path = "obstacle.png";
 			gl_ob->materials[0].roughness = 0.8f;
+			gl_ob->materials[0].fresnel_scale = 0.5f;
 
 			gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * ground_quad_w, it->y * ground_quad_w, 0);
 			gl_ob->mesh_data = ground_quad_mesh_opengl_data;
@@ -2478,6 +2488,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			//EnvMapProcessing::run(cyberspace_base_dir_path);
 			SMTPClient::test();
 			//js::VectorUnitTests::test();
 			//js::TreeTest::doTests(appdata_path);
@@ -2534,6 +2545,7 @@ int main(int argc, char *argv[])
 
 		const float sun_phi = 1.f;
 		const float sun_theta = 0.9510680884f;
+		//const float sun_theta = 0.8;// 0.910680884f;
 		mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
 
 		mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
@@ -2544,6 +2556,7 @@ int main(int argc, char *argv[])
 		{
 			OpenGLMaterial env_mat;
 			env_mat.albedo_tex_path = "sky.png";
+			//env_mat.albedo_tex_path = cyberspace_base_dir_path + "/assets/sky_no_sun_32.exr";
 			env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
 			mw.ui->glWidget->setEnvMat(env_mat);
