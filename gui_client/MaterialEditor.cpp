@@ -59,33 +59,9 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 	SignalBlocker::setValue(this->colourBDoubleSpinBox, mat.colour_rgb.b);
 	this->textureFileSelectWidget->setFilename(QtUtils::toQString(mat.colour_texture_url));
 
-
-	if(mat.roughness->type == ScalarVal::ScalarValType_Constant)
-	{
-		SignalBlocker::setValue(this->roughnessDoubleSpinBox, mat.roughness.downcastToPtr<ConstantScalarVal>()->val);
-	}
-	else
-	{
-		SignalBlocker::setValue(this->roughnessDoubleSpinBox, 0.5f);
-	}
-	
-	if(mat.opacity->type == ScalarVal::ScalarValType_Constant)
-	{
-		SignalBlocker::setValue(this->opacityDoubleSpinBox, mat.opacity.downcastToPtr<ConstantScalarVal>()->val);
-	}
-	else
-	{
-		SignalBlocker::setValue(this->opacityDoubleSpinBox, 0.5f);
-	}
-	
-	if(mat.metallic_fraction->type == ScalarVal::ScalarValType_Constant)
-	{
-		SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, mat.metallic_fraction.downcastToPtr<ConstantScalarVal>()->val);
-	}
-	else
-	{
-		SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, 0.5f);
-	}
+	SignalBlocker::setValue(this->roughnessDoubleSpinBox, mat.roughness.val);
+	SignalBlocker::setValue(this->opacityDoubleSpinBox, mat.opacity.val);
+	SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, mat.metallic_fraction.val);
 }
 
 
@@ -99,9 +75,9 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	mat_out.colour_texture_url = QtUtils::toIndString(this->textureFileSelectWidget->filename());
 
 
-	mat_out.roughness			= new ConstantScalarVal(this->roughnessDoubleSpinBox->value());
-	mat_out.metallic_fraction	= new ConstantScalarVal(this->metallicFractionDoubleSpinBox->value());
-	mat_out.opacity				= new ConstantScalarVal(this->opacityDoubleSpinBox->value());
+	mat_out.roughness			= ScalarVal(this->roughnessDoubleSpinBox->value());
+	mat_out.metallic_fraction	= ScalarVal(this->metallicFractionDoubleSpinBox->value());
+	mat_out.opacity				= ScalarVal(this->opacityDoubleSpinBox->value());
 }
 
 

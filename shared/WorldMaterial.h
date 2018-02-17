@@ -18,48 +18,22 @@ class PhysicsObject;
 class ResourceManager;
 
 
-struct ScalarVal : public ThreadSafeRefCounted
+struct ScalarVal
 {
-	enum ScalarValType
-	{
-		ScalarValType_Constant,
-		ScalarValType_Texture
-	};
+	ScalarVal() : val(0.0f) {}
+	ScalarVal(const float v) : val(v) {}
 
-	ScalarVal(ScalarValType t) : type(t) {}
-	virtual void writeToStream(OutStream& stream) = 0;
-	virtual void appendDependencyURLs(std::vector<std::string>& paths_out) = 0;
-	virtual void convertLocalPathsToURLS(ResourceManager& resource_manager) = 0;
-
-	ScalarValType type;
-};
-typedef Reference<ScalarVal> ScalarValRef;
-
-struct ConstantScalarVal : public ScalarVal
-{
-	ConstantScalarVal() : ScalarVal(ScalarValType_Constant) {}
-	ConstantScalarVal(float v) : ScalarVal(ScalarValType_Constant), val(v) {}
-	virtual void writeToStream(OutStream& stream);
-	virtual void appendDependencyURLs(std::vector<std::string>& paths_out) {}
-	virtual void convertLocalPathsToURLS(ResourceManager& resource_manager) {}
+	void appendDependencyURLs(std::vector<std::string>& paths_out);
+	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 	float val;
-};
-
-struct TextureScalarVal : public ScalarVal
-{
-	TextureScalarVal() : ScalarVal(ScalarValType_Texture) {}
-	TextureScalarVal(const std::string& texture_url_) : ScalarVal(ScalarValType_Texture), texture_url(texture_url_) {}
-	virtual void writeToStream(OutStream& stream);
-	virtual void appendDependencyURLs(std::vector<std::string>& paths_out);
-	virtual void convertLocalPathsToURLS(ResourceManager& resource_manager);
 	std::string texture_url;
 };
 
 
 /*=====================================================================
 WorldMaterial
------------
+-------------
 
 =====================================================================*/
 class WorldMaterial : public ThreadSafeRefCounted
@@ -71,9 +45,9 @@ public:
 	Colour3f colour_rgb;
 	std::string colour_texture_url;
 
-	Reference<ScalarVal> roughness;
-	Reference<ScalarVal> metallic_fraction;
-	Reference<ScalarVal> opacity;
+	ScalarVal roughness;
+	ScalarVal metallic_fraction;
+	ScalarVal opacity;
 
 	Reference<WorldMaterial> clone() const
 	{
@@ -99,5 +73,6 @@ typedef Reference<WorldMaterial> WorldMaterialRef;
 void writeToStream(const WorldMaterial& world_ob, OutStream& stream);
 void readFromStream(InStream& stream, WorldMaterial& ob);
 
-void writeToStream(const ScalarValRef& val, OutStream& stream);
-void readFromStream(InStream& stream, ScalarValRef& ob);
+void writeToStream(const ScalarVal& val, OutStream& stream);
+void readFromStreamOld(InStream& stream, ScalarVal& ob);
+void readFromStream(InStream& stream, ScalarVal& ob);
