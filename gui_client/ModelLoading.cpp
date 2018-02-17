@@ -25,34 +25,12 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, Reso
 	opengl_mat.albedo_rgb = mat.colour_rgb;
 	opengl_mat.albedo_tex_path = (mat.colour_texture_url.empty() ? "" : resource_manager.pathForURL(mat.colour_texture_url));
 
-	if(mat.roughness->type == ScalarVal::ScalarValType_Constant)
-	{
-		opengl_mat.roughness = mat.roughness.downcastToPtr<ConstantScalarVal>()->val;
-	}
-	else
-	{
-		opengl_mat.roughness = 0.5f;
-	}
+	opengl_mat.roughness = mat.roughness.val;
+	opengl_mat.transparent = mat.opacity.val < 1.0f;
 
-	if(mat.opacity->type == ScalarVal::ScalarValType_Constant)
-	{
-		opengl_mat.transparent = mat.opacity.downcastToPtr<ConstantScalarVal>()->val < 1.0f;
-	}
-	else
-	{
-		opengl_mat.transparent = false;
-	}
-	
-	/*if(mat.metallic_fraction->type == ScalarVal::ScalarValType_Constant)
-	{
-		opengl_mat.metallic_frac = mat.metallic_fraction.downcastToPtr<ConstantScalarVal>()->val;
-	}
-	else
-	{
-		opengl_mat.metallic_frac = 0.f;
-	}*/
+	// opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
-	opengl_mat.fresnel_scale = 0.3f; // TEMP HACK IMPORTANT
+	opengl_mat.fresnel_scale = 0.3f;
 }
 
 
@@ -217,8 +195,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 
 					loaded_materials_out[i]->colour_rgb = mats.materials[z].Kd;
 					loaded_materials_out[i]->colour_texture_url = tex_path;
-					loaded_materials_out[i]->opacity = new ConstantScalarVal(ob->materials[i].alpha);
-					loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
+					loaded_materials_out[i]->opacity = ScalarVal(ob->materials[i].alpha);
+					loaded_materials_out[i]->roughness = ScalarVal(0.5f);
 
 					found_mat = true;
 				}
@@ -231,8 +209,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].roughness = 0.5f;
 
 				loaded_materials_out[i]->colour_texture_url = "obstacle.png";
-				loaded_materials_out[i]->opacity = new ConstantScalarVal(1.f);
-				loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
+				loaded_materials_out[i]->opacity = ScalarVal(1.f);
+				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
 			}
 
 			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
@@ -265,8 +243,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 
 				loaded_materials_out[i] = new WorldMaterial();
 				loaded_materials_out[i]->colour_texture_url = "obstacle.png";
-				loaded_materials_out[i]->opacity = new ConstantScalarVal(1.f);
-				loaded_materials_out[i]->roughness = new ConstantScalarVal(0.5f);
+				loaded_materials_out[i]->opacity = ScalarVal(1.f);
+				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
 			}
 			
 			mesh_out = mesh;
