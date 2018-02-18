@@ -2100,13 +2100,16 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 
 			// Update help text
-			this->ui->helpInfoLabel->setText("Click and drag the mouse to move the object around.\n"
-				"'[' and  ']' keys rotate the object.\n"
-				"PgUp and  pgDown keys rotate the object.\n"
-				"'-' and '+' keys wheel moves object near/far.\n"
-				"Esc key: deselect object."
-			);
-			this->ui->helpInfoDockWidget->show();
+			if(have_edit_permissions)
+			{
+				this->ui->helpInfoLabel->setText("Click and drag the mouse to move the object around.\n"
+					"'[' and  ']' keys rotate the object.\n"
+					"PgUp and  pgDown keys rotate the object.\n"
+					"'-' and '+' keys wheel moves object near/far.\n"
+					"Esc key: deselect object."
+				);
+				this->ui->helpInfoDockWidget->show();
+			}
 		}
 		else
 		{
