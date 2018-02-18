@@ -42,7 +42,6 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 	connect(this->metallicFractionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 
 	connect(this->opacityDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
-	//setControlsEnabled(false);
 }
 
 
@@ -96,6 +95,7 @@ void MaterialEditor::setControlsEditable(bool editable)
 	this->textureFileSelectWidget->setReadOnly(!editable);
 
 	this->roughnessDoubleSpinBox->setReadOnly(!editable);
+	this->metallicFractionDoubleSpinBox->setReadOnly(!editable);
 	this->opacityDoubleSpinBox->setReadOnly(!editable);
 }
 

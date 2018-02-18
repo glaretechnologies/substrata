@@ -95,12 +95,16 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	
 	if(ob.object_type == WorldObject::ObjectType_Hypercard)
 	{
-		this->matEditor->hide();
+		this->materialsGroupBox->hide();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
 	}
 	else
 	{
-		this->matEditor->show();
+		this->materialsGroupBox->show();
 		this->matEditor->setFromMaterial(*selected_mat);
+		this->modelLabel->show();
+		this->modelFileSelectWidget->show();
 	}
 }
 

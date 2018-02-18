@@ -65,4 +65,6 @@ private:
 	QSettings settings;
 
 	Type type;
+
+	bool readonly;
 };
