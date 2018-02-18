@@ -20,6 +20,9 @@ LoginDialog::LoginDialog(QSettings* settings_)
 {
 	setupUi(this);
 
+	// Remove question mark from the title bar (see https://stackoverflow.com/questions/81627/how-can-i-hide-delete-the-help-button-on-the-title-bar-of-a-qt-dialog)
+	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("LoginDialog/geometry").toByteArray());
 
