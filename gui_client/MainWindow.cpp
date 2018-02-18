@@ -1623,7 +1623,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	new_world_object->axis = Vec3f(0, 0, 1);
 	new_world_object->angle = this->cam_controller.getAngles().x - Maths::pi_2<float>();
 	new_world_object->scale = Vec3f(0.4f);
-	new_world_object->content = "Select the object to edit this text";
+	new_world_object->content = "Select the object \nto edit this text";
 
 
 	// Send CreateObject message to server
