@@ -18,7 +18,8 @@ FileSelectWidget::FileSelectWidget(QWidget* parent)
 	default_path(QDir::home().path()),
 	settings_key("mainwindow/lastFileSelectDir"),
 	settings("Glare Technologies", "Cyberspace"),
-	type(Type_File)
+	type(Type_File),
+	readonly(false)
 {
 	setupUi(this);
 
@@ -127,8 +128,10 @@ void FileSelectWidget::openFileDialog()
 }
 
 
-void FileSelectWidget::setReadOnly(bool readonly)
+void FileSelectWidget::setReadOnly(bool readonly_)
 {
+	readonly = readonly_;
+
 	this->fileSelectButton->setEnabled(!readonly);
 	this->filePath->setReadOnly(readonly);
 }
@@ -143,6 +146,9 @@ void FileSelectWidget::on_fileSelectButton_clicked(bool v)
 void FileSelectWidget::on_filePath_editingFinished()
 {
 	QString new_file = filePath->text();
+
+	if(readonly)
+		return;
 
 	if(type == Type_File_Save)
 	{

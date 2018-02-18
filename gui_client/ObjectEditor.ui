@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>443</width>
-    <height>866</height>
+    <height>924</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,7 +21,7 @@
      </property>
      <layout class="QFormLayout" name="formLayout">
       <item row="3" column="0">
-       <widget class="QLabel" name="label">
+       <widget class="QLabel" name="modelLabel">
         <property name="text">
          <string>Model</string>
         </property>
@@ -299,7 +299,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="groupBox">
+    <widget class="QGroupBox" name="materialsGroupBox">
      <property name="title">
       <string>Materials</string>
      </property>
