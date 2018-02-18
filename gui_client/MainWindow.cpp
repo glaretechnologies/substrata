@@ -105,7 +105,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	QMainWindow(parent),
 	connected_to_server(false),
 	logged_in_user_id(UserID::invalidUserID()),
-	shown_object_modification_error_msg(false)
+	shown_object_modification_error_msg(false),
+	need_help_info_dock_widget_position(false)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -185,6 +186,9 @@ void MainWindow::initialise()
 		"Double-click an object to select it."
 	);
 	this->ui->helpInfoDockWidget->show();
+
+	if(!settings->contains("mainwindow/geometry"))
+		need_help_info_dock_widget_position = true;
 }
 
 
@@ -544,6 +548,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		ui->infoDockWidget->setGeometry(gl_pos.x(), gl_pos.y(), 300, 1);
 	}
 	
+
+	if(need_help_info_dock_widget_position)
+	{
+		// Position near bottom right corner of glWidget.
+		ui->helpInfoDockWidget->setGeometry(QRect(ui->glWidget->mapToGlobal(ui->glWidget->geometry().bottomRight() + QPoint(-320, -120)), QSize(300, 100)));
+		need_help_info_dock_widget_position = false;
+	}
+
+
 
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
