@@ -5,6 +5,8 @@ SignUpDialog.cpp
 #include "SignUpDialog.h"
 
 
+#include "LoginDialog.h"
+#include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QPushButton>
@@ -25,7 +27,7 @@ SignUpDialog::SignUpDialog(QSettings* settings_)
 
 	this->usernameLineEdit->setText(settings->value("SignUpDialog/username").toString());
 	this->emailLineEdit   ->setText(settings->value("SignUpDialog/email"   ).toString());
-	this->passwordLineEdit->setText(settings->value("SignUpDialog/password").toString()); // TODO: encrypt
+	//this->passwordLineEdit->setText(settings->value("SignUpDialog/password").toString());
 
 	this->buttonBox->button(QDialogButtonBox::Ok)->setText("Sign up");
 
@@ -43,5 +45,9 @@ void SignUpDialog::accepted()
 {
 	settings->setValue("SignUpDialog/username", this->usernameLineEdit->text());
 	settings->setValue("SignUpDialog/email",    this->emailLineEdit->text());
-	settings->setValue("SignUpDialog/password", this->passwordLineEdit->text());
+	//settings->setValue("SignUpDialog/password", this->passwordLineEdit->text());
+
+	// Save these credentials in the LoginDialog settings as well, so that next time the user starts cyberspace it can log them in.
+	settings->setValue("LoginDialog/username", this->usernameLineEdit->text());
+	settings->setValue("LoginDialog/password", QtUtils::toQString(LoginDialog::encryptPassword(QtUtils::toStdString(this->passwordLineEdit->text()))));
 }
