@@ -23,6 +23,8 @@
 #include "../qt/SignalBlocker.h"
 #include "../qt/QtUtils.h"
 #include <QtGui/QMouseEvent>
+#include <QtGui/QDesktopServices>
+#include <QtWidgets/QErrorMessage>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -44,6 +46,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->scriptFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 
 	connect(this->contentTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
+	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SIGNAL(objectChanged()));
+	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SLOT(targetURLChanged()));
 
 	connect(this->scaleXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->scaleYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -53,6 +57,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->rotAxisYDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAxisZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+
+	this->visitURLLabel->hide();
 }
 
 
@@ -76,6 +82,10 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	{
 		SignalBlocker b(this->contentTextEdit);
 		this->contentTextEdit->setText(QtUtils::toQString(ob.content));
+	}
+	{
+		SignalBlocker b(this->targetURLLineEdit);
+		this->targetURLLineEdit->setText(QtUtils::toQString(ob.target_url));
 	}
 
 	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
@@ -106,6 +116,10 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->modelLabel->show();
 		this->modelFileSelectWidget->show();
 	}
+
+	this->targetURLLabel->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
+	this->targetURLLineEdit->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
+	this->visitURLLabel->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard && !ob.target_url.empty());
 }
 
 
@@ -114,6 +128,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
 	ob_out.script_url = QtUtils::toIndString(this->scriptFileSelectWidget->filename());
 	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
+	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 
 	ob_out.scale.x = (float)this->scaleXDoubleSpinBox->value();
 	ob_out.scale.y = (float)this->scaleYDoubleSpinBox->value();
@@ -151,6 +166,7 @@ void ObjectEditor::setControlsEditable(bool editable)
 	this->modelFileSelectWidget->setReadOnly(!editable);
 	this->scriptFileSelectWidget->setReadOnly(!editable);
 	this->contentTextEdit->setReadOnly(!editable);
+	this->targetURLLineEdit->setReadOnly(!editable);
 
 	this->scaleXDoubleSpinBox->setReadOnly(!editable);
 	this->scaleYDoubleSpinBox->setReadOnly(!editable);
@@ -162,4 +178,38 @@ void ObjectEditor::setControlsEditable(bool editable)
 	this->rotAngleDoubleSpinBox->setReadOnly(!editable);
 
 	this->matEditor->setControlsEditable(editable);
+}
+
+
+void ObjectEditor::on_visitURLLabel_linkActivated(const QString&)
+{
+	std::string url = QtUtils::toStdString(this->targetURLLineEdit->text());
+	if(StringUtils::containsString(url, "://"))
+	{
+		// URL already has protocol prefix
+		const std::string protocol = url.substr(0, url.find("://", 0));
+		if(protocol == "http" || protocol == "https")
+		{
+			QDesktopServices::openUrl(QtUtils::toQString(url));
+		}
+		else
+		{
+			// Don't open this URL, might be something potentially unsafe like a file on disk
+			QErrorMessage m;
+			m.showMessage("This URL is potentially unsafe and will not be opened.");
+			m.exec();
+		}
+	}
+	else
+	{
+		url = "http://" + url;
+		QDesktopServices::openUrl(QtUtils::toQString(url));
+	}
+	
+}
+
+
+void ObjectEditor::targetURLChanged()
+{
+	this->visitURLLabel->setVisible(!this->targetURLLineEdit->text().isEmpty());
 }

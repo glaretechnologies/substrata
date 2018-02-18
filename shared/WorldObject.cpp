@@ -217,7 +217,7 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 7;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 8;
 
 
 void writeToStream(const WorldObject& world_ob, OutStream& stream)
@@ -236,6 +236,7 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 
 	stream.writeStringLengthFirst(world_ob.script_url);
 	stream.writeStringLengthFirst(world_ob.content);
+	stream.writeStringLengthFirst(world_ob.target_url);
 
 	writeToStream(world_ob.pos, stream);
 	writeToStream(world_ob.axis, stream);
@@ -280,6 +281,9 @@ void readFromStream(InStream& stream, WorldObject& ob)
 	if(v >= 6)
 		ob.content = stream.readStringLengthFirst(10000);
 
+	if(v >= 8)
+		ob.target_url = stream.readStringLengthFirst(10000);
+
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);
 	ob.angle = stream.readFloat();
@@ -319,6 +323,7 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 
 	stream.writeStringLengthFirst(world_ob.script_url);
 	stream.writeStringLengthFirst(world_ob.content);
+	stream.writeStringLengthFirst(world_ob.target_url);
 
 	writeToStream(world_ob.pos, stream);
 	writeToStream(world_ob.axis, stream);
@@ -350,6 +355,7 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 
 	ob.script_url = stream.readStringLengthFirst(10000);
 	ob.content = stream.readStringLengthFirst(10000);
+	ob.target_url = stream.readStringLengthFirst(10000);
 
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);

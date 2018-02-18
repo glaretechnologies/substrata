@@ -58,6 +58,7 @@ public:
 	std::vector<WorldMaterialRef> materials;
 	std::string script_url;
 	std::string content; // For ObjectType_Hypercard
+	std::string target_url; // For ObjectType_Hypercard
 	Vec3d pos;
 	Vec3f axis;
 	float angle;

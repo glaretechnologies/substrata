@@ -40,6 +40,10 @@ protected:
 
 signals:;
 	void objectChanged();
+
+private slots:
+	void on_visitURLLabel_linkActivated(const QString& link);
+	void targetURLChanged();
 	
 private:
 	int selected_mat_index;
