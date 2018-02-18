@@ -198,6 +198,35 @@ void GlWidget::setEnvMat(OpenGLMaterial& mat)
 	this->makeCurrent();
 
 	buildMaterial(mat);
+	 // PBR stuff:
+	/*try
+	{
+		if(!mat.albedo_tex_path.empty() && mat.albedo_texture.isNull()) // If texture not already loaded:
+		{
+			std::string use_path;
+			try
+			{
+				use_path = FileUtils::getActualOSPath(mat.albedo_tex_path);
+			}
+			catch(FileUtils::FileUtilsExcep&)
+			{
+				use_path = mat.albedo_tex_path;
+			}
+
+			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(indigo_base_dir, use_path);
+			Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Repeat);
+			mat.albedo_texture = opengl_tex;
+		}
+	}
+	catch(TextureServerExcep& e)
+	{
+		conPrint("Failed to load texture '" + mat.albedo_tex_path + "': " + e.what());
+	}
+	catch(ImFormatExcep& e)
+	{
+		conPrint("Failed to load texture '" + mat.albedo_tex_path + "': " + e.what());
+	}
+*/
 	opengl_engine->setEnvMat(mat);
 }
 
@@ -235,6 +264,9 @@ void GlWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 					opengl_mat.albedo_texture = opengl_tex;
 				}
 			}
+			// PBR stuff:
+			//Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat);
+			//opengl_mat.albedo_texture = opengl_tex;
 		}
 		//std::cout << "successfully loaded " << use_path << ", xres = " << tex_xres << ", yres = " << tex_yres << std::endl << std::endl;
 	}
@@ -317,14 +349,19 @@ void GlWidget::playerPhyicsThink()
 #ifdef _WIN32
 	if(hasFocus())
 	{
-		if(GetAsyncKeyState('W'))
+		if(GetAsyncKeyState('W') || GetAsyncKeyState(VK_UP))
 			this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller);
-		if(GetAsyncKeyState('S'))
+		if(GetAsyncKeyState('S') || GetAsyncKeyState(VK_DOWN))
 			this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller);
 		if(GetAsyncKeyState('A'))
 			this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller);
 		if(GetAsyncKeyState('D'))
 			this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
+
+		if(GetAsyncKeyState(VK_LEFT))
+			this->cam_controller->update(Vec3d(0.0), Vec2d(0, -3));
+		if(GetAsyncKeyState(VK_RIGHT))
+			this->cam_controller->update(Vec3d(0.0), Vec2d(0, 3));
 	}
 #else
 	if(W_down)

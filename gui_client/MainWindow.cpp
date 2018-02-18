@@ -88,8 +88,7 @@
 #pragma comment(linker, "/SUBSYSTEM:CONSOLE")
 #endif
 
-static const std::string server_hostname = "207.154.228.151"; // Digital ocean droplet server
-//static const std::string server_hostname = "217.155.32.43";
+static const std::string server_hostname = "substrata.info"; // Digital ocean droplet server
 //static const std::string server_hostname = "127.0.0.1";
 const int server_port = 7600;
 
@@ -180,7 +179,7 @@ void MainWindow::initialise()
 	ui->infoDockWidget->hide();
 
 	// Update help text
-	this->ui->helpInfoLabel->setText("Use the W/A/S/D keys to move around.\n"
+	this->ui->helpInfoLabel->setText("Use the W/A/S/D keys and arrow keys to move and look around.\n"
 		"Click and drag the mouse on the 3D view to look around.\n"
 		"Space key: jump\n"
 		"Double-click an object to select it."
@@ -2089,9 +2088,10 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			// Update help text
 			this->ui->helpInfoLabel->setText("Click and drag the mouse to move the object around.\n"
-				"Arrow keys rotate the object.\n"
+				"'[' and  ']' keys rotate the object.\n"
+				"PgUp and  pgDown keys rotate the object.\n"
 				"'-' and '+' keys wheel moves object near/far.\n"
-				"'Esc' key: deselect object."
+				"Esc key: deselect object."
 			);
 			this->ui->helpInfoDockWidget->show();
 		}
@@ -2240,21 +2240,21 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	if(this->selected_ob.nonNull())
 	{
 		const float angle_step = Maths::pi<float>() / 32;
-		if(e->key() == Qt::Key::Key_Left)
+		if(e->key() == Qt::Key::Key_BracketLeft)
 		{
 			// Rotate object clockwise around z axis
 			rotateObject(this->selected_ob, Vec4f(0,0,1,0), -angle_step);
 		}
-		else if(e->key() == Qt::Key::Key_Right)
+		else if(e->key() == Qt::Key::Key_BracketRight)
 		{
 			rotateObject(this->selected_ob, Vec4f(0,0,1,0), angle_step);
 		}
-		else if(e->key() == Qt::Key::Key_Up)
+		else if(e->key() == Qt::Key::Key_PageUp)
 		{
 			// Rotate object clockwise around camera right-vector
 			rotateObject(this->selected_ob, this->cam_controller.getRightVec().toVec4fVector(), -angle_step);
 		}
-		else if(e->key() == Qt::Key::Key_Down)
+		else if(e->key() == Qt::Key::Key_PageDown)
 		{
 			// Rotate object counter-clockwise around camera right-vector
 			rotateObject(this->selected_ob, this->cam_controller.getRightVec().toVec4fVector(), angle_step);
