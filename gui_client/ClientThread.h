@@ -78,6 +78,10 @@ class ClientConnectingToServerMessage : public ThreadMessage
 
 class ClientDisconnectedFromServerMessage : public ThreadMessage
 {
+public:
+	ClientDisconnectedFromServerMessage() {}
+	ClientDisconnectedFromServerMessage(const std::string& error_message_) : error_message(error_message_) {}
+	std::string error_message;
 };
 
 

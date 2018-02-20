@@ -16,6 +16,7 @@
 #include "ModelLoading.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
+#include "NetDownloadResourcesThread.h"
 #include "AvatarGraphics.h"
 #include "GuiClientApplication.h"
 #include "WinterShaderEvaluator.h"
@@ -58,6 +59,8 @@
 #include "../networking/networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
+#include "../networking/HTTPClient.h" // Just for testing
+#include "../networking/URL.h" // Just for testing
 
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
@@ -334,6 +337,33 @@ static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
 }
 
 
+void MainWindow::startDownloadingResource(const std::string& url)
+{
+	conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
+
+	ResourceRef resource = resource_manager->getResourceForURL(url);
+	if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
+	{
+		conPrint("Already present or being downloaded, skipping...");
+		return;
+	}
+
+	try
+	{
+		const URL parsed_url = URL::parseURL(url);
+
+		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
+			this->net_resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
+		else
+			this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
+	}
+	catch(Indigo::Exception& e)
+	{
+		conPrint("Failed to parse URL '" + url + "': " + e.what());
+	}
+}
+
+
 // Check if the model file and any material dependencies (textures etc..) are downloaded.
 // If so load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the downloads.
@@ -363,14 +393,14 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 		bool all_downloaded = true;
 		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
-			const std::string& URL = *it;
-			if(resource_manager->isValidURL(URL))
+			const std::string& url = *it;
+			if(resource_manager->isValidURL(url))
 			{
-				if(!resource_manager->isFileForURLDownloaded(URL))
+				if(!resource_manager->isFileForURLDownloaded(url))
 				{
 					all_downloaded = false;
 					if(start_downloading_missing_files)
-						this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(URL));
+						startDownloadingResource(url);
 				}
 			}
 			else
@@ -596,6 +626,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
 			{
+				const ClientDisconnectedFromServerMessage* m = static_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer());
+				if(!m->error_message.empty())
+				{
+					QMessageBox msgBox;
+					msgBox.setWindowTitle("Disconnected from Server");
+					msgBox.setText(QtUtils::toQString(m->error_message));
+					msgBox.exec();
+				}
 				this->statusBar()->showMessage("Not connected to server.");
 				this->connected_to_server = false;
 			}
@@ -725,9 +763,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(ResourceManager::isValidURL(m->URL))
 				{
-					const std::string path = resource_manager->pathForURL(m->URL);
-					if(FileUtils::fileExists(path))
+					if(resource_manager->isFileForURLDownloaded(m->URL))
 					{
+						const std::string path = resource_manager->pathForURL(m->URL);
+
 						const std::string username = QtUtils::toStdString(settings->value("LoginDialog/username").toString());
 						const std::string password = LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString()));
 
@@ -746,9 +785,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(ResourceManager::isValidURL(m->URL))
 				{
-					const std::string path = resource_manager->pathForURL(m->URL);
-					if(!FileUtils::fileExists(path)) // If we don't have this file already:
+					if(resource_manager->isFileForURLDownloaded(m->URL))
 					{
+						const std::string path = resource_manager->pathForURL(m->URL);
+
 						// Iterate over objects and see if they were using a placeholder model for this resource.
 						Lock lock(this->world_state->mutex);
 						bool need_resource = false;
@@ -1875,61 +1915,84 @@ void MainWindow::objectEditedSlot()
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
+		// All paths should be URLs now
+		URLs.clear();
+		this->selected_ob->appendDependencyURLs(URLs);
 
-		const Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
-			Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
-			Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
-
-		GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
-
-		// Update in opengl engine.
-		if(this->selected_ob->object_type == WorldObject::ObjectType_Generic)
+		// See if we have all required resources, we may have changed a texture URL to something we don't have
+		bool all_downloaded = true;
+		for(auto it = URLs.begin(); it != URLs.end(); ++it)
 		{
-			// Update materials
-			if(opengl_ob.nonNull())
+			const std::string& url = *it;
+			if(resource_manager->isValidURL(url))
 			{
-				if(!opengl_ob->materials.empty())
+				if(!resource_manager->isFileForURLDownloaded(url))
 				{
-					opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+					all_downloaded = false;
+					startDownloadingResource(url);
+				}
+			}
+			else
+				all_downloaded = false;
+		}
 
-					for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-						ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager,
-							opengl_ob->materials[i]
-						);
+		if(all_downloaded)
+		{
+			const Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
+				Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
+				Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
+
+			GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
+
+			// Update in opengl engine.
+			if(this->selected_ob->object_type == WorldObject::ObjectType_Generic)
+			{
+				// Update materials
+				if(opengl_ob.nonNull())
+				{
+					if(!opengl_ob->materials.empty())
+					{
+						opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+
+						for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
+							ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager,
+								opengl_ob->materials[i]
+							);
+					}
+				}
+
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
+			}
+			else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
+			{
+				if(selected_ob->content != selected_ob->loaded_content)
+				{
+					// Re-create opengl-ob
+					ui->glWidget->makeCurrent();
+
+					opengl_ob->materials.resize(1);
+					opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content);
+
+					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+					selected_ob->opengl_engine_ob = opengl_ob;
+
+					selected_ob->loaded_content = selected_ob->content;
 				}
 			}
 
-			ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
-		}
-		else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
-		{
-			if(selected_ob->content != selected_ob->loaded_content)
+			// Update transform of OpenGL object
+			opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+
+			ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+			// Mark as from-local-dirty to send an object updated message to the server
+			this->selected_ob->from_local_other_dirty = true;
+
+			if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
 			{
-				// Re-create opengl-ob
-				ui->glWidget->makeCurrent();
-
-				opengl_ob->materials.resize(1);
-				opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content);
-
-				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-				selected_ob->opengl_engine_ob = opengl_ob;
-
-				selected_ob->loaded_content = selected_ob->content;
+				loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
+				this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 			}
-		}
-
-		// Update transform of OpenGL object
-		opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-
-		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
-
-		// Mark as from-local-dirty to send an object updated message to the server
-		this->selected_ob->from_local_other_dirty = true;
-
-		if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
-		{
-			loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
-			this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 		}
 	}
 }
@@ -2504,8 +2567,10 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			URL::test();
+			HTTPClient::test();
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
-			SMTPClient::test();
+			//SMTPClient::test();
 			//js::VectorUnitTests::test();
 			//js::TreeTest::doTests(appdata_path);
 			//Matrix4f::test();
@@ -2530,6 +2595,9 @@ int main(int argc, char *argv[])
 
 
 		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, server_hostname, server_port));
+
+		for(int i=0; i<4; ++i)
+			mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager));
 
 		const std::string avatar_path = QtUtils::toStdString(mw.settings->value("avatarPath").toString());
 		//const std::string username    = QtUtils::toStdString(mw.settings->value("username").toString());

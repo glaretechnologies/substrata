@@ -29,6 +29,8 @@ class DownloadResourceMessage : public ThreadMessage
 public:
 	DownloadResourceMessage(const std::string& URL_) : URL(URL_) {}
 	std::string URL;
+
+	IndigoAtomic processed; // zero if not processed (being downloaded) yet.
 };
 
 
@@ -44,7 +46,7 @@ public:
 DownloadResourcesThread
 -------------------
 Downloads any resources from the server as needed.
-THis thread gets sent DownloadResourceMessage from MainWindow, when a new file is needed to be downloaded.
+This thread gets sent DownloadResourceMessage from MainWindow, when a new file is needed to be downloaded.
 It sends ResourceDownloadedMessage's back to MainWindow via the out_msg_queue when files are downloaded.
 =====================================================================*/
 class DownloadResourcesThread : public MessageableThread
