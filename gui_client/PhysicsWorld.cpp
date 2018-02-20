@@ -85,7 +85,7 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext
 
 	float closest_dist = std::numeric_limits<float>::infinity();
 
-	const Ray ray(origin, dir, 0.f);
+	const Ray ray(origin, dir, 0.f, std::numeric_limits<float>::infinity());
 
 	for(size_t i=0; i<objects.size(); ++i)
 	{
