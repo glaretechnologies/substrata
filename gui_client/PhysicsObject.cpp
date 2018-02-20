@@ -33,13 +33,14 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_
 	const Ray localray(
 		pos_os, // origin
 		dir_os, // direction
-		ray.minT() // min_t - Use the world space ray min_t.
+		ray.minT(), // min_t - Use the world space ray min_t.
+		max_t,
+		false // shadow ray
 	);
 
 	HitInfo hitinfo;
 	const float dist = (float)geometry->traceRay(
 		localray,
-		max_t,
 		thread_context,
 		hitinfo
 	);
@@ -74,7 +75,8 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 	const Ray ray_os(
 		startpos_os, // origin
 		unitdir, // direction
-		0.f // min_t - Use the world space ray min_t.
+		0.f, // min_t - Use the world space ray min_t.
+		std::numeric_limits<float>::infinity() // max_t
 	);
 
 	Vec4f closest_hit_normal;
