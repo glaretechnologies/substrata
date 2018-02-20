@@ -1,12 +1,13 @@
 /*=====================================================================
-DownloadResourcesThread.h
--------------------
+NetDownloadResourcesThread.h
+----------------------------
 Copyright Glare Technologies Limited 2016 -
 Generated at 2016-01-16 22:59:23 +1300
 =====================================================================*/
 #pragma once
 
 
+#include "DownloadResourcesThread.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldState.h"
 #include <MessageableThread.h>
@@ -23,44 +24,22 @@ class ThreadMessageSink;
 class Server;
 
 
-
-class DownloadResourceMessage : public ThreadMessage
-{
-public:
-	DownloadResourceMessage(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
-
-	IndigoAtomic processed; // zero if not processed (being downloaded) yet.
-};
-
-
-class ResourceDownloadedMessage : public ThreadMessage
-{
-public:
-	ResourceDownloadedMessage(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
-};
-
-
 /*=====================================================================
-DownloadResourcesThread
--------------------
-Downloads any resources from the server as needed.
+NetDownloadResourcesThread
+--------------------------
+Downloads resources from the internet, e.g. via HTTP.
 This thread gets sent DownloadResourceMessage from MainWindow, when a new file is needed to be downloaded.
 It sends ResourceDownloadedMessage's back to MainWindow via the out_msg_queue when files are downloaded.
 =====================================================================*/
-class DownloadResourcesThread : public MessageableThread
+class NetDownloadResourcesThread : public MessageableThread
 {
 public:
-	DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager, const std::string& hostname, int port);
-	virtual ~DownloadResourcesThread();
+	NetDownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager);
+	virtual ~NetDownloadResourcesThread();
 
 	virtual void doRun();
 
 private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	Reference<ResourceManager> resource_manager;
-	std::string hostname;
-	//std::string resources_dir;
-	int port;
 };

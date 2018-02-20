@@ -471,10 +471,12 @@ void ClientThread::doRun()
 	catch(MySocketExcep& e)
 	{
 		conPrint("Socket error: " + e.what());
+		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what()));
 	}
 	catch(Indigo::Exception& e)
 	{
 		conPrint("Indigo::Exception: " + e.what());
+		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what()));
 	}
 
 	out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage());

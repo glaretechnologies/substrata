@@ -17,6 +17,7 @@ Code By Nicholas Chapman.
 #include <Base64.h>
 #include <Exception.h>
 #include <mysocket.h>
+#include <url.h>
 #include <Lock.h>
 #include <StringUtils.h>
 #include <SocketBufferOutStream.h>
@@ -52,6 +53,17 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 {
 	if(!ResourceManager::isValidURL(resource_URL))
 		throw Indigo::Exception("Invalid URL: '" + resource_URL + "'");
+
+	try
+	{
+		URL parsed_url = URL::parseURL(resource_URL);
+
+		// If this is a web URL, then we don't need to get it from the client.
+		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
+			return;
+	}
+	catch(Indigo::Exception& e)
+	{}
 
 	// See if we have this file on the server already
 	{

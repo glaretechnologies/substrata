@@ -91,14 +91,18 @@ void DownloadResourcesThread::doRun()
 				std::string URL = *URLs_to_get.begin();
 				URLs_to_get.erase(URLs_to_get.begin());
 
+				ResourceRef resource = resource_manager->getResourceForURL(URL);
+
 				// Check to see if we have the resource now, we may have downloaded it recently.
-				if(FileUtils::fileExists(resource_manager->pathForURL(URL)))
+				if(resource->getState() != Resource::State_NotPresent)
 				{
-					conPrint("Already have file, not downloading.");
+					conPrint("Already have file or downloading file, not downloading.");
 				}
 				else
 				{
 					conPrint("DownloadResourcesThread: Querying server for file '" + URL + "'...");
+
+					resource->setState(Resource::State_Downloading);
 
 					socket->writeUInt32(GetFile);
 					socket->writeStringLengthFirst(URL);
@@ -125,10 +129,13 @@ void DownloadResourcesThread::doRun()
 
 								conPrint("DownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(file_len) + ") ");
 
+								resource->setState(Resource::State_Present);
+
 								out_msg_queue->enqueue(new ResourceDownloadedMessage(URL));
 							}
 							catch(FileUtils::FileUtilsExcep& e)
 							{
+								resource->setState(Resource::State_NotPresent);
 								conPrint("DownloadResourcesThread: Error while writing file to disk: " + e.what());
 							}
 						}
@@ -137,6 +144,7 @@ void DownloadResourcesThread::doRun()
 					}
 					else
 					{
+						resource->setState(Resource::State_NotPresent);
 						conPrint("DownloadResourcesThread: Server couldn't send file. (Result=" + toString(result) + ")");
 					}
 				}
