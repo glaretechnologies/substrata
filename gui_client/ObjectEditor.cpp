@@ -36,6 +36,9 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 {
 	setupUi(this);
 
+	this->modelFileSelectWidget->force_use_last_dir_setting = true;
+	this->scriptFileSelectWidget->force_use_last_dir_setting = true;
+
 	this->scaleXDoubleSpinBox->setMinimum(0.00001);
 	this->scaleYDoubleSpinBox->setMinimum(0.00001);
 	this->scaleZDoubleSpinBox->setMinimum(0.00001);

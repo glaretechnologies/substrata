@@ -77,9 +77,11 @@ private:
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
+	void loadScriptForObject(WorldObject* ob);
 	void print(const std::string& message); // Print to log and console
 	void showErrorNotification(const std::string& message);
 	void startDownloadingResource(const std::string& url);
+	void evalObjectScript(WorldObject* ob, double cur_time);
 
 	std::string base_dir_path;
 	std::string appdata_path;

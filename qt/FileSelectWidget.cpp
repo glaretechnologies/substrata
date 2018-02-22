@@ -19,7 +19,8 @@ FileSelectWidget::FileSelectWidget(QWidget* parent)
 	settings_key("mainwindow/lastFileSelectDir"),
 	settings("Glare Technologies", "Cyberspace"),
 	type(Type_File),
-	readonly(false)
+	readonly(false),
+	force_use_last_dir_setting(false)
 {
 	setupUi(this);
 
@@ -93,7 +94,7 @@ void FileSelectWidget::openFileDialog()
 {
 	QString previous_file = "";
 
-	if(!this->filePath->text().isEmpty())
+	if(!this->filePath->text().isEmpty() && !force_use_last_dir_setting)
 		previous_file = this->filePath->text();
 	else //"mainwindow/lastEnvMapOpenedDir"
 		previous_file = settings.value(settings_key, QVariant(default_path)).toString();

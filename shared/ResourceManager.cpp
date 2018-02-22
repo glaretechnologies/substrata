@@ -11,6 +11,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <StringUtils.h>
 #include <FileUtils.h>
 #include <Exception.h>
+#include <FileChecksum.h>
 #include <Lock.h>
 
 
@@ -98,6 +99,23 @@ ResourceRef ResourceManager::getResourceForURL(const std::string& URL) // Thread
 	else
 	{
 		return res->second;
+	}
+}
+
+
+void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL) // Threadsafe
+{
+	try
+	{
+		FileUtils::copyFile(local_path, this->pathForURL(URL));
+
+		Lock lock(mutex);
+		ResourceRef res = getResourceForURL(URL);
+		res->setState(Resource::State_Present);
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		throw Indigo::Exception(e.what());
 	}
 }
 

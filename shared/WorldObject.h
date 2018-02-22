@@ -36,6 +36,8 @@ public:
 	WorldObject();
 	~WorldObject();
 
+	INDIGO_ALIGNED_NEW_DELETE
+
 	void appendDependencyURLs(std::vector<std::string>& URLs_out);
 	void getDependencyURLSet(std::set<std::string>& URLS_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
@@ -87,6 +89,10 @@ public:
 	std::string loaded_model_url;
 
 	std::string loaded_content;
+
+	std::string loaded_script_url;
+	int instance_index;
+	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 
 	//Reference<WorldMaterial> material;
 
