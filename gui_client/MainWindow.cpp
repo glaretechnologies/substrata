@@ -1,4 +1,8 @@
-
+/*=====================================================================
+MainWindow.cpp
+--------------
+Copyright Glare Technologies Limited 2018 -
+=====================================================================*/
 #if defined(_WIN32)
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
@@ -26,7 +30,6 @@
 #include "ChangePasswordDialog.h"
 #include "URLWidget.h"
 #include "../shared/Protocol.h"
-//#include "IndigoApplication.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -72,12 +75,9 @@
 #include <clocale>
 
 
-// For tests:
-#include "../physics/TreeTest.h"
-#include "../utils/VectorUnitTests.h"
-
-//TEMP:
-#include "../utils/ReferenceTest.h"
+#include "../physics/TreeTest.h" // Just for testing
+#include "../utils/VectorUnitTests.h" // Just for testing
+#include "../utils/ReferenceTest.h" // Just for testing
 
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -96,9 +96,9 @@ static const std::string server_hostname = "substrata.info"; // Digital ocean dr
 const int server_port = 7600;
 
 
-AvatarGraphicsRef test_avatar;
-//Reference<WorldObject> test_object;
 static const double ground_quad_w = 1000.f;
+
+AvatarGraphicsRef test_avatar;
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -214,9 +214,6 @@ MainWindow::~MainWindow()
 }
 
 
-static Reference<GLObject> globe;
-
-
 static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
 {
 	Reference<PhysicsObject> phy_ob = new PhysicsObject();
@@ -317,16 +314,6 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
 	return m;
 }
-
-
-//static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& axis, float angle)
-//{
-//	//return Matrix4f::translationMatrix((float)translation.x, (float)translation.y, (float)translation.z) * Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle);
-//	Matrix4f m;
-//	m.setToRotationMatrix(normalise(axis.toVec4fVector()), angle);
-//	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
-//	return m;
-//}
 
 
 static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
@@ -719,9 +706,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	time_since_last_timer_ev.reset();
 
 	
-	//if(test_avatar.nonNull())
-	//	test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.f, cur_time);
-
 	// Handle any messages (chat messages etc..)
 	{
 		Lock lock(this->msg_queue.getMutex());
@@ -886,6 +870,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const GetFileMessage*>(msg.getPointer()))
 			{
+				// When the server wants a file from the client, it will send the client a GetFile protocol message.
 				const GetFileMessage* m = static_cast<const GetFileMessage*>(msg.getPointer());
 
 				if(ResourceManager::isValidURL(m->URL))
@@ -995,22 +980,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 		}
 	}
-
-
-	// Update spinning globe
-	if(globe.nonNull())
-	{
-		Matrix4f scale;
-		scale.setToUniformScaleMatrix(1.0f);
-		Matrix4f rot;
-		rot.setToRotationMatrix(Vec4f(0,0,1,0), total_timer.elapsed() * 0.3f);
-		mul(scale, rot, globe->ob_to_world_matrix);
-
-		globe->ob_to_world_matrix.setColumn(3, Vec4f(-1.f, 0.f, 1.5f, 1));
-	
-		ui->glWidget->opengl_engine->updateObjectTransformData(*globe.getPointer());
-	}
-
 
 	// Evaluate scripts on objects
 	{
@@ -2619,7 +2588,6 @@ void MainWindow::updateGroundPlane()
 		else
 			++it;
 	}
-
 }
 
 
@@ -2665,12 +2633,6 @@ int main(int argc, char *argv[])
 	for(int i = 0; i < arg_list.size(); ++i)
 		args.push_back(QtUtils::toIndString(arg_list.at((int)i)));
 
-
-	//TEMP:
-	//ReferenceTest::run();
-	//Matrix4f::test();
-	//CameraController::test();
-
 	try
 	{
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
@@ -2693,6 +2655,9 @@ int main(int argc, char *argv[])
 			//js::VectorUnitTests::test();
 			//js::TreeTest::doTests(appdata_path);
 			//Matrix4f::test();
+			//ReferenceTest::run();
+			//Matrix4f::test();
+			//CameraController::test();
 			return 0;
 		}
 #endif
@@ -2707,11 +2672,7 @@ int main(int argc, char *argv[])
 		mw.raise();
 
 
-
-		Mutex temp_mutex;
-
 		mw.world_state = new WorldState();
-
 
 		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, server_hostname, server_port));
 
@@ -2728,15 +2689,12 @@ int main(int argc, char *argv[])
 
 		mw.client_thread = new ClientThread(&mw.msg_queue, server_hostname, server_port, &mw, avatar_URL);
 		mw.client_thread->world_state = mw.world_state;
-		//mw.client_thread->launch();
 		mw.client_thread_manager.addThread(mw.client_thread);
 
-		
 
 		mw.physics_world = new PhysicsWorld();
 
 
-		//CameraController cam_controller;
 		mw.cam_controller.setPosition(Vec3d(0,0,4.7));
 		mw.ui->glWidget->setCameraController(&mw.cam_controller);
 		mw.ui->glWidget->setPlayerPhysics(&mw.player_physics);
@@ -2766,7 +2724,7 @@ int main(int argc, char *argv[])
 		}
 
 
-		//TEMP: make an arrow
+		// Make an arrow marking the axes at the origin
 		const Vec4f arrow_origin(0, 0, 0.05f, 1);
 		{
 			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
@@ -2780,58 +2738,8 @@ int main(int argc, char *argv[])
 			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 			mw.ui->glWidget->opengl_engine->addObject(arrow);
 		}
-
-		// TEMP: Test nametag
-		{
-
-			// Add nametag object for avatar
-			{
-				
-
-				//avatar->opengl_engine_nametag_ob = gl_ob;
-				//mw.ui->glWidget->addObject(gl_ob);
-			}
-		}
-
-		// TEMP: make capsule
-		/*{
-			GLObjectRef ob = new GLObject();
-
-			ob->ob_to_world_matrix.setToTranslationMatrix(0.0, 2.0, 1.0f);
-
-			ob->mesh_data = mw.glWidget->opengl_engine->makeCapsuleMesh(
-				Vec3f(0.2f, 0.1f, 0.2f), 
-				Vec3f(0.4f, 0.2f, 0.4f)
-			);
-
-			ob->materials.resize(1);
-			ob->materials[0].albedo_rgb = Colour3f(0.5f, 0.5f, 0.2f);
-			
-			mw.glWidget->opengl_engine->addObject(ob);
-		}*/
-
-		//TEMP: make an AABB
-		/*{
-			GLObjectRef aabb = mw.glWidget->opengl_engine->makeAABBObject(Vec4f(1,1,1,1), Vec4f(2,2,2,1), Colour4f(0.6, 0.5, 0.5, 0.6));
-			mw.glWidget->opengl_engine->addObject(aabb);
-		}*/
-
-		/*{
-			GLObjectRef aabb = mw.glWidget->opengl_engine->makeAABBObject(Vec4f(1,1,1,1), Vec4f(2,1.5,1.5,1), Colour4f(0.6, 0.3, 0.3, 0.6));
-			mw.glWidget->opengl_engine->addObject(aabb);
-		}
-
-		{
-			GLObjectRef aabb = mw.glWidget->opengl_engine->makeAABBObject(Vec4f(3,1,1,1), Vec4f(4,3,2,1), Colour4f(0.3, 0.6, 0.3, 0.6));
-			mw.glWidget->opengl_engine->addObject(aabb);
-		}
-
-		{
-			GLObjectRef aabb = mw.glWidget->opengl_engine->makeAABBObject(Vec4f(5,1,1,1), Vec4f(6,2,3,1), Colour4f(0.3, 0.3, 0.6, 0.2));
-			mw.glWidget->opengl_engine->addObject(aabb);
-		}*/
-
-	
+		
+		
 		// Load a test overlay quad
 		if(false)
 		{
@@ -2848,7 +2756,6 @@ int main(int argc, char *argv[])
 
 			mw.ui->glWidget->addOverlayObject(ob);
 		}
-		
 
 
 		/*
@@ -2926,74 +2833,10 @@ int main(int argc, char *argv[])
 			mw.hypercard_quad_raymesh->buildJSTris();
 		}
 
-
 		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
-
-		// Add a spinning globe
-		/*{
-			globe = new GLObject();
-			globe->mesh_data = mw.glWidget->opengl_engine->getSphereMeshData();
-			globe->materials.resize(1);
-			OpenGLMaterial env_mat;
-			globe->materials[0].albedo_tex_path = "N:\\indigo\\trunk\\testscenes\\world.200401.3x5400x2700.jpg";
-			globe->materials[0].tex_matrix = Matrix2f(1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
-
-			globe->ob_to_world_matrix = Matrix4f::identity();
-			globe->ob_to_world_matrix.setColumn(3, Vec4f(-2.f,1,0.8f,3.3f)); // Set pos
-
-			mw.glWidget->addObject(globe);
-
-			//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-		}*/
-
-
 
 		try
 		{
-			// Eames Elephant
-			
-			/*{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				FormatDecoderObj::streamModel("N:\\indigo\\trunk\\testscenes\\eames_elephant.obj", *mesh, 1.f);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(2);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-
-				ob->materials[1].albedo_rgb = Colour3f(0.6f, 0.6f, 0.2f);
-				ob->materials[1].fresnel_scale = 1;
-
-				ob->ob_to_world_matrix.setToRotationMatrix(Vec4f(1,0,0,0), Maths::pi_2<float>());
-				ob->ob_to_world_matrix.setColumn(3, Vec4f(0.3,1,0.8f,1.f)); // Set pos
-				//ob->ob_to_world_matrix.setToTranslationMatrix(0.3,1,0.8f);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-
-				mw.glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}*/
-
-			//TEMP:
-			// Load a GIANT teapot
-		/*	{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				FormatDecoderObj::streamModel("N:\\indigo\\trunk\\testfiles\\teapot.obj", *mesh, 10.f);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 6.2f);
-				ob->materials[0].fresnel_scale = 1;
-
-				ob->ob_to_world_matrix.setToTranslationMatrix(-10,10,-1.4f);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-
-				mw.glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}*/
-
-
 			// TEMP: make an avatar
 			if(false)
 			{
@@ -3001,7 +2844,6 @@ int main(int argc, char *argv[])
 				test_avatar->create(*mw.ui->glWidget->opengl_engine);
 				test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.0);
 			}
-			
 
 			// Load a wedge
 			{
@@ -3021,242 +2863,6 @@ int main(int argc, char *argv[])
 
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
-
-			// Load a wedge
-			/*{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].roughness = 0.3f;
-
-				ob->ob_to_world_matrix = Matrix4f::translationMatrix(-10, 10, 2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundXAxis(3.14);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}
-
-
-			// Load a wedge
-			{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].roughness = 0.3f;
-
-				ob->ob_to_world_matrix = Matrix4f::translationMatrix(-30, 30, 2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundXAxis(1.57);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}
-
-
-
-			// Load a wedge
-			{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.6f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].roughness = 0.3f;
-
-				ob->ob_to_world_matrix = Matrix4f::translationMatrix(30, 30, -2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundYAxis(1.57);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}
-			{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.6f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].roughness = 0.3f;
-
-				ob->ob_to_world_matrix = Matrix4f::translationMatrix(32, 30, -2) * Matrix4f::uniformScaleMatrix(100.f) * Matrix4f::rotationAroundZAxis(3.14) * Matrix4f::rotationAroundYAxis(1.57);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}*/
-
-
-			// Load a windturbine mesh for testing
-			/*{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				//Indigo::Mesh::readFromFile("D:\\cyberspace_server_state\\server_resources\\Wind_Turbines_reduced_obj_16075583468622473999.obj", *mesh);
-				MLTLibMaterials mtllib_mats;
-				FormatDecoderObj::streamModel("D:\\cyberspace_server_state\\server_resources\\Wind_Turbines_reduced_obj_16075583468622473999.obj", *mesh, 1.f, false, mtllib_mats);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].roughness = 0.3f;
-
-				Matrix4f scale;
-				scale.setToUniformScaleMatrix(0.1f);
-				Matrix4f trans;
-				trans.setToTranslationMatrix(20, 10, 0.f);
-				mul(trans, scale, ob->ob_to_world_matrix);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}*/
-
-			// Load steps
-			if(false)
-			{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				Indigo::Mesh::readFromFile("steps.igmesh", *mesh);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.4f, 0.4f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].roughness = 0.3f;
-
-				Matrix4f scale;
-				scale.setToUniformScaleMatrix(1.f);
-				Matrix4f trans;
-				trans.setToTranslationMatrix(-10,10,0.f);
-				mul(trans, scale, ob->ob_to_world_matrix);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
-			}
-
-
-			//TEMP:
-			// Load a teapot
-		
-			if(false)
-			{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				MLTLibMaterials mats;
-				FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, false, mats);
-
-				// Create graphics object
-				GLObjectRef gl_ob = new GLObject();
-				gl_ob->materials.resize(1);
-				gl_ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.6f, 0.2f);
-				gl_ob->materials[0].fresnel_scale = 1;
-
-				gl_ob->ob_to_world_matrix.setToTranslationMatrix(-3.0,1,0.5f);
-				gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(gl_ob);
-
-				// Create physics object
-				PhysicsObjectRef physics_ob = makePhysicsObject(mesh, gl_ob->ob_to_world_matrix, mw.print_output, mw.task_manager);
-				mw.physics_world->addObject(physics_ob);
-
-				// Add world object
-				{
-					Lock lock(mw.world_state->mutex);
-					const UID uid(5000);
-					WorldObjectRef world_ob = new WorldObject();
-					world_ob->uid = uid;
-					world_ob->angle = 0;
-					world_ob->axis = Vec3f(1,0,0);
-					world_ob->model_url = "teapot.obj";
-					world_ob->pos = Vec3d(4, 4, 1);
-					world_ob->scale = Vec3f(1.0);
-					world_ob->opengl_engine_ob = gl_ob.getPointer();
-					world_ob->physics_object = physics_ob.getPointer();
-					mw.world_state->objects[uid] = world_ob;
-
-					physics_ob->userdata = world_ob.getPointer();
-
-					// Load script
-					world_ob->script_url = "test.win";
-					const std::string script = FileUtils::readEntireFileTextMode(world_ob->script_url);
-					world_ob->script_evaluator = new WinterShaderEvaluator(cyberspace_base_dir_path, script);
-				}
-
-				
-			}
-
-		/*	{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				MLTLibMaterials mats;
-				FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, false, mats);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-
-				//ob->ob_to_world_matrix.setToTranslationMatrix(-3.0,1,0.5f);
-				ob->ob_to_world_matrix.setToUniformScaleMatrix(5.0f);
-				ob->ob_to_world_matrix.setColumn(3, Vec4f(-3.0, -3.0, 0.0, 1.0f));
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-
-				mw.glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}*/
-
-			// Transparent teapot
-			/*{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				FormatDecoderObj::streamModel("N:\\indigo\\trunk\\testfiles\\teapot.obj", *mesh, 1.f);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.2f, 0.2f, 0.6f);
-				ob->materials[0].alpha = 0.4f;
-				ob->materials[0].transparent = true;
-
-				ob->ob_to_world_matrix.setToTranslationMatrix(-0.3,1, 0.8f);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-
-				mw.glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}
-
-			{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				FormatDecoderObj::streamModel("N:\\indigo\\trunk\\testfiles\\teapot.obj", *mesh, 1.f);
-
-				// Remove shading normals on mesh
-				mesh->vert_normals.resize(0);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.2f, 0.6f, 0.2f);
-
-				ob->ob_to_world_matrix.setToTranslationMatrix(0.3,1,0.5f);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-
-				mw.glWidget->addObject(ob);
-
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, print_output, task_manager));
-			}*/
 		}
 		catch(Indigo::Exception& e)
 		{
@@ -3269,13 +2875,6 @@ int main(int argc, char *argv[])
 
 
 		mw.physics_world->rebuild(mw.task_manager, mw.print_output);
-
-
-
-		// Connect IndigoApplication openFileOSX signal to MainWindow openFileOSX slot.
-		// It needs to be connected right after handling the possibly early QFileOpenEvent because otherwise it might tigger the slot twice
-		// if the event comes in late, between connecting and handling the early signal.
-		//QObject::connect(&app, SIGNAL(openFileOSX(const QString)), &mw, SLOT(openFileOSX(const QString)));
 
 		return app.exec();
 	}
