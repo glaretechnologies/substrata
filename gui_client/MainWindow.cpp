@@ -331,7 +331,9 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 
 static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
 {
-	return Matrix4f::translationMatrix((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z) *
+	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+
+	return Matrix4f::translationMatrix(pos + ob->translation) *
 		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
 		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 }
@@ -489,17 +491,108 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			physics_ob->userdata = ob;
 			physics_world->addObject(physics_ob);
 			physics_world->rebuild(task_manager, print_output);
+		}
+	}
+	catch(Indigo::Exception& e)
+	{
+		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+	}
+}
 
-			// Load script
-			if(!ob->script_url.empty())
+
+void MainWindow::loadScriptForObject(WorldObject* ob)
+{
+	try
+	{
+		if(!ob->script_url.empty())
+		{
+			if(ob->loaded_script_url == ob->script_url)
+				return;
+
+			ob->loaded_script_url = ob->script_url;
+
+			try
 			{
 				const std::string script_path = resource_manager->pathForURL(ob->script_url);
 				const std::string script_content = FileUtils::readEntireFileTextMode(script_path);
+
+				// Handle instancing command if present
+				int count = 0;
+				const std::vector<std::string> lines = StringUtils::splitIntoLines(script_content);
+				for(size_t z=0; z<lines.size(); ++z)
+				{
+					if(::hasPrefix(lines[z], "#instancing"))
+					{
+						Parser parser(lines[z].data(), lines[z].size());
+						parser.parseString("#instancing");
+						parser.parseWhiteSpace();
+						if(!parser.parseInt(count))
+							throw Indigo::Exception("Failed to parse count after #instancing.");
+					}
+				}
+
 				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
+
+				if(count > 0) // If instancing was requested:
+				{
+					conPrint("Doing instancing with count " + toString(count));
+
+					// Create a bunch of copies of this object
+					for(size_t z=0; z<(size_t)count; ++z)
+					{
+						WorldObjectRef instance = new WorldObject();
+						instance->instance_index = (int)z;
+						instance->script_evaluator = ob->script_evaluator;
+
+						instance->uid = UID::invalidUID();
+						instance->object_type = ob->object_type;
+						instance->model_url = ob->model_url;
+						instance->materials = ob->materials;
+						instance->script_url = ob->script_url;
+						instance->content = ob->content;
+						instance->target_url = ob->target_url;
+						instance->pos = ob->pos;// +Vec3d((double)z, 0, 0); // TEMP HACK
+						instance->axis = ob->axis;
+						instance->angle = ob->angle;
+						instance->scale = ob->scale;
+
+						instance->state = WorldObject::State_Alive;
+
+						// Make GL object
+						instance->opengl_engine_ob = new GLObject();
+						instance->opengl_engine_ob->ob_to_world_matrix = ob->opengl_engine_ob->ob_to_world_matrix;
+						instance->opengl_engine_ob->mesh_data = ob->opengl_engine_ob->mesh_data;
+						instance->opengl_engine_ob->materials = ob->opengl_engine_ob->materials;
+
+						// Add to 3d engine
+						ui->glWidget->addObject(instance->opengl_engine_ob);
+
+						// Add to instances list
+						this->world_state->instances.insert(instance);
+					}
+				}
+			}
+			catch(Indigo::Exception& e)
+			{
+				// If this user created this model, show the error message.
+				if(ob->creator_id == this->logged_in_user_id)
+				{
+					showErrorNotification("Error while loading script '" + ob->script_url + "': " + e.what());
+				}
+
+				throw Indigo::Exception("Error while loading script '" + ob->script_url + "': " + e.what());
 			}
 		}
 	}
 	catch(Indigo::Exception& e)
+	{
+		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+	}
+	catch(FileUtils::FileUtilsExcep& e)
 	{
 		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
 	}
@@ -530,6 +623,40 @@ void MainWindow::showErrorNotification(const std::string& message)
 
 	if(notifications.size() == 1)
 		ui->infoDockWidget->show();
+}
+
+
+void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
+{
+	CybWinterEnv winter_env;
+	winter_env.instance_index = ob->instance_index;
+
+	if(ob->script_evaluator->jitted_evalRotation)
+	{
+		const Vec4f rot = ob->script_evaluator->evalRotation(cur_time, winter_env);
+		ob->angle = rot.length();
+		if(ob->angle > 0)
+			ob->axis = Vec3f(normalise(rot));
+		else
+			ob->axis = Vec3f(1, 0, 0);
+	}
+
+	if(ob->script_evaluator->jitted_evalTranslation)
+		ob->translation = ob->script_evaluator->evalTranslation(cur_time, winter_env);
+
+	// Update transform in 3d engine
+	ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(ob);
+
+	ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+
+	// Update in physics engine
+	if(ob->physics_object.nonNull())
+	{
+		ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
+		physics_world->updateObjectTransformData(*ob->physics_object);
+
+		// TODO: Update physics world accel structure?
+	}
 }
 
 
@@ -831,6 +958,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(URL_set.count(m->URL)) // If the downloaded resource was used by this model:
 							{
 								loadModelForObject(ob, /*start_downloading_missing_files=*/false);
+								loadScriptForObject(ob);
 							}
 						}
 					}
@@ -892,28 +1020,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			WorldObject* ob = it->second.getPointer();
 			if(ob->script_evaluator.nonNull())
-			{
-				if(ob->script_evaluator->jitted_evalRotation)
-				{
-					const Vec4f rot = ob->script_evaluator->evalRotation(cur_time);
-					ob->angle = rot.length();
-					if(ob->angle > 0)
-						ob->axis = Vec3f(normalise(rot));
-					else
-						ob->axis = Vec3f(1, 0, 0);
-				}
+				evalObjectScript(ob, cur_time);
+		}
 
-				// Update transform in 3d engine
-				ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(ob);
-
-				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
-
-				// Update in physics engine
-				ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
-				physics_world->updateObjectTransformData(*ob->physics_object);
-
-				// TODO: Update physics world accel structure?
-			}
+		// Evaluate scripts on instances
+		for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); ++it)
+		{
+			WorldObject* ob = it->getPointer();
+			if(ob->script_evaluator.nonNull())
+				evalObjectScript(ob, cur_time);
 		}
 	}
 
@@ -1196,6 +1311,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(reload_opengl_model)
 					{
 						loadModelForObject(ob, /*start_downloading_missing_files=*/true);
+						loadScriptForObject(ob);
 
 						ob->from_remote_other_dirty     = false;
 						ob->from_remote_transform_dirty = false;
@@ -1577,7 +1693,7 @@ void MainWindow::on_actionAddObject_triggered()
 			const std::string URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(igmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
 
 			// Copy model to local resources dir.  UploadResourceThread will read from here.
-			FileUtils::copyFile(igmesh_disk_path, this->resource_manager->pathForURL(URL));
+			this->resource_manager->copyLocalFileToResourceDir(igmesh_disk_path, URL);
 
 			
 
@@ -1601,8 +1717,7 @@ void MainWindow::on_actionAddObject_triggered()
 				{
 					const uint64 hash = FileChecksum::fileChecksum(path);
 					const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
-					const std::string resource_dir_path = resource_manager->pathForURL(resource_URL);
-					FileUtils::copyFile(path, resource_dir_path);
+					this->resource_manager->copyLocalFileToResourceDir(path, resource_URL);
 				}
 			}
 
@@ -1906,10 +2021,11 @@ void MainWindow::objectEditedSlot()
 		{
 			if(FileUtils::fileExists(URLs[i])) // If this was a local path:
 			{
-				const std::string URL = ResourceManager::URLForPathAndHash(URLs[i], FileChecksum::fileChecksum(URLs[i]));
+				const std::string local_path = URLs[i];
+				const std::string URL = ResourceManager::URLForPathAndHash(local_path, FileChecksum::fileChecksum(local_path));
 
 				// Copy model to local resources dir.
-				FileUtils::copyFile(URLs[i], this->resource_manager->pathForURL(URL));
+				resource_manager->copyLocalFileToResourceDir(local_path, URL);
 			}
 		}
 
@@ -1993,6 +2109,8 @@ void MainWindow::objectEditedSlot()
 				loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
 				this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 			}
+
+			loadScriptForObject(this->selected_ob.getPointer());
 		}
 	}
 }
@@ -2567,8 +2685,9 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			URL::test();
-			HTTPClient::test();
+			StringUtils::test();
+			//URL::test();
+			//HTTPClient::test();
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
 			//SMTPClient::test();
 			//js::VectorUnitTests::test();

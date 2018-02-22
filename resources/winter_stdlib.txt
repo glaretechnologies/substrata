@@ -3,7 +3,10 @@
 
 
 
-struct WinterEnv {}
+struct WinterEnv
+{
+	int instance_index
+}
 
 
 

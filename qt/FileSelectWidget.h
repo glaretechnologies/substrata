@@ -48,6 +48,8 @@ public:
 
 	void setReadOnly(bool readonly);
 
+	bool force_use_last_dir_setting;
+
 signals:;
 	void filenameChanged(QString& filename);
 

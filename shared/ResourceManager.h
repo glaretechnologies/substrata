@@ -65,6 +65,10 @@ public:
 
 	ResourceRef getResourceForURL(const std::string& URL); // Threadsafe
 
+	// Copy a local file with given local path and corresponding URL into the resource dir
+	// Throws Indigo::Exception on failure.
+	void copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL); // Threadsafe
+
 
 	const std::string pathForURL(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
 

@@ -32,6 +32,9 @@ WorldObject::WorldObject()
 
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
+
+	instance_index = 0;
+	translation = Vec4f(0.f);
 }
 
 

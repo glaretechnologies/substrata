@@ -18,7 +18,7 @@ Copyright Glare Technologies Limited 2017 -
 
 struct CybWinterEnv
 {
-
+	int instance_index;
 };
 
 /*=====================================================================
@@ -33,11 +33,15 @@ public:
 	virtual ~WinterShaderEvaluator();
 
 	
-	const Vec4f evalRotation(float time);
+	const Vec4f evalRotation(float time, const CybWinterEnv& env);
+	const Vec4f evalTranslation(float time, const CybWinterEnv& env);
 
 
-	typedef void (WINTER_JIT_CALLING_CONV * EVAL_ROTATION_TYPE)(/*return value=*/Vec4f*, float time, CybWinterEnv* env);
+	typedef void (WINTER_JIT_CALLING_CONV * EVAL_ROTATION_TYPE)(/*return value=*/Vec4f*, float time, const CybWinterEnv* env);
 	EVAL_ROTATION_TYPE jitted_evalRotation;
+
+	typedef void (WINTER_JIT_CALLING_CONV * EVAL_TRANSLATION_TYPE)(/*return value=*/Vec4f*, float time, const CybWinterEnv* env);
+	EVAL_TRANSLATION_TYPE jitted_evalTranslation;
 private:
 	Winter::VirtualMachine* vm;
 };
