@@ -134,7 +134,7 @@ const std::string ResourceManager::pathForURL(const std::string& URL)
 }
 
 
-bool ResourceManager::isFileForURLDownloaded(const std::string& URL) // Throws Indigo::Exception if URL is invalid.
+bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws Indigo::Exception if URL is invalid.
 {
 	ResourceRef resource = this->getResourceForURL(URL);
 	return resource->getState() == Resource::State_Present;

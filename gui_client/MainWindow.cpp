@@ -385,7 +385,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			const std::string& url = *it;
 			if(resource_manager->isValidURL(url))
 			{
-				if(!resource_manager->isFileForURLDownloaded(url))
+				if(!resource_manager->isFileForURLPresent(url))
 				{
 					all_downloaded = false;
 					if(start_downloading_missing_files)
@@ -534,6 +534,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 						WorldObjectRef instance = new WorldObject();
 						instance->instance_index = (int)z;
 						instance->script_evaluator = ob->script_evaluator;
+						instance->prototype_object = ob;
 
 						instance->uid = UID::invalidUID();
 						instance->object_type = ob->object_type;
@@ -629,7 +630,11 @@ void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
 	}
 
 	if(ob->script_evaluator->jitted_evalTranslation)
+	{
+		if(ob->prototype_object.nonNull())
+			ob->pos = ob->prototype_object->pos;
 		ob->translation = ob->script_evaluator->evalTranslation(cur_time, winter_env);
+	}
 
 	// Update transform in 3d engine
 	ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(ob);
@@ -875,7 +880,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(ResourceManager::isValidURL(m->URL))
 				{
-					if(resource_manager->isFileForURLDownloaded(m->URL))
+					if(resource_manager->isFileForURLPresent(m->URL))
 					{
 						const std::string path = resource_manager->pathForURL(m->URL);
 
@@ -897,7 +902,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(ResourceManager::isValidURL(m->URL))
 				{
-					if(resource_manager->isFileForURLDownloaded(m->URL))
+					if(resource_manager->isFileForURLPresent(m->URL))
 					{
 						const std::string path = resource_manager->pathForURL(m->URL);
 
@@ -2011,7 +2016,7 @@ void MainWindow::objectEditedSlot()
 			const std::string& url = *it;
 			if(resource_manager->isValidURL(url))
 			{
-				if(!resource_manager->isFileForURLDownloaded(url))
+				if(!resource_manager->isFileForURLPresent(url))
 				{
 					all_downloaded = false;
 					startDownloadingResource(url);
@@ -2215,7 +2220,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 		this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 		if(this->selected_ob.nonNull())
 		{
-			assert(this->selected_ob->getRefCount() >= 0 && this->selected_ob->getRefCount() < 10);
+			assert(this->selected_ob->getRefCount() >= 0);
 			const Vec4f selection_vec_ws = this->selection_point_ws - origin;
 			// Get selection_vec_cs
 			this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);

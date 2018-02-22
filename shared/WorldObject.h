@@ -93,6 +93,7 @@ public:
 	std::string loaded_script_url;
 	int instance_index;
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
+	Reference<WorldObject> prototype_object; // for instances - this is the object this object is a copy of.
 
 	//Reference<WorldMaterial> material;
 
