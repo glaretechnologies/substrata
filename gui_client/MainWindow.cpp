@@ -896,15 +896,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const NewResourceOnServerMessage*>(msg.getPointer()))
 			{
+				// When the server has a file uploaded to it, it will send a NewResourceOnServer message to clients, so they can download it.
+
 				const NewResourceOnServerMessage* m = static_cast<const NewResourceOnServerMessage*>(msg.getPointer());
 
 				conPrint("Got NewResourceOnServerMessage, URL: " + m->URL);
 
 				if(ResourceManager::isValidURL(m->URL))
 				{
-					if(resource_manager->isFileForURLPresent(m->URL))
+					if(!resource_manager->isFileForURLPresent(m->URL)) // If we don't have this file yet:
 					{
-						const std::string path = resource_manager->pathForURL(m->URL);
+						conPrint("Do not have resource.");
 
 						// Iterate over objects and see if they were using a placeholder model for this resource.
 						Lock lock(this->world_state->mutex);
@@ -920,6 +922,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							}
 						}
 
+						conPrint("need_resource: " + boolToString(need_resource));
+
 						if(need_resource)
 						{
 							conPrint("Need resource, downloading: " + m->URL);
@@ -931,6 +935,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
 			{
 				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
+
+				conPrint("ResourceDownloadedMessage, URL: " + m->URL);
 
 				// Since we have a new downloaded resource, iterate over objects and avatars and if they were using a placeholder model for this resource, load the proper model.
 				try
