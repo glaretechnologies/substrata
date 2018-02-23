@@ -263,6 +263,10 @@ void GlWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 					);
 					opengl_mat.albedo_texture = opengl_tex;
 				}
+				else
+				{
+					conPrint("Warning: unhandled texture format.");
+				}
 			}
 			// PBR stuff:
 			//Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat);
@@ -349,6 +353,8 @@ void GlWidget::playerPhyicsThink()
 #ifdef _WIN32
 	if(hasFocus())
 	{
+		SHIFT_down = GetAsyncKeyState(VK_SHIFT);
+
 		if(GetAsyncKeyState('W') || GetAsyncKeyState(VK_UP))
 			this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller);
 		if(GetAsyncKeyState('S') || GetAsyncKeyState(VK_DOWN))
@@ -359,9 +365,9 @@ void GlWidget::playerPhyicsThink()
 			this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
 
 		if(GetAsyncKeyState(VK_LEFT))
-			this->cam_controller->update(Vec3d(0.0), Vec2d(0, -3));
+			this->cam_controller->update(Vec3d(0.0), Vec2d(0, -3 * (SHIFT_down ? 3.0 : 1.0)));
 		if(GetAsyncKeyState(VK_RIGHT))
-			this->cam_controller->update(Vec3d(0.0), Vec2d(0, 3));
+			this->cam_controller->update(Vec3d(0.0), Vec2d(0, 3 * (SHIFT_down ? 3.0 : 1.0)));
 	}
 #else
 	if(W_down)
