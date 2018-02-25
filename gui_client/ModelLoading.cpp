@@ -213,10 +213,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				//ob->materials[i].albedo_tex_path = "obstacle.png";
+				//ob->materials[i].albedo_tex_path = "resources/obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 
-				//loaded_materials_out[i]->colour_texture_url = "obstacle.png";
+				//loaded_materials_out[i]->colour_texture_url = "resources/obstacle.png";
 				loaded_materials_out[i]->opacity = ScalarVal(1.f);
 				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
 			}
@@ -245,12 +245,12 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				//ob->materials[i].albedo_tex_path = "obstacle.png";
+				//ob->materials[i].albedo_tex_path = "resources/obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
 				loaded_materials_out[i] = new WorldMaterial();
-				//loaded_materials_out[i]->colour_texture_url = "obstacle.png";
+				//loaded_materials_out[i]->colour_texture_url = "resources/obstacle.png";
 				loaded_materials_out[i]->opacity = ScalarVal(1.f);
 				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
 			}
@@ -348,7 +348,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		{
 			// Assign dummy mat
 			ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-			ob->materials[i].albedo_tex_path = "obstacle.png";
+			ob->materials[i].albedo_tex_path = "resources/obstacle.png";
 			ob->materials[i].roughness = 0.5f;
 		}
 

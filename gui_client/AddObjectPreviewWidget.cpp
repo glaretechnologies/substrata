@@ -97,7 +97,7 @@ void AddObjectPreviewWidget::initializeGL()
 	// Add env mat
 	{
 		OpenGLMaterial env_mat;
-		env_mat.albedo_tex_path = "sky.png";
+		env_mat.albedo_tex_path = "resources/sky.png";
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 		buildMaterial(env_mat);
 
@@ -149,7 +149,7 @@ void AddObjectPreviewWidget::initializeGL()
 		GLObjectRef ob = new GLObject();
 		ob->materials.resize(1);
 		ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-		ob->materials[0].albedo_tex_path = "obstacle.png";
+		ob->materials[0].albedo_tex_path = "resources/obstacle.png";
 		ob->materials[0].roughness = 0.5f;
 
 		ob->ob_to_world_matrix.setToTranslationMatrix(0,0,0);
