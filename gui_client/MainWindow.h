@@ -175,4 +175,6 @@ public:
 
 	bool need_help_info_dock_widget_position; // We may need to position the Help info dock widget to the bottom right of the GL view.
 	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
+
+	std::string server_hostname;
 };

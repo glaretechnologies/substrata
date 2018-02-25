@@ -91,8 +91,7 @@ Copyright Glare Technologies Limited 2018 -
 #pragma comment(linker, "/SUBSYSTEM:CONSOLE")
 #endif
 
-static const std::string server_hostname = "substrata.info"; // Digital ocean droplet server
-//static const std::string server_hostname = "127.0.0.1";
+
 const int server_port = 7600;
 
 
@@ -741,7 +740,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
-				this->statusBar()->showMessage(QtUtils::toQString("Connected to " + ::server_hostname));
+				this->statusBar()->showMessage(QtUtils::toQString("Connected to " + this->server_hostname));
 				this->connected_to_server = true;
 
 				// Try and log in automatically if we have saved credentials.
@@ -758,7 +757,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
 			{
-				this->statusBar()->showMessage(QtUtils::toQString("Connecting to " + ::server_hostname + "..."));
+				this->statusBar()->showMessage(QtUtils::toQString("Connecting to " + this->server_hostname + "..."));
 			}
 			else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
 			{
@@ -1789,6 +1788,8 @@ void MainWindow::on_actionAddHypercard_triggered()
 
 		this->client_thread->enqueueDataToSend(packet);
 	}
+
+	showInfoNotification("Added hypercard.");
 }
 
 
@@ -2667,6 +2668,7 @@ int main(int argc, char *argv[])
 	{
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
+		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
@@ -2692,6 +2694,10 @@ int main(int argc, char *argv[])
 		}
 #endif
 
+		std::string server_hostname = "substrata.info";
+		if(parsed_args.isArgPresent("-h"))
+			server_hostname = parsed_args.getArgStringValue("-h");
+
 
 		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
 
@@ -2701,10 +2707,10 @@ int main(int argc, char *argv[])
 
 		mw.raise();
 
-
+		mw.server_hostname = server_hostname;
 		mw.world_state = new WorldState();
 
-		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, server_hostname, server_port));
+		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, mw.server_hostname, server_port));
 
 		for(int i=0; i<4; ++i)
 			mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager));
