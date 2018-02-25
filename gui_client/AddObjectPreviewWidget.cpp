@@ -92,7 +92,7 @@ void AddObjectPreviewWidget::initializeGL()
 	cam_phi = 0;
 	cam_theta = 1.3f;
 	cam_dist = 3;
-	cam_target_pos = Vec4f(0,0,1,1);
+	cam_target_pos = Vec4f(0,0,0.2f,1);
 
 	// Add env mat
 	{
@@ -228,22 +228,13 @@ void AddObjectPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 			}
 
 			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(indigo_base_dir, use_path);
-			unsigned int tex_xres = tex->getMapWidth();
-			unsigned int tex_yres = tex->getMapHeight();
+			
 
-			if(tex.isType<ImageMapUInt8>())
-			{
-				ImageMapUInt8* imagemap = static_cast<ImageMapUInt8*>(tex.getPointer());
+			Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat);
+			opengl_mat.albedo_texture = opengl_tex;
+			
 
-				if(imagemap->getN() == 3)
-				{
-					Reference<OpenGLTexture> opengl_tex = new OpenGLTexture();
-					opengl_tex->load(tex_xres, tex_yres, imagemap->getData(), opengl_engine, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 
-						OpenGLTexture::Filtering_Fancy
-					);
-					opengl_mat.albedo_texture = opengl_tex;
-				}
-			}
+
 		}
 		//std::cout << "successfully loaded " << use_path << ", xres = " << tex_xres << ", yres = " << tex_yres << std::endl << std::endl;
 	}
