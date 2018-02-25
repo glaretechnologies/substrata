@@ -256,6 +256,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			}
 			
 			mesh_out = mesh;
+			suggested_scale_out = 1.0f;
 			return ob;
 		}
 		catch(Indigo::IndigoException& e)
