@@ -8,6 +8,7 @@ Code By Nicholas Chapman.
 
 
 #include "ModelLoading.h"
+#include "NetDownloadResourcesThread.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../dll/IndigoStringUtils.h"
@@ -20,35 +21,69 @@ Code By Nicholas Chapman.
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
+#include <QtWidgets/QListWidget>
 #include <QtCore/QSettings>
 #include <QtCore/QTimer>
 
 
-AddObjectDialog::AddObjectDialog(QSettings* settings_, TextureServer* texture_server_ptr)
-:	settings(settings_)
+AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager_)
+:	settings(settings_),
+	resource_manager(resource_manager_),
+	base_dir_path(base_dir_path_)
 {
 	setupUi(this);
 
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("AddObjectDialog/geometry").toByteArray());
 
-	this->avatarSelectWidget->setType(FileSelectWidget::Type_File);
-	this->avatarSelectWidget->setFilename(settings->value("AddObjectDialogPath").toString());
+	this->tabWidget->setCurrentIndex(settings->value("AddObjectDialog/tabIndex").toInt());
 
+	this->avatarSelectWidget->setType(FileSelectWidget::Type_File);
+	//this->avatarSelectWidget->setFilename(settings->value("AddObjectDialogPath").toString());
+
+	connect(this->listWidget, SIGNAL(itemClicked(QListWidgetItem*)), this, SLOT(modelSelected(QListWidgetItem*)));
 	connect(this->avatarSelectWidget, SIGNAL(filenameChanged(QString&)), this, SLOT(filenameChanged(QString&)));
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
+
+	connect(this->urlLineEdit, SIGNAL(textChanged(const QString&)), this, SLOT(urlChanged(const QString&)));
+	connect(this->urlLineEdit, SIGNAL(editingFinished()), this, SLOT(urlEditingFinished()));
 
 	this->objectPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
 	startTimer(10);
 
 	loaded_model = false;
+
+	thread_manager.addThread(new NetDownloadResourcesThread(&this->msg_queue, resource_manager_));
+
+	
+	listWidget->setViewMode(QListWidget::IconMode);
+	listWidget->setIconSize(QSize(200, 200));
+	listWidget->setResizeMode(QListWidget::Adjust);
+	listWidget->setSelectionMode(QAbstractItemView::NoSelection);
+	 
+	models.push_back("Quad");
+	models.push_back("Cube");
+	models.push_back("Capsule");
+	models.push_back("Cylinder");
+	models.push_back("Icosahedron");
+	models.push_back("Platonic_Solid");
+	models.push_back("Torus");
+
+	for(int i=0; i<models.size(); ++i)
+	{
+		const std::string image_path = base_dir_path + "/resources/models/" + models[i] + ".png";
+
+		listWidget->addItem(new QListWidgetItem(QIcon(QtUtils::toQString(image_path)), QtUtils::toQString(models[i])));
+	}
 }
 
 
 AddObjectDialog::~AddObjectDialog()
 {
 	settings->setValue("AddObjectDialog/geometry", saveGeometry());
+
+	settings->setValue("AddObjectDialog/tabIndex", this->tabWidget->currentIndex());
 
 	// Make sure we have set the gl context to current as we destroy objectPreviewGLWidget.
 	objectPreviewGLWidget->makeCurrent();
@@ -62,29 +97,22 @@ void AddObjectDialog::accepted()
 }
 
 
-//static GLObjectRef makeGLObjectForOBJFile(const std::string& path)
-//{
-//	MLTLibMaterials mats;
-//	Indigo::MeshRef mesh = new Indigo::Mesh();
-//	FormatDecoderObj::streamModel(path, *mesh, 1.f, true, mats);
-//
-//	// Make (dummy) materials as needed
-//	GLObjectRef ob = new GLObject();
-//	ob->materials.resize(mesh->num_materials_referenced);
-//	for(uint32 i=0; i<ob->materials.size(); ++i)
-//	{
-//		// Have we parsed such a material from the .mtl file?
-//		for(size_t z=0; z<mats.materials.size(); ++z)
-//			if(mats.materials[z].name == toStdString(mesh->used_materials[z]))
-//			{
-//				ob->materials[i].albedo_rgb = mats.materials[z].Kd;
-//				ob->materials[i].albedo_tex_path = mats.materials[z].map_Kd.path;
-//				ob->materials[i].phong_exponent = mats.materials[z].Ns_exponent;
-//				ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
-//			}
-//	}
-//	return ob;
-//}
+void AddObjectDialog::modelSelected(QListWidgetItem* selected_item)
+{
+	if(this->listWidget->currentItem())
+	{
+		std::string model = QtUtils::toStdString(this->listWidget->currentItem()->text());
+
+		this->listWidget->setCurrentItem(NULL);
+
+		const std::string model_path = base_dir_path + "/resources/models/" + model + ".obj";
+
+		this->result_path = model_path;
+
+		loadModelIntoPreview(model_path);
+	}
+}
+
 
 void AddObjectDialog::filenameChanged(QString& filename)
 {
@@ -96,6 +124,12 @@ void AddObjectDialog::filenameChanged(QString& filename)
 	if(filename.isEmpty())
 		return;
 
+	loadModelIntoPreview(path);
+}
+
+
+void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
+{
 	this->objectPreviewGLWidget->makeCurrent();
 
 	// Try and load model
@@ -107,59 +141,13 @@ void AddObjectDialog::filenameChanged(QString& filename)
 			objectPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
 		}
 
-		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), this->loaded_mesh, this->suggested_scale, this->loaded_materials);
+		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(local_path, Matrix4f::translationMatrix(Vec4f(0, 0, 0, 1)), 
+			this->loaded_mesh, // mesh out
+			this->suggested_scale, // suggested scale out
+			this->loaded_materials // loaded materials out
+		);
 
-		//preview_gl_ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(0.01f);
-
-		//this->model_hash = FileChecksum::fileChecksum(path);
-
-		//preview_gl_ob = new GLObject();
-
-		//
-		//if(hasExtension(path, "obj"))
-		//{
-		//	MLTLibMaterials mats;
-		//	FormatDecoderObj::streamModel(path, *mesh, 1.f, true, mats);
-
-		//	// Make (dummy) materials as needed
-		//	preview_gl_ob->materials.resize(mesh->num_materials_referenced);
-		//	for(uint32 i=0; i<preview_gl_ob->materials.size(); ++i)
-		//	{
-		//		// Have we parsed such a material from the .mtl file?
-		//		for(size_t z=0; z<mats.materials.size(); ++z)
-		//			if(mats.materials[z].name == toStdString(mesh->used_materials[z]))
-		//			{
-		//				preview_gl_ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-		//				preview_gl_ob->materials[i].albedo_tex_path = "obstacle.png";
-		//				preview_gl_ob->materials[i].phong_exponent = 10.f;
-		//	}
-		//}
-		///*else if(hasExtension(path, "igmesh"))
-		//{
-		//	Indigo::Mesh::readFromFile(toIndigoString(path), *mesh);
-		//}*/
-
-		//	Indigo::MeshRef mesh = new Indigo::Mesh();
-		//if(!mesh->vert_positions.empty())
-		//{
-		//	// Remove existing model from preview engine.
-		//	if(preview_gl_ob.nonNull())
-		//		avatarPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
-
-		//	// Make (dummy) materials as needed
-		//	preview_gl_ob->materials.resize(mesh->num_materials_referenced);
-		//	for(uint32 i=0; i<preview_gl_ob->materials.size(); ++i)
-		//	{
-		//		preview_gl_ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-		//		preview_gl_ob->materials[i].albedo_tex_path = "obstacle.png";
-		//		preview_gl_ob->materials[i].phong_exponent = 10.f;
-		//	}
-
-		//	preview_gl_ob->ob_to_world_matrix.setToTranslationMatrix(0.0, 0.0, 0.0);
-		//	preview_gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh);
-
-			objectPreviewGLWidget->addObject(preview_gl_ob);
-		//}
+		objectPreviewGLWidget->addObject(preview_gl_ob);
 	}
 	catch(Indigo::IndigoException& e)
 	{
@@ -180,16 +168,76 @@ void AddObjectDialog::filenameChanged(QString& filename)
 }
 
 
+void AddObjectDialog::urlChanged(const QString& filename)
+{
+	const std::string url = QtUtils::toStdString(urlLineEdit->text());
+	if(url != last_url)
+	{
+		last_url = url;
+		
+
+		// Process new URL:
+
+		if(resource_manager->isFileForURLPresent(url))
+		{
+			try
+			{
+				loadModelIntoPreview(resource_manager->pathForURL(url));
+			}
+			catch(Indigo::Exception& e)
+			{
+				conPrint(e.what());
+			}
+		}
+		else
+		{
+			// Download the model:
+			thread_manager.enqueueMessage(new DownloadResourceMessage(url));
+		}
+	}
+}
+
+
+void AddObjectDialog::urlEditingFinished()
+{}
+
+
 void AddObjectDialog::timerEvent(QTimerEvent* event)
 {
 	// Once the OpenGL widget has initialised, we can add the model.
 	if(objectPreviewGLWidget->opengl_engine->initSucceeded() && !loaded_model)
 	{
-		QString path = settings->value("AddObjectDialogPath").toString();
-		filenameChanged(path);
-		loaded_model = true;
+		//QString path = settings->value("AddObjectDialogPath").toString();
+		//filenameChanged(path);
+		//loaded_model = true;
 	}
 
 	objectPreviewGLWidget->makeCurrent();
 	objectPreviewGLWidget->updateGL();
+
+	// Check msg queue
+	Lock lock(this->msg_queue.getMutex());
+	while(!msg_queue.unlockedEmpty())
+	{
+		Reference<ThreadMessage> msg;
+		this->msg_queue.unlockedDequeue(msg);
+
+		if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
+		{
+			const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
+
+			conPrint("ResourceDownloadedMessage, URL: " + m->URL);
+			try
+			{
+				// Now that the model is downloaded, set the result to be the local path where it was downloaded to.
+				this->result_path = resource_manager->pathForURL(m->URL); // TODO: catch
+
+				loadModelIntoPreview(resource_manager->pathForURL(m->URL));
+			}
+			catch(Indigo::Exception& e)
+			{
+				conPrint(e.what());
+			}
+		}
+	}
 }

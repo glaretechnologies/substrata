@@ -85,6 +85,7 @@ private:
 	void loadScriptForObject(WorldObject* ob);
 	void print(const std::string& message); // Print to log and console
 	void showErrorNotification(const std::string& message);
+	void showInfoNotification(const std::string& message);
 	void startDownloadingResource(const std::string& url);
 	void evalObjectScript(WorldObject* ob, double cur_time);
 

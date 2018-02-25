@@ -614,6 +614,26 @@ void MainWindow::showErrorNotification(const std::string& message)
 }
 
 
+void MainWindow::showInfoNotification(const std::string& message)
+{
+	QLabel* label = new QLabel(ui->notificationContainer);
+	label->setText(QtUtils::toQString(message));
+	label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+	label->setStyleSheet("QLabel { padding: 6px; background-color : rgb(239, 228, 176); }");
+
+	ui->notificationContainer->layout()->addWidget(label);
+
+	Notification n;
+	n.creation_time = Clock::getTimeSinceInit();
+	n.label = label;
+	notifications.push_back(n);
+
+	if(notifications.size() == 1)
+		ui->infoDockWidget->show();
+}
+
+
 void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
 {
 	CybWinterEnv winter_env;
@@ -769,10 +789,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			else if(dynamic_cast<const ErrorMessage*>(msg.getPointer()))
 			{
 				const ErrorMessage* m = static_cast<const ErrorMessage*>(msg.getPointer());
-				QMessageBox msgBox;
-				msgBox.setWindowTitle("Error Message from server");
-				msgBox.setText(QtUtils::toQString(m->msg));
-				msgBox.exec();
+				showErrorNotification(m->msg);
 			}
 			else if(dynamic_cast<const LoggedInMessage*>(msg.getPointer()))
 			{
@@ -1612,7 +1629,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 void MainWindow::on_actionAddObject_triggered()
 {
-	AddObjectDialog d(this->settings, this->texture_server);
+	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
 	if(d.exec() == QDialog::Accepted)
 	{
 		// Try and load model
@@ -1715,6 +1732,8 @@ void MainWindow::on_actionAddObject_triggered()
 
 				this->client_thread->enqueueDataToSend(packet);
 			}
+
+			showInfoNotification("Object created.");
 		}
 		catch(Indigo::IndigoException& e)
 		{

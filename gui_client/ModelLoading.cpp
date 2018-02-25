@@ -171,8 +171,16 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				mesh->vert_positions[i] *= use_scale;
 		}
 
+		// Get smallest z coord
+		float min_z = 1000000;
+		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
+			min_z = myMin(min_z, mesh->vert_positions[i].z);
+
+		// Move object so that it lies on the z=0 (ground) plane
+		const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z) * ob_to_world_matrix;
+
 		GLObjectRef ob = new GLObject();
-		ob->ob_to_world_matrix = ob_to_world_matrix;
+		ob->ob_to_world_matrix = use_matrix;
 		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 		ob->materials.resize(mesh->num_materials_referenced);
@@ -205,10 +213,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				ob->materials[i].albedo_tex_path = "obstacle.png";
+				//ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 
-				loaded_materials_out[i]->colour_texture_url = "obstacle.png";
+				//loaded_materials_out[i]->colour_texture_url = "obstacle.png";
 				loaded_materials_out[i]->opacity = ScalarVal(1.f);
 				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
 			}
@@ -237,12 +245,12 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				ob->materials[i].albedo_tex_path = "obstacle.png";
+				//ob->materials[i].albedo_tex_path = "obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
 				loaded_materials_out[i] = new WorldMaterial();
-				loaded_materials_out[i]->colour_texture_url = "obstacle.png";
+				//loaded_materials_out[i]->colour_texture_url = "obstacle.png";
 				loaded_materials_out[i]->opacity = ScalarVal(1.f);
 				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
 			}
