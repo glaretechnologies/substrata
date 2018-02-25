@@ -2581,7 +2581,7 @@ void MainWindow::updateGroundPlane()
 			gl_ob->materials.resize(1);
 			gl_ob->materials[0].albedo_rgb = Colour3f(0.75f);
 			//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
-			gl_ob->materials[0].albedo_tex_path = "obstacle.png";
+			gl_ob->materials[0].albedo_tex_path = "resources/obstacle.png";
 			gl_ob->materials[0].roughness = 0.8f;
 			gl_ob->materials[0].fresnel_scale = 0.5f;
 
@@ -2752,7 +2752,7 @@ int main(int argc, char *argv[])
 		*/
 		{
 			OpenGLMaterial env_mat;
-			env_mat.albedo_tex_path = "sky.png";
+			env_mat.albedo_tex_path = "resources/sky.png";
 			//env_mat.albedo_tex_path = cyberspace_base_dir_path + "/assets/sky_no_sun_32.exr";
 			env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
@@ -2884,7 +2884,7 @@ int main(int argc, char *argv[])
 			// Load a wedge
 			{
 				Indigo::MeshRef mesh = new Indigo::Mesh();
-				Indigo::Mesh::readFromFile("wedge.igmesh", *mesh);
+				Indigo::Mesh::readFromFile("resources/wedge.igmesh", *mesh);
 
 				GLObjectRef ob = new GLObject();
 				ob->materials.resize(1);

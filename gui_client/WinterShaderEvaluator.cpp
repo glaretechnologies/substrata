@@ -34,7 +34,7 @@ WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_
 		vm_args.try_coerce_int_to_double_first = false;
 		vm_args.real_is_double = false;
 		//WinterExternalFuncs::appendExternalFuncs(vm_args.external_functions);
-		vm_args.source_buffers.push_back(::Winter::SourceBuffer::loadFromDisk(base_cyberspace_path + "/winter_stdlib.txt"));
+		vm_args.source_buffers.push_back(::Winter::SourceBuffer::loadFromDisk(base_cyberspace_path + "/resources/winter_stdlib.txt"));
 		vm_args.source_buffers.push_back(::Winter::SourceBufferRef(new Winter::SourceBuffer("buffer", shader)));
 
 
