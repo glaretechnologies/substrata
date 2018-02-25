@@ -397,6 +397,22 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 		const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
 
+		// Sanity check ob_to_world_matrix matrix
+		for(int i=0; i<16; ++i)
+			if(!::isFinite(ob_to_world_matrix.e[i]))
+				throw Indigo::Exception("ob_to_world_matrix had non-finite component.");
+
+		Matrix4f world_to_ob;
+		const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForRandTMatrix(world_to_ob);
+		if(!ob_to_world_invertible)
+			throw Indigo::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
+
+		// Check world_to_ob matrix
+		for(int i=0; i<16; ++i)
+			if(!::isFinite(world_to_ob.e[i]))
+				throw Indigo::Exception("world_to_ob had non-finite component.");
+
+
 		if(!all_downloaded)
 		{
 			if(!ob->using_placeholder_model)

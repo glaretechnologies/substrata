@@ -29,7 +29,8 @@ Code By Nicholas Chapman.
 AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager_)
 :	settings(settings_),
 	resource_manager(resource_manager_),
-	base_dir_path(base_dir_path_)
+	base_dir_path(base_dir_path_),
+	suggested_scale(1.0f)
 {
 	setupUi(this);
 
