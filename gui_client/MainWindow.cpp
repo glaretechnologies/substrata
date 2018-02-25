@@ -63,7 +63,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
 #include "../networking/HTTPClient.h" // Just for testing
-#include "../networking/URL.h" // Just for testing
+#include "../networking/url.h" // Just for testing
 
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
