@@ -308,7 +308,8 @@ void MainWindow::startDownloadingResource(const std::string& url)
 // If not, set a placeholder model and queue up the downloads.
 void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_missing_files)
 {
-	print("(Re)loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + ob->model_url);
+	print("Loading model for ob: UID: " + ob->uid.toString() + ", model URL: " + ob->model_url);
+	Timer timer;
 	ob->loaded_model_url = ob->model_url;
 
 	ui->glWidget->makeCurrent();
@@ -399,7 +400,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 		}
 		else
 		{
-			print("All resources present for object.  Adding Object to OpenGL Engine etc..");
+			print("\tAll resources present for object.  Adding Object to OpenGL Engine etc..");
 			
 			// Remove any existing OpenGL and physics model
 			if(ob->opengl_engine_ob.nonNull())
@@ -452,6 +453,8 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 			loadScriptForObject(ob); // Load any script for the object.
 		}
+
+		print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 	}
 	catch(Indigo::Exception& e)
 	{
