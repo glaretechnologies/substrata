@@ -376,15 +376,17 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 					physics_world->removeObject(ob->physics_object);
 
 				// Use a temporary placeholder cube model.
+				const Matrix4f cube_ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+
 				GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-				cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+				cube_gl_ob->ob_to_world_matrix = cube_ob_to_world_matrix;
 				ob->opengl_engine_ob = cube_gl_ob;
 				ui->glWidget->addObject(cube_gl_ob);
 
 				// Make physics object
 				PhysicsObjectRef physics_ob = new PhysicsObject();
 				physics_ob->geometry = this->unit_cube_raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->ob_to_world = cube_ob_to_world_matrix;
 
 				ob->physics_object = physics_ob;
 				physics_ob->userdata = ob;
