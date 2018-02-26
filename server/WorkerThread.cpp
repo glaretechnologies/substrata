@@ -664,13 +664,13 @@ void WorkerThread::doRun()
 
 							const std::string path = server->resource_manager->pathForURL(URL); // TODO: sanitise
 
-							conPrint("path: '" + path + "'");
+							conPrint("local path: '" + path + "'");
 
 							try
 							{
 								// Load resource
 								MemMappedFile file(path);
-								conPrint("Sending OK to client.");
+								conPrint("Sending file to client.");
 								socket->writeUInt32(0); // write OK msg to client
 								socket->writeUInt64(file.fileSize()); // Write file size
 								socket->writeData(file.fileData(), file.fileSize()); // Write file data
