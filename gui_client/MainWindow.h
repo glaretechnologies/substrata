@@ -88,6 +88,7 @@ private:
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResource(const std::string& url);
 	void evalObjectScript(WorldObject* ob, double cur_time);
+	void updateStatusBar();
 
 	std::string base_dir_path;
 	std::string appdata_path;
@@ -141,7 +142,14 @@ public:
 	UserDetailsWidget* user_details;
 	URLWidget* url_widget;
 
-	bool connected_to_server;
+	enum ServerConnectionState
+	{
+		ServerConnectionState_NotConnected,
+		ServerConnectionState_Connecting,
+		ServerConnectionState_Connected
+	};
+	ServerConnectionState connection_state;
+
 	UserID logged_in_user_id;
 
 	bool shown_object_modification_error_msg;
@@ -177,4 +185,6 @@ public:
 	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
 
 	std::string server_hostname;
+
+	size_t total_num_res_to_download;
 };
