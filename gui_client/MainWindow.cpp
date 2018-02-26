@@ -231,56 +231,6 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 }
 
 
-static Reference<PhysicsObject> makeAABBPhysicsObject(const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
-{
-	Reference<PhysicsObject> phy_ob = new PhysicsObject();
-	phy_ob->geometry = new RayMesh("mesh", false);
-	phy_ob->geometry->addVertex(Vec3f(0, 0, 0));
-	phy_ob->geometry->addVertex(Vec3f(1, 0, 0));
-	phy_ob->geometry->addVertex(Vec3f(1, 1, 0));
-	phy_ob->geometry->addVertex(Vec3f(0, 1, 0));
-	phy_ob->geometry->addVertex(Vec3f(0, 0, 1));
-	phy_ob->geometry->addVertex(Vec3f(1, 0, 1));
-	phy_ob->geometry->addVertex(Vec3f(1, 1, 1));
-	phy_ob->geometry->addVertex(Vec3f(0, 1, 1));
-
-	unsigned int uv_i[] = { 0, 0, 0, 0 };
-	{
-		unsigned int v_i[] = { 0, 3, 2, 1 };
-		phy_ob->geometry->addQuad(v_i, uv_i, 0); // z = 0 quad
-	}
-	{
-		unsigned int v_i[] = { 4, 5, 6, 7 };
-		phy_ob->geometry->addQuad(v_i, uv_i, 0); // z = 1 quad
-	}
-	{
-		unsigned int v_i[] = { 0, 1, 5, 4 };
-		phy_ob->geometry->addQuad(v_i, uv_i, 0); // y = 0 quad
-	}
-	{
-		unsigned int v_i[] = { 2, 3, 7, 6 };
-		phy_ob->geometry->addQuad(v_i, uv_i, 0); // y = 1 quad
-	}
-	{
-		unsigned int v_i[] = { 0, 4, 7, 3 };
-		phy_ob->geometry->addQuad(v_i, uv_i, 0); // x = 0 quad
-	}
-	{
-		unsigned int v_i[] ={ 1, 2, 6, 5 };
-		phy_ob->geometry->addQuad(v_i, uv_i, 0); // x = 1 quad
-	}
-
-	phy_ob->geometry->buildTrisFromQuads();
-	Geometry::BuildOptions options;
-	phy_ob->geometry->build(".", options, print_output, false, task_manager);
-
-	phy_ob->geometry->buildJSTris();
-
-	phy_ob->ob_to_world = ob_to_world_matrix;
-	return phy_ob;
-}
-
-
 //static Reference<GLObject> loadAvatarModel(const std::string& model_url)
 //{
 //	// TEMP HACK: Just load a teapot for now :)
@@ -432,7 +382,10 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				ui->glWidget->addObject(cube_gl_ob);
 
 				// Make physics object
-				PhysicsObjectRef physics_ob = makeAABBPhysicsObject(ob_to_world_matrix, print_output, task_manager);
+				PhysicsObjectRef physics_ob = new PhysicsObject();
+				physics_ob->geometry = this->unit_cube_raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+
 				ob->physics_object = physics_ob;
 				physics_ob->userdata = ob;
 				physics_world->addObject(physics_ob);
@@ -2917,6 +2870,51 @@ int main(int argc, char *argv[])
 		}
 
 		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
+
+		// Make unit-cube raymesh (used for placeholder model)
+		{
+			mw.unit_cube_raymesh = new RayMesh("mesh", false);
+			mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 0));
+			mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 0));
+			mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 0));
+			mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 0));
+			mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 1));
+			mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 1));
+			mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 1));
+			mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 1));
+
+			unsigned int uv_i[] ={ 0, 0, 0, 0 };
+			{
+				unsigned int v_i[] ={ 0, 3, 2, 1 };
+				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 0 quad
+			}
+			{
+				unsigned int v_i[] ={ 4, 5, 6, 7 };
+				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 1 quad
+			}
+			{
+				unsigned int v_i[] ={ 0, 1, 5, 4 };
+				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 0 quad
+			}
+			{
+				unsigned int v_i[] ={ 2, 3, 7, 6 };
+				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 1 quad
+			}
+			{
+				unsigned int v_i[] ={ 0, 4, 7, 3 };
+				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 0 quad
+			}
+			{
+				unsigned int v_i[] ={ 1, 2, 6, 5 };
+				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 1 quad
+			}
+
+			mw.unit_cube_raymesh->buildTrisFromQuads();
+			Geometry::BuildOptions options;
+			mw.unit_cube_raymesh->build(".", options, mw.print_output, /*verbose=*/false, mw.task_manager);
+
+			mw.unit_cube_raymesh->buildJSTris();
+		}
 
 		try
 		{

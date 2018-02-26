@@ -168,6 +168,8 @@ public:
 	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh;
 	Reference<RayMesh> hypercard_quad_raymesh;
 
+	Reference<RayMesh> unit_cube_raymesh;
+
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;
 
