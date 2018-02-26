@@ -166,7 +166,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	print("resources_dir: " + resources_dir);
 	resource_manager = new ResourceManager(this->resources_dir);
 
-	cam_controller.setMouseSensitivity(0.3f);
+	cam_controller.setMouseSensitivity(-1.0);
 }
 
 
