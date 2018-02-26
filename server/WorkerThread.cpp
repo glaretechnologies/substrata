@@ -62,7 +62,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
 			return;
 	}
-	catch(Indigo::Exception& e)
+	catch(Indigo::Exception&)
 	{}
 
 	// See if we have this file on the server already
@@ -645,43 +645,49 @@ void WorkerThread::doRun()
 						return;
 						//break;
 					}
-				case GetFile:
+				case GetFiles: // Client wants to download 1 or more resource files.
 					{
-						conPrint("GetFile");
+						conPrint("------GetFiles-----");
 						
-						const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const uint64 num_resources = socket->readUInt64();
+						conPrint("\tnum_resources requested: " + toString(num_resources));
 
-						conPrint("Requested URL: '" + URL + "'");
-
-						if(!ResourceManager::isValidURL(URL))
+						for(size_t i=0; i<num_resources; ++i)
 						{
-							conPrint("Requested URL: '" + URL + "' was invalid.");
-							socket->writeUInt32(1); // write error msg to client
-						}
-						else
-						{
-							conPrint("Requested URL: '" + URL + "' was valid.");
+							const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-							const std::string path = server->resource_manager->pathForURL(URL); // TODO: sanitise
+							conPrint("\tRequested URL: '" + URL + "'");
 
-							conPrint("local path: '" + path + "'");
-
-							try
+							if(!ResourceManager::isValidURL(URL))
 							{
-								// Load resource
-								MemMappedFile file(path);
-								conPrint("Sending file to client.");
-								socket->writeUInt32(0); // write OK msg to client
-								socket->writeUInt64(file.fileSize()); // Write file size
-								socket->writeData(file.fileData(), file.fileSize()); // Write file data
-
-								conPrint("Sent file '" + path + "' to client. (" + toString(file.fileSize()) + " B)");
-							}
-							catch(Indigo::Exception& e)
-							{
-								conPrint("Exception while trying to load file for URL: " + e.what());
-
+								conPrint("\tRequested URL was invalid.");
 								socket->writeUInt32(1); // write error msg to client
+							}
+							else
+							{
+								conPrint("\tRequested URL was valid.");
+
+								const std::string path = server->resource_manager->pathForURL(URL); // TODO: sanitise
+
+								conPrint("\tlocal path: '" + path + "'");
+
+								try
+								{
+									// Load resource
+									MemMappedFile file(path);
+									conPrint("\tSending file to client.");
+									socket->writeUInt32(0); // write OK msg to client
+									socket->writeUInt64(file.fileSize()); // Write file size
+									socket->writeData(file.fileData(), file.fileSize()); // Write file data
+
+									conPrint("\tSent file '" + path + "' to client. (" + toString(file.fileSize()) + " B)");
+								}
+								catch(Indigo::Exception& e)
+								{
+									conPrint("\tException while trying to load file for URL: " + e.what());
+
+									socket->writeUInt32(1); // write error msg to client
+								}
 							}
 						}
 

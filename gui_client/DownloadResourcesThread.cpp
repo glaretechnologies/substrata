@@ -32,6 +32,29 @@ DownloadResourcesThread::~DownloadResourcesThread()
 {}
 
 
+// Returns true if kill message received
+static bool checkMessageQueue(ThreadSafeQueue<Reference<ThreadMessage> >& queue, std::set<std::string>& URLs_to_get)
+{
+	// Get any more messages from the queue while we're woken up.
+	Lock lock(queue.getMutex());
+	while(!queue.unlockedEmpty())
+	{
+		ThreadMessageRef msg;
+		queue.unlockedDequeue(msg);
+
+		if(dynamic_cast<DownloadResourceMessage*>(msg.getPointer()))
+		{
+			URLs_to_get.insert(msg.downcastToPtr<DownloadResourceMessage>()->URL);
+		}
+		else if(dynamic_cast<KillThreadMessage*>(msg.getPointer()))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
 void DownloadResourcesThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("DownloadResourcesThread");
@@ -85,30 +108,46 @@ void DownloadResourcesThread::doRun()
 				{
 					return;
 				}
+
+				// Get any more messages from the queue while we're woken up.
+				if(checkMessageQueue(getMessageQueue(), URLs_to_get))
+					return;
 			}
 			else
 			{
-				std::string URL = *URLs_to_get.begin();
-				URLs_to_get.erase(URLs_to_get.begin());
+				out_msg_queue->enqueue(new ResourceDownloadingStatus(URLs_to_get.size()));
 
-				ResourceRef resource = resource_manager->getResourceForURL(URL);
-
-				// Check to see if we have the resource now, we may have downloaded it recently.
-				if(resource->getState() != Resource::State_NotPresent)
+				// Iterate over URLs_to_get, for each one that is not present on disk, add to URLs_to_download and mark as downloading.
+				std::vector<std::string> URLs_to_download;
+				for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
 				{
-					conPrint("Already have file or downloading file, not downloading.");
+					ResourceRef resource = resource_manager->getResourceForURL(*it);
+					if(resource->getState() != Resource::State_NotPresent)
+						conPrint("Already have file or downloading file '" + *it + "', not downloading.");
+					else
+					{
+						URLs_to_download.push_back(*it);
+						resource->setState(Resource::State_Downloading);
+					}
 				}
-				else
+
+				socket->writeUInt32(GetFiles);
+				socket->writeUInt64(URLs_to_download.size()); // Write number of files to get
+
+				for(size_t i=0; i<URLs_to_download.size(); ++i)
 				{
-					conPrint("DownloadResourcesThread: Querying server for file '" + URL + "'...");
+					conPrint("DownloadResourcesThread: Querying server for file '" + URLs_to_download[i] + "'...");
+					socket->writeStringLengthFirst(URLs_to_download[i]);
+				}
 
-					resource->setState(Resource::State_Downloading);
-
-					socket->writeUInt32(GetFile);
-					socket->writeStringLengthFirst(URL);
+				// Read reply, which has an error code for each resource download.
+				for(size_t i=0; i<URLs_to_download.size(); ++i)
+				{
+					const std::string& URL = URLs_to_download[i];
+					ResourceRef resource = resource_manager->getResourceForURL(URL);
 
 					const uint32 result = socket->readUInt32();
-					if(result == 0)
+					if(result == 0) // If OK:
 					{
 						// Download resource
 						const uint64 file_len = socket->readUInt64();
@@ -141,13 +180,22 @@ void DownloadResourcesThread::doRun()
 						}
 
 						conPrint("DownloadResourcesThread: Got file.");
+					
+						URLs_to_get.erase(URL);
+						out_msg_queue->enqueue(new ResourceDownloadingStatus(URLs_to_get.size()));
 					}
 					else
 					{
 						resource->setState(Resource::State_NotPresent);
 						conPrint("DownloadResourcesThread: Server couldn't send file. (Result=" + toString(result) + ")");
+
+						URLs_to_get.erase(URL); // Even though we failed to get this URL, remove from set to get so we don't try and repeatedly download it.
+						out_msg_queue->enqueue(new ResourceDownloadingStatus(URLs_to_get.size()));
 					}
 				}
+
+				if(checkMessageQueue(getMessageQueue(), URLs_to_get))
+					return;
 			}
 		}
 	}

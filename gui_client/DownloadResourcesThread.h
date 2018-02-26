@@ -42,6 +42,14 @@ public:
 };
 
 
+class ResourceDownloadingStatus : public ThreadMessage
+{
+public:
+	ResourceDownloadingStatus(size_t num) : total_to_download(num) {}
+	size_t total_to_download;
+};
+
+
 /*=====================================================================
 DownloadResourcesThread
 -------------------

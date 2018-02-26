@@ -105,10 +105,11 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	appdata_path(appdata_path_),
 	parsed_args(args), 
 	QMainWindow(parent),
-	connected_to_server(false),
+	connection_state(ServerConnectionState_NotConnected),
 	logged_in_user_id(UserID::invalidUserID()),
 	shown_object_modification_error_msg(false),
-	need_help_info_dock_widget_position(false)
+	need_help_info_dock_widget_position(false),
+	total_num_res_to_download(0)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -758,8 +759,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
-				this->statusBar()->showMessage(QtUtils::toQString("Connected to " + this->server_hostname));
-				this->connected_to_server = true;
+				this->connection_state = ServerConnectionState_Connected;
+				updateStatusBar();
 
 				// Try and log in automatically if we have saved credentials.
 				if(!settings->value("LoginDialog/username").toString().isEmpty() && !settings->value("LoginDialog/password").toString().isEmpty())
@@ -775,7 +776,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
 			{
-				this->statusBar()->showMessage(QtUtils::toQString("Connecting to " + this->server_hostname + "..."));
+				this->connection_state = ServerConnectionState_Connecting;
+				updateStatusBar();
 			}
 			else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
 			{
@@ -787,8 +789,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					msgBox.setText(QtUtils::toQString(m->error_message));
 					msgBox.exec();
 				}
-				this->statusBar()->showMessage("Not connected to server.");
-				this->connected_to_server = false;
+				this->connection_state = ServerConnectionState_NotConnected;
+				updateStatusBar();
 			}
 			else if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
 			{
@@ -965,6 +967,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 					}
 				}
+			}
+			else if(dynamic_cast<const ResourceDownloadingStatus*>(msg.getPointer()))
+			{
+				const ResourceDownloadingStatus* m = msg.downcastToPtr<const ResourceDownloadingStatus>();
+				this->total_num_res_to_download = m->total_to_download;
+				updateStatusBar();
 			}
 			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
 			{
@@ -1587,6 +1595,29 @@ void MainWindow::timerEvent(QTimerEvent* event)
 }
 
 
+void MainWindow::updateStatusBar()
+{
+	std::string status;
+	switch(connection_state)
+	{
+	case ServerConnectionState_NotConnected:
+		status += "Not connected to server.";
+		break;
+	case ServerConnectionState_Connecting:
+		status += "Connecting to " + this->server_hostname + "...";
+		break;
+	case ServerConnectionState_Connected:
+		status += "Connected to " + this->server_hostname;
+		break;
+	}
+
+	if(total_num_res_to_download > 0)
+		status += " | Downloading " + toString(total_num_res_to_download) + ((total_num_res_to_download == 1) ? " resource..." : " resources...");
+
+	this->statusBar()->showMessage(QtUtils::toQString(status));
+}
+
+
 void MainWindow::on_actionAvatarSettings_triggered()
 {
 	AvatarSettingsDialog d(this->settings, this->texture_server);
@@ -1922,7 +1953,7 @@ void MainWindow::passwordResetRequested()
 
 void MainWindow::on_actionLogIn_triggered()
 {
-	if(!connected_to_server)
+	if(connection_state != ServerConnectionState_Connected)
 	{
 		QMessageBox msgBox;
 		msgBox.setWindowTitle("Can't log in");
@@ -1964,7 +1995,7 @@ void MainWindow::on_actionLogOut_triggered()
 
 void MainWindow::on_actionSignUp_triggered()
 {
-	if(!connected_to_server)
+	if(connection_state != ServerConnectionState_Connected)
 	{
 		QMessageBox msgBox;
 		msgBox.setWindowTitle("Can't sign up");
