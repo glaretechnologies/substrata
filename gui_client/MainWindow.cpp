@@ -493,6 +493,8 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			physics_ob->userdata = ob;
 			physics_world->addObject(physics_ob);
 			physics_world->rebuild(task_manager, print_output);
+
+			loadScriptForObject(ob); // Load any script for the object.
 		}
 	}
 	catch(Indigo::Exception& e)
@@ -512,7 +514,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 	{
 		if(!ob->script_url.empty())
 		{
-			if(ob->loaded_script_url == ob->script_url)
+			if(ob->loaded_script_url == ob->script_url) // If we have already loaded this script, return.
 				return;
 
 			ob->loaded_script_url = ob->script_url;
@@ -986,7 +988,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(URL_set.count(m->URL)) // If the downloaded resource was used by this model:
 							{
 								loadModelForObject(ob, /*start_downloading_missing_files=*/false);
-								loadScriptForObject(ob);
 							}
 						}
 					}
@@ -1323,7 +1324,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(reload_opengl_model)
 					{
 						loadModelForObject(ob, /*start_downloading_missing_files=*/true);
-						loadScriptForObject(ob);
 
 						ob->from_remote_other_dirty     = false;
 						ob->from_remote_transform_dirty = false;
