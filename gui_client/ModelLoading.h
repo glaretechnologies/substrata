@@ -51,7 +51,7 @@ public:
 	// We don't have a material file, just the model file:
 	// Throws Indigo::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelFile(const std::string& path, 
-		const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, float& suggested_scale_out, std::vector<WorldMaterialRef>& loaded_materials_out); // throws Indigo::Exception on failure.
+		const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, std::vector<WorldMaterialRef>& loaded_materials_out); // throws Indigo::Exception on failure.
 
 
 	// For when we have materials:

@@ -29,8 +29,7 @@ Code By Nicholas Chapman.
 AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager_)
 :	settings(settings_),
 	resource_manager(resource_manager_),
-	base_dir_path(base_dir_path_),
-	suggested_scale(1.0f)
+	base_dir_path(base_dir_path_)
 {
 	setupUi(this);
 
@@ -144,7 +143,6 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(local_path, Matrix4f::translationMatrix(Vec4f(0, 0, 0, 1)), 
 			this->loaded_mesh, // mesh out
-			this->suggested_scale, // suggested scale out
 			this->loaded_materials // loaded materials out
 		);
 
