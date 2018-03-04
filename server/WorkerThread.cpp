@@ -459,8 +459,6 @@ void WorkerThread::doRun()
 								new_ob->state = WorldObject::State_JustCreated;
 								new_ob->from_remote_other_dirty = true;
 								world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
-
-								conPrint("created new object");
 							}
 						}
 

@@ -312,7 +312,7 @@ void ClientThread::doRun()
 					}
 				case ObjectCreated:
 					{
-						conPrint("ObjectCreated");
+						//conPrint("ObjectCreated");
 						const UID object_uid = readUIDFromStream(*socket);
 						//const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
 						//const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
@@ -340,8 +340,6 @@ void ClientThread::doRun()
 								world_state->objects.insert(std::make_pair(object_uid, ob));
 
 								ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
-
-								conPrint("created new object");
 							}
 							else
 							{
