@@ -286,9 +286,6 @@ void AddObjectPreviewWidget::mouseMoveEvent(QMouseEvent* e)
 		cam_theta = myClamp<float>(cam_theta - (float)delta.y() * move_scale, 0.01f, Maths::pi<float>() - 0.01f);
 	}
 
-	printVar(cam_phi);
-	printVar(cam_theta);
-
 	if((mb & Qt::MiddleButton) || (mb & Qt::RightButton))
 	{
 		const float move_scale = 0.005f;
