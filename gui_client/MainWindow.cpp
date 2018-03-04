@@ -78,6 +78,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../physics/TreeTest.h" // Just for testing
 #include "../utils/VectorUnitTests.h" // Just for testing
 #include "../utils/ReferenceTest.h" // Just for testing
+#include "../opengl/OpenGLEngineTests.h" // Just for testing
 
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -1676,7 +1677,7 @@ void MainWindow::on_actionAddObject_triggered()
 
 			// If the user selected an obj, convert it to an indigo mesh file
 			std::string igmesh_disk_path = d.result_path;
-			if(hasExtension(d.result_path, "obj"))
+			if(hasExtension(d.result_path, "obj") || hasExtension(d.result_path, "stl"))
 			{
 				// Save as IGMESH in temp location
 				igmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.igmesh";
@@ -1706,7 +1707,7 @@ void MainWindow::on_actionAddObject_triggered()
 			new_world_object->pos = ob_pos;
 			new_world_object->axis = Vec3f(0, 0, 1);
 			new_world_object->angle = 0;
-			new_world_object->scale = Vec3f(d.suggested_scale);
+			new_world_object->scale = Vec3f(1.f);
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 			std::set<std::string> paths;
@@ -2684,6 +2685,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			OpenGLEngineTests::test(cyberspace_base_dir_path);
 			StringUtils::test();
 			//URL::test();
 			//HTTPClient::test();

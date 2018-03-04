@@ -52,7 +52,6 @@ public:
 	std::string result_path;
 	//uint64 model_hash;
 	Indigo::MeshRef loaded_mesh;
-	float suggested_scale;
 	std::vector<WorldMaterialRef> loaded_materials;
 
 private:

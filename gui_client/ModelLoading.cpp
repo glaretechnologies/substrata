@@ -156,7 +156,7 @@ static void scaleMesh(Indigo::Mesh& mesh)
 
 // We don't have a material file, just the model file:
 GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path, 
-												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, float& suggested_scale_out, std::vector<WorldMaterialRef>& loaded_materials_out)
+												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, std::vector<WorldMaterialRef>& loaded_materials_out)
 {
 	if(hasExtension(model_path, "obj"))
 	{
@@ -172,8 +172,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 
 		for(size_t i=0; i<mesh->vert_normals.size(); ++i)
 			mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
-
-		suggested_scale_out = 1.f;
 
 		// Automatically scale object down until it is < x m across
 		scaleMesh(*mesh);
@@ -244,8 +242,16 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			// Automatically scale object down until it is < x m across
 			scaleMesh(*mesh);
 
+			// Get smallest z coord
+			float min_z = std::numeric_limits<float>::max();
+			for(size_t i=0; i<mesh->vert_positions.size(); ++i)
+				min_z = myMin(min_z, mesh->vert_positions[i].z);
+
+			// Move object so that it lies on the z=0 (ground) plane
+			const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z) * ob_to_world_matrix;
+
 			GLObjectRef ob = new GLObject();
-			ob->ob_to_world_matrix = ob_to_world_matrix;
+			ob->ob_to_world_matrix = use_matrix;
 			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
@@ -260,7 +266,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			}
 
 			mesh_out = mesh;
-			suggested_scale_out = 1.0f;
 			return ob;
 		}
 		catch(Indigo::IndigoException& e)
@@ -298,7 +303,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			}
 			
 			mesh_out = mesh;
-			suggested_scale_out = 1.0f;
 			return ob;
 		}
 		catch(Indigo::IndigoException& e)
