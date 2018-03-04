@@ -10,6 +10,7 @@ Code By Nicholas Chapman.
 #include "../shared/ResourceManager.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../graphics/formatdecoderobj.h"
+#include "../graphics/FormatDecoderSTL.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
@@ -127,6 +128,32 @@ static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 }
 
 
+static void scaleMesh(Indigo::Mesh& mesh)
+{
+	// Automatically scale object down until it is < x m across
+	const float max_span = 5.0f;
+	float use_scale = 1.f;
+	const js::AABBox aabb(
+		Vec4f(mesh.aabb_os.bound[0].x, mesh.aabb_os.bound[0].y, mesh.aabb_os.bound[0].z, 1.f),
+		Vec4f(mesh.aabb_os.bound[1].x, mesh.aabb_os.bound[1].y, mesh.aabb_os.bound[1].z, 1.f));
+	float span = aabb.axisLength(aabb.longestAxis());
+	if(::isFinite(span))
+	{
+		while(span >= max_span)
+		{
+			use_scale *= 0.1f;
+			span *= 0.1f;
+		}
+	}
+
+	if(use_scale != 1.f)
+	{
+		conPrint("Scaling object by " + toString(use_scale));
+		for(size_t i=0; i<mesh.vert_positions.size(); ++i)
+			mesh.vert_positions[i] *= use_scale;
+	}
+}
+
 // We don't have a material file, just the model file:
 GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path, 
 												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, float& suggested_scale_out, std::vector<WorldMaterialRef>& loaded_materials_out)
@@ -140,39 +167,19 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 		checkValidAndSanitiseMesh(*mesh);
 
 		// Convert model coordinates to z up
-		js::AABBox aabb = js::AABBox::emptyAABBox();
 		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
-		{
 			mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
-			aabb.enlargeToHoldPoint(Vec4f(mesh->vert_positions[i].x, mesh->vert_positions[i].y, mesh->vert_positions[i].z, 1.f));
-		}
 
 		for(size_t i=0; i<mesh->vert_normals.size(); ++i)
 			mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
 
-		// Automatically scale object down until it is < x m across
-		const float max_span = 5.0f;
 		suggested_scale_out = 1.f;
-		float use_scale = 1.f;
-		float span = aabb.axisLength(aabb.longestAxis());
-		if(::isFinite(span))
-		{
-			while(span >= max_span)
-			{
-				use_scale *= 0.1f;
-				span *= 0.1f;
-			}
-		}
 
-		if(use_scale != 1.f)
-		{
-			conPrint("Scaling object by " + toString(use_scale));
-			for(size_t i=0; i<mesh->vert_positions.size(); ++i)
-				mesh->vert_positions[i] *= use_scale;
-		}
+		// Automatically scale object down until it is < x m across
+		scaleMesh(*mesh);
 
 		// Get smallest z coord
-		float min_z = 1000000;
+		float min_z = std::numeric_limits<float>::max();
 		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
 			min_z = myMin(min_z, mesh->vert_positions[i].z);
 
@@ -225,6 +232,41 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 		}
 		mesh_out = mesh;
 		return ob;
+	}
+	else if(hasExtension(model_path, "stl"))
+	{
+		try
+		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+			FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
+			checkValidAndSanitiseMesh(*mesh);
+
+			// Automatically scale object down until it is < x m across
+			scaleMesh(*mesh);
+
+			GLObjectRef ob = new GLObject();
+			ob->ob_to_world_matrix = ob_to_world_matrix;
+			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+
+			ob->materials.resize(mesh->num_materials_referenced);
+			loaded_materials_out.resize(mesh->num_materials_referenced);
+			for(uint32 i=0; i<ob->materials.size(); ++i)
+			{
+				// Assign dummy mat
+				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+
+				loaded_materials_out[i] = new WorldMaterial();
+			}
+
+			mesh_out = mesh;
+			suggested_scale_out = 1.0f;
+			return ob;
+		}
+		catch(Indigo::IndigoException& e)
+		{
+			throw Indigo::Exception(toStdString(e.what()));
+		}
 	}
 	else if(hasExtension(model_path, "igmesh"))
 	{
