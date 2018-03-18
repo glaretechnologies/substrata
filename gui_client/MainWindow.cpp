@@ -78,7 +78,9 @@ Copyright Glare Technologies Limited 2018 -
 #include "../physics/TreeTest.h" // Just for testing
 #include "../utils/VectorUnitTests.h" // Just for testing
 #include "../utils/ReferenceTest.h" // Just for testing
+#include "../utils/JSONParser.h" // Just for testing
 #include "../opengl/OpenGLEngineTests.h" // Just for testing
+#include "../graphics/FormatDecoderGLTF.h" // Just for testing
 
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -743,10 +745,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const ClientDisconnectedFromServerMessage* m = static_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer());
 				if(!m->error_message.empty())
 				{
-					QMessageBox msgBox;
-					msgBox.setWindowTitle("Disconnected from Server");
-					msgBox.setText(QtUtils::toQString(m->error_message));
-					msgBox.exec();
+					showErrorNotification(m->error_message);
 				}
 				this->connection_state = ServerConnectionState_NotConnected;
 				updateStatusBar();
@@ -2685,8 +2684,11 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			OpenGLEngineTests::test(cyberspace_base_dir_path);
-			StringUtils::test();
+			//IPAddress::test();
+			//FormatDecoderGLTF::test();
+			JSONParser::test();
+			//OpenGLEngineTests::test(cyberspace_base_dir_path);
+			//StringUtils::test();
 			//URL::test();
 			//HTTPClient::test();
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
