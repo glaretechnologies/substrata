@@ -48,6 +48,8 @@ public:
 	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
 
 
+	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);
+
 	// We don't have a material file, just the model file:
 	// Throws Indigo::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelFile(const std::string& path, 

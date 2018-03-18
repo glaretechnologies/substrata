@@ -11,6 +11,7 @@ Code By Nicholas Chapman.
 #include "../dll/include/IndigoMesh.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/FormatDecoderSTL.h"
+#include "../graphics/FormatDecoderGLTF.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
@@ -35,7 +36,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, Reso
 }
 
 
-static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
+void ModelLoading::checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 {
 	if(mesh.num_uv_mappings > 10)
 		throw Indigo::Exception("Too many UV sets: " + toString(mesh.num_uv_mappings) + ", max is " + toString(10));
@@ -227,6 +228,59 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			}
 
 			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+		}
+		mesh_out = mesh;
+		return ob;
+	}
+	else if(hasExtension(model_path, "gltf"))
+	{
+		Indigo::MeshRef mesh = new Indigo::Mesh();
+
+		Timer timer;
+		GLTFMaterials mats;
+		FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
+		conPrint("Loaded GLTF model in " + timer.elapsedString());
+
+		checkValidAndSanitiseMesh(*mesh);
+
+		// Convert model coordinates to z up
+		//for(size_t i=0; i<mesh->vert_positions.size(); ++i)
+		//	mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
+		//
+		//for(size_t i=0; i<mesh->vert_normals.size(); ++i)
+		//	mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
+
+		GLObjectRef ob = new GLObject();
+		ob->ob_to_world_matrix = ob_to_world_matrix;
+		timer.reset();
+		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+		conPrint("Build OpenGL mesh for GLTF model in " + timer.elapsedString());
+
+		if(mats.materials.size() < mesh->num_materials_referenced)
+			throw Indigo::Exception("mats.materials had incorrect size.");
+
+		ob->materials.resize(mesh->num_materials_referenced);
+		loaded_materials_out.resize(mesh->num_materials_referenced);
+		for(uint32 i=0; i<mesh->num_materials_referenced; ++i)
+		{
+			loaded_materials_out[i] = new WorldMaterial();
+
+			const std::string tex_path = mats.materials[i].diffuse_map.path;
+
+			ob->materials[i].albedo_rgb = mats.materials[i].diffuse;
+			ob->materials[i].albedo_tex_path = tex_path;
+			ob->materials[i].roughness = mats.materials[i].roughness;
+			ob->materials[i].alpha = mats.materials[i].alpha;
+			ob->materials[i].transparent = mats.materials[i].alpha < 1.0f;
+			ob->materials[i].metallic_frac = mats.materials[i].metallic;
+
+			loaded_materials_out[i]->colour_rgb = mats.materials[i].diffuse;
+			loaded_materials_out[i]->colour_texture_url = tex_path;
+			loaded_materials_out[i]->opacity = ScalarVal(ob->materials[i].alpha);
+			loaded_materials_out[i]->roughness = mats.materials[i].roughness;
+			loaded_materials_out[i]->opacity = mats.materials[i].alpha;
+
+			ob->materials[i].tex_matrix = Matrix2f::identity();// Matrix2f(1, 0, 0, -1);
 		}
 		mesh_out = mesh;
 		return ob;
