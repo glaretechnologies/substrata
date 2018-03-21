@@ -15,7 +15,7 @@ Copyright Glare Technologies Limited 2016 -
 
 WorldMaterial::WorldMaterial()
 {
-	colour_rgb = Colour3f(0.7f);
+	colour_rgb = Colour3f(0.85f);
 	roughness = ScalarVal(0.5f);
 	metallic_fraction = ScalarVal(0.0f);
 	opacity = ScalarVal(1.0f);
