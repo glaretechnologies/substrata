@@ -189,4 +189,7 @@ public:
 	std::string server_hostname;
 
 	size_t total_num_res_to_download;
+
+	Timer fps_display_timer;
+	int num_frames;
 };

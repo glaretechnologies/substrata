@@ -112,7 +112,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	logged_in_user_id(UserID::invalidUserID()),
 	shown_object_modification_error_msg(false),
 	need_help_info_dock_widget_position(false),
-	total_num_res_to_download(0)
+	total_num_res_to_download(0),
+	num_frames(0)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -708,6 +709,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	const float dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+
+	num_frames++;
+	if(fps_display_timer.elapsed() > 1.0)
+	{
+		const float fps = num_frames / fps_display_timer.elapsed();
+		//conPrint("FPS: " + doubleToStringNSigFigs(fps, 4));
+		num_frames = 0;
+		fps_display_timer.reset();
+	}
+		
 
 	
 	// Handle any messages (chat messages etc..)
@@ -2584,7 +2595,7 @@ void MainWindow::updateGroundPlane()
 
 			GLObjectRef gl_ob = new GLObject();
 			gl_ob->materials.resize(1);
-			gl_ob->materials[0].albedo_rgb = Colour3f(0.75f);
+			gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
 			//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
 			gl_ob->materials[0].albedo_tex_path = "resources/obstacle.png";
 			gl_ob->materials[0].roughness = 0.8f;
@@ -2952,6 +2963,24 @@ int main(int argc, char *argv[])
 				mw.ui->glWidget->addObject(ob);
 
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+			}
+
+			if(false)
+			{
+				Indigo::MeshRef mesh;
+				std::vector<WorldMaterialRef> loaded_materials;
+
+				const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";
+
+				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(path,
+					Matrix4f::translationMatrix(9, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
+					mesh,
+					loaded_materials
+				);
+
+				mw.ui->glWidget->addObject(ob);
+
+				//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
 		}
 		catch(Indigo::Exception& e)
