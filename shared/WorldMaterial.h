@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <graphics/colour3.h>
 #include "../shared/UID.h"
 #include "vec3.h"
+#include <maths/Matrix2.h>
 #include <string>
 #include <vector>
 struct GLObject;
@@ -48,6 +49,8 @@ public:
 	ScalarVal roughness;
 	ScalarVal metallic_fraction;
 	ScalarVal opacity;
+
+	Matrix2f tex_matrix;
 
 	Reference<WorldMaterial> clone() const
 	{

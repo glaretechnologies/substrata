@@ -19,6 +19,7 @@ WorldMaterial::WorldMaterial()
 	roughness = ScalarVal(0.5f);
 	metallic_fraction = ScalarVal(0.0f);
 	opacity = ScalarVal(1.0f);
+	tex_matrix = Matrix2f::identity();
 }
 
 
@@ -82,7 +83,7 @@ static Colour3f readColour3fFromStram(InStream& stream)
 }
 
 
-static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 3;
+static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 4;
 
 
 void writeToStream(const WorldMaterial& mat, OutStream& stream)
@@ -96,6 +97,8 @@ void writeToStream(const WorldMaterial& mat, OutStream& stream)
 	writeToStream(mat.roughness, stream);
 	writeToStream(mat.metallic_fraction, stream);
 	writeToStream(mat.opacity, stream);
+
+	writeToStream(mat.tex_matrix, stream);
 }
 
 
@@ -145,6 +148,11 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 		readFromStream(stream, mat.metallic_fraction);
 		readFromStream(stream, mat.opacity);
 	}
+
+	if(v >= 4)
+		mat.tex_matrix = readMatrix2FromStream<float>(stream);
+	else
+		mat.tex_matrix = Matrix2f(1, 0, 0, -1); // Needed for existing object objects etc..
 }
 
 
