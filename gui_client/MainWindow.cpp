@@ -30,6 +30,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ChangePasswordDialog.h"
 #include "URLWidget.h"
 #include "../shared/Protocol.h"
+#include "../shared/Version.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -176,7 +177,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 void MainWindow::initialise()
 {
-	setWindowTitle("Cyberspace");
+	setWindowTitle(QtUtils::toQString("Substrata v" + ::cyberspace_version));
 
 	ui->objectEditor->setControlsEnabled(false);
 
