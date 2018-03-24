@@ -33,6 +33,8 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, Reso
 	// opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
 	opengl_mat.fresnel_scale = 0.3f;
+
+	opengl_mat.tex_matrix = mat.tex_matrix;
 }
 
 
@@ -396,6 +398,15 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			MLTLibMaterials mats;
 			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws Indigo::Exception on failure.
 		}
+		else if(hasExtension(model_path, "stl"))
+		{
+			FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
+		}
+		else if(hasExtension(model_path, "gltf"))
+		{
+			GLTFMaterials mats;
+			FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
+		}
 		else if(hasExtension(model_path, "igmesh"))
 		{
 			try
@@ -452,8 +463,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			ob->materials[i].albedo_tex_path = "resources/obstacle.png";
 			ob->materials[i].roughness = 0.5f;
 		}
-
-		ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 	}
 
 	mesh_out = mesh;

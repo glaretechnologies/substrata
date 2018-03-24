@@ -1687,7 +1687,7 @@ void MainWindow::on_actionAddObject_triggered()
 
 			// If the user selected an obj, convert it to an indigo mesh file
 			std::string igmesh_disk_path = d.result_path;
-			if(hasExtension(d.result_path, "obj") || hasExtension(d.result_path, "stl"))
+			if(!hasExtension(d.result_path, "igmesh"))
 			{
 				// Save as IGMESH in temp location
 				igmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.igmesh";
@@ -2963,6 +2963,24 @@ int main(int argc, char *argv[])
 				mw.ui->glWidget->addObject(ob);
 
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+			}
+
+			if(false)
+			{
+				Indigo::MeshRef mesh;
+				std::vector<WorldMaterialRef> loaded_materials;
+
+				const std::string path = "C:\\Users\\nick\\Downloads\\cemetery_angel_-_miller\\scene.gltf";
+
+				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(path,
+					Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(1.f),
+					mesh,
+					loaded_materials
+				);
+
+				mw.ui->glWidget->addObject(ob);
+
+				//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
 
 			if(false)
