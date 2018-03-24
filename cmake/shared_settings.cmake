@@ -22,6 +22,8 @@ ${INDIGO_GRAPHICS_DIR}/FFTPlan.cpp
 ${INDIGO_GRAPHICS_DIR}/FFTPlan.h
 ${INDIGO_GRAPHICS_DIR}/FloatDecoder.cpp
 ${INDIGO_GRAPHICS_DIR}/FloatDecoder.h
+${INDIGO_GRAPHICS_DIR}/FormatDecoderGLTF.cpp
+${INDIGO_GRAPHICS_DIR}/FormatDecoderGLTF.h
 ${INDIGO_GRAPHICS_DIR}/formatdecoderobj.cpp
 ${INDIGO_GRAPHICS_DIR}/formatdecoderobj.h
 ${INDIGO_GRAPHICS_DIR}/FormatDecoderSTL.cpp
@@ -153,6 +155,8 @@ ${INDIGO_UTILS_DIR}/IndigoXMLDoc.cpp
 ${INDIGO_UTILS_DIR}/IndigoXMLDoc.h
 ${INDIGO_UTILS_DIR}/InStream.cpp
 ${INDIGO_UTILS_DIR}/InStream.h
+${INDIGO_UTILS_DIR}/JSONParser.cpp
+${INDIGO_UTILS_DIR}/JSONParser.h
 #${INDIGO_UTILS_DIR}/InterpolatedTable.cpp
 #${INDIGO_UTILS_DIR}/InterpolatedTable.h
 #${INDIGO_UTILS_DIR}/InterpolatedTable1D.cpp
