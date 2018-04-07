@@ -49,8 +49,6 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 
 	OpenGLEngineSettings settings;
 	settings.shadow_mapping = true;
-	settings.shadow_map_scene_half_width = 4.f;
-	settings.shadow_map_scene_half_depth = 4.f;
 	opengl_engine = new OpenGLEngine(settings);
 
 	viewport_w = viewport_h = 100;
