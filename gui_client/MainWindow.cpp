@@ -2698,7 +2698,7 @@ int main(int argc, char *argv[])
 		{
 			//IPAddress::test();
 			//FormatDecoderGLTF::test();
-			JSONParser::test();
+			//JSONParser::test();
 			//OpenGLEngineTests::test(cyberspace_base_dir_path);
 			//StringUtils::test();
 			//URL::test();
@@ -2762,8 +2762,7 @@ int main(int argc, char *argv[])
 		mw.ui->glWidget->texture_server_ptr = &texture_server;
 
 		const float sun_phi = 1.f;
-		const float sun_theta = 0.9510680884f;
-		//const float sun_theta = 0.8;// 0.910680884f;
+		const float sun_theta = Maths::pi<float>() / 4;
 		mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
 
 		mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
@@ -2773,8 +2772,7 @@ int main(int argc, char *argv[])
 		*/
 		{
 			OpenGLMaterial env_mat;
-			env_mat.albedo_tex_path = "resources/sky.png";
-			//env_mat.albedo_tex_path = cyberspace_base_dir_path + "/assets/sky_no_sun_32.exr";
+			env_mat.albedo_tex_path = cyberspace_base_dir_path + "/resources/sky_no_sun.exr";
 			env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
 			mw.ui->glWidget->setEnvMat(env_mat);
