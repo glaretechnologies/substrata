@@ -217,7 +217,7 @@ void AvatarPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 				if(imagemap->getN() == 3)
 				{
 					Reference<OpenGLTexture> opengl_tex = new OpenGLTexture();
-					opengl_tex->load(tex_xres, tex_yres, imagemap->getData(), opengl_engine, GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, 
+					opengl_tex->load(tex_xres, tex_yres, imagemap->getData(), opengl_engine, GL_SRGB8, GL_RGB, GL_UNSIGNED_BYTE, 
 						OpenGLTexture::Filtering_Fancy
 					);
 					opengl_mat.albedo_texture = opengl_tex;

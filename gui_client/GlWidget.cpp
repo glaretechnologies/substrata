@@ -103,8 +103,8 @@ void GlWidget::resizeGL(int width_, int height_)
 void GlWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl/shaders" // shader dir
-		"./shaders" // shader dir
+		//"n:/indigo/trunk/opengl" // shader dir
+		"data" // data dir (should contain 'shaders' and 'gl_data')
 	);
 	if(!opengl_engine->initSucceeded())
 	{
