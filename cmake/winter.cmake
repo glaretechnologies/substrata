@@ -62,6 +62,8 @@ set(winter
 "${winterdir}/wnt_LetASTNode.h"
 "${winterdir}/wnt_LetBlock.cpp"
 "${winterdir}/wnt_LetBlock.h"
+"${winterdir}/wnt_MathsFuncs.cpp"
+"${winterdir}/wnt_MathsFuncs.h"
 )
 
 SOURCE_GROUP(winter FILES ${winter})
