@@ -89,7 +89,6 @@ WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_
 
 WinterShaderEvaluator::~WinterShaderEvaluator()
 {
-	delete vm;
 }
 
 

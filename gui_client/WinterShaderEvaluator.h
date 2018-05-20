@@ -43,5 +43,5 @@ public:
 	typedef void (WINTER_JIT_CALLING_CONV * EVAL_TRANSLATION_TYPE)(/*return value=*/Vec4f*, float time, const CybWinterEnv* env);
 	EVAL_TRANSLATION_TYPE jitted_evalTranslation;
 private:
-	Winter::VirtualMachine* vm;
+	Winter::VirtualMachineRef vm;
 };
