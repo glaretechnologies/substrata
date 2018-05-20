@@ -1,10 +1,11 @@
 include_directories("${winterdir}")
 
 set(winter
-"${winterdir}/LanguageTestUtils.cpp"
-"${winterdir}/LanguageTestUtils.h"
+#"${winterdir}/LanguageTestUtils.cpp"
+#"${winterdir}/LanguageTestUtils.h"
+#"${winterdir}/LanguageTests.cpp"
+#"${winterdir}/LanguageTests.h"
 "${winterdir}/BuiltInFunctionImpl.cpp"
-"${winterdir}/LanguageTests.cpp"
 "${winterdir}/Linker.cpp"
 "${winterdir}/LLVMTypeUtils.cpp"
 "${winterdir}/TokenBase.cpp"
@@ -30,7 +31,6 @@ set(winter
 "${winterdir}/FuzzTests.cpp"
 "${winterdir}/BaseException.h"
 "${winterdir}/BuiltInFunctionImpl.h"
-"${winterdir}/LanguageTests.h"
 "${winterdir}/Linker.h"
 "${winterdir}/LLVMTypeUtils.h"
 "${winterdir}/TokenBase.h"
@@ -51,7 +51,6 @@ set(winter
 "${winterdir}/ProofUtils.h"
 "${winterdir}/wnt_IfExpression.cpp"
 "${winterdir}/wnt_IfExpression.h"
-"${winterdir}/wnt_LLVMVersion.h"
 "${winterdir}/wnt_ArrayLiteral.h"
 "${winterdir}/wnt_TupleLiteral.h"
 "${winterdir}/wnt_VectorLiteral.h"
@@ -64,6 +63,8 @@ set(winter
 "${winterdir}/wnt_LetBlock.h"
 "${winterdir}/wnt_MathsFuncs.cpp"
 "${winterdir}/wnt_MathsFuncs.h"
+"${winterdir}/LLVMUtils.cpp"
+"${winterdir}/LLVMUtils.h"
 )
 
 SOURCE_GROUP(winter FILES ${winter})

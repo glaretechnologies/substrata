@@ -10,6 +10,18 @@ else()
 endif()
 
 
+# Set TARGET_LLVM_VERSION
+if(INDIGO_LLVM_VERSION STREQUAL "6.0.0")
+	add_definitions("-DTARGET_LLVM_VERSION=60")
+elseif(INDIGO_LLVM_VERSION STREQUAL "3.6")
+	add_definitions("-DTARGET_LLVM_VERSION=36")
+elseif(INDIGO_LLVM_VERSION STREQUAL "3.4")
+	add_definitions("-DTARGET_LLVM_VERSION=34")
+else()
+	MESSAGE("Unsupported LLVM version ${INDIGO_LLVM_VERSION}")
+endif()
+
+
 # LLVM linker settings.
 if(WIN32)
 	
