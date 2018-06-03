@@ -433,6 +433,8 @@ set(INDIGO_DLL_DIR "${INDIGO_TRUNK_DIR_ENV}/dll")
 set(dll_src
 ${INDIGO_DLL_DIR}/IndigoMesh.cpp
 ${INDIGO_DLL_DIR}/include/IndigoMesh.h
+${INDIGO_DLL_DIR}/IndigoAllocation.cpp
+${INDIGO_DLL_DIR}/include/IndigoAllocation.h
 )
 
 
