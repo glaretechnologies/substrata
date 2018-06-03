@@ -65,6 +65,8 @@ set(winter
 "${winterdir}/wnt_MathsFuncs.h"
 "${winterdir}/LLVMUtils.cpp"
 "${winterdir}/LLVMUtils.h"
+"${winterdir}/CompiledValue.cpp"
+"${winterdir}/CompiledValue.h"
 )
 
 SOURCE_GROUP(winter FILES ${winter})
