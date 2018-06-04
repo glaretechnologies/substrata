@@ -1,0 +1,11 @@
+#instancing 20
+
+def evalRotation(float time, WinterEnv env) vec3 : vec3(-0.6 * time + toFloat(env.instance_index), 0.0, 0.0)
+
+def evalTranslation(float time, WinterEnv env) vec3 : 
+	let
+		i = toFloat(env.instance_index)
+		ifactor = i * 0.1
+		timefactor = time * 0.3
+	in
+		vec3(sin((timefactor + ifactor) * 3) * 4.0, 0.0, sin((timefactor + ifactor) * 2) * 4.0)

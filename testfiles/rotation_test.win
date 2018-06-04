@@ -1,0 +1,1 @@
+def evalRotation(float time, WinterEnv env) vec3 : vec3(-0.6 * time + toFloat(env.instance_index), 0.0, 0.0)
