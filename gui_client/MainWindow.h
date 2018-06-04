@@ -61,6 +61,7 @@ private slots:;
 	void on_actionLogIn_triggered();
 	void on_actionSignUp_triggered();
 	void on_actionLogOut_triggered();
+	void on_actionShow_Parcels_triggered();
 	
 	void passwordResetRequested();
 
