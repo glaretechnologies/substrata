@@ -69,6 +69,7 @@
    </attribute>
    <addaction name="actionAddObject"/>
    <addaction name="actionAddHypercard"/>
+   <addaction name="actionShow_Parcels"/>
   </widget>
   <widget class="QDockWidget" name="chatDockWidget">
    <property name="sizePolicy">
@@ -266,6 +267,14 @@
   <action name="actionAddHypercard">
    <property name="text">
     <string>Add Hypercard</string>
+   </property>
+  </action>
+  <action name="actionShow_Parcels">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show Parcels</string>
    </property>
   </action>
  </widget>

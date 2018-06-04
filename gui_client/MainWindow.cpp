@@ -1421,41 +1421,44 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					const Vec4f aabb_min(parcel->aabb_min.x, parcel->aabb_min.y, parcel->aabb_min.z, 1.0);
 					const Vec4f aabb_max(parcel->aabb_max.x, parcel->aabb_max.y, parcel->aabb_max.z, 1.0);
 
-					if(parcel->opengl_engine_ob.isNull())
+					if(ui->actionShow_Parcels->isChecked())
 					{
-						// Make OpenGL model for parcel:
-						
-						parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
-							Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
+						if(parcel->opengl_engine_ob.isNull())
+						{
+							// Make OpenGL model for parcel:
 
-						ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
+							parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
+								Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
+
+							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
 
-						// Make physics object for parcel:
+							// Make physics object for parcel:
 
-						PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
-						physics_ob->geometry = this->unit_cube_raymesh;
-						physics_ob->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+							PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
+							physics_ob->geometry = this->unit_cube_raymesh;
+							physics_ob->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
 
-						parcel->physics_object = physics_ob;
-						physics_ob->userdata = parcel;
-						physics_ob->userdata_type = 1;
-						physics_world->addObject(physics_ob);
-						need_physics_world_rebuild = true;
-					}
-					else // else if opengl ob is not null:
-					{
-						// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
-						const Vec4f span = aabb_max - aabb_min;
-						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
-						ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
+							parcel->physics_object = physics_ob;
+							physics_ob->userdata = parcel;
+							physics_ob->userdata_type = 1;
+							physics_world->addObject(physics_ob);
+							need_physics_world_rebuild = true;
+						}
+						else // else if opengl ob is not null:
+						{
+							// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
+							const Vec4f span = aabb_max - aabb_min;
+							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
+							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
+							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
+							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
+							ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
 
-						// Update in physics engine
-						parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-						physics_world->updateObjectTransformData(*parcel->physics_object);
+							// Update in physics engine
+							parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+							physics_world->updateObjectTransformData(*parcel->physics_object);
+						}
 					}
 
 					parcel->from_remote_dirty     = false;
@@ -2089,6 +2092,70 @@ void MainWindow::on_actionSignUp_triggered()
 }
 
 
+void MainWindow::on_actionShow_Parcels_triggered()
+{
+	if(ui->actionShow_Parcels->isChecked())
+	{
+		// Iterate over all parcels, add models for them
+		Lock lock(this->world_state->mutex);
+		try
+		{
+			for(auto& it : this->world_state->parcels)
+			{
+				Parcel* parcel = it.second.getPointer();
+				if(parcel->opengl_engine_ob.isNull())
+				{
+					const Vec4f aabb_min(parcel->aabb_min.x, parcel->aabb_min.y, parcel->aabb_min.z, 1.0);
+					const Vec4f aabb_max(parcel->aabb_max.x, parcel->aabb_max.y, parcel->aabb_max.z, 1.0);
+
+					// Make OpenGL model for parcel:
+					parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
+						Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
+
+					ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
+
+					// Make physics object for parcel:
+					parcel->physics_object = new PhysicsObject(/*collidable=*/false);
+					parcel->physics_object->geometry = this->unit_cube_raymesh;
+					parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+					parcel->physics_object->userdata = parcel;
+					parcel->physics_object->userdata_type = 1;
+					physics_world->addObject(parcel->physics_object); // Add to physics engine
+				}
+			}
+
+			physics_world->rebuild(task_manager, print_output);
+		}
+		catch(Indigo::Exception& e)
+		{
+			print("Error while updating parcel graphics: " + e.what());
+		}
+	}
+	else // Else if show parcels is now unchecked:
+	{
+		// Iterate over all parcels, remove models for them.
+		Lock lock(this->world_state->mutex);
+		for(auto& it : this->world_state->parcels)
+		{
+			Parcel* parcel = it.second.getPointer();
+			if(parcel->opengl_engine_ob.nonNull())
+			{
+				ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
+				parcel->opengl_engine_ob = NULL;
+			}
+
+			if(parcel->physics_object.nonNull())
+			{
+				physics_world->removeObject(parcel->physics_object);
+				parcel->physics_object = NULL;
+			}
+		}
+
+		physics_world->rebuild(task_manager, print_output);
+	}
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -2348,7 +2415,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 		// Deselect any currently selected object
 		if(this->selected_ob.nonNull())
 			deselectObject();
-			//ui->glWidget->opengl_engine->deselectObject(selected_ob->opengl_engine_ob);
 
 		if(this->selected_parcel.nonNull())
 			deselectParcel();
@@ -2416,6 +2482,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			ui->parcelEditor->setEnabled(true);
 			ui->parcelEditor->show();
 			ui->objectEditor->hide();
+			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
 		}
 		else
 		{
