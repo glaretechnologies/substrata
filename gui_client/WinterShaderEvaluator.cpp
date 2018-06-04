@@ -6,8 +6,11 @@ Copyright Glare Technologies Limited 2017 -
 #include "WinterShaderEvaluator.h"
 
 
-
+#include <wnt_MathsFuncs.h>
 #include <utils/Exception.h>
+#include <utils/StringUtils.h>
+#include <utils/Timer.h>
+#include <utils/ConPrint.h>
 
 
 static Winter::TypeVRef vec3Type()
@@ -22,20 +25,55 @@ static Winter::TypeVRef vec3Type()
 }
 
 
+static void checkFunctionBounds(const Winter::FunctionDefinitionRef& func)
+{
+	const int MAX_TIME_BOUND = 1 << 16;
+	const int MAX_STACK_SIZE = 1 << 12;
+	const int MAX_HEAP_SIZE  = 1 << 12;
+
+	// Check time bound
+	{
+		Winter::GetTimeBoundParams params;
+		params.max_bound_computation_steps = MAX_TIME_BOUND;
+		const size_t time_bound = func->getTimeBound(params);
+		if(time_bound > MAX_TIME_BOUND)
+			throw Indigo::Exception(func->sig.name + " time bound was too large: " + toString(time_bound) + 
+				", max acceptable bound is " + toString(MAX_TIME_BOUND));
+	}
+
+	// Check space bounds
+	{
+		Winter::GetSpaceBoundParams params;
+		params.max_bound_computation_steps = myMax(MAX_STACK_SIZE, MAX_HEAP_SIZE);
+		const Winter::GetSpaceBoundResults space_bound = func->getSpaceBound(params);
+				
+		if(space_bound.stack_space > MAX_STACK_SIZE)
+			throw Indigo::Exception(func->sig.name + " stack space bound was too large: " + toString(space_bound.stack_space) + 
+				" B, max acceptable bound is " + toString(MAX_STACK_SIZE) + " B");
+				
+		if(space_bound.heap_space > MAX_HEAP_SIZE)
+			throw Indigo::Exception(func->sig.name + " heap space bound was too large: " + toString(space_bound.heap_space) + 
+				" B, max acceptable bound is " + toString(MAX_HEAP_SIZE) + " B");
+	}
+}
+
+
 WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_path, const std::string& shader)
 :	vm(NULL),
 	jitted_evalRotation(NULL),
 	jitted_evalTranslation(NULL)
 {
+	Timer timer;
 	try
 	{
 		Winter::VMConstructionArgs vm_args;
 		vm_args.floating_point_literals_default_to_double = false;
 		vm_args.try_coerce_int_to_double_first = false;
 		vm_args.real_is_double = false;
-		//WinterExternalFuncs::appendExternalFuncs(vm_args.external_functions);
+		Winter::MathsFuncs::appendExternalMathsFuncs(vm_args.external_functions);
+
 		vm_args.source_buffers.push_back(::Winter::SourceBuffer::loadFromDisk(base_cyberspace_path + "/resources/winter_stdlib.txt"));
-		vm_args.source_buffers.push_back(::Winter::SourceBufferRef(new Winter::SourceBuffer("buffer", shader)));
+		vm_args.source_buffers.push_back(new Winter::SourceBuffer("buffer", shader));
 
 
 		Winter::TypeVRef CybWinterEnv_type = new Winter::StructureType("WinterEnv",
@@ -65,6 +103,8 @@ WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_
 					throw Indigo::Exception(func->sig.toString() + "  must return vec3.");
 
 				this->jitted_evalRotation = (EVAL_ROTATION_TYPE)vm->getJittedFunction(evalRotation_sig);
+
+				checkFunctionBounds(func); // Check time and space bounds for this function
 			}
 		}
 		//========== Find evalTranslation function ===========
@@ -77,12 +117,16 @@ WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_
 					throw Indigo::Exception(func->sig.toString() + "  must return vec3.");
 
 				this->jitted_evalTranslation = (EVAL_ROTATION_TYPE)vm->getJittedFunction(evalTranslation_sig);
+
+				checkFunctionBounds(func); // Check time and space bounds for this function
 			}
 		}
+
+		conPrint("Shader build took " + timer.elapsedString());
 	}
 	catch(Winter::BaseException& e)
 	{
-		throw Indigo::Exception(e.what());
+		throw Indigo::Exception(e.what() + "\n(Shader build took " + timer.elapsedString() + ")");
 	}
 }
 
