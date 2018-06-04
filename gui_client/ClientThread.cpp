@@ -11,6 +11,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #include "MainWindow.h"
 #include <ConPrint.h>
 #include "../shared/Protocol.h"
+#include "../shared/Parcel.h"
 #include "../shared/WorldState.h"
 #include <vec3.h>
 #include <SocketBufferOutStream.h>
@@ -81,6 +82,11 @@ void ClientThread::doRun()
 		// Read protocol version response from server
 		const uint32 protocol_response = socket->readUInt32();
 		if(protocol_response == ClientProtocolTooOld)
+		{
+			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+			throw Indigo::Exception(msg);
+		}
+		else if(protocol_response == ClientProtocolTooNew)
 		{
 			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 			throw Indigo::Exception(msg);
@@ -363,6 +369,66 @@ void ClientThread::doRun()
 								WorldObject* ob = res->second.getPointer();
 								ob->state = WorldObject::State_Dead;
 								ob->from_remote_other_dirty = true;
+							}
+						}
+						break;
+					}
+				case ParcelCreated:
+					{
+						ParcelRef parcel = new Parcel();
+						const ParcelID parcel_id = readParcelIDFromStream(*socket);
+						readFromNetworkStreamGivenID(*socket, *parcel);
+						parcel->id = parcel_id;
+						parcel->state = Parcel::State_JustCreated;
+						parcel->from_remote_dirty = true;
+
+						{
+							::Lock lock(world_state->mutex);
+							world_state->parcels[parcel->id] = parcel;
+						}
+						break;
+					}
+				case ParcelDestroyed:
+					{
+						conPrint("ParcelDestroyed");
+						const ParcelID parcel_id = readParcelIDFromStream(*socket);
+
+						// Mark parcel as dead
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->parcels.find(parcel_id);
+							if(res != world_state->parcels.end())
+							{
+								Parcel* parcel = res->second.getPointer();
+								parcel->state = Parcel::State_Dead;
+								parcel->from_remote_dirty = true;
+							}
+						}
+						break;
+					}
+				case ParcelFullUpdate:
+					{
+						conPrint("ParcelFullUpdate");
+						const ParcelID parcel_id = readParcelIDFromStream(*socket);
+
+						// Look up existing parcel in world state
+						{
+							bool read = false;
+							Lock lock(world_state->mutex);
+							auto res = world_state->parcels.find(parcel_id);
+							if(res != world_state->parcels.end())
+							{
+								Parcel* parcel = res->second.getPointer();
+								readFromNetworkStreamGivenID(*socket, *parcel);
+								read = true;
+								parcel->from_remote_dirty = true;
+							}
+
+							// Make sure we have read the whole pracel from the network stream
+							if(!read)
+							{
+								Parcel dummy;
+								readFromNetworkStreamGivenID(*socket, dummy);
 							}
 						}
 						break;

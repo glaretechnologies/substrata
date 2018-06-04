@@ -9,6 +9,7 @@ Generated at 2016-01-12 12:22:34 +1300
 
 #include "../shared/Avatar.h"
 #include "../shared/WorldObject.h"
+#include "../shared/Parcel.h"
 #include "User.h"
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
@@ -41,6 +42,8 @@ public:
 
 	std::map<UserID, Reference<User>> user_id_to_users;  // User id to user
 	std::map<std::string, Reference<User>> name_to_users; // Username to user
+
+	std::map<ParcelID, ParcelRef> parcels;
 	
 
 

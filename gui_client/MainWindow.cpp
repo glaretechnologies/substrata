@@ -180,6 +180,7 @@ void MainWindow::initialise()
 	setWindowTitle(QtUtils::toQString("Substrata v" + ::cyberspace_version));
 
 	ui->objectEditor->setControlsEnabled(false);
+	ui->parcelEditor->hide();
 
 	// Set to 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
 	startTimer(17);
@@ -221,7 +222,7 @@ MainWindow::~MainWindow()
 
 static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
 {
-	Reference<PhysicsObject> phy_ob = new PhysicsObject();
+	Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
 	phy_ob->geometry = new RayMesh("mesh", false);
 	phy_ob->geometry->fromIndigoMesh(*mesh);
 				
@@ -390,12 +391,13 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				ui->glWidget->addObject(cube_gl_ob);
 
 				// Make physics object
-				PhysicsObjectRef physics_ob = new PhysicsObject();
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->geometry = this->unit_cube_raymesh;
 				physics_ob->ob_to_world = cube_ob_to_world_matrix;
 
 				ob->physics_object = physics_ob;
 				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
 				physics_world->addObject(physics_ob);
 
 				physics_world->rebuild(task_manager, print_output);
@@ -422,7 +424,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 			if(ob->object_type == WorldObject::ObjectType_Hypercard)
 			{
-				physics_ob = new PhysicsObject();
+				physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->geometry = this->hypercard_quad_raymesh;
 				physics_ob->ob_to_world = ob_to_world_matrix;
 
@@ -443,7 +445,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, this->task_manager, ob_to_world_matrix, mesh, raymesh);
 				
 				// Make physics object
-				physics_ob = new PhysicsObject();
+				physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->geometry = raymesh;
 				physics_ob->ob_to_world = ob_to_world_matrix;
 			}
@@ -453,6 +455,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 			ob->physics_object = physics_ob;
 			physics_ob->userdata = ob;
+			physics_ob->userdata_type = 0;
 			physics_world->addObject(physics_ob);
 			physics_world->rebuild(task_manager, print_output);
 
@@ -1382,6 +1385,93 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
+
+	// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
+	try
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->parcels.begin(); it != this->world_state->parcels.end();)
+		{
+			Parcel* parcel = it->second.getPointer();
+			if(parcel->from_remote_dirty)
+			{
+				if(parcel->state == Parcel::State_Dead)
+				{
+					print("Removing Parcel.");
+				
+					// Remove any OpenGL object for it
+					if(parcel->opengl_engine_ob.nonNull())
+						ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
+
+					// Remove physics object
+					if(parcel->physics_object.nonNull())
+					{
+						physics_world->removeObject(parcel->physics_object);
+						need_physics_world_rebuild = true;
+					}
+
+					//// Remove object from object map
+					auto old_parcel_iterator = it;
+					it++;
+					this->world_state->parcels.erase(old_parcel_iterator);
+				}
+				else
+				{
+					const Vec4f aabb_min(parcel->aabb_min.x, parcel->aabb_min.y, parcel->aabb_min.z, 1.0);
+					const Vec4f aabb_max(parcel->aabb_max.x, parcel->aabb_max.y, parcel->aabb_max.z, 1.0);
+
+					if(parcel->opengl_engine_ob.isNull())
+					{
+						// Make OpenGL model for parcel:
+						
+						parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
+							Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
+
+						ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
+
+
+						// Make physics object for parcel:
+
+						PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
+						physics_ob->geometry = this->unit_cube_raymesh;
+						physics_ob->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+
+						parcel->physics_object = physics_ob;
+						physics_ob->userdata = parcel;
+						physics_ob->userdata_type = 1;
+						physics_world->addObject(physics_ob);
+						need_physics_world_rebuild = true;
+					}
+					else // else if opengl ob is not null:
+					{
+						// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
+						const Vec4f span = aabb_max - aabb_min;
+						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
+						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
+						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
+						parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
+						ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
+
+						// Update in physics engine
+						parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+						physics_world->updateObjectTransformData(*parcel->physics_object);
+					}
+
+					parcel->from_remote_dirty     = false;
+					++it;
+				}
+			}// end if(parcel->from_remote_dirty)
+			else
+				++it;
+		}
+	}
+	catch(Indigo::Exception& e)
+	{
+		print("Error while updating parcel graphics: " + e.what());
+	}
+
+
 	// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
 	{
 		const double cur_time = Clock::getTimeSinceInit();
@@ -2260,9 +2350,12 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			deselectObject();
 			//ui->glWidget->opengl_engine->deselectObject(selected_ob->opengl_engine_ob);
 
-		this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
-		if(this->selected_ob.nonNull())
+		if(this->selected_parcel.nonNull())
+			deselectParcel();
+
+		if(results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
+			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 			assert(this->selected_ob->getRefCount() >= 0);
 			const Vec4f selection_vec_ws = this->selection_point_ws - origin;
 			// Get selection_vec_cs
@@ -2281,9 +2374,11 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			const int selected_mat = selected_ob->physics_object->geometry->getMaterialIndexForTri(results.hit_tri_index);
 
-			//this->matEditor->setFromMaterial(*selected_ob->materials[0]);
+			// Show object editor, hide parcel editor.
 			ui->objectEditor->setFromObject(*selected_ob, selected_mat);
 			ui->objectEditor->setEnabled(true);
+			ui->objectEditor->show();
+			ui->parcelEditor->hide();
 
 			const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
 			ui->objectEditor->setControlsEditable(have_edit_permissions);
@@ -2309,6 +2404,19 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 				this->ui->helpInfoDockWidget->show();
 			}
 		}
+		else if(results.hit_object->userdata && results.hit_object->userdata_type == 1)
+		{
+			this->selected_parcel = static_cast<Parcel*>(results.hit_object->userdata);
+
+			ui->glWidget->opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
+
+
+			// Show parcel editor, hide object editor.
+			ui->parcelEditor->setFromParcel(*selected_parcel);
+			ui->parcelEditor->setEnabled(true);
+			ui->parcelEditor->show();
+			ui->objectEditor->hide();
+		}
 		else
 		{
 			ui->objectEditor->setEnabled(false);
@@ -2318,6 +2426,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 	{
 		// Deselect any currently selected object
 		deselectObject();
+		deselectParcel();
 	}
 }
 
@@ -2434,14 +2543,33 @@ void MainWindow::deselectObject()
 }
 
 
+void MainWindow::deselectParcel()
+{
+	if(this->selected_parcel.nonNull())
+	{
+		// Deselect any currently selected object
+		ui->glWidget->opengl_engine->deselectObject(this->selected_parcel->opengl_engine_ob);
+
+		ui->parcelEditor->setEnabled(false);
+
+		this->selected_parcel = NULL;
+
+		//this->shown_object_modification_error_msg = false;
+
+		this->ui->helpInfoDockWidget->hide();
+	}
+}
+
+
 void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 {
 	if(e->key() == Qt::Key::Key_Escape)
 	{
 		if(this->selected_ob.nonNull())
-		{
 			deselectObject();
-		}
+
+		if(this->selected_parcel.nonNull())
+			deselectParcel();
 	}
 	else if(e->key() == Qt::Key::Key_Delete)
 	{
@@ -2607,7 +2735,7 @@ void MainWindow::updateGroundPlane()
 
 			ui->glWidget->addObject(gl_ob);
 
-			Reference<PhysicsObject> phy_ob = new PhysicsObject();
+			Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
 			phy_ob->geometry = ground_quad_raymesh;
 			phy_ob->ob_to_world = gl_ob->ob_to_world_matrix;
 

@@ -132,7 +132,7 @@ void WorkerThread::doRun()
 		else if(client_version > CyberspaceProtocolVersion)
 		{
 			socket->writeUInt32(ClientProtocolTooNew);
-			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too new, require version " + toString(CyberspaceProtocolVersion) + ".  Please update your client.");
+			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too new, require version " + toString(CyberspaceProtocolVersion) + ".  Please use an older client.");
 		}
 		else
 		{
@@ -184,13 +184,21 @@ void WorkerThread::doRun()
 					SocketBufferOutStream packet;
 					packet.writeUInt32(ObjectCreated);
 					writeToNetworkStream(*ob, packet);
-					//writeToStream(ob->uid, packet);
-					////packet.writeStringLengthFirst(ob->name);
-					//packet.writeStringLengthFirst(ob->model_url);
-					//writeToStream(ob->pos, packet);
-					//writeToStream(ob->axis, packet);
-					//packet.writeFloat(ob->angle);
+					socket->writeData(packet.buf.data(), packet.buf.size());
+				}
+			}
 
+			// Send all current parcel data to client
+			{
+				Lock lock(world_state->mutex);
+				for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+				{
+					const Parcel* parcel = it->second.getPointer();
+
+					// Send ParcelCreated packet
+					SocketBufferOutStream packet;
+					packet.writeUInt32(ParcelCreated);
+					writeToNetworkStream(*parcel, packet);
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
 			}

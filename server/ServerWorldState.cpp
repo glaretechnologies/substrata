@@ -32,6 +32,7 @@ static const uint32 WORLD_STATE_MAGIC_NUMBER = 487173571;
 static const uint32 WORLD_STATE_SERIALISATION_VERSION = 1;
 static const uint32 WORLD_OBJECT_CHUNK = 100;
 static const uint32 USER_CHUNK = 101;
+static const uint32 PARCEL_CHUNK = 102;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -73,6 +74,14 @@ void ServerWorldState::readFromDisk(const std::string& path)
 			user_id_to_users[user->id] = user; // Add to user map
 			name_to_users[user->name] = user; // Add to user map
 		}
+		else if(chunk == PARCEL_CHUNK)
+		{
+			// Derserialise parcel
+			ParcelRef parcel = new Parcel();
+			readFromStream(stream, *parcel);
+
+			parcels[parcel->id] = parcel; // Add to parcel map
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -91,7 +100,15 @@ void ServerWorldState::readFromDisk(const std::string& path)
 			i->second->creator_name = res->second->name;
 	}
 
-	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s)");
+	for(auto i=parcels.begin(); i != parcels.end(); ++i)
+	{
+		auto res = user_id_to_users.find(i->second->owner_id);
+		if(res != user_id_to_users.end())
+			i->second->owner_name = res->second->name;
+	}
+
+	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
+		toString(parcels.size()) + " parcel(s).");
 }
 
 
@@ -129,12 +146,22 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 				}
 			}
 
+			// Write parcels
+			{
+				for(auto i=parcels.begin(); i != parcels.end(); ++i)
+				{
+					stream.writeUInt32(PARCEL_CHUNK);
+					writeToStream(*i->second, stream);
+				}
+			}
+
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
 
 		FileUtils::moveFile(temp_path, path);
 
-		conPrint("Saved " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s)");
+		conPrint("Saved " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
+			toString(parcels.size()) + " parcel(s).");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

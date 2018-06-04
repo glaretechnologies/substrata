@@ -12,8 +12,8 @@ Copyright Glare Technologies Limited 2016 -
 #include "../physics/jscol_boundingsphere.h"
 
 
-PhysicsObject::PhysicsObject()
-:	userdata(NULL)
+PhysicsObject::PhysicsObject(bool collidable_)
+:	userdata(NULL), userdata_type(0), collidable(collidable_)
 {
 }
 
@@ -59,6 +59,12 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_
 
 void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f& translation_ws, const js::AABBox& spherepath_aabb_ws, ThreadContext& thread_context, RayTraceResult& results_out) const
 {
+	if(!collidable)
+	{
+		results_out.hitdist_ws = -1;
+		return;
+	}
+
 	if(spherepath_aabb_ws.disjoint(this->aabb_ws))
 	{
 		results_out.hitdist_ws = -1;
@@ -101,6 +107,9 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 
 void PhysicsObject::appendCollPoints(const js::BoundingSphere& sphere_ws, const js::AABBox& sphere_aabb_ws, ThreadContext& thread_context, std::vector<Vec4f>& points_ws_in_out) const
 {
+	if(!collidable)
+		return;
+
 	if(sphere_aabb_ws.disjoint(this->aabb_ws))
 		return;
 

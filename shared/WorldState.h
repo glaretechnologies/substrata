@@ -9,6 +9,7 @@ Generated at 2016-01-12 12:22:34 +1300
 
 #include "../shared/Avatar.h"
 #include "../shared/WorldObject.h"
+#include "../shared/Parcel.h"
 #include <ThreadSafeRefCounted.h>
 #include <map>
 #include <Mutex.h>
@@ -31,6 +32,8 @@ public:
 	std::map<UID, Reference<WorldObject>> objects;
 
 	std::set<Reference<WorldObject> > instances; // Objects created by the intancing command in scripts.
+
+	std::map<ParcelID, ParcelRef> parcels;
 
 	Mutex mutex;
 private:
