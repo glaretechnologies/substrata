@@ -25,7 +25,7 @@ class PhysicsObject : public RefCounted
 public:
 	INDIGO_ALIGNED_NEW_DELETE
 
-	PhysicsObject();
+	PhysicsObject(bool collidable);
 	~PhysicsObject();
 
 
@@ -43,7 +43,10 @@ public:
 
 	Reference<RayMesh> geometry;
 
+	bool collidable; // Is this object solid, for the purposes of player physics?
+
 	void* userdata;
+	int userdata_type;
 private:
 	
 };

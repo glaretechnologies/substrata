@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2017 -
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 11;
+const uint32 CyberspaceProtocolVersion = 12;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -37,7 +37,12 @@ const uint32 CreateObject			= 3004; // Client wants to create an object.
 const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
 
 
-											//TEMP HACK move elsewhere
+const uint32 ParcelCreated			= 3100;
+const uint32 ParcelDestroyed		= 3101;
+const uint32 ParcelFullUpdate		= 3103;
+
+
+//TEMP HACK move elsewhere
 const uint32 GetFile				= 4000;
 const uint32 GetFiles				= 4001; // Client wants to download multiple resources from the server.
 

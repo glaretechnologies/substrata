@@ -79,6 +79,7 @@ private:
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void deleteSelectedObject();
 	void deselectObject();
+	void deselectParcel();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
@@ -129,6 +130,8 @@ public:
 	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
 	Vec4f selection_point_ws; // Point on selected object where selection ray hit, in world space.
 	Vec4f selected_ob_pos_upon_selection;
+
+	ParcelRef selected_parcel;
 
 	std::string resources_dir;
 	Reference<ResourceManager> resource_manager;

@@ -150,6 +150,9 @@
          <item>
           <widget class="ObjectEditor" name="objectEditor" native="true"/>
          </item>
+         <item>
+          <widget class="ParcelEditor" name="parcelEditor" native="true"/>
+         </item>
         </layout>
        </widget>
       </widget>
@@ -277,6 +280,12 @@
    <class>ObjectEditor</class>
    <extends>QWidget</extends>
    <header>ObjectEditor.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ParcelEditor</class>
+   <extends>QWidget</extends>
+   <header>ParcelEditor.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
