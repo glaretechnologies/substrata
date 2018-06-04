@@ -1,0 +1,14 @@
+
+def f0(float x) float : sin(x)					
+def f1 (float x) float : f0(f0(f0(f0(x))))		
+def f2 (float x) float : f1(f1(f1(f1(x))))		
+def f3 (float x) float : f2(f2(f2(f2(x))))		
+def f4 (float x) float : f3(f3(f3(f3(x))))		
+def f5 (float x) float : f4(f4(f4(f4(x))))		
+def f6 (float x) float : f5(f5(f5(f5(x))))		
+def f7 (float x) float : f6(f6(f6(f6(x))))		
+def f8 (float x) float : f7(f7(f7(f7(x))))		
+def f9 (float x) float : f8(f8(f8(f8(x))))		
+def f10(float x) float : f9(f9(f9(f9(x))))		
+
+def evalRotation(float time, WinterEnv env) vec3 : vec3(f10(time), 0.0, 0.0)
