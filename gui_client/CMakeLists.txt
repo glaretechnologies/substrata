@@ -247,6 +247,7 @@ else() # linux
 		Qt5Core
 		Qt5OpenGL
 		Qt5Widgets
+		dl
 	)
 	
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
