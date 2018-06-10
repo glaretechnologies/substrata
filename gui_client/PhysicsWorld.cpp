@@ -22,22 +22,11 @@ PhysicsWorld::~PhysicsWorld()
 
 void PhysicsWorld::updateObjectTransformData(PhysicsObject& object)
 {
-	const Vec4f min_os = object.geometry->getAABBox().min_;
-	const Vec4f max_os = object.geometry->getAABBox().max_;
 	const Matrix4f& to_world = object.ob_to_world;
 
-	to_world.getInverseForRandTMatrix(object.world_to_ob);
+	to_world.getInverseForRandTMatrix(object.world_to_ob); // Compute world-to-ob matrix.
 
-	js::AABBox bbox_ws = js::AABBox::emptyAABBox();
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(min_os.x[0], min_os.x[1], min_os.x[2], 1.0f));
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(min_os.x[0], min_os.x[1], max_os.x[2], 1.0f));
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(min_os.x[0], max_os.x[1], min_os.x[2], 1.0f));
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(min_os.x[0], max_os.x[1], max_os.x[2], 1.0f));
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(max_os.x[0], min_os.x[1], min_os.x[2], 1.0f));
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(max_os.x[0], min_os.x[1], max_os.x[2], 1.0f));
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(max_os.x[0], max_os.x[1], min_os.x[2], 1.0f));
-	bbox_ws.enlargeToHoldPoint(to_world * Vec4f(max_os.x[0], max_os.x[1], max_os.x[2], 1.0f));
-	object.aabb_ws = bbox_ws;
+	object.aabb_ws = object.geometry->getAABBox().transformedAABBFast(to_world);
 }
 
 

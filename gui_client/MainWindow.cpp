@@ -60,6 +60,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/FileUtils.h"
 #include "../utils/FileChecksum.h"
 #include "../utils/Parser.h"
+#include "../utils/ContainerUtils.h"
 #include "../networking/networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -578,6 +579,9 @@ void MainWindow::print(const std::string& message) // Print to log and console
 }
 
 
+static const size_t MAX_NUM_NOTIFICATIONS = 5;
+
+
 void MainWindow::showErrorNotification(const std::string& message)
 {
 	QLabel* label = new QLabel(ui->notificationContainer);
@@ -595,6 +599,14 @@ void MainWindow::showErrorNotification(const std::string& message)
 
 	if(notifications.size() == 1)
 		ui->infoDockWidget->show();
+	else if(notifications.size() > MAX_NUM_NOTIFICATIONS)
+	{
+		// Remove the first notification
+		Notification& notification = notifications.front();
+		ui->notificationContainer->layout()->removeWidget(notification.label);
+		notification.label->deleteLater();
+		notifications.pop_front(); // remove from list
+	}
 }
 
 
@@ -615,6 +627,14 @@ void MainWindow::showInfoNotification(const std::string& message)
 
 	if(notifications.size() == 1)
 		ui->infoDockWidget->show();
+	else if(notifications.size() > MAX_NUM_NOTIFICATIONS)
+	{
+		// Remove the first notification
+		Notification& notification = notifications.front();
+		ui->notificationContainer->layout()->removeWidget(notification.label);
+		notification.label->deleteLater();
+		notifications.pop_front(); // remove from list
+	}
 }
 
 
@@ -1559,23 +1579,118 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			const Vec4f new_sel_point_ws = origin + selection_vec_ws;
 
-			const Vec4f new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
+			const Vec4f desired_new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
+
+			GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
+
+			Matrix4f tentative_new_to_world = opengl_ob->ob_to_world_matrix;
+			tentative_new_to_world.setColumn(3, desired_new_ob_pos);
+
+			const js::AABBox tentative_new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, tentative_new_to_world);
+
+			// Check parcel permissions for this object
+			bool ob_pos_in_parcel;
+			const bool have_creation_perms = haveObjectWritePermissions(tentative_new_aabb_ws, ob_pos_in_parcel);
+			if(!have_creation_perms)
+			{
+				if(ob_pos_in_parcel)
+					showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+				else
+					showErrorNotification("You can only move objects in a parcel that you have write permissions for.");
+			}
+
+			// Constrain the new position of the selected object so it stays inside the parcel it is currently in.
+			js::Vector<EdgeMarker, 16> edge_markers;
+			const Vec3d new_ob_pos = clampObjectPositionToParcel(opengl_ob, 
+				this->selected_ob->pos, // old ob pos
+				toVec3d(desired_new_ob_pos), // tentative new ob pos
+				edge_markers); // edge markers out.
+
+			//----------- Display any edge markers -----------
+			// Add new edge markers if needed
+			while(ob_denied_move_markers.size() < edge_markers.size())
+			{
+				GLObjectRef new_marker = new GLObject();
+				new_marker->mesh_data = this->ob_denied_move_marker->mesh_data; // copy mesh ref from prototype gl ob.
+				new_marker->materials = this->ob_denied_move_marker->materials; // copy materials
+				ob_denied_move_markers.push_back(new_marker);
+
+				ui->glWidget->opengl_engine->addObject(new_marker);
+			}
+
+			// Remove any surplus edge markers
+			while(ob_denied_move_markers.size() > edge_markers.size())
+			{
+				ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
+				ob_denied_move_markers.pop_back();
+			}
+
+			assert(ob_denied_move_markers.size() == edge_markers.size());
+
+			// Set edge marker gl object transforms
+			for(size_t i=0; i<ob_denied_move_markers.size(); ++i)
+			{
+				Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.5f, 0.5f, 0.01f);
+				Matrix4f orientation; orientation.constructFromVector(edge_markers[i].normal);
+
+				ob_denied_move_markers[i]->ob_to_world_matrix = Matrix4f::translationMatrix(edge_markers[i].pos) * 
+						orientation * marker_scale_matrix;
+				
+				ui->glWidget->opengl_engine->updateObjectTransformData(*ob_denied_move_markers[i]);
+			}
+			//----------- End display edge markers -----------
+
 
 			// Set world object pos
-			this->selected_ob->setPosAndHistory(toVec3d(new_ob_pos));
+			this->selected_ob->setPosAndHistory(new_ob_pos);
 
 			// Set graphics object pos and update in opengl engine.
-			GLObjectRef opengl_ob(this->selected_ob->opengl_engine_ob);
-			opengl_ob->ob_to_world_matrix.setColumn(3, new_ob_pos);
+			Matrix4f new_to_world = opengl_ob->ob_to_world_matrix;
+			new_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
+
+			opengl_ob->ob_to_world_matrix = new_to_world;
 			ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 			// Update physics object
-			this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos);
+			this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
 			this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
 			need_physics_world_rebuild = true;
 
 			// Mark as from-local-dirty to send an object transform updated message to the server
 			this->selected_ob->from_local_transform_dirty = true;
+
+			// Update object placement beam - a beam that goes from the object to what's below it.
+			{
+				const js::AABBox new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, new_to_world);
+
+				// We need to determine where to trace down from.  
+				// To find this point, first trace up *just* against the selected object.
+				RayTraceResult trace_results;
+				Vec4f start_trace_pos = new_aabb_ws.centroid();
+				start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
+				this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0,0,1,0), 0.f, 1.0e30f), 1.0e30f, thread_context, trace_results);
+				const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
+
+				// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
+				const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0,0,1,0) * (up_beam_len - 0.001f);
+				this->physics_world->traceRay(down_beam_startpos, Vec4f(0,0,-1,0), thread_context, trace_results);
+				const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
+				const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0,0,1,0);
+
+				const Vec4f down_beam_hitpos = down_beam_startpos + Vec4f(0,0,-1,0) * down_beam_len;
+
+				Matrix4f scale_matrix = Matrix4f::scaleMatrix(1.f, 1.f, down_beam_len);
+				Matrix4f ob_to_world = Matrix4f::translationMatrix(down_beam_hitpos) * scale_matrix;
+				ob_placement_beam->ob_to_world_matrix = ob_to_world;
+				ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
+
+				// Place hit marker
+				Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
+				Matrix4f orientation; orientation.constructFromVector(lower_hit_normal);
+				ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) * 
+					orientation * marker_scale_matrix;
+				ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
+			}
 		}
 	}
 
@@ -1736,8 +1851,182 @@ void MainWindow::on_actionAvatarSettings_triggered()
 }
 
 
+// Returns true if this user has write permissions
+bool MainWindow::haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& ob_pos_in_parcel_out)
+{
+	// See if the user is in a parcel that they have write permissions for.
+	// For now just do a linear scan over parcels
+	bool have_creation_perms = false;
+	ob_pos_in_parcel_out = false;
+	{
+		Lock lock(world_state->mutex);
+		for(auto& it : world_state->parcels)
+		{
+			const Parcel* parcel = it.second.ptr();
+
+			if(parcel->pointInParcel(new_ob_pos))
+			{
+				ob_pos_in_parcel_out = true;
+
+				// Is this user one of the writers or admins for this parcel?
+				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id))
+				{
+					have_creation_perms = true;
+					break;
+				}
+				else if(ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
+				{ 
+					have_creation_perms = true;
+					break;
+				}
+				else
+				{
+					//showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+				}
+			}
+		}
+	}
+
+	//if(!in_parcel)
+	//	showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+
+	return have_creation_perms;
+}
+
+
+bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out)
+{
+	// See if the user is in a parcel that they have write permissions for.
+	// For now just do a linear scan over parcels
+	bool have_creation_perms = false;
+	ob_pos_in_parcel_out = false;
+	{
+		Lock lock(world_state->mutex);
+		for(auto& it : world_state->parcels)
+		{
+			const Parcel* parcel = it.second.ptr();
+
+			if(parcel->AABBInParcel(new_aabb_ws))
+			{
+				ob_pos_in_parcel_out = true;
+
+				// Is this user one of the writers or admins for this parcel?
+				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id))
+				{
+					have_creation_perms = true;
+					break;
+				}
+				else if(ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
+				{ 
+					have_creation_perms = true;
+					break;
+				}
+				else
+				{
+					//showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+				}
+			}
+		}
+	}
+
+	//if(!in_parcel)
+	//	showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+
+	return have_creation_perms;
+}
+
+
+Vec3d MainWindow::clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos, const Vec3d& tentative_new_ob_pos,
+	js::Vector<EdgeMarker, 16>& edge_markers_out)
+{
+	edge_markers_out.resize(0);
+	bool have_creation_perms = false;
+	Vec3d parcel_aabb_min;
+	Vec3d parcel_aabb_max;
+
+	// Work out what parcel the object is in currently (e.g. what parcel old_ob_pos is in)
+	{
+		Lock lock(world_state->mutex);
+		for(auto& it : world_state->parcels)
+		{
+			const Parcel* parcel = it.second.ptr();
+
+			if(parcel->pointInParcel(old_ob_pos))
+			{
+				// Is this user one of the writers or admins for this parcel?
+				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id))
+				{
+					have_creation_perms = true;
+					parcel_aabb_min = parcel->aabb_min;
+					parcel_aabb_max = parcel->aabb_max;
+					break;
+				}
+				else if(ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
+				{ 
+					have_creation_perms = true;
+					parcel_aabb_min = parcel->aabb_min;
+					parcel_aabb_max = parcel->aabb_max;
+					break;
+				}
+			}
+		}
+	}
+
+	if(have_creation_perms)
+	{
+		// Get the AABB corresponding to tentative_new_ob_pos.
+		Matrix4f new_to_world = opengl_ob->ob_to_world_matrix;
+		new_to_world.setColumn(3, tentative_new_ob_pos.toVec4fPoint());
+		const js::AABBox ten_new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, new_to_world);
+
+		// Constrain tentative ob pos so that the tentative new aabb lies in parcel.
+		// This will have no effect if tentative new AABB is already in the parcel.
+		Vec3d dpos(0.0);
+		if(ten_new_aabb_ws.min_[0] < parcel_aabb_min.x) dpos.x += (parcel_aabb_min.x - ten_new_aabb_ws.min_[0]);
+		if(ten_new_aabb_ws.min_[1] < parcel_aabb_min.y) dpos.y += (parcel_aabb_min.y - ten_new_aabb_ws.min_[1]);
+		if(ten_new_aabb_ws.min_[2] < parcel_aabb_min.z) dpos.z += (parcel_aabb_min.z - ten_new_aabb_ws.min_[2]);
+			
+		if(ten_new_aabb_ws.max_[0] > parcel_aabb_max.x) dpos.x += (parcel_aabb_max.x - ten_new_aabb_ws.max_[0]);
+		if(ten_new_aabb_ws.max_[1] > parcel_aabb_max.y) dpos.y += (parcel_aabb_max.y - ten_new_aabb_ws.max_[1]);
+		if(ten_new_aabb_ws.max_[2] > parcel_aabb_max.z) dpos.z += (parcel_aabb_max.z - ten_new_aabb_ws.max_[2]);
+
+		const Vec3d new_pos = tentative_new_ob_pos + dpos;
+		const js::AABBox new_aabb(ten_new_aabb_ws.min_ + dpos.toVec4fVector(), ten_new_aabb_ws.max_ + dpos.toVec4fVector());
+
+		// Compute positions and normals of edge markers - visual aids to show how an object is constrained to a parcel.
+		// Put them on the sides of the constrained AABB.
+		const Vec4f cen = new_aabb.centroid();
+		if(dpos.x > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.min_[0], cen[1], cen[2], 1.f), Vec4f(1,0,0,0)));
+		if(dpos.y > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.min_[1], cen[2], 1.f), Vec4f(0,1,0,0)));
+		if(dpos.z > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.min_[2], 1.f), Vec4f(0,0,1,0)));
+
+		if(dpos.x < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.max_[0], cen[1], cen[2], 1.f), Vec4f(-1,0,0,0)));
+		if(dpos.y < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.max_[1], cen[2], 1.f), Vec4f(0,-1,0,0)));
+		if(dpos.z < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.max_[2], 1.f), Vec4f(0,0,-1,0)));
+
+		return new_pos;
+	}
+	else
+		return tentative_new_ob_pos;
+}
+
+
 void MainWindow::on_actionAddObject_triggered()
 {
+	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f;
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveObjectWritePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+		return;
+	}
+
 	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
 	if(d.exec() == QDialog::Accepted)
 	{
@@ -1746,7 +2035,7 @@ void MainWindow::on_actionAddObject_triggered()
 		{
 			ui->glWidget->makeCurrent();
 
-			const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f;
+			
 
 			// Make GL object
 			/*const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob_pos.x, (float)ob_pos.y, (float)ob_pos.z);
@@ -1879,6 +2168,18 @@ void MainWindow::on_actionAddHypercard_triggered()
 		this->cam_controller.getUpVec() * quad_w * 0.5f -
 		this->cam_controller.getRightVec() * quad_w * 0.5f;
 
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveObjectWritePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create hypercards in a parcel that you have write permissions for.");
+		return;
+	}
+
 	WorldObjectRef new_world_object = new WorldObject();
 	new_world_object->uid = UID(0); // Will be set by server
 	new_world_object->object_type = WorldObject::ObjectType_Hypercard;
@@ -1910,6 +2211,17 @@ void MainWindow::on_actionCloneObject_triggered()
 		const float dist_to_ob = this->selected_ob->pos.getDist(this->cam_controller.getPosition());
 
 		const Vec3d new_ob_pos = this->selected_ob->pos + this->cam_controller.getRightVec() * dist_to_ob * 0.2;
+
+		bool ob_pos_in_parcel;
+		const bool have_creation_perms = haveObjectWritePermissions(new_ob_pos, ob_pos_in_parcel);
+		if(!have_creation_perms)
+		{
+			if(ob_pos_in_parcel)
+				showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+			else
+				showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+			return;
+		}
 
 		WorldObjectRef new_world_object = new WorldObject();
 		new_world_object->uid = UID(0); // Will be set by server
@@ -2419,7 +2731,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 		if(this->selected_parcel.nonNull())
 			deselectParcel();
 
-		if(results.hit_object->userdata && results.hit_object->userdata_type == 0)
+		if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
 		{
 			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 			assert(this->selected_ob->getRefCount() >= 0);
@@ -2432,6 +2744,12 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			// Mark the materials on the hit object as selected
 			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
+
+			// Add an object placement beam
+			{
+				ui->glWidget->opengl_engine->addObject(ob_placement_beam);
+				ui->glWidget->opengl_engine->addObject(ob_placement_marker);
+			}
 
 
 			// Update the editor widget with values from the selected object
@@ -2470,7 +2788,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 				this->ui->helpInfoDockWidget->show();
 			}
 		}
-		else if(results.hit_object->userdata && results.hit_object->userdata_type == 1)
+		else if(results.hit_object->userdata && results.hit_object->userdata_type == 1) // Else if we hit a parcel:
 		{
 			this->selected_parcel = static_cast<Parcel*>(results.hit_object->userdata);
 
@@ -2606,6 +2924,17 @@ void MainWindow::deselectObject()
 		this->shown_object_modification_error_msg = false;
 
 		this->ui->helpInfoDockWidget->hide();
+
+		// Remove placement beam from 3d engine
+		ui->glWidget->opengl_engine->removeObject(this->ob_placement_beam);
+		ui->glWidget->opengl_engine->removeObject(this->ob_placement_marker);
+
+		// Remove any edge markers
+		while(ob_denied_move_markers.size() > 0)
+		{
+			ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
+			ob_denied_move_markers.pop_back();
+		}
 	}
 }
 
@@ -2902,7 +3231,9 @@ int main(int argc, char *argv[])
 			//SMTPClient::test();
 			//js::VectorUnitTests::test();
 			//js::TreeTest::doTests(appdata_path);
-			//Matrix4f::test();
+			//Vec4f::test();
+			//js::AABBox::test();
+			Matrix4f::test();
 			//ReferenceTest::run();
 			//Matrix4f::test();
 			//CameraController::test();
@@ -3128,6 +3459,40 @@ int main(int argc, char *argv[])
 			mw.unit_cube_raymesh->build(".", options, mw.print_output, /*verbose=*/false, mw.task_manager);
 
 			mw.unit_cube_raymesh->buildJSTris();
+		}
+
+		// Make object-placement beam model
+		{
+			mw.ob_placement_beam = new GLObject();
+			mw.ob_placement_beam->ob_to_world_matrix = Matrix4f::identity();
+			mw.ob_placement_beam->mesh_data = OpenGLEngine::makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, 1, 1), /*radius=*/0.05f);
+
+			OpenGLMaterial material;
+			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+			material.transparent = true;
+			material.alpha = 0.9f;
+
+			mw.ob_placement_beam->materials = std::vector<OpenGLMaterial>(1, material);
+
+			// Make object-placement beam hit marker out of a sphere.
+			mw.ob_placement_marker = new GLObject();
+			mw.ob_placement_marker->ob_to_world_matrix = Matrix4f::identity();
+			mw.ob_placement_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
+
+			mw.ob_placement_marker->materials = std::vector<OpenGLMaterial>(1, material);
+		}
+		{
+			// Make ob_denied_move_marker
+			mw.ob_denied_move_marker = new GLObject();
+			mw.ob_denied_move_marker->ob_to_world_matrix = Matrix4f::identity();
+			mw.ob_denied_move_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
+
+			OpenGLMaterial material;
+			material.albedo_rgb = Colour3f(0.8f, 0.2f, 0.2f);
+			material.transparent = true;
+			material.alpha = 0.9f;
+
+			mw.ob_denied_move_marker->materials = std::vector<OpenGLMaterial>(1, material);
 		}
 
 		try

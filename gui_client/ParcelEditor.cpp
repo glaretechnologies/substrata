@@ -29,6 +29,14 @@ void ParcelEditor::setFromParcel(const Parcel& parcel)
 		SignalBlocker b(this->descriptionTextEdit);
 		this->descriptionTextEdit->setText(QtUtils::toQString(parcel.description));
 	}
+	{
+		SignalBlocker b(this->writersTextEdit);
+		this->writersTextEdit->setPlainText(QtUtils::toQString(StringUtils::join(parcel.writer_names, ",\n")));
+	}
+	{
+		SignalBlocker b(this->adminsTextEdit);
+		this->adminsTextEdit->setPlainText(QtUtils::toQString(StringUtils::join(parcel.admin_names, ",\n")));
+	}
 
 	this->minLabel->setText(QtUtils::toQString(parcel.aabb_min.toString()));
 	this->maxLabel->setText(QtUtils::toQString(parcel.aabb_max.toString()));

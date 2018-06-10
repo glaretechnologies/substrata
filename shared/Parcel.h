@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ParcelID.h"
 #include "UserID.h"
 #include <vec3.h>
+#include <physics/jscol_aabbox.h>
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <string>
@@ -29,6 +30,9 @@ class Parcel : public ThreadSafeRefCounted
 public:
 	Parcel();
 	~Parcel();
+
+	inline bool pointInParcel(const Vec3d& p) const;
+	inline bool AABBInParcel(const js::AABBox& aabb) const;
 
 	// For client:
 	enum State
@@ -54,7 +58,10 @@ public:
 	Vec3d aabb_max;
 
 
-	std::string owner_name; // This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
+	// This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
+	std::string owner_name;
+	std::vector<std::string> admin_names;
+	std::vector<std::string> writer_names;
 
 
 #if GUI_CLIENT
@@ -66,6 +73,22 @@ public:
 
 
 typedef Reference<Parcel> ParcelRef;
+
+
+bool Parcel::pointInParcel(const Vec3d& p) const
+{
+	return 
+		p.x >= aabb_min.x && p.y >= aabb_min.y && p.z >= aabb_min.z &&
+		p.x <= aabb_max.x && p.y <= aabb_max.y && p.z <= aabb_max.z;
+}
+
+
+bool Parcel::AABBInParcel(const js::AABBox& aabb) const
+{
+	return 
+		aabb.min_[0] >= aabb_min.x && aabb.min_[1] >= aabb_min.y && aabb.min_[2] >= aabb_min.z &&
+		aabb.max_[0] <= aabb_max.x && aabb.max_[1] <= aabb_max.y && aabb.max_[2] <= aabb_max.z;
+}
 
 
 void writeToStream(const Parcel& parcel, OutStream& stream);

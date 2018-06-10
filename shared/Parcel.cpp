@@ -132,6 +132,16 @@ void writeToNetworkStream(const Parcel& parcel, OutStream& stream)
 	writeToStreamCommon(parcel, stream);
 
 	stream.writeStringLengthFirst(parcel.owner_name);
+
+	// Write admin_names
+	stream.writeUInt32((uint32)parcel.admin_names.size());
+	for(size_t i=0; i<parcel.admin_names.size(); ++i)
+		stream.writeStringLengthFirst(parcel.admin_names[i]);
+
+	// Write writer_names
+	stream.writeUInt32((uint32)parcel.writer_names.size());
+	for(size_t i=0; i<parcel.writer_names.size(); ++i)
+		stream.writeStringLengthFirst(parcel.writer_names[i]);
 }
 
 
@@ -140,4 +150,24 @@ void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel) // UID will 
 	readFromStreamCommon(stream, parcel);
 
 	parcel.owner_name = stream.readStringLengthFirst(10000);
+
+	// Read admin_names
+	{
+		const uint32 num = stream.readUInt32();
+		if(num > 1000)
+			throw Indigo::Exception("Too many admin_names: " + toString(num));
+		parcel.admin_names.resize(num);
+		for(size_t i=0; i<num; ++i)
+			parcel.admin_names[i] = stream.readStringLengthFirst(/*max length=*/1000);
+	}
+
+	// Read writer_names
+	{
+		const uint32 num = stream.readUInt32();
+		if(num > 1000)
+			throw Indigo::Exception("Too many writer_names: " + toString(num));
+		parcel.writer_names.resize(num);
+		for(size_t i=0; i<num; ++i)
+			parcel.writer_names[i] = stream.readStringLengthFirst(/*max length=*/1000);
+	}
 }
