@@ -52,7 +52,8 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_
 		results_out.hit_tri_index = hitinfo.sub_elem_index;
 		results_out.hitdist_ws = dist;
 		unsigned int mat_index;
-		results_out.hit_normal_ws = geometry->getGeometricNormalAndMatIndex(hitinfo, mat_index);
+		const Vec4f N_os = geometry->getGeometricNormalAndMatIndex(hitinfo, mat_index);
+		results_out.hit_normal_ws = normalise(this->world_to_ob.transposeMult3Vector(N_os));
 	}
 }
 

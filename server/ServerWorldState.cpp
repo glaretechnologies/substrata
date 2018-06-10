@@ -102,9 +102,36 @@ void ServerWorldState::readFromDisk(const std::string& path)
 
 	for(auto i=parcels.begin(); i != parcels.end(); ++i)
 	{
-		auto res = user_id_to_users.find(i->second->owner_id);
-		if(res != user_id_to_users.end())
-			i->second->owner_name = res->second->name;
+		// Denormalise owner_name
+		{
+			auto res = user_id_to_users.find(i->second->owner_id);
+			if(res != user_id_to_users.end())
+				i->second->owner_name = res->second->name;
+		}
+
+		// Denormalise admin_names
+		i->second->admin_names.resize(i->second->admin_ids.size());
+		for(size_t z=0; z<i->second->admin_ids.size(); ++z)
+		{
+			auto res = user_id_to_users.find(i->second->owner_id);
+			if(res != user_id_to_users.end())
+			{
+				conPrint("admin: " + res->second->name);
+				i->second->admin_names[z] = res->second->name;
+			}
+		}
+
+		// Denormalise writer_names
+		i->second->writer_names.resize(i->second->writer_ids.size());
+		for(size_t z=0; z<i->second->writer_ids.size(); ++z)
+		{
+			auto res = user_id_to_users.find(i->second->owner_id);
+			if(res != user_id_to_users.end())
+			{
+				conPrint("writer: " + res->second->name);
+				i->second->writer_names[z] = res->second->name;
+			}
+		}
 	}
 
 	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 

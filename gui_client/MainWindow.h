@@ -91,6 +91,18 @@ private:
 	void startDownloadingResource(const std::string& url);
 	void evalObjectScript(WorldObject* ob, double cur_time);
 	void updateStatusBar();
+	bool haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
+	bool haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
+
+	struct EdgeMarker
+	{
+		EdgeMarker(const Vec4f& p, const Vec4f& n) : pos(p), normal(n) {}
+		EdgeMarker() {}
+		Vec4f pos;
+		Vec4f normal;
+	};
+	Vec3d clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos, const Vec3d& new_ob_pos,
+		js::Vector<EdgeMarker, 16>& edge_markers_out);
 
 	std::string base_dir_path;
 	std::string appdata_path;
@@ -173,6 +185,12 @@ public:
 	Reference<RayMesh> hypercard_quad_raymesh;
 
 	Reference<RayMesh> unit_cube_raymesh;
+
+	Reference<GLObject> ob_placement_beam;
+	Reference<GLObject> ob_placement_marker;
+
+	Reference<GLObject> ob_denied_move_marker; // Prototype object
+	std::vector<Reference<GLObject> > ob_denied_move_markers;
 
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;
