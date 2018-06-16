@@ -239,7 +239,7 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 	if(selected_ob_beam.nonNull())
 	{
 		Matrix4f overall_inverse;
-		overall.getInverseForRandTMatrix(overall_inverse);
+		overall.getInverseForAffine3Matrix(overall_inverse);
 		const Vec4f to_target_os = overall_inverse * (last_selected_ob_target_pos - this->last_pos).toVec4fVector();
 		target_angle = atan2(to_target_os[2], to_target_os[0]);
 	}
@@ -339,7 +339,7 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 	if(selected_ob_beam.nonNull())
 	{
 		Matrix4f overall_inverse;
-		overall.getInverseForRandTMatrix(overall_inverse);
+		overall.getInverseForAffine3Matrix(overall_inverse);
 		const Vec4f to_target_os = overall_inverse * (last_selected_ob_target_pos - this->last_pos).toVec4fVector();
 		target_angle = atan2(to_target_os[2], to_target_os[0]);
 	}

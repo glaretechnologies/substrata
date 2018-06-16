@@ -362,7 +362,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				throw Indigo::Exception("ob_to_world_matrix had non-finite component.");
 
 		Matrix4f world_to_ob;
-		const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForRandTMatrix(world_to_ob);
+		const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
 		if(!ob_to_world_invertible)
 			throw Indigo::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
 
