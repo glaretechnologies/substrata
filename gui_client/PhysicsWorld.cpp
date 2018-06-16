@@ -24,7 +24,7 @@ void PhysicsWorld::updateObjectTransformData(PhysicsObject& object)
 {
 	const Matrix4f& to_world = object.ob_to_world;
 
-	to_world.getInverseForRandTMatrix(object.world_to_ob); // Compute world-to-ob matrix.
+	to_world.getInverseForAffine3Matrix(object.world_to_ob); // Compute world-to-ob matrix.
 
 	object.aabb_ws = object.geometry->getAABBox().transformedAABBFast(to_world);
 }
