@@ -1936,6 +1936,7 @@ bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool&
 }
 
 
+// Returns new, clamped position.  If the object was not in a parcel with write permissions at all, just returns the old position
 Vec3d MainWindow::clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos, const Vec3d& tentative_new_ob_pos,
 	js::Vector<EdgeMarker, 16>& edge_markers_out)
 {
@@ -2007,7 +2008,7 @@ Vec3d MainWindow::clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3
 		return new_pos;
 	}
 	else
-		return tentative_new_ob_pos;
+		return old_ob_pos;
 }
 
 
