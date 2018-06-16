@@ -43,6 +43,7 @@ void UploadResourceThread::doRun()
 		conPrint("UploadResourceThread: Connecting to " + hostname + ":" + toString(port) + "...");
 
 		MySocketRef socket = new MySocket(hostname, port);
+		socket->setUseNetworkByteOrder(false);
 
 		conPrint("UploadResourceThread: Connected to " + hostname + ":" + toString(port) + "!");
 

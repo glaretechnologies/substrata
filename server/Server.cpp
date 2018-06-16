@@ -100,6 +100,24 @@ int main(int argc, char *argv[])
 			server.world_state->objects[uid] = test_object;
 		}
 
+		// TEMP: Add a parcel
+		if(false)
+		{
+			const ParcelID parcel_id(7000);
+			ParcelRef test_parcel = new Parcel();
+			test_parcel->state = Parcel::State_Alive;
+			test_parcel->id = parcel_id;
+			test_parcel->owner_id = UserID(0);
+			test_parcel->admin_ids.push_back(UserID(0));
+			test_parcel->writer_ids.push_back(UserID(0));
+			test_parcel->created_time = TimeStamp::currentTime();
+			test_parcel->aabb_min = Vec3d(30, 30, -10);
+			test_parcel->aabb_max = Vec3d(60, 60, 60);
+			test_parcel->description = "This is a pretty cool parcel.";
+			server.world_state->parcels[parcel_id] = test_parcel;
+		}
+
+
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server));
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
@@ -131,7 +149,7 @@ int main(int argc, char *argv[])
 					if(avatar->state == Avatar::State_Alive)
 					{
 						// Send AvatarFullUpdate packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(AvatarFullUpdate);
 						writeToNetworkStream(*avatar, packet);
 
@@ -147,7 +165,7 @@ int main(int argc, char *argv[])
 					else if(avatar->state == Avatar::State_JustCreated)
 					{
 						// Send AvatarCreated packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(AvatarCreated);
 						writeToStream(avatar->uid, packet);
 						packet.writeStringLengthFirst(avatar->name);
@@ -169,7 +187,7 @@ int main(int argc, char *argv[])
 					else if(avatar->state == Avatar::State_Dead)
 					{
 						// Send AvatarDestroyed packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(AvatarDestroyed);
 						writeToStream(avatar->uid, packet);
 
@@ -195,7 +213,7 @@ int main(int argc, char *argv[])
 					if(avatar->state == Avatar::State_Alive)
 					{
 						// Send AvatarTransformUpdate packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(AvatarTransformUpdate);
 						writeToStream(avatar->uid, packet);
 						writeToStream(avatar->pos, packet);
@@ -229,7 +247,7 @@ int main(int argc, char *argv[])
 					if(ob->state == WorldObject::State_Alive)
 					{
 						// Send ObjectFullUpdate packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(ObjectFullUpdate);
 						writeToNetworkStream(*ob, packet);
 
@@ -246,7 +264,7 @@ int main(int argc, char *argv[])
 					else if(ob->state == WorldObject::State_JustCreated)
 					{
 						// Send ObjectCreated packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(ObjectCreated);
 						//writeToStream(ob->uid, packet);
 						writeToNetworkStream(*ob, packet);
@@ -269,7 +287,7 @@ int main(int argc, char *argv[])
 					else if(ob->state == WorldObject::State_Dead)
 					{
 						// Send ObjectDestroyed packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(ObjectDestroyed);
 						writeToStream(ob->uid, packet);
 
@@ -299,7 +317,7 @@ int main(int argc, char *argv[])
 					if(ob->state == WorldObject::State_Alive)
 					{
 						// Send ObjectTransformUpdate packet
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(ObjectTransformUpdate);
 						writeToStream(ob->uid, packet);
 						writeToStream(ob->pos, packet);
