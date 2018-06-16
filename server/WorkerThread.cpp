@@ -79,7 +79,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 
 			// We need the file from the client.
 			// Send the client a 'get file' message
-			SocketBufferOutStream packet;
+			SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 			packet.writeUInt32(GetFile);
 			packet.writeStringLengthFirst(resource_URL);
 
@@ -94,7 +94,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 
 static void writeErrorMessageToClient(MySocketRef& socket, const std::string& msg)
 {
-	SocketBufferOutStream packet;
+	SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 	packet.writeUInt32(ErrorMessageID);
 	packet.writeStringLengthFirst(msg);
 	socket->writeData(packet.buf.data(), packet.buf.size());
@@ -161,7 +161,7 @@ void WorkerThread::doRun()
 					const Avatar* avatar = it->second.getPointer();
 
 					// Send AvatarCreated packet
-					SocketBufferOutStream packet;
+					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 					packet.writeUInt32(AvatarCreated);
 					writeToStream(avatar->uid, packet);
 					packet.writeStringLengthFirst(avatar->name);
@@ -181,7 +181,7 @@ void WorkerThread::doRun()
 					const WorldObject* ob = it->second.getPointer();
 
 					// Send ObjectCreated packet
-					SocketBufferOutStream packet;
+					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 					packet.writeUInt32(ObjectCreated);
 					writeToNetworkStream(*ob, packet);
 					socket->writeData(packet.buf.data(), packet.buf.size());
@@ -196,7 +196,7 @@ void WorkerThread::doRun()
 					const Parcel* parcel = it->second.getPointer();
 
 					// Send ParcelCreated packet
-					SocketBufferOutStream packet;
+					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 					packet.writeUInt32(ParcelCreated);
 					writeToNetworkStream(*parcel, packet);
 					socket->writeData(packet.buf.data(), packet.buf.size());
@@ -442,7 +442,7 @@ void WorkerThread::doRun()
 						// If client is not logged in, refuse object creation.
 						if(client_user.isNull())
 						{
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(ErrorMessageID);
 							packet.writeStringLengthFirst("You must be logged in to create an object.");
 							socket->writeData(packet.buf.data(), packet.buf.size());
@@ -519,7 +519,7 @@ void WorkerThread::doRun()
 						{
 							// Enqueue chat messages to worker threads to send
 							// Send ChatMessageID packet
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(ChatMessageID);
 							packet.writeStringLengthFirst(client_user->name);
 							packet.writeStringLengthFirst(msg);
@@ -544,7 +544,7 @@ void WorkerThread::doRun()
 
 						// Send message to connected clients
 						{
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(UserSelectedObject);
 							writeToStream(client_avatar_uid, packet);
 							writeToStream(object_uid, packet);
@@ -569,7 +569,7 @@ void WorkerThread::doRun()
 
 						// Send message to connected clients
 						{
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(UserDeselectedObject);
 							writeToStream(client_avatar_uid, packet);
 							writeToStream(object_uid, packet);
@@ -629,7 +629,7 @@ void WorkerThread::doRun()
 
 								// Send NewResourceOnServer message to connected clients
 								{
-									SocketBufferOutStream packet;
+									SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 									packet.writeUInt32(NewResourceOnServer);
 									packet.writeStringLengthFirst(URL);
 
@@ -729,7 +729,7 @@ void WorkerThread::doRun()
 						if(logged_in)
 						{
 							// Send logged-in message to client
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(LoggedInMessageID);
 							writeToStream(client_user->id, packet);
 							packet.writeStringLengthFirst(username);
@@ -738,7 +738,7 @@ void WorkerThread::doRun()
 						else
 						{
 							// Login failed.  Send error message back to client
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(ErrorMessageID);
 							packet.writeStringLengthFirst("Login failed: username or password incorrect.");
 							socket->writeData(packet.buf.data(), packet.buf.size());
@@ -753,7 +753,7 @@ void WorkerThread::doRun()
 						client_user = NULL; // Mark the client as not logged in.
 
 						// Send logged-out message to client
-						SocketBufferOutStream packet;
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(LoggedOutMessageID);
 						socket->writeData(packet.buf.data(), packet.buf.size());
 						
@@ -810,7 +810,7 @@ void WorkerThread::doRun()
 						{
 							conPrint("Sign up successful");
 							// Send signed-up message to client
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(SignedUpMessageID);
 							writeToStream(client_user->id, packet);
 							packet.writeStringLengthFirst(username);
@@ -821,7 +821,7 @@ void WorkerThread::doRun()
 							conPrint("Sign up failed.");
 
 							// signup failed.  Send error message back to client
-							SocketBufferOutStream packet;
+							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 							packet.writeUInt32(ErrorMessageID);
 							packet.writeStringLengthFirst("Signup failed: username or password incorrect.");
 							socket->writeData(packet.buf.data(), packet.buf.size());

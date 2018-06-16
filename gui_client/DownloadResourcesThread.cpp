@@ -64,6 +64,7 @@ void DownloadResourcesThread::doRun()
 		conPrint("DownloadResourcesThread: Connecting to " + hostname + ":" + toString(port) + "...");
 
 		MySocketRef socket = new MySocket(hostname, port);
+		socket->setUseNetworkByteOrder(false);
 
 		conPrint("DownloadResourcesThread: Connected to " + hostname + ":" + toString(port) + "!");
 

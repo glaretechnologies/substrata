@@ -66,6 +66,7 @@ void ListenerThread::doRun()
 		while(1)
 		{
 			MySocketRef workersock = sock->acceptConnection(); // Blocks
+			workersock->setUseNetworkByteOrder(false);
 
 			conPrint("Client connected from " + IPAddress::formatIPAddressAndPort(workersock->getOtherEndIPAddress(), workersock->getOtherEndPort()));
 
