@@ -107,8 +107,8 @@ void WorkerThread::doRun()
 
 	ServerWorldState* world_state = server->world_state.getPointer();
 
-	UID client_avatar_uid = UID(0);
-	Reference<User> client_user; // Will be a null reference if client is not logged in, otherwise will refer the user account the client is logged in to.
+	UID client_avatar_uid(0);
+	Reference<User> client_user; // Will be a null reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
 
 	try
 	{
@@ -141,19 +141,19 @@ void WorkerThread::doRun()
 
 		const uint32 connection_type = socket->readUInt32();
 
-		// Write avatar UID assigned to the connected client.
+		
 		if(connection_type == ConnectionTypeUpdates)
 		{
+			// Write avatar UID assigned to the connected client.
 			{
 				Lock lock(world_state->mutex);
 				client_avatar_uid = world_state->next_avatar_uid;
 				world_state->next_avatar_uid = UID(world_state->next_avatar_uid.value() + 1);
 			}
-
 			writeToStream(client_avatar_uid, *socket);
 
 
-			// Send all current avatar data to client
+			// Send all current avatar state data to client
 			{
 				Lock lock(world_state->mutex);
 				for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
@@ -204,7 +204,7 @@ void WorkerThread::doRun()
 			}
 		}
 
-		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+		socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
 		const int MAX_STRING_LEN = 10000;
 
@@ -472,7 +472,7 @@ void WorkerThread::doRun()
 
 						break;
 					}
-				case DestroyObject:
+				case DestroyObject: // Client wants to destroy an object.
 					{
 						conPrint("DestroyObject");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -500,6 +500,59 @@ void WorkerThread::doRun()
 									ob->state = WorldObject::State_Dead;
 									ob->from_remote_other_dirty = true;
 								}
+							}
+						}
+						break;
+					}
+				case QueryParcels:
+					{
+						conPrint("QueryParcels");
+						// Send all current parcel data to client
+						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						packet.writeUInt32(ParcelList); // Write message ID
+						
+						{
+							Lock lock(world_state->mutex);
+							packet.writeUInt64(world_state->parcels.size()); // Write num parcels
+							for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+								writeToNetworkStream(*it->second, packet); // Write parcel
+						}
+
+						socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
+						break;
+					}
+				case ParcelFullUpdate: // Client wants to update a parcel
+					{
+						conPrint("ParcelFullUpdate");
+						const ParcelID parcel_id = readParcelIDFromStream(*socket);
+
+						// Look up existing parcel in world state
+						{
+							bool read = false;
+
+							// Only allow updating of parcels is this is a website connection.
+							const bool have_permissions = connection_type == ConnectionTypeWebsite;
+
+							if(have_permissions)
+							{
+								Lock lock(world_state->mutex);
+								auto res = world_state->parcels.find(parcel_id);
+								if(res != world_state->parcels.end())
+								{
+									// TODO: Check if this client has permissions to update the parcel information.
+
+									Parcel* parcel = res->second.getPointer();
+									readFromNetworkStreamGivenID(*socket, *parcel);
+									read = true;
+									parcel->from_remote_dirty = true;
+								}
+							}
+
+							// Make sure we have read the whole pracel from the network stream
+							if(!read)
+							{
+								Parcel dummy;
+								readFromNetworkStreamGivenID(*socket, dummy);
 							}
 						}
 						break;
@@ -586,7 +639,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case UploadResource:
+				case UploadResource: // Client wants to upload a file.
 					{
 						conPrint("UploadResource");
 						
@@ -699,7 +752,7 @@ void WorkerThread::doRun()
 
 						break;
 					}
-				case LogInMessage:
+				case LogInMessage: // Client wants to log in.
 					{
 						conPrint("LogInMessage");
 
@@ -746,7 +799,7 @@ void WorkerThread::doRun()
 					
 						break;
 					}
-				case LogOutMessage:
+				case LogOutMessage: // Client wants to log out.
 					{
 						conPrint("LogOutMessage");
 
