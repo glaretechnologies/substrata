@@ -18,6 +18,7 @@ const uint32 ClientProtocolTooNew	= 10002;
 const uint32 ConnectionTypeUpdates				= 500;
 const uint32 ConnectionTypeUploadResource		= 501;
 const uint32 ConnectionTypeDownloadResources	= 502;
+const uint32 ConnectionTypeWebsite				= 503; // A connection from the webserver.
 
 
 const uint32 AvatarCreated			= 1000;
@@ -40,6 +41,9 @@ const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
 const uint32 ParcelCreated			= 3100;
 const uint32 ParcelDestroyed		= 3101;
 const uint32 ParcelFullUpdate		= 3103;
+
+const uint32 QueryParcels			= 3150;
+const uint32 ParcelList				= 3160;
 
 
 //TEMP HACK move elsewhere
