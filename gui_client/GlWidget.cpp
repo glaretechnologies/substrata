@@ -123,32 +123,10 @@ void GlWidget::paintGL()
 		cam_pos = cam_controller->getPosition();
 		cam_controller->getBasis(right, up, forwards);
 
+		const Matrix4f rot = Matrix4f(right.toVec4fVector(), forwards.toVec4fVector(), up.toVec4fVector(), Vec4f(0,0,0,1)).getTranspose();
+		
 		Matrix4f world_to_camera_space_matrix;
-		Matrix4f T;
-		T.setToTranslationMatrix(-cam_pos.x, -cam_pos.y, -cam_pos.z);
-
-		Matrix4f rot;
-		rot.e[ 0] = (float)right.x;
-		rot.e[ 4] = (float)right.y;
-		rot.e[ 8] = (float)right.z;
-		rot.e[12] = 0;
-
-		rot.e[ 1] = (float)forwards.x;
-		rot.e[ 5] = (float)forwards.y;
-		rot.e[ 9] = (float)forwards.z;
-		rot.e[13] = 0;
-
-		rot.e[ 2] = (float)up.x;
-		rot.e[ 6] = (float)up.y;
-		rot.e[10] = (float)up.z;
-		rot.e[14] = 0;
-
-		rot.e[ 3] = 0;
-		rot.e[ 7] = 0;
-		rot.e[11] = 0;
-		rot.e[15] = 1;
-
-		mul(rot, T, world_to_camera_space_matrix);
+		rot.rightMultiplyAffine3WithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_space_matrix);
 
 		const float sensor_width = 0.035f;
 		const float lens_sensor_dist = 0.03f;
