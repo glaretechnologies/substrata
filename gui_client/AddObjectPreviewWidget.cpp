@@ -80,8 +80,7 @@ void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 void AddObjectPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl/shaders" // shader dir
-		"./shaders" // shader dir
+		base_dir_path + "/data" // data dir (should contain 'shaders' and 'gl_data')
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -97,7 +96,7 @@ void AddObjectPreviewWidget::initializeGL()
 	// Add env mat
 	{
 		OpenGLMaterial env_mat;
-		env_mat.albedo_tex_path = "resources/sky.png";
+		env_mat.albedo_tex_path = base_dir_path + "/resources/sky_no_sun.exr";
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 		buildMaterial(env_mat);
 
@@ -202,13 +201,13 @@ void AddObjectPreviewWidget::addOverlayObject(const Reference<OverlayObject>& ob
 }
 
 
-void AddObjectPreviewWidget::setEnvMat(OpenGLMaterial& mat)
-{
-	this->makeCurrent();
-
-	buildMaterial(mat);
-	opengl_engine->setEnvMat(mat);
-}
+//void AddObjectPreviewWidget::setEnvMat(OpenGLMaterial& mat)
+//{
+//	this->makeCurrent();
+//
+//	buildMaterial(mat);
+//	opengl_engine->setEnvMat(mat);
+//}
 
 
 void AddObjectPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)

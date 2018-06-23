@@ -24,7 +24,8 @@ class AddObjectDialog : public QDialog, private Ui_AddObjectDialog
 {
 	Q_OBJECT
 public:
-	AddObjectDialog(const std::string& base_dir_path_, QSettings* settings, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager);
+	AddObjectDialog(const std::string& base_dir_path_, QSettings* settings, TextureServer* texture_server_ptr, 
+		Reference<ResourceManager> resource_manager);
 	~AddObjectDialog();
 
 private slots:;

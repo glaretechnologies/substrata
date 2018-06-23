@@ -33,6 +33,8 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 {
 	setupUi(this);
 
+	this->objectPreviewGLWidget->setBaseDir(base_dir_path);
+
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("AddObjectDialog/geometry").toByteArray());
 
