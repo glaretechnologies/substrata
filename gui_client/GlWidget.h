@@ -1,16 +1,18 @@
+/*=====================================================================
+GlWidget.h
+----------
+Copyright Glare Technologies Limited 2018 -
+=====================================================================*/
 #pragma once
 
 
 #include "../utils/IncludeWindows.h" // This needs to go first for NOMINMAX.
 #include "../opengl/OpenGLEngine.h"
-#include "../maths/vec2.h"
-#include "../maths/vec3.h"
 #include "../utils/Timer.h"
 #include "../utils/Reference.h"
 #include "../utils/RefCounted.h"
 #include <QtCore/QEvent>
 #include <QtOpenGL/QGLWidget>
-#include <map>
 
 
 namespace Indigo { class Mesh; }
@@ -20,10 +22,6 @@ class TextureServer;
 class EnvEmitter;
 
 
-typedef std::map<Reference<Indigo::Mesh>, Reference<OpenGLMeshRenderData> > GLRenderDataMap;
-//typedef std::map<Indigo::SceneNodeUID, OpenGLMaterial> GLMaterialMap;
-
-
 class GlWidget : public QGLWidget
 {
 	Q_OBJECT        // must include this if you use Qt signals/slots
@@ -31,6 +29,8 @@ class GlWidget : public QGLWidget
 public:
 	GlWidget(QWidget *parent = 0);
 	~GlWidget();
+
+	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
 
 	void setCameraController(CameraController* cam_controller_);
 	void setPlayerPhysics(PlayerPhysics* player_physics_);
@@ -71,16 +71,12 @@ signals:;
 	void mouseDoubleClickedSignal(QMouseEvent* e);
 
 private:
-	GLRenderDataMap mesh_render_data; // mesh node SceneNodeUID to tri and quad data
-	//GLMaterialMap material_data; // material node SceneNodeUID to OpenGLMaterial.
-	//std::map<std::string, OpenGLMaterial> opengl_resized_textures;
-
 	QPoint mouse_move_origin;
 	QPoint last_mouse_press_pos;
 	CameraController* cam_controller;
 	PlayerPhysics* player_physics;
 
-	std::string indigo_base_dir;
+	std::string base_dir_path;
 
 	int viewport_w, viewport_h;
 
