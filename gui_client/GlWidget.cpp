@@ -1,7 +1,8 @@
-//#include "IncludeWindows.h"
-//#include <GL/gl3w.h>
-
-
+/*=====================================================================
+GlWidget.cpp
+------------
+Copyright Glare Technologies Limited 2018 -
+=====================================================================*/
 #include "GlWidget.h"
 
 
@@ -103,8 +104,8 @@ void GlWidget::resizeGL(int width_, int height_)
 void GlWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl" // shader dir
-		"data" // data dir (should contain 'shaders' and 'gl_data')
+		//"n:/indigo/trunk/opengl" // data dir
+		base_dir_path + "/data" // data dir (should contain 'shaders' and 'gl_data')
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -198,35 +199,7 @@ void GlWidget::setEnvMat(OpenGLMaterial& mat)
 	this->makeCurrent();
 
 	buildMaterial(mat);
-	 // PBR stuff:
-	/*try
-	{
-		if(!mat.albedo_tex_path.empty() && mat.albedo_texture.isNull()) // If texture not already loaded:
-		{
-			std::string use_path;
-			try
-			{
-				use_path = FileUtils::getActualOSPath(mat.albedo_tex_path);
-			}
-			catch(FileUtils::FileUtilsExcep&)
-			{
-				use_path = mat.albedo_tex_path;
-			}
-
-			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(indigo_base_dir, use_path);
-			Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Repeat);
-			mat.albedo_texture = opengl_tex;
-		}
-	}
-	catch(TextureServerExcep& e)
-	{
-		conPrint("Failed to load texture '" + mat.albedo_tex_path + "': " + e.what());
-	}
-	catch(ImFormatExcep& e)
-	{
-		conPrint("Failed to load texture '" + mat.albedo_tex_path + "': " + e.what());
-	}
-*/
+	
 	opengl_engine->setEnvMat(mat);
 }
 
@@ -247,7 +220,7 @@ void GlWidget::buildMaterial(OpenGLMaterial& opengl_mat)
 				use_path = opengl_mat.albedo_tex_path;
 			}
 
-			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(indigo_base_dir, use_path);
+			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(base_dir_path, use_path);
 
 			Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat);
 			opengl_mat.albedo_texture = opengl_tex;
@@ -325,7 +298,6 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 
 void GlWidget::playerPhyicsThink()
 {
-	
 	// On Windows we will use GetAsyncKeyState() to test if a key is down.
 	// On Mac OS / Linux we will use our W_down etc.. state.
 	// This isn't as good because if we misse the keyReleaseEvent due to not having focus when the key is released, the key will act as if it's stuck down.
