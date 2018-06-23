@@ -26,10 +26,12 @@ public:
 	AddObjectPreviewWidget(QWidget *parent = 0);
 	~AddObjectPreviewWidget();
 
+	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
+
 	void addObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
 
-	void setEnvMat(OpenGLMaterial& mat);
+	//void setEnvMat(OpenGLMaterial& mat);
 	
 protected:
 
@@ -52,6 +54,7 @@ signals:;
 	void widgetShowSignal();
 
 private:
+	std::string base_dir_path;
 	QPoint mouse_prev_pos;
 	QPoint mouse_move_origin;
 
