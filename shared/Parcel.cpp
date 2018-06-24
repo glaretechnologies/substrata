@@ -8,12 +8,6 @@ Copyright Glare Technologies Limited 2018 -
 
 #include <Exception.h>
 #include <StringUtils.h>
-#include <FileUtils.h>
-#include <ConPrint.h>
-#include <SHA256.h>
-#include <SMTPClient.h>
-#include <Base64.h>
-#include <Clock.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #endif

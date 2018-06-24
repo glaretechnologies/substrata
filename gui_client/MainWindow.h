@@ -96,10 +96,11 @@ private:
 
 	struct EdgeMarker
 	{
-		EdgeMarker(const Vec4f& p, const Vec4f& n) : pos(p), normal(n) {}
+		EdgeMarker(const Vec4f& p, const Vec4f& n, float scale_) : pos(p), normal(n), scale(scale_) {}
 		EdgeMarker() {}
 		Vec4f pos;
 		Vec4f normal;
+		float scale;
 	};
 	
 	// If the object was not in a parcel with write permissions at all, returns false.
@@ -195,6 +196,8 @@ public:
 
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
+
+	Reference<OpenGLProgram> parcel_shader_prog;
 
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;

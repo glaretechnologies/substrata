@@ -49,7 +49,8 @@ static QGLFormat makeFormat()
 
 GlWidget::GlWidget(QWidget *parent)
 :	QGLWidget(makeFormat(), parent),
-	cam_controller(NULL)
+	cam_controller(NULL),
+	current_time(0.f)
 {
 	viewport_aspect_ratio = 1;
 
@@ -134,6 +135,7 @@ void GlWidget::paintGL()
 		opengl_engine->setViewportAspectRatio(viewport_aspect_ratio, viewport_w, viewport_h);
 		opengl_engine->setMaxDrawDistance(1000.f);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
+		opengl_engine->setCurrentTime(current_time);
 		opengl_engine->draw();
 	}
 	
