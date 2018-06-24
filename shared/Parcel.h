@@ -33,6 +33,7 @@ public:
 
 	inline bool pointInParcel(const Vec3d& p) const;
 	inline bool AABBInParcel(const js::AABBox& aabb) const;
+	static inline bool AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb_min, const Vec3d& parcel_aabb_max);
 
 	// For client:
 	enum State
@@ -85,9 +86,15 @@ bool Parcel::pointInParcel(const Vec3d& p) const
 
 bool Parcel::AABBInParcel(const js::AABBox& aabb) const
 {
+	return AABBInParcelBounds(aabb, this->aabb_min, this->aabb_max);
+}
+
+
+bool Parcel::AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb_min, const Vec3d& parcel_aabb_max)
+{
 	return 
-		aabb.min_[0] >= aabb_min.x && aabb.min_[1] >= aabb_min.y && aabb.min_[2] >= aabb_min.z &&
-		aabb.max_[0] <= aabb_max.x && aabb.max_[1] <= aabb_max.y && aabb.max_[2] <= aabb_max.z;
+		aabb.min_[0] >= parcel_aabb_min.x && aabb.min_[1] >= parcel_aabb_min.y && aabb.min_[2] >= parcel_aabb_min.z &&
+		aabb.max_[0] <= parcel_aabb_max.x && aabb.max_[1] <= parcel_aabb_max.y && aabb.max_[2] <= parcel_aabb_max.z;
 }
 
 
