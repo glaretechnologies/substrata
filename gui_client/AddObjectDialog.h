@@ -32,6 +32,7 @@ private slots:;
 	void accepted();
 
 	void modelSelected(QListWidgetItem*);
+	void modelDoubleClicked(QListWidgetItem*);
 
 	void filenameChanged(QString& filename);
 

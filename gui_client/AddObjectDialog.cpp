@@ -44,6 +44,7 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 	//this->avatarSelectWidget->setFilename(settings->value("AddObjectDialogPath").toString());
 
 	connect(this->listWidget, SIGNAL(itemClicked(QListWidgetItem*)), this, SLOT(modelSelected(QListWidgetItem*)));
+	connect(this->listWidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)), this, SLOT(modelDoubleClicked(QListWidgetItem*)));
 	connect(this->avatarSelectWidget, SIGNAL(filenameChanged(QString&)), this, SLOT(filenameChanged(QString&)));
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
 
@@ -103,7 +104,7 @@ void AddObjectDialog::modelSelected(QListWidgetItem* selected_item)
 {
 	if(this->listWidget->currentItem())
 	{
-		std::string model = QtUtils::toStdString(this->listWidget->currentItem()->text());
+		const std::string model = QtUtils::toStdString(this->listWidget->currentItem()->text());
 
 		this->listWidget->setCurrentItem(NULL);
 
@@ -113,6 +114,15 @@ void AddObjectDialog::modelSelected(QListWidgetItem* selected_item)
 
 		loadModelIntoPreview(model_path);
 	}
+}
+
+
+void AddObjectDialog::modelDoubleClicked(QListWidgetItem* selected_item)
+{
+	const std::string model = QtUtils::toStdString(selected_item->text());
+	const std::string model_path = base_dir_path + "/resources/models/" + model + ".obj";
+	this->result_path = model_path;
+	accept();
 }
 
 
