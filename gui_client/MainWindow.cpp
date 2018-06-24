@@ -120,6 +120,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
+	ui->glWidget->setBaseDir(base_dir_path);
+
 	// Add a space to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
 	QWidget* spacer = new QWidget();
 	spacer->setMinimumWidth(200);
@@ -1601,95 +1603,104 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			// Constrain the new position of the selected object so it stays inside the parcel it is currently in.
 			js::Vector<EdgeMarker, 16> edge_markers;
-			const Vec3d new_ob_pos = clampObjectPositionToParcel(opengl_ob, 
+			Vec3d new_ob_pos;
+			const bool new_transform_valid = clampObjectPositionToParcelForNewTransform(opengl_ob, 
 				this->selected_ob->pos, // old ob pos
-				toVec3d(desired_new_ob_pos), // tentative new ob pos
-				edge_markers); // edge markers out.
-
-			//----------- Display any edge markers -----------
-			// Add new edge markers if needed
-			while(ob_denied_move_markers.size() < edge_markers.size())
+				tentative_new_to_world, // tentative new transfrom
+				edge_markers, // edge markers out.
+				new_ob_pos // new_ob_pos_out
+			);
+			if(new_transform_valid)
 			{
-				GLObjectRef new_marker = new GLObject();
-				new_marker->mesh_data = this->ob_denied_move_marker->mesh_data; // copy mesh ref from prototype gl ob.
-				new_marker->materials = this->ob_denied_move_marker->materials; // copy materials
-				ob_denied_move_markers.push_back(new_marker);
+				//----------- Display any edge markers -----------
+				// Add new edge markers if needed
+				while(ob_denied_move_markers.size() < edge_markers.size())
+				{
+					GLObjectRef new_marker = new GLObject();
+					new_marker->mesh_data = this->ob_denied_move_marker->mesh_data; // copy mesh ref from prototype gl ob.
+					new_marker->materials = this->ob_denied_move_marker->materials; // copy materials
+					ob_denied_move_markers.push_back(new_marker);
 
-				ui->glWidget->opengl_engine->addObject(new_marker);
-			}
+					ui->glWidget->opengl_engine->addObject(new_marker);
+				}
 
-			// Remove any surplus edge markers
-			while(ob_denied_move_markers.size() > edge_markers.size())
-			{
-				ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
-				ob_denied_move_markers.pop_back();
-			}
+				// Remove any surplus edge markers
+				while(ob_denied_move_markers.size() > edge_markers.size())
+				{
+					ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
+					ob_denied_move_markers.pop_back();
+				}
 
-			assert(ob_denied_move_markers.size() == edge_markers.size());
+				assert(ob_denied_move_markers.size() == edge_markers.size());
 
-			// Set edge marker gl object transforms
-			for(size_t i=0; i<ob_denied_move_markers.size(); ++i)
-			{
-				Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.5f, 0.5f, 0.01f);
-				Matrix4f orientation; orientation.constructFromVector(edge_markers[i].normal);
+				// Set edge marker gl object transforms
+				for(size_t i=0; i<ob_denied_move_markers.size(); ++i)
+				{
+					Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.5f, 0.5f, 0.01f);
+					Matrix4f orientation; orientation.constructFromVector(edge_markers[i].normal);
 
-				ob_denied_move_markers[i]->ob_to_world_matrix = Matrix4f::translationMatrix(edge_markers[i].pos) * 
-						orientation * marker_scale_matrix;
+					ob_denied_move_markers[i]->ob_to_world_matrix = Matrix4f::translationMatrix(edge_markers[i].pos) * 
+							orientation * marker_scale_matrix;
 				
-				ui->glWidget->opengl_engine->updateObjectTransformData(*ob_denied_move_markers[i]);
-			}
-			//----------- End display edge markers -----------
+					ui->glWidget->opengl_engine->updateObjectTransformData(*ob_denied_move_markers[i]);
+				}
+				//----------- End display edge markers -----------
 
 
-			// Set world object pos
-			this->selected_ob->setPosAndHistory(new_ob_pos);
+				// Set world object pos
+				this->selected_ob->setPosAndHistory(new_ob_pos);
 
-			// Set graphics object pos and update in opengl engine.
-			Matrix4f new_to_world = opengl_ob->ob_to_world_matrix;
-			new_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
+				// Set graphics object pos and update in opengl engine.
+				Matrix4f new_to_world = opengl_ob->ob_to_world_matrix;
+				new_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
 
-			opengl_ob->ob_to_world_matrix = new_to_world;
-			ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+				opengl_ob->ob_to_world_matrix = new_to_world;
+				ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
-			// Update physics object
-			this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
-			this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
-			need_physics_world_rebuild = true;
+				// Update physics object
+				this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
+				this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+				need_physics_world_rebuild = true;
 
-			// Mark as from-local-dirty to send an object transform updated message to the server
-			this->selected_ob->from_local_transform_dirty = true;
+				// Mark as from-local-dirty to send an object transform updated message to the server
+				this->selected_ob->from_local_transform_dirty = true;
 
-			// Update object placement beam - a beam that goes from the object to what's below it.
+				// Update object placement beam - a beam that goes from the object to what's below it.
+				{
+					const js::AABBox new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, new_to_world);
+
+					// We need to determine where to trace down from.  
+					// To find this point, first trace up *just* against the selected object.
+					RayTraceResult trace_results;
+					Vec4f start_trace_pos = new_aabb_ws.centroid();
+					start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
+					this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0,0,1,0), 0.f, 1.0e30f), 1.0e30f, thread_context, trace_results);
+					const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
+
+					// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
+					const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0,0,1,0) * (up_beam_len - 0.001f);
+					this->physics_world->traceRay(down_beam_startpos, Vec4f(0,0,-1,0), thread_context, trace_results);
+					const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
+					const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0,0,1,0);
+
+					const Vec4f down_beam_hitpos = down_beam_startpos + Vec4f(0,0,-1,0) * down_beam_len;
+
+					Matrix4f scale_matrix = Matrix4f::scaleMatrix(1.f, 1.f, down_beam_len);
+					Matrix4f ob_to_world = Matrix4f::translationMatrix(down_beam_hitpos) * scale_matrix;
+					ob_placement_beam->ob_to_world_matrix = ob_to_world;
+					ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
+
+					// Place hit marker
+					Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
+					Matrix4f orientation; orientation.constructFromVector(lower_hit_normal);
+					ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) * 
+						orientation * marker_scale_matrix;
+					ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
+				}
+			} 
+			else // else if new transfrom not valid
 			{
-				const js::AABBox new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, new_to_world);
-
-				// We need to determine where to trace down from.  
-				// To find this point, first trace up *just* against the selected object.
-				RayTraceResult trace_results;
-				Vec4f start_trace_pos = new_aabb_ws.centroid();
-				start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
-				this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0,0,1,0), 0.f, 1.0e30f), 1.0e30f, thread_context, trace_results);
-				const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
-
-				// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
-				const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0,0,1,0) * (up_beam_len - 0.001f);
-				this->physics_world->traceRay(down_beam_startpos, Vec4f(0,0,-1,0), thread_context, trace_results);
-				const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
-				const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0,0,1,0);
-
-				const Vec4f down_beam_hitpos = down_beam_startpos + Vec4f(0,0,-1,0) * down_beam_len;
-
-				Matrix4f scale_matrix = Matrix4f::scaleMatrix(1.f, 1.f, down_beam_len);
-				Matrix4f ob_to_world = Matrix4f::translationMatrix(down_beam_hitpos) * scale_matrix;
-				ob_placement_beam->ob_to_world_matrix = ob_to_world;
-				ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
-
-				// Place hit marker
-				Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
-				Matrix4f orientation; orientation.constructFromVector(lower_hit_normal);
-				ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) * 
-					orientation * marker_scale_matrix;
-				ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
+				showErrorNotification("New object position is not valid - You can only move objects in a parcel that you have write permissions for.");
 			}
 		}
 	}
@@ -1936,9 +1947,12 @@ bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool&
 }
 
 
-// Returns new, clamped position.  If the object was not in a parcel with write permissions at all, just returns the old position
-Vec3d MainWindow::clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos, const Vec3d& tentative_new_ob_pos,
-	js::Vector<EdgeMarker, 16>& edge_markers_out)
+// If the object was not in a parcel with write permissions at all, returns false.
+// If the object can not be made to fit in the current parcel, returns false.
+// new_ob_pos_out is set to new, clamped position.
+bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
+	const Matrix4f& tentative_to_world_matrix,
+	js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out)
 {
 	edge_markers_out.resize(0);
 	bool have_creation_perms = false;
@@ -1955,15 +1969,9 @@ Vec3d MainWindow::clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3
 			if(parcel->pointInParcel(old_ob_pos))
 			{
 				// Is this user one of the writers or admins for this parcel?
-				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id))
+				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id) ||
+					ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
 				{
-					have_creation_perms = true;
-					parcel_aabb_min = parcel->aabb_min;
-					parcel_aabb_max = parcel->aabb_max;
-					break;
-				}
-				else if(ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
-				{ 
 					have_creation_perms = true;
 					parcel_aabb_min = parcel->aabb_min;
 					parcel_aabb_max = parcel->aabb_max;
@@ -1976,39 +1984,41 @@ Vec3d MainWindow::clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3
 	if(have_creation_perms)
 	{
 		// Get the AABB corresponding to tentative_new_ob_pos.
-		Matrix4f new_to_world = opengl_ob->ob_to_world_matrix;
-		new_to_world.setColumn(3, tentative_new_ob_pos.toVec4fPoint());
-		const js::AABBox ten_new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, new_to_world);
+		const js::AABBox ten_new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, 
+			tentative_to_world_matrix);
 
 		// Constrain tentative ob pos so that the tentative new aabb lies in parcel.
 		// This will have no effect if tentative new AABB is already in the parcel.
-		Vec3d dpos(0.0);
-		if(ten_new_aabb_ws.min_[0] < parcel_aabb_min.x) dpos.x += (parcel_aabb_min.x - ten_new_aabb_ws.min_[0]);
-		if(ten_new_aabb_ws.min_[1] < parcel_aabb_min.y) dpos.y += (parcel_aabb_min.y - ten_new_aabb_ws.min_[1]);
-		if(ten_new_aabb_ws.min_[2] < parcel_aabb_min.z) dpos.z += (parcel_aabb_min.z - ten_new_aabb_ws.min_[2]);
+		Vec4f dpos(0.0f);
+		if(ten_new_aabb_ws.min_[0] < parcel_aabb_min.x) dpos[0] += (parcel_aabb_min.x - ten_new_aabb_ws.min_[0]);
+		if(ten_new_aabb_ws.min_[1] < parcel_aabb_min.y) dpos[1] += (parcel_aabb_min.y - ten_new_aabb_ws.min_[1]);
+		if(ten_new_aabb_ws.min_[2] < parcel_aabb_min.z) dpos[2] += (parcel_aabb_min.z - ten_new_aabb_ws.min_[2]);
 			
-		if(ten_new_aabb_ws.max_[0] > parcel_aabb_max.x) dpos.x += (parcel_aabb_max.x - ten_new_aabb_ws.max_[0]);
-		if(ten_new_aabb_ws.max_[1] > parcel_aabb_max.y) dpos.y += (parcel_aabb_max.y - ten_new_aabb_ws.max_[1]);
-		if(ten_new_aabb_ws.max_[2] > parcel_aabb_max.z) dpos.z += (parcel_aabb_max.z - ten_new_aabb_ws.max_[2]);
+		if(ten_new_aabb_ws.max_[0] > parcel_aabb_max.x) dpos[0] += (parcel_aabb_max.x - ten_new_aabb_ws.max_[0]);
+		if(ten_new_aabb_ws.max_[1] > parcel_aabb_max.y) dpos[1] += (parcel_aabb_max.y - ten_new_aabb_ws.max_[1]);
+		if(ten_new_aabb_ws.max_[2] > parcel_aabb_max.z) dpos[2] += (parcel_aabb_max.z - ten_new_aabb_ws.max_[2]);
 
-		const Vec3d new_pos = tentative_new_ob_pos + dpos;
-		const js::AABBox new_aabb(ten_new_aabb_ws.min_ + dpos.toVec4fVector(), ten_new_aabb_ws.max_ + dpos.toVec4fVector());
+		const js::AABBox new_aabb(ten_new_aabb_ws.min_ + dpos, ten_new_aabb_ws.max_ + dpos);
+		if(!Parcel::AABBInParcelBounds(new_aabb, parcel_aabb_min, parcel_aabb_max))
+			return false; // We can't fit object with new transform in parcel AABB.
 
 		// Compute positions and normals of edge markers - visual aids to show how an object is constrained to a parcel.
 		// Put them on the sides of the constrained AABB.
 		const Vec4f cen = new_aabb.centroid();
-		if(dpos.x > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.min_[0], cen[1], cen[2], 1.f), Vec4f(1,0,0,0)));
-		if(dpos.y > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.min_[1], cen[2], 1.f), Vec4f(0,1,0,0)));
-		if(dpos.z > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.min_[2], 1.f), Vec4f(0,0,1,0)));
+		if(dpos[0] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.min_[0], cen[1], cen[2], 1.f), Vec4f(1,0,0,0)));
+		if(dpos[1] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.min_[1], cen[2], 1.f), Vec4f(0,1,0,0)));
+		if(dpos[2] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.min_[2], 1.f), Vec4f(0,0,1,0)));
 
-		if(dpos.x < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.max_[0], cen[1], cen[2], 1.f), Vec4f(-1,0,0,0)));
-		if(dpos.y < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.max_[1], cen[2], 1.f), Vec4f(0,-1,0,0)));
-		if(dpos.z < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.max_[2], 1.f), Vec4f(0,0,-1,0)));
+		if(dpos[0] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.max_[0], cen[1], cen[2], 1.f), Vec4f(-1,0,0,0)));
+		if(dpos[1] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.max_[1], cen[2], 1.f), Vec4f(0,-1,0,0)));
+		if(dpos[2] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.max_[2], 1.f), Vec4f(0,0,-1,0)));
 
-		return new_pos;
+		const Vec4f newpos = tentative_to_world_matrix.getColumn(3) + dpos;
+		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
+		return true;
 	}
 	else
-		return old_ob_pos;
+		return false;
 }
 
 
@@ -2486,9 +2496,10 @@ void MainWindow::sendChatMessageSlot()
 }
 
 
+// Object has been edited, e.g. by the object editor.
 void MainWindow::objectEditedSlot()
 {
-	//conPrint("MainWindow::objectEditedSlot()");
+	conPrint("MainWindow::objectEditedSlot()");
 
 	// Update object material(s) with values from editor.
 	if(this->selected_ob.nonNull())
@@ -2541,63 +2552,81 @@ void MainWindow::objectEditedSlot()
 
 		if(all_downloaded)
 		{
-			const Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
+			Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
 				Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
 				Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
 
 			GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
 
-			// Update in opengl engine.
-			if(this->selected_ob->object_type == WorldObject::ObjectType_Generic)
+			js::Vector<EdgeMarker, 16> edge_markers;
+			Vec3d new_ob_pos;
+			const bool valid = clampObjectPositionToParcelForNewTransform(
+				opengl_ob,
+				this->selected_ob->pos, 
+				new_ob_to_world_matrix,
+				edge_markers, 
+				new_ob_pos);
+			if(valid)
 			{
-				// Update materials
-				if(opengl_ob.nonNull())
-				{
-					if(!opengl_ob->materials.empty())
-					{
-						opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+				new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
+				selected_ob->setPosAndHistory(new_ob_pos);
 
-						for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-							ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager,
-								opengl_ob->materials[i]
-							);
+				// Update in opengl engine.
+				if(this->selected_ob->object_type == WorldObject::ObjectType_Generic)
+				{
+					// Update materials
+					if(opengl_ob.nonNull())
+					{
+						if(!opengl_ob->materials.empty())
+						{
+							opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+
+							for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
+								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager,
+									opengl_ob->materials[i]
+								);
+						}
+					}
+
+					ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
+				}
+				else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
+				{
+					if(selected_ob->content != selected_ob->loaded_content)
+					{
+						// Re-create opengl-ob
+						ui->glWidget->makeCurrent();
+
+						opengl_ob->materials.resize(1);
+						opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content);
+
+						opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+						selected_ob->opengl_engine_ob = opengl_ob;
+
+						selected_ob->loaded_content = selected_ob->content;
 					}
 				}
 
-				ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
-			}
-			else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
-			{
-				if(selected_ob->content != selected_ob->loaded_content)
+				// Update transform of OpenGL object
+				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+
+				ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+				// Mark as from-local-dirty to send an object updated message to the server
+				this->selected_ob->from_local_other_dirty = true;
+
+				if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
 				{
-					// Re-create opengl-ob
-					ui->glWidget->makeCurrent();
-
-					opengl_ob->materials.resize(1);
-					opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content);
-
-					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-					selected_ob->opengl_engine_ob = opengl_ob;
-
-					selected_ob->loaded_content = selected_ob->content;
+					loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
+					this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 				}
+
+				loadScriptForObject(this->selected_ob.getPointer());
 			}
-
-			// Update transform of OpenGL object
-			opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-
-			ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
-
-			// Mark as from-local-dirty to send an object updated message to the server
-			this->selected_ob->from_local_other_dirty = true;
-
-			if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
+			else // Else if new transform is not valid
 			{
-				loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
-				this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
+				showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 			}
-
-			loadScriptForObject(this->selected_ob.getPointer());
 		}
 	}
 }
@@ -2863,7 +2892,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 }
 
 
-// Rotate selected object.
+// The user wants to rotate the selected object.
 void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 {
 	// Rotate object clockwise around z axis

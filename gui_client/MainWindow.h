@@ -101,8 +101,12 @@ private:
 		Vec4f pos;
 		Vec4f normal;
 	};
-	Vec3d clampObjectPositionToParcel(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos, const Vec3d& new_ob_pos,
-		js::Vector<EdgeMarker, 16>& edge_markers_out);
+	
+	// If the object was not in a parcel with write permissions at all, returns false.
+	// If the object can not be made to fit in the current parcel, returns false.
+	// new_ob_pos_out is set to new, clamped position.
+	bool clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
+		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 
 	std::string base_dir_path;
 	std::string appdata_path;
