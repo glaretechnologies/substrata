@@ -41,6 +41,7 @@ public:
 
 	void setEnvMat(OpenGLMaterial& mat);
 	
+	void setCurrentTime(float time) { current_time = time; }
 	void playerPhyicsThink(); // Process keys held down.
 
 protected:
@@ -82,6 +83,7 @@ private:
 
 	bool SHIFT_down, A_down, W_down, S_down, D_down;
 	Timer timer;
+	float current_time;
 public:
 	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;

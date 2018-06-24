@@ -74,6 +74,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../dll/IndigoStringUtils.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/ThreadContext.h"
+#include "../opengl/OpenGLShader.h"
 #include <clocale>
 
 
@@ -1051,7 +1052,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 
-
+	ui->glWidget->setCurrentTime((float)cur_time);
 	ui->glWidget->playerPhyicsThink();
 
 	// Process player physics
@@ -1452,6 +1453,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
 								Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
 
+							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+
 							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
 
@@ -1636,7 +1639,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Set edge marker gl object transforms
 				for(size_t i=0; i<ob_denied_move_markers.size(); ++i)
 				{
-					Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.5f, 0.5f, 0.01f);
+					const float use_scale = myMax(0.5f, edge_markers[i].scale * 1.4f);
+					Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(use_scale, use_scale, 0.01f);
 					Matrix4f orientation; orientation.constructFromVector(edge_markers[i].normal);
 
 					ob_denied_move_markers[i]->ob_to_world_matrix = Matrix4f::translationMatrix(edge_markers[i].pos) * 
@@ -2005,13 +2009,15 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 		// Compute positions and normals of edge markers - visual aids to show how an object is constrained to a parcel.
 		// Put them on the sides of the constrained AABB.
 		const Vec4f cen = new_aabb.centroid();
-		if(dpos[0] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.min_[0], cen[1], cen[2], 1.f), Vec4f(1,0,0,0)));
-		if(dpos[1] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.min_[1], cen[2], 1.f), Vec4f(0,1,0,0)));
-		if(dpos[2] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.min_[2], 1.f), Vec4f(0,0,1,0)));
+		const Vec4f diff = new_aabb.max_ - new_aabb.min_;
+		const Vec4f scales(myMax(diff[1], diff[2])*0.5f, myMax(diff[0], diff[1])*0.5f, myMax(diff[0], diff[1])*0.5f, 0.f);
+		if(dpos[0] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.min_[0], cen[1], cen[2], 1.f), Vec4f(1,0,0,0), scales[0]));
+		if(dpos[1] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.min_[1], cen[2], 1.f), Vec4f(0,1,0,0), scales[1]));
+		if(dpos[2] > 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.min_[2], 1.f), Vec4f(0,0,1,0), scales[2]));
 
-		if(dpos[0] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.max_[0], cen[1], cen[2], 1.f), Vec4f(-1,0,0,0)));
-		if(dpos[1] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.max_[1], cen[2], 1.f), Vec4f(0,-1,0,0)));
-		if(dpos[2] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.max_[2], 1.f), Vec4f(0,0,-1,0)));
+		if(dpos[0] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(new_aabb.max_[0], cen[1], cen[2], 1.f), Vec4f(-1,0,0,0), scales[0]));
+		if(dpos[1] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], new_aabb.max_[1], cen[2], 1.f), Vec4f(0,-1,0,0), scales[1]));
+		if(dpos[2] < 0) edge_markers_out.push_back(EdgeMarker(Vec4f(cen[0], cen[1], new_aabb.max_[2], 1.f), Vec4f(0,0,-1,0), scales[2]));
 
 		const Vec4f newpos = tentative_to_world_matrix.getColumn(3) + dpos;
 		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
@@ -2434,6 +2440,8 @@ void MainWindow::on_actionShow_Parcels_triggered()
 					// Make OpenGL model for parcel:
 					parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
 						Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
+
+					parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
 
 					ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
 
@@ -3523,6 +3531,17 @@ int main(int argc, char *argv[])
 			material.alpha = 0.9f;
 
 			mw.ob_denied_move_marker->materials = std::vector<OpenGLMaterial>(1, material);
+		}
+
+		// Make shader for parcels
+		{
+			const std::string use_shader_dir = cyberspace_base_dir_path + "/data/shaders";
+			mw.parcel_shader_prog = new OpenGLProgram(
+				"parcel hologram prog",
+				new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", "", GL_VERTEX_SHADER),
+				new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", "", GL_FRAGMENT_SHADER)
+			);
+			// Let any Indigo::Exception thrown fall through to below.
 		}
 
 		try
