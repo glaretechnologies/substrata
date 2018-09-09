@@ -2783,7 +2783,11 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			// Mark the materials on the hit object as selected
 			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
 
+
+			const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+
 			// Add an object placement beam
+			if(have_edit_permissions)
 			{
 				ui->glWidget->opengl_engine->addObject(ob_placement_beam);
 				ui->glWidget->opengl_engine->addObject(ob_placement_marker);
@@ -2802,7 +2806,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			ui->objectEditor->show();
 			ui->parcelEditor->hide();
 
-			const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+			
 			ui->objectEditor->setControlsEditable(have_edit_permissions);
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
 
@@ -3555,6 +3559,7 @@ int main(int argc, char *argv[])
 			}
 
 			// Load a wedge
+			if(false)
 			{
 				Indigo::MeshRef mesh = new Indigo::Mesh();
 				Indigo::Mesh::readFromFile("resources/wedge.igmesh", *mesh);
