@@ -49,6 +49,7 @@ AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget *parent)
 
 	OpenGLEngineSettings settings;
 	settings.shadow_mapping = true;
+	settings.compress_textures = true;
 	opengl_engine = new OpenGLEngine(settings);
 
 	viewport_w = viewport_h = 100;

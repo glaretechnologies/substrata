@@ -56,6 +56,7 @@ GlWidget::GlWidget(QWidget *parent)
 
 	OpenGLEngineSettings settings;
 	settings.shadow_mapping = true;
+	settings.compress_textures = true;
 	opengl_engine = new OpenGLEngine(settings);
 
 	SHIFT_down = false;
@@ -105,7 +106,7 @@ void GlWidget::resizeGL(int width_, int height_)
 void GlWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl" // data dir
+		//"o:/indigo/trunk/opengl" // data dir
 		base_dir_path + "/data" // data dir (should contain 'shaders' and 'gl_data')
 	);
 	if(!opengl_engine->initSucceeded())
@@ -296,10 +297,17 @@ void GlWidget::playerPhyicsThink()
 		if(GetAsyncKeyState('D'))
 			this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
 
+		// Move vertically up or down in flymode.
+		if(GetAsyncKeyState(' '))
+			this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller);
+		if(GetAsyncKeyState('C'))
+			this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller);
+
+		// Turn left or right
 		if(GetAsyncKeyState(VK_LEFT))
-			this->cam_controller->update(Vec3d(0.0), Vec2d(0, -3 * (SHIFT_down ? 3.0 : 1.0)));
+			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, -3 * (SHIFT_down ? 3.0 : 1.0)));
 		if(GetAsyncKeyState(VK_RIGHT))
-			this->cam_controller->update(Vec3d(0.0), Vec2d(0, 3 * (SHIFT_down ? 3.0 : 1.0)));
+			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, 3 * (SHIFT_down ? 3.0 : 1.0)));
 	}
 #else
 	if(W_down)
