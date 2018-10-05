@@ -214,7 +214,7 @@ SET(CMAKE_C_FLAGS_DEBUG				"${CMAKE_C_FLAGS_DEBUG}				-DBUILD_TESTS=1")
 
 
 # Add general preprocessor definitions.
-add_definitions(-DOPENEXR_SUPPORT -DPNG_ALLOW_BENIGN_ERRORS)
+add_definitions(-DOPENEXR_SUPPORT -DPNG_ALLOW_BENIGN_ERRORS -DPNG_INTEL_SSE)
 
 if(INDIGO_USE_OPENCL)
 	add_definitions(-DUSE_OPENCL=1)

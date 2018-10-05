@@ -30,8 +30,6 @@ elseif(APPLE)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++11 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework OpenCL -framework CoreServices")
 else()
 	# Linux
-	SET(LINUX_LIBS -lpng)
-
 	# Add required Sanitizer link flags
 	if(NOT INDIGO_USE_SANITIZER STREQUAL "")
 		SET(SANITIZER_LINK_FLAGS "-fsanitize=${INDIGO_USE_SANITIZER} -fno-omit-frame-pointer -g -pie")
