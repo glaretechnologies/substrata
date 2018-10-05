@@ -161,22 +161,12 @@ Library versions:")
 
 # External library directory (apart from llvm, openssl and Qt)
 set(jpegdir		"${INDIGO_LIBS_ENV}/libjpeg-turbo-master")
-# NOTE: pngdir variable only used on mac and windows.  On Linux we will use system libpng (libpng-dev)
-set(pngdir		"${INDIGO_LIBS_ENV}/lpng143")
-#set(pngdir		"${INDIGO_LIBS_ENV}/libpng-1.4.11")
-
 set(tiffdir		"${INDIGO_LIBS_ENV}/tiff-3.8.2/libtiff")
-#set(luadir		"${INDIGO_LIBS_ENV}/lua-5.1.4")
-#set(sparsehashdir	"${INDIGO_LIBS_ENV}/sparsehash-2.0.2")
-#set(fftssdir	"${INDIGO_LIBS_ENV}/fftss-3.0-20071031/fftss-3.0")
-# set(lib3dsdir	"${INDIGO_LIBS_ENV}/lib3ds-1.2.0")
-
-
 set(ilmbasedir	"${INDIGO_TRUNK_DIR_ENV}/IlmBase")
 set(openexrdir	"${INDIGO_TRUNK_DIR_ENV}/OpenEXR")
 set(zlibdir		"${INDIGO_TRUNK_DIR_ENV}/zlib-1.2.11")
 set(pugixmldir	"${INDIGO_TRUNK_DIR_ENV}/pugixml-1.9/src")
-
+set(pngdir		"${INDIGO_TRUNK_DIR_ENV}/lpng1635")
 
 # The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
 # So get via getConfigOption()
