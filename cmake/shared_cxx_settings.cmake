@@ -14,10 +14,7 @@ endmacro(addIncludeDirectory)
 addIncludeDirectory("${fftssdir}/include")
 addIncludeDirectory(${jpegdir})  # libjpeg-turbo-master (jpegdir) has most of the source,
 addIncludeDirectory(${LIBJPEG_TURBO_DIR})  # LIBJPEG_TURBO_DIR has jconfig.h
-if(WIN32 OR APPLE)
-	addIncludeDirectory(${pngdir})
-endif()
-#addIncludeDirectory(${lib3dsdir})
+addIncludeDirectory(${pngdir})
 addIncludeDirectory(${tiffdir})
 addIncludeDirectory(${pugixmldir})
 addIncludeDirectory(${zlibdir})
