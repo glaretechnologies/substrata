@@ -48,7 +48,7 @@ endif()
 if(WIN32)
 	SET(TURBOJPEG_LIB ${LIBJPEG_TURBO_DIR}/$(Configuration)/turbojpeg-static.lib)
 else()
-	SET(TURBOJPEG_LIB ${LIBJPEG_TURBO_DIR}/.libs/libjpeg.a)
+	SET(TURBOJPEG_LIB ${LIBJPEG_TURBO_DIR}/libjpeg.a)
 endif()
 
 
