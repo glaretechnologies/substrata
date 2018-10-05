@@ -10,9 +10,9 @@
 $vs_version = 2015 # Visual studio option used to build distribution.  Used in build.rb
 
 
-$qt_version = "5.8.0" if OS.windows?
-$qt_version = "5.8.0" if OS.mac?
-$qt_version = "5.5.1" if OS.linux?  # Old version because it's what we have built on the Linux builder
+$qt_version = "5.11.1" if OS.windows?
+$qt_version = "5.11.1" if OS.mac?
+$qt_version = "5.11.1" if OS.linux?
 
 
 $libressl_version = "2.6.4"
