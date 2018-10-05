@@ -33,7 +33,6 @@ static const float maxairspeed = 8;
 //ConsoleFloat jumpspeed("jumpspeed", 40);
 //ConsoleFloat maxairspeed("maxairspeed", 8);
 
-static const bool flymode = false;
 //ConsoleBool flymode("flymode", false);
 
 
@@ -46,7 +45,8 @@ PlayerPhysics::PlayerPhysics()
 	lastgroundnormal(0,0,1),
 	lastvel(0,0,0),
 	jumptimeremaining(0),
-	onground(false)
+	onground(false),
+	flymode(false)
 {
 }
 
@@ -86,7 +86,8 @@ void PlayerPhysics::processStrafeRight(float factor, bool runpressed, CameraCont
 
 void PlayerPhysics::processMoveUp(float factor, bool runpressed, CameraController& cam)
 {
-	moveimpulse += Vec3f(0,0,1) * factor * movespeed * doRunFactor(runpressed);
+	if(flymode)
+		moveimpulse += Vec3f(0,0,1) * factor * movespeed * doRunFactor(runpressed);
 }
 
 
@@ -96,6 +97,10 @@ void PlayerPhysics::processJump(CameraController& cam)
 }
 
 
+void PlayerPhysics::setFlyModeEnabled(bool enabled)
+{
+	flymode = enabled;
+}
 
 
 const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,

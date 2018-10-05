@@ -35,7 +35,7 @@
      <x>0</x>
      <y>0</y>
      <width>1090</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuWindow">
@@ -53,8 +53,15 @@
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
    </widget>
+   <widget class="QMenu" name="menuMovement">
+    <property name="title">
+     <string>Movement</string>
+    </property>
+    <addaction name="actionFly_Mode"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuWindow"/>
+   <addaction name="menuMovement"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
@@ -143,8 +150,8 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>85</width>
-          <height>390</height>
+          <width>69</width>
+          <height>432</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -275,6 +282,14 @@
    </property>
    <property name="text">
     <string>Show Parcels</string>
+   </property>
+  </action>
+  <action name="actionFly_Mode">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fly Mode</string>
    </property>
   </action>
  </widget>

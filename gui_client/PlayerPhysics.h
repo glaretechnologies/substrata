@@ -36,12 +36,14 @@ public:
 
 	//void preDestroy();//releases refs to agents
 
-	void processMoveForwards(float factor, bool runpressed, CameraController& cam);
+	void processMoveForwards(float factor, bool runpressed, CameraController& cam); // factor should be -1 for move backwards, 1 otherwise.
 	void processStrafeRight(float factor, bool runpressed, CameraController& cam);
 	void processMoveUp(float factor, bool runpressed, CameraController& cam);
 	void processJump(CameraController& cam);
 
 	void update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_out);
+
+	void setFlyModeEnabled(bool enabled);
 	
 private:
 	Vec3f vel;
@@ -55,6 +57,8 @@ private:
 
 	float jumptimeremaining;
 	bool onground;
+
+	bool flymode;
 
 	std::vector<SpringSphereSet> springspheresets;
 };

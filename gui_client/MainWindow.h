@@ -8,14 +8,14 @@ Copyright Glare Technologies Limited 2018 -
 
 #include "PhysicsWorld.h"
 #include "ModelLoading.h"
+#include "PlayerPhysics.h"
+#include "ClientThread.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
-#include "../utils/CameraController.h"
-#include "PlayerPhysics.h"
-#include "ClientThread.h"
 #include "../shared/WorldState.h"
 #include "../indigo/ThreadContext.h"
+#include "../utils/CameraController.h"
 #include "../utils/ArgumentParser.h"
 #include "../utils/Timer.h"
 #include "../utils/TaskManager.h"
@@ -45,6 +45,8 @@ public:
 
 	void initialise();
 
+	void afterGLInitInitialise();
+
 	void updateGroundPlane();
 
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
@@ -62,6 +64,7 @@ private slots:;
 	void on_actionSignUp_triggered();
 	void on_actionLogOut_triggered();
 	void on_actionShow_Parcels_triggered();
+	void on_actionFly_Mode_triggered();
 	
 	void passwordResetRequested();
 
@@ -93,6 +96,8 @@ private:
 	void updateStatusBar();
 	bool haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
+	void addParcelObjects();
+	void removeParcelObjects();
 
 	struct EdgeMarker
 	{

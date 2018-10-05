@@ -188,7 +188,7 @@ void MainWindow::initialise()
 
 	// Set to 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
 	startTimer(17);
-	
+
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 	ui->infoDockWidget->hide();
 
@@ -202,6 +202,22 @@ void MainWindow::initialise()
 
 	if(!settings->contains("mainwindow/geometry"))
 		need_help_info_dock_widget_position = true;
+}
+
+
+void MainWindow::afterGLInitInitialise()
+{
+	if(settings->value("mainwindow/showParcels", QVariant(false)).toBool())
+	{
+		ui->actionShow_Parcels->setChecked(true);
+		addParcelObjects();
+	}
+
+	if(settings->value("mainwindow/flyMode", QVariant(false)).toBool())
+	{
+		ui->actionFly_Mode->setChecked(true);
+		this->player_physics.setFlyModeEnabled(true);
+	}
 }
 
 
@@ -1449,40 +1465,28 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(parcel->opengl_engine_ob.isNull())
 						{
 							// Make OpenGL model for parcel:
-
-							parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
-								Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
-
+							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine);
 							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
-
 							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
-
 							// Make physics object for parcel:
-
-							PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false);
-							physics_ob->geometry = this->unit_cube_raymesh;
-							physics_ob->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-
-							parcel->physics_object = physics_ob;
-							physics_ob->userdata = parcel;
-							physics_ob->userdata_type = 1;
-							physics_world->addObject(physics_ob);
+							parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
+							physics_world->addObject(parcel->physics_object);
 							need_physics_world_rebuild = true;
 						}
 						else // else if opengl ob is not null:
 						{
 							// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
-							const Vec4f span = aabb_max - aabb_min;
-							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-							parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
-							ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
-
-							// Update in physics engine
-							parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-							physics_world->updateObjectTransformData(*parcel->physics_object);
+							//const Vec4f span = aabb_max - aabb_min;
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
+							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
+							//ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
+							//
+							//// Update in physics engine
+							//parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+							//physics_world->updateObjectTransformData(*parcel->physics_object);
 						}
 					}
 
@@ -1622,6 +1626,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					GLObjectRef new_marker = new GLObject();
 					new_marker->mesh_data = this->ob_denied_move_marker->mesh_data; // copy mesh ref from prototype gl ob.
 					new_marker->materials = this->ob_denied_move_marker->materials; // copy materials
+					new_marker->ob_to_world_matrix = Matrix4f::identity();
 					ob_denied_move_markers.push_back(new_marker);
 
 					ui->glWidget->opengl_engine->addObject(new_marker);
@@ -2091,7 +2096,7 @@ void MainWindow::on_actionAddObject_triggered()
 			{
 				// Save as IGMESH in temp location
 				igmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.igmesh";
-				Indigo::Mesh::writeToFile(toIndigoString(igmesh_disk_path), *d.loaded_mesh);
+				Indigo::Mesh::writeToFile(toIndigoString(igmesh_disk_path), *d.loaded_mesh, /*use compression=*/true);
 			}
 			else
 			{
@@ -2421,48 +2426,42 @@ void MainWindow::on_actionSignUp_triggered()
 }
 
 
-void MainWindow::on_actionShow_Parcels_triggered()
+void MainWindow::addParcelObjects()
 {
-	if(ui->actionShow_Parcels->isChecked())
+	// Iterate over all parcels, add models for them
+	Lock lock(this->world_state->mutex);
+	try
 	{
-		// Iterate over all parcels, add models for them
-		Lock lock(this->world_state->mutex);
-		try
+		for(auto& it : this->world_state->parcels)
 		{
-			for(auto& it : this->world_state->parcels)
+			Parcel* parcel = it.second.getPointer();
+			if(parcel->opengl_engine_ob.isNull())
 			{
-				Parcel* parcel = it.second.getPointer();
-				if(parcel->opengl_engine_ob.isNull())
-				{
-					const Vec4f aabb_min(parcel->aabb_min.x, parcel->aabb_min.y, parcel->aabb_min.z, 1.0);
-					const Vec4f aabb_max(parcel->aabb_max.x, parcel->aabb_max.y, parcel->aabb_max.z, 1.0);
+				// Make OpenGL model for parcel:
+				parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine);
+				parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+				ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
 
-					// Make OpenGL model for parcel:
-					parcel->opengl_engine_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max,
-						Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
-
-					parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
-
-					ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
-
-					// Make physics object for parcel:
-					parcel->physics_object = new PhysicsObject(/*collidable=*/false);
-					parcel->physics_object->geometry = this->unit_cube_raymesh;
-					parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-					parcel->physics_object->userdata = parcel;
-					parcel->physics_object->userdata_type = 1;
-					physics_world->addObject(parcel->physics_object); // Add to physics engine
-				}
+																				  // Make physics object for parcel:
+				parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
+				physics_world->addObject(parcel->physics_object);
 			}
+		}
 
-			physics_world->rebuild(task_manager, print_output);
-		}
-		catch(Indigo::Exception& e)
-		{
-			print("Error while updating parcel graphics: " + e.what());
-		}
+		physics_world->rebuild(task_manager, print_output);
 	}
-	else // Else if show parcels is now unchecked:
+	catch(Indigo::Exception& e)
+	{
+		print("Error while updating parcel graphics: " + e.what());
+	}
+}
+
+
+void MainWindow::removeParcelObjects()
+{
+	// Iterate over all parcels, add models for them
+	Lock lock(this->world_state->mutex);
+	try
 	{
 		// Iterate over all parcels, remove models for them.
 		Lock lock(this->world_state->mutex);
@@ -2484,6 +2483,35 @@ void MainWindow::on_actionShow_Parcels_triggered()
 
 		physics_world->rebuild(task_manager, print_output);
 	}
+	catch(Indigo::Exception& e)
+	{
+		print("Error while updating parcel graphics: " + e.what());
+	}
+}
+
+
+void MainWindow::on_actionShow_Parcels_triggered()
+{
+	if(ui->actionShow_Parcels->isChecked())
+	{
+		addParcelObjects();
+	}
+	else // Else if show parcels is now unchecked:
+	{
+		removeParcelObjects();
+	}
+
+	settings->setValue("mainwindow/showParcels", QVariant(ui->actionShow_Parcels->isChecked()));
+}
+
+
+void MainWindow::on_actionFly_Mode_triggered()
+{
+	conPrint("on_actionFly_Mode_triggered()");
+
+	this->player_physics.setFlyModeEnabled(ui->actionFly_Mode->isChecked());
+
+	settings->setValue("mainwindow/flyMode", QVariant(ui->actionFly_Mode->isChecked()));
 }
 
 
@@ -2596,7 +2624,7 @@ void MainWindow::objectEditedSlot()
 						}
 					}
 
-					ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
+					ui->glWidget->opengl_engine->objectMaterialsUpdated(/*this->task_manager,*/ opengl_ob, *this->texture_server);
 				}
 				else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 				{
@@ -2904,13 +2932,15 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 }
 
 
-// The user wants to rotate the selected object.
+// The user wants to rotate the object 'ob'.
 void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 {
-	// Rotate object clockwise around z axis
-	const Matrix3f rot_matrix = Matrix3f::rotationMatrix(normalise(ob->axis), selected_ob->angle);
-	const Matrix3f new_rot = Matrix3f::rotationMatrix(toVec3f(axis), angle) * rot_matrix;
-	new_rot.rotationMatrixToAxisAngle(ob->axis, this->selected_ob->angle);
+	const Quatf current_q = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+	const Quatf new_q     = Quatf::fromAxisAndAngle(toVec3f(normalise(axis)), angle) * current_q;
+
+	Vec4f new_axis;
+	new_q.toAxisAndAngle(new_axis, ob->angle);
+	ob->axis = toVec3f(new_axis);
 
 	const Matrix4f new_ob_to_world = Matrix4f::translationMatrix(ob->pos.toVec4fPoint()) * Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) * 
 		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
@@ -2922,7 +2952,7 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 
 	// Update physics object
 	ob->physics_object->ob_to_world = new_ob_to_world;
-	this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
+	this->physics_world->updateObjectTransformData(*ob->physics_object);
 
 	// Update object values in editor
 	ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
@@ -3550,6 +3580,26 @@ int main(int argc, char *argv[])
 
 		try
 		{
+			// TEMP: make a parcel
+			if(false)
+			{
+				ParcelRef parcel = new Parcel();
+				parcel->id = ParcelID(0);
+				parcel->owner_id = UserID(0);
+				parcel->admin_ids.push_back(UserID(0));
+				parcel->created_time = TimeStamp::currentTime();
+				parcel->description = " a parcel";
+				parcel->owner_name = "the owner";
+				parcel->verts[0] = Vec2d(10, 10);
+				parcel->verts[1] = Vec2d(20, 12);
+				parcel->verts[2] = Vec2d(18, 20);
+				parcel->verts[3] = Vec2d(11, 18);
+				parcel->zbounds = Vec2d(-0.1, 30);
+				parcel->build();
+
+				mw.world_state->parcels[parcel->id] = parcel;
+			}
+
 			// TEMP: make an avatar
 			if(false)
 			{
@@ -3622,6 +3672,8 @@ int main(int argc, char *argv[])
 			msgBox.exec();
 			return 1;
 		}
+
+		mw.afterGLInitInitialise();
 
 
 		mw.physics_world->rebuild(mw.task_manager, mw.print_output);
