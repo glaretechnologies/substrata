@@ -2507,8 +2507,6 @@ void MainWindow::on_actionShow_Parcels_triggered()
 
 void MainWindow::on_actionFly_Mode_triggered()
 {
-	conPrint("on_actionFly_Mode_triggered()");
-
 	this->player_physics.setFlyModeEnabled(ui->actionFly_Mode->isChecked());
 
 	settings->setValue("mainwindow/flyMode", QVariant(ui->actionFly_Mode->isChecked()));
