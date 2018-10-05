@@ -22,6 +22,90 @@ Copyright Glare Technologies Limited 2016 -
 #include <ArgumentParser.h>
 #include <SocketBufferOutStream.h>
 #include <TLSSocket.h>
+#include <MTwister.h>
+
+
+static const int parcel_coords[10][4][2] ={
+	{ { 5, 50 },{ 25, 50 },{ 25, 70 },{ 5, 70 } }, // 0
+	{ { 25, 50 },{ 45, 50 },{ 45, 70 },{ 25, 70 } }, // 1
+	{ { 45, 50 },{ 45, 50 },{ 65, 70 },{ 45, 70 } }, // 2
+	{ { 5, 70 },{ 25, 70 },{ 25, 90 },{ 5, 90 } }, // 3
+	{ { 25, 70 },{ 45, 70 },{ 45, 90 },{ 25, 90 } }, // 4
+	{ { 45, 70 },{ 65, 70 },{ 65, 90 },{ 45, 90 } }, // 5
+	{ { 45, 90 },{ 65, 90 },{ 65, 115 },{ 45, 115 } }, // 6
+	{ { 5, 115 },{ 25, 115 },{ 25, 135 },{ 5, 135 } }, // 7
+	{ { 25, 115 },{ 45, 115 },{ 45, 135 },{ 25, 135 } }, // 8
+	{ { 45, 115 },{ 65, 115 },{ 65, 135 },{ 45, 135 } }, // 9
+};
+
+static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> world_state)
+{
+	// Add up then right parcels
+	for(int i=0; i<10; ++i)
+	{
+		const ParcelID parcel_id(next_id++);
+		ParcelRef test_parcel = new Parcel();
+		test_parcel->state = Parcel::State_Alive;
+		test_parcel->id = parcel_id;
+		test_parcel->owner_id = UserID(0);
+		test_parcel->admin_ids.push_back(UserID(0));
+		test_parcel->writer_ids.push_back(UserID(0));
+		test_parcel->created_time = TimeStamp::currentTime();
+		test_parcel->zbounds = Vec2d(-1, 1);
+
+		for(int v=0; v<4; ++v)
+			test_parcel->verts[v] = M * Vec2d(parcel_coords[i][v][0], parcel_coords[i][v][1]);
+
+		world_state->parcels[parcel_id] = test_parcel;
+	}
+}
+
+
+static void makeBlock(const Vec2d& botleft, MTwister& rng, int& next_id, Reference<ServerWorldState> world_state)
+{
+	// Randomly omit one of the 4 edge blocks
+	const int e = (int)(rng.unitRandom() * 3.9999);
+	for(int xi=0; xi<3; ++xi)
+		for(int yi=0; yi<3; ++yi)
+		{
+			if(xi == 1 && yi == 1)
+			{
+				// Leave middle of block empty.
+			}
+			else if(xi == 1 && yi == 0 && e == 0)
+			{
+			}
+			else if(xi == 2 && yi == 1 && e == 1)
+			{
+			}
+			else if(xi == 1 && yi == 2 && e == 2)
+			{
+			}
+			else if(xi == 0 && yi == 1 && e == 3)
+			{
+			}
+			else
+			{
+				const ParcelID parcel_id(next_id++);
+				ParcelRef test_parcel = new Parcel();
+				test_parcel->state = Parcel::State_Alive;
+				test_parcel->id = parcel_id;
+				test_parcel->owner_id = UserID(0);
+				test_parcel->admin_ids.push_back(UserID(0));
+				test_parcel->writer_ids.push_back(UserID(0));
+				test_parcel->created_time = TimeStamp::currentTime();
+				test_parcel->zbounds = Vec2d(-1, 1);
+
+				test_parcel->verts[0] = botleft + Vec2d(xi * 20, yi * 20);
+				test_parcel->verts[1] = botleft + Vec2d((xi+1)* 20, yi * 20);
+				test_parcel->verts[2] = botleft + Vec2d((xi+1)* 20, (yi+1) * 20);
+				test_parcel->verts[3] = botleft + Vec2d((xi)* 20, (yi+1) * 20);
+
+				world_state->parcels[parcel_id] = test_parcel;
+			}
+		}
+}
+
 
 
 int main(int argc, char *argv[])
@@ -117,6 +201,38 @@ int main(int argc, char *argv[])
 			server.world_state->parcels[parcel_id] = test_parcel;
 		}
 
+		
+
+		if(true)
+		{
+			server.world_state->parcels.clear();
+
+			int next_id = 10;
+			makeParcels(Matrix2d(1, 0, 0, 1), next_id, server.world_state);
+			makeParcels(Matrix2d(-1, 0, 0, 1), next_id, server.world_state); // Mirror in y axis (x' = -x)
+			makeParcels(Matrix2d(0, 1, 1, 0), next_id, server.world_state); // Mirror in x=y line(x' = y, y' = x)
+			makeParcels(Matrix2d(0, 1, -1, 0), next_id, server.world_state); // Rotate right 90 degrees (x' = y, y' = -x)
+			makeParcels(Matrix2d(1, 0, 0, -1), next_id, server.world_state); // Mirror in x axis (y' = -y)
+			makeParcels(Matrix2d(-1, 0, 0, -1), next_id, server.world_state); // Rotate 180 degrees (x' = -x, y' = -y)
+			makeParcels(Matrix2d(0, -1, -1, 0), next_id, server.world_state); // Mirror in x=-y line (x' = -y, y' = -x)
+			makeParcels(Matrix2d(0, -1, 1, 0), next_id, server.world_state); // Rotate left 90 degrees (x' = -y, y' = x)
+
+			MTwister rng(1);
+			const int D = 4;
+			for(int x=-D; x<D; ++x)
+				for(int y=-D; y<D; ++y)
+				{
+					if(x >= -2 && x <= 1 && y >= -2 && y <= 1)// && 
+						//!(x == -2 && -y == 2) && !(x == 1 && y == 1) && !(x == -2 && y == 1) && !(x == 1 && y == -2))
+					{
+						// Special town square blocks
+					}
+					else
+						makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, server.world_state);
+				}
+			
+			
+		}
 
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server));
