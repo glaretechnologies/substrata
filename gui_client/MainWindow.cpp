@@ -282,7 +282,7 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 //}
 
 
-static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& rotation)
+/*static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& rotation)
 {
 	Matrix4f m;
 	const float rot_len2 = rotation.length2();
@@ -293,9 +293,9 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 		const float rot_len = std::sqrt(rot_len2);
 		m.setToRotationMatrix(rotation.toVec4fVector() / rot_len, rot_len);
 	}
-	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
+	m.setColumn(3, Vec4f((float)translation.x, (float)translation.y, (float)translation.z, 1.f));
 	return m;
-}
+}*/
 
 
 static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
@@ -524,7 +524,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				{
 					if(::hasPrefix(lines[z], "#instancing"))
 					{
-						Parser parser(lines[z].data(), lines[z].size());
+						Parser parser(lines[z].data(), (unsigned int)lines[z].size());
 						parser.parseString("#instancing");
 						parser.parseWhiteSpace();
 						if(!parser.parseInt(count))
@@ -670,7 +670,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
 
 	if(ob->script_evaluator->jitted_evalRotation)
 	{
-		const Vec4f rot = ob->script_evaluator->evalRotation(cur_time, winter_env);
+		const Vec4f rot = ob->script_evaluator->evalRotation((float)cur_time, winter_env);
 		ob->angle = rot.length();
 		if(ob->angle > 0)
 			ob->axis = Vec3f(normalise(rot));
@@ -682,7 +682,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
 	{
 		if(ob->prototype_object.nonNull())
 			ob->pos = ob->prototype_object->pos;
-		ob->translation = ob->script_evaluator->evalTranslation(cur_time, winter_env);
+		ob->translation = ob->script_evaluator->evalTranslation((float)cur_time, winter_env);
 	}
 
 	// Update transform in 3d engine
@@ -756,13 +756,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 
-	const float dt = time_since_last_timer_ev.elapsed();
+	const float dt = (float)time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
 	num_frames++;
 	if(fps_display_timer.elapsed() > 1.0)
 	{
-		const float fps = num_frames / fps_display_timer.elapsed();
+		const float fps = num_frames / (float)fps_display_timer.elapsed();
 		//conPrint("FPS: " + doubleToStringNSigFigs(fps, 4));
 		num_frames = 0;
 		fps_display_timer.reset();
@@ -772,7 +772,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	
 	// Handle any messages (chat messages etc..)
 	{
-		Lock lock(this->msg_queue.getMutex());
+		Lock msg_queue_lock(this->msg_queue.getMutex());
 		while(!msg_queue.unlockedEmpty())
 		{
 			Reference<ThreadMessage> msg;
@@ -845,7 +845,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getPosition());
-				avatar.rotation = Vec3f(0, 0, cam_angles.x);
+				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 				avatar.model_url = "";
 				avatar.name = m->username;
 
@@ -871,7 +871,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getPosition());
-				avatar.rotation = Vec3f(0, 0, cam_angles.x);
+				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 				avatar.model_url = "";
 				avatar.name = "Anonymous";
 
@@ -897,7 +897,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getPosition());
-				avatar.rotation = Vec3f(0, 0, cam_angles.x);
+				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 				avatar.model_url = "";
 				avatar.name = m->username;
 
@@ -1247,28 +1247,28 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						if(avatar->graphics.nonNull())
 						{
-							auto it = world_state->objects.find(avatar->selected_object_uid);
-							if(it != world_state->objects.end())
+							auto selected_it = world_state->objects.find(avatar->selected_object_uid);
+							if(selected_it != world_state->objects.end())
 							{
-								WorldObject* selected_ob = it->second.getPointer();
-								Vec3d pos;
+								WorldObject* their_selected_ob = selected_it->second.getPointer();
+								Vec3d selected_pos;
 								Vec3f axis;
 								float angle;
-								selected_ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+								their_selected_ob->getInterpolatedTransform(cur_time, selected_pos, axis, angle);
 
 								// Replace pos with the centre of the AABB (instead of the object space origin)
-								if(selected_ob->opengl_engine_ob.nonNull())
+								if(their_selected_ob->opengl_engine_ob.nonNull())
 								{
-									selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
+									their_selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)selected_pos.x, (float)selected_pos.y, (float)selected_pos.z) *
 										Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
-										Matrix4f::scaleMatrix(selected_ob->scale.x, selected_ob->scale.y, selected_ob->scale.z);
+										Matrix4f::scaleMatrix(their_selected_ob->scale.x, their_selected_ob->scale.y, their_selected_ob->scale.z);
 
-									ui->glWidget->opengl_engine->updateObjectTransformData(*selected_ob->opengl_engine_ob);
+									ui->glWidget->opengl_engine->updateObjectTransformData(*their_selected_ob->opengl_engine_ob);
 
-									pos = toVec3d(selected_ob->opengl_engine_ob->aabb_ws.centroid());
+									selected_pos = toVec3d(their_selected_ob->opengl_engine_ob->aabb_ws.centroid());
 								}
 
-								avatar->graphics->setSelectedObBeam(*ui->glWidget->opengl_engine, pos);
+								avatar->graphics->setSelectedObBeam(*ui->glWidget->opengl_engine, selected_pos);
 							}
 						}
 					}
@@ -1379,7 +1379,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								assert(ob->from_remote_transform_dirty);
 
 								// Compute interpolated transformation
-								const double cur_time = Clock::getTimeSinceInit();
 								Vec3d pos;
 								Vec3f axis;
 								float angle;
@@ -1463,8 +1462,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 				else
 				{
-					const Vec4f aabb_min(parcel->aabb_min.x, parcel->aabb_min.y, parcel->aabb_min.z, 1.0);
-					const Vec4f aabb_max(parcel->aabb_max.x, parcel->aabb_max.y, parcel->aabb_max.z, 1.0);
+					const Vec4f aabb_min((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.0f);
+					const Vec4f aabb_max((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.0f);
 
 					if(ui->actionShow_Parcels->isChecked())
 					{
@@ -1512,8 +1511,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
 	{
-		const double cur_time = Clock::getTimeSinceInit();
-
 		Lock lock(this->world_state->mutex);
 		for(auto it = active_objects.begin(); it != active_objects.end();)
 		{
@@ -1741,7 +1738,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			packet.writeUInt32(AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, packet);
 			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
-			writeToStream(Vec3f(0, 0, angle), packet);
+			writeToStream(Vec3f(0, 0, (float)angle), packet);
 
 			this->client_thread->enqueueDataToSend(packet);
 		}
@@ -1839,7 +1836,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			Avatar avatar;
 			avatar.uid = this->client_thread->client_avatar_uid;
 			avatar.pos = Vec3d(this->cam_controller.getPosition());
-			avatar.rotation = Vec3f(0, 0, cam_angles.x);
+			avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 			avatar.model_url = URL;
 			avatar.name = d.getAvatarName();
 
@@ -2005,13 +2002,13 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 		// Constrain tentative ob pos so that the tentative new aabb lies in parcel.
 		// This will have no effect if tentative new AABB is already in the parcel.
 		Vec4f dpos(0.0f);
-		if(ten_new_aabb_ws.min_[0] < parcel_aabb_min.x) dpos[0] += (parcel_aabb_min.x - ten_new_aabb_ws.min_[0]);
-		if(ten_new_aabb_ws.min_[1] < parcel_aabb_min.y) dpos[1] += (parcel_aabb_min.y - ten_new_aabb_ws.min_[1]);
-		if(ten_new_aabb_ws.min_[2] < parcel_aabb_min.z) dpos[2] += (parcel_aabb_min.z - ten_new_aabb_ws.min_[2]);
+		if(ten_new_aabb_ws.min_[0] < (float)parcel_aabb_min.x) dpos[0] += ((float)parcel_aabb_min.x - ten_new_aabb_ws.min_[0]);
+		if(ten_new_aabb_ws.min_[1] < (float)parcel_aabb_min.y) dpos[1] += ((float)parcel_aabb_min.y - ten_new_aabb_ws.min_[1]);
+		if(ten_new_aabb_ws.min_[2] < (float)parcel_aabb_min.z) dpos[2] += ((float)parcel_aabb_min.z - ten_new_aabb_ws.min_[2]);
 			
-		if(ten_new_aabb_ws.max_[0] > parcel_aabb_max.x) dpos[0] += (parcel_aabb_max.x - ten_new_aabb_ws.max_[0]);
-		if(ten_new_aabb_ws.max_[1] > parcel_aabb_max.y) dpos[1] += (parcel_aabb_max.y - ten_new_aabb_ws.max_[1]);
-		if(ten_new_aabb_ws.max_[2] > parcel_aabb_max.z) dpos[2] += (parcel_aabb_max.z - ten_new_aabb_ws.max_[2]);
+		if(ten_new_aabb_ws.max_[0] > (float)parcel_aabb_max.x) dpos[0] += ((float)parcel_aabb_max.x - ten_new_aabb_ws.max_[0]);
+		if(ten_new_aabb_ws.max_[1] > (float)parcel_aabb_max.y) dpos[1] += ((float)parcel_aabb_max.y - ten_new_aabb_ws.max_[1]);
+		if(ten_new_aabb_ws.max_[2] > (float)parcel_aabb_max.z) dpos[2] += ((float)parcel_aabb_max.z - ten_new_aabb_ws.max_[2]);
 
 		const js::AABBox new_aabb(ten_new_aabb_ws.min_ + dpos, ten_new_aabb_ws.max_ + dpos);
 		if(!Parcel::AABBInParcelBounds(new_aabb, parcel_aabb_min, parcel_aabb_max))
@@ -2213,7 +2210,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	new_world_object->object_type = WorldObject::ObjectType_Hypercard;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
-	new_world_object->angle = this->cam_controller.getAngles().x - Maths::pi_2<float>();
+	new_world_object->angle = (float)this->cam_controller.getAngles().x - Maths::pi_2<float>();
 	new_world_object->scale = Vec3f(0.4f);
 	new_world_object->content = "Select the object \nto edit this text";
 
@@ -2236,7 +2233,7 @@ void MainWindow::on_actionCloneObject_triggered()
 {
 	if(this->selected_ob.nonNull())
 	{
-		const float dist_to_ob = this->selected_ob->pos.getDist(this->cam_controller.getPosition());
+		const double dist_to_ob = this->selected_ob->pos.getDist(this->cam_controller.getPosition());
 
 		const Vec3d new_ob_pos = this->selected_ob->pos + this->cam_controller.getRightVec() * dist_to_ob * 0.2;
 
@@ -2466,7 +2463,6 @@ void MainWindow::addParcelObjects()
 void MainWindow::removeParcelObjects()
 {
 	// Iterate over all parcels, add models for them
-	Lock lock(this->world_state->mutex);
 	try
 	{
 		// Iterate over all parcels, remove models for them.
@@ -3202,7 +3198,7 @@ void MainWindow::updateGroundPlane()
 			gl_ob->materials[0].roughness = 0.8f;
 			gl_ob->materials[0].fresnel_scale = 0.5f;
 
-			gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * ground_quad_w, it->y * ground_quad_w, 0);
+			gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * (float)ground_quad_w, it->y * (float)ground_quad_w, 0);
 			gl_ob->mesh_data = ground_quad_mesh_opengl_data;
 
 			ui->glWidget->addObject(gl_ob);
@@ -3436,9 +3432,9 @@ int main(int argc, char *argv[])
 				for(int x=0; x<N; ++x)
 				{
 					const float u = (float)x/((float)N - 1);
-					mw.ground_quad_mesh->vert_positions.push_back(Indigo::Vec3f(u * ground_quad_w, v * ground_quad_w, 0.f));
+					mw.ground_quad_mesh->vert_positions.push_back(Indigo::Vec3f(u * (float)ground_quad_w, v * (float)ground_quad_w, 0.f));
 					mw.ground_quad_mesh->vert_normals.push_back(Indigo::Vec3f(0, 0, 1));
-					mw.ground_quad_mesh->uv_pairs.push_back(Indigo::Vec2f(u * ground_quad_w, v * ground_quad_w));
+					mw.ground_quad_mesh->uv_pairs.push_back(Indigo::Vec2f(u * (float)ground_quad_w, v * (float)ground_quad_w));
 
 					if(x < N-1 && y < N-1)
 					{
