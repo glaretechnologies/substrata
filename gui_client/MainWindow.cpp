@@ -762,7 +762,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	num_frames++;
 	if(fps_display_timer.elapsed() > 1.0)
 	{
-		const float fps = num_frames / (float)fps_display_timer.elapsed();
+		//const float fps = num_frames / (float)fps_display_timer.elapsed();
 		//conPrint("FPS: " + doubleToStringNSigFigs(fps, 4));
 		num_frames = 0;
 		fps_display_timer.reset();

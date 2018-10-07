@@ -41,7 +41,6 @@ private:
 
 	ThreadSafeQueue<std::string> data_to_send;
 
-	int thread_id;
 	Reference<MySocket> socket;
 	Server* server;
 	EventFD event_fd;	

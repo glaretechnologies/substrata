@@ -38,7 +38,7 @@ public:
 	virtual void doRun();
 
 private:
-	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
+	//ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	std::string local_path, model_URL;
 	std::string hostname;
 	std::string username, password;
