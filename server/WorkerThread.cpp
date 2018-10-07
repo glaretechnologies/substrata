@@ -36,8 +36,7 @@ static const bool VERBOSE = false;
 
 
 WorkerThread::WorkerThread(int thread_id_, const Reference<MySocket>& socket_, Server* server_)
-:	thread_id(thread_id_),
-	socket(socket_),
+:	socket(socket_),
 	server(server_)
 {
 	//if(VERBOSE) print("event_fd.efd: " + toString(event_fd.efd));
