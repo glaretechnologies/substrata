@@ -151,7 +151,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	settings = new QSettings("Glare Technologies", "Cyberspace");
 
-	// Load main window geometry and state
+	// Restore main window geometry and state
 	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
 	this->restoreState(settings->value("mainwindow/windowState").toByteArray());
 
@@ -223,10 +223,6 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
-	// Save main window geometry and state
-	settings->setValue("mainwindow/geometry", saveGeometry());
-	settings->setValue("mainwindow/windowState", saveState());
-
 	// Kill ClientThread
 	print("killing ClientThread");
 	this->client_thread->killConnection();
@@ -237,6 +233,16 @@ MainWindow::~MainWindow()
 	ui->glWidget->makeCurrent();
 
 	delete ui;
+}
+
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+	// Save main window geometry and state.  See http://doc.qt.io/archives/qt-4.8/qmainwindow.html#saveState
+	settings->setValue("mainwindow/geometry", saveGeometry());
+	settings->setValue("mainwindow/windowState", saveState());
+
+	QMainWindow::closeEvent(event);
 }
 
 

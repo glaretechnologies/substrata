@@ -79,6 +79,7 @@ private slots:;
 	void objectEditedSlot();
 	void URLChangedSlot();
 private:
+	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void deleteSelectedObject();
