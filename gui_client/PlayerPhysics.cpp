@@ -7,33 +7,17 @@ File created by ClassTemplate on Mon Sep 23 15:14:04 2002
 #include "PlayerPhysics.h"
 
 
-//#include "../simple3d/camera.h"
-//#include "../console/consolefloat.h"
-//#include "../console/consolebool.h"
-//#include "../physics/jscol_worldcollisionsys.h"
-//#include "../physics/jscol_raytraceresult.h"
-
 #include <CameraController.h>
-//#include "../physics/jscol_model.h"
-//#include "globals.h"
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 
-//#include "rulesmanager.h"//TEMP
-//#include "voxelutils.h"//TEMP
 
-static const float runfactor = 5;
+static const float runfactor = 5; // How much faster you move when the run button (shift) is held down.
 static const float movespeed = 3;
-static const float jumpspeed = 10;
+static const float jumpspeed = 4.5;
 static const float maxairspeed = 8;
-//ConsoleFloat runfactor("runfactor", 5);
-//ConsoleFloat movespeed("movespeed", 3);
-//ConsoleFloat jumpspeed("jumpspeed", 40);
-//ConsoleFloat maxairspeed("maxairspeed", 8);
-
-//ConsoleBool flymode("flymode", false);
 
 
 static const float JUMP_PERIOD = 0.1f;
