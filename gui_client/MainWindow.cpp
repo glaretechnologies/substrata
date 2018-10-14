@@ -787,7 +787,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(!settings->value("LoginDialog/username").toString().isEmpty() && !settings->value("LoginDialog/password").toString().isEmpty())
 				{
 					// Make LogInMessage packet and enqueue to send
-					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 					packet.writeUInt32(Protocol::LogInMessage);
 					packet.writeStringLengthFirst(QtUtils::toStdString(settings->value("LoginDialog/username").toString()));
 					packet.writeStringLengthFirst(LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString())));
@@ -849,7 +849,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.model_url = "";
 				avatar.name = m->username;
 
-				SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				packet.writeUInt32(Protocol::AvatarFullUpdate);
 				writeToNetworkStream(avatar, packet);
 
@@ -875,7 +875,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.model_url = "";
 				avatar.name = "Anonymous";
 
-				SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				packet.writeUInt32(Protocol::AvatarFullUpdate);
 				writeToNetworkStream(avatar, packet);
 
@@ -901,7 +901,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.model_url = "";
 				avatar.name = m->username;
 
-				SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				packet.writeUInt32(Protocol::AvatarFullUpdate);
 				writeToNetworkStream(avatar, packet);
 
@@ -1734,7 +1734,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			const Vec3d cam_angles = this->cam_controller.getAngles();
 			const double angle = cam_angles.x;
 
-			SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, packet);
 			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
@@ -1753,7 +1753,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(world_ob->from_local_other_dirty)
 				{
 					// Enqueue ObjectFullUpdate
-					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 					packet.writeUInt32(Protocol::ObjectFullUpdate);
 					writeToNetworkStream(*world_ob, packet);
 					
@@ -1765,7 +1765,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				else if(world_ob->from_local_transform_dirty)
 				{
 					// Enqueue ObjectTransformUpdate
-					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 					packet.writeUInt32(Protocol::ObjectTransformUpdate);
 					writeToStream(world_ob->uid, packet);
 					writeToStream(Vec3d(world_ob->pos), packet);
@@ -1840,7 +1840,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			avatar.model_url = URL;
 			avatar.name = d.getAvatarName();
 
-			SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::AvatarFullUpdate);
 			writeToNetworkStream(avatar, packet);
 
@@ -2148,7 +2148,7 @@ void MainWindow::on_actionAddObject_triggered()
 			
 			// Send CreateObject message to server
 			{
-				SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 				packet.writeUInt32(Protocol::CreateObject);
 				writeToNetworkStream(*new_world_object, packet);
@@ -2217,7 +2217,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 
 	// Send CreateObject message to server
 	{
-		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 		packet.writeUInt32(Protocol::CreateObject);
 		writeToNetworkStream(*new_world_object, packet);
@@ -2260,7 +2260,7 @@ void MainWindow::on_actionCloneObject_triggered()
 
 		// Send CreateObject message to server
 		{
-			SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 			packet.writeUInt32(Protocol::CreateObject);
 			writeToNetworkStream(*new_world_object, packet);
@@ -2322,7 +2322,7 @@ void MainWindow::passwordResetRequested()
 	{
 		// Make RequestPasswordReset packet and enqueue to send
 		const std::string email_addr = QtUtils::toIndString(dialog.emailLineEdit->text());
-		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::RequestPasswordReset);
 		packet.writeStringLengthFirst(email_addr);
 		this->client_thread->enqueueDataToSend(packet);
@@ -2340,7 +2340,7 @@ void MainWindow::passwordResetRequested()
 			// Send a ChangePasswordWithResetToken packet
 			const std::string reset_token = QtUtils::toIndString(change_password_dialog.resetCodeLineEdit->text());
 			const std::string new_password = QtUtils::toIndString(change_password_dialog.passwordLineEdit->text());
-			SocketBufferOutStream packet2(/*use_network_byte_order=*/false);
+			SocketBufferOutStream packet2(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet2.writeUInt32(Protocol::ChangePasswordWithResetToken);
 			packet2.writeStringLengthFirst(email_addr);
 			packet2.writeStringLengthFirst(reset_token);
@@ -2375,7 +2375,7 @@ void MainWindow::on_actionLogIn_triggered()
 		//this->last_login_username = username;
 
 		// Make LogInMessage packet and enqueue to send
-		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::LogInMessage);
 		packet.writeStringLengthFirst(username);
 		packet.writeStringLengthFirst(password);
@@ -2387,7 +2387,7 @@ void MainWindow::on_actionLogIn_triggered()
 void MainWindow::on_actionLogOut_triggered()
 {
 	// Make message packet and enqueue to send
-	SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 	packet.writeUInt32(Protocol::LogOutMessage);
 	this->client_thread->enqueueDataToSend(packet);
 }
@@ -2418,7 +2418,7 @@ void MainWindow::on_actionSignUp_triggered()
 		//this->last_login_username = username;
 
 		// Make message packet and enqueue to send
-		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::SignUpMessage);
 		packet.writeStringLengthFirst(username);
 		packet.writeStringLengthFirst(email);
@@ -2522,7 +2522,7 @@ void MainWindow::sendChatMessageSlot()
 	const std::string message = QtUtils::toIndString(ui->chatMessageLineEdit->text());
 
 	// Make message packet and enqueue to send
-	SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 	packet.writeUInt32(Protocol::ChatMessageID);
 	packet.writeStringLengthFirst(message);
 
@@ -2840,7 +2840,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 
 			// Send UserSelectedObject message to server
-			SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::UserSelectedObject);
 			writeToStream(selected_ob->uid, packet);
 			this->client_thread->enqueueDataToSend(packet);
@@ -2964,7 +2964,7 @@ void MainWindow::deleteSelectedObject()
 	if(this->selected_ob.nonNull())
 	{
 		// Send DestroyObject packet
-		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::DestroyObject);
 		writeToStream(selected_ob->uid, packet);
 
@@ -2981,7 +2981,7 @@ void MainWindow::deselectObject()
 	if(this->selected_ob.nonNull())
 	{
 		// Send UserDeselectedObject message to server
-		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::UserDeselectedObject);
 		writeToStream(selected_ob->uid, packet);
 		this->client_thread->enqueueDataToSend(packet);

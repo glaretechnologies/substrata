@@ -102,9 +102,9 @@ void ClientThread::doRun()
 
 
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
-
+		
 		// Send CreateAvatar packet for this client's avatar
-		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::CreateAvatar);
 		writeToStream(client_avatar_uid, packet);
 		packet.writeStringLengthFirst(avatar_URL);
