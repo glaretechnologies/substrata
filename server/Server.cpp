@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
 					if(avatar->state == Avatar::State_Alive)
 					{
 						// Send AvatarFullUpdate packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::AvatarFullUpdate);
 						writeToNetworkStream(*avatar, packet);
 
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 					else if(avatar->state == Avatar::State_JustCreated)
 					{
 						// Send AvatarCreated packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::AvatarCreated);
 						writeToStream(avatar->uid, packet);
 						packet.writeStringLengthFirst(avatar->name);
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
 					else if(avatar->state == Avatar::State_Dead)
 					{
 						// Send AvatarDestroyed packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::AvatarDestroyed);
 						writeToStream(avatar->uid, packet);
 
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
 					if(avatar->state == Avatar::State_Alive)
 					{
 						// Send AvatarTransformUpdate packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::AvatarTransformUpdate);
 						writeToStream(avatar->uid, packet);
 						writeToStream(avatar->pos, packet);
@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
 					if(ob->state == WorldObject::State_Alive)
 					{
 						// Send ObjectFullUpdate packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::ObjectFullUpdate);
 						writeToNetworkStream(*ob, packet);
 
@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
 					else if(ob->state == WorldObject::State_JustCreated)
 					{
 						// Send ObjectCreated packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::ObjectCreated);
 						writeToNetworkStream(*ob, packet);
 
@@ -391,7 +391,7 @@ int main(int argc, char *argv[])
 					else if(ob->state == WorldObject::State_Dead)
 					{
 						// Send ObjectDestroyed packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::ObjectDestroyed);
 						writeToStream(ob->uid, packet);
 
@@ -418,7 +418,7 @@ int main(int argc, char *argv[])
 					if(ob->state == WorldObject::State_Alive)
 					{
 						// Send ObjectTransformUpdate packet
-						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						packet.writeUInt32(Protocol::ObjectTransformUpdate);
 						writeToStream(ob->uid, packet);
 						writeToStream(ob->pos, packet);
