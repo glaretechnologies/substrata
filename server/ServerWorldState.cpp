@@ -67,7 +67,7 @@ void ServerWorldState::readFromDisk(const std::string& path)
 		}
 		else if(chunk == USER_CHUNK)
 		{
-			// Derserialise user
+			// Deserialise user
 			UserRef user = new User();
 			readFromStream(stream, *user);
 
@@ -76,7 +76,7 @@ void ServerWorldState::readFromDisk(const std::string& path)
 		}
 		else if(chunk == PARCEL_CHUNK)
 		{
-			// Derserialise parcel
+			// Deserialise parcel
 			ParcelRef parcel = new Parcel();
 			readFromStream(stream, *parcel);
 
