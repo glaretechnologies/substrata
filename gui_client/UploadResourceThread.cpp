@@ -47,26 +47,26 @@ void UploadResourceThread::doRun()
 
 		conPrint("UploadResourceThread: Connected to " + hostname + ":" + toString(port) + "!");
 
-		socket->writeUInt32(CyberspaceHello); // Write hello
-		socket->writeUInt32(CyberspaceProtocolVersion); // Write protocol version
-		socket->writeUInt32(ConnectionTypeUploadResource); // Write connection type
+		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
+		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
+		socket->writeUInt32(Protocol::ConnectionTypeUploadResource); // Write connection type
 
 
 		// Read hello response from server
 		const uint32 hello_response = socket->readUInt32();
-		if(hello_response != CyberspaceHello)
+		if(hello_response != Protocol::CyberspaceHello)
 			throw Indigo::Exception("Invalid hello from server: " + toString(hello_response));
 
 		const int MAX_STRING_LEN = 10000;
 
 		// Read protocol version response from server
 		const uint32 protocol_response = socket->readUInt32();
-		if(protocol_response == ClientProtocolTooOld)
+		if(protocol_response == Protocol::ClientProtocolTooOld)
 		{
 			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 			throw Indigo::Exception(msg);
 		}
-		else if(protocol_response == ClientProtocolOK)
+		else if(protocol_response == Protocol::ClientProtocolOK)
 		{
 		}
 		else
@@ -76,14 +76,14 @@ void UploadResourceThread::doRun()
 		// We need to log in first, otherwise upload will fail.
 
 		// Make LogInMessage packet and send
-		socket->writeUInt32(LogInMessage);
+		socket->writeUInt32(Protocol::LogInMessage);
 		socket->writeStringLengthFirst(username);
 		socket->writeStringLengthFirst(password);
 
 		// Load resource
 		MemMappedFile file(local_path);
 
-		socket->writeUInt32(UploadResource);
+		socket->writeUInt32(Protocol::UploadResource);
 
 		socket->writeStringLengthFirst(model_URL); // Write URL
 

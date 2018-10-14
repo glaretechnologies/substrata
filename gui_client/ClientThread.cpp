@@ -65,9 +65,9 @@ void ClientThread::doRun()
 
 		out_msg_queue->enqueue(new ClientConnectedToServerMessage());
 
-		socket->writeUInt32(CyberspaceHello); // Write hello
-		socket->writeUInt32(CyberspaceProtocolVersion); // Write protocol version
-		socket->writeUInt32(ConnectionTypeUpdates); // Write connection type
+		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
+		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
+		socket->writeUInt32(Protocol::ConnectionTypeUpdates); // Write connection type
 
 		
 
@@ -77,22 +77,22 @@ void ClientThread::doRun()
 
 		// Read hello response from server
 		const uint32 hello_response = socket->readUInt32();
-		if(hello_response != CyberspaceHello)
+		if(hello_response != Protocol::CyberspaceHello)
 			throw Indigo::Exception("Invalid hello from server: " + toString(hello_response));
 
 		// Read protocol version response from server
 		const uint32 protocol_response = socket->readUInt32();
-		if(protocol_response == ClientProtocolTooOld)
+		if(protocol_response == Protocol::ClientProtocolTooOld)
 		{
 			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 			throw Indigo::Exception(msg);
 		}
-		else if(protocol_response == ClientProtocolTooNew)
+		else if(protocol_response == Protocol::ClientProtocolTooNew)
 		{
 			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 			throw Indigo::Exception(msg);
 		}
-		else if(protocol_response == ClientProtocolOK)
+		else if(protocol_response == Protocol::ClientProtocolOK)
 		{}
 		else
 			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
@@ -105,7 +105,7 @@ void ClientThread::doRun()
 
 		// Send CreateAvatar packet for this client's avatar
 		SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-		packet.writeUInt32(CreateAvatar);
+		packet.writeUInt32(Protocol::CreateAvatar);
 		writeToStream(client_avatar_uid, packet);
 		packet.writeStringLengthFirst(avatar_URL);
 		writeToStream(Vec3d(0, 0, 0), packet); // pos 
@@ -146,7 +146,7 @@ void ClientThread::doRun()
 				const uint32 msg_type = socket->readUInt32();
 				switch(msg_type)
 				{
-				case AvatarTransformUpdate:
+				case Protocol::AvatarTransformUpdate:
 					{
 						//conPrint("AvatarTransformUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -175,7 +175,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case AvatarFullUpdate:
+				case Protocol::AvatarFullUpdate:
 					{
 						conPrint("AvatarFullUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -198,7 +198,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case AvatarCreated:
+				case Protocol::AvatarCreated:
 					{
 						conPrint("AvatarCreated");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -231,7 +231,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case AvatarDestroyed:
+				case Protocol::AvatarDestroyed:
 					{
 						conPrint("AvatarDestroyed");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -249,7 +249,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case ObjectTransformUpdate:
+				case Protocol::ObjectTransformUpdate:
 					{
 						//conPrint("ObjectTransformUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -286,7 +286,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case ObjectFullUpdate:
+				case Protocol::ObjectFullUpdate:
 					{
 						conPrint("ObjectFullUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -317,7 +317,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case ObjectCreated:
+				case Protocol::ObjectCreated:
 					{
 						//conPrint("ObjectCreated");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -356,7 +356,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case ObjectDestroyed:
+				case Protocol::ObjectDestroyed:
 					{
 						conPrint("ObjectDestroyed");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -374,7 +374,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case ParcelCreated:
+				case Protocol::ParcelCreated:
 					{
 						ParcelRef parcel = new Parcel();
 						const ParcelID parcel_id = readParcelIDFromStream(*socket);
@@ -389,7 +389,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case ParcelDestroyed:
+				case Protocol::ParcelDestroyed:
 					{
 						conPrint("ParcelDestroyed");
 						const ParcelID parcel_id = readParcelIDFromStream(*socket);
@@ -407,7 +407,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case ParcelFullUpdate:
+				case Protocol::ParcelFullUpdate:
 					{
 						conPrint("ParcelFullUpdate");
 						const ParcelID parcel_id = readParcelIDFromStream(*socket);
@@ -434,7 +434,7 @@ void ClientThread::doRun()
 						}
 						break;
 					}
-				case GetFile:
+				case Protocol::GetFile:
 					{
 						conPrint("Received GetFile message from server.");
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
@@ -443,7 +443,7 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new GetFileMessage(model_url));
 						break;
 					}
-				case NewResourceOnServer:
+				case Protocol::NewResourceOnServer:
 					{
 						conPrint("Received NewResourceOnServer message from server.");
 						const std::string url = socket->readStringLengthFirst(MAX_STRING_LEN);
@@ -452,7 +452,7 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new NewResourceOnServerMessage(url));
 						break;
 					}
-				case ChatMessageID:
+				case Protocol::ChatMessageID:
 					{
 						conPrint("ChatMessage");
 						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
@@ -460,7 +460,7 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new ChatMessage(name, msg));
 						break;
 					}
-				case UserSelectedObject:
+				case Protocol::UserSelectedObject:
 					{
 						//conPrint("Received UserSelectedObject msg.");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -468,7 +468,7 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new UserSelectedObjectMessage(avatar_uid, object_uid));
 						break;
 					}
-				case UserDeselectedObject:
+				case Protocol::UserDeselectedObject:
 					{
 						//conPrint("Received UserDeselectedObject msg.");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -476,21 +476,21 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new UserDeselectedObjectMessage(avatar_uid, object_uid));
 						break;
 					}
-				case InfoMessageID:
+				case Protocol::InfoMessageID:
 					{
 						//conPrint("Received InfoMessage msg.");
 						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 						out_msg_queue->enqueue(new InfoMessage(msg));
 						break;
 					}
-				case ErrorMessageID:
+				case Protocol::ErrorMessageID:
 					{
 						//conPrint("Received ErrorMessage msg.");
 						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 						out_msg_queue->enqueue(new ErrorMessage(msg));
 						break;
 					}
-				case LoggedInMessageID:
+				case Protocol::LoggedInMessageID:
 					{
 						//conPrint("Received LoggedInMessageID msg.");
 						const UserID logged_in_user_id = readUserIDFromStream(*socket); 
@@ -498,13 +498,13 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new LoggedInMessage(logged_in_user_id, logged_in_username));
 						break;
 					}
-				case LoggedOutMessageID:
+				case Protocol::LoggedOutMessageID:
 					{
 						//conPrint("Received LoggedOutMessageID msg.");
 						out_msg_queue->enqueue(new LoggedOutMessage());
 						break;
 					}
-				case SignedUpMessageID:
+				case Protocol::SignedUpMessageID:
 					{
 						//conPrint("Received SignedUpMessageID msg.");
 						const UserID user_id = readUserIDFromStream(*socket);
