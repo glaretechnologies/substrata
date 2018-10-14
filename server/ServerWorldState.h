@@ -1,7 +1,7 @@
 /*=====================================================================
 ServerWorldState.h
 -------------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2018 -
 Generated at 2016-01-12 12:22:34 +1300
 =====================================================================*/
 #pragma once
@@ -28,10 +28,11 @@ public:
 	ServerWorldState();
 	~ServerWorldState();
 
-
 	void readFromDisk(const std::string& path);
 	void serialiseToDisk(const std::string& path);
-	UID getNextObjectUID();
+	
+	UID getNextObjectUID(); // Gets and then increments next_object_uid
+	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.
 
 
 	bool changed; // Has changed since server state or since last save.
@@ -45,14 +46,10 @@ public:
 
 	std::map<ParcelID, ParcelRef> parcels;
 	
-
-
-	UID next_avatar_uid;
-
-
 	::Mutex mutex;
 private:
 	INDIGO_DISABLE_COPY(ServerWorldState);
 
 	UID next_object_uid;
+	UID next_avatar_uid;
 };

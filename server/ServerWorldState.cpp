@@ -1,7 +1,7 @@
 /*=====================================================================
 ServerWorldState.cpp
 -------------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2018 -
 Generated at 2016-01-12 12:22:34 +1300
 =====================================================================*/
 #include "ServerWorldState.h"
@@ -13,6 +13,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <StringUtils.h>
 #include <ConPrint.h>
 #include <FileUtils.h>
+#include <Lock.h>
 
 
 ServerWorldState::ServerWorldState()
@@ -57,7 +58,7 @@ void ServerWorldState::readFromDisk(const std::string& path)
 		const uint32 chunk = stream.readUInt32();
 		if(chunk == WORLD_OBJECT_CHUNK)
 		{
-			// Derserialise object
+			// Deserialise object
 			WorldObjectRef world_ob = new WorldObject();
 			readFromStream(stream, *world_ob);
 
@@ -199,7 +200,17 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 
 UID ServerWorldState::getNextObjectUID()
 {
-	UID next = next_object_uid;
+	const UID next = next_object_uid;
 	next_object_uid = UID(next_object_uid.value() + 1);
+	return next;
+}
+
+
+UID ServerWorldState::getNextAvatarUID()
+{
+	Lock lock(mutex);
+
+	const UID next = next_avatar_uid;
+	next_avatar_uid = UID(next_avatar_uid.value() + 1);
 	return next;
 }
