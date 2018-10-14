@@ -154,7 +154,7 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 	const int end = Maths::intMod(begin + 1, HISTORY_BUF_SIZE);
 
 	// Snapshot times may be the same if we haven't received updates for this object yet.
-	const float t  = (snapshot_times[end] == snapshot_times[begin]) ? 0.f : ((delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin])); // Interpolation fraction
+	const float t  = (snapshot_times[end] == snapshot_times[begin]) ? 0.f : (float)((delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin])); // Interpolation fraction
 
 	pos_out   = Maths::uncheckedLerp(pos_snapshots  [begin], pos_snapshots  [end], t);
 	axis_out  = Maths::uncheckedLerp(axis_snapshots [begin], axis_snapshots [end], t);
