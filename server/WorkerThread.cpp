@@ -98,6 +98,25 @@ static void writeErrorMessageToClient(MySocketRef& socket, const std::string& ms
 }
 
 
+// Enqueues packet to WorkerThreads to send to clients connected to the server.
+static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, Server* server)
+{
+	assert(packet_buffer.buf.size() > 0);
+	if(packet_buffer.buf.size() > 0)
+	{
+		std::string packet_string(packet_buffer.buf.size(), '\0');
+		std::memcpy(&packet_string[0], packet_buffer.buf.data(), packet_buffer.buf.size());
+
+		Lock lock(server->worker_thread_manager.getMutex());
+		for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
+		{
+			assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+			static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+		}
+	}
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -576,15 +595,7 @@ void WorkerThread::doRun()
 							packet.writeStringLengthFirst(client_user->name);
 							packet.writeStringLengthFirst(msg);
 
-							std::string packet_string(packet.buf.size(), '\0');
-							std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-							Lock lock(server->worker_thread_manager.getMutex());
-							for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
-							{
-								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
-							}
+							enqueuePacketToBroadcast(packet, server);
 						}
 						break;
 					}
@@ -601,15 +612,7 @@ void WorkerThread::doRun()
 							writeToStream(client_avatar_uid, packet);
 							writeToStream(object_uid, packet);
 
-							std::string packet_string(packet.buf.size(), '\0');
-							std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-							Lock lock(server->worker_thread_manager.getMutex());
-							for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
-							{
-								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
-							}
+							enqueuePacketToBroadcast(packet, server);
 						}
 						break;
 					}
@@ -626,15 +629,7 @@ void WorkerThread::doRun()
 							writeToStream(client_avatar_uid, packet);
 							writeToStream(object_uid, packet);
 
-							std::string packet_string(packet.buf.size(), '\0');
-							std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-							Lock lock(server->worker_thread_manager.getMutex());
-							for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
-							{
-								assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-								static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
-							}
+							enqueuePacketToBroadcast(packet, server);
 						}
 						break;
 					}
@@ -685,15 +680,7 @@ void WorkerThread::doRun()
 									packet.writeUInt32(Protocol::NewResourceOnServer);
 									packet.writeStringLengthFirst(URL);
 
-									std::string packet_string(packet.buf.size(), '\0');
-									std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-									Lock lock(server->worker_thread_manager.getMutex());
-									for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
-									{
-										assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-										static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
-									}
+									enqueuePacketToBroadcast(packet, server);
 								}
 							}
 						}

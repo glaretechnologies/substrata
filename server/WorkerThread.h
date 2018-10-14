@@ -10,9 +10,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <Platform.h>
 #include <MyThread.h>
 #include <EventFD.h>
-#include <ThreadManager.h>
 #include <mysocket.h>
-#include <set>
 #include <string>
 class WorkUnit;
 class PrintOutput;
