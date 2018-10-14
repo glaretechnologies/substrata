@@ -3106,9 +3106,9 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
 
 	QImage image(W, H, QImage::Format_RGB888);
-	image.fill(QColor(220, 220, 220));
+	image.fill(QColor(230, 230, 230));
 	QPainter painter(&image);
-	painter.setPen(QPen(QColor(30, 30, 30)));
+	painter.setPen(QPen(QColor(0, 0, 0)));
 	painter.setFont(QFont("Times", 24, QFont::Bold));
 	painter.drawText(image.rect(), Qt::AlignCenter, QtUtils::toQString(nametag));
 
@@ -3119,6 +3119,8 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
 	}
 
+	gl_ob->materials[0].fresnel_scale = 0.1f;
+	gl_ob->materials[0].albedo_rgb = Colour3f(0.8f);
 	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
 	return gl_ob;
 }
