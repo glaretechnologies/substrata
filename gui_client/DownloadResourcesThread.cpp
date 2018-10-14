@@ -68,25 +68,25 @@ void DownloadResourcesThread::doRun()
 
 		conPrint("DownloadResourcesThread: Connected to " + hostname + ":" + toString(port) + "!");
 
-		socket->writeUInt32(CyberspaceHello); // Write hello
-		socket->writeUInt32(CyberspaceProtocolVersion); // Write protocol version
-		socket->writeUInt32(ConnectionTypeDownloadResources); // Write connection type
+		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
+		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
+		socket->writeUInt32(Protocol::ConnectionTypeDownloadResources); // Write connection type
 
 		// Read hello response from server
 		const uint32 hello_response = socket->readUInt32();
-		if(hello_response != CyberspaceHello)
+		if(hello_response != Protocol::CyberspaceHello)
 			throw Indigo::Exception("Invalid hello from server: " + toString(hello_response));
 
 		const int MAX_STRING_LEN = 10000;
 
 		// Read protocol version response from server
 		const uint32 protocol_response = socket->readUInt32();
-		if(protocol_response == ClientProtocolTooOld)
+		if(protocol_response == Protocol::ClientProtocolTooOld)
 		{
 			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 			throw Indigo::Exception(msg);
 		}
-		else if(protocol_response == ClientProtocolOK)
+		else if(protocol_response == Protocol::ClientProtocolOK)
 		{}
 		else
 			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
@@ -132,7 +132,7 @@ void DownloadResourcesThread::doRun()
 					}
 				}
 
-				socket->writeUInt32(GetFiles);
+				socket->writeUInt32(Protocol::GetFiles);
 				socket->writeUInt64(URLs_to_download.size()); // Write number of files to get
 
 				for(size_t i=0; i<URLs_to_download.size(); ++i)

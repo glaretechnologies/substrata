@@ -79,7 +79,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 			// We need the file from the client.
 			// Send the client a 'get file' message
 			SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-			packet.writeUInt32(GetFile);
+			packet.writeUInt32(Protocol::GetFile);
 			packet.writeStringLengthFirst(resource_URL);
 
 			std::string packet_string(packet.buf.size(), '\0');
@@ -94,7 +94,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 static void writeErrorMessageToClient(MySocketRef& socket, const std::string& msg)
 {
 	SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-	packet.writeUInt32(ErrorMessageID);
+	packet.writeUInt32(Protocol::ErrorMessageID);
 	packet.writeStringLengthFirst(msg);
 	socket->writeData(packet.buf.data(), packet.buf.size());
 }
@@ -114,34 +114,36 @@ void WorkerThread::doRun()
 		// Read hello bytes
 		const uint32 hello = socket->readUInt32();
 		printVar(hello);
-		if(hello != CyberspaceHello)
+		if(hello != Protocol::CyberspaceHello)
 			throw Indigo::Exception("Received invalid hello message (" + toString(hello) + ") from client.");
 		
 		// Write hello response
-		socket->writeUInt32(CyberspaceHello);
+		socket->writeUInt32(Protocol::CyberspaceHello);
 
 		// Read protocol version
 		const uint32 client_version = socket->readUInt32();
 		printVar(client_version);
-		if(client_version < CyberspaceProtocolVersion)
+		if(client_version < Protocol::CyberspaceProtocolVersion)
 		{
-			socket->writeUInt32(ClientProtocolTooOld);
-			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too old, require version " + toString(CyberspaceProtocolVersion) + ".  Please update your client.");
+			socket->writeUInt32(Protocol::ClientProtocolTooOld);
+			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too old, require version " + 
+				toString(Protocol::CyberspaceProtocolVersion) + ".  Please update your client.");
 		}
-		else if(client_version > CyberspaceProtocolVersion)
+		else if(client_version > Protocol::CyberspaceProtocolVersion)
 		{
-			socket->writeUInt32(ClientProtocolTooNew);
-			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too new, require version " + toString(CyberspaceProtocolVersion) + ".  Please use an older client.");
+			socket->writeUInt32(Protocol::ClientProtocolTooNew);
+			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too new, require version " + 
+				toString(Protocol::CyberspaceProtocolVersion) + ".  Please use an older client.");
 		}
 		else
 		{
-			socket->writeUInt32(ClientProtocolOK);
+			socket->writeUInt32(Protocol::ClientProtocolOK);
 		}
 
 		const uint32 connection_type = socket->readUInt32();
 
 		
-		if(connection_type == ConnectionTypeUpdates)
+		if(connection_type == Protocol::ConnectionTypeUpdates)
 		{
 			// Write avatar UID assigned to the connected client.
 			{
@@ -161,7 +163,7 @@ void WorkerThread::doRun()
 
 					// Send AvatarCreated packet
 					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-					packet.writeUInt32(AvatarCreated);
+					packet.writeUInt32(Protocol::AvatarCreated);
 					writeToStream(avatar->uid, packet);
 					packet.writeStringLengthFirst(avatar->name);
 					packet.writeStringLengthFirst(avatar->model_url);
@@ -181,7 +183,7 @@ void WorkerThread::doRun()
 
 					// Send ObjectCreated packet
 					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-					packet.writeUInt32(ObjectCreated);
+					packet.writeUInt32(Protocol::ObjectCreated);
 					writeToNetworkStream(*ob, packet);
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
@@ -196,7 +198,7 @@ void WorkerThread::doRun()
 
 					// Send ParcelCreated packet
 					SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-					packet.writeUInt32(ParcelCreated);
+					packet.writeUInt32(Protocol::ParcelCreated);
 					writeToNetworkStream(*parcel, packet);
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
@@ -219,7 +221,7 @@ void WorkerThread::doRun()
 					std::string data;
 					data_to_send.unlockedDequeue(data);
 
-					if(connection_type == ConnectionTypeUpdates)
+					if(connection_type == Protocol::ConnectionTypeUpdates)
 					{
 						// Write the data to the socket
 						if(!data.empty())
@@ -242,7 +244,7 @@ void WorkerThread::doRun()
 				const uint32 msg_type = socket->readUInt32();
 				switch(msg_type)
 				{
-				case AvatarTransformUpdate:
+				case Protocol::AvatarTransformUpdate:
 					{
 						//conPrint("AvatarTransformUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -265,7 +267,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case AvatarFullUpdate:
+				case Protocol::AvatarFullUpdate:
 					{
 						conPrint("AvatarFullUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -286,7 +288,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case CreateAvatar:
+				case Protocol::CreateAvatar:
 					{
 						conPrint("CreateAvatar");
 						// Note: not reading name, name will come from user account
@@ -324,7 +326,7 @@ void WorkerThread::doRun()
 
 						break;
 					}
-				case AvatarDestroyed:
+				case Protocol::AvatarDestroyed:
 					{
 						conPrint("AvatarDestroyed");
 						const UID avatar_uid = readUIDFromStream(*socket);
@@ -342,7 +344,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case ObjectTransformUpdate:
+				case Protocol::ObjectTransformUpdate:
 					{
 						//conPrint("ObjectTransformUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -383,7 +385,7 @@ void WorkerThread::doRun()
 
 						break;
 					}
-				case ObjectFullUpdate:
+				case Protocol::ObjectFullUpdate:
 					{
 						conPrint("ObjectFullUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -428,7 +430,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case CreateObject: // Client wants to create an object
+				case Protocol::CreateObject: // Client wants to create an object
 					{
 						conPrint("CreateObject");
 
@@ -442,7 +444,7 @@ void WorkerThread::doRun()
 						if(client_user.isNull())
 						{
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(ErrorMessageID);
+							packet.writeUInt32(Protocol::ErrorMessageID);
 							packet.writeStringLengthFirst("You must be logged in to create an object.");
 							socket->writeData(packet.buf.data(), packet.buf.size());
 						}
@@ -471,7 +473,7 @@ void WorkerThread::doRun()
 
 						break;
 					}
-				case DestroyObject: // Client wants to destroy an object.
+				case Protocol::DestroyObject: // Client wants to destroy an object.
 					{
 						conPrint("DestroyObject");
 						const UID object_uid = readUIDFromStream(*socket);
@@ -503,12 +505,12 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case QueryParcels:
+				case Protocol::QueryParcels:
 					{
 						conPrint("QueryParcels");
 						// Send all current parcel data to client
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(ParcelList); // Write message ID
+						packet.writeUInt32(Protocol::ParcelList); // Write message ID
 						
 						{
 							Lock lock(world_state->mutex);
@@ -520,7 +522,7 @@ void WorkerThread::doRun()
 						socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
 						break;
 					}
-				case ParcelFullUpdate: // Client wants to update a parcel
+				case Protocol::ParcelFullUpdate: // Client wants to update a parcel
 					{
 						conPrint("ParcelFullUpdate");
 						const ParcelID parcel_id = readParcelIDFromStream(*socket);
@@ -530,7 +532,7 @@ void WorkerThread::doRun()
 							bool read = false;
 
 							// Only allow updating of parcels is this is a website connection.
-							const bool have_permissions = connection_type == ConnectionTypeWebsite;
+							const bool have_permissions = connection_type == Protocol::ConnectionTypeWebsite;
 
 							if(have_permissions)
 							{
@@ -556,7 +558,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case ChatMessageID:
+				case Protocol::ChatMessageID:
 					{
 						//const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
@@ -572,7 +574,7 @@ void WorkerThread::doRun()
 							// Enqueue chat messages to worker threads to send
 							// Send ChatMessageID packet
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(ChatMessageID);
+							packet.writeUInt32(Protocol::ChatMessageID);
 							packet.writeStringLengthFirst(client_user->name);
 							packet.writeStringLengthFirst(msg);
 
@@ -588,7 +590,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case UserSelectedObject:
+				case Protocol::UserSelectedObject:
 					{
 						//conPrint("Received UserSelectedObject msg.");
 
@@ -597,7 +599,7 @@ void WorkerThread::doRun()
 						// Send message to connected clients
 						{
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(UserSelectedObject);
+							packet.writeUInt32(Protocol::UserSelectedObject);
 							writeToStream(client_avatar_uid, packet);
 							writeToStream(object_uid, packet);
 
@@ -613,7 +615,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case UserDeselectedObject:
+				case Protocol::UserDeselectedObject:
 					{
 						//conPrint("Received UserDeselectedObject msg.");
 
@@ -622,7 +624,7 @@ void WorkerThread::doRun()
 						// Send message to connected clients
 						{
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(UserDeselectedObject);
+							packet.writeUInt32(Protocol::UserDeselectedObject);
 							writeToStream(client_avatar_uid, packet);
 							writeToStream(object_uid, packet);
 
@@ -638,7 +640,7 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
-				case UploadResource: // Client wants to upload a file.
+				case Protocol::UploadResource: // Client wants to upload a file.
 					{
 						conPrint("UploadResource");
 						
@@ -682,7 +684,7 @@ void WorkerThread::doRun()
 								// Send NewResourceOnServer message to connected clients
 								{
 									SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-									packet.writeUInt32(NewResourceOnServer);
+									packet.writeUInt32(Protocol::NewResourceOnServer);
 									packet.writeStringLengthFirst(URL);
 
 									std::string packet_string(packet.buf.size(), '\0');
@@ -703,7 +705,7 @@ void WorkerThread::doRun()
 						return;
 						//break;
 					}
-				case GetFiles: // Client wants to download 1 or more resource files.
+				case Protocol::GetFiles: // Client wants to download 1 or more resource files.
 					{
 						conPrint("------GetFiles-----");
 						
@@ -751,7 +753,7 @@ void WorkerThread::doRun()
 
 						break;
 					}
-				case LogInMessage: // Client wants to log in.
+				case Protocol::LogInMessage: // Client wants to log in.
 					{
 						conPrint("LogInMessage");
 
@@ -782,7 +784,7 @@ void WorkerThread::doRun()
 						{
 							// Send logged-in message to client
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(LoggedInMessageID);
+							packet.writeUInt32(Protocol::LoggedInMessageID);
 							writeToStream(client_user->id, packet);
 							packet.writeStringLengthFirst(username);
 							socket->writeData(packet.buf.data(), packet.buf.size());
@@ -791,14 +793,14 @@ void WorkerThread::doRun()
 						{
 							// Login failed.  Send error message back to client
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(ErrorMessageID);
+							packet.writeUInt32(Protocol::ErrorMessageID);
 							packet.writeStringLengthFirst("Login failed: username or password incorrect.");
 							socket->writeData(packet.buf.data(), packet.buf.size());
 						}
 					
 						break;
 					}
-				case LogOutMessage: // Client wants to log out.
+				case Protocol::LogOutMessage: // Client wants to log out.
 					{
 						conPrint("LogOutMessage");
 
@@ -806,12 +808,12 @@ void WorkerThread::doRun()
 
 						// Send logged-out message to client
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(LoggedOutMessageID);
+						packet.writeUInt32(Protocol::LoggedOutMessageID);
 						socket->writeData(packet.buf.data(), packet.buf.size());
 						
 						break;
 					}
-				case SignUpMessage:
+				case Protocol::SignUpMessage:
 					{
 						conPrint("SignUpMessage");
 
@@ -863,7 +865,7 @@ void WorkerThread::doRun()
 							conPrint("Sign up successful");
 							// Send signed-up message to client
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(SignedUpMessageID);
+							packet.writeUInt32(Protocol::SignedUpMessageID);
 							writeToStream(client_user->id, packet);
 							packet.writeStringLengthFirst(username);
 							socket->writeData(packet.buf.data(), packet.buf.size());
@@ -874,14 +876,14 @@ void WorkerThread::doRun()
 
 							// signup failed.  Send error message back to client
 							SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-							packet.writeUInt32(ErrorMessageID);
+							packet.writeUInt32(Protocol::ErrorMessageID);
 							packet.writeStringLengthFirst("Signup failed: username or password incorrect.");
 							socket->writeData(packet.buf.data(), packet.buf.size());
 						}
 
 						break;
 					}
-				case RequestPasswordReset:
+				case Protocol::RequestPasswordReset:
 					{
 						conPrint("RequestPasswordReset");
 
@@ -912,7 +914,7 @@ void WorkerThread::doRun()
 					
 						break;
 					}
-				case ChangePasswordWithResetToken:
+				case Protocol::ChangePasswordWithResetToken:
 					{
 						conPrint("ChangePasswordWithResetToken");
 						

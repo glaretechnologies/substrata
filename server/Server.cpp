@@ -266,7 +266,7 @@ int main(int argc, char *argv[])
 					{
 						// Send AvatarFullUpdate packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(AvatarFullUpdate);
+						packet.writeUInt32(Protocol::AvatarFullUpdate);
 						writeToNetworkStream(*avatar, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
 					{
 						// Send AvatarCreated packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(AvatarCreated);
+						packet.writeUInt32(Protocol::AvatarCreated);
 						writeToStream(avatar->uid, packet);
 						packet.writeStringLengthFirst(avatar->name);
 						packet.writeStringLengthFirst(avatar->model_url);
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 					{
 						// Send AvatarDestroyed packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(AvatarDestroyed);
+						packet.writeUInt32(Protocol::AvatarDestroyed);
 						writeToStream(avatar->uid, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
 					{
 						// Send AvatarTransformUpdate packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(AvatarTransformUpdate);
+						packet.writeUInt32(Protocol::AvatarTransformUpdate);
 						writeToStream(avatar->uid, packet);
 						writeToStream(avatar->pos, packet);
 						writeToStream(avatar->rotation, packet);
@@ -364,7 +364,7 @@ int main(int argc, char *argv[])
 					{
 						// Send ObjectFullUpdate packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(ObjectFullUpdate);
+						packet.writeUInt32(Protocol::ObjectFullUpdate);
 						writeToNetworkStream(*ob, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
 					{
 						// Send ObjectCreated packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(ObjectCreated);
+						packet.writeUInt32(Protocol::ObjectCreated);
 						//writeToStream(ob->uid, packet);
 						writeToNetworkStream(*ob, packet);
 						//packet.writeStringLengthFirst(ob->name);
@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
 					{
 						// Send ObjectDestroyed packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(ObjectDestroyed);
+						packet.writeUInt32(Protocol::ObjectDestroyed);
 						writeToStream(ob->uid, packet);
 
 						std::string packet_string(packet.buf.size(), '\0');
@@ -434,7 +434,7 @@ int main(int argc, char *argv[])
 					{
 						// Send ObjectTransformUpdate packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
-						packet.writeUInt32(ObjectTransformUpdate);
+						packet.writeUInt32(Protocol::ObjectTransformUpdate);
 						writeToStream(ob->uid, packet);
 						writeToStream(ob->pos, packet);
 						writeToStream(ob->axis, packet);
