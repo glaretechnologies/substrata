@@ -107,6 +107,18 @@ static void makeBlock(const Vec2d& botleft, MTwister& rng, int& next_id, Referen
 }
 
 
+static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
+{
+	if(packet_buffer.buf.size() > 0)
+	{
+		std::string packet_string(packet_buffer.buf.size(), '\0');
+
+		std::memcpy(&packet_string[0], packet_buffer.buf.data(), packet_buffer.buf.size());
+
+		broadcast_packets.push_back(packet_string);
+	}
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -202,7 +214,7 @@ int main(int argc, char *argv[])
 		}
 
 		
-
+		// Add 'town square' parcels
 		if(true)
 		{
 			server.world_state->parcels.clear();
@@ -269,10 +281,7 @@ int main(int argc, char *argv[])
 						packet.writeUInt32(Protocol::AvatarFullUpdate);
 						writeToNetworkStream(*avatar, packet);
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						avatar->other_dirty = false;
 						avatar->transform_dirty = false;
@@ -289,10 +298,7 @@ int main(int argc, char *argv[])
 						writeToStream(avatar->pos, packet);
 						writeToStream(avatar->rotation, packet);
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						avatar->state = Avatar::State_Alive;
 						avatar->other_dirty = false;
@@ -307,10 +313,7 @@ int main(int argc, char *argv[])
 						packet.writeUInt32(Protocol::AvatarDestroyed);
 						writeToStream(avatar->uid, packet);
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						// Remove avatar from avatar map
 						auto old_avatar_iterator = i;
@@ -335,10 +338,7 @@ int main(int argc, char *argv[])
 						writeToStream(avatar->pos, packet);
 						writeToStream(avatar->rotation, packet);
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						avatar->transform_dirty = false;
 					}
@@ -367,10 +367,7 @@ int main(int argc, char *argv[])
 						packet.writeUInt32(Protocol::ObjectFullUpdate);
 						writeToNetworkStream(*ob, packet);
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						ob->from_remote_other_dirty = false;
 						ob->from_remote_transform_dirty = false; // transform is sent in full packet also.
@@ -382,18 +379,9 @@ int main(int argc, char *argv[])
 						// Send ObjectCreated packet
 						SocketBufferOutStream packet(/*use_network_byte_order=*/false);
 						packet.writeUInt32(Protocol::ObjectCreated);
-						//writeToStream(ob->uid, packet);
 						writeToNetworkStream(*ob, packet);
-						//packet.writeStringLengthFirst(ob->name);
-						/*packet.writeStringLengthFirst(ob->model_url);
-						writeToStream(ob->pos, packet);
-						writeToStream(ob->axis, packet);
-						packet.writeFloat(ob->angle);*/
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						ob->state = WorldObject::State_Alive;
 						ob->from_remote_other_dirty = false;
@@ -407,10 +395,7 @@ int main(int argc, char *argv[])
 						packet.writeUInt32(Protocol::ObjectDestroyed);
 						writeToStream(ob->uid, packet);
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						// Remove ob from object map
 						auto old_ob_iterator = i;
@@ -440,10 +425,7 @@ int main(int argc, char *argv[])
 						writeToStream(ob->axis, packet);
 						packet.writeFloat(ob->angle);
 
-						std::string packet_string(packet.buf.size(), '\0');
-						std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-						broadcast_packets.push_back(packet_string);
+						enqueuePacketToBroadcast(packet, broadcast_packets);
 
 						ob->from_remote_transform_dirty = false;
 						server.world_state->changed = true;
