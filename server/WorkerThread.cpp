@@ -163,11 +163,7 @@ void WorkerThread::doRun()
 		if(connection_type == Protocol::ConnectionTypeUpdates)
 		{
 			// Write avatar UID assigned to the connected client.
-			{
-				Lock lock(world_state->mutex);
-				client_avatar_uid = world_state->next_avatar_uid;
-				world_state->next_avatar_uid = UID(world_state->next_avatar_uid.value() + 1);
-			}
+			client_avatar_uid = world_state->getNextAvatarUID();
 			writeToStream(client_avatar_uid, *socket);
 
 
