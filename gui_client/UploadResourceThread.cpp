@@ -51,19 +51,16 @@ void UploadResourceThread::doRun()
 		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
 		socket->writeUInt32(Protocol::ConnectionTypeUploadResource); // Write connection type
 
-
 		// Read hello response from server
 		const uint32 hello_response = socket->readUInt32();
 		if(hello_response != Protocol::CyberspaceHello)
 			throw Indigo::Exception("Invalid hello from server: " + toString(hello_response));
 
-		const int MAX_STRING_LEN = 10000;
-
 		// Read protocol version response from server
 		const uint32 protocol_response = socket->readUInt32();
 		if(protocol_response == Protocol::ClientProtocolTooOld)
 		{
-			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+			const std::string msg = socket->readStringLengthFirst(10000);
 			throw Indigo::Exception(msg);
 		}
 		else if(protocol_response == Protocol::ClientProtocolOK)
@@ -72,26 +69,30 @@ void UploadResourceThread::doRun()
 		else
 			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
-
-		// We need to log in first, otherwise upload will fail.
-
-		// Make LogInMessage packet and send
-		socket->writeUInt32(Protocol::LogInMessage);
+		// Send login details
 		socket->writeStringLengthFirst(username);
 		socket->writeStringLengthFirst(password);
 
-		// Load resource
-		MemMappedFile file(local_path);
 
-		socket->writeUInt32(Protocol::UploadResource);
+		// Load resource from disk
+		MemMappedFile file(local_path);
 
 		socket->writeStringLengthFirst(model_URL); // Write URL
 
 		socket->writeUInt64(file.fileSize()); // Write file size
 
-		socket->writeData(file.fileData(), file.fileSize());
-
-		conPrint("UploadResourceThread: Sent file. (" + toString(file.fileSize()) + " B)");
+		// Read back response from server first, to avoid sending all the data if the upload is not allowed.
+		const uint32 response = socket->readUInt32();
+		if(response == Protocol::UploadAllowed)
+		{
+			socket->writeData(file.fileData(), file.fileSize());
+			conPrint("UploadResourceThread: Sent file. (" + toString(file.fileSize()) + " B)");
+		}
+		else
+		{
+			const std::string msg = socket->readStringLengthFirst(1000);
+			conPrint("UploadResourceThread: received code " + toString(response) + " while trying to upload resource: '" + msg + "'");
+		}
 	}
 	catch(MySocketExcep& e)
 	{

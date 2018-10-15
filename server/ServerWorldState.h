@@ -7,6 +7,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #pragma once
 
 
+#include "../shared/ResourceManager.h"
 #include "../shared/Avatar.h"
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
@@ -34,6 +35,9 @@ public:
 	UID getNextObjectUID(); // Gets and then increments next_object_uid
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.
 
+	void markAsChanged() { changed = true; }
+
+	Reference<ResourceManager> resource_manager;
 
 	bool changed; // Has changed since server state or since last save.
 

@@ -7,40 +7,13 @@ Generated at 2016-01-12 12:22:34 +1300
 #pragma once
 
 
-#include "../shared/Avatar.h"
-#include "../shared/WorldObject.h"
+#include "Resource.h"
+#include "Avatar.h"
+#include "WorldObject.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <map>
 #include <Mutex.h>
-
-
-class Resource : public ThreadSafeRefCounted
-{
-public:
-	enum State
-	{
-		State_NotPresent,
-		State_Downloading,
-		State_Present
-	};
-
-	Resource(const std::string& URL_, const std::string& local_path_, State s) : URL(URL_), local_path(local_path_), state(s) {}
-	Resource() : state(State_NotPresent) {}
-	
-	const std::string getLocalPath() const { return local_path; }
-	void setLocalPath(const std::string& p) { local_path = p; }
-
-	State getState() const { return state; }
-	void setState(State s) { state = s; }
-	
-	std::string URL;
-private:
-	State state; // May be protected by mutex soon.
-	std::string local_path;
-};
-
-typedef Reference<Resource> ResourceRef;
 
 
 /*=====================================================================
@@ -62,18 +35,23 @@ public:
 
 	static bool isValidURL(const std::string& URL);
 
-
+	// Will create a new Resource ob if not already inserted.
 	ResourceRef getResourceForURL(const std::string& URL); // Threadsafe
 
 	// Copy a local file with given local path and corresponding URL into the resource dir
 	// Throws Indigo::Exception on failure.
 	void copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL); // Threadsafe
 
-
 	const std::string pathForURL(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
+
+	const std::string computeLocalPathForURL(const std::string& URL);
 
 	bool isFileForURLPresent(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
 
+	// Used for deserialising resource objects from serialised server state.
+	void addResource(ResourceRef& res);
+	const std::map<std::string, ResourceRef>& getResourcesForURL() const { return resource_for_url; }
+	std::map<std::string, ResourceRef>& getResourcesForURL() { return resource_for_url; }
 private:
 	std::string base_resource_dir;
 

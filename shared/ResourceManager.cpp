@@ -79,6 +79,12 @@ bool ResourceManager::isValidURL(const std::string& URL)
 }
 
 
+const std::string ResourceManager::computeLocalPathForURL(const std::string& URL)
+{
+	return base_resource_dir + "/" + escapeString(URL);
+}
+
+
 ResourceRef ResourceManager::getResourceForURL(const std::string& URL) // Threadsafe
 {
 	Lock lock(mutex);
@@ -87,11 +93,12 @@ ResourceRef ResourceManager::getResourceForURL(const std::string& URL) // Thread
 	if(res == resource_for_url.end())
 	{
 		// Insert it
-		const std::string local_path = base_resource_dir + "/" + escapeString(URL);
+		const std::string local_path = computeLocalPathForURL(URL);
 		ResourceRef resource = new Resource(
 			URL, 
 			local_path,
-			FileUtils::fileExists(local_path) ? Resource::State_Present : Resource::State_NotPresent
+			FileUtils::fileExists(local_path) ? Resource::State_Present : Resource::State_NotPresent,
+			UserID::invalidUserID()
 		);
 		resource_for_url[URL] = resource;
 		return resource;
@@ -138,4 +145,11 @@ bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws Indi
 {
 	ResourceRef resource = this->getResourceForURL(URL);
 	return resource->getState() == Resource::State_Present;
+}
+
+
+void ResourceManager::addResource(ResourceRef& res)
+{
+	resource_for_url[res->URL] = res;
+	res->setState(Resource::State_Present); // Assume present for now.
 }

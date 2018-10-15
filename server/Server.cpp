@@ -174,11 +174,15 @@ int main(int argc, char *argv[])
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
 		
 		Server server;
-		server.resource_manager = new ResourceManager(server_resource_dir);
+		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
 
 		const std::string server_state_path = server_state_dir + "/server_state.bin";
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path);
+
+
+		//TEMP:
+		//server.world_state->resource_manager->getResourcesForURL().clear();
 
 		// Add a teapot object
 		WorldObjectRef test_object;
@@ -196,8 +200,11 @@ int main(int argc, char *argv[])
 			server.world_state->objects[uid] = test_object;
 		}
 
+		//TEMP
+		server.world_state->parcels.clear();
+
 		// TEMP: Add a parcel
-		if(false)
+		if(true)
 		{
 			const ParcelID parcel_id(7000);
 			ParcelRef test_parcel = new Parcel();
@@ -207,8 +214,13 @@ int main(int argc, char *argv[])
 			test_parcel->admin_ids.push_back(UserID(0));
 			test_parcel->writer_ids.push_back(UserID(0));
 			test_parcel->created_time = TimeStamp::currentTime();
-			test_parcel->aabb_min = Vec3d(30, 30, -10);
-			test_parcel->aabb_max = Vec3d(60, 60, 60);
+			test_parcel->verts[0] = Vec2d(-10, -10);
+			test_parcel->verts[1] = Vec2d( 10, -10);
+			test_parcel->verts[2] = Vec2d( 10,  10);
+			test_parcel->verts[3] = Vec2d(-10,  10);
+			test_parcel->zbounds = Vec2d(-1, 10);
+			test_parcel->build();
+
 			test_parcel->description = "This is a pretty cool parcel.";
 			server.world_state->parcels[parcel_id] = test_parcel;
 		}
@@ -217,8 +229,6 @@ int main(int argc, char *argv[])
 		// Add 'town square' parcels
 		if(true)
 		{
-			server.world_state->parcels.clear();
-
 			int next_id = 10;
 			makeParcels(Matrix2d(1, 0, 0, 1), next_id, server.world_state);
 			makeParcels(Matrix2d(-1, 0, 0, 1), next_id, server.world_state); // Mirror in y axis (x' = -x)

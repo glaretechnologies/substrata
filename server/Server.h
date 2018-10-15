@@ -24,6 +24,4 @@ public:
 
 	// Connected client worker threads
 	ThreadManager worker_thread_manager;
-
-	Reference<ResourceManager> resource_manager;
 };

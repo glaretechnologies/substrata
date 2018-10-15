@@ -118,6 +118,8 @@ SET(shared_files
 ../shared/Parcel.h
 ../shared/ParcelID.h
 ../shared/Protocol.h
+../shared/Resource.cpp
+../shared/Resource.h
 ../shared/ResourceManager.cpp
 ../shared/ResourceManager.h
 ../shared/TimeStamp.cpp
