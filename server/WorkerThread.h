@@ -37,6 +37,8 @@ public:
 
 private:
 	void sendGetFileMessageIfNeeded(const std::string& resource_URL);
+	void handleResourceUploadConnection();
+	void handleResourceDownloadConnection();
 
 	ThreadSafeQueue<std::string> data_to_send;
 

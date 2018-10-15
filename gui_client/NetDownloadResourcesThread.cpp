@@ -74,7 +74,7 @@ void NetDownloadResourcesThread::doRun()
 				{
 					conPrint("NetDownloadResourcesThread: Downloading file '" + url + "'...");
 
-					resource->setState(Resource::State_Downloading);
+					resource->setState(Resource::State_Transferring);
 
 					try
 					{

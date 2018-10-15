@@ -128,7 +128,7 @@ void DownloadResourcesThread::doRun()
 					else
 					{
 						URLs_to_download.push_back(*it);
-						resource->setState(Resource::State_Downloading);
+						resource->setState(Resource::State_Transferring);
 					}
 				}
 

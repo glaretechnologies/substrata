@@ -34,6 +34,7 @@ static const uint32 WORLD_STATE_SERIALISATION_VERSION = 1;
 static const uint32 WORLD_OBJECT_CHUNK = 100;
 static const uint32 USER_CHUNK = 101;
 static const uint32 PARCEL_CHUNK = 102;
+static const uint32 RESOURCE_CHUNK = 103;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -83,6 +84,16 @@ void ServerWorldState::readFromDisk(const std::string& path)
 
 			parcels[parcel->id] = parcel; // Add to parcel map
 		}
+		else if(chunk == RESOURCE_CHUNK)
+		{
+			// Deserialise resource
+			ResourceRef resource = new Resource();
+			readFromStream(stream, *resource);
+
+			conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
+
+			this->resource_manager->addResource(resource);
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -117,7 +128,7 @@ void ServerWorldState::readFromDisk(const std::string& path)
 			auto res = user_id_to_users.find(i->second->owner_id);
 			if(res != user_id_to_users.end())
 			{
-				conPrint("admin: " + res->second->name);
+				//conPrint("admin: " + res->second->name);
 				i->second->admin_names[z] = res->second->name;
 			}
 		}
@@ -129,14 +140,14 @@ void ServerWorldState::readFromDisk(const std::string& path)
 			auto res = user_id_to_users.find(i->second->owner_id);
 			if(res != user_id_to_users.end())
 			{
-				conPrint("writer: " + res->second->name);
+				//conPrint("writer: " + res->second->name);
 				i->second->writer_names[z] = res->second->name;
 			}
 		}
 	}
 
 	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
-		toString(parcels.size()) + " parcel(s).");
+		toString(parcels.size()) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
 }
 
 
@@ -183,13 +194,22 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 				}
 			}
 
+			// Write resource objects
+			{
+				for(auto i=resource_manager->getResourcesForURL().begin(); i != resource_manager->getResourcesForURL().end(); ++i)
+				{
+					stream.writeUInt32(RESOURCE_CHUNK);
+					writeToStream(*i->second, stream);
+				}
+			}
+
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
 
 		FileUtils::moveFile(temp_path, path);
 
 		conPrint("Saved " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
-			toString(parcels.size()) + " parcel(s).");
+			toString(parcels.size()) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

@@ -59,7 +59,12 @@ const uint32 NewResourceOnServer	= 4100; // A file has been uploaded to the serv
 
 
 											//TEMP HACK move elsewhere
-const uint32 UploadResource			= 5000;
+//const uint32 UploadResource			= 5000;
+
+const uint32 UploadAllowed			= 5100;
+const uint32 LogInFailure			= 5101;
+const uint32 InvalidFileSize		= 5102;
+const uint32 NoWritePermissions		= 5103;
 
 
 //TEMP HACK move elsewhere

@@ -31,6 +31,7 @@ Copyright Glare Technologies Limited 2018 -
 
 
 static const bool VERBOSE = false;
+static const int MAX_STRING_LEN = 10000;
 
 
 WorkerThread::WorkerThread(int thread_id_, const Reference<MySocket>& socket_, Server* server_)
@@ -64,7 +65,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 
 	// See if we have this file on the server already
 	{
-		const std::string path = server->resource_manager->pathForURL(resource_URL);
+		const std::string path = server->world_state->resource_manager->pathForURL(resource_URL);
 		if(FileUtils::fileExists(path))
 		{
 			// Check hash?
@@ -117,6 +118,189 @@ static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, Serve
 }
 
 
+void WorkerThread::handleResourceUploadConnection()
+{
+	conPrint("handleResourceUploadConnection()");
+
+	const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
+	const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+	conPrint("\tusername: '" + username + "', password: '" + password + "'");
+
+	UserRef client_user;
+	{
+		Lock lock(server->world_state->mutex);
+		auto res = server->world_state->name_to_users.find(username);
+		if(res != server->world_state->name_to_users.end())
+		{
+			User* user = res->second.getPointer();
+			if(user->isPasswordValid(password))
+				client_user = user; // Password is valid, log user in.
+		}
+	}
+
+	if(client_user.isNull())
+	{
+		conPrint("\tLogin failed.");
+		socket->writeUInt32(Protocol::LogInFailure);
+		socket->writeStringLengthFirst("Login failed.");
+		return;
+	}
+
+
+	const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+	conPrint("\tURL: '" + URL + "'");
+
+	/*if(!ResourceManager::isValidURL(URL))
+	{
+	conPrint("Invalid URL '" + URL + "'");
+	throw Indigo::Exception("Invalid URL '" + URL + "'");
+	}*/
+
+	// See if we have a resource in the ResourceManager already
+	ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL); // Will create a new Resource ob if not already inserted.
+	if(resource->owner_id == UserID::invalidUserID())
+	{
+		// No such resource existed before, client may create this resource.
+	}
+	else // else if resource already existed:
+	{
+		if(resource->owner_id != client_user->id) // If this resource already exists and was created by someone else:
+		{
+			socket->writeUInt32(Protocol::NoWritePermissions);
+			socket->writeStringLengthFirst("Not allowed to upload resource to URL '" + URL + ", someone else created a resource at this URL already.");
+			return;
+		}
+	}
+		
+	// resource->setState(Resource::State_Transferring); // Don't set this (for now) or we will have to handle changing it on exceptions below.
+
+
+	const uint64 file_len = socket->readUInt64();
+	conPrint("\tfile_len: " + toString(file_len) + " B");
+	if(file_len == 0)
+	{
+		socket->writeUInt32(Protocol::InvalidFileSize);
+		socket->writeStringLengthFirst("Invalid file len of zero.");
+		return;
+	}
+
+	// TODO: cap length in a better way
+	if(file_len > 1000000000)
+	{
+		socket->writeUInt32(Protocol::InvalidFileSize);
+		socket->writeStringLengthFirst("uploaded file too large.");
+		return;
+	}
+
+	// Otherwise upload is allowed:
+	socket->writeUInt32(Protocol::UploadAllowed);
+
+	std::vector<uint8> buf(file_len);
+	socket->readData(buf.data(), file_len);
+
+	conPrint("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
+
+	// Save to disk
+	const std::string local_path = server->world_state->resource_manager->pathForURL(URL);
+
+	conPrint("\tWriting to disk at '" + local_path + "'...");
+
+	FileUtils::writeEntireFile(local_path, (const char*)buf.data(), buf.size());
+
+	conPrint("\tWritten to disk.");
+
+	resource->owner_id = client_user->id;
+	resource->setState(Resource::State_Present);
+	server->world_state->markAsChanged();
+
+
+	// Send NewResourceOnServer message to connected clients
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::NewResourceOnServer);
+		packet.writeStringLengthFirst(URL);
+
+		enqueuePacketToBroadcast(packet, server);
+	}
+
+	// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
+	//socket->waitForGracefulDisconnect();
+}
+
+
+void WorkerThread::handleResourceDownloadConnection()
+{
+	conPrint("handleResourceDownloadConnection()");
+
+	while(1)
+	{
+		const uint32 msg_type = socket->readUInt32();
+		if(msg_type == Protocol::GetFiles)
+		{
+			conPrint("------GetFiles-----");
+
+			const uint64 num_resources = socket->readUInt64();
+			conPrint("\tnum_resources requested: " + toString(num_resources));
+
+			for(size_t i=0; i<num_resources; ++i)
+			{
+				const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+				conPrint("\tRequested URL: '" + URL + "'");
+
+				if(!ResourceManager::isValidURL(URL))
+				{
+					conPrint("\tRequested URL was invalid.");
+					socket->writeUInt32(1); // write error msg to client
+				}
+				else
+				{
+					conPrint("\tRequested URL was valid.");
+
+					const ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL);
+					if(resource->getState() != Resource::State_Present)
+					{
+						conPrint("\tRequested URL was not present on disk.");
+						socket->writeUInt32(1); // write error msg to client
+					}
+					else
+					{
+						const std::string local_path = resource->getLocalPath();
+
+						conPrint("\tlocal path: '" + local_path + "'");
+
+						try
+						{
+							// Load resource off disk
+							MemMappedFile file(local_path);
+							conPrint("\tSending file to client.");
+							socket->writeUInt32(0); // write OK msg to client
+							socket->writeUInt64(file.fileSize()); // Write file size
+							socket->writeData(file.fileData(), file.fileSize()); // Write file data
+
+							conPrint("\tSent file '" + local_path + "' to client. (" + toString(file.fileSize()) + " B)");
+						}
+						catch(Indigo::Exception& e)
+						{
+							conPrint("\tException while trying to load file for URL: " + e.what());
+
+							socket->writeUInt32(1); // write error msg to client
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			conPrint("handleResourceDownloadConnection(): Unhandled msg type: " + toString(msg_type));
+			return;
+		}
+	}
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -160,7 +344,17 @@ void WorkerThread::doRun()
 		const uint32 connection_type = socket->readUInt32();
 
 		
-		if(connection_type == Protocol::ConnectionTypeUpdates)
+		if(connection_type == Protocol::ConnectionTypeUploadResource)
+		{
+			handleResourceUploadConnection();
+			return;
+		}
+		else if(connection_type == Protocol::ConnectionTypeDownloadResources)
+		{
+			handleResourceDownloadConnection();
+			return;
+		}
+		else if(connection_type == Protocol::ConnectionTypeUpdates)
 		{
 			// Write avatar UID assigned to the connected client.
 			client_avatar_uid = world_state->getNextAvatarUID();
@@ -220,8 +414,7 @@ void WorkerThread::doRun()
 
 		socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
-		const int MAX_STRING_LEN = 10000;
-
+		
 		while(1) // write to / read from socket loop
 		{
 			// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
@@ -627,111 +820,6 @@ void WorkerThread::doRun()
 
 							enqueuePacketToBroadcast(packet, server);
 						}
-						break;
-					}
-				case Protocol::UploadResource: // Client wants to upload a file.
-					{
-						conPrint("UploadResource");
-						
-						const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
-
-						conPrint("URL: '" + URL + "'");
-
-						if(!ResourceManager::isValidURL(URL))
-						{
-							conPrint("Invalid URL '" + URL + "'");
-							throw Indigo::Exception("Invalid URL '" + URL + "'");
-						}
-
-						if(client_user.isNull())
-						{
-							conPrint("User was not logged in, not permitting upload.");
-							writeErrorMessageToClient(socket, "You must be logged in to upload a file.");
-						}
-						else
-						{
-							const uint64 file_len = socket->readUInt64();
-							conPrint("file_len: " + toString(file_len) + " B");
-							if(file_len > 0)
-							{
-								// TODO: cap length in a better way
-								if(file_len > 1000000000)
-									throw Indigo::Exception("uploaded file too large.");
-
-								std::vector<uint8> buf(file_len);
-								socket->readData(buf.data(), file_len);
-
-								conPrint("Received file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
-
-								// Save to disk
-								const std::string path = server->resource_manager->pathForURL(URL);
-								FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
-
-								conPrint("Written to disk at '" + path + "'.");
-
-
-								// Send NewResourceOnServer message to connected clients
-								{
-									SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-									packet.writeUInt32(Protocol::NewResourceOnServer);
-									packet.writeStringLengthFirst(URL);
-
-									enqueuePacketToBroadcast(packet, server);
-								}
-							}
-						}
-
-						// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
-						//socket->waitForGracefulDisconnect();
-						return;
-						//break;
-					}
-				case Protocol::GetFiles: // Client wants to download 1 or more resource files.
-					{
-						conPrint("------GetFiles-----");
-						
-						const uint64 num_resources = socket->readUInt64();
-						conPrint("\tnum_resources requested: " + toString(num_resources));
-
-						for(size_t i=0; i<num_resources; ++i)
-						{
-							const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
-
-							conPrint("\tRequested URL: '" + URL + "'");
-
-							if(!ResourceManager::isValidURL(URL))
-							{
-								conPrint("\tRequested URL was invalid.");
-								socket->writeUInt32(1); // write error msg to client
-							}
-							else
-							{
-								conPrint("\tRequested URL was valid.");
-
-								const std::string path = server->resource_manager->pathForURL(URL); // TODO: sanitise
-
-								conPrint("\tlocal path: '" + path + "'");
-
-								try
-								{
-									// Load resource
-									MemMappedFile file(path);
-									conPrint("\tSending file to client.");
-									socket->writeUInt32(0); // write OK msg to client
-									socket->writeUInt64(file.fileSize()); // Write file size
-									socket->writeData(file.fileData(), file.fileSize()); // Write file data
-
-									conPrint("\tSent file '" + path + "' to client. (" + toString(file.fileSize()) + " B)");
-								}
-								catch(Indigo::Exception& e)
-								{
-									conPrint("\tException while trying to load file for URL: " + e.what());
-
-									socket->writeUInt32(1); // write error msg to client
-								}
-							}
-						}
-
 						break;
 					}
 				case Protocol::LogInMessage: // Client wants to log in.
