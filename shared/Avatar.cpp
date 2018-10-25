@@ -91,7 +91,7 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ro
 	if(snapshot_times[end] == snapshot_times[begin])
 		t = 0;
 	else
-		t  = (delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin]); // Interpolation fraction
+		t  = (float)((delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin])); // Interpolation fraction
 
 	pos_out      = Maths::uncheckedLerp(pos_snapshots[begin], pos_snapshots[end], t);
 	rotation_out = Maths::uncheckedLerp(rotation_snapshots[begin], rotation_snapshots[end], t);
