@@ -36,7 +36,7 @@ public:
 	WorldObject();
 	~WorldObject();
 
-	INDIGO_ALIGNED_NEW_DELETE
+	GLARE_ALIGNED_16_NEW_DELETE
 
 	void appendDependencyURLs(std::vector<std::string>& URLs_out);
 	void getDependencyURLSet(std::set<std::string>& URLS_out);

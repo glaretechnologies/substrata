@@ -15,15 +15,21 @@ namespace js { class BoundingSphere; }
 class RayTraceResult;
 
 
+
 /*=====================================================================
 PhysicsObject
 -------------
 
 =====================================================================*/
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable:4324) // Disable 'structure was padded due to __declspec(align())' warning.
+#endif
+
 class PhysicsObject : public RefCounted
 {
 public:
-	INDIGO_ALIGNED_NEW_DELETE
+	GLARE_ALIGNED_16_NEW_DELETE
 
 	PhysicsObject(bool collidable);
 	~PhysicsObject();
@@ -50,6 +56,10 @@ public:
 private:
 	
 };
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 
 typedef Reference<PhysicsObject> PhysicsObjectRef;

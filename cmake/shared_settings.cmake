@@ -203,7 +203,6 @@ ${INDIGO_UTILS_DIR}/PlatformUtils.h
 ${INDIGO_UTILS_DIR}/Plotter.cpp
 ${INDIGO_UTILS_DIR}/Plotter.h
 ${INDIGO_UTILS_DIR}/prebuild_repos_info.h
-${INDIGO_UTILS_DIR}/RefCounted.cpp
 ${INDIGO_UTILS_DIR}/RefCounted.h
 ${INDIGO_UTILS_DIR}/Reference.cpp
 ${INDIGO_UTILS_DIR}/Reference.h
@@ -250,7 +249,6 @@ ${INDIGO_UTILS_DIR}/ThreadMessage.h
 ${INDIGO_UTILS_DIR}/ThreadMessageSink.cpp
 ${INDIGO_UTILS_DIR}/ThreadMessageSink.h
 ${INDIGO_UTILS_DIR}/ThreadSafeQueue.h
-${INDIGO_UTILS_DIR}/ThreadSafeRefCounted.cpp
 ${INDIGO_UTILS_DIR}/ThreadSafeRefCounted.h
 ${INDIGO_UTILS_DIR}/ThreadShouldAbortCallback.cpp
 ${INDIGO_UTILS_DIR}/ThreadShouldAbortCallback.h
@@ -342,6 +340,8 @@ ${INDIGO_PHYSICS_DIR}/ObjectTreeNode.h
 #${INDIGO_PHYSICS_DIR}/PointMLG.h
 #${INDIGO_PHYSICS_DIR}/PointTreeTest.cpp
 #${INDIGO_PHYSICS_DIR}/PointTreeTest.h
+${INDIGO_PHYSICS_DIR}/SmallBVH.cpp
+${INDIGO_PHYSICS_DIR}/SmallBVH.h
 ${INDIGO_PHYSICS_DIR}/TreeUtils.cpp
 ${INDIGO_PHYSICS_DIR}/TreeUtils.h
 ${INDIGO_PHYSICS_DIR}/TreeTest.cpp
