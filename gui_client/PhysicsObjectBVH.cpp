@@ -226,17 +226,16 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 
 	// Build object AABBs
 	const size_t objects_size = objects.size();
-	js::Vector<js::AABBox, 32> aabbs(objects_size);
-	for(size_t i=0; i<objects_size; ++i)
-		aabbs[i] = objects[i]->getAABBoxWS();
 
 	BinningBVHBuilder builder(
 		1, // leaf_num_object_threshold
 		31, // max_num_objects_per_leaf (2^5 - 1)
 		100, // intersection_cost.  Set this quite high, since intersecting objects is probably quite expensive.
-		aabbs.data(),
 		(int)objects.size()
 	);
+
+	for(size_t i=0; i<objects_size; ++i)
+		builder.setObjectAABB(i, objects[i]->getAABBoxWS());
 
 	js::Vector<ResultNode, 64> result_nodes;
 	builder.build(
