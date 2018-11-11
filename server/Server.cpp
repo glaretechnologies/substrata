@@ -47,9 +47,9 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 		ParcelRef test_parcel = new Parcel();
 		test_parcel->state = Parcel::State_Alive;
 		test_parcel->id = parcel_id;
-		test_parcel->owner_id = UserID(0);
-		test_parcel->admin_ids.push_back(UserID(0));
-		test_parcel->writer_ids.push_back(UserID(0));
+		test_parcel->owner_id = UserID(1);
+		test_parcel->admin_ids.push_back(UserID(1));
+		test_parcel->writer_ids.push_back(UserID(1));
 		test_parcel->created_time = TimeStamp::currentTime();
 		test_parcel->zbounds = Vec2d(-1, 1);
 
@@ -90,9 +90,9 @@ static void makeBlock(const Vec2d& botleft, MTwister& rng, int& next_id, Referen
 				ParcelRef test_parcel = new Parcel();
 				test_parcel->state = Parcel::State_Alive;
 				test_parcel->id = parcel_id;
-				test_parcel->owner_id = UserID(0);
-				test_parcel->admin_ids.push_back(UserID(0));
-				test_parcel->writer_ids.push_back(UserID(0));
+				test_parcel->owner_id = UserID(1);
+				test_parcel->admin_ids.push_back(UserID(1));
+				test_parcel->writer_ids.push_back(UserID(1));
 				test_parcel->created_time = TimeStamp::currentTime();
 				test_parcel->zbounds = Vec2d(-1, 1);
 
@@ -255,6 +255,8 @@ int main(int argc, char *argv[])
 			
 			
 		}
+
+		server.world_state->denormaliseData();
 
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server));

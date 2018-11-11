@@ -839,6 +839,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				user_details->setTextAsLoggedIn(m->username);
 				this->logged_in_user_id = m->user_id;
 
+				recolourParcelsForLoggedInState();
+
 
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -1470,7 +1472,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(parcel->opengl_engine_ob.isNull())
 						{
 							// Make OpenGL model for parcel:
-							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine);
+							const bool write_perms = parcel->userIsParcelWriter(this->logged_in_user_id) || parcel->userIsParcelAdmin(this->logged_in_user_id);
+							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, write_perms);
 							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
 							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
@@ -1892,13 +1895,8 @@ bool MainWindow::haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& ob_po
 				ob_pos_in_parcel_out = true;
 
 				// Is this user one of the writers or admins for this parcel?
-				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id))
+				if(parcel->userIsParcelWriter(this->logged_in_user_id) || parcel->userIsParcelAdmin(this->logged_in_user_id))
 				{
-					have_creation_perms = true;
-					break;
-				}
-				else if(ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
-				{ 
 					have_creation_perms = true;
 					break;
 				}
@@ -1934,13 +1932,8 @@ bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool&
 				ob_pos_in_parcel_out = true;
 
 				// Is this user one of the writers or admins for this parcel?
-				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id))
+				if(parcel->userIsParcelWriter(this->logged_in_user_id) || parcel->userIsParcelAdmin(this->logged_in_user_id))
 				{
-					have_creation_perms = true;
-					break;
-				}
-				else if(ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
-				{ 
 					have_creation_perms = true;
 					break;
 				}
@@ -1981,8 +1974,8 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 			if(parcel->pointInParcel(old_ob_pos))
 			{
 				// Is this user one of the writers or admins for this parcel?
-				if(ContainerUtils::contains(parcel->writer_ids, this->logged_in_user_id) ||
-					ContainerUtils::contains(parcel->admin_ids, this->logged_in_user_id))
+
+				if(parcel->userIsParcelWriter(this->logged_in_user_id) || parcel->userIsParcelAdmin(this->logged_in_user_id))
 				{
 					have_creation_perms = true;
 					parcel_aabb_min = parcel->aabb_min;
@@ -2441,11 +2434,12 @@ void MainWindow::addParcelObjects()
 			if(parcel->opengl_engine_ob.isNull())
 			{
 				// Make OpenGL model for parcel:
-				parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine);
+				const bool write_perms = parcel->userIsParcelWriter(this->logged_in_user_id) || parcel->userIsParcelAdmin(this->logged_in_user_id);
+				parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, write_perms);
 				parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
 				ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
 
-																				  // Make physics object for parcel:
+				// Make physics object for parcel:
 				parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
 				physics_world->addObject(parcel->physics_object);
 			}
@@ -2488,6 +2482,21 @@ void MainWindow::removeParcelObjects()
 	catch(Indigo::Exception& e)
 	{
 		print("Error while updating parcel graphics: " + e.what());
+	}
+}
+
+
+void MainWindow::recolourParcelsForLoggedInState()
+{
+	Lock lock(this->world_state->mutex);
+	for(auto& it : this->world_state->parcels)
+	{
+		Parcel* parcel = it.second.getPointer();
+		if(parcel->opengl_engine_ob.nonNull())
+		{
+			const bool write_perms = parcel->userIsParcelWriter(this->logged_in_user_id) || parcel->userIsParcelAdmin(this->logged_in_user_id);
+			parcel->setColourForPerms(write_perms);
+		}
 	}
 }
 

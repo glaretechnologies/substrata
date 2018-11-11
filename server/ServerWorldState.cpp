@@ -104,6 +104,15 @@ void ServerWorldState::readFromDisk(const std::string& path)
 		}
 	}
 
+	denormaliseData();
+
+	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
+		toString(parcels.size()) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
+}
+
+
+void ServerWorldState::denormaliseData()
+{
 	// Build cached fields like creator_name
 	for(auto i=objects.begin(); i != objects.end(); ++i)
 	{
@@ -145,9 +154,6 @@ void ServerWorldState::readFromDisk(const std::string& path)
 			}
 		}
 	}
-
-	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
-		toString(parcels.size()) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
 }
 
 
