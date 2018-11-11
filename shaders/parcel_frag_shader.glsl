@@ -7,6 +7,7 @@ in vec3 pos_ws;
 in vec2 texture_coords;
 
 uniform float time;
+uniform vec3 colour;
 
 out vec4 colour_out;
 
@@ -26,5 +27,5 @@ void main()
 	float edge_alpha_y = 1 - /*step down around y = 0: */smoothstep(main_w, main_w + main_edge_w, texture_coords.y) + /*step up around y = 1: */smoothstep(1.0 - main_w - main_edge_w, 1.0 - main_w, texture_coords.y);
 
 	float alpha = 1 - (1 - alpha_x) * (1 - alpha_y) * (1 - edge_alpha_x) * (1 - edge_alpha_y);
-	colour_out = vec4(44 / 256.f, 155 / 256.f, 32 / 256.f, alpha);
+	colour_out = vec4(colour.x, colour.y, colour.z, alpha);
 }

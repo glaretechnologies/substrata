@@ -31,6 +31,7 @@ public:
 
 	void readFromDisk(const std::string& path);
 	void serialiseToDisk(const std::string& path);
+	void denormaliseData(); // Build cached/denormalised fields like creator_name
 	
 	UID getNextObjectUID(); // Gets and then increments next_object_uid
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.

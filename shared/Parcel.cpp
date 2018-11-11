@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2018 -
 
 #include <Exception.h>
 #include <StringUtils.h>
+#include <ContainerUtils.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #endif
@@ -72,18 +73,38 @@ bool Parcel::isAxisAlignedBox() const
 }
 
 
+bool Parcel::userIsParcelAdmin(const UserID user_id) const
+{
+	return ContainerUtils::contains(admin_ids, user_id);
+}
+
+
+bool Parcel::userIsParcelWriter(const UserID user_id) const
+{
+	return ContainerUtils::contains(writer_ids, user_id);
+}
+
+
 #if GUI_CLIENT
 
 
-Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine)
+static Colour3f colForPrivs(bool write_privileges)
+{
+	return write_privileges ? Colour3f(0.4f, 0.9f, 0.3f) : Colour3f(0.9f, 0.9f, 0.3f);
+}
+
+
+Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine, bool write_privileges)
 {
 	const Vec4f aabb_min_v4(aabb_min.x, aabb_min.y, aabb_min.z, 1.0f);
 	const Vec4f aabb_max_v4(aabb_max.x, aabb_max.y, aabb_max.z, 1.0f);
 
+	const Colour3f col = colForPrivs(write_privileges);
+
 	if(isAxisAlignedBox())
 	{
-		return opengl_engine->makeAABBObject(aabb_min_v4, aabb_max_v4,
-			Colour4f(0.3f, 0.9f, 0.3f, 0.5f));
+		opengl_engine_ob = opengl_engine->makeAABBObject(aabb_min_v4, aabb_max_v4, Colour4f(col.r, col.g, col.b, 0.5f));
+		return opengl_engine_ob;
 	}
 	else
 	{
@@ -185,11 +206,18 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 		ob->ob_to_world_matrix.setToIdentity();
 		ob->mesh_data = mesh_data;
 		ob->materials.resize(1);
-		ob->materials[0].albedo_rgb = Colour3f(0.5f);
+		ob->materials[0].albedo_rgb = col;
 		ob->materials[0].alpha = 0.5f;
 		ob->materials[0].transparent = true;
 		return ob;
 	}
+}
+
+
+void Parcel::setColourForPerms(bool write_privileges)
+{
+	if(opengl_engine_ob.nonNull() && !opengl_engine_ob->materials.empty())
+		opengl_engine_ob->materials[0].albedo_rgb = colForPrivs(write_privileges);
 }
 
 

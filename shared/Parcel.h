@@ -41,6 +41,8 @@ public:
 	bool AABBInParcel(const js::AABBox& aabb) const;
 	static bool AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb_min, const Vec3d& parcel_aabb_max);
 	bool isAxisAlignedBox() const;
+	bool userIsParcelAdmin(const UserID user_id) const;
+	bool userIsParcelWriter(const UserID user_id) const;
 
 	// For client:
 	enum State
@@ -82,9 +84,11 @@ public:
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
 
-	Reference<GLObject> makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine); // Shader program will be set by calling code later.
+	Reference<GLObject> makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine, bool write_privileges); // Shader program will be set by calling code later.
 
 	Reference<PhysicsObject> makePhysicsObject(Reference<RayMesh>& unit_cube_raymesh, Indigo::TaskManager& task_manager);
+
+	void setColourForPerms(bool write_privileges);
 #endif
 
 };

@@ -99,6 +99,7 @@ private:
 	bool haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
 	void addParcelObjects();
 	void removeParcelObjects();
+	void recolourParcelsForLoggedInState();
 
 	struct EdgeMarker
 	{
