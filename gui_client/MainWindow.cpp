@@ -1234,12 +1234,22 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 					{
 						// We want to rotate the nametag towards the camera.
-						const Vec4f to_cam = pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint();
-						const float nametag_angle = atan2(to_cam[1], to_cam[0]);
+						const Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
+
+						const Vec4f axis_k = Vec4f(0, 0, 1, 0);
+						const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
+						const Vec4f axis_i = crossProduct(axis_j, axis_k);
+						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
+
+						// Tex width and height from makeNameTagGLObject():
+						const int W = 256;
+						const int H = 80;
+						const float ws_width = 0.4f;
+						const float ws_height = ws_width * H / W;
 
 						// Rotate around z-axis, then translate to just above the avatar's head.
-						avatar->opengl_engine_nametag_ob->ob_to_world_matrix =
-							Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) * Matrix4f::rotationMatrix(Vec4f(0, 0, 1, 0), nametag_angle - Maths::pi_2<float>());
+						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) *
+							rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
 
 						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
 					}
@@ -3104,10 +3114,8 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	const int W = 256;
 	const int H = 80;
 
-	const float ws_width = 0.4f;
-
 	GLObjectRef gl_ob = new GLObject();
-	gl_ob->mesh_data = OpenGLEngine::makeNameTagQuadMesh(ws_width, ws_width * (float)H / W);
+	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
 	gl_ob->materials.resize(1);
 
 	// Make nametag texture
@@ -3303,6 +3311,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			Timer::test();
 			//IPAddress::test();
 			//FormatDecoderGLTF::test();
 			//JSONParser::test();
