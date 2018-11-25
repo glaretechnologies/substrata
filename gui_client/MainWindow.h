@@ -193,7 +193,7 @@ public:
 	};
 	std::map<Vec2i, GroundQuad> ground_quads;
 
-	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh;
+	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
 	Reference<RayMesh> hypercard_quad_raymesh;
 
 	Reference<RayMesh> unit_cube_raymesh;
