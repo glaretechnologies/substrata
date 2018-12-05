@@ -55,9 +55,7 @@ public:
 
 	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
-
 	void getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const;
-
 
 private:
 	js::Vector<Reference<PhysicsObject>, 32> objects;
