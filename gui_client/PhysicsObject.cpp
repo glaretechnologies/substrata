@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../utils/StringUtils.h"
 #include "../simpleraytracer/ray.h"
 #include "../physics/jscol_boundingsphere.h"
+#include "../utils/ConPrint.h"
 
 
 PhysicsObject::PhysicsObject(bool collidable_)
@@ -72,30 +73,26 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 		return;
 	}
 
-	const Vec4f startpos_os    = world_to_ob * sphere_ws.getCenter();
-	const Vec4f translation_os = world_to_ob * translation_ws;
-	const float sphere_r_os    = (world_to_ob * Vec4f(0,0,sphere_ws.getRadius(),0)).length(); // TEMP HACK: will only work for uniform scaling.
+	float translation_len_ws;
+	const Vec4f unitdir_ws = normalise(translation_ws, translation_len_ws);
 
-	float translation_len;
-	const Vec4f unitdir = normalise(translation_os, translation_len);
-
-	const Ray ray_os(
-		startpos_os, // origin
-		unitdir, // direction
-		0.f, // min_t - Use the world space ray min_t.
-		std::numeric_limits<float>::infinity() // max_t
+	const Ray ray_ws(
+		sphere_ws.getCenter(), // origin
+		unitdir_ws, // direction
+		0.f, // min_t
+		translation_len_ws // max_t
 	);
 
-	Vec4f closest_hit_normal;
-	const float smallest_dist = (float)geometry->traceSphere(ray_os, sphere_r_os, translation_len, thread_context, closest_hit_normal);
+	Vec4f closest_hit_normal_ws;
+	const float smallest_dist_ws = (float)geometry->traceSphere(ray_ws, world_to_ob, ob_to_world, sphere_ws.getRadius(), thread_context, closest_hit_normal_ws);
 
-	if(smallest_dist >= 0.f && smallest_dist < std::numeric_limits<float>::infinity())
+	if(smallest_dist_ws >= 0.f && smallest_dist_ws < std::numeric_limits<float>::infinity())
 	{
-		assert(closest_hit_normal.isUnitLength());
-		assert(smallest_dist <= translation_len);
+		assert(closest_hit_normal_ws.isUnitLength());
+		assert(smallest_dist_ws <= translation_len_ws);
 
-		results_out.hitdist_ws = (this->ob_to_world * (unitdir * -smallest_dist)).length(); // Get length in ws.  NOTE: incorrect for non-uniform scaling.  Fix.
-		results_out.hit_normal_ws = normalise(this->world_to_ob.transposeMult3Vector(closest_hit_normal));
+		results_out.hitdist_ws = smallest_dist_ws;
+		results_out.hit_normal_ws = closest_hit_normal_ws;
 		results_out.hit_tri_index = 0;//TEMP
 		results_out.coords = Vec2f(0,0);//TEMP
 	}
@@ -114,17 +111,6 @@ void PhysicsObject::appendCollPoints(const js::BoundingSphere& sphere_ws, const 
 	if(sphere_aabb_ws.disjoint(this->aabb_ws))
 		return;
 
-	const Vec4f sphere_centre_os = this->world_to_ob * sphere_ws.getCenter();
-	const float sphere_r_os = (world_to_ob * Vec4f(0,0,sphere_ws.getRadius(),0)).length(); // TEMP HACK: will only work for uniform scaling.
-
-	const size_t initial_num = points_ws_in_out.size();
-	geometry->appendCollPoints(sphere_centre_os, sphere_r_os, thread_context, points_ws_in_out);
-
-	// Transform points returned from this object from object to world space
-	for(size_t i=initial_num; i<points_ws_in_out.size(); ++i)
-	{
-		points_ws_in_out[i] = this->ob_to_world * points_ws_in_out[i];
-		assert(points_ws_in_out[i].getDist(sphere_ws.getCenter()) <= sphere_ws.getRadius());
-	}
+	geometry->appendCollPoints(sphere_ws.getCenter(), sphere_ws.getRadius(), world_to_ob, ob_to_world, thread_context, points_ws_in_out);
 }
 

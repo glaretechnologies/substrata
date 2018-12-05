@@ -99,19 +99,19 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 	const Vec4f endpos_ws   = sphere.getCenter() + translation_ws;
 
 	const float r = sphere.getRadius();
-	const js::AABBox spherepath_aabb_ws(min(startpos_ws, endpos_ws) - Vec4f(r,r,r,0), max(startpos_ws, endpos_ws) + Vec4f(r, r, r, 0));
+	const js::AABBox spherepath_aabb_ws(min(startpos_ws, endpos_ws) - Vec4f(r, r, r, 0), max(startpos_ws, endpos_ws) + Vec4f(r, r, r, 0));
 
-	float closest_dist = std::numeric_limits<float>::infinity();
+	float closest_dist_ws = std::numeric_limits<float>::infinity();
 
 	for(size_t i=0; i<objects.size(); ++i)
 	{
 		RayTraceResult ob_results;
 		objects[i]->traceSphere(sphere, translation_ws, spherepath_aabb_ws, thread_context, ob_results);
-		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
+		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist_ws)
 		{
 			results_out = ob_results;
 			results_out.hit_object = objects[i].getPointer();
-			closest_dist = ob_results.hitdist_ws;
+			closest_dist_ws = ob_results.hitdist_ws;
 		}
 	}
 }
@@ -122,11 +122,9 @@ void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, ThreadContext
 	points_out.resize(0);
 
 	const float r = sphere.getRadius();
-	js::AABBox sphere_aabb_ws(sphere.getCenter() - Vec4f(r, r, r, 0), sphere.getCenter() + Vec4f(r, r, r, 0));
+	const js::AABBox sphere_aabb_ws(sphere.getCenter() - Vec4f(r, r, r, 0), sphere.getCenter() + Vec4f(r, r, r, 0));
 
 	for(size_t i=0; i<objects.size(); ++i)
-	{
 		objects[i]->appendCollPoints(sphere, sphere_aabb_ws, thread_context, points_out);
-	}
 }
 
