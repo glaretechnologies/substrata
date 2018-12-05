@@ -320,7 +320,6 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 		Geometry::BuildOptions options;
 		StandardPrintOutput print_output;
 		mesh->build(".", options, print_output, /*verbose=*/false, task_manager);
-		mesh->buildJSTris();
 
 		new_physics_object->geometry = mesh;
 		new_physics_object->ob_to_world = Matrix4f::identity();

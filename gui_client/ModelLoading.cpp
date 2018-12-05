@@ -434,8 +434,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		StandardPrintOutput print_output;
 		raymesh->build(".", options, print_output, false, task_manager);
 
-		raymesh->buildJSTris();
-
 		// Add to map
 		MeshData mesh_data;
 		mesh_data.mesh = mesh;

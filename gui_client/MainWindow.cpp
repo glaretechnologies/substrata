@@ -67,6 +67,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../networking/HTTPClient.h" // Just for testing
 #include "../networking/url.h" // Just for testing
 
+#include "../simpleraytracer/ray.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
 //#include "../opengl/EnvMapProcessing.h"
@@ -256,8 +257,6 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 	Geometry::BuildOptions options;
 	phy_ob->geometry->build(".", options, print_output, false, task_manager);
 
-	phy_ob->geometry->buildJSTris();
-				
 	phy_ob->ob_to_world = ob_to_world_matrix;
 	return phy_ob;
 }
@@ -3311,7 +3310,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			Timer::test();
+			js::Triangle::test();
+			//Timer::test();
 			//IPAddress::test();
 			//FormatDecoderGLTF::test();
 			//JSONParser::test();
@@ -3325,7 +3325,7 @@ int main(int argc, char *argv[])
 			//js::TreeTest::doTests(appdata_path);
 			//Vec4f::test();
 			//js::AABBox::test();
-			Matrix4f::test();
+			//Matrix4f::test();
 			//ReferenceTest::run();
 			//Matrix4f::test();
 			//CameraController::test();
@@ -3480,8 +3480,6 @@ int main(int argc, char *argv[])
 			mw.ground_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
 			mw.ground_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
-
-			mw.ground_quad_raymesh->buildJSTris();
 		}
 
 		mw.updateGroundPlane();
@@ -3502,8 +3500,6 @@ int main(int argc, char *argv[])
 			mw.hypercard_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
 			mw.hypercard_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
-
-			mw.hypercard_quad_raymesh->buildJSTris();
 		}
 
 		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
@@ -3549,8 +3545,6 @@ int main(int argc, char *argv[])
 			mw.unit_cube_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
 			mw.unit_cube_raymesh->build(".", options, mw.print_output, /*verbose=*/false, mw.task_manager);
-
-			mw.unit_cube_raymesh->buildJSTris();
 		}
 
 		// Make object-placement beam model

@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "PhysicsWorld.h"
 
 
+#include "../simpleraytracer/ray.h"
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 
