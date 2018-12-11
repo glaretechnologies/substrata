@@ -1709,7 +1709,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					const Vec4f down_beam_hitpos = down_beam_startpos + Vec4f(0,0,-1,0) * down_beam_len;
 
-					Matrix4f scale_matrix = Matrix4f::scaleMatrix(1.f, 1.f, down_beam_len);
+					Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.05f, /*radius=*/0.05f, down_beam_len);
 					Matrix4f ob_to_world = Matrix4f::translationMatrix(down_beam_hitpos) * scale_matrix;
 					ob_placement_beam->ob_to_world_matrix = ob_to_world;
 					ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
@@ -3322,7 +3322,7 @@ int main(int argc, char *argv[])
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
 			//SMTPClient::test();
 			//js::VectorUnitTests::test();
-			//js::TreeTest::doTests(appdata_path);
+			js::TreeTest::doTests(appdata_path);
 			//Vec4f::test();
 			//js::AABBox::test();
 			//Matrix4f::test();
@@ -3551,7 +3551,7 @@ int main(int argc, char *argv[])
 		{
 			mw.ob_placement_beam = new GLObject();
 			mw.ob_placement_beam->ob_to_world_matrix = Matrix4f::identity();
-			mw.ob_placement_beam->mesh_data = OpenGLEngine::makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, 1, 1), /*radius=*/0.05f);
+			mw.ob_placement_beam->mesh_data = mw.ui->glWidget->opengl_engine->getCylinderMesh();
 
 			OpenGLMaterial material;
 			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
@@ -3619,7 +3619,7 @@ int main(int argc, char *argv[])
 			{
 				test_avatar = new AvatarGraphics();
 				test_avatar->create(*mw.ui->glWidget->opengl_engine);
-				test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 1), 0.0);
+				test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), 0.0);
 			}
 
 			// Load a wedge

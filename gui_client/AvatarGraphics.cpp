@@ -226,7 +226,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 	}
 
 	last_pos = pos;
-	this->last_hand_pos = toVec3d(this->lower_arms[0]->ob_to_world_matrix * Vec4f(0, 0, -lower_arm_length, 1));
+	this->last_hand_pos = toVec3d(this->lower_arms[0].gl_ob->ob_to_world_matrix * Vec4f(0, 0, 1, 1)); // (0,0,1) in forearm cylinder object space is where the hand is.
 }
 
 
@@ -249,9 +249,9 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 	const Vec4f hip_centre(0, 0, torso_offset -0.738f, 1);
 	const Vec4f hip_centre_to_hip_0 = Vec4f(0, 1, 0, 0) * -0.10f;
 
-	head->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset);
-	chest->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.17f);
-	pelvis->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.6f);
+	head.gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset) * head.base_transform;
+	chest.gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.17f) * chest.base_transform;
+	pelvis.gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.6f) * pelvis.base_transform;
 
 
 	const float shoulder_dist = 0.188f;
@@ -294,39 +294,39 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 	//lower_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0);
 	//lower_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1);
 
-	upper_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_0) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_0);
-	upper_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_1) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_1);
+	upper_arms[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_0) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_0) * upper_arms[0].base_transform;
+	upper_arms[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_1) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_1) * upper_arms[1].base_transform;
 
-	lower_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_0);
-	lower_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_1);
+	lower_arms[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_0) * lower_arms[0].base_transform;
+	lower_arms[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_1) * lower_arms[1].base_transform;
 
-	upper_legs[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_0);// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upp
-	upper_legs[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_1);// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upp
+	upper_legs[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_0) * upper_legs[0].base_transform;// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upp
+	upper_legs[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_1) * upper_legs[1].base_transform;// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upp
 
-	lower_legs[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_0); //Matrix4f::translationMatrix(0, -0.13f, -1.3f);
-	lower_legs[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_1); //Matrix4f::translationMatrix(0,  0.13f, -1.3f);
+	lower_legs[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_0) * lower_legs[0].base_transform; //Matrix4f::translationMatrix(0, -0.13f, -1.3f);
+	lower_legs[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_1) * lower_legs[1].base_transform; //Matrix4f::translationMatrix(0,  0.13f, -1.3f);
 
 	const float foot_downwards_trans = 0.045f;
-	feet[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_0) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans);
-	feet[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_1) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans);
+	feet[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_0) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans) * feet[0].base_transform;
+	feet[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_1) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans) * feet[1].base_transform;
 
 
 	
 
 
-	engine.updateObjectTransformData(*upper_arms[0]);
-	engine.updateObjectTransformData(*upper_arms[1]);
-	engine.updateObjectTransformData(*lower_arms[0]);
-	engine.updateObjectTransformData(*lower_arms[1]);
-	engine.updateObjectTransformData(*upper_legs[0]);
-	engine.updateObjectTransformData(*upper_legs[1]);
-	engine.updateObjectTransformData(*lower_legs[0]);
-	engine.updateObjectTransformData(*lower_legs[1]);
-	engine.updateObjectTransformData(*feet[0]);
-	engine.updateObjectTransformData(*feet[1]);
-	engine.updateObjectTransformData(*chest);
-	engine.updateObjectTransformData(*pelvis);
-	engine.updateObjectTransformData(*head);
+	engine.updateObjectTransformData(*upper_arms[0].gl_ob);
+	engine.updateObjectTransformData(*upper_arms[1].gl_ob);
+	engine.updateObjectTransformData(*lower_arms[0].gl_ob);
+	engine.updateObjectTransformData(*lower_arms[1].gl_ob);
+	engine.updateObjectTransformData(*upper_legs[0].gl_ob);
+	engine.updateObjectTransformData(*upper_legs[1].gl_ob);
+	engine.updateObjectTransformData(*lower_legs[0].gl_ob);
+	engine.updateObjectTransformData(*lower_legs[1].gl_ob);
+	engine.updateObjectTransformData(*feet[0].gl_ob);
+	engine.updateObjectTransformData(*feet[1].gl_ob);
+	engine.updateObjectTransformData(*chest.gl_ob);
+	engine.updateObjectTransformData(*pelvis.gl_ob);
+	engine.updateObjectTransformData(*head.gl_ob);
 }
 
 
@@ -478,42 +478,53 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 	
 
 
-	head->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset);
-	chest->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.17f);
-	pelvis->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.6f) * Matrix4f::rotationAroundXAxis(hip_rot_angle);
+	head.gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset) * head.base_transform;
+	chest.gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.17f) * chest.base_transform;
+	pelvis.gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(0, 0, torso_offset - 0.6f) * Matrix4f::rotationAroundXAxis(hip_rot_angle) * pelvis.base_transform;
 
 	
 
-	upper_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_0) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_0);
-	upper_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_1) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_1);
+	upper_arms[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_0) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_0) * upper_arms[0].base_transform;
+	upper_arms[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(shoulder_pos_1) * Matrix4f::rotationAroundYAxis(upper_arm_rot_angle_1) * upper_arms[1].base_transform;
 
-	lower_arms[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_0);
-	lower_arms[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_1);
+	lower_arms[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_0) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_0) * lower_arms[0].base_transform;
+	lower_arms[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(elbow_pos_1) * Matrix4f::rotationAroundYAxis(lower_arm_rot_angle_1) * lower_arms[1].base_transform;
 
-	upper_legs[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_0) * Matrix4f::rotationAroundYAxis(upper_leg_rot_angle_0);// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upper_leg_angle_0);
-	upper_legs[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_1) * Matrix4f::rotationAroundYAxis(upper_leg_rot_angle_1);// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upper_leg_angle_1);
+	upper_legs[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_0) * Matrix4f::rotationAroundYAxis(upper_leg_rot_angle_0) * upper_legs[0].base_transform;// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upper_leg_angle_0);
+	upper_legs[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(hip_pos_1) * Matrix4f::rotationAroundYAxis(upper_leg_rot_angle_1) * upper_legs[1].base_transform;// * Matrix4f::rotationMatrix(Vec4f(0, 1, 0, 0), upper_leg_angle_1);
 
-	lower_legs[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_0) * Matrix4f::rotationAroundYAxis(lower_leg_rot_angle_0); //Matrix4f::translationMatrix(0, -0.13f, -1.3f);
-	lower_legs[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_1) * Matrix4f::rotationAroundYAxis(lower_leg_rot_angle_1); //Matrix4f::translationMatrix(0,  0.13f, -1.3f);
+	lower_legs[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_0) * Matrix4f::rotationAroundYAxis(lower_leg_rot_angle_0) * lower_legs[0].base_transform; //Matrix4f::translationMatrix(0, -0.13f, -1.3f);
+	lower_legs[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(knee_pos_1) * Matrix4f::rotationAroundYAxis(lower_leg_rot_angle_1) * lower_legs[1].base_transform; //Matrix4f::translationMatrix(0,  0.13f, -1.3f);
 
 	const float foot_downwards_trans = 0.045f;
-	feet[0]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_0) * Matrix4f::rotationAroundYAxis(-foot_rot_angle_0) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans); //Matrix4f::translationMatrix(0, -0.13f, -1.66f);
-	feet[1]->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_1) * Matrix4f::rotationAroundYAxis(-foot_rot_angle_1) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans); //Matrix4f::translationMatrix(0, 0.13f, -1.66f);
+	feet[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_0) * Matrix4f::rotationAroundYAxis(-foot_rot_angle_0) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans) * feet[0].base_transform; //Matrix4f::translationMatrix(0, -0.13f, -1.66f);
+	feet[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_1) * Matrix4f::rotationAroundYAxis(-foot_rot_angle_1) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans) * feet[1].base_transform; //Matrix4f::translationMatrix(0, 0.13f, -1.66f);
 	
 
-	engine.updateObjectTransformData(*upper_arms[0]);
-	engine.updateObjectTransformData(*upper_arms[1]);
-	engine.updateObjectTransformData(*lower_arms[0]);
-	engine.updateObjectTransformData(*lower_arms[1]);
-	engine.updateObjectTransformData(*upper_legs[0]);
-	engine.updateObjectTransformData(*upper_legs[1]);
-	engine.updateObjectTransformData(*lower_legs[0]);
-	engine.updateObjectTransformData(*lower_legs[1]);
-	engine.updateObjectTransformData(*feet[0]);
-	engine.updateObjectTransformData(*feet[1]);
-	engine.updateObjectTransformData(*chest);
-	engine.updateObjectTransformData(*pelvis);
-	engine.updateObjectTransformData(*head);
+	engine.updateObjectTransformData(*upper_arms[0].gl_ob);
+	engine.updateObjectTransformData(*upper_arms[1].gl_ob);
+	engine.updateObjectTransformData(*lower_arms[0].gl_ob);
+	engine.updateObjectTransformData(*lower_arms[1].gl_ob);
+	engine.updateObjectTransformData(*upper_legs[0].gl_ob);
+	engine.updateObjectTransformData(*upper_legs[1].gl_ob);
+	engine.updateObjectTransformData(*lower_legs[0].gl_ob);
+	engine.updateObjectTransformData(*lower_legs[1].gl_ob);
+	engine.updateObjectTransformData(*feet[0].gl_ob);
+	engine.updateObjectTransformData(*feet[1].gl_ob);
+	engine.updateObjectTransformData(*chest.gl_ob);
+	engine.updateObjectTransformData(*pelvis.gl_ob);
+	engine.updateObjectTransformData(*head.gl_ob);
+}
+
+
+static Matrix4f cylinderTransform(const Vec4f& endpoint_a, const Vec4f& endpoint_b, float x_axis_scale, float y_axis_scale)
+{
+	const float len = endpoint_a.getDist(endpoint_b);
+	const Vec3f dir(normalise(endpoint_b - endpoint_a));
+	Matrix4f basis;
+	basis.constructFromVector(normalise(endpoint_b - endpoint_a));
+
+	return Matrix4f::translationMatrix(endpoint_a) * basis * Matrix4f::scaleMatrix(x_axis_scale, y_axis_scale, len);
 }
 
 
@@ -524,130 +535,143 @@ void AvatarGraphics::create(OpenGLEngine& engine)
 
 	const float upper_arm_radius = 0.04f;
 	const float lower_arm_radius = 0.04f;
-	
-
-	
 
 	const float chest_length = 0.3f;
 	const float chest_radius = 0.16f;
 
 	const float pelvis_length = 0.2f;
-	const float pelvis_radius = 0.18f;
+	const float pelvis_radius = 0.16f;
 
 	const float head_length = 0.18f;
 	const float head_radius = 0.1f;
 
 	const float foot_length = 0.3f;
-	const float foot_radius = 0.03f;
+	const float foot_radius = 0.04f;
 
+	Reference<OpenGLMeshRenderData> cylinder_mesh = engine.getCylinderMesh();
 
 	// Make left arm
-	upper_arms[0] = new GLObject();
-	upper_arms[0]->ob_to_world_matrix = Matrix4f::identity();
-	upper_arms[0]->mesh_data = engine.makeCylinderMesh(Vec4f(0,0,0,1), Vec4f(0, 0, -upper_arm_length, 1), upper_arm_radius);
-	upper_arms[0]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(upper_arms[0]);
+	upper_arms[0].gl_ob = new GLObject();
+	upper_arms[0].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -upper_arm_length, 1), upper_arm_radius, upper_arm_radius);
+	upper_arms[0].gl_ob->ob_to_world_matrix = upper_arms[0].base_transform;
+	upper_arms[0].gl_ob->mesh_data = cylinder_mesh;
+	upper_arms[0].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	
+	engine.addObject(upper_arms[0].gl_ob);
 
-	lower_arms[0] = new GLObject();
-	lower_arms[0]->ob_to_world_matrix = Matrix4f::identity();
-	lower_arms[0]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_arm_length, 1), lower_arm_radius);
-	lower_arms[0]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(lower_arms[0]);
+	lower_arms[0].gl_ob = new GLObject();
+	lower_arms[0].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_arm_length, 1), lower_arm_radius, lower_arm_radius);
+	lower_arms[0].gl_ob->ob_to_world_matrix = lower_arms[0].base_transform;
+	lower_arms[0].gl_ob->mesh_data = cylinder_mesh;
+	lower_arms[0].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(lower_arms[0].gl_ob);
 
 	// Make right arm
-	upper_arms[1] = new GLObject();
-	upper_arms[1]->ob_to_world_matrix = Matrix4f::identity();
-	upper_arms[1]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -upper_arm_length, 1), upper_arm_radius);
-	upper_arms[1]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(upper_arms[1]);
+	upper_arms[1].gl_ob = new GLObject();
+	upper_arms[1].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -upper_arm_length, 1), upper_arm_radius, upper_arm_radius);
+	upper_arms[1].gl_ob->ob_to_world_matrix = upper_arms[1].base_transform;
+	upper_arms[1].gl_ob->mesh_data = cylinder_mesh;
+	upper_arms[1].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(upper_arms[1].gl_ob);
 
-	lower_arms[1] = new GLObject();
-	lower_arms[1]->ob_to_world_matrix = Matrix4f::identity();
-	lower_arms[1]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_arm_length, 1), lower_arm_radius);
-	lower_arms[1]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(lower_arms[1]);
+	lower_arms[1].gl_ob = new GLObject();
+	lower_arms[1].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_arm_length, 1), lower_arm_radius, lower_arm_radius);
+	lower_arms[1].gl_ob->ob_to_world_matrix = lower_arms[1].base_transform;
+	lower_arms[1].gl_ob->mesh_data = cylinder_mesh;
+	lower_arms[1].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(lower_arms[1].gl_ob);
 
 
 	// Make left leg
-	upper_legs[0] = new GLObject();
-	upper_legs[0]->ob_to_world_matrix = Matrix4f::identity();
-	upper_legs[0]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -upper_leg_length, 1), upper_leg_radius);
-	upper_legs[0]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(upper_legs[0]);
+	upper_legs[0].gl_ob = new GLObject();
+	upper_legs[0].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -upper_leg_length, 1), upper_leg_radius, upper_leg_radius);
+	upper_legs[0].gl_ob->ob_to_world_matrix = upper_legs[0].base_transform;
+	upper_legs[0].gl_ob->mesh_data = cylinder_mesh;
+	upper_legs[0].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(upper_legs[0].gl_ob);
 
-	lower_legs[0] = new GLObject();
-	lower_legs[0]->ob_to_world_matrix = Matrix4f::identity();
-	lower_legs[0]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_leg_length, 1), lower_leg_radius);
-	lower_legs[0]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(lower_legs[0]);
+	lower_legs[0].gl_ob = new GLObject();
+	lower_legs[0].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_leg_length, 1), lower_leg_radius, lower_leg_radius);
+	lower_legs[0].gl_ob->ob_to_world_matrix = lower_legs[0].base_transform;
+	lower_legs[0].gl_ob->mesh_data = cylinder_mesh;
+	lower_legs[0].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(lower_legs[0].gl_ob);
 
 	// Make right leg
-	upper_legs[1] = new GLObject();
-	upper_legs[1]->ob_to_world_matrix = Matrix4f::identity();
-	upper_legs[1]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -upper_leg_length, 1), upper_leg_radius);
-	upper_legs[1]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(upper_legs[1]);
+	upper_legs[1].gl_ob = new GLObject();
+	upper_legs[1].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -upper_leg_length, 1), upper_leg_radius, upper_leg_radius);
+	upper_legs[1].gl_ob->ob_to_world_matrix = upper_legs[1].base_transform;
+	upper_legs[1].gl_ob->mesh_data = cylinder_mesh;
+	upper_legs[1].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(upper_legs[1].gl_ob);
 
-	lower_legs[1] = new GLObject();
-	lower_legs[1]->ob_to_world_matrix = Matrix4f::identity();
-	lower_legs[1]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_leg_length, 1), lower_leg_radius);
-	lower_legs[1]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(lower_legs[1]);
+	lower_legs[1].gl_ob = new GLObject();
+	lower_legs[1].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -lower_leg_length, 1), lower_leg_radius, lower_leg_radius);
+	lower_legs[1].gl_ob->ob_to_world_matrix = lower_legs[1].base_transform;
+	lower_legs[1].gl_ob->mesh_data = cylinder_mesh;
+	lower_legs[1].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(lower_legs[1].gl_ob);
 
 	// Make chest
-	chest = new GLObject();
-	chest->ob_to_world_matrix = Matrix4f::identity();
-	chest->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -chest_length, 1), chest_radius);
+	chest.gl_ob = new GLObject();
+	chest.base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -chest_length, 1), chest_radius, chest_radius * 0.7f);
+	chest.gl_ob->ob_to_world_matrix = chest.base_transform;
+	chest.gl_ob->mesh_data = cylinder_mesh;
 	//Indigo::MeshRef mesh = new Indigo::Mesh();
 	//Indigo::Mesh::readFromFile("D:\\downloads\\nickvatar\\mesh_12467433656257381352.igmesh", *mesh);
 	//chest->mesh_data = engine.buildIndigoMesh(mesh, false);
-	chest->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(chest);
+	chest.gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	
+	engine.addObject(chest.gl_ob);
 
 	// Make pelvis
-	pelvis = new GLObject();
-	pelvis->ob_to_world_matrix = Matrix4f::identity();
-	pelvis->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -pelvis_length, 1), pelvis_radius);
-	pelvis->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(pelvis);
+	pelvis.gl_ob = new GLObject();
+	pelvis.base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(0, 0, -pelvis_length, 1), pelvis_radius, pelvis_radius * 0.7f);
+	pelvis.gl_ob->ob_to_world_matrix = pelvis.base_transform;
+	pelvis.gl_ob->mesh_data = cylinder_mesh;
+	pelvis.gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(pelvis.gl_ob);
 
 	// Make head
-	head = new GLObject();
-	head->ob_to_world_matrix = Matrix4f::identity();
-	head->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, head_length/2, 1), Vec4f(0, 0, -head_length/2, 1), head_radius);
-	head->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(head);
+	head.gl_ob = new GLObject();
+	head.base_transform = cylinderTransform(Vec4f(0, 0, head_length/2, 1), Vec4f(0, 0, -head_length/2, 1), head_radius, head_radius);
+	head.gl_ob->ob_to_world_matrix = head.base_transform;
+	head.gl_ob->mesh_data = cylinder_mesh;
+	head.gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(head.gl_ob);
 
 	// Feet
-	feet[0] = new GLObject();
-	feet[0]->ob_to_world_matrix = Matrix4f::identity();
-	feet[0]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(foot_length/2, 0, 0, 1), foot_radius);
-	feet[0]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(feet[0]);
+	feet[0].gl_ob = new GLObject();
+	feet[0].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(foot_length/2, 0, 0, 1), foot_radius * 0.6f, foot_radius);
+	feet[0].gl_ob->ob_to_world_matrix = feet[0].base_transform;
+	feet[0].gl_ob->mesh_data = cylinder_mesh;
+	feet[0].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(feet[0].gl_ob);
 
-	feet[1] = new GLObject();
-	feet[1]->ob_to_world_matrix = Matrix4f::identity();
-	feet[1]->mesh_data = engine.makeCylinderMesh(Vec4f(0, 0, 0, 1), Vec4f(foot_length/2, 0, 0, 1), foot_radius);
-	feet[1]->materials = std::vector<OpenGLMaterial>(1, material);
-	engine.addObject(feet[1]);
+	feet[1].gl_ob = new GLObject();
+	feet[1].base_transform = cylinderTransform(Vec4f(0, 0, 0, 1), Vec4f(foot_length/2, 0, 0, 1), foot_radius * 0.6f, foot_radius);
+	feet[1].gl_ob->ob_to_world_matrix = feet[1].base_transform;
+	feet[1].gl_ob->mesh_data = cylinder_mesh;
+	feet[1].gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+	engine.addObject(feet[1].gl_ob);
 }
 
 
 void AvatarGraphics::destroy(OpenGLEngine& engine)
 {
-	engine.removeObject(upper_arms[0]);
-	engine.removeObject(upper_arms[1]);
-	engine.removeObject(lower_arms[0]);
-	engine.removeObject(lower_arms[1]);
-	engine.removeObject(upper_legs[0]);
-	engine.removeObject(upper_legs[1]);
-	engine.removeObject(lower_legs[0]);
-	engine.removeObject(lower_legs[1]);
-	engine.removeObject(feet[0]);
-	engine.removeObject(feet[1]);
-	engine.removeObject(chest);
-	engine.removeObject(pelvis);
-	engine.removeObject(head);
+	engine.removeObject(upper_arms[0].gl_ob);
+	engine.removeObject(upper_arms[1].gl_ob);
+	engine.removeObject(lower_arms[0].gl_ob);
+	engine.removeObject(lower_arms[1].gl_ob);
+	engine.removeObject(upper_legs[0].gl_ob);
+	engine.removeObject(upper_legs[1].gl_ob);
+	engine.removeObject(lower_legs[0].gl_ob);
+	engine.removeObject(lower_legs[1].gl_ob);
+	engine.removeObject(feet[0].gl_ob);
+	engine.removeObject(feet[1].gl_ob);
+	engine.removeObject(chest.gl_ob);
+	engine.removeObject(pelvis.gl_ob);
+	engine.removeObject(head.gl_ob);
 
 	if(selected_ob_beam.nonNull())
 		engine.removeObject(selected_ob_beam);
@@ -660,14 +684,14 @@ void AvatarGraphics::setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target
 	this->last_selected_ob_target_pos = target_pos;
 
 	Matrix4f dir_matrix; dir_matrix.constructFromVector(normalise((target_pos - src_pos).toVec4fVector()));
-	Matrix4f scale_matrix = Matrix4f::scaleMatrix(1.f, 1.f, (float)target_pos.getDist(src_pos));
+	Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, (float)target_pos.getDist(src_pos));
 	Matrix4f ob_to_world = Matrix4f::translationMatrix(src_pos.toVec4fPoint()) * dir_matrix * scale_matrix;
 
 	if(selected_ob_beam.isNull())
 	{
 		selected_ob_beam = new GLObject();
 		selected_ob_beam->ob_to_world_matrix = ob_to_world;
-		selected_ob_beam->mesh_data = engine.makeCylinderMesh(Vec4f(0,0,0,1), Vec4f(0,0,1,1), /*radius=*/0.03f);
+		selected_ob_beam->mesh_data = engine.getCylinderMesh();
 
 		OpenGLMaterial material;
 		material.albedo_rgb = Colour3f(0.5f, 0.2f, 0.2f);

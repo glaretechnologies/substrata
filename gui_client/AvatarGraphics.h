@@ -38,18 +38,25 @@ public:
 	void setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target_pos); // create or update beam
 	void hideSelectedObBeam(OpenGLEngine& engine);
 
-	Reference<GLObject> upper_arms[2];
-	Reference<GLObject> lower_arms[2];
 
-	Reference<GLObject> upper_legs[2];
-	Reference<GLObject> lower_legs[2];
+	struct BodyPart
+	{
+		Matrix4f base_transform; // Transform that scales and rotates cylinder to avatar space.
+		Reference<GLObject> gl_ob;
+	};
 
-	Reference<GLObject> chest;
-	Reference<GLObject> pelvis;
+	BodyPart upper_arms[2];
+	BodyPart lower_arms[2];
 
-	Reference<GLObject> head;
+	BodyPart upper_legs[2];
+	BodyPart lower_legs[2];
 
-	Reference<GLObject> feet[2];
+	BodyPart chest;
+	BodyPart pelvis;
+
+	BodyPart head;
+
+	BodyPart feet[2];
 
 
 	Reference<GLObject> selected_ob_beam;
