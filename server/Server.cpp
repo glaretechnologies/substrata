@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "ListenerThread.h"
 #include "WorkerThread.h"
 #include "../shared/Protocol.h"
+#include "../shared/Version.h"
 #include "../networking/networking.h"
 #include <ThreadManager.h>
 #include <PlatformUtils.h>
@@ -47,9 +48,9 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 		ParcelRef test_parcel = new Parcel();
 		test_parcel->state = Parcel::State_Alive;
 		test_parcel->id = parcel_id;
-		test_parcel->owner_id = UserID(1);
-		test_parcel->admin_ids.push_back(UserID(1));
-		test_parcel->writer_ids.push_back(UserID(1));
+		test_parcel->owner_id = UserID(0);
+		test_parcel->admin_ids.push_back(UserID(0));
+		test_parcel->writer_ids.push_back(UserID(0));
 		test_parcel->created_time = TimeStamp::currentTime();
 		test_parcel->zbounds = Vec2d(-1, 1);
 
@@ -90,9 +91,9 @@ static void makeBlock(const Vec2d& botleft, MTwister& rng, int& next_id, Referen
 				ParcelRef test_parcel = new Parcel();
 				test_parcel->state = Parcel::State_Alive;
 				test_parcel->id = parcel_id;
-				test_parcel->owner_id = UserID(1);
-				test_parcel->admin_ids.push_back(UserID(1));
-				test_parcel->writer_ids.push_back(UserID(1));
+				test_parcel->owner_id = UserID(0);
+				test_parcel->admin_ids.push_back(UserID(0));
+				test_parcel->writer_ids.push_back(UserID(0));
 				test_parcel->created_time = TimeStamp::currentTime();
 				test_parcel->zbounds = Vec2d(-1, 1);
 
@@ -126,6 +127,8 @@ int main(int argc, char *argv[])
 	Networking::createInstance();
 	PlatformUtils::ignoreUnixSignals();
 	TLSSocket::initTLS();
+
+	conPrint("Substrata server v" + ::cyberspace_version);
 
 	try
 	{
@@ -186,7 +189,7 @@ int main(int argc, char *argv[])
 
 		// Add a teapot object
 		WorldObjectRef test_object;
-		if(true)
+		if(false)
 		{
 			const UID uid(6000);
 			test_object = new WorldObject();
@@ -201,10 +204,10 @@ int main(int argc, char *argv[])
 		}
 
 		//TEMP
-		server.world_state->parcels.clear();
+		//server.world_state->parcels.clear();
 
 		// TEMP: Add a parcel
-		if(true)
+		if(false)
 		{
 			const ParcelID parcel_id(7000);
 			ParcelRef test_parcel = new Parcel();
@@ -227,8 +230,10 @@ int main(int argc, char *argv[])
 
 		
 		// Add 'town square' parcels
-		if(true)
+		if(server.world_state->parcels.empty())
 		{
+			conPrint("Adding some parcels!");
+
 			int next_id = 10;
 			makeParcels(Matrix2d(1, 0, 0, 1), next_id, server.world_state);
 			makeParcels(Matrix2d(-1, 0, 0, 1), next_id, server.world_state); // Mirror in y axis (x' = -x)
