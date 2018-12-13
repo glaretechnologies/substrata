@@ -121,6 +121,27 @@ static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::
 }
 
 
+static void assignParcelToUser(Reference<ServerWorldState>& world_state, const ParcelID& parcel_id, const UserID& user_id)
+{
+	conPrint("Assigning parcel " + parcel_id.toString() + " to user " + user_id.toString());
+
+	if(world_state->parcels.count(parcel_id) != 0)
+	{
+		ParcelRef parcel = world_state->parcels.find(parcel_id)->second;
+
+		parcel->owner_id = user_id;
+		parcel->admin_ids = std::vector<UserID>(1, user_id);
+		parcel->writer_ids = std::vector<UserID>(1, user_id);
+
+		conPrint("\tDone.");
+	}
+	else
+	{
+		conPrint("\tFailed, parcel not found.");
+	}
+}
+
+
 int main(int argc, char *argv[])
 {
 	Clock::init();
@@ -260,6 +281,12 @@ int main(int argc, char *argv[])
 			
 			
 		}
+
+		// TEMP: Assign some parcel permissions
+		assignParcelToUser(server.world_state, ParcelID(10), UserID(1));
+		assignParcelToUser(server.world_state, ParcelID(11), UserID(2));
+
+
 
 		server.world_state->denormaliseData();
 
