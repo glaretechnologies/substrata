@@ -284,7 +284,8 @@ int main(int argc, char *argv[])
 
 		// TEMP: Assign some parcel permissions
 		assignParcelToUser(server.world_state, ParcelID(10), UserID(1));
-		assignParcelToUser(server.world_state, ParcelID(11), UserID(2));
+		assignParcelToUser(server.world_state, ParcelID(11), UserID(2)); // dirtypunk
+		assignParcelToUser(server.world_state, ParcelID(12), UserID(3)); // zom-b
 
 
 
