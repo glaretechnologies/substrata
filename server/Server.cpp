@@ -52,7 +52,7 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 		test_parcel->admin_ids.push_back(UserID(0));
 		test_parcel->writer_ids.push_back(UserID(0));
 		test_parcel->created_time = TimeStamp::currentTime();
-		test_parcel->zbounds = Vec2d(-1, 1);
+		test_parcel->zbounds = Vec2d(-1, 6);
 
 		for(int v=0; v<4; ++v)
 			test_parcel->verts[v] = M * Vec2d(parcel_coords[i][v][0], parcel_coords[i][v][1]);
@@ -95,7 +95,7 @@ static void makeBlock(const Vec2d& botleft, MTwister& rng, int& next_id, Referen
 				test_parcel->admin_ids.push_back(UserID(0));
 				test_parcel->writer_ids.push_back(UserID(0));
 				test_parcel->created_time = TimeStamp::currentTime();
-				test_parcel->zbounds = Vec2d(-1, 1);
+				test_parcel->zbounds = Vec2d(-1, 6);
 
 				test_parcel->verts[0] = botleft + Vec2d(xi * 20, yi * 20);
 				test_parcel->verts[1] = botleft + Vec2d((xi+1)* 20, yi * 20);
