@@ -140,6 +140,10 @@ ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.cpp
 ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.h
 )
 
+SET(doc_files
+../docs/notes.txt
+../docs/todo.txt
+)
 
 # SET(rc_stuff "../vs2008/indigo_icon.rc")
 
@@ -147,6 +151,7 @@ SOURCE_GROUP(gui_client FILES ${gui_client})
 SOURCE_GROUP(qt FILES ${qt})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(client_indigo_files FILES ${client_indigo_files})
+SOURCE_GROUP(docs FILES ${doc_files})
 
 
 if(WIN32)
@@ -212,6 +217,7 @@ ${dll_src}
 ${fft2d}
 ${xxhash}
 ${qt}
+${doc_files}
 )
 
 add_definitions(-DGUI_CLIENT=1)
