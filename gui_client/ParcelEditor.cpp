@@ -19,6 +19,8 @@ ParcelEditor::~ParcelEditor()
 
 void ParcelEditor::setFromParcel(const Parcel& parcel)
 {
+	this->IDLabel->setText(QtUtils::toQString(parcel.id.toString()));
+
 	const std::string owner_name = !parcel.owner_name.empty() ? parcel.owner_name :
 		(parcel.owner_id.valid() ? ("user id: " + parcel.owner_id.toString()) : "[Unknown]");
 
