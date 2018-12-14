@@ -46,7 +46,7 @@ void ListenerThread::doRun()
 
 			try
 			{
-				sock->bindAndListen(listenport);
+				sock->bindAndListen(listenport, /*reuse address=*/true);
 				bound = true;
 				break;
 			}
