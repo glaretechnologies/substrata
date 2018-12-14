@@ -287,6 +287,7 @@ int main(int argc, char *argv[])
 		assignParcelToUser(server.world_state, ParcelID(11), UserID(2)); // dirtypunk
 		assignParcelToUser(server.world_state, ParcelID(12), UserID(3)); // zom-b
 		assignParcelToUser(server.world_state, ParcelID(32), UserID(4)); // lycium
+		assignParcelToUser(server.world_state, ParcelID(31), UserID(5)); // Harry
 
 
 
