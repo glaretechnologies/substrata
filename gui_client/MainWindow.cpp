@@ -3346,6 +3346,11 @@ int main(int argc, char *argv[])
 
 		mw.raise();
 
+		if(mw.ui->glWidget->opengl_engine.nonNull() && !mw.ui->glWidget->opengl_engine->initSucceeded())
+		{
+			mw.print("opengl_engine init failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg());
+		}
+
 		mw.server_hostname = server_hostname;
 		mw.world_state = new WorldState();
 

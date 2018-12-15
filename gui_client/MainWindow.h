@@ -49,6 +49,8 @@ public:
 
 	void updateGroundPlane();
 
+	void print(const std::string& message); // Print to log and console
+
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
 signals:;
 	void resolutionChanged(int, int);
@@ -89,7 +91,6 @@ private:
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
 	void loadScriptForObject(WorldObject* ob);
-	void print(const std::string& message); // Print to log and console
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResource(const std::string& url);
