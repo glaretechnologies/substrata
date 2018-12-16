@@ -705,6 +705,39 @@ void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
 }
 
 
+// Also shows error notifications if modification is not allowed.
+bool MainWindow::objectModificationAllowed(const WorldObject& ob)
+{
+	bool allow_modification = true;
+	if(!this->logged_in_user_id.valid())
+	{
+		allow_modification = false;
+
+		// Display an error message if we have not already done so since selecting this object.
+		if(!shown_object_modification_error_msg)
+		{
+			showErrorNotification("You must be logged in to modify an object.");
+			shown_object_modification_error_msg = true;
+		}
+	}
+	else
+	{
+		if(this->logged_in_user_id != ob.creator_id)
+		{
+			allow_modification = false;
+
+			// Display an error message if we have not already done so since selecting this object.
+			if(!shown_object_modification_error_msg)
+			{
+				showErrorNotification("You must be the owner of this object to modify it.  This object is owned by '" + ob.creator_name + "'.");
+				shown_object_modification_error_msg = true;
+			}
+		}
+	}
+	return allow_modification;
+}
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	const double cur_time = Clock::getTimeSinceInit();
@@ -1568,33 +1601,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Move selected object if there is one
 	if(this->selected_ob.nonNull())
 	{
-		bool allow_modification = true;
-		if(!this->logged_in_user_id.valid())
-		{
-			allow_modification = false;
-
-			// Display an error message if we have not already done so since selecting this object.
-			if(!shown_object_modification_error_msg)
-			{
-				showErrorNotification("You must be logged in to modify an object.");
-				shown_object_modification_error_msg = true;
-			}
-		}
-		else
-		{
-			if(this->logged_in_user_id != this->selected_ob->creator_id)
-			{
-				allow_modification = false;
-
-				// Display an error message if we have not already done so since selecting this object.
-				if(!shown_object_modification_error_msg)
-				{
-					showErrorNotification("You must be the owner of this object to modify it.  This object is owned by '" + this->selected_ob->creator_name + "'.");
-					shown_object_modification_error_msg = true;
-				}
-			}
-		}
-
+		const bool allow_modification = objectModificationAllowed(*this->selected_ob);
 		if(allow_modification)
 		{
 			// Get direction for current mouse cursor position
@@ -2958,27 +2965,31 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 // The user wants to rotate the object 'ob'.
 void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 {
-	const Quatf current_q = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
-	const Quatf new_q     = Quatf::fromAxisAndAngle(toVec3f(normalise(axis)), angle) * current_q;
+	const bool allow_modification = objectModificationAllowed(*ob);
+	if(allow_modification)
+	{
+		const Quatf current_q = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+		const Quatf new_q     = Quatf::fromAxisAndAngle(toVec3f(normalise(axis)), angle) * current_q;
 
-	Vec4f new_axis;
-	new_q.toAxisAndAngle(new_axis, ob->angle);
-	ob->axis = toVec3f(new_axis);
+		Vec4f new_axis;
+		new_q.toAxisAndAngle(new_axis, ob->angle);
+		ob->axis = toVec3f(new_axis);
 
-	const Matrix4f new_ob_to_world = Matrix4f::translationMatrix(ob->pos.toVec4fPoint()) * Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) * 
-		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+		const Matrix4f new_ob_to_world = Matrix4f::translationMatrix(ob->pos.toVec4fPoint()) * Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
+			Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
-	// Update in opengl engine.
-	GLObjectRef opengl_ob = ob->opengl_engine_ob;
-	opengl_ob->ob_to_world_matrix = new_ob_to_world;
-	ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+		// Update in opengl engine.
+		GLObjectRef opengl_ob = ob->opengl_engine_ob;
+		opengl_ob->ob_to_world_matrix = new_ob_to_world;
+		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
-	// Update physics object
-	ob->physics_object->ob_to_world = new_ob_to_world;
-	this->physics_world->updateObjectTransformData(*ob->physics_object);
+		// Update physics object
+		ob->physics_object->ob_to_world = new_ob_to_world;
+		this->physics_world->updateObjectTransformData(*ob->physics_object);
 
-	// Update object values in editor
-	ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
+		// Update object values in editor
+		ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
+	}
 }
 
 
