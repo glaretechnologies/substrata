@@ -1047,6 +1047,10 @@ void WorkerThread::doRun()
 	{
 		conPrint("FileUtils::FileUtilsExcep: " + e.what());
 	}
+	catch(std::bad_alloc&)
+	{
+		conPrint("WorkerThread: Caught std::bad_alloc.");
+	}
 
 	// Mark avatar corresponding to client as dead
 	{

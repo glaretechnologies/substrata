@@ -233,6 +233,11 @@ MainWindow::~MainWindow()
 
 	ui->glWidget->makeCurrent();
 
+	// Kill various threads before we start destroying members of MainWindow they may depend on.
+	resource_upload_thread_manager.killThreadsBlocking();
+	resource_download_thread_manager.killThreadsBlocking();
+	net_resource_download_thread_manager.killThreadsBlocking();
+
 	delete ui;
 }
 
