@@ -277,11 +277,11 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 }
 
 
-void GlWidget::playerPhyicsThink()
+void GlWidget::playerPhyicsThink(float dt)
 {
 	// On Windows we will use GetAsyncKeyState() to test if a key is down.
 	// On Mac OS / Linux we will use our W_down etc.. state.
-	// This isn't as good because if we misse the keyReleaseEvent due to not having focus when the key is released, the key will act as if it's stuck down.
+	// This isn't as good because if we miss the keyReleaseEvent due to not having focus when the key is released, the key will act as if it's stuck down.
 	// TODO: Find an equivalent solution to GetAsyncKeyState on Mac/Linux.
 #ifdef _WIN32
 	if(hasFocus())
@@ -304,10 +304,11 @@ void GlWidget::playerPhyicsThink()
 			this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller);
 
 		// Turn left or right
+		const float base_rotate_speed = 200;
 		if(GetAsyncKeyState(VK_LEFT))
-			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, -3 * (SHIFT_down ? 3.0 : 1.0)));
+			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0)));
 		if(GetAsyncKeyState(VK_RIGHT))
-			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, 3 * (SHIFT_down ? 3.0 : 1.0)));
+			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0)));
 	}
 #else
 	if(W_down)
