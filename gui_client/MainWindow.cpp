@@ -1081,7 +1081,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	ui->glWidget->setCurrentTime((float)cur_time);
-	ui->glWidget->playerPhyicsThink();
+	ui->glWidget->playerPhyicsThink(dt);
 
 	// Process player physics
 	Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();

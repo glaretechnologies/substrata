@@ -42,7 +42,7 @@ public:
 	void setEnvMat(OpenGLMaterial& mat);
 	
 	void setCurrentTime(float time) { current_time = time; }
-	void playerPhyicsThink(); // Process keys held down.
+	void playerPhyicsThink(float dt); // Process keys held down.
 
 protected:
 
