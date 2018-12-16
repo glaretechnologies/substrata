@@ -101,6 +101,7 @@ private:
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
+	bool objectModificationAllowed(const WorldObject& ob); // Also shows error notifications if modification is not allowed.
 
 	struct EdgeMarker
 	{
