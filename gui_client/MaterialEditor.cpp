@@ -22,10 +22,6 @@
 #include "../utils/TaskManager.h"
 #include "../qt/SignalBlocker.h"
 #include "../qt/QtUtils.h"
-#include <QtGui/QMouseEvent>
-#include <set>
-#include <stack>
-#include <algorithm>
 
 
 MaterialEditor::MaterialEditor(QWidget *parent)
@@ -37,6 +33,9 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 	connect(this->colourGDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 	connect(this->colourBDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 	connect(this->textureFileSelectWidget,			SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
+
+	connect(this->textureXScaleDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+	connect(this->textureYScaleDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 
 	connect(this->roughnessDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 	connect(this->metallicFractionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
@@ -58,6 +57,9 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 	SignalBlocker::setValue(this->colourBDoubleSpinBox, mat.colour_rgb.b);
 	this->textureFileSelectWidget->setFilename(QtUtils::toQString(mat.colour_texture_url));
 
+	SignalBlocker::setValue(this->textureXScaleDoubleSpinBox, mat.tex_matrix.elem(0, 0));
+	SignalBlocker::setValue(this->textureYScaleDoubleSpinBox, mat.tex_matrix.elem(1, 1));
+
 	SignalBlocker::setValue(this->roughnessDoubleSpinBox, mat.roughness.val);
 	SignalBlocker::setValue(this->opacityDoubleSpinBox, mat.opacity.val);
 	SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, mat.metallic_fraction.val);
@@ -73,6 +75,10 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	);
 	mat_out.colour_texture_url = QtUtils::toIndString(this->textureFileSelectWidget->filename());
 
+	mat_out.tex_matrix = Matrix2f(
+		(float)this->textureXScaleDoubleSpinBox->value(), 0.f,
+		0.f, (float)this->textureYScaleDoubleSpinBox->value()
+	);
 
 	mat_out.roughness			= ScalarVal(this->roughnessDoubleSpinBox->value());
 	mat_out.metallic_fraction	= ScalarVal(this->metallicFractionDoubleSpinBox->value());
@@ -93,6 +99,9 @@ void MaterialEditor::setControlsEditable(bool editable)
 	this->colourBDoubleSpinBox->setReadOnly(!editable);
 
 	this->textureFileSelectWidget->setReadOnly(!editable);
+
+	this->textureXScaleDoubleSpinBox->setReadOnly(!editable);
+	this->textureYScaleDoubleSpinBox->setReadOnly(!editable);
 
 	this->roughnessDoubleSpinBox->setReadOnly(!editable);
 	this->metallicFractionDoubleSpinBox->setReadOnly(!editable);
