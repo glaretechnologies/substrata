@@ -705,6 +705,23 @@ void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
 }
 
 
+void MainWindow::updateOnlineUsersList() // Works off world state avatars.
+{
+	std::vector<std::string> names;
+	{
+		Lock lock(world_state->mutex);
+		for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
+			names.push_back(it->second->name);
+	}
+
+	std::sort(names.begin(), names.end());
+
+	const std::string text = StringUtils::join(names, "\n");
+	
+	ui->onlineUsersTextEdit->setText(QtUtils::toQString(text));
+}
+
+
 // Also shows error notifications if modification is not allowed.
 bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 {
@@ -1131,6 +1148,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			Avatar* avatar = it->second.getPointer();
 			if(avatar->uid == this->client_thread->client_avatar_uid) // Don't render our own Avatar
 			{
+				if(avatar->other_dirty) // If just created
+				{
+					updateOnlineUsersList(); // Update name list
+					avatar->other_dirty = false;
+				}
+
 				it++;
 				continue;
 			}
@@ -1158,6 +1181,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					auto old_avatar_iterator = it;
 					it++;
 					this->world_state->avatars.erase(old_avatar_iterator);
+
+					updateOnlineUsersList();
 				}
 				else
 				{
@@ -1171,6 +1196,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(reload_opengl_model) // If this is a new avatar that doesn't have an OpenGL model yet:
 					{
 						print("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
+
+						updateOnlineUsersList();
 
 						// Remove any existing model and nametag
 						//if(avatar->opengl_engine_ob.nonNull())

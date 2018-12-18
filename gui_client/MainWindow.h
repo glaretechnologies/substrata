@@ -102,6 +102,7 @@ private:
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
 	bool objectModificationAllowed(const WorldObject& ob); // Also shows error notifications if modification is not allowed.
+	void updateOnlineUsersList(); // Works off world state avatars.
 
 	struct EdgeMarker
 	{
