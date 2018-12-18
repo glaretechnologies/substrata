@@ -143,6 +143,7 @@ ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.h
 SET(doc_files
 ../docs/notes.txt
 ../docs/todo.txt
+../docs/deploying.txt
 )
 
 # SET(rc_stuff "../vs2008/indigo_icon.rc")
