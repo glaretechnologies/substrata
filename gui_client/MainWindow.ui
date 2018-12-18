@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1090</width>
-    <height>639</height>
+    <width>1075</width>
+    <height>787</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -34,7 +34,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1090</width>
+     <width>1075</width>
      <height>21</height>
     </rect>
    </property>
@@ -97,6 +97,26 @@
       <widget class="QWidget" name="chatWidget" native="true">
        <layout class="QVBoxLayout" name="verticalLayout_2">
         <item>
+         <widget class="QLabel" name="label">
+          <property name="text">
+           <string>Online Users:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTextEdit" name="onlineUsersTextEdit">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>100</height>
+           </size>
+          </property>
+          <property name="readOnly">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QTextEdit" name="chatMessagesTextEdit">
           <property name="readOnly">
            <bool>true</bool>
@@ -151,7 +171,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>432</height>
+          <height>580</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
