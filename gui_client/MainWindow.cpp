@@ -3316,7 +3316,7 @@ int main(int argc, char *argv[])
 	{
 		cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
 
-		appdata_path = PlatformUtils::getOrCreateAppDataDirectory(cyberspace_base_dir_path, "Cyberspace");
+		appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
 	}
 	catch(PlatformUtils::PlatformUtilsExcep& e)
 	{
