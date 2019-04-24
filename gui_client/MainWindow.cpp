@@ -491,7 +491,9 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 					gl_ob = new GLObject();
 					gl_ob->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
 					gl_ob->materials.resize(1);
-					gl_ob->materials[0].albedo_rgb = Colour3f(0.2, 0.3, 0.6);
+					gl_ob->materials[0].albedo_rgb = Colour3f(0.8);
+					gl_ob->materials[0].albedo_tex_path = "resources/voxel_dummy_texture.png";
+					gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 					gl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 				}
 				else
