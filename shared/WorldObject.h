@@ -23,6 +23,21 @@ class WinterShaderEvaluator;
 
 
 
+class Voxel
+{
+public:
+	Voxel(const Vec3<int>& pos_, int mat_index_) : pos(pos_), mat_index(mat_index_) {}
+	Voxel() {}
+	Vec3<int> pos;
+	int mat_index; // Index into materials
+};
+
+
+class VoxelGroup
+{
+public:
+	std::vector<Voxel> voxels;
+};
 
 
 /*=====================================================================
@@ -49,7 +64,8 @@ public:
 	enum ObjectType
 	{
 		ObjectType_Generic,
-		ObjectType_Hypercard
+		ObjectType_Hypercard,
+		ObjectType_VoxelGroup
 	};
 
 	UID uid;
@@ -65,6 +81,8 @@ public:
 	Vec3f axis;
 	float angle;
 	Vec3f scale;
+
+	VoxelGroup voxel_group;
 
 	TimeStamp created_time;
 	UserID creator_id;

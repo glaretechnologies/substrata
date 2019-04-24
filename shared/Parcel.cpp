@@ -319,7 +319,7 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 		mesh->buildTrisFromQuads();
 		Geometry::BuildOptions options;
 		StandardPrintOutput print_output;
-		mesh->build(".", options, print_output, /*verbose=*/false, task_manager);
+		mesh->build(options, print_output, /*verbose=*/false, task_manager);
 
 		new_physics_object->geometry = mesh;
 		new_physics_object->ob_to_world = Matrix4f::identity();
