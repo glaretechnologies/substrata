@@ -122,7 +122,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		SignalBlocker blocker(this->materialComboBox);
 		this->materialComboBox->clear();
 		for(size_t i=0; i<ob.materials.size(); ++i)
-			this->materialComboBox->addItem(QtUtils::toQString("Material " + toString(i)), i);
+			this->materialComboBox->addItem(QtUtils::toQString("Material " + toString(i)), (int)i);
 
 		this->materialComboBox->setCurrentIndex(selected_mat_index);
 
