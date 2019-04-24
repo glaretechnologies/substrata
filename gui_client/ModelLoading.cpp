@@ -7,6 +7,7 @@ Code By Nicholas Chapman.
 #include "ModelLoading.h"
 
 
+#include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../graphics/formatdecoderobj.h"
@@ -432,7 +433,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		raymesh->buildTrisFromQuads();
 		Geometry::BuildOptions options;
 		StandardPrintOutput print_output;
-		raymesh->build(".", options, print_output, false, task_manager);
+		raymesh->build(options, print_output, false, task_manager);
 
 		// Add to map
 		MeshData mesh_data;
@@ -469,3 +470,320 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 }
 
 
+Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, Reference<RayMesh>& raymesh_out)
+{
+	const size_t num_voxels = voxel_group.voxels.size();
+	// conPrint("Adding " + toString(num_voxels) + " voxels.");
+
+	const float w = 1.f;// voxel_group.voxel_width;
+
+	js::Vector<Vec3f, 16> verts;
+	verts.resize(num_voxels * 24); // 6 faces * 4 verts/face
+
+	js::Vector<Vec3f, 16> normals;
+	normals.resize(num_voxels * 24);
+
+	js::Vector<Vec2f, 16> uvs;
+	uvs.resize(num_voxels * 24);
+
+	js::Vector<uint32, 16> indices;
+	indices.resize(num_voxels * 36); // two tris per face, 6 faces
+
+	int max_mat_index = 0;
+	for(int v=0; v<(int)num_voxels; ++v)
+	{
+		max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
+
+		Vec3f voxel_pos_offset(
+			voxel_group.voxels[v].pos.x * w,
+			voxel_group.voxels[v].pos.y * w,
+			voxel_group.voxels[v].pos.z * w
+		);
+
+		for(int face = 0; face < 6; ++face)
+		{
+			indices[v*36 + face*6 + 0] = v*24 + face*4 + 0;
+			indices[v*36 + face*6 + 1] = v*24 + face*4 + 1;
+			indices[v*36 + face*6 + 2] = v*24 + face*4 + 2;
+			indices[v*36 + face*6 + 3] = v*24 + face*4 + 0;
+			indices[v*36 + face*6 + 4] = v*24 + face*4 + 2;
+			indices[v*36 + face*6 + 5] = v*24 + face*4 + 3;
+		}
+
+		int face = 0;
+
+		// x = 0 face
+		{
+			Vec3f v0 = Vec3f(0, 0, 0) + voxel_pos_offset;
+			Vec3f v1 = Vec3f(0, 0, w) + voxel_pos_offset;
+			Vec3f v2 = Vec3f(0, w, w) + voxel_pos_offset;
+			Vec3f v3 = Vec3f(0, w, 0) + voxel_pos_offset;
+
+			verts[v*24 + face*4 + 0] = v0;
+			verts[v*24 + face*4 + 1] = v1;
+			verts[v*24 + face*4 + 2] = v2;
+			verts[v*24 + face*4 + 3] = v3;
+
+			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(0, 1);
+			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(1, 0);
+
+			for(int i=0; i<4; ++i)
+				normals[v*24 + face*4 + i] = Vec3f(-1, 0, 0);
+
+			face++;
+		}
+
+		// x = 1 face
+		{
+			Vec3f v0 = Vec3f(w, 0, 0) + voxel_pos_offset;
+			Vec3f v1 = Vec3f(w, w, 0) + voxel_pos_offset;
+			Vec3f v2 = Vec3f(w, w, w) + voxel_pos_offset;
+			Vec3f v3 = Vec3f(w, 0, w) + voxel_pos_offset;
+
+			verts[v*24 + face*4 + 0] = v0;
+			verts[v*24 + face*4 + 1] = v1;
+			verts[v*24 + face*4 + 2] = v2;
+			verts[v*24 + face*4 + 3] = v3;
+
+			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(0, 1);
+
+			for(int i=0; i<4; ++i)
+				normals[v*24 + face*4 + i] = Vec3f(1, 0, 0);
+
+			face++;
+		}
+
+		// y = 0 face
+		{
+			Vec3f v0 = Vec3f(0, 0, 0) + voxel_pos_offset;
+			Vec3f v1 = Vec3f(w, 0, 0) + voxel_pos_offset;
+			Vec3f v2 = Vec3f(w, 0, w) + voxel_pos_offset;
+			Vec3f v3 = Vec3f(0, 0, w) + voxel_pos_offset;
+
+			verts[v*24 + face*4 + 0] = v0;
+			verts[v*24 + face*4 + 1] = v1;
+			verts[v*24 + face*4 + 2] = v2;
+			verts[v*24 + face*4 + 3] = v3;
+
+			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(0, 1);
+
+			for(int i=0; i<4; ++i)
+				normals[v*24 + face*4 + i] = Vec3f(0, -1, 0);
+
+			face++;
+		}
+
+		// y = 1 face
+		{
+			Vec3f v0 = Vec3f(0, w, 0) + voxel_pos_offset;
+			Vec3f v1 = Vec3f(0, w, w) + voxel_pos_offset;
+			Vec3f v2 = Vec3f(w, w, w) + voxel_pos_offset;
+			Vec3f v3 = Vec3f(w, w, 0) + voxel_pos_offset;
+
+			verts[v*24 + face*4 + 0] = v0;
+			verts[v*24 + face*4 + 1] = v1;
+			verts[v*24 + face*4 + 2] = v2;
+			verts[v*24 + face*4 + 3] = v3;
+
+			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(0, 1);
+			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(1, 0);
+
+			for(int i=0; i<4; ++i)
+				normals[v*24 + face*4 + i] = Vec3f(0, 1, 0);
+
+			face++;
+		}
+
+		// z = 0 face
+		{
+			Vec3f v0 = Vec3f(0, 0, 0) + voxel_pos_offset;
+			Vec3f v1 = Vec3f(0, w, 0) + voxel_pos_offset;
+			Vec3f v2 = Vec3f(w, w, 0) + voxel_pos_offset;
+			Vec3f v3 = Vec3f(w, 0, 0) + voxel_pos_offset;
+
+			verts[v*24 + face*4 + 0] = v0;
+			verts[v*24 + face*4 + 1] = v1;
+			verts[v*24 + face*4 + 2] = v2;
+			verts[v*24 + face*4 + 3] = v3;
+
+			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(0, 1);
+
+			for(int i=0; i<4; ++i)
+				normals[v*24 + face*4 + i] = Vec3f(0, 0, -1);
+
+			face++;
+		}
+
+		// z = 1 face
+		{
+			Vec3f v0 = Vec3f(0, 0, w) + voxel_pos_offset;
+			Vec3f v1 = Vec3f(w, 0, w) + voxel_pos_offset;
+			Vec3f v2 = Vec3f(w, w, w) + voxel_pos_offset;
+			Vec3f v3 = Vec3f(0, w, w) + voxel_pos_offset;
+
+			verts[v*24 + face*4 + 0] = v0;
+			verts[v*24 + face*4 + 1] = v1;
+			verts[v*24 + face*4 + 2] = v2;
+			verts[v*24 + face*4 + 3] = v3;
+
+			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(0, 1);
+
+			for(int i=0; i<4; ++i)
+				normals[v*24 + face*4 + i] = Vec3f(0, 0, 1);
+
+			face++;
+		}
+	}
+
+
+	Reference<RayMesh> raymesh = new RayMesh("mesh", false);
+
+	// Copy over tris to raymesh
+	raymesh->getTriangles().resizeNoCopy(num_voxels*6*2);
+	for(size_t v=0; v<num_voxels; ++v)
+	{
+		for(int face=0; face<6; ++face)
+		{
+			raymesh->getTriangles()[v*6*2 + face*2 + 0].vertex_indices[0] = indices[v*36 + face*6 + 0];
+			raymesh->getTriangles()[v*6*2 + face*2 + 0].vertex_indices[1] = indices[v*36 + face*6 + 1];
+			raymesh->getTriangles()[v*6*2 + face*2 + 0].vertex_indices[2] = indices[v*36 + face*6 + 2];
+			raymesh->getTriangles()[v*6*2 + face*2 + 0].setMatIndexAndUseShadingNormals(voxel_group.voxels[v].mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
+
+			raymesh->getTriangles()[v*6*2 + face*2 + 1].vertex_indices[0] = indices[v*36 + face*6 + 3];
+			raymesh->getTriangles()[v*6*2 + face*2 + 1].vertex_indices[1] = indices[v*36 + face*6 + 4];
+			raymesh->getTriangles()[v*6*2 + face*2 + 1].vertex_indices[2] = indices[v*36 + face*6 + 5];
+			raymesh->getTriangles()[v*6*2 + face*2 + 1].setMatIndexAndUseShadingNormals(voxel_group.voxels[v].mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
+		}
+	}
+
+	// Copy verts positions and normals
+	raymesh->getVertices().resizeNoCopy(num_voxels*24);
+	for(size_t i=0; i<num_voxels*24; ++i)
+	{
+		raymesh->getVertices()[i].pos = verts[i];
+		raymesh->getVertices()[i].normal = normals[i];
+	}
+
+
+	//raymesh->buildTrisFromQuads();
+	Geometry::BuildOptions options;
+	StandardPrintOutput print_output;
+	raymesh->build(options, print_output, /*verbose=*/false, task_manager);
+
+	raymesh_out = raymesh;
+
+	Reference<OpenGLMeshRenderData> meshdata = new OpenGLMeshRenderData();
+
+	// Do a pass over voxels to count number of voxels for each mat
+	const int num_mat_batches = max_mat_index + 1;
+	std::vector<int> mat_voxel_counts(num_mat_batches);
+	for(size_t v=0; v<num_voxels; ++v)
+		mat_voxel_counts[voxel_group.voxels[v].mat_index]++;
+
+	meshdata->has_uvs = true;
+	meshdata->has_shading_normals = true;
+	meshdata->batches.resize(num_mat_batches);
+	int batch_offset = 0; // in voxels
+	std::vector<int> batch_write_indices(num_mat_batches); // in voxels
+	for(size_t i=0; i<num_mat_batches; ++i)
+	{
+		meshdata->batches[i].material_index = (uint32)i;
+		meshdata->batches[i].num_indices = mat_voxel_counts[i] * 36; // 36 indices per voxel.
+		meshdata->batches[i].prim_start_offset = batch_offset * 36 * sizeof(uint32);
+
+		batch_write_indices[i] = batch_offset;
+		batch_offset += mat_voxel_counts[i];
+	}
+
+	meshdata->aabb_os = js::AABBox::emptyAABBox();
+
+	js::Vector<float, 16> combined_data;
+	const int NUM_COMPONENTS = 8;
+	combined_data.resizeNoCopy(NUM_COMPONENTS * verts.size());
+
+	js::Vector<uint32, 16> sorted_indices(indices.size());
+
+	for(int v=0; v<(int)num_voxels; ++v)
+	{
+		const int mat_index = voxel_group.voxels[v].mat_index;
+		const int write_i = batch_write_indices[mat_index]++;
+
+		// Copy the vert data etc. for the voxel
+		// There are 24 verts, normals etc.. per voxel.
+		const int verts_offset = v * 24;
+		for(size_t i=0; i<24; ++i)
+		{
+			const Vec3f& vertpos = verts[verts_offset + i];
+
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 0] = vertpos.x;
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 1] = vertpos.y;
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 2] = vertpos.z;
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 3] = normals[verts_offset + i].x;
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 4] = normals[verts_offset + i].y;
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 5] = normals[verts_offset + i].z;
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 6] = uvs[verts_offset + i].x;
+			combined_data[(write_i*24 + i)*NUM_COMPONENTS + 7] = uvs[verts_offset + i].y;
+
+			meshdata->aabb_os.enlargeToHoldPoint(Vec4f(vertpos.x, vertpos.y, vertpos.z, 1.f));
+		}
+
+		// Copy the indices for the voxel.
+		// There are 36 indices for the voxel
+		for(size_t i=0; i<36; ++i)
+			sorted_indices[write_i * 36 + i] = indices[v*36 + i];
+	}
+
+	meshdata->vert_vbo = new VBO(&combined_data[0], combined_data.dataSizeBytes());
+	meshdata->vert_indices_buf = new VBO(&sorted_indices[0], sorted_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+	meshdata->index_type = GL_UNSIGNED_INT;
+
+	VertexSpec spec;
+	const uint32 vert_stride = (uint32)(sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float) * 2); // also vertex size.
+
+	VertexAttrib pos_attrib;
+	pos_attrib.enabled = true;
+	pos_attrib.num_comps = 3;
+	pos_attrib.type = GL_FLOAT;
+	pos_attrib.normalised = false;
+	pos_attrib.stride = vert_stride;
+	pos_attrib.offset = 0;
+	spec.attributes.push_back(pos_attrib);
+
+	VertexAttrib normal_attrib;
+	normal_attrib.enabled = true;
+	normal_attrib.num_comps = 3;
+	normal_attrib.type = GL_FLOAT;
+	normal_attrib.normalised = false;
+	normal_attrib.stride = vert_stride;
+	normal_attrib.offset = sizeof(float) * 3; // goes after position
+	spec.attributes.push_back(normal_attrib);
+
+	VertexAttrib uv_attrib;
+	uv_attrib.enabled = true;
+	uv_attrib.num_comps = 2;
+	uv_attrib.type = GL_FLOAT;
+	uv_attrib.normalised = false;
+	uv_attrib.stride = vert_stride;
+	uv_attrib.offset = (uint32)(sizeof(float) * 3 + sizeof(float) * 3); // after position and possibly normal.
+	spec.attributes.push_back(uv_attrib);
+
+	meshdata->vert_vao = new VAO(meshdata->vert_vbo, spec);
+
+	return meshdata;
+}

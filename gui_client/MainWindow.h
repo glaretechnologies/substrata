@@ -59,6 +59,7 @@ private slots:;
 	void on_actionAvatarSettings_triggered();
 	void on_actionAddObject_triggered();
 	void on_actionAddHypercard_triggered();
+	void on_actionAdd_Voxels_triggered();
 	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
 	void on_actionReset_Layout_triggered();
@@ -103,6 +104,8 @@ private:
 	void recolourParcelsForLoggedInState();
 	bool objectModificationAllowed(const WorldObject& ob); // Also shows error notifications if modification is not allowed.
 	void updateOnlineUsersList(); // Works off world state avatars.
+	bool areEditingVoxels();
+	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y);
 
 	struct EdgeMarker
 	{
@@ -203,6 +206,9 @@ public:
 
 	Reference<GLObject> ob_placement_beam;
 	Reference<GLObject> ob_placement_marker;
+
+	Reference<GLObject> voxel_edit_marker;
+	bool voxel_edit_marker_in_engine;
 
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;

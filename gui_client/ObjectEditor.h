@@ -43,8 +43,15 @@ signals:;
 
 private slots:
 	void on_visitURLLabel_linkActivated(const QString& link);
+	void on_materialComboBox_currentIndexChanged(int index);
+	void on_newMaterialPushButton_clicked(bool checked);
 	void targetURLChanged();
 	
 private:
+	// Store a cloned copy of the materials.
+	// The reason for having this is so if the user selected another material,
+	// we can display it, without needing to hang on to a reference to the original world object.
+	std::vector<WorldMaterialRef> cloned_materials;
+
 	int selected_mat_index;
 };

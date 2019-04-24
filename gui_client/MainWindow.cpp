@@ -117,7 +117,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	shown_object_modification_error_msg(false),
 	need_help_info_dock_widget_position(false),
 	total_num_res_to_download(0),
-	num_frames(0)
+	num_frames(0),
+	voxel_edit_marker_in_engine(false)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -158,7 +159,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
-	//connect(ui->glWidget, SIGNAL(mouseClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
+	connect(ui->glWidget, SIGNAL(mouseClicked(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseDoubleClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
@@ -260,7 +261,7 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 				
 	phy_ob->geometry->buildTrisFromQuads();
 	Geometry::BuildOptions options;
-	phy_ob->geometry->build(".", options, print_output, false, task_manager);
+	phy_ob->geometry->build(options, print_output, false, task_manager);
 
 	phy_ob->ob_to_world = ob_to_world_matrix;
 	return phy_ob;
@@ -309,6 +310,17 @@ static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
 	return Matrix4f::translationMatrix(pos + ob->translation) *
 		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
 		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+}
+
+
+// TODO: check/test
+static const Matrix4f worldToObMatrix(const WorldObjectRef& ob)
+{
+	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+
+	return Matrix4f::scaleMatrix(1/ob->scale.x, 1/ob->scale.y, 1/ob->scale.z) *
+		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), -ob->angle) *
+		Matrix4f::translationMatrix(-pos - ob->translation);
 }
 
 
@@ -466,6 +478,18 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				gl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 				ob->loaded_content = ob->content;
+			}
+			else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+			{
+				physics_ob = new PhysicsObject(/*collidable=*/false);
+				physics_ob->geometry = this->unit_cube_raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+
+				gl_ob = new GLObject();
+				gl_ob->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
+				gl_ob->materials.resize(1);
+				gl_ob->materials[0].albedo_rgb = Colour3f(0.2, 0.3, 0.6);
+				gl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 			}
 			else
 			{
@@ -1768,6 +1792,109 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 	}
 
+	
+	// Update position of voxel edit marker if we are editing voxels
+	if(areEditingVoxels())
+	{
+		const bool ctrl_key_down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0; // TODO: make cross-platform
+		const bool alt_key_down = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0; // alt = VK_MENU
+
+		if(ctrl_key_down || alt_key_down)
+		{
+			const QPoint mouse_point = ui->glWidget->mapFromGlobal(QCursor::pos());
+
+			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+			const Vec4f dir = getDirForPixelTrace(mouse_point.x(), mouse_point.y());
+			RayTraceResult results;
+			this->physics_world->traceRay(origin, dir, thread_context, results);
+			if(results.hit_object)
+			{
+				const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
+
+				if(selected_ob.nonNull())
+				{
+					const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+					if(have_edit_permissions)
+					{
+						const float current_voxel_w = 1;
+
+						Matrix4f ob_to_world = obToWorldMatrix(selected_ob);
+						Matrix4f world_to_ob = worldToObMatrix(selected_ob);
+
+						if(ctrl_key_down)
+						{
+							const Vec4f point_off_surface = hitpos_ws + results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
+							const Vec4f point_os = world_to_ob * point_off_surface;
+							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+
+							this->voxel_edit_marker->ob_to_world_matrix = ob_to_world * Matrix4f::translationMatrix(voxel_indices.x * current_voxel_w, voxel_indices.y * current_voxel_w, voxel_indices.z * current_voxel_w) *
+								Matrix4f::uniformScaleMatrix(current_voxel_w);
+							if(!voxel_edit_marker_in_engine)
+							{
+								this->ui->glWidget->opengl_engine->addObject(this->voxel_edit_marker);
+								this->voxel_edit_marker_in_engine = true;
+							}
+							else
+							{
+								this->ui->glWidget->opengl_engine->updateObjectTransformData(*this->voxel_edit_marker);
+							}
+
+							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.1, 0.9, 0.2);
+							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker, *this->texture_server);
+
+						}
+						else if(alt_key_down)
+						{
+							const Vec4f point_under_surface = hitpos_ws - results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
+							const Vec4f point_os = world_to_ob * point_under_surface;
+							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+
+							
+							const float extra_voxel_w = 0.01f; // Make scale a bit bigger so can be seen around target voxel.
+							this->voxel_edit_marker->ob_to_world_matrix = ob_to_world * Matrix4f::translationMatrix(
+								voxel_indices.x * current_voxel_w - current_voxel_w * extra_voxel_w,
+								voxel_indices.y * current_voxel_w - current_voxel_w * extra_voxel_w,
+								voxel_indices.z * current_voxel_w - current_voxel_w * extra_voxel_w
+								) *
+								Matrix4f::uniformScaleMatrix(current_voxel_w * (1 + extra_voxel_w*2));
+							if(!voxel_edit_marker_in_engine)
+							{
+								this->ui->glWidget->opengl_engine->addObject(this->voxel_edit_marker);
+								this->voxel_edit_marker_in_engine = true;
+							}
+							else
+							{
+								this->ui->glWidget->opengl_engine->updateObjectTransformData(*this->voxel_edit_marker);
+							}
+							
+							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.9, 0.1, 0.1);
+							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker, *this->texture_server);
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			if(voxel_edit_marker_in_engine)
+			{
+				this->ui->glWidget->opengl_engine->removeObject(this->voxel_edit_marker);
+				voxel_edit_marker_in_engine = false;
+			}
+		}
+	}
+	else
+	{
+		if(voxel_edit_marker_in_engine)
+		{
+			this->ui->glWidget->opengl_engine->removeObject(this->voxel_edit_marker);
+			voxel_edit_marker_in_engine = false;
+		}
+	}
+
+
 	// Send an AvatarTransformUpdate packet to the server if needed.
 	if(time_since_update_packet_sent.elapsed() > 0.1)
 	{
@@ -2270,6 +2397,56 @@ void MainWindow::on_actionAddHypercard_triggered()
 }
 
 
+void MainWindow::on_actionAdd_Voxels_triggered()
+{
+	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f;
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveObjectWritePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+		return;
+	}
+
+	
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
+	new_world_object->materials.resize(1);
+	new_world_object->materials[0] = new WorldMaterial();
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = 0;
+	new_world_object->scale = Vec3f(0.5f); // This will be the initial width of the voxels
+
+	// Send CreateObject message to server
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		packet.writeUInt32(Protocol::CreateObject);
+		writeToNetworkStream(*new_world_object, packet);
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
+
+	showInfoNotification("Voxel Object created.");
+
+	// Deselect any currently selected object
+	deselectObject();
+}
+
+
+bool MainWindow::areEditingVoxels()
+{
+	return this->selected_ob.nonNull() && this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup;
+}
+
+
 void MainWindow::on_actionCloneObject_triggered()
 {
 	if(this->selected_ob.nonNull())
@@ -2665,7 +2842,7 @@ void MainWindow::objectEditedSlot()
 				selected_ob->setPosAndHistory(new_ob_pos);
 
 				// Update in opengl engine.
-				if(this->selected_ob->object_type == WorldObject::ObjectType_Generic)
+				if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
 				{
 					// Update materials
 					if(opengl_ob.nonNull())
@@ -2810,9 +2987,133 @@ void MainWindow::URLChangedSlot()
 }
 
 
+Vec4f MainWindow::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y)
+{
+	const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+
+	const float sensor_width = 0.035f;
+	const float sensor_height = sensor_width / ui->glWidget->viewport_aspect_ratio;
+	const float lens_sensor_dist = 0.03f;
+
+	const float s_x = sensor_width *  (float)(pixel_pos_x - ui->glWidget->geometry().width() /2) / ui->glWidget->geometry().width(); // dist right on sensor from centre of sensor
+	const float s_y = sensor_height * (float)(pixel_pos_y - ui->glWidget->geometry().height()/2) / ui->glWidget->geometry().height(); // dist down on sensor from centre of sensor
+
+	const float r_x = s_x / lens_sensor_dist;
+	const float r_y = s_y / lens_sensor_dist;
+
+	const Vec4f dir = normalise(forwards + right * r_x - up * r_y);
+	return dir;
+}
+
+
 void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 {
-	//conPrint("MainWindow::glWidgetMouseClicked()");
+	if(areEditingVoxels())
+	{
+		Qt::MouseButtons mb = e->buttons();
+
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, thread_context, results);
+		if(results.hit_object)
+		{
+			const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
+
+			if(selected_ob.nonNull())
+			{
+				const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+				if(have_edit_permissions)
+				{
+					const float current_voxel_w = 1;// 0.25f;
+
+					Matrix4f ob_to_world = obToWorldMatrix(selected_ob);
+					Matrix4f world_to_ob = worldToObMatrix(selected_ob);
+
+					bool voxels_changed = false;
+
+					if(e->modifiers() & Qt::ControlModifier)
+					{
+						const Vec4f point_off_surface = hitpos_ws + results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
+
+						const Vec4f point_os = world_to_ob * point_off_surface;
+						const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+						Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+
+						// Add the voxel!
+						//this->selected_ob->voxel_group.voxel_width = current_voxel_w;
+						this->selected_ob->voxel_group.voxels.push_back(Voxel());
+						this->selected_ob->voxel_group.voxels.back().pos = voxel_indices;
+						this->selected_ob->voxel_group.voxels.back().mat_index = ui->objectEditor->getSelectedMatIndex();
+
+						voxels_changed = true;
+					}
+					else if(e->modifiers() & Qt::AltModifier)
+					{
+						const Vec4f point_under_surface = hitpos_ws - results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
+
+						const Vec4f point_os = world_to_ob * point_under_surface;
+						const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+						Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+
+						// Remove the voxel, if present
+						for(size_t z=0; z<this->selected_ob->voxel_group.voxels.size(); ++z)
+						{
+							if(this->selected_ob->voxel_group.voxels[z].pos == voxel_indices)
+								this->selected_ob->voxel_group.voxels.erase(this->selected_ob->voxel_group.voxels.begin() + z);
+						}
+
+						voxels_changed = true;
+					}
+
+					if(voxels_changed)
+					{
+						// Remove any existing OpenGL and physics model
+						if(this->selected_ob->opengl_engine_ob.nonNull())
+							ui->glWidget->removeObject(this->selected_ob->opengl_engine_ob);
+
+						if(this->selected_ob->physics_object.nonNull())
+							physics_world->removeObject(this->selected_ob->physics_object);
+
+						if(this->selected_ob->voxel_group.voxels.size() > 0)
+						{
+							// Add updated model!
+							Reference<RayMesh> raymesh;
+							Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(this->selected_ob->voxel_group, task_manager, raymesh);
+
+							GLObjectRef gl_ob = new GLObject();
+							gl_ob->ob_to_world_matrix = ob_to_world;
+							gl_ob->mesh_data = gl_meshdata;
+
+							gl_ob->materials.resize(this->selected_ob->materials.size());
+							for(uint32 i=0; i<this->selected_ob->materials.size(); ++i)
+								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager, gl_ob->materials[i]);
+
+							Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/true);
+							physics_ob->geometry = raymesh;
+							physics_ob->ob_to_world = ob_to_world;
+
+
+							this->selected_ob->opengl_engine_ob = gl_ob;
+							ui->glWidget->addObject(gl_ob);
+
+							ui->glWidget->opengl_engine->selectObject(gl_ob);
+
+							this->selected_ob->physics_object = physics_ob;
+							physics_ob->userdata = (void*)(this->selected_ob.ptr());
+							physics_ob->userdata_type = 0;
+							physics_world->addObject(physics_ob);
+							physics_world->rebuild(task_manager, print_output);
+						}
+					}
+				}
+			}
+		}
+		
+	}
 }
 
 
@@ -2826,17 +3127,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
 	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
 
-	const float sensor_width = 0.035f;
-	const float sensor_height = sensor_width / ui->glWidget->viewport_aspect_ratio;
-	const float lens_sensor_dist = 0.03f;
-
-	const float s_x = sensor_width *  (float)(e->pos().x() - ui->glWidget->geometry().width() /2) / ui->glWidget->geometry().width(); // dist right on sensor from centre of sensor
-	const float s_y = sensor_height * (float)(e->pos().y() - ui->glWidget->geometry().height()/2) / ui->glWidget->geometry().height(); // dist down on sensor from centre of sensor
-
-	const float r_x = s_x / lens_sensor_dist;
-	const float r_y = s_y / lens_sensor_dist;
-
-	const Vec4f dir = normalise(forwards + right * r_x - up * r_y);
+	const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 	RayTraceResult results;
 	this->physics_world->traceRay(origin, dir, thread_context, results);
@@ -3459,7 +3750,36 @@ int main(int argc, char *argv[])
 			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 			mw.ui->glWidget->opengl_engine->addObject(arrow);
 		}
-		
+
+
+		// Load a test voxel
+		/*{
+			VoxelGroup voxel_group;
+			//voxel_group.voxel_width = 0.5;
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 1));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 2));
+
+			Reference<RayMesh> raymesh;
+			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
+
+			GLObjectRef gl_ob = new GLObject();
+			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(3, 3, 1);
+			gl_ob->mesh_data = gl_meshdata;
+
+			gl_ob->materials.resize(3);
+			gl_ob->materials[0].albedo_rgb = Colour3f(0.9f, 0.1f, 0.1f);
+			gl_ob->materials[0].albedo_tex_path = "resources/obstacle.png";
+
+			gl_ob->materials[1].albedo_rgb = Colour3f(0.1f, 0.9f, 0.1f);
+
+			gl_ob->materials[2].albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
+
+			mw.ui->glWidget->addObject(gl_ob);
+		}*/
+
 		
 		// Load a test overlay quad
 		if(false)
@@ -3527,7 +3847,7 @@ int main(int argc, char *argv[])
 
 			mw.ground_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			mw.ground_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
+			mw.ground_quad_raymesh->build(options, mw.print_output, false, mw.task_manager);
 		}
 
 		mw.updateGroundPlane();
@@ -3547,7 +3867,7 @@ int main(int argc, char *argv[])
 
 			mw.hypercard_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			mw.hypercard_quad_raymesh->build(".", options, mw.print_output, false, mw.task_manager);
+			mw.hypercard_quad_raymesh->build(options, mw.print_output, false, mw.task_manager);
 		}
 
 		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
@@ -3592,7 +3912,7 @@ int main(int argc, char *argv[])
 
 			mw.unit_cube_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			mw.unit_cube_raymesh->build(".", options, mw.print_output, /*verbose=*/false, mw.task_manager);
+			mw.unit_cube_raymesh->build(options, mw.print_output, /*verbose=*/false, mw.task_manager);
 		}
 
 		// Make object-placement beam model
@@ -3615,6 +3935,7 @@ int main(int argc, char *argv[])
 
 			mw.ob_placement_marker->materials = std::vector<OpenGLMaterial>(1, material);
 		}
+
 		{
 			// Make ob_denied_move_marker
 			mw.ob_denied_move_marker = new GLObject();
@@ -3627,6 +3948,20 @@ int main(int argc, char *argv[])
 			material.alpha = 0.9f;
 
 			mw.ob_denied_move_marker->materials = std::vector<OpenGLMaterial>(1, material);
+		}
+
+		// Make voxel_edit_marker model
+		{
+			mw.voxel_edit_marker = new GLObject();
+			mw.voxel_edit_marker->ob_to_world_matrix = Matrix4f::identity();
+			mw.voxel_edit_marker->mesh_data = mw.ui->glWidget->opengl_engine->getCubeMeshData();
+
+			OpenGLMaterial material;
+			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+			material.transparent = true;
+			material.alpha = 0.3f;
+
+			mw.voxel_edit_marker->materials = std::vector<OpenGLMaterial>(1, material);
 		}
 
 		// Make shader for parcels

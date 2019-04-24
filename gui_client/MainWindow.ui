@@ -76,6 +76,7 @@
    </attribute>
    <addaction name="actionAddObject"/>
    <addaction name="actionAddHypercard"/>
+   <addaction name="actionAdd_Voxels"/>
    <addaction name="actionShow_Parcels"/>
   </widget>
   <widget class="QDockWidget" name="chatDockWidget">
@@ -310,6 +311,11 @@
    </property>
    <property name="text">
     <string>Fly Mode</string>
+   </property>
+  </action>
+  <action name="actionAdd_Voxels">
+   <property name="text">
+    <string>Add Voxels</string>
    </property>
   </action>
  </widget>
