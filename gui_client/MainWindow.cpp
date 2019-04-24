@@ -3277,12 +3277,19 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			// Update help text
 			if(have_edit_permissions)
 			{
-				this->ui->helpInfoLabel->setText("Click and drag the mouse to move the object around.\n"
+				QString text;
+				if(selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
+					text += "Ctrl + left-click: Add voxel.\n"
+						"Alt + left-click: Delete voxel.\n"
+						"\n";
+
+				text += "Click and drag the mouse to move the object around.\n"
 					"'[' and  ']' keys rotate the object.\n"
 					"PgUp and  pgDown keys rotate the object.\n"
 					"'-' and '+' keys wheel moves object near/far.\n"
-					"Esc key: deselect object."
-				);
+					"Esc key: deselect object.";
+
+				this->ui->helpInfoLabel->setText(text);
 				this->ui->helpInfoDockWidget->show();
 			}
 		}
