@@ -524,10 +524,10 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 			verts[v*24 + face*4 + 2] = v2;
 			verts[v*24 + face*4 + 3] = v3;
 
-			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
-			uvs[v*24 + face*4 + 1] = Vec2f(0, 1);
-			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
-			uvs[v*24 + face*4 + 3] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 0] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 2] = Vec2f(0, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(0, 0);
 
 			for(int i=0; i<4; ++i)
 				normals[v*24 + face*4 + i] = Vec3f(-1, 0, 0);
@@ -593,10 +593,10 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 			verts[v*24 + face*4 + 2] = v2;
 			verts[v*24 + face*4 + 3] = v3;
 
-			uvs[v*24 + face*4 + 0] = Vec2f(0, 0);
-			uvs[v*24 + face*4 + 1] = Vec2f(0, 1);
-			uvs[v*24 + face*4 + 2] = Vec2f(1, 1);
-			uvs[v*24 + face*4 + 3] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 0] = Vec2f(1, 0);
+			uvs[v*24 + face*4 + 1] = Vec2f(1, 1);
+			uvs[v*24 + face*4 + 2] = Vec2f(0, 1);
+			uvs[v*24 + face*4 + 3] = Vec2f(0, 0);
 
 			for(int i=0; i<4; ++i)
 				normals[v*24 + face*4 + i] = Vec3f(0, 1, 0);
