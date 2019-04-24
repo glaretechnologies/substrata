@@ -164,6 +164,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseDoubleClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
+	connect(ui->glWidget, SIGNAL(keyReleased(QKeyEvent*)), this, SLOT(glWidgetkeyReleased(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
@@ -1815,15 +1816,104 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 	}
 
-	
-	// Update position of voxel edit marker if we are editing voxels
+	updateVoxelEditMarkers();
+
+	// Send an AvatarTransformUpdate packet to the server if needed.
+	if(time_since_update_packet_sent.elapsed() > 0.1)
+	{
+		// Send AvatarTransformUpdate packet
+		{
+			/*Vec3d axis;
+			double angle;
+			this->cam_controller.getAxisAngleForAngles(this->cam_controller.getAngles(), axis, angle);
+
+			conPrint("cam_controller.getForwardsVec()" + this->cam_controller.getForwardsVec().toString());
+			conPrint("cam_controller.getAngles()" + this->cam_controller.getAngles().toString());
+			conPrint("axis: " + axis.toString());
+			conPrint("angle: " + toString(angle));*/
+
+			const Vec3d cam_angles = this->cam_controller.getAngles();
+			const double angle = cam_angles.x;
+
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+			packet.writeUInt32(Protocol::AvatarTransformUpdate);
+			writeToStream(this->client_thread->client_avatar_uid, packet);
+			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
+			writeToStream(Vec3f(0, 0, (float)angle), packet);
+
+			this->client_thread->enqueueDataToSend(packet);
+		}
+
+		//============ Send any object updates needed ===========
+		{
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+			{
+				WorldObject* world_ob = it->second.getPointer();
+				if(world_ob->from_local_other_dirty)
+				{
+					// Enqueue ObjectFullUpdate
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					packet.writeUInt32(Protocol::ObjectFullUpdate);
+					writeToNetworkStream(*world_ob, packet);
+					
+					this->client_thread->enqueueDataToSend(packet);
+
+					world_ob->from_local_other_dirty = false;
+					world_ob->from_local_transform_dirty = false;
+				}
+				else if(world_ob->from_local_transform_dirty)
+				{
+					// Enqueue ObjectTransformUpdate
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					packet.writeUInt32(Protocol::ObjectTransformUpdate);
+					writeToStream(world_ob->uid, packet);
+					writeToStream(Vec3d(world_ob->pos), packet);
+					writeToStream(Vec3f(world_ob->axis), packet);
+					packet.writeFloat(world_ob->angle);
+
+					this->client_thread->enqueueDataToSend(packet);
+
+					world_ob->from_local_transform_dirty = false;
+				}
+
+			}
+		}
+
+
+		time_since_update_packet_sent.reset();
+	}
+
+	ui->glWidget->makeCurrent();
+	ui->glWidget->updateGL();
+
+	if(need_physics_world_rebuild)
+	{
+		//Timer timer;
+		physics_world->rebuild(task_manager, print_output);
+		//conPrint("Physics world rebuild took " + timer.elapsedStringNSigFigs(5));
+	}
+}
+
+
+// Update position of voxel edit markers (and add/remove them as needed) if we are editing voxels
+void MainWindow::updateVoxelEditMarkers()
+{
 	bool should_display_voxel_edit_marker = false;
 	bool should_display_voxel_edit_face_marker = false;
 	if(areEditingVoxels())
 	{
+		// NOTE: Stupid qt: QApplication::keyboardModifiers() doesn't update properly when just CTRL is pressed/released, without any other events.
+		// So use GetAsyncKeyState on Windows, since it actually works.
+#if defined(_WIN32)
+		const bool ctrl_key_down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+		const bool alt_key_down = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0; // alt = VK_MENU
+#else
 		const Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
 		const bool ctrl_key_down = (modifiers & Qt::ControlModifier) != 0;
 		const bool alt_key_down  = (modifiers & Qt::AltModifier)     != 0;
+#endif
 
 		if(ctrl_key_down || alt_key_down)
 		{
@@ -1958,84 +2048,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		this->ui->glWidget->opengl_engine->removeObject(this->voxel_edit_face_marker);
 		voxel_edit_face_marker_in_engine = false;
-	}
-
-
-	// Send an AvatarTransformUpdate packet to the server if needed.
-	if(time_since_update_packet_sent.elapsed() > 0.1)
-	{
-		// Send AvatarTransformUpdate packet
-		{
-			/*Vec3d axis;
-			double angle;
-			this->cam_controller.getAxisAngleForAngles(this->cam_controller.getAngles(), axis, angle);
-
-			conPrint("cam_controller.getForwardsVec()" + this->cam_controller.getForwardsVec().toString());
-			conPrint("cam_controller.getAngles()" + this->cam_controller.getAngles().toString());
-			conPrint("axis: " + axis.toString());
-			conPrint("angle: " + toString(angle));*/
-
-			const Vec3d cam_angles = this->cam_controller.getAngles();
-			const double angle = cam_angles.x;
-
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::AvatarTransformUpdate);
-			writeToStream(this->client_thread->client_avatar_uid, packet);
-			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
-			writeToStream(Vec3f(0, 0, (float)angle), packet);
-
-			this->client_thread->enqueueDataToSend(packet);
-		}
-
-		//============ Send any object updates needed ===========
-		{
-			Lock lock(this->world_state->mutex);
-
-			for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
-			{
-				WorldObject* world_ob = it->second.getPointer();
-				if(world_ob->from_local_other_dirty)
-				{
-					// Enqueue ObjectFullUpdate
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::ObjectFullUpdate);
-					writeToNetworkStream(*world_ob, packet);
-					
-					this->client_thread->enqueueDataToSend(packet);
-
-					world_ob->from_local_other_dirty = false;
-					world_ob->from_local_transform_dirty = false;
-				}
-				else if(world_ob->from_local_transform_dirty)
-				{
-					// Enqueue ObjectTransformUpdate
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::ObjectTransformUpdate);
-					writeToStream(world_ob->uid, packet);
-					writeToStream(Vec3d(world_ob->pos), packet);
-					writeToStream(Vec3f(world_ob->axis), packet);
-					packet.writeFloat(world_ob->angle);
-
-					this->client_thread->enqueueDataToSend(packet);
-
-					world_ob->from_local_transform_dirty = false;
-				}
-
-			}
-		}
-
-
-		time_since_update_packet_sent.reset();
-	}
-
-	ui->glWidget->makeCurrent();
-	ui->glWidget->updateGL();
-
-	if(need_physics_world_rebuild)
-	{
-		//Timer timer;
-		physics_world->rebuild(task_manager, print_output);
-		//conPrint("Physics world rebuild took " + timer.elapsedStringNSigFigs(5));
 	}
 }
 
@@ -3498,6 +3510,11 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 			this->selection_vec_cs[1] *= (1/1.05f);
 		}
 	}
+}
+
+
+void MainWindow::glWidgetkeyReleased(QKeyEvent* e)
+{
 }
 
 

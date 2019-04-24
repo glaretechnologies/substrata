@@ -274,6 +274,8 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 			D_down = false;
 		}
 	}
+
+	emit keyReleased(e);
 }
 
 
