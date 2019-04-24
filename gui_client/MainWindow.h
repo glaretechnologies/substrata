@@ -209,6 +209,8 @@ public:
 
 	Reference<GLObject> voxel_edit_marker;
 	bool voxel_edit_marker_in_engine;
+	Reference<GLObject> voxel_edit_face_marker;
+	bool voxel_edit_face_marker_in_engine;
 
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
