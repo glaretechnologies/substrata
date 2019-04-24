@@ -220,7 +220,15 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 8;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 9;
+/*
+Version history:
+9: introduced voxels
+
+*/
+
+
+static_assert(sizeof(Voxel) == sizeof(int)*4, "sizeof(Voxel) == sizeof(int)*4");
 
 
 void writeToStream(const WorldObject& world_ob, OutStream& stream)
@@ -248,6 +256,16 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 
 	world_ob.created_time.writeToStream(stream); // new in v5
 	writeToStream(world_ob.creator_id, stream); // new in v5
+
+	if(world_ob.object_type == WorldObject::ObjectType_VoxelGroup)
+	{
+		// Write num voxels
+		stream.writeUInt32((uint32)world_ob.voxel_group.voxels.size());
+
+		// Write voxel data
+		if(world_ob.voxel_group.voxels.size() > 0)
+			stream.writeData(world_ob.voxel_group.voxels.data(), sizeof(Voxel) * world_ob.voxel_group.voxels.size());
+	}
 }
 
 
@@ -307,6 +325,20 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		ob.creator_id = UserID::invalidUserID();
 	}
 
+	if(v >= 9 && ob.object_type == WorldObject::ObjectType_VoxelGroup)
+	{
+		// Read num voxels
+		const uint32 num_voxels = stream.readUInt32();
+		if(num_voxels > 1000000)
+			throw Indigo::Exception("Invalid num voxels: " + toString(num_voxels));
+
+		ob.voxel_group.voxels.resize(num_voxels);
+
+		// Read voxel data
+		if(num_voxels > 0)
+			stream.readData(ob.voxel_group.voxels.data(), sizeof(Voxel) * num_voxels);
+	}
+
 
 	// Set ephemeral state
 	ob.state = WorldObject::State_Alive;
@@ -337,6 +369,16 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 	writeToStream(world_ob.creator_id, stream); // new in v5
 
 	stream.writeStringLengthFirst(world_ob.creator_name);
+
+	if(world_ob.object_type == WorldObject::ObjectType_VoxelGroup)
+	{
+		// Write num voxels
+		stream.writeUInt32((uint32)world_ob.voxel_group.voxels.size());
+
+		// Write voxel data
+		if(world_ob.voxel_group.voxels.size() > 0)
+			stream.writeData(world_ob.voxel_group.voxels.data(), sizeof(Voxel) * world_ob.voxel_group.voxels.size());
+	}
 }
 
 
@@ -371,6 +413,20 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 	ob.creator_id = readUserIDFromStream(stream);
 
 	ob.creator_name = stream.readStringLengthFirst(10000);
+
+	if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
+	{
+		// Read num voxels
+		const uint32 num_voxels = stream.readUInt32();
+		if(num_voxels > 1000000)
+			throw Indigo::Exception("Invalid num voxels: " + toString(num_voxels));
+
+		ob.voxel_group.voxels.resize(num_voxels);
+
+		// Read voxel data
+		if(num_voxels > 0)
+			stream.readData(ob.voxel_group.voxels.data(), sizeof(Voxel) * num_voxels);
+	}
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;

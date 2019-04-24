@@ -481,15 +481,35 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			}
 			else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 			{
-				physics_ob = new PhysicsObject(/*collidable=*/false);
-				physics_ob->geometry = this->unit_cube_raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+				if(ob->voxel_group.voxels.size() == 0)
+				{
+					// Add dummy cube marker for zero-voxel case.
+					physics_ob = new PhysicsObject(/*collidable=*/false);
+					physics_ob->geometry = this->unit_cube_raymesh;
+					physics_ob->ob_to_world = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 
-				gl_ob = new GLObject();
-				gl_ob->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
-				gl_ob->materials.resize(1);
-				gl_ob->materials[0].albedo_rgb = Colour3f(0.2, 0.3, 0.6);
-				gl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+					gl_ob = new GLObject();
+					gl_ob->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
+					gl_ob->materials.resize(1);
+					gl_ob->materials[0].albedo_rgb = Colour3f(0.2, 0.3, 0.6);
+					gl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+				}
+				else
+				{
+					Reference<RayMesh> raymesh;
+					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, task_manager, raymesh);
+
+					physics_ob = new PhysicsObject(/*collidable=*/true);
+					physics_ob->geometry = raymesh;
+					physics_ob->ob_to_world = ob_to_world_matrix;
+
+					gl_ob = new GLObject();
+					gl_ob->mesh_data = gl_meshdata;
+					gl_ob->materials.resize(ob->materials.size());
+					for(uint32 i=0; i<ob->materials.size(); ++i)
+						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, gl_ob->materials[i]);
+					gl_ob->ob_to_world_matrix = ob_to_world_matrix;
+				}
 			}
 			else
 			{
@@ -3029,7 +3049,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 				const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
 				if(have_edit_permissions)
 				{
-					const float current_voxel_w = 1;// 0.25f;
+					const float current_voxel_w = 1;
 
 					Matrix4f ob_to_world = obToWorldMatrix(selected_ob);
 					Matrix4f world_to_ob = worldToObMatrix(selected_ob);
@@ -3045,7 +3065,6 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
 
 						// Add the voxel!
-						//this->selected_ob->voxel_group.voxel_width = current_voxel_w;
 						this->selected_ob->voxel_group.voxels.push_back(Voxel());
 						this->selected_ob->voxel_group.voxels.back().pos = voxel_indices;
 						this->selected_ob->voxel_group.voxels.back().mat_index = ui->objectEditor->getSelectedMatIndex();
@@ -3109,6 +3128,9 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 							physics_world->addObject(physics_ob);
 							physics_world->rebuild(task_manager, print_output);
 						}
+
+						// Mark as from-local-dirty to send an object updated message to the server
+						this->selected_ob->from_local_other_dirty = true;
 					}
 				}
 			}
