@@ -1796,8 +1796,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Update position of voxel edit marker if we are editing voxels
 	if(areEditingVoxels())
 	{
-		const bool ctrl_key_down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0; // TODO: make cross-platform
-		const bool alt_key_down = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0; // alt = VK_MENU
+		const Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
+		const bool ctrl_key_down = (modifiers & Qt::ControlModifier) != 0;
+		const bool alt_key_down  = (modifiers & Qt::AltModifier)     != 0;
 
 		if(ctrl_key_down || alt_key_down)
 		{
