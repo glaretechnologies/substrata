@@ -77,6 +77,7 @@ private slots:;
 	void glWidgetMouseDoubleClicked(QMouseEvent* e);
 	void glWidgetMouseMoved(QMouseEvent* e);
 	void glWidgetKeyPressed(QKeyEvent* e);
+	void glWidgetkeyReleased(QKeyEvent* e);
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 
 	void objectEditedSlot();
@@ -106,6 +107,7 @@ private:
 	void updateOnlineUsersList(); // Works off world state avatars.
 	bool areEditingVoxels();
 	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y);
+	void updateVoxelEditMarkers();
 
 	struct EdgeMarker
 	{

@@ -68,6 +68,7 @@ signals:;
 	void mouseClicked(QMouseEvent* e);
 	void mouseMoved(QMouseEvent* e);
 	void keyPressed(QKeyEvent* e);
+	void keyReleased(QKeyEvent* e);
 	void mouseWheelSignal(QWheelEvent* e);
 	void mouseDoubleClickedSignal(QMouseEvent* e);
 
