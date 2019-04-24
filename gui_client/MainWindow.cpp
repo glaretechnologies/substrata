@@ -118,7 +118,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	need_help_info_dock_widget_position(false),
 	total_num_res_to_download(0),
 	num_frames(0),
-	voxel_edit_marker_in_engine(false)
+	voxel_edit_marker_in_engine(false),
+	voxel_edit_face_marker_in_engine(false)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -1816,6 +1817,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	
 	// Update position of voxel edit marker if we are editing voxels
+	bool should_display_voxel_edit_marker = false;
+	bool should_display_voxel_edit_face_marker = false;
 	if(areEditingVoxels())
 	{
 		const Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
@@ -1862,6 +1865,48 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								this->ui->glWidget->opengl_engine->updateObjectTransformData(*this->voxel_edit_marker);
 							}
+							
+							// Work out transform matrix so that the voxel_edit_face_marker (a quad) is rotated and placed against the voxel face that the ray trace hit.
+							// The quad lies on the z-plane in object space.
+							const Vec4f normal_os = normalise(ob_to_world.transposeMult3Vector(results.hit_normal_ws));
+							const float off_surf_nudge = 0.01f;
+							Matrix4f m;
+							if(fabs(normal_os[0]) > fabs(normal_os[1]) && fabs(normal_os[0]) > fabs(normal_os[2])) // If largest magnitude component is x:
+							{
+								if(normal_os[0] > 0) // if normal is +x:
+									m = Matrix4f::translationMatrix(off_surf_nudge, 0, 0)     * Matrix4f::rotationAroundYAxis(-Maths::pi_2<float>());
+								else // else if normal is -x:
+									m = Matrix4f::translationMatrix(1 - off_surf_nudge, 0, 0) * Matrix4f::rotationAroundYAxis(-Maths::pi_2<float>());
+							}
+							else if(fabs(normal_os[1]) > fabs(normal_os[0]) && fabs(normal_os[1]) > fabs(normal_os[2])) // If largest magnitude component is y:
+							{
+								if(normal_os[1] > 0) // if normal is +y:
+									m = Matrix4f::translationMatrix(0, off_surf_nudge, 0)     * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+								else // else if normal is -y:
+									m = Matrix4f::translationMatrix(0, 1 - off_surf_nudge, 0) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+							}
+							else // Else if largest magnitude component is z:
+							{
+								if(normal_os[2] > 0) // if normal is +Z:
+									m = Matrix4f::translationMatrix(0, 0, off_surf_nudge);
+								else // else if normal is -z:
+									m = Matrix4f::translationMatrix(0, 0, 1 - off_surf_nudge);
+							}
+							this->voxel_edit_face_marker->ob_to_world_matrix = ob_to_world * Matrix4f::translationMatrix(voxel_indices.x * current_voxel_w, voxel_indices.y * current_voxel_w, voxel_indices.z * current_voxel_w) *
+								Matrix4f::uniformScaleMatrix(current_voxel_w) * m;
+
+							if(!voxel_edit_face_marker_in_engine)
+							{
+								this->ui->glWidget->opengl_engine->addObject(this->voxel_edit_face_marker);
+								voxel_edit_face_marker_in_engine = true;
+							}
+							else
+							{
+								this->ui->glWidget->opengl_engine->updateObjectTransformData(*this->voxel_edit_face_marker);
+							}
+
+							should_display_voxel_edit_marker = true;
+							should_display_voxel_edit_face_marker = true;
 
 							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.1, 0.9, 0.2);
 							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker, *this->texture_server);
@@ -1891,6 +1936,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								this->ui->glWidget->opengl_engine->updateObjectTransformData(*this->voxel_edit_marker);
 							}
+
+							should_display_voxel_edit_marker = true;
 							
 							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.9, 0.1, 0.1);
 							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker, *this->texture_server);
@@ -1899,22 +1946,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 			}
 		}
-		else
-		{
-			if(voxel_edit_marker_in_engine)
-			{
-				this->ui->glWidget->opengl_engine->removeObject(this->voxel_edit_marker);
-				voxel_edit_marker_in_engine = false;
-			}
-		}
 	}
-	else
+
+	// Remove edit markers from 3d engine if they shouldn't be displayed currently.
+	if(voxel_edit_marker_in_engine && !should_display_voxel_edit_marker)
 	{
-		if(voxel_edit_marker_in_engine)
-		{
-			this->ui->glWidget->opengl_engine->removeObject(this->voxel_edit_marker);
-			voxel_edit_marker_in_engine = false;
-		}
+		this->ui->glWidget->opengl_engine->removeObject(this->voxel_edit_marker);
+		voxel_edit_marker_in_engine = false;
+	}
+	if(voxel_edit_face_marker_in_engine && !should_display_voxel_edit_face_marker)
+	{
+		this->ui->glWidget->opengl_engine->removeObject(this->voxel_edit_face_marker);
+		voxel_edit_face_marker_in_engine = false;
 	}
 
 
@@ -3987,6 +4030,17 @@ int main(int argc, char *argv[])
 			material.alpha = 0.3f;
 
 			mw.voxel_edit_marker->materials = std::vector<OpenGLMaterial>(1, material);
+		}
+
+		// Make voxel_edit_face_marker model
+		{
+			mw.voxel_edit_face_marker = new GLObject();
+			mw.voxel_edit_face_marker->ob_to_world_matrix = Matrix4f::identity();
+			mw.voxel_edit_face_marker->mesh_data = mw.ui->glWidget->opengl_engine->makeUnitQuadMesh();
+
+			OpenGLMaterial material;
+			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+			mw.voxel_edit_face_marker->materials = std::vector<OpenGLMaterial>(1, material);
 		}
 
 		// Make shader for parcels
