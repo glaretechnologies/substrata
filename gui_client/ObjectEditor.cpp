@@ -72,6 +72,10 @@ ObjectEditor::~ObjectEditor()
 
 void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 {
+	this->cloned_materials.resize(ob.materials.size());
+	for(size_t i=0; i<ob.materials.size(); ++i)
+		this->cloned_materials[i] = ob.materials[i]->clone();
+
 	const std::string creator_name = !ob.creator_name.empty() ? ob.creator_name :
 		(ob.creator_id.valid() ? ("user id: " + ob.creator_id.toString()) : "[Unknown]");
 
@@ -114,6 +118,14 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	}
 	else
 	{
+		// Set materials combobox
+		SignalBlocker blocker(this->materialComboBox);
+		this->materialComboBox->clear();
+		for(size_t i=0; i<ob.materials.size(); ++i)
+			this->materialComboBox->addItem(QtUtils::toQString("Material " + toString(i)), i);
+
+		this->materialComboBox->setCurrentIndex(selected_mat_index);
+
 		this->materialsGroupBox->show();
 		this->matEditor->setFromMaterial(*selected_mat);
 		this->modelLabel->show();
@@ -148,13 +160,15 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.angle = 0;
 	}
 
-	if(selected_mat_index >= ob_out.materials.size())
-		ob_out.materials.resize(selected_mat_index + 1);
-	for(size_t i=0; i<ob_out.materials.size(); ++i)
-		if(ob_out.materials[i].isNull())
-			ob_out.materials[i] = new WorldMaterial();
+	if(selected_mat_index >= cloned_materials.size())
+		cloned_materials.resize(selected_mat_index + 1);
 
-	this->matEditor->toMaterial(*ob_out.materials[selected_mat_index]);
+	this->matEditor->toMaterial(*cloned_materials[selected_mat_index]);
+
+	ob_out.materials.resize(cloned_materials.size());
+	for(size_t i=0; i<cloned_materials.size(); ++i)
+		ob_out.materials[i] = cloned_materials[i]->clone();
+
 }
 
 
@@ -209,6 +223,33 @@ void ObjectEditor::on_visitURLLabel_linkActivated(const QString&)
 		QDesktopServices::openUrl(QtUtils::toQString(url));
 	}
 	
+}
+
+
+void ObjectEditor::on_materialComboBox_currentIndexChanged(int index)
+{
+	this->selected_mat_index = index;
+
+	if(index < this->cloned_materials.size())
+		this->matEditor->setFromMaterial(*this->cloned_materials[index]);
+}
+
+
+void ObjectEditor::on_newMaterialPushButton_clicked(bool checked)
+{
+	this->selected_mat_index = this->materialComboBox->count();
+
+	this->materialComboBox->addItem(QtUtils::toQString("Material " + toString(selected_mat_index)), selected_mat_index);
+
+	{
+		SignalBlocker blocker(this->materialComboBox);
+		this->materialComboBox->setCurrentIndex(this->selected_mat_index);
+	}
+
+	this->cloned_materials.push_back(new WorldMaterial());
+	this->matEditor->setFromMaterial(*this->cloned_materials.back());
+
+	emit objectChanged();
 }
 
 
