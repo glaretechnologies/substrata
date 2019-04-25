@@ -3852,7 +3852,8 @@ int main(int argc, char *argv[])
 			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 1));
 			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 2));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 0));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2), 2));
 
 			Reference<RayMesh> raymesh;
 			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
@@ -3871,6 +3872,7 @@ int main(int argc, char *argv[])
 
 			mw.ui->glWidget->addObject(gl_ob);
 		}*/
+		//mw.ui->glWidget->opengl_engine->setDrawWireFrames(true);
 
 		
 		// Load a test overlay quad
