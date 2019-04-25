@@ -710,20 +710,21 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	RayMeshTriangle* const dest_tris = raymesh->getTriangles().data();
 	for(size_t v=0; v<num_voxels; ++v)
 	{
+		const int mat_index = voxel_group.voxels[v].mat_index;
 		const int face_offset = voxel_info[v].face_offset;
 		const int voxel_num_faces = voxel_info[v].num_faces;
 
-		for(int face=face_offset; face<face_offset + voxel_num_faces; ++face)
+		for(int f=face_offset; f<face_offset + voxel_num_faces; ++f)
 		{
-			dest_tris[face*2 + 0].vertex_indices[0] = indices[face*6 + 0];
-			dest_tris[face*2 + 0].vertex_indices[1] = indices[face*6 + 1];
-			dest_tris[face*2 + 0].vertex_indices[2] = indices[face*6 + 2];
-			dest_tris[face*2 + 0].setMatIndexAndUseShadingNormals(voxel_group.voxels[v].mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
+			dest_tris[f*2 + 0].vertex_indices[0] = indices[f*6 + 0];
+			dest_tris[f*2 + 0].vertex_indices[1] = indices[f*6 + 1];
+			dest_tris[f*2 + 0].vertex_indices[2] = indices[f*6 + 2];
+			dest_tris[f*2 + 0].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
 
-			dest_tris[face*2 + 1].vertex_indices[0] = indices[face*6 + 3];
-			dest_tris[face*2 + 1].vertex_indices[1] = indices[face*6 + 4];
-			dest_tris[face*2 + 1].vertex_indices[2] = indices[face*6 + 5];
-			dest_tris[face*2 + 1].setMatIndexAndUseShadingNormals(voxel_group.voxels[v].mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
+			dest_tris[f*2 + 1].vertex_indices[0] = indices[f*6 + 3];
+			dest_tris[f*2 + 1].vertex_indices[1] = indices[f*6 + 4];
+			dest_tris[f*2 + 1].vertex_indices[2] = indices[f*6 + 5];
+			dest_tris[f*2 + 1].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
 		}
 	}
 
@@ -751,6 +752,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	for(size_t v=0; v<num_voxels; ++v)
 		mat_face_counts[voxel_group.voxels[v].mat_index] += voxel_info[v].num_faces;
 
+	// Loop over material face batches, and compute number of indices, starting byte offset etc..
 	meshdata->has_uvs = true;
 	meshdata->has_shading_normals = true;
 	meshdata->batches.resize(num_mat_batches);
@@ -769,9 +771,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	js::Vector<float, 16> combined_data;
 	const int NUM_COMPONENTS = 8; // num float components per vertex.
 	combined_data.resizeNoCopy(num_faces*4 * NUM_COMPONENTS); // num verts = num_faces*4
-	int combined_data_write_i = 0;
 	js::Vector<uint32, 16> sorted_indices(num_faces * 6);
-	int sorted_indices_write_i = 0;
 
 	for(int v=0; v<(int)num_voxels; ++v)
 	{
@@ -786,9 +786,9 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		for(int f=face_offset; f<face_offset + voxel_num_faces; ++f)
 		{
 			// For each vert for face, copy vert data to combined_data
-			for(int v=0; v<4; ++v)
+			for(int z=0; z<4; ++z)
 			{
-				const int vert_index = f*4 + v;
+				const int vert_index = f*4 + z;
 				const Vec3f& vertpos = verts[vert_index];
 
 				combined_data[write_i + 0] = vertpos.x;
