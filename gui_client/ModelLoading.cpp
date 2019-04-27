@@ -762,7 +762,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	{
 		meshdata->batches[i].material_index = (uint32)i;
 		meshdata->batches[i].num_indices = mat_face_counts[i] * 6; // 6 indices per face.
-		meshdata->batches[i].prim_start_offset = batch_offset * 6 * sizeof(uint32);
+		meshdata->batches[i].prim_start_offset = batch_offset * 6 * sizeof(uint32); // Offset in bytes from the start of the index buffer.
 
 		batch_write_indices[i] = batch_offset;
 		batch_offset += mat_face_counts[i];
@@ -775,39 +775,46 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 	for(int v=0; v<(int)num_voxels; ++v)
 	{
-		const int face_offset = voxel_info[v].face_offset; // index into indices and verts, normals, uvs, for reading
-		const int voxel_num_faces = voxel_info[v].num_faces; // num faces to read/write for this voxel.
+		const int src_face_offset = voxel_info[v].face_offset; // index into indices and verts, normals, uvs, for reading
+		const int src_voxel_num_faces = voxel_info[v].num_faces; // num faces to read/write for this voxel.
 
 		const int mat_index = voxel_group.voxels[v].mat_index;
 		const int initial_write_i = batch_write_indices[mat_index]; // write index for this material, in faces.
-		batch_write_indices[mat_index] += voxel_num_faces;
+		batch_write_indices[mat_index] += src_voxel_num_faces;
 
 		int write_i = initial_write_i * 4 * NUM_COMPONENTS; // write index in floats.
-		for(int f=face_offset; f<face_offset + voxel_num_faces; ++f)
+		for(int f=src_face_offset; f<src_face_offset + src_voxel_num_faces; ++f) // f = src face index
 		{
 			// For each vert for face, copy vert data to combined_data
 			for(int z=0; z<4; ++z)
 			{
-				const int vert_index = f*4 + z;
-				const Vec3f& vertpos = verts[vert_index];
+				const int src_vert_index = f*4 + z;
+				const Vec3f& vertpos = verts[src_vert_index];
 
 				combined_data[write_i + 0] = vertpos.x;
 				combined_data[write_i + 1] = vertpos.y;
 				combined_data[write_i + 2] = vertpos.z;
-				combined_data[write_i + 3] = normals[vert_index].x;
-				combined_data[write_i + 4] = normals[vert_index].y;
-				combined_data[write_i + 5] = normals[vert_index].z;
-				combined_data[write_i + 6] = uvs[vert_index].x;
-				combined_data[write_i + 7] = uvs[vert_index].y;
+				combined_data[write_i + 3] = normals[src_vert_index].x;
+				combined_data[write_i + 4] = normals[src_vert_index].y;
+				combined_data[write_i + 5] = normals[src_vert_index].z;
+				combined_data[write_i + 6] = uvs[src_vert_index].x;
+				combined_data[write_i + 7] = uvs[src_vert_index].y;
 
 				write_i += NUM_COMPONENTS;
 			}
 		}
 
+		// Since the vertex data for this voxel may have moved during the sort, we need to update the indices for the faces in this voxel.
+		const int vert_index_translation = (initial_write_i - src_face_offset) * 4;
+
 		// Copy indices for the faces of this voxel to sorted_indices
 		int indices_write_i = initial_write_i * 6;
-		for(int z=0; z<voxel_num_faces*6; ++z)
-			sorted_indices[indices_write_i++] = indices[face_offset*6 + z];
+		for(int z=0; z<src_voxel_num_faces*6; ++z)
+		{
+			const int new_vert_index = indices[src_face_offset*6 + z] + vert_index_translation;
+			assert(new_vert_index >= 0 && new_vert_index < num_faces*4);
+			sorted_indices[indices_write_i++] = new_vert_index;
+		}
 	}
 
 	meshdata->vert_vbo = new VBO(&combined_data[0], combined_data.dataSizeBytes());
