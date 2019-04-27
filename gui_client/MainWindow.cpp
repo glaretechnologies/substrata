@@ -1466,6 +1466,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(ob->loaded_model_url != ob->model_url)
 							reload_opengl_model = true;
 					}
+					else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+					{
+						reload_opengl_model = ob->from_remote_other_dirty;
+					}
 					else if(ob->object_type == WorldObject::ObjectType_Hypercard)
 					{
 						reload_opengl_model = ob->loaded_content != ob->content;
@@ -2847,8 +2851,6 @@ void MainWindow::sendChatMessageSlot()
 // Object has been edited, e.g. by the object editor.
 void MainWindow::objectEditedSlot()
 {
-	conPrint("MainWindow::objectEditedSlot()");
-
 	// Update object material(s) with values from editor.
 	if(this->selected_ob.nonNull())
 	{
@@ -3849,14 +3851,25 @@ int main(int argc, char *argv[])
 			VoxelGroup voxel_group;
 			//voxel_group.voxel_width = 0.5;
 			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 1));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 0));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2), 2));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
+			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 1), 0));
+			//voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
+			//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 0));
+			//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2), 2));
+			//
+			//
+			//const int N = 10;
+			//for(int i=0; i<N; ++i)
+			//	voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2 + i), 2));
+
+			Timer timer;
 
 			Reference<RayMesh> raymesh;
-			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
+			Reference<OpenGLMeshRenderData> gl_meshdata;
+			//for(int z=0; z<10000; ++z)
+				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
+
+			conPrint("Voxel meshing took " + timer.elapsedString());
 
 			GLObjectRef gl_ob = new GLObject();
 			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(3, 3, 1);
