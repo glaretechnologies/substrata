@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <StringUtils.h>
 #include <ConPrint.h>
 #include <IncludeXXHash.h>
+#include <Exception.h>
 #include "../indigo/TextureServer.h"
 #include "../dll/include/IndigoMesh.h"
 
