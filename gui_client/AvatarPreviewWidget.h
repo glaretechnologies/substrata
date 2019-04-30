@@ -45,8 +45,6 @@ protected:
 	
 	void showEvent(QShowEvent* e);
 
-	void buildMaterial(OpenGLMaterial& mat);
-
 signals:;
 	void cameraUpdated();
 	void widgetShowSignal();

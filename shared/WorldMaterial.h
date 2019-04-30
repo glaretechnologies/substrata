@@ -43,6 +43,8 @@ public:
 	WorldMaterial();
 	~WorldMaterial();
 
+	std::string name; // Not serialised currently.
+
 	Colour3f colour_rgb;
 	std::string colour_texture_url;
 
@@ -66,6 +68,8 @@ public:
 	void appendDependencyURLs(std::vector<std::string>& paths_out);
 	
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
+
+	static Reference<WorldMaterial> loadFromXMLOnDisk(const std::string& path);
 
 private:
 };

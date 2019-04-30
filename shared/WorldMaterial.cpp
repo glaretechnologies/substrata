@@ -11,6 +11,9 @@ Copyright Glare Technologies Limited 2016 -
 #include <StringUtils.h>
 #include <FileUtils.h>
 #include <FileChecksum.h>
+#include <IndigoXMLDoc.h>
+#include <XMLParseUtils.h>
+#include <Parser.h>
 
 
 WorldMaterial::WorldMaterial()
@@ -62,6 +65,128 @@ void WorldMaterial::convertLocalPathsToURLS(ResourceManager& resource_manager)
 	roughness.convertLocalPathsToURLS(resource_manager);
 	metallic_fraction.convertLocalPathsToURLS(resource_manager);
 	opacity.convertLocalPathsToURLS(resource_manager);
+}
+
+
+static Colour3f parseColour3fWithDefault(pugi::xml_node elem, const char* elemname, const Colour3f& default_val)
+{
+	pugi::xml_node childnode = elem.child(elemname);
+	if(!childnode)
+		return default_val;
+
+	const char* const child_text = childnode.child_value();
+
+	Parser parser(child_text, std::strlen(child_text));
+
+	parser.parseWhiteSpace();
+
+	Colour3f v;
+	if(!parser.parseFloat(v.r))
+		throw Indigo::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+	if(!parser.parseFloat(v.g))
+		throw Indigo::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+	if(!parser.parseFloat(v.b))
+		throw Indigo::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+
+	// We should be at the end of the string now
+	if(parser.notEOF())
+		throw Indigo::Exception("Parse error while parsing Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+
+	return v;
+}
+
+
+static Matrix2f parseMatrix2f(pugi::xml_node elem, const char* elemname)
+{
+	pugi::xml_node childnode = elem.child(elemname);
+	if(!childnode)
+		throw Indigo::Exception(std::string("could not find element '") + elemname + "'." + XMLParseUtils::elemContext(elem));
+
+	const char* const child_text = childnode.child_value();
+
+	Parser parser(child_text, std::strlen(child_text));
+
+	parser.parseWhiteSpace();
+
+	Matrix2f m;
+	if(!parser.parseFloat(m.e[0]))
+		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+	if(!parser.parseFloat(m.e[1]))
+		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+	if(!parser.parseFloat(m.e[2]))
+		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+	if(!parser.parseFloat(m.e[3]))
+		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+
+	// We should be at the end of the string now
+	if(parser.notEOF())
+		throw Indigo::Exception("Parse error while parsing Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+
+	return m;
+}
+
+
+static ScalarVal parseScalarVal(pugi::xml_node elem, const char* elemname, const ScalarVal& default_scalar_val)
+{
+	pugi::xml_node n = elem.child(elemname);
+	if(n)
+	{
+		ScalarVal scalar_val;
+		scalar_val.val = (float)XMLParseUtils::parseDoubleWithDefault(n, "val", 0.0);
+		scalar_val.texture_url = XMLParseUtils::parseStringWithDefault(n, "texture_url", "");
+		return scalar_val;
+	}
+	else
+		return default_scalar_val;
+}
+
+
+static void convertRelPathToAbsolute(const std::string& mat_file_path, std::string& relative_path_in_out)
+{
+	if(!relative_path_in_out.empty())
+		relative_path_in_out = FileUtils::join(FileUtils::getDirectory(mat_file_path), relative_path_in_out);
+}
+
+
+Reference<WorldMaterial> WorldMaterial::loadFromXMLOnDisk(const std::string& mat_file_path)
+{
+	try
+	{
+		IndigoXMLDoc doc(mat_file_path);
+
+		pugi::xml_node root = doc.getRootElement();
+
+		WorldMaterialRef mat = new WorldMaterial();
+		mat->name = XMLParseUtils::parseString(root, "name");
+
+		mat->colour_rgb = parseColour3fWithDefault(root, "colour_rgb", Colour3f(0.85f));
+		mat->colour_texture_url = XMLParseUtils::parseStringWithDefault(root, "colour_texture_url", "");
+		convertRelPathToAbsolute(mat_file_path, mat->colour_texture_url); // Assuming colour_texture_url is a local relative path, make local absolute path from it.
+
+		mat->roughness = parseScalarVal(root, "roughness", ScalarVal(0.5f));
+		convertRelPathToAbsolute(mat_file_path, mat->roughness.texture_url);
+
+		mat->metallic_fraction = parseScalarVal(root, "metallic_fraction", ScalarVal(0.0f));
+		convertRelPathToAbsolute(mat_file_path, mat->metallic_fraction.texture_url);
+
+		mat->opacity = parseScalarVal(root, "opacity", ScalarVal(1.0f));
+		convertRelPathToAbsolute(mat_file_path, mat->opacity.texture_url);
+
+		if(root.child("tex_matrix"))
+			mat->tex_matrix = parseMatrix2f(root, "tex_matrix");
+		return mat;
+	}
+	catch(IndigoXMLDocExcep& e)
+	{
+		throw Indigo::Exception(e.what());
+	}
 }
 
 

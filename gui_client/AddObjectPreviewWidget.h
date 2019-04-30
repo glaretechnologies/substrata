@@ -31,8 +31,6 @@ public:
 	void addObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
 
-	//void setEnvMat(OpenGLMaterial& mat);
-	
 protected:
 
 	virtual void initializeGL();
@@ -46,8 +44,6 @@ protected:
 	virtual void wheelEvent(QWheelEvent* e);
 	
 	void showEvent(QShowEvent* e);
-
-	void buildMaterial(OpenGLMaterial& mat);
 
 signals:;
 	void cameraUpdated();

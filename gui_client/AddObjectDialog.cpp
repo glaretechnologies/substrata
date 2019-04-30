@@ -34,6 +34,7 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 	setupUi(this);
 
 	this->objectPreviewGLWidget->setBaseDir(base_dir_path);
+	this->objectPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
 	// Load main window geometry and state
 	this->restoreGeometry(settings->value("AddObjectDialog/geometry").toByteArray());
@@ -50,8 +51,6 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 
 	connect(this->urlLineEdit, SIGNAL(textChanged(const QString&)), this, SLOT(urlChanged(const QString&)));
 	connect(this->urlLineEdit, SIGNAL(editingFinished()), this, SLOT(urlEditingFinished()));
-
-	this->objectPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
 	startTimer(10);
 

@@ -82,6 +82,7 @@ private slots:;
 
 	void objectEditedSlot();
 	void URLChangedSlot();
+	void materialSelectedInBrowser(const std::string& path);
 private:
 	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);

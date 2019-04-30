@@ -172,7 +172,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>580</height>
+          <height>419</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -244,6 +244,35 @@
        <property name="text">
         <string/>
        </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="materialBrowserDockWidget">
+   <property name="windowTitle">
+    <string>Material Browser</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="materialBrowserDockWidgetContents_old">
+    <layout class="QVBoxLayout" name="verticalLayout_9">
+     <item>
+      <widget class="QScrollArea" name="scrollArea_2">
+       <property name="widgetResizable">
+        <bool>true</bool>
+       </property>
+       <widget class="MaterialBrowser" name="materialBrowserDockWidgetContents">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>0</y>
+          <width>69</width>
+          <height>115</height>
+         </rect>
+        </property>
+       </widget>
       </widget>
      </item>
     </layout>
@@ -336,6 +365,12 @@
    <class>ParcelEditor</class>
    <extends>QWidget</extends>
    <header>ParcelEditor.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>MaterialBrowser</class>
+   <extends>QWidget</extends>
+   <header>MaterialBrowser.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

@@ -46,6 +46,7 @@ ModelLoading
 class ModelLoading
 {
 public:
+	static void setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat);
 	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
 
 

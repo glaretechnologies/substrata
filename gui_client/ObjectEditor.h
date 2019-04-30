@@ -36,6 +36,8 @@ public:
 	void setControlsEditable(bool editable);
 
 	int getSelectedMatIndex() const { return selected_mat_index; }
+
+	void materialSelectedInBrowser(const std::string& path);
 protected:
 
 signals:;
@@ -46,7 +48,7 @@ private slots:
 	void on_materialComboBox_currentIndexChanged(int index);
 	void on_newMaterialPushButton_clicked(bool checked);
 	void targetURLChanged();
-	
+
 private:
 	// Store a cloned copy of the materials.
 	// The reason for having this is so if the user selected another material,

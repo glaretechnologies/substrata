@@ -26,6 +26,7 @@ addMocFileRule(gui_client UserDetailsWidget)
 addMocFileRule(gui_client URLWidget)
 addMocFileRule(gui_client ResetPasswordDialog)
 addMocFileRule(gui_client ChangePasswordDialog)
+addMocFileRule(gui_client MaterialBrowser)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -45,6 +46,7 @@ addUIFileRule(gui_client UserDetailsWidget)
 addUIFileRule(gui_client URLWidget)
 addUIFileRule(gui_client ResetPasswordDialog)
 addUIFileRule(gui_client ChangePasswordDialog)
+addUIFileRule(gui_client MaterialBrowser)
 
 addUIFileRule(qt FileSelectWidget)
 addUIFileRule(qt RealControl)
@@ -70,6 +72,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_UserDetailsWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_URLWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ResetPasswordDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ChangePasswordDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialBrowser.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
@@ -83,6 +86,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_UserDetailsWidget.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_URLWidget.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ResetPasswordDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ChangePasswordDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialBrowser.h
 )
 
 SET(qt 
@@ -90,7 +94,8 @@ SET(qt
 ../qt/QtUtils.h
 ../qt/SignalBlocker.cpp
 ../qt/SignalBlocker.h
-
+../qt/FlowLayout.cpp
+../qt/FlowLayout.h
 ../qt/FileSelectWidget.cpp
 ../qt/FileSelectWidget.h
 ../qt/moc_FileSelectWidget.cpp
