@@ -18,6 +18,7 @@ class TextureServer;
 class OpenGLEngine;
 class OpenGLMaterial;
 class QOpenGLFramebufferObject;
+class QOpenGLContext;
 
 
 /*=====================================================================
