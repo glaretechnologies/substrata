@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!-- based on https://www.indigorenderer.com/materials/materials/689 -->
+
+<material>
+	<name>Parquet wood</name>
+
+	<colour_texture_url>stone floor/stone floor.jpg</colour_texture_url>
+
+	<roughness>
+		<val>0.3</val>
+	</roughness>
+	
+</material>
