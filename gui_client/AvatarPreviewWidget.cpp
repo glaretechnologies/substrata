@@ -82,7 +82,8 @@ void AvatarPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
 		//"n:/indigo/trunk/opengl/shaders" // shader dir
-		"./shaders" // shader dir
+		"./shaders", // shader dir
+		texture_server_ptr
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -100,7 +101,6 @@ void AvatarPreviewWidget::initializeGL()
 		OpenGLMaterial env_mat;
 		env_mat.albedo_tex_path = "resources/sky.png";
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
-		buildMaterial(env_mat);
 
 		opengl_engine->setEnvMat(env_mat);
 	}
@@ -164,10 +164,6 @@ void AvatarPreviewWidget::addObject(const Reference<GLObject>& object)
 {
 	this->makeCurrent();
 
-	// Build materials
-	for(size_t i=0; i<object->materials.size(); ++i)
-		buildMaterial(object->materials[i]);
-
 	opengl_engine->addObject(object);
 }
 
@@ -175,8 +171,6 @@ void AvatarPreviewWidget::addObject(const Reference<GLObject>& object)
 void AvatarPreviewWidget::addOverlayObject(const Reference<OverlayObject>& object)
 {
 	this->makeCurrent();
-
-	buildMaterial(object->material);
 
 	opengl_engine->addOverlayObject(object);
 }
@@ -186,42 +180,7 @@ void AvatarPreviewWidget::setEnvMat(OpenGLMaterial& mat)
 {
 	this->makeCurrent();
 
-	buildMaterial(mat);
 	opengl_engine->setEnvMat(mat);
-}
-
-
-void AvatarPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
-{
-	try
-	{
-		if(!opengl_mat.albedo_tex_path.empty() && opengl_mat.albedo_texture.isNull()) // If texture not already loaded:
-		{
-			std::string use_path;
-			try
-			{
-				use_path = FileUtils::getActualOSPath(opengl_mat.albedo_tex_path);
-			}
-			catch(FileUtils::FileUtilsExcep&)
-			{
-				use_path = opengl_mat.albedo_tex_path;
-			}
-
-			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(indigo_base_dir, use_path);
-
-			Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat);
-			opengl_mat.albedo_texture = opengl_tex;
-		}
-		//std::cout << "successfully loaded " << use_path << ", xres = " << tex_xres << ", yres = " << tex_yres << std::endl << std::endl;
-	}
-	catch(TextureServerExcep& e)
-	{
-		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
-	}
-	catch(ImFormatExcep& e)
-	{
-		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
-	}
 }
 
 

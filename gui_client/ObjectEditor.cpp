@@ -257,3 +257,27 @@ void ObjectEditor::targetURLChanged()
 {
 	this->visitURLLabel->setVisible(!this->targetURLLineEdit->text().isEmpty());
 }
+
+
+void ObjectEditor::materialSelectedInBrowser(const std::string& path)
+{
+	// Load material
+	try
+	{
+		WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(path);
+
+		if(selected_mat_index >= 0 && selected_mat_index < this->cloned_materials.size())
+		{
+			this->cloned_materials[this->selected_mat_index] = mat;
+			this->matEditor->setFromMaterial(*mat);
+
+			emit objectChanged();
+		}
+	}
+	catch(Indigo::Exception& e)
+	{
+		QErrorMessage m;
+		m.showMessage("Error while opening material: " + QtUtils::toQString(e.what()));
+		m.exec();
+	}
+}

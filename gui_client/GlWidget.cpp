@@ -105,9 +105,12 @@ void GlWidget::resizeGL(int width_, int height_)
 
 void GlWidget::initializeGL()
 {
+	assert(this->texture_server_ptr);
+
 	opengl_engine->initialise(
 		//"o:/indigo/trunk/opengl" // data dir
-		base_dir_path + "/data" // data dir (should contain 'shaders' and 'gl_data')
+		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
+		this->texture_server_ptr
 	);
 	if(!opengl_engine->initSucceeded())
 	{
@@ -149,10 +152,6 @@ void GlWidget::addObject(const Reference<GLObject>& object)
 {
 	this->makeCurrent();
 
-	// Build materials
-	for(size_t i=0; i<object->materials.size(); ++i)
-		buildMaterial(object->materials[i]);
-
 	opengl_engine->addObject(object);
 }
 
@@ -169,8 +168,6 @@ void GlWidget::addOverlayObject(const Reference<OverlayObject>& object)
 {
 	this->makeCurrent();
 
-	buildMaterial(object->material);
-
 	opengl_engine->addOverlayObject(object);
 }
 
@@ -179,43 +176,7 @@ void GlWidget::setEnvMat(OpenGLMaterial& mat)
 {
 	this->makeCurrent();
 
-	buildMaterial(mat);
-	
 	opengl_engine->setEnvMat(mat);
-}
-
-
-void GlWidget::buildMaterial(OpenGLMaterial& opengl_mat)
-{
-	try
-	{
-		if(!opengl_mat.albedo_tex_path.empty() && opengl_mat.albedo_texture.isNull()) // If texture not already loaded:
-		{
-			std::string use_path;
-			try
-			{
-				use_path = FileUtils::getActualOSPath(opengl_mat.albedo_tex_path);
-			}
-			catch(FileUtils::FileUtilsExcep&)
-			{
-				use_path = opengl_mat.albedo_tex_path;
-			}
-
-			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(base_dir_path, use_path);
-
-			Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat);
-			opengl_mat.albedo_texture = opengl_tex;
-		}
-		//std::cout << "successfully loaded " << use_path << ", xres = " << tex_xres << ", yres = " << tex_yres << std::endl << std::endl;
-	}
-	catch(TextureServerExcep& e)
-	{
-		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
-	}
-	catch(ImFormatExcep& e)
-	{
-		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
-	}
 }
 
 

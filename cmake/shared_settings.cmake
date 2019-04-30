@@ -265,6 +265,8 @@ ${INDIGO_UTILS_DIR}/Vector.h
 ${INDIGO_UTILS_DIR}/VectorUnitTests.cpp
 ${INDIGO_UTILS_DIR}/VectorUnitTests.h
 ${INDIGO_UTILS_DIR}/VRef.h
+${INDIGO_UTILS_DIR}/XMLParseUtils.cpp
+${INDIGO_UTILS_DIR}/XMLParseUtils.h
 )
 
 

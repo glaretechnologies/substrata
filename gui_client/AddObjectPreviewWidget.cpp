@@ -81,13 +81,13 @@ void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 void AddObjectPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		base_dir_path + "/data" // data dir (should contain 'shaders' and 'gl_data')
+		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
+		texture_server_ptr
 	);
 	if(!opengl_engine->initSucceeded())
 	{
 		conPrint("AddObjectPreviewWidget opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
 	}
-
 
 	cam_phi = 0;
 	cam_theta = 1.3f;
@@ -99,64 +99,30 @@ void AddObjectPreviewWidget::initializeGL()
 		OpenGLMaterial env_mat;
 		env_mat.albedo_tex_path = base_dir_path + "/resources/sky_no_sun.exr";
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
-		buildMaterial(env_mat);
 
 		opengl_engine->setEnvMat(env_mat);
 	}
 
+	// target_marker_ob = opengl_engine->makeAABBObject(cam_target_pos + Vec4f(0,0,0,0), cam_target_pos + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f));
+	// opengl_engine->addObject(target_marker_ob);
 
-	// Make axis arrows
-/*	{
-		GLObjectRef arrow = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
-		opengl_engine->addObject(arrow);
-	}
+
+	// Load a ground plane into the GL engine
 	{
-		GLObjectRef arrow = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0,1,0,1), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
-		opengl_engine->addObject(arrow);
-	}
-	{
-		GLObjectRef arrow = opengl_engine->makeArrowObject(Vec4f(0,0,0,1), Vec4f(0,0,1,1), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
-		opengl_engine->addObject(arrow);
-	}
-
-
-	target_marker_ob = opengl_engine->makeAABBObject(cam_target_pos + Vec4f(0,0,0,0), cam_target_pos + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f));
-	opengl_engine->addObject(target_marker_ob);
-	*/
-
-	/*
-		Load a ground plane into the GL engine
-	*/
-	if(true)
-	{
-		Indigo::MeshRef mesh = new Indigo::Mesh();
-		mesh->addVertex(Indigo::Vec3f(-1, -1, 0), Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f( 1, -1, 0), Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f( 1,  1, 0), Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f(-1,  1, 0), Indigo::Vec3f(0,0,1));
-			
-		mesh->num_uv_mappings = 1;
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,0)));
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(1,0)));
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(1,1)));
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,1)));
-			
-		uint32 indices[] = {0, 1, 2, 3};
-		mesh->addQuad(indices, indices, 0);
-
-		mesh->endOfModel();
+		const float W = 200;
 
 		GLObjectRef ob = new GLObject();
 		ob->materials.resize(1);
-		ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+		ob->materials[0].albedo_rgb = Colour3f(0.9f);
 		ob->materials[0].albedo_tex_path = "resources/obstacle.png";
-		ob->materials[0].roughness = 0.5f;
+		ob->materials[0].roughness = 0.8f;
+		ob->materials[0].fresnel_scale = 0.5f;
+		ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
 
-		ob->ob_to_world_matrix.setToTranslationMatrix(0,0,0);
-		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+		ob->ob_to_world_matrix = Matrix4f::scaleMatrix(W, W, 1) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
+		ob->mesh_data = opengl_engine->makeUnitQuadMesh();
 
-		//opengl_engine->addObject(ob);
-		addObject(ob);
+		opengl_engine->addObject(ob);
 	}
 }
 
@@ -184,10 +150,6 @@ void AddObjectPreviewWidget::addObject(const Reference<GLObject>& object)
 {
 	this->makeCurrent();
 
-	// Build materials
-	for(size_t i=0; i<object->materials.size(); ++i)
-		buildMaterial(object->materials[i]);
-
 	opengl_engine->addObject(object);
 }
 
@@ -196,56 +158,7 @@ void AddObjectPreviewWidget::addOverlayObject(const Reference<OverlayObject>& ob
 {
 	this->makeCurrent();
 
-	buildMaterial(object->material);
-
 	opengl_engine->addOverlayObject(object);
-}
-
-
-//void AddObjectPreviewWidget::setEnvMat(OpenGLMaterial& mat)
-//{
-//	this->makeCurrent();
-//
-//	buildMaterial(mat);
-//	opengl_engine->setEnvMat(mat);
-//}
-
-
-void AddObjectPreviewWidget::buildMaterial(OpenGLMaterial& opengl_mat)
-{
-	try
-	{
-		if(!opengl_mat.albedo_tex_path.empty() && opengl_mat.albedo_texture.isNull()) // If texture not already loaded:
-		{
-			std::string use_path;
-			try
-			{
-				use_path = FileUtils::getActualOSPath(opengl_mat.albedo_tex_path);
-			}
-			catch(FileUtils::FileUtilsExcep&)
-			{
-				use_path = opengl_mat.albedo_tex_path;
-			}
-
-			Reference<Map2D> tex = this->texture_server_ptr->getTexForPath(indigo_base_dir, use_path);
-			
-
-			Reference<OpenGLTexture> opengl_tex = opengl_engine->getOrLoadOpenGLTexture(*tex, OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Repeat);
-			opengl_mat.albedo_texture = opengl_tex;
-			
-
-
-		}
-		//std::cout << "successfully loaded " << use_path << ", xres = " << tex_xres << ", yres = " << tex_yres << std::endl << std::endl;
-	}
-	catch(TextureServerExcep& e)
-	{
-		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
-	}
-	catch(ImFormatExcep& e)
-	{
-		conPrint("Failed to load texture '" + opengl_mat.albedo_tex_path + "': " + e.what());
-	}
 }
 
 

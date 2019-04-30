@@ -187,6 +187,9 @@ void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString("Substrata v" + ::cyberspace_version));
 
+	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, this->texture_server);
+	connect(ui->materialBrowserDockWidgetContents, SIGNAL(materialSelected(const std::string&)), this, SLOT(materialSelectedInBrowser(const std::string&)));
+
 	ui->objectEditor->setControlsEnabled(false);
 	ui->parcelEditor->hide();
 
@@ -1500,7 +1503,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
 									}
 
-								ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob, *this->texture_server);
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 							}
 							else
 							{
@@ -2003,7 +2006,7 @@ void MainWindow::updateVoxelEditMarkers()
 							should_display_voxel_edit_face_marker = true;
 
 							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.1, 0.9, 0.2);
-							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker, *this->texture_server);
+							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker);
 
 						}
 						else if(alt_key_down)
@@ -2034,7 +2037,7 @@ void MainWindow::updateVoxelEditMarkers()
 							should_display_voxel_edit_marker = true;
 							
 							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.9, 0.1, 0.1);
-							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker, *this->texture_server);
+							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker);
 						}
 					}
 				}
@@ -2599,6 +2602,10 @@ void MainWindow::on_actionReset_Layout_triggered()
 	this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
 	ui->chatDockWidget->show();
 
+	ui->materialBrowserDockWidget->setFloating(false);
+	this->addDockWidget(Qt::TopDockWidgetArea, ui->materialBrowserDockWidget, Qt::Horizontal);
+	ui->materialBrowserDockWidget->show();
+
 	ui->helpInfoDockWidget->setFloating(true);
 	ui->helpInfoDockWidget->show();
 	// Position near bottom right corner of glWidget.
@@ -2938,7 +2945,7 @@ void MainWindow::objectEditedSlot()
 						}
 					}
 
-					ui->glWidget->opengl_engine->objectMaterialsUpdated(/*this->task_manager,*/ opengl_ob, *this->texture_server);
+					ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 				}
 				else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 				{
@@ -2979,6 +2986,12 @@ void MainWindow::objectEditedSlot()
 			}
 		}
 	}
+}
+
+
+void MainWindow::materialSelectedInBrowser(const std::string& path)
+{
+	this->ui->objectEditor->materialSelectedInBrowser(path);
 }
 
 
@@ -3768,7 +3781,12 @@ int main(int argc, char *argv[])
 
 		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
 
+		TextureServer texture_server;
+		mw.texture_server = &texture_server;
+
 		mw.initialise();
+
+		mw.ui->glWidget->texture_server_ptr = &texture_server;
 
 		mw.show();
 
@@ -3807,10 +3825,6 @@ int main(int argc, char *argv[])
 		mw.ui->glWidget->setCameraController(&mw.cam_controller);
 		mw.ui->glWidget->setPlayerPhysics(&mw.player_physics);
 		mw.cam_controller.setMoveScale(0.3f);
-
-		TextureServer texture_server;
-		mw.texture_server = &texture_server;
-		mw.ui->glWidget->texture_server_ptr = &texture_server;
 
 		const float sun_phi = 1.f;
 		const float sun_theta = Maths::pi<float>() / 4;
