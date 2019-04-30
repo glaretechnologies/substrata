@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+
+<material>
+	<name>Parquet wood</name>
+
+	<colour_texture_url>wood/Parkett2x.jpg</colour_texture_url>
+
+	<roughness>
+		<val>0.3</val>
+	</roughness>
+	
+</material>

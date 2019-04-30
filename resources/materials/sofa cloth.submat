@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!-- based on the material https://www.indigorenderer.com/materials/materials/205 -->
+
+<material>
+	<name>Sofa Cloth</name>
+
+	<colour_texture_url>sofa cloth/sofa_c2.png</colour_texture_url>
+
+	<roughness>
+		<val>0.7</val>
+	</roughness>
+	
+</material>

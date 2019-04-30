@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!-- based on the material https://www.indigorenderer.com/materials/materials/624 -->
+
+<material>
+	<name>Rough wood</name>
+
+	<colour_texture_url>rough wood/rough wood.jpg</colour_texture_url>
+
+	<roughness>
+		<val>0.9</val>
+	</roughness>
+	
+</material>
