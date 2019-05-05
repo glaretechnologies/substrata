@@ -61,6 +61,8 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/FileChecksum.h"
 #include "../utils/Parser.h"
 #include "../utils/ContainerUtils.h"
+#include "../utils/JSONParser.h"
+#include "../utils/Base64.h"
 #include "../networking/networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -77,7 +79,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
 #include <clocale>
-
+#include <zlib.h>
 
 #include "../physics/TreeTest.h" // Just for testing
 #include "../utils/VectorUnitTests.h" // Just for testing
@@ -3900,6 +3902,234 @@ int main(int argc, char *argv[])
 			mw.ui->glWidget->addObject(gl_ob);
 		}*/
 		//mw.ui->glWidget->opengl_engine->setDrawWireFrames(true);
+
+
+
+
+
+		// Test loading ben's world data (CryptoVoxels)
+		if(false)
+		{
+			// Make texture mats
+			std::vector<OpenGLMaterial> cv_mats(16 + 8);
+			const char* paths[] ={
+				"00-grid.png",
+				"01-grid.png",
+				"02-window.png",
+				"03-white-square.png",
+				"04-line.png",
+				"05-bricks.png",
+				"06-the-xx.png",
+				"07-lined.png",
+				"08-nick-batt.png",
+				"09-scots.png",
+				"10-subgrid.png",
+				"11-microblob.png",
+				"12-smallblob.png",
+				"13-smallblob.png",
+				"14-blob.png",
+				"03-white-square.png"
+			};
+			const std::string base_path = "D:\\files\\cryptovoxels_textures";
+			for(int i=0; i<16; ++i)
+				cv_mats[i].albedo_tex_path = base_path + "/" + paths[i];
+
+			cv_mats[2].transparent = true;
+
+			// Make constant colour mats
+			const char* colors[] ={
+				"#ffffff",
+				"#888888",
+				"#000000",
+				"#ff71ce",
+				"#01cdfe",
+				"#05ffa1",
+				"#b967ff",
+				"#fffb96"
+			};
+			for(int i=0; i<8; ++i)
+				cv_mats[16 + i].albedo_rgb = Colour3f(
+					hexStringToUInt32(std::string(colors[i]).substr(1, 2)) / 255.0f,
+					hexStringToUInt32(std::string(colors[i]).substr(3, 2)) / 255.0f,
+					hexStringToUInt32(std::string(colors[i]).substr(5, 2)) / 255.0f
+				);
+
+			Timer timer;
+			JSONParser parser;
+			parser.parseFile("D:\\downloads\\parcels.json");
+
+			std::vector<uint16> voxel_data;
+			voxel_data.resize(1000000);
+
+			std::vector<unsigned char> data;
+
+			assert(parser.nodes[0].type == JSONNode::Type_Object);
+
+			int total_num_voxels = 0;
+
+			const JSONNode& parcels_array = parser.nodes[0].getChildArray(parser, "parcels");
+
+			conPrint("Num parcels: " + toString(parcels_array.child_indices.size()));
+
+			for(size_t q=0; q<parcels_array.child_indices.size(); ++q)
+			{
+				const JSONNode& parcel_node = parser.nodes[parcels_array.child_indices[q]];
+
+				int x1, y1, z1, x2, y2, z2, id;
+				x1 = y1 = z1 = x2 = y2 = z2 = id = 0;
+
+				for(size_t w=0; w<parcel_node.name_val_pairs.size(); ++w)
+				{
+					if(parcel_node.name_val_pairs[w].name == "voxels")
+					{
+						const JSONNode& voxel_node = parser.nodes[parcel_node.name_val_pairs[w].value_node_index];
+
+						assert(voxel_node.type == JSONNode::Type_String);
+						
+						Base64::decode(voxel_node.string_v, data);
+
+						// Allocate deflate state
+						z_stream stream;
+						stream.zalloc = Z_NULL;
+						stream.zfree = Z_NULL;
+						stream.opaque = Z_NULL;
+						stream.next_in = (Bytef*)data.data();
+						stream.avail_in = (unsigned int)data.size();
+
+						int ret = inflateInit(&stream);
+						if(ret != Z_OK)
+							throw Indigo::Exception("inflateInit failed.");
+
+						stream.next_out = (Bytef*)voxel_data.data();
+						stream.avail_out = (unsigned int)(voxel_data.size() * sizeof(uint16));
+
+						int result = inflate(&stream, Z_FINISH);
+						if(result != Z_STREAM_END)
+							throw Indigo::Exception("inflate failed.");
+
+						inflateEnd(&stream);
+					}
+					else if(parcel_node.name_val_pairs[w].name == "x1")
+						x1 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+					else if(parcel_node.name_val_pairs[w].name == "y1")
+						y1 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+					else if(parcel_node.name_val_pairs[w].name == "z1")
+						z1 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+					else if(parcel_node.name_val_pairs[w].name == "x2")
+						x2 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+					else if(parcel_node.name_val_pairs[w].name == "y2")
+						y2 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+					else if(parcel_node.name_val_pairs[w].name == "z2")
+						z2 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+					else if(parcel_node.name_val_pairs[w].name == "id")
+						id = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+				}
+
+				//if(id != 1) continue;
+
+
+				// At this point hopefully we have parsed voxel data and coords
+				const int xspan = x2 - x1;
+				const int yspan = y2 - y1;
+				const int zspan = z2 - z1;
+
+				const int voxels_x = xspan * 2;
+				const int voxels_y = yspan * 2;
+				const int voxels_z = zspan * 2;
+
+				const int expected_num_voxels = voxels_x * voxels_y * voxels_z;
+
+				//assert(expected_num_voxels == voxel_data.size());
+
+				// Do a pass over voxels to get list of used mats
+				std::vector<bool> mat_used(16 + 8);
+
+				for(int x=0; x<expected_num_voxels; ++x)
+				{
+					const uint16 v = voxel_data[x];
+					if(v != 0)
+					{
+						int mat_index;
+						if((v >> 5) & 0x7)
+							mat_index = 16 + ((v >> 5) & 0x7); // flat colour mat
+						else
+							mat_index = v & 0xF; // texture mat
+
+						mat_used[mat_index] = true;
+					}
+				}
+
+				// Make material array and material indices in material array
+				std::vector<OpenGLMaterial> used_mats;
+				std::vector<int> used_mat_index(24);
+				for(int i=0; i<24; ++i)
+					if(mat_used[i])
+					{
+						used_mat_index[i] = (int)used_mats.size();
+						used_mats.push_back(cv_mats[i]);
+					}
+
+				VoxelGroup voxel_group;
+				int read_i = 0;
+				for(int x=x1; x<x1+voxels_x; ++x)
+					for(int y=y1; y<y1+voxels_y; ++y)
+						for(int z=z1; z<z1+voxels_z; ++z)
+						{
+							const uint16 v = voxel_data[read_i++];
+							if(v != 0)
+							{
+								int mat_index;
+								if((v >> 5) & 0x7)
+									mat_index = 16 + ((v >> 5) & 0x7); // flat colour mat
+								else
+									mat_index = v & 0xF; // texture mat
+
+								const int final_mat_index = used_mat_index[mat_index];
+
+								// Get relative xyz in CV coords (y-up, left-handed)
+								const int rx = x - x1;
+								const int ry = y - y1;
+								const int rz = z - z1;
+
+								// Convert to substrata coords (z-up)
+								const int use_x = -rx;
+								const int use_y = -rz;
+								const int use_z = ry;
+								voxel_group.voxels.push_back(Voxel(Vec3<int>(use_x, use_y, use_z), final_mat_index));
+							}
+						}
+
+				assert(read_i == expected_num_voxels);
+
+				if(voxel_group.voxels.size() > 0)
+				{
+					Reference<RayMesh> raymesh;
+					Reference<OpenGLMeshRenderData> gl_meshdata;
+					gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
+
+					// Convert to substrata coords (z-up)
+					const int use_x = -x1;
+					const int use_y = -z1;
+					const int use_z = y1;
+
+					//Sscale matrix is 0.5 as voxels are 0.5 m wide in CV.
+					GLObjectRef gl_ob = new GLObject();
+					gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)use_x, (float)use_y, (float)use_z) * Matrix4f::uniformScaleMatrix(0.5f);
+					gl_ob->mesh_data = gl_meshdata;
+					
+					gl_ob->materials = used_mats;
+
+					mw.ui->glWidget->addObject(gl_ob);
+
+					total_num_voxels += (int)voxel_group.voxels.size();
+				}
+			}
+
+			conPrint("Loaded all voxel data in " + timer.elapsedString());
+			conPrint("total_num_voxels " + toString(total_num_voxels));
+		}
+
+
 
 		
 		// Load a test overlay quad
