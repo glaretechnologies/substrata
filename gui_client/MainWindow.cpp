@@ -3907,7 +3907,7 @@ int main(int argc, char *argv[])
 
 
 
-		// Test loading ben's world data (CryptoVoxels)
+		// Test loading ben's world data (CryptoVoxels), data is from https://www.cryptovoxels.com/grid/parcels
 		if(false)
 		{
 			// Make texture mats
@@ -3978,6 +3978,8 @@ int main(int argc, char *argv[])
 				int x1, y1, z1, x2, y2, z2, id;
 				x1 = y1 = z1 = x2 = y2 = z2 = id = 0;
 
+				std::vector<OpenGLMaterial> parcel_mats = cv_mats; // Copy mats as may be updated with custom mats for this parcel.
+
 				for(size_t w=0; w<parcel_node.name_val_pairs.size(); ++w)
 				{
 					if(parcel_node.name_val_pairs[w].name == "voxels")
@@ -4023,10 +4025,32 @@ int main(int argc, char *argv[])
 						z2 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
 					else if(parcel_node.name_val_pairs[w].name == "id")
 						id = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
+					else if(parcel_node.name_val_pairs[w].name == "palette")
+					{
+						// Load custom palette, e.g. "palette":["#ffffff","#888888","#000000","#80ffff","#01cdfe","#0080ff","#008080","#004080"]
+						const JSONNode& palette_array = parser.nodes[parcel_node.name_val_pairs[w].value_node_index];
+
+						if(palette_array.type != JSONNode::Type_Null)
+						{
+							if(palette_array.child_indices.size() != 8)
+								throw Indigo::Exception("Invalid number of colours in palette.");
+
+							for(size_t p=0; p<8; ++p) // For each palette entry
+							{
+								const JSONNode& col_node = parser.nodes[palette_array.child_indices[p]];
+								assert(col_node.type == JSONNode::Type_String);
+
+								parcel_mats[16 + p].albedo_rgb = Colour3f(
+										hexStringToUInt32(std::string(col_node.string_v).substr(1, 2)) / 255.0f,
+										hexStringToUInt32(std::string(col_node.string_v).substr(3, 2)) / 255.0f,
+										hexStringToUInt32(std::string(col_node.string_v).substr(5, 2)) / 255.0f
+									);
+							}
+						}
+					}
 				}
 
-				//if(id != 1) continue;
-
+				//if(id != 1045) continue;
 
 				// At this point hopefully we have parsed voxel data and coords
 				const int xspan = x2 - x1;
@@ -4066,7 +4090,7 @@ int main(int argc, char *argv[])
 					if(mat_used[i])
 					{
 						used_mat_index[i] = (int)used_mats.size();
-						used_mats.push_back(cv_mats[i]);
+						used_mats.push_back(parcel_mats[i]);
 					}
 
 				VoxelGroup voxel_group;
