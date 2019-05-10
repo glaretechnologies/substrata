@@ -1,18 +1,14 @@
-The service should be installed into /etc/systemd/user/ (on development)
-and in /etc/systemd/system (in production)
+The service should be installed into /etc/systemd/user/
 
 Reload after adding the service:
 sudo systemctl daemon-reload
 
-(if you installed it as a user service in development, drop sudo and
-append --user to the following commands)
-
 Now enable and start the service:
-sudo systemctl enable cyberspace-server.service
-sudo systemctl start cyberspace-server.service
+systemctl enable cyberspace-server.service --user
+systemctl start cyberspace-server.service --user
 
 you can see the status with (doesnt need sudo)
-systemctl status cyberspace-server.service
+systemctl status cyberspace-server.service --user
 
 and the log with
-sudo journalctl --unit=cyberspace-server.service
+sudo journalctl --unit=cyberspace-server.service --user
