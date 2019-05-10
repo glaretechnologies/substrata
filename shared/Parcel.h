@@ -41,6 +41,7 @@ public:
 	bool AABBInParcel(const js::AABBox& aabb) const;
 	static bool AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb_min, const Vec3d& parcel_aabb_max);
 	bool isAxisAlignedBox() const;
+
 	bool userIsParcelAdmin(const UserID user_id) const;
 	bool userIsParcelWriter(const UserID user_id) const;
 
@@ -64,6 +65,7 @@ public:
 	std::vector<UserID> admin_ids;
 	std::vector<UserID> writer_ids;
 	std::vector<ParcelID> child_parcel_ids;
+	bool all_writeable; // Does every logged-in user have write permissions on this parcel?
 	
 
 	Vec2d verts[4];
