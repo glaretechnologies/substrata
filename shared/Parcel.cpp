@@ -83,12 +83,13 @@ bool Parcel::userIsParcelAdmin(const UserID user_id) const
 
 bool Parcel::userIsParcelWriter(const UserID user_id) const
 {
-	if(user_id.valid())
-	{
-		return this->all_writeable || ContainerUtils::contains(writer_ids, user_id);
-	}
-	else
-		return false;
+	return ContainerUtils::contains(writer_ids, user_id);
+}
+
+
+bool Parcel::userHasWritePerms(const UserID user_id) const // Does the user given by user_id have write permissions for this parcel?  E.g. are they an admin or writer?
+{
+	return userIsParcelWriter(user_id) || userIsParcelAdmin(user_id) || (this->all_writeable && user_id.valid());
 }
 
 

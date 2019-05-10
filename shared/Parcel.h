@@ -44,6 +44,8 @@ public:
 
 	bool userIsParcelAdmin(const UserID user_id) const;
 	bool userIsParcelWriter(const UserID user_id) const;
+	bool userHasWritePerms(const UserID user_id) const; // Does the user given by user_id have write permissions for this parcel?  E.g. are they an admin or writer,
+	// or is the parcel all-writeable (and the user id is valid)?
 
 	// For client:
 	enum State
