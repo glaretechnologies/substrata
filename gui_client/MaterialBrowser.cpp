@@ -28,7 +28,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "../dll/include/IndigoMesh.h"
 
 
-#define PREVIEW_SIZE 150
+#define PREVIEW_SIZE 120
 
 
 MaterialBrowser::MaterialBrowser()
@@ -146,7 +146,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 		for(size_t i=0; i<filepaths.size(); ++i)
 		{
-			const std::string EPOCH_STRING = "_1"; // Can change to invalidate cache.
+			const std::string EPOCH_STRING = "_2"; // Can change to invalidate cache.
 			const std::string cache_key_input = FileUtils::getFilename(filepaths[i]) + EPOCH_STRING;
 			const uint64 cache_hashkey = XXH64(cache_key_input.data(), cache_key_input.size(), 1);
 			const uint64 dir_bits = cache_hashkey >> 58; // 6 bits for the dirs => 64 subdirs in program_cache.
