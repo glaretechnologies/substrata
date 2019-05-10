@@ -57,11 +57,13 @@ public:
 	Reference<WorldMaterial> clone() const
 	{
 		Reference<WorldMaterial> m = new WorldMaterial();
+		m->name = name;
 		m->colour_rgb = colour_rgb;
 		m->colour_texture_url = colour_texture_url;
 		m->roughness = roughness;
 		m->metallic_fraction = metallic_fraction;
 		m->opacity = opacity;
+		m->tex_matrix = tex_matrix;
 		return m;
 	}
 
