@@ -121,7 +121,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	total_num_res_to_download(0),
 	num_frames(0),
 	voxel_edit_marker_in_engine(false),
-	voxel_edit_face_marker_in_engine(false)
+	voxel_edit_face_marker_in_engine(false),
+	selected_ob_picked_up(false)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -1682,8 +1683,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 
-	// Move selected object if there is one
-	if(this->selected_ob.nonNull())
+	// Move selected object if there is one and it is picked up, based on direction camera is currently facing.
+	if(this->selected_ob.nonNull() && selected_ob_picked_up)
 	{
 		const bool allow_modification = objectModificationAllowed(*this->selected_ob);
 		if(allow_modification)
@@ -3214,6 +3215,57 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 }
 
 
+void MainWindow::pickUpSelectedObject()
+{
+	if(selected_ob.nonNull())
+	{
+		const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+
+		// Add an object placement beam
+		if(have_edit_permissions)
+		{
+			ui->glWidget->opengl_engine->addObject(ob_placement_beam);
+			ui->glWidget->opengl_engine->addObject(ob_placement_marker);
+		}
+
+		// Send UserSelectedObject message to server
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::UserSelectedObject);
+		writeToStream(selected_ob->uid, packet);
+		this->client_thread->enqueueDataToSend(packet);
+
+		selected_ob_picked_up = true;
+	}
+}
+
+
+void MainWindow::dropSelectedObject()
+{
+	if(selected_ob.nonNull() && selected_ob_picked_up)
+	{
+		// Send UserDeselectedObject message to server
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::UserDeselectedObject);
+		writeToStream(selected_ob->uid, packet);
+		this->client_thread->enqueueDataToSend(packet);
+
+		// Remove placement beam from 3d engine
+		ui->glWidget->opengl_engine->removeObject(this->ob_placement_beam);
+		ui->glWidget->opengl_engine->removeObject(this->ob_placement_marker);
+
+		// Remove any edge markers
+		while(ob_denied_move_markers.size() > 0)
+		{
+			ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
+			ob_denied_move_markers.pop_back();
+		}
+
+		selected_ob_picked_up = false;
+	}
+}
+
+
+
 void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 {
 	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
@@ -3247,6 +3299,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 			assert(this->selected_ob->getRefCount() >= 0);
 			const Vec4f selection_vec_ws = this->selection_point_ws - origin;
+			
 			// Get selection_vec_cs
 			this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);
 
@@ -3258,14 +3311,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 
 			const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
-
-			// Add an object placement beam
-			if(have_edit_permissions)
-			{
-				ui->glWidget->opengl_engine->addObject(ob_placement_beam);
-				ui->glWidget->opengl_engine->addObject(ob_placement_marker);
-			}
-
 
 			// Update the editor widget with values from the selected object
 			//if(selected_ob->materials.empty())
@@ -3283,14 +3328,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			ui->objectEditor->setControlsEditable(have_edit_permissions);
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
 
-
-			// Send UserSelectedObject message to server
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::UserSelectedObject);
-			writeToStream(selected_ob->uid, packet);
-			this->client_thread->enqueueDataToSend(packet);
-
-
 			// Update help text
 			if(have_edit_permissions)
 			{
@@ -3300,7 +3337,8 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 						"Alt + left-click: Delete voxel.\n"
 						"\n";
 
-				text += "Click and drag the mouse to move the object around.\n"
+				text += "E key: Pick up/drop object.\n"
+					"Click and drag the mouse to move the object around when picked up.\n"
 					"'[' and  ']' keys rotate the object.\n"
 					"PgUp and  pgDown keys rotate the object.\n"
 					"'-' and '+' keys wheel moves object near/far.\n"
@@ -3436,11 +3474,7 @@ void MainWindow::deselectObject()
 {
 	if(this->selected_ob.nonNull())
 	{
-		// Send UserDeselectedObject message to server
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::UserDeselectedObject);
-		writeToStream(selected_ob->uid, packet);
-		this->client_thread->enqueueDataToSend(packet);
+		dropSelectedObject();
 
 		// Deselect any currently selected object
 		ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
@@ -3452,17 +3486,6 @@ void MainWindow::deselectObject()
 		this->shown_object_modification_error_msg = false;
 
 		this->ui->helpInfoDockWidget->hide();
-
-		// Remove placement beam from 3d engine
-		ui->glWidget->opengl_engine->removeObject(this->ob_placement_beam);
-		ui->glWidget->opengl_engine->removeObject(this->ob_placement_marker);
-
-		// Remove any edge markers
-		while(ob_denied_move_markers.size() > 0)
-		{
-			ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
-			ob_denied_move_markers.pop_back();
-		}
 	}
 }
 
@@ -3532,6 +3555,13 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		else if(e->key() == Qt::Key::Key_Minus)
 		{
 			this->selection_vec_cs[1] *= (1/1.05f);
+		}
+		else if(e->key() == Qt::Key::Key_E)
+		{
+			if(!this->selected_ob_picked_up)
+				pickUpSelectedObject();
+			else
+				dropSelectedObject();
 		}
 	}
 }
