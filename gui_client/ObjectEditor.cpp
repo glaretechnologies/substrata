@@ -161,7 +161,12 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	}
 
 	if(selected_mat_index >= cloned_materials.size())
+	{
 		cloned_materials.resize(selected_mat_index + 1);
+		for(size_t i=0; i<cloned_materials.size(); ++i)
+			if(cloned_materials[i].isNull())
+				cloned_materials[i] = new WorldMaterial();
+	}
 
 	this->matEditor->toMaterial(*cloned_materials[selected_mat_index]);
 
