@@ -298,7 +298,7 @@ void GlWidget::mouseReleaseEvent(QMouseEvent* e)
 {
 	//conPrint("mouseReleaseEvent at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
 
-	if((QCursor::pos() - last_mouse_press_pos).manhattanLength() < 4)
+	//if((QCursor::pos() - last_mouse_press_pos).manhattanLength() < 4)
 	{
 		//conPrint("Click at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
 		//conPrint("Click at " + toString(e->pos().x()) + ", " + toString(e->pos().y()));
