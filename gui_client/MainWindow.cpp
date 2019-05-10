@@ -3910,6 +3910,85 @@ int main(int argc, char *argv[])
 		// Test loading ben's world data (CryptoVoxels), data is from https://www.cryptovoxels.com/grid/parcels
 		if(false)
 		{
+			const std::string scene_dir = "D:\\files\\CV_world";
+			const bool save_indigo_scene = true;
+
+			std::string indigo_xml =
+				"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+				"<scene>\n"
+				"	<renderer_settings>	 \n"
+				"		<width>800</width>		 \n"
+				"		<height>600</height>	 \n"
+				"	</renderer_settings>	 \n";
+
+			indigo_xml +=
+				"<skylight>									\n"
+				"	<sundir>1 1 1</sundir>					\n"
+				"	<turbidity>2</turbidity>					\n"
+				"												\n"
+				"	<model>captured-simulation</model>			\n"
+				"</skylight>								\n";
+
+			indigo_xml +=
+				"<camera>											   \n"
+				"	<pos>2 0 3</pos>								   \n"
+				"	<up>0 0 1</up>									   \n"
+				"	<forwards>1 0 0</forwards>						   \n"
+				"	<!--<forwards>1 1 0</forwards>-->				   \n"
+				"													   \n"
+				"													   \n"
+				"	<aperture_radius>0.001</aperture_radius>			   \n"
+				"	<focus_distance>10000.0</focus_distance>		   \n"
+				"	<aspect_ratio>1.33</aspect_ratio>				   \n"
+				"	<sensor_width>0.036</sensor_width>				   \n"
+				"	<lens_sensor_dist>0.03</lens_sensor_dist>		   \n"
+				"	<white_balance>D65</white_balance>				   \n"
+				"													   \n"
+				"	</camera>										   \n";
+			indigo_xml +=
+				"<tonemapping>											  \n"
+				"	<linear>											  \n"
+				"		<scale>0.05</scale>								  \n"
+				"	</linear>											  \n"
+				"	</tonemapping>										  \n";
+
+			// Add ground mesh
+			indigo_xml +=
+				"	<material>																  \n"
+				"		<name>white</name>													  \n"
+				"		<diffuse>															  \n"
+				"			<colour>0.85 0.85 0.85</colour>									  \n"
+				"		</diffuse>															  \n"
+				"	</material>																  \n"
+				"																			  \n"
+				"	<mesh>																	  \n"
+				"		<name>groundmesh</name>												  \n"
+				"		<normal_smoothing>false</normal_smoothing>							  \n"
+				"		<embedded>															  \n"
+				"			<expose_uv_set>													  \n"
+				"				<index>0</index>											  \n"
+				"				<name>albedo</name>											  \n"
+				"			</expose_uv_set>												  \n"
+				"																			  \n"
+				"			<vertex pos=\"-1000 -1000 1\" normal=\"0 0 1\" uv0=\"0 0\" />				  \n"
+				"			<vertex pos=\"-1000 1000 1\" normal=\"0 0 1\" uv0=\"0 10000\" />			  \n"
+				"			<vertex pos=\"1000 1000 1\" normal=\"0 0 1\" uv0=\"10000 10000\" />		  \n"
+				"			<vertex pos=\"1000 -1000 1\" normal=\"0 0 1\" uv0=\"10000 0\" />			  \n"
+				"																			  \n"
+				"			<triangle_set>													  \n"
+				"				<material_name>white</material_name>						  \n"
+				"				<tri>0 1 2</tri>											  \n"
+				"				<tri>0 2 3</tri>											  \n"
+				"			</triangle_set>													  \n"
+				"		</embedded>															  \n"
+				"	</mesh>																	  \n"
+				"																			  \n"
+				"	<model>																	  \n"
+				"		<pos>0 0 0</pos>													  \n"
+				"		<scale>1.0</scale>													  \n"
+				"		<mesh_name>groundmesh</mesh_name>									  \n"
+				"	</model>																  \n";
+
 			// Make texture mats
 			std::vector<OpenGLMaterial> cv_mats(16 + 8);
 			const char* paths[] ={
@@ -3954,6 +4033,94 @@ int main(int argc, char *argv[])
 					hexStringToUInt32(std::string(colors[i]).substr(5, 2)) / 255.0f
 				);
 
+			// Write mats to Indigo materials
+			if(save_indigo_scene)
+			{
+				/*for(int i=0; i<24; ++i)
+					indigo_xml +=
+					"<material>									  \n"
+					"	<name>mat " + toString(i) + "</name>		\n"
+					"	<uid>" + toString(100 + i) + "</uid>		\n"
+					"											  \n"
+					"	<phong>									  \n"
+					"		<diffuse>" + toString(cv_mats[i].albedo_rgb.r) + " " + toString(cv_mats[i].albedo_rgb.g) + " " + toString(cv_mats[i].albedo_rgb.b) + "</diffuse>\n"
+					"		<texture>								   \n"
+					"			<path>" + cv_mats[i].albedo_tex_path + "</path>				   \n"
+					"		</texture>								   \n"
+					"	<ior>1.5</ior>								  \n"
+					"	<exponent>10000</exponent>					  \n"
+					"</phong>									  \n"
+					"</material>								  \n";*/
+				for(int i=0; i<16; ++i)
+					if(i != 2)
+						indigo_xml +=
+						"<material>									  \n"
+						"	<name>mat " + toString(i) + "</name>		\n"
+						"	<uid>" + toString(100 + i) + "</uid>		\n"
+						"	<diffuse>										  \n"
+						"		<albedo>									   \n"
+						"			<texture>						  \n"
+						"				<path>" + cv_mats[i].albedo_tex_path + "</path>				   \n"
+						"			</texture>							  \n"
+						"		</albedo>									   \n"
+						"	</diffuse>										\n"
+						"</material>									  \n";
+
+				for(int i=16; i<24; ++i)
+					indigo_xml +=
+					"<material>									  \n"
+					"	<name>mat " + toString(i) + "</name>		\n"
+					"	<uid>" + toString(100 + i) + "</uid>		\n"
+					"	<diffuse>										  \n"
+					"		<albedo>									   \n"
+					"			<constant>								   \n"
+					"				<rgb>								   \n"
+					"					<rgb>" + toString(cv_mats[i].albedo_rgb.r) + " " + toString(cv_mats[i].albedo_rgb.g) + " " + toString(cv_mats[i].albedo_rgb.b) + "</rgb>			   \n"
+					"				</rgb>								   \n"
+					"			</constant>								   \n"
+					"		</albedo>									   \n"
+					"	</diffuse>										\n"
+					"</material>									  \n";
+
+				// Make mat 2 specular
+				indigo_xml +=
+					"<medium>																\n"
+					"	<name>medium1</name>												\n"
+					"																		\n"
+					"	<basic>																\n"
+					"		<ior>1.5</ior>													\n"
+					"		<cauchy_b_coeff>0.0</cauchy_b_coeff>							\n"
+					"		<absorption_coefficient_spectrum>								\n"
+					"			<rgb>														   \n"
+					"				<rgb>1 0.3 0.1</rgb>									   \n"
+					"			</rgb>														   \n"
+					"		</absorption_coefficient_spectrum>								\n"
+					"	</basic>															\n"
+					"</medium>																\n"
+					"																		\n"
+					"<material>																\n"
+					"	<name>mat " + toString(2) + "</name>		\n"
+					"	<uid>" + toString(100 + 2) + "</uid>		\n"
+					"																		\n"
+					"	<specular>															\n"
+					"		<transparent>true</transparent>									\n"
+					"		<internal_medium_name>medium1</internal_medium_name>			\n"
+					"	</specular>															\n"
+					"</material>															\n";
+
+				/*" 
+				<absorption_layer_transmittance>										\n"
+					"	<constant>															\n"
+					"	  <rgb>																\n"
+					"		<rgb>1 0 0</rgb>												\n"
+					"		<gamma>2.2</gamma>												\n"
+					"	  </rgb>															\n"
+					"	</constant>															\n"
+					"  </absorption_layer_transmittance>									\n"
+					*/
+
+			}																		
+
 			Timer timer;
 			JSONParser parser;
 			parser.parseFile("D:\\downloads\\parcels.json");
@@ -3966,6 +4133,7 @@ int main(int argc, char *argv[])
 			assert(parser.nodes[0].type == JSONNode::Type_Object);
 
 			int total_num_voxels = 0;
+			int custom_uid = 500000;
 
 			const JSONNode& parcels_array = parser.nodes[0].getChildArray(parser, "parcels");
 
@@ -3979,6 +4147,7 @@ int main(int argc, char *argv[])
 				x1 = y1 = z1 = x2 = y2 = z2 = id = 0;
 
 				std::vector<OpenGLMaterial> parcel_mats = cv_mats; // Copy mats as may be updated with custom mats for this parcel.
+				bool custom_palette_used = false;
 
 				for(size_t w=0; w<parcel_node.name_val_pairs.size(); ++w)
 				{
@@ -4046,6 +4215,8 @@ int main(int argc, char *argv[])
 										hexStringToUInt32(std::string(col_node.string_v).substr(5, 2)) / 255.0f
 									);
 							}
+
+							custom_palette_used = true;
 						}
 					}
 				}
@@ -4136,7 +4307,7 @@ int main(int argc, char *argv[])
 					const int use_y = -z1;
 					const int use_z = y1;
 
-					//Sscale matrix is 0.5 as voxels are 0.5 m wide in CV.
+					// Scale matrix is 0.5 as voxels are 0.5 m wide in CV.
 					GLObjectRef gl_ob = new GLObject();
 					gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)use_x, (float)use_y, (float)use_z) * Matrix4f::uniformScaleMatrix(0.5f);
 					gl_ob->mesh_data = gl_meshdata;
@@ -4145,8 +4316,94 @@ int main(int argc, char *argv[])
 
 					mw.ui->glWidget->addObject(gl_ob);
 
+					
+					if(save_indigo_scene)
+					{
+						// Write out any custom materials
+						int ob_custom_uid_start = custom_uid;
+						if(custom_palette_used)
+						{
+							// Save materials for custom palette.
+							for(int i=16; i<24; ++i)
+							{
+								indigo_xml +=
+									"<material>									  \n"
+									"	<name>custom palette mat " + toString(custom_uid) + "</name>		\n"
+									"	<uid>" + toString(custom_uid) + "</uid>		\n"
+									"	<diffuse>										  \n"
+									"		<albedo>									   \n"
+									"			<constant>								   \n"
+									"				<rgb>								   \n"
+									"					<rgb>" + toString(parcel_mats[i].albedo_rgb.r) + " " + toString(parcel_mats[i].albedo_rgb.g) + " " + toString(parcel_mats[i].albedo_rgb.b) + "</rgb>\n"
+									"				</rgb>								   \n"
+									"			</constant>								   \n"
+									"		</albedo>									   \n"
+									"	</diffuse>										\n"
+									"</material>									  \n";
+								custom_uid++;
+							}
+						}
+
+						const std::string mesh_path = scene_dir + "/mesh_" + toString(id) + ".igmesh";
+						raymesh->saveToIndigoMeshOnDisk(mesh_path, /*use_compression=*/true);
+
+						indigo_xml +=
+							"	<mesh>											\n"
+							"	<name>mesh_" + toString(id) + "</name>			\n"
+							"	<uid>" + toString(1000000 + id) + "</uid>	\n"
+							"	<scale>1</scale>								\n"
+							"	<normal_smoothing>false</normal_smoothing>		\n"
+							"	<external>										\n"
+							"		<path>" + mesh_path + "</path>							\n"
+							"	</external>										\n"
+							"	</mesh>											\n";
+
+						indigo_xml +=
+							"<model2>											  \n"
+							"	<uid>" + toString(2000000 + id) + "</uid>	\n"
+							"	<name>parcel #" + toString(id) + "</name>			\n"
+							"	<geometry_uid>" + toString(1000000 + id) + "</geometry_uid>					  \n"
+							"	<scale>0.5</scale>								  \n"
+							"	<rotation>										  \n"
+							"		<matrix>									  \n"
+							"			1 0 0 0 1 0 0 0 1 						  \n"
+							"		</matrix>									  \n"
+							"	</rotation>										  \n"
+							"	<keyframe>										  \n"
+							"		<time>0</time>								  \n"
+							"		<pos>" + toString(use_x) + " " + toString(use_y) + " " + toString(use_z) + "</pos>							  \n"
+							"		<rotation_quaternion>						  \n"
+							"			<axis>1 0 0</axis>						  \n"
+							"			<angle>0</angle>						  \n"
+							"		</rotation_quaternion>						  \n"
+							"	</keyframe>										  \n"
+							"	<materials>										  \n";
+
+						for(int i=0; i<24; ++i)
+							if(mat_used[i])
+							{
+								//const int mat_index = used_mat_index[i];
+								int mat_uid = 100 + i;// mat_index;
+
+								if(custom_palette_used && i >= 16)
+									mat_uid = ob_custom_uid_start + (i - 16);
+
+								indigo_xml += "		<material_uid>" + toString(mat_uid) + "</material_uid>				  \n";
+							}
+						indigo_xml +=
+							"	</materials>									  \n"
+							"</model2>											  \n";
+					}														
+
+
 					total_num_voxels += (int)voxel_group.voxels.size();
 				}
+			}
+
+			if(save_indigo_scene)
+			{
+				indigo_xml += "</scene>\n";
+				FileUtils::writeEntireFileTextMode(scene_dir + "/scene.igs", indigo_xml);
 			}
 
 			conPrint("Loaded all voxel data in " + timer.elapsedString());
