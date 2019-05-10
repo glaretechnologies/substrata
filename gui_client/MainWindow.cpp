@@ -2140,13 +2140,26 @@ void MainWindow::on_actionAvatarSettings_triggered()
 }
 
 
+static bool isGodUser(const UserID logged_in_user_id)
+{
+	return logged_in_user_id.value() == 0;
+}
+
+
 // Returns true if this user has write permissions
 bool MainWindow::haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& ob_pos_in_parcel_out)
 {
+	ob_pos_in_parcel_out = false;
+
+	if(isGodUser(this->logged_in_user_id))
+	{
+		ob_pos_in_parcel_out = true; // Just treat as in parcel.
+		return true;
+	}
+
 	// See if the user is in a parcel that they have write permissions for.
 	// For now just do a linear scan over parcels
 	bool have_creation_perms = false;
-	ob_pos_in_parcel_out = false;
 	{
 		Lock lock(world_state->mutex);
 		for(auto& it : world_state->parcels)
@@ -2180,10 +2193,17 @@ bool MainWindow::haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& ob_po
 
 bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out)
 {
+	ob_pos_in_parcel_out = false;
+
+	if(isGodUser(this->logged_in_user_id))
+	{
+		ob_pos_in_parcel_out = true; // Just treat as in parcel.
+		return true;
+	}
+
 	// See if the user is in a parcel that they have write permissions for.
 	// For now just do a linear scan over parcels
 	bool have_creation_perms = false;
-	ob_pos_in_parcel_out = false;
 	{
 		Lock lock(world_state->mutex);
 		for(auto& it : world_state->parcels)
@@ -2226,6 +2246,13 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 	bool have_creation_perms = false;
 	Vec3d parcel_aabb_min;
 	Vec3d parcel_aabb_max;
+
+	if(isGodUser(this->logged_in_user_id))
+	{
+		const Vec4f newpos = tentative_to_world_matrix.getColumn(3);
+		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
+		return true;
+	}
 
 	// Work out what parcel the object is in currently (e.g. what parcel old_ob_pos is in)
 	{
