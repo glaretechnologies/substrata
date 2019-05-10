@@ -420,7 +420,6 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 	{
 		const uint32 val = stream.readUInt32();
 		parcel.all_writeable = val != 0;
-		printVar(parcel.all_writeable);
 	}
 
 	for(int i=0; i<4; ++i)
