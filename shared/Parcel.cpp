@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <Exception.h>
 #include <StringUtils.h>
 #include <ContainerUtils.h>
+#include <ConPrint.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #endif
@@ -19,7 +20,8 @@ Copyright Glare Technologies Limited 2018 -
 Parcel::Parcel()
 :	state(State_JustCreated),
 	from_remote_dirty(false),
-	from_local_dirty(false)
+	from_local_dirty(false),
+	all_writeable(false)
 {
 }
 
@@ -81,7 +83,12 @@ bool Parcel::userIsParcelAdmin(const UserID user_id) const
 
 bool Parcel::userIsParcelWriter(const UserID user_id) const
 {
-	return ContainerUtils::contains(writer_ids, user_id);
+	if(user_id.valid())
+	{
+		return this->all_writeable || ContainerUtils::contains(writer_ids, user_id);
+	}
+	else
+		return false;
 }
 
 
@@ -334,7 +341,10 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 #endif // GUI_CLIENT
 
 
-static const uint32 PARCEL_SERIALISATION_VERSION = 2;
+static const uint32 PARCEL_SERIALISATION_VERSION = 3;
+/*
+Version 3: added all_writeable.
+*/
 
 
 static void writeToStreamCommon(const Parcel& parcel, OutStream& stream)
@@ -359,13 +369,16 @@ static void writeToStreamCommon(const Parcel& parcel, OutStream& stream)
 	for(size_t i=0; i<parcel.child_parcel_ids.size(); ++i)
 		writeToStream(parcel.child_parcel_ids[i], stream);
 
+	// Write all_writeable
+	stream.writeUInt32(parcel.all_writeable ? 1 : 0);
+
 	for(int i=0; i<4; ++i)
 		writeToStream(parcel.verts[i], stream);
 	writeToStream(parcel.zbounds, stream);
 }
 
 
-static void readFromStreamCommon(InStream& stream, Parcel& parcel) // UID will have been read already
+static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parcel) // UID will have been read already
 {
 	parcel.owner_id = readUserIDFromStream(stream);
 	parcel.created_time.readFromStream(stream);
@@ -401,6 +414,14 @@ static void readFromStreamCommon(InStream& stream, Parcel& parcel) // UID will h
 			parcel.child_parcel_ids[i] = readParcelIDFromStream(stream);
 	}
 
+	// Read all_writeable
+	if(version >= 3)
+	{
+		const uint32 val = stream.readUInt32();
+		parcel.all_writeable = val != 0;
+		printVar(parcel.all_writeable);
+	}
+
 	for(int i=0; i<4; ++i)
 		parcel.verts[i] = readVec2FromStream<double>(stream);
 	parcel.zbounds = readVec2FromStream<double>(stream);
@@ -421,13 +442,13 @@ void writeToStream(const Parcel& parcel, OutStream& stream)
 void readFromStream(InStream& stream, Parcel& parcel)
 {
 	// Read version
-	const uint32 v = stream.readUInt32();
-	if(v > PARCEL_SERIALISATION_VERSION)
-		throw Indigo::Exception("Parcel readFromStream: Unsupported version " + toString(v) + ", expected " + toString(PARCEL_SERIALISATION_VERSION) + ".");
+	const uint32 version = stream.readUInt32();
+	if(version > PARCEL_SERIALISATION_VERSION)
+		throw Indigo::Exception("Parcel readFromStream: Unsupported version " + toString(version) + ", expected " + toString(PARCEL_SERIALISATION_VERSION) + ".");
 
 	parcel.id = readParcelIDFromStream(stream);
 	
-	readFromStreamCommon(stream, parcel);
+	readFromStreamCommon(stream, version, parcel);
 }
 
 
@@ -451,7 +472,7 @@ void writeToNetworkStream(const Parcel& parcel, OutStream& stream)
 
 void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel) // UID will have been read already
 {
-	readFromStreamCommon(stream, parcel);
+	readFromStreamCommon(stream, /*version=*/PARCEL_SERIALISATION_VERSION, parcel);
 
 	parcel.owner_name = stream.readStringLengthFirst(10000);
 

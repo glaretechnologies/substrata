@@ -9,6 +9,7 @@ ParcelEditor::ParcelEditor(QWidget *parent)
 :	QWidget(parent)
 {
 	setupUi(this);
+	this->allWriteableCheckBox->setEnabled(false); // Do this as the most similar to read-only.
 }
 
 
@@ -39,6 +40,8 @@ void ParcelEditor::setFromParcel(const Parcel& parcel)
 		SignalBlocker b(this->adminsTextEdit);
 		this->adminsTextEdit->setPlainText(QtUtils::toQString(StringUtils::join(parcel.admin_names, ",\n")));
 	}
+
+	SignalBlocker::setChecked(this->allWriteableCheckBox, parcel.all_writeable);
 
 	this->minLabel->setText(QtUtils::toQString(parcel.aabb_min.toString()));
 	this->maxLabel->setText(QtUtils::toQString(parcel.aabb_max.toString()));

@@ -289,6 +289,16 @@ int main(int argc, char *argv[])
 		assignParcelToUser(server.world_state, ParcelID(32), UserID(4)); // lycium
 		assignParcelToUser(server.world_state, ParcelID(31), UserID(5)); // Harry
 
+		// Make parcel with id 20 a 'sandbox', world-writeable parcel
+		{
+			auto res = server.world_state->parcels.find(ParcelID(20));
+			if(res != server.world_state->parcels.end())
+			{
+				res->second->all_writeable = true;
+				conPrint("Made parcel 20 all-writeable.");
+			}
+		}
+
 
 
 		server.world_state->denormaliseData();
