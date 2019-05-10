@@ -770,9 +770,12 @@ void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 
 	std::sort(names.begin(), names.end());
 
-	const std::string text = StringUtils::join(names, "\n");
-	
-	ui->onlineUsersTextEdit->setText(QtUtils::toQString(text));
+	// Combine names into a single string, while escaping any HTML chars.
+	QString s;
+	for(size_t i=0; i<names.size(); ++i)
+		s += QtUtils::toQString(names[i]).toHtmlEscaped() + ((i + 1 < names.size()) ? "<br/>" : "");
+
+	ui->onlineUsersTextEdit->setHtml(s);
 }
 
 
@@ -3369,7 +3372,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 						"Alt + left-click: Delete voxel.\n"
 						"\n";
 
-				text += "E key: Pick up/drop object.\n"
+				text += "'E' key: Pick up/drop object.\n"
 					"Click and drag the mouse to move the object around when picked up.\n"
 					"'[' and  ']' keys rotate the object.\n"
 					"PgUp and  pgDown keys rotate the object.\n"
