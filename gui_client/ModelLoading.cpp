@@ -510,6 +510,27 @@ struct VoxelBuildInfo
 	int num_faces; // num faces added for this voxel.
 };
 
+
+/*
+raymesh->getUVs()[0] = Vec2f(0, 0);
+raymesh->getUVs()[1] = Vec2f(0, 1);
+raymesh->getUVs()[2] = Vec2f(1, 1);
+raymesh->getUVs()[3] = Vec2f(1, 0);
+*/
+static inline unsigned int getUVIndex(const Vec2f& uv)
+{
+	// TODO: can optimise by checking x first and branching, then y.
+	if(uv == Vec2f(0, 0))
+		return 0;
+	else if(uv == Vec2f(0, 1))
+		return 1;
+	else if(uv == Vec2f(1, 1))
+		return 2;
+	else
+		return 3;
+}
+
+
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, Reference<RayMesh>& raymesh_out)
 {
 	const size_t num_voxels = voxel_group.voxels.size();
@@ -735,11 +756,18 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 			dest_tris[f*2 + 0].vertex_indices[0] = indices[f*6 + 0];
 			dest_tris[f*2 + 0].vertex_indices[1] = indices[f*6 + 1];
 			dest_tris[f*2 + 0].vertex_indices[2] = indices[f*6 + 2];
+
+			dest_tris[f*2 + 0].uv_indices[0] = getUVIndex(uvs[indices[f*6 + 0]]);
+			dest_tris[f*2 + 0].uv_indices[1] = getUVIndex(uvs[indices[f*6 + 1]]);
+			dest_tris[f*2 + 0].uv_indices[2] = getUVIndex(uvs[indices[f*6 + 2]]);
 			dest_tris[f*2 + 0].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
 
 			dest_tris[f*2 + 1].vertex_indices[0] = indices[f*6 + 3];
 			dest_tris[f*2 + 1].vertex_indices[1] = indices[f*6 + 4];
 			dest_tris[f*2 + 1].vertex_indices[2] = indices[f*6 + 5];
+			dest_tris[f*2 + 1].uv_indices[0] = getUVIndex(uvs[indices[f*6 + 3]]);
+			dest_tris[f*2 + 1].uv_indices[1] = getUVIndex(uvs[indices[f*6 + 4]]);
+			dest_tris[f*2 + 1].uv_indices[2] = getUVIndex(uvs[indices[f*6 + 5]]);
 			dest_tris[f*2 + 1].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
 		}
 	}
@@ -752,6 +780,14 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		dest_verts[i].pos = verts[i];
 		dest_verts[i].normal = normals[i];
 	}
+
+	// Set UVs (Note: only needed for dumping RayMesh to disk)
+	raymesh->setMaxNumTexcoordSets(1);
+	raymesh->getUVs().resize(4);
+	raymesh->getUVs()[0] = Vec2f(0, 0);
+	raymesh->getUVs()[1] = Vec2f(0, 1);
+	raymesh->getUVs()[2] = Vec2f(1, 1);
+	raymesh->getUVs()[3] = Vec2f(1, 0);
 
 	Geometry::BuildOptions options;
 	StandardPrintOutput print_output;
