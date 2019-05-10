@@ -3090,9 +3090,9 @@ Vec4f MainWindow::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y)
 	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
 	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
 
-	const float sensor_width = 0.035f;
+	const float sensor_width = GlWidget::sensorWidth();
 	const float sensor_height = sensor_width / ui->glWidget->viewport_aspect_ratio;
-	const float lens_sensor_dist = 0.03f;
+	const float lens_sensor_dist = GlWidget::lensSensorDist();
 
 	const float s_x = sensor_width *  (float)(pixel_pos_x - ui->glWidget->geometry().width() /2) / ui->glWidget->geometry().width(); // dist right on sensor from centre of sensor
 	const float s_y = sensor_height * (float)(pixel_pos_y - ui->glWidget->geometry().height()/2) / ui->glWidget->geometry().height(); // dist down on sensor from centre of sensor
