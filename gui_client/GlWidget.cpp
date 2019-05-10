@@ -133,8 +133,8 @@ void GlWidget::paintGL()
 		Matrix4f world_to_camera_space_matrix;
 		rot.rightMultiplyAffine3WithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_space_matrix);
 
-		const float sensor_width = 0.035f;
-		const float lens_sensor_dist = 0.025f;
+		const float sensor_width = sensorWidth();
+		const float lens_sensor_dist = lensSensorDist();
 		const float render_aspect_ratio = viewport_aspect_ratio;
 		opengl_engine->setViewportAspectRatio(viewport_aspect_ratio, viewport_w, viewport_h);
 		opengl_engine->setMaxDrawDistance(1000.f);

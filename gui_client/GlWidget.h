@@ -44,6 +44,8 @@ public:
 	void setCurrentTime(float time) { current_time = time; }
 	void playerPhyicsThink(float dt); // Process keys held down.
 
+	static float sensorWidth() { return 0.035f; }
+	static float lensSensorDist() { return 0.025f; }
 protected:
 
 	virtual void initializeGL();
