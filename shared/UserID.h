@@ -45,6 +45,13 @@ public:
 };
 
 
+static inline bool isGodUser(const UserID logged_in_user_id)
+{
+	return logged_in_user_id.value() == 0;
+}
+
+
+
 inline void writeToStream(const UserID& uid, OutStream& stream)
 {
 	stream.writeData(&uid.v, sizeof(uid.v));

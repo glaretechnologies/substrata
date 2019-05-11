@@ -698,7 +698,7 @@ void WorkerThread::doRun()
 								WorldObject* ob = res->second.getPointer();
 
 								// See if the user has permissions to alter this object:
-								const bool have_delete_perms = (ob->creator_id == client_user->id) || (client_user->name == "Ono-Sendai2");
+								const bool have_delete_perms = (ob->creator_id == client_user->id) || isGodUser(client_user->id);
 								if(!have_delete_perms)
 									writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
 								else

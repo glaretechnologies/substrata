@@ -779,8 +779,21 @@ void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 }
 
 
-// Also shows error notifications if modification is not allowed.
 bool MainWindow::objectModificationAllowed(const WorldObject& ob)
+{
+	if(!this->logged_in_user_id.valid())
+	{
+		return false;
+	}
+	else
+	{
+		return (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id);
+	}
+}
+
+
+// Also shows error notifications if modification is not allowed.
+bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action)
 {
 	bool allow_modification = true;
 	if(!this->logged_in_user_id.valid())
@@ -790,7 +803,7 @@ bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 		// Display an error message if we have not already done so since selecting this object.
 		if(!shown_object_modification_error_msg)
 		{
-			showErrorNotification("You must be logged in to modify an object.");
+			showErrorNotification("You must be logged in to " + action + " an object.");
 			shown_object_modification_error_msg = true;
 		}
 	}
@@ -803,7 +816,7 @@ bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 			// Display an error message if we have not already done so since selecting this object.
 			if(!shown_object_modification_error_msg)
 			{
-				showErrorNotification("You must be the owner of this object to modify it.  This object is owned by '" + ob.creator_name + "'.");
+				showErrorNotification("You must be the owner of this object to " + action + " it.  This object is owned by '" + ob.creator_name + "'.");
 				shown_object_modification_error_msg = true;
 			}
 		}
@@ -1690,7 +1703,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Move selected object if there is one and it is picked up, based on direction camera is currently facing.
 	if(this->selected_ob.nonNull() && selected_ob_picked_up)
 	{
-		const bool allow_modification = objectModificationAllowed(*this->selected_ob);
+		const bool allow_modification = objectModificationAllowedWithMsg(*this->selected_ob, "move");
 		if(allow_modification)
 		{
 			// Get direction for current mouse cursor position
@@ -1943,7 +1956,7 @@ void MainWindow::updateVoxelEditMarkers()
 
 				if(selected_ob.nonNull())
 				{
-					const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+					const bool have_edit_permissions = objectModificationAllowedWithMsg(*this->selected_ob, "edit");
 					if(have_edit_permissions)
 					{
 						const float current_voxel_w = 1;
@@ -2144,14 +2157,8 @@ void MainWindow::on_actionAvatarSettings_triggered()
 }
 
 
-static bool isGodUser(const UserID logged_in_user_id)
-{
-	return logged_in_user_id.value() == 0;
-}
-
-
-// Returns true if this user has write permissions
-bool MainWindow::haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& ob_pos_in_parcel_out)
+// Returns true if this user has permissions to create an object at new_ob_pos
+bool MainWindow::haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& ob_pos_in_parcel_out)
 {
 	ob_pos_in_parcel_out = false;
 
@@ -2329,7 +2336,7 @@ void MainWindow::on_actionAddObject_triggered()
 
 	// Check permissions
 	bool ob_pos_in_parcel;
-	const bool have_creation_perms = haveObjectWritePermissions(ob_pos, ob_pos_in_parcel);
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
 	if(!have_creation_perms)
 	{
 		if(ob_pos_in_parcel)
@@ -2482,7 +2489,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 
 	// Check permissions
 	bool ob_pos_in_parcel;
-	const bool have_creation_perms = haveObjectWritePermissions(ob_pos, ob_pos_in_parcel);
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
 	if(!have_creation_perms)
 	{
 		if(ob_pos_in_parcel)
@@ -2522,7 +2529,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 
 	// Check permissions
 	bool ob_pos_in_parcel;
-	const bool have_creation_perms = haveObjectWritePermissions(ob_pos, ob_pos_in_parcel);
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
 	if(!have_creation_perms)
 	{
 		if(ob_pos_in_parcel)
@@ -2575,7 +2582,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		const Vec3d new_ob_pos = this->selected_ob->pos + this->cam_controller.getRightVec() * dist_to_ob * 0.2;
 
 		bool ob_pos_in_parcel;
-		const bool have_creation_perms = haveObjectWritePermissions(new_ob_pos, ob_pos_in_parcel);
+		const bool have_creation_perms = haveParcelObjectCreatePermissions(new_ob_pos, ob_pos_in_parcel);
 		if(!have_creation_perms)
 		{
 			if(ob_pos_in_parcel)
@@ -3027,7 +3034,7 @@ void MainWindow::materialSelectedInBrowser(const std::string& path)
 {
 	if(selected_ob.nonNull())
 	{
-		const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+		const bool have_edit_permissions = objectModificationAllowedWithMsg(*this->selected_ob, "edit");
 		if(have_edit_permissions)
 			this->ui->objectEditor->materialSelectedInBrowser(path);
 		else
@@ -3156,7 +3163,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 			if(selected_ob.nonNull())
 			{
-				const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+				const bool have_edit_permissions = objectModificationAllowedWithMsg(*selected_ob, "edit");
 				if(have_edit_permissions)
 				{
 					const float current_voxel_w = 1;
@@ -3254,7 +3261,7 @@ void MainWindow::pickUpSelectedObject()
 {
 	if(selected_ob.nonNull())
 	{
-		const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+		const bool have_edit_permissions = objectModificationAllowedWithMsg(*this->selected_ob, "move");
 
 		// Add an object placement beam
 		if(have_edit_permissions)
@@ -3345,7 +3352,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
 
 
-			const bool have_edit_permissions = this->logged_in_user_id.valid() && (this->logged_in_user_id == selected_ob->creator_id);
+			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
 
 			// Update the editor widget with values from the selected object
 			//if(selected_ob->materials.empty())
@@ -3460,7 +3467,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 // The user wants to rotate the object 'ob'.
 void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 {
-	const bool allow_modification = objectModificationAllowed(*ob);
+	const bool allow_modification = objectModificationAllowedWithMsg(*ob, "rotate");
 	if(allow_modification)
 	{
 		const Quatf current_q = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
@@ -3492,15 +3499,22 @@ void MainWindow::deleteSelectedObject()
 {
 	if(this->selected_ob.nonNull())
 	{
-		// Send DestroyObject packet
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::DestroyObject);
-		writeToStream(selected_ob->uid, packet);
+		if(objectModificationAllowedWithMsg(*this->selected_ob, "delete"))
+		{
+			QMessageBox::StandardButton reply = QMessageBox::question(this, "Delete object", "Are you sure you want to delete this object?", QMessageBox::Yes|QMessageBox::No);
+			if(reply == QMessageBox::Yes)
+			{
+				// Send DestroyObject packet
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::DestroyObject);
+				writeToStream(selected_ob->uid, packet);
 
-		this->client_thread->enqueueDataToSend(packet);
+				this->client_thread->enqueueDataToSend(packet);
 
 
-		deselectObject();
+				deselectObject();
+			}
+		}
 	}
 }
 
