@@ -99,12 +99,16 @@ private:
 	void startDownloadingResource(const std::string& url);
 	void evalObjectScript(WorldObject* ob, double cur_time);
 	void updateStatusBar();
-	bool haveObjectWritePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
+	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
-	bool objectModificationAllowed(const WorldObject& ob); // Also shows error notifications if modification is not allowed.
+	
+	bool objectModificationAllowed(const WorldObject& ob);
+	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
+	// Action will be printed in error message, could be "modify" or "delete"
+
 	void updateOnlineUsersList(); // Works off world state avatars.
 	bool areEditingVoxels();
 	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y);
