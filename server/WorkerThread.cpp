@@ -301,6 +301,12 @@ void WorkerThread::handleResourceDownloadConnection()
 }
 
 
+static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id)
+{
+	return user_id.valid() && ((user_id == ob.creator_id) || isGodUser(user_id));
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -574,7 +580,7 @@ void WorkerThread::doRun()
 									WorldObject* ob = res->second.getPointer();
 
 									// See if the user has permissions to alter this object:
-									if(ob->creator_id != client_user->id)
+									if(!userHasObjectWritePermissions(*ob, client_user->id))
 										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
 									else
 									{
@@ -614,7 +620,7 @@ void WorkerThread::doRun()
 									WorldObject* ob = res->second.getPointer();
 
 									// See if the user has permissions to alter this object:
-									if(ob->creator_id != client_user->id)
+									if(!userHasObjectWritePermissions(*ob, client_user->id))
 									{
 										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
 										WorldObject dummy_ob;
@@ -698,7 +704,7 @@ void WorkerThread::doRun()
 								WorldObject* ob = res->second.getPointer();
 
 								// See if the user has permissions to alter this object:
-								const bool have_delete_perms = (ob->creator_id == client_user->id) || isGodUser(client_user->id);
+								const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user->id);
 								if(!have_delete_perms)
 									writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
 								else
