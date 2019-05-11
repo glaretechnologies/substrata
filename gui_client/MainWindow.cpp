@@ -809,7 +809,8 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 	}
 	else
 	{
-		if(this->logged_in_user_id != ob.creator_id)
+		const bool logged_in_user_can_modify = (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id);
+		if(!logged_in_user_can_modify)
 		{
 			allow_modification = false;
 
@@ -962,6 +963,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				user_details->setTextAsLoggedIn(m->username);
 				this->logged_in_user_id = m->user_id;
+
+				conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
 
 				recolourParcelsForLoggedInState();
 
