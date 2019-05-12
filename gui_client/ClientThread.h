@@ -50,6 +50,14 @@ public:
 };
 
 
+class AvatarCreatedMessage : public ThreadMessage
+{
+public:
+	AvatarCreatedMessage(const UID& avatar_uid_) : avatar_uid(avatar_uid_) {}
+	UID avatar_uid;
+};
+
+
 class UserSelectedObjectMessage : public ThreadMessage
 {
 public:
