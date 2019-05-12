@@ -26,6 +26,9 @@ public:
 	explicit IndigoDoubleSpinBox(QWidget *parent = 0);
 	//~IndigoDoubleSpinBox();
 
+	virtual QSize	sizeHint() const;
+	virtual QSize	minimumSizeHint() const;
+
 	virtual QString textFromValue(double val) const;
 
 	static void test();
