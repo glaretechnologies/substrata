@@ -3291,29 +3291,31 @@ void MainWindow::pickUpSelectedObject()
 	if(selected_ob.nonNull())
 	{
 		const bool have_edit_permissions = objectModificationAllowedWithMsg(*this->selected_ob, "move");
+		if(have_edit_permissions)
+		{
+			// Get selection_vec_cs
+			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+			const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+			const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+			const Vec4f up = cam_controller.getUpVec().toVec4fVector();
 
-		// Get selection_vec_cs
-		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-		const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-		const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-		const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+			const Vec4f selection_point_ws = obToWorldMatrix(this->selected_ob) * this->selection_point_os;
 
-		const Vec4f selection_point_ws = obToWorldMatrix(this->selected_ob) * this->selection_point_os;
+			const Vec4f selection_vec_ws = selection_point_ws - origin;
+			this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);
 
-		const Vec4f selection_vec_ws = selection_point_ws - origin;
-		this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);
+			ui->glWidget->opengl_engine->setSelectionOutlineColour(PICKED_UP_OUTLINE_COLOUR);
 
-		ui->glWidget->opengl_engine->setSelectionOutlineColour(PICKED_UP_OUTLINE_COLOUR);
+			// Send UserSelectedObject message to server
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+			packet.writeUInt32(Protocol::UserSelectedObject);
+			writeToStream(selected_ob->uid, packet);
+			this->client_thread->enqueueDataToSend(packet);
 
-		// Send UserSelectedObject message to server
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::UserSelectedObject);
-		writeToStream(selected_ob->uid, packet);
-		this->client_thread->enqueueDataToSend(packet);
+			showInfoNotification("Picked up object.");
 
-		showInfoNotification("Picked up object.");
-
-		selected_ob_picked_up = true;
+			selected_ob_picked_up = true;
+		}
 	}
 }
 
