@@ -7,6 +7,9 @@ Generated at Thu Nov 29 16:18:20 +0100 2012
 #include "IndigoDoubleSpinBox.h"
 
 
+#include "maths/mathstypes.h"
+
+
 IndigoDoubleSpinBox::IndigoDoubleSpinBox(QWidget *parent)
 	: QDoubleSpinBox(parent)
 {
@@ -18,6 +21,25 @@ IndigoDoubleSpinBox::IndigoDoubleSpinBox(QWidget *parent)
 {
 
 }*/
+
+
+// NOTE: We will return a smaller width from sizeHint() and minimumSizeHint(), because
+// setting the number of decimals to 12 can result in a very large width if the spinbox also has large minimum and maximum values.
+const int MAX_WIDTH = 50;
+
+
+QSize IndigoDoubleSpinBox::sizeHint() const
+{
+	const QSize size = QDoubleSpinBox::sizeHint();
+	return QSize(myMin(MAX_WIDTH, size.width()), size.height());
+}
+
+
+QSize IndigoDoubleSpinBox::minimumSizeHint() const
+{
+	const QSize size = QDoubleSpinBox::minimumSizeHint();
+	return QSize(myMin(MAX_WIDTH, size.width()), size.height());
+}
 
 
 QString IndigoDoubleSpinBox::textFromValue(double val) const
