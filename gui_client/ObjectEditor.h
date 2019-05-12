@@ -29,6 +29,7 @@ public:
 	~ObjectEditor();
 
 	void setFromObject(const WorldObject& ob, int selected_mat_index);
+	void updateObjectPos(const WorldObject& ob);
 	void toObject(WorldObject& ob_out);
 
 	void setControlsEnabled(bool enabled);
