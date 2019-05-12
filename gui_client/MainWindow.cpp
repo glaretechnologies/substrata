@@ -965,6 +965,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					this->client_thread->enqueueDataToSend(packet);
 				}
+
+				// Send CreateAvatar packet for this client's avatar
+				{
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					packet.writeUInt32(Protocol::CreateAvatar);
+					packet.writeStringLengthFirst(""/*avatar_URL*/);
+					writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
+					writeToStream(Vec3f(0, 0, (float)this->cam_controller.getAngles().x), packet);
+
+					this->client_thread->enqueueDataToSend(packet);
+				}
 			}
 			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
 			{
@@ -980,6 +991,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 				this->connection_state = ServerConnectionState_NotConnected;
 				updateStatusBar();
+			}
+			else if(dynamic_cast<const AvatarCreatedMessage*>(msg.getPointer()))
+			{
+				const AvatarCreatedMessage* m = static_cast<const AvatarCreatedMessage*>(msg.getPointer());
+
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->avatars.find(m->avatar_uid);
+				if(res != this->world_state->avatars.end())
+				{
+					const Avatar* avatar = res->second.getPointer();
+					ui->chatMessagesTextEdit->append("<i>" + QtUtils::toQString(avatar->name).toHtmlEscaped() + " joined.</i>");
+					updateOnlineUsersList();
+				}
 			}
 			else if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
 			{
@@ -1266,16 +1291,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
 		{
 			Avatar* avatar = it->second.getPointer();
-			if(avatar->uid == this->client_thread->client_avatar_uid) // Don't render our own Avatar
+			if(avatar->uid == this->client_thread->client_avatar_uid) // If this is our avatar:
 			{
-				if(avatar->other_dirty) // If just created
-				{
-					updateOnlineUsersList(); // Update name list
-					avatar->other_dirty = false;
-				}
-
 				it++;
-				continue;
+				continue; // Don't render our own Avatar
 			}
 
 
@@ -1284,6 +1303,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(avatar->state == Avatar::State_Dead)
 				{
 					print("Removing avatar.");
+
+					ui->chatMessagesTextEdit->append("<i>" + QtUtils::toQString(avatar->name).toHtmlEscaped() + " left.</i>");
+
 					// Remove any OpenGL object for it
 					//if(avatar->opengl_engine_ob.nonNull())
 					//	ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);

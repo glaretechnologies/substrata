@@ -103,16 +103,6 @@ void ClientThread::doRun()
 
 		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 		
-		// Send CreateAvatar packet for this client's avatar
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::CreateAvatar);
-		writeToStream(client_avatar_uid, packet);
-		packet.writeStringLengthFirst(avatar_URL);
-		writeToStream(Vec3d(0, 0, 0), packet); // pos 
-		writeToStream(Vec3f(0, 0, 1), packet); // rotation
-
-		socket->writeData(packet.buf.data(), packet.buf.size());
-
 
 		while(1) // write to / read from socket loop
 		{
@@ -200,7 +190,6 @@ void ClientThread::doRun()
 					}
 				case Protocol::AvatarCreated:
 					{
-						conPrint("AvatarCreated");
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
@@ -226,7 +215,7 @@ void ClientThread::doRun()
 
 								avatar->setTransformAndHistory(pos, rotation);
 
-								conPrint("created new avatar");
+								out_msg_queue->enqueue(new AvatarCreatedMessage(avatar_uid)); // Inform MainWindow
 							}
 						}
 						break;

@@ -504,29 +504,31 @@ void WorkerThread::doRun()
 					{
 						conPrint("CreateAvatar");
 						// Note: not reading name, name will come from user account
-						const UID avatar_uid = readUIDFromStream(*socket);
+						// Also not reading UID, will use the client_avatar_uid that we assigned to the client
 						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f rotation = readVec3FromStream<float>(*socket);
 
 						const std::string use_avatar_name = client_user.isNull() ? "Anonymous" : client_user->name;
 
+						const UID use_avatar_uid = client_avatar_uid;
+
 						// Look up existing avatar in world state
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->avatars.find(avatar_uid);
+							auto res = world_state->avatars.find(use_avatar_uid);
 							if(res == world_state->avatars.end())
 							{
 								// Avatar for UID not already created, create it now.
 								AvatarRef avatar = new Avatar();
-								avatar->uid = avatar_uid;
+								avatar->uid = use_avatar_uid;
 								avatar->name = use_avatar_name;
 								avatar->model_url = model_url;
 								avatar->pos = pos;
 								avatar->rotation = rotation;
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
-								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
+								world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
 
 								conPrint("created new avatar");
 							}
