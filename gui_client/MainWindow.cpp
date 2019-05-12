@@ -2571,7 +2571,8 @@ void MainWindow::on_actionAddHypercard_triggered()
 
 void MainWindow::on_actionAdd_Voxels_triggered()
 {
-	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f;
+	// Offset down by 0.25 to allow for centering with voxel width of 0.5.
+	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f - Vec3d(0.25, 0.25, 0.25);
 
 	// Check permissions
 	bool ob_pos_in_parcel;
@@ -2595,6 +2596,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	new_world_object->axis = Vec3f(0, 0, 1);
 	new_world_object->angle = 0;
 	new_world_object->scale = Vec3f(0.5f); // This will be the initial width of the voxels
+	new_world_object->voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0)); // Start with a single voxel.
 
 	// Send CreateObject message to server
 	{
@@ -3442,7 +3444,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 					"Click and drag the mouse to move the object around when picked up.\n"
 					"'[' and  ']' keys rotate the object.\n"
 					"PgUp and  pgDown keys rotate the object.\n"
-					"'-' and '+' keys wheel moves object near/far.\n"
+					"'-' and '+' keys or mouse wheel moves object near/far.\n"
 					"Esc key: deselect object.";
 
 				this->ui->helpInfoLabel->setText(text);
