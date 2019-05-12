@@ -796,6 +796,48 @@ bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 }
 
 
+// Update object placement beam - a beam that goes from the object to what's below it.
+void MainWindow::updateSelectedObjectPlacementBeam()
+{
+	// Update object placement beam - a beam that goes from the object to what's below it.
+	if(selected_ob.nonNull())
+	{
+		GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
+		const Matrix4f& to_world = opengl_ob->ob_to_world_matrix;
+
+		const js::AABBox new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, to_world);
+
+		// We need to determine where to trace down from.  
+		// To find this point, first trace up *just* against the selected object.
+		RayTraceResult trace_results;
+		Vec4f start_trace_pos = new_aabb_ws.centroid();
+		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
+		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e30f), 1.0e30f, thread_context, trace_results);
+		const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
+
+		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
+		const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0, 0, 1, 0) * (up_beam_len - 0.001f);
+		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), thread_context, trace_results);
+		const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
+		const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0, 0, 1, 0);
+
+		const Vec4f down_beam_hitpos = down_beam_startpos + Vec4f(0, 0, -1, 0) * down_beam_len;
+
+		Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.05f, /*radius=*/0.05f, down_beam_len);
+		Matrix4f ob_to_world = Matrix4f::translationMatrix(down_beam_hitpos) * scale_matrix;
+		ob_placement_beam->ob_to_world_matrix = ob_to_world;
+		ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
+
+		// Place hit marker
+		Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
+		Matrix4f orientation; orientation.constructFromVector(lower_hit_normal);
+		ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) *
+			orientation * marker_scale_matrix;
+		ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
+	}
+}
+
+
 // Also shows error notifications if modification is not allowed.
 bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action)
 {
@@ -1719,12 +1761,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			const Vec4f right = cam_controller.getRightVec().toVec4fVector();
 			const Vec4f up = cam_controller.getUpVec().toVec4fVector();
 
-			// Convert selection vector to world space
+			// Convert selection vector from camera space to world space
 			const Vec4f selection_vec_ws(right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2]);
 
+			// Get the target position for the new selection point in world space.
 			const Vec4f new_sel_point_ws = origin + selection_vec_ws;
 
-			const Vec4f desired_new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
+			// Get the current position for the selection point in world-space.
+			const Vec4f selection_point_ws = obToWorldMatrix(this->selected_ob) * this->selection_point_os;
+
+			const Vec4f desired_new_ob_pos = this->selected_ob->pos.toVec4fPoint() + (new_sel_point_ws - selection_point_ws);
 
 			GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
 
@@ -1812,38 +1858,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Mark as from-local-dirty to send an object transform updated message to the server
 				this->selected_ob->from_local_transform_dirty = true;
 
-				// Update object placement beam - a beam that goes from the object to what's below it.
-				{
-					const js::AABBox new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, new_to_world);
-
-					// We need to determine where to trace down from.  
-					// To find this point, first trace up *just* against the selected object.
-					RayTraceResult trace_results;
-					Vec4f start_trace_pos = new_aabb_ws.centroid();
-					start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
-					this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0,0,1,0), 0.f, 1.0e30f), 1.0e30f, thread_context, trace_results);
-					const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
-
-					// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
-					const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0,0,1,0) * (up_beam_len - 0.001f);
-					this->physics_world->traceRay(down_beam_startpos, Vec4f(0,0,-1,0), thread_context, trace_results);
-					const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
-					const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0,0,1,0);
-
-					const Vec4f down_beam_hitpos = down_beam_startpos + Vec4f(0,0,-1,0) * down_beam_len;
-
-					Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.05f, /*radius=*/0.05f, down_beam_len);
-					Matrix4f ob_to_world = Matrix4f::translationMatrix(down_beam_hitpos) * scale_matrix;
-					ob_placement_beam->ob_to_world_matrix = ob_to_world;
-					ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_beam);
-
-					// Place hit marker
-					Matrix4f marker_scale_matrix = Matrix4f::scaleMatrix(0.2f, 0.2f, 0.01f);
-					Matrix4f orientation; orientation.constructFromVector(lower_hit_normal);
-					ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) * 
-						orientation * marker_scale_matrix;
-					ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
-				}
+				updateSelectedObjectPlacementBeam();
 			} 
 			else // else if new transfrom not valid
 			{
@@ -3022,6 +3037,8 @@ void MainWindow::objectEditedSlot()
 				selected_ob->physics_object->ob_to_world = new_ob_to_world_matrix;
 				this->physics_world->updateObjectTransformData(*selected_ob->physics_object);
 
+				updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
+
 				// Mark as from-local-dirty to send an object updated message to the server
 				this->selected_ob->from_local_other_dirty = true;
 
@@ -3275,12 +3292,16 @@ void MainWindow::pickUpSelectedObject()
 	{
 		const bool have_edit_permissions = objectModificationAllowedWithMsg(*this->selected_ob, "move");
 
-		// Add an object placement beam
-		if(have_edit_permissions)
-		{
-			ui->glWidget->opengl_engine->addObject(ob_placement_beam);
-			ui->glWidget->opengl_engine->addObject(ob_placement_marker);
-		}
+		// Get selection_vec_cs
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+		const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+		const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+
+		const Vec4f selection_point_ws = obToWorldMatrix(this->selected_ob) * this->selection_point_os;
+
+		const Vec4f selection_vec_ws = selection_point_ws - origin;
+		this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);
 
 		ui->glWidget->opengl_engine->setSelectionOutlineColour(PICKED_UP_OUTLINE_COLOUR);
 
@@ -3289,6 +3310,8 @@ void MainWindow::pickUpSelectedObject()
 		packet.writeUInt32(Protocol::UserSelectedObject);
 		writeToStream(selected_ob->uid, packet);
 		this->client_thread->enqueueDataToSend(packet);
+
+		showInfoNotification("Picked up object.");
 
 		selected_ob_picked_up = true;
 	}
@@ -3305,18 +3328,9 @@ void MainWindow::dropSelectedObject()
 		writeToStream(selected_ob->uid, packet);
 		this->client_thread->enqueueDataToSend(packet);
 
-		// Remove placement beam from 3d engine
-		ui->glWidget->opengl_engine->removeObject(this->ob_placement_beam);
-		ui->glWidget->opengl_engine->removeObject(this->ob_placement_marker);
-
-		// Remove any edge markers
-		while(ob_denied_move_markers.size() > 0)
-		{
-			ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
-			ob_denied_move_markers.pop_back();
-		}
-
 		ui->glWidget->opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
+
+		showInfoNotification("Dropped object.");
 
 		selected_ob_picked_up = false;
 	}
@@ -3341,7 +3355,11 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 	if(results.hit_object)
 	{
-		this->selection_point_ws = origin + dir*results.hitdist_ws;
+		const Vec4f selection_point_ws = origin + dir*results.hitdist_ws;
+
+		// Store the object-space selection point.  This will be used for moving the object.
+		this->selection_point_os = results.hit_object->world_to_ob * selection_point_ws;
+
 		// Add an object at the hit point
 		//this->glWidget->addObject(glWidget->opengl_engine->makeAABBObject(this->selection_point_ws - Vec4f(0.03f, 0.03f, 0.03f, 0.f), this->selection_point_ws + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f)));
 
@@ -3358,13 +3376,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 			assert(this->selected_ob->getRefCount() >= 0);
-			const Vec4f selection_vec_ws = this->selection_point_ws - origin;
-			
-			// Get selection_vec_cs
-			this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);
-
-			//this->selection_point_dist = results.hitdist;
-			this->selected_ob_pos_upon_selection = results.hit_object->ob_to_world.getColumn(3);
 
 			// Mark the materials on the hit object as selected
 			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
@@ -3373,14 +3384,19 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
 
-			// Update the editor widget with values from the selected object
-			//if(selected_ob->materials.empty())
-			//	selected_ob->materials.push_back(new WorldMaterial());
+			// Add an object placement beam
+			if(have_edit_permissions)
+			{
+				ui->glWidget->opengl_engine->addObject(ob_placement_beam);
+				ui->glWidget->opengl_engine->addObject(ob_placement_marker);
+
+				updateSelectedObjectPlacementBeam();
+			}
 
 			const int selected_mat = selected_ob->physics_object->geometry->getMaterialIndexForTri(results.hit_tri_index);
 
 			// Show object editor, hide parcel editor.
-			ui->objectEditor->setFromObject(*selected_ob, selected_mat);
+			ui->objectEditor->setFromObject(*selected_ob, selected_mat); // Update the editor widget with values from the selected object
 			ui->objectEditor->setEnabled(true);
 			ui->objectEditor->show();
 			ui->parcelEditor->hide();
@@ -3543,6 +3559,17 @@ void MainWindow::deselectObject()
 	if(this->selected_ob.nonNull())
 	{
 		dropSelectedObject();
+
+		// Remove placement beam from 3d engine
+		ui->glWidget->opengl_engine->removeObject(this->ob_placement_beam);
+		ui->glWidget->opengl_engine->removeObject(this->ob_placement_marker);
+
+		// Remove any edge markers
+		while(ob_denied_move_markers.size() > 0)
+		{
+			ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
+			ob_denied_move_markers.pop_back();
+		}
 
 		// Deselect any currently selected object
 		ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
