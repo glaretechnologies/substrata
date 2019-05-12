@@ -108,7 +108,7 @@ void GlWidget::initializeGL()
 	assert(this->texture_server_ptr);
 
 	opengl_engine->initialise(
-		//"o:/indigo/trunk/opengl" // data dir
+		//"o:/indigo/trunk/opengl", // data dir
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		this->texture_server_ptr
 	);

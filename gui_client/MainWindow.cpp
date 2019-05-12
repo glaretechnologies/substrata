@@ -109,6 +109,10 @@ static const double ground_quad_w = 1000.f;
 AvatarGraphicsRef test_avatar;
 
 
+const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
+const Colour4f PICKED_UP_OUTLINE_COLOUR = Colour4f::fromHTMLHexString("69fa2d"); // light green
+
+
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
 :	base_dir_path(base_dir_path_),
 	appdata_path(appdata_path_),
@@ -1803,6 +1807,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
 				need_physics_world_rebuild = true;
 
+				this->ui->objectEditor->updateObjectPos(*selected_ob);
+
 				// Mark as from-local-dirty to send an object transform updated message to the server
 				this->selected_ob->from_local_transform_dirty = true;
 
@@ -3010,8 +3016,11 @@ void MainWindow::objectEditedSlot()
 
 				// Update transform of OpenGL object
 				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-
 				ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+				// Update physics object transform
+				selected_ob->physics_object->ob_to_world = new_ob_to_world_matrix;
+				this->physics_world->updateObjectTransformData(*selected_ob->physics_object);
 
 				// Mark as from-local-dirty to send an object updated message to the server
 				this->selected_ob->from_local_other_dirty = true;
@@ -3273,6 +3282,8 @@ void MainWindow::pickUpSelectedObject()
 			ui->glWidget->opengl_engine->addObject(ob_placement_marker);
 		}
 
+		ui->glWidget->opengl_engine->setSelectionOutlineColour(PICKED_UP_OUTLINE_COLOUR);
+
 		// Send UserSelectedObject message to server
 		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::UserSelectedObject);
@@ -3304,6 +3315,8 @@ void MainWindow::dropSelectedObject()
 			ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
 			ob_denied_move_markers.pop_back();
 		}
+
+		ui->glWidget->opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
 
 		selected_ob_picked_up = false;
 	}
@@ -3341,6 +3354,8 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 		if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
 		{
+			// Select the object
+
 			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 			assert(this->selected_ob->getRefCount() >= 0);
 			const Vec4f selection_vec_ws = this->selection_point_ws - origin;
@@ -3353,6 +3368,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			// Mark the materials on the hit object as selected
 			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
+			ui->glWidget->opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
 
 
 			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);

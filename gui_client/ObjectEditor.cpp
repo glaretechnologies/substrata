@@ -52,6 +52,10 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SIGNAL(objectChanged()));
 	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SLOT(targetURLChanged()));
 
+	connect(this->posXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->posYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->posZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+
 	connect(this->scaleXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->scaleYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->scaleZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -94,6 +98,10 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		SignalBlocker b(this->targetURLLineEdit);
 		this->targetURLLineEdit->setText(QtUtils::toQString(ob.target_url));
 	}
+
+	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
+	SignalBlocker::setValue(this->posYDoubleSpinBox, ob.pos.y);
+	SignalBlocker::setValue(this->posZDoubleSpinBox, ob.pos.z);
 
 	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
 	SignalBlocker::setValue(this->scaleYDoubleSpinBox, ob.scale.y);
@@ -138,12 +146,24 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 }
 
 
+void ObjectEditor::updateObjectPos(const WorldObject& ob)
+{
+	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
+	SignalBlocker::setValue(this->posYDoubleSpinBox, ob.pos.y);
+	SignalBlocker::setValue(this->posZDoubleSpinBox, ob.pos.z);
+}
+
+
 void ObjectEditor::toObject(WorldObject& ob_out)
 {
 	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
 	ob_out.script_url = QtUtils::toIndString(this->scriptFileSelectWidget->filename());
 	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
+
+	ob_out.pos.x = this->posXDoubleSpinBox->value();
+	ob_out.pos.y = this->posYDoubleSpinBox->value();
+	ob_out.pos.z = this->posZDoubleSpinBox->value();
 
 	ob_out.scale.x = (float)this->scaleXDoubleSpinBox->value();
 	ob_out.scale.y = (float)this->scaleYDoubleSpinBox->value();
@@ -189,6 +209,10 @@ void ObjectEditor::setControlsEditable(bool editable)
 	this->scriptFileSelectWidget->setReadOnly(!editable);
 	this->contentTextEdit->setReadOnly(!editable);
 	this->targetURLLineEdit->setReadOnly(!editable);
+
+	this->posXDoubleSpinBox->setReadOnly(!editable);
+	this->posYDoubleSpinBox->setReadOnly(!editable);
+	this->posZDoubleSpinBox->setReadOnly(!editable);
 
 	this->scaleXDoubleSpinBox->setReadOnly(!editable);
 	this->scaleYDoubleSpinBox->setReadOnly(!editable);
