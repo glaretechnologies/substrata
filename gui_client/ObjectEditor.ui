@@ -114,6 +114,12 @@
          </property>
          <item>
           <widget class="IndigoDoubleSpinBox" name="posXDoubleSpinBox">
+           <property name="minimum">
+            <double>-100000000000000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100000000000000.000000000000000</double>
+           </property>
            <property name="singleStep">
             <double>0.100000000000000</double>
            </property>
@@ -121,6 +127,12 @@
          </item>
          <item>
           <widget class="IndigoDoubleSpinBox" name="posYDoubleSpinBox">
+           <property name="minimum">
+            <double>-100000000000000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100000000000000.000000000000000</double>
+           </property>
            <property name="singleStep">
             <double>0.100000000000000</double>
            </property>
@@ -128,6 +140,12 @@
          </item>
          <item>
           <widget class="IndigoDoubleSpinBox" name="posZDoubleSpinBox">
+           <property name="minimum">
+            <double>-100000000000000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100000000000000.000000000000000</double>
+           </property>
            <property name="singleStep">
             <double>0.100000000000000</double>
            </property>

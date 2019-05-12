@@ -104,6 +104,7 @@ private:
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
+	void updateSelectedObjectPlacementBeam();
 	
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
@@ -168,8 +169,7 @@ public:
 
 	WorldObjectRef selected_ob;
 	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
-	Vec4f selection_point_ws; // Point on selected object where selection ray hit, in world space.
-	Vec4f selected_ob_pos_upon_selection;
+	Vec4f selection_point_os; // Point on selected object where selection ray hit, in object space.
 	bool selected_ob_picked_up; // Is selected object 'picked up' e.g. being moved?
 
 	ParcelRef selected_parcel;
