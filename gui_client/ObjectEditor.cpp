@@ -76,6 +76,13 @@ ObjectEditor::~ObjectEditor()
 
 void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 {
+	switch(ob.object_type)
+	{
+	case WorldObject::ObjectType_Generic: this->objectTypeLabel->setText("Generic"); break;
+	case WorldObject::ObjectType_Hypercard: this->objectTypeLabel->setText("Hypercard"); break;
+	case WorldObject::ObjectType_VoxelGroup: this->objectTypeLabel->setText("Voxel Group"); break;
+	}
+
 	this->cloned_materials.resize(ob.materials.size());
 	for(size_t i=0; i<ob.materials.size(); ++i)
 		this->cloned_materials[i] = ob.materials[i]->clone();
@@ -124,8 +131,23 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 	}
+	else if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
+	{
+		this->materialsGroupBox->show();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+	}
 	else
 	{
+		this->materialsGroupBox->show();
+		this->modelLabel->show();
+		this->modelFileSelectWidget->show();
+	}
+
+	if(ob.object_type == WorldObject::ObjectType_VoxelGroup || ob.object_type == WorldObject::ObjectType_Generic)
+	{
+		this->matEditor->setFromMaterial(*selected_mat);
+
 		// Set materials combobox
 		SignalBlocker blocker(this->materialComboBox);
 		this->materialComboBox->clear();
@@ -133,12 +155,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 			this->materialComboBox->addItem(QtUtils::toQString("Material " + toString(i)), (int)i);
 
 		this->materialComboBox->setCurrentIndex(selected_mat_index);
-
-		this->materialsGroupBox->show();
-		this->matEditor->setFromMaterial(*selected_mat);
-		this->modelLabel->show();
-		this->modelFileSelectWidget->show();
 	}
+
 
 	this->targetURLLabel->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
 	this->targetURLLineEdit->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
