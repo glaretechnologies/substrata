@@ -288,6 +288,8 @@ int main(int argc, char *argv[])
 		assignParcelToUser(server.world_state, ParcelID(12), UserID(3)); // zom-b
 		assignParcelToUser(server.world_state, ParcelID(32), UserID(4)); // lycium
 		assignParcelToUser(server.world_state, ParcelID(31), UserID(5)); // Harry
+		assignParcelToUser(server.world_state, ParcelID(40), UserID(8)); // trislit
+		assignParcelToUser(server.world_state, ParcelID(30), UserID(9)); // fused
 
 		// Make parcel with id 20 a 'sandbox', world-writeable parcel
 		{
