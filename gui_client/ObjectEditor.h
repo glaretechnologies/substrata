@@ -32,6 +32,9 @@ public:
 	void updateObjectPos(const WorldObject& ob);
 	void toObject(WorldObject& ob_out);
 
+	void objectPickedUp();
+	void objectDropped();
+
 	void setControlsEnabled(bool enabled);
 
 	void setControlsEditable(bool editable);

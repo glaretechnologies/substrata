@@ -220,6 +220,18 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 }
 
 
+std::string WorldObject::objectTypeString(ObjectType t)
+{
+	switch(t)
+	{
+	case ObjectType_Generic: return "generic";
+	case ObjectType_Hypercard: return "hypercard";
+	case ObjectType_VoxelGroup: return "voxel group";
+	default: return "Unknown";
+	}
+}
+
+
 static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 9;
 /*
 Version history:

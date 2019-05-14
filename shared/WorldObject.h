@@ -68,6 +68,8 @@ public:
 		ObjectType_VoxelGroup
 	};
 
+	static std::string objectTypeString(ObjectType t);
+
 	UID uid;
 	uint32 object_type;
 	//std::string name;
