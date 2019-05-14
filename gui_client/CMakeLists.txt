@@ -55,7 +55,7 @@ addUIFileRule(qt RealControl)
 
 FILE(GLOB gui_client "./*.cpp" "./*.h" "./*.ui")
 
-SET(gui_client ${gui_client} 
+SET(gui_client ${gui_client}
 ${CMAKE_SOURCE_DIR}/gui_client/moc_MainWindow.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_GuiClientApplication.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_GlWidget.cpp
@@ -89,7 +89,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_ChangePasswordDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialBrowser.h
 )
 
-SET(qt 
+SET(qt
 ../qt/QtUtils.cpp
 ../qt/QtUtils.h
 ../qt/SignalBlocker.cpp
@@ -116,7 +116,7 @@ SET(qt
 #../qt/ui_RgbColourPicker.h
 )
 
-SET(shared_files 
+SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h
 ../shared/Parcel.cpp
@@ -140,7 +140,7 @@ SET(shared_files
 ../shared/WorldMaterial.h
 )
 
-SET(client_indigo_files 
+SET(client_indigo_files
 ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.cpp
 ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.h
 )
@@ -166,7 +166,7 @@ if(WIN32)
 	SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	/I\"${INDIGO_QT_INCLUDE_DIR}\"")
 
 	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
-	
+
 	SET(CMAKE_CXX_FLAGS_SDKDEBUG		"${CMAKE_CXX_FLAGS_SDKDEBUG}		/I\"${INDIGO_QT_INCLUDE_DIR}\"")
 elseif(APPLE)
 	SET(CMAKE_CXX_FLAGS			"${CMAKE_CXX_FLAGS}			-F\"${INDIGO_QT_LIB_DIR}\"")
@@ -181,7 +181,7 @@ ${INDIGO_QT_LIB_DIR}
 
 if(APPLE)
 	SET(EXECUTABLE_TYPE MACOSX_BUNDLE)
-	
+
 	# Resource files.
 	SET(MAC_ICON ../scripts/osx/Cyberspace.icns)
 	SET_SOURCE_FILES_PROPERTIES(../scripts/osx/Cyberspace.icns PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
@@ -245,13 +245,13 @@ if(WIN32)
 		debug Qt5OpenGLd
 		debug Qt5Widgetsd
 		)
-		
+
 	# Disable ASLR (/DYNAMICBASE)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} /DYNAMICBASE:NO")
 elseif(APPLE)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
-	
+
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtSql -framework OpenGL")
@@ -263,9 +263,9 @@ else() # linux
 		Qt5Widgets
 		dl
 	)
-	
+
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
-	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN'")
+	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN/lib'")
 endif()
 
 
@@ -273,4 +273,3 @@ target_link_libraries(${CURRENT_TARGET}
 ${QT_WIN32_LIBS}
 ${QT_LINUX_LIBS}
 )
-
