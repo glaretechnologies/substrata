@@ -206,6 +206,8 @@ void MainWindow::initialise()
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 	ui->infoDockWidget->hide();
 
+	setUIForSelectedObject();
+
 	// Update help text
 	this->ui->helpInfoLabel->setText("Use the W/A/S/D keys and arrow keys to move and look around.\n"
 		"Click and drag the mouse on the 3D view to look around.\n"
@@ -232,6 +234,8 @@ void MainWindow::afterGLInitInitialise()
 		ui->actionFly_Mode->setChecked(true);
 		this->player_physics.setFlyModeEnabled(true);
 	}
+
+	//OpenGLEngineTests::doTextureLoadingSpeedTests(*ui->glWidget->opengl_engine);
 }
 
 
@@ -368,7 +372,7 @@ void MainWindow::startDownloadingResource(const std::string& url)
 // If not, set a placeholder model and queue up the downloads.
 void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_missing_files)
 {
-	print("Loading model for ob: UID: " + ob->uid.toString() + ", model URL: " + ob->model_url);
+	print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
 	ob->loaded_model_url = ob->model_url;
 
@@ -902,7 +906,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
-
 	// Update URL Bar
 	if(!this->url_widget->hasFocus())
 		this->url_widget->setURL("cyb://" + server_hostname + 
@@ -924,7 +927,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		ui->helpInfoDockWidget->setGeometry(QRect(ui->glWidget->mapToGlobal(ui->glWidget->geometry().bottomRight() + QPoint(-320, -120)), QSize(300, 100)));
 		need_help_info_dock_widget_position = false;
 	}
-
 
 
 	const float dt = (float)time_since_last_timer_ev.elapsed();
@@ -1027,10 +1029,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			else if(dynamic_cast<const LoggedInMessage*>(msg.getPointer()))
 			{
 				const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg.getPointer());
-				//QMessageBox msgBox;
-				//msgBox.setWindowTitle("Logged in");
-				//msgBox.setText("Successfully logged in.");
-				//msgBox.exec();
 
 				user_details->setTextAsLoggedIn(m->username);
 				this->logged_in_user_id = m->user_id;
@@ -1038,7 +1036,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
 
 				recolourParcelsForLoggedInState();
-
 
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -1057,11 +1054,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const LoggedOutMessage*>(msg.getPointer()))
 			{
-				//QMessageBox msgBox;
-				//msgBox.setWindowTitle("Logged out");
-				//msgBox.setText("Successfully logged out.");
-				//msgBox.exec();
-
 				user_details->setTextAsNotLoggedIn();
 				this->logged_in_user_id = UserID::invalidUserID();
 
@@ -2662,6 +2654,8 @@ void MainWindow::on_actionCloneObject_triggered()
 
 		// Deselect any currently selected object
 		deselectObject();
+
+		showInfoNotification("Object cloned.");
 	}
 	else
 	{
@@ -3338,6 +3332,8 @@ void MainWindow::pickUpSelectedObject()
 
 			showInfoNotification("Picked up object.");
 
+			ui->objectEditor->objectPickedUp();
+
 			selected_ob_picked_up = true;
 		}
 	}
@@ -3358,8 +3354,18 @@ void MainWindow::dropSelectedObject()
 
 		showInfoNotification("Dropped object.");
 
+		ui->objectEditor->objectDropped();
+
 		selected_ob_picked_up = false;
 	}
+}
+
+
+void MainWindow::setUIForSelectedObject() // Enable/disable delete object action etc..
+{
+	const bool have_selected_ob = this->selected_ob.nonNull();
+	this->ui->actionCloneObject->setEnabled(have_selected_ob);
+	this->ui->actionDeleteObject->setEnabled(have_selected_ob);
 }
 
 
@@ -3427,6 +3433,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			ui->objectEditor->show();
 			ui->parcelEditor->hide();
 
+			setUIForSelectedObject();
 			
 			ui->objectEditor->setControlsEditable(have_edit_permissions);
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
@@ -3481,47 +3488,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 {
-//	Qt::MouseButtons mb = e->buttons();
-//
-//	if(this->selected_ob.nonNull() && (mb & Qt::LeftButton))
-//	{
-//		// Move selected object 
-//
-//		// Get direction for current mouse cursor position
-//		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-//		const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-//		const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-//		const Vec4f up = cam_controller.getUpVec().toVec4fVector();
-//
-//		const float sensor_width = 0.035f;
-//		const float sensor_height = sensor_width / glWidget->viewport_aspect_ratio;
-//		const float lens_sensor_dist = 0.03f;
-//
-//		const float s_x = sensor_width *  (float)(e->pos().x() - glWidget->geometry().width() /2) / glWidget->geometry().width(); // dist right on sensor from centre of sensor
-//		const float s_y = sensor_height * (float)(e->pos().y() - glWidget->geometry().height()/2) / glWidget->geometry().height(); // dist down on sensor from centre of sensor
-//
-//		const float r_x = s_x / lens_sensor_dist;
-//		const float r_y = s_y / lens_sensor_dist;
-//
-//		const Vec4f dir = normalise(forwards + right * r_x - up * r_y);
-//
-//		// Convert selection vector to world space
-//		const Vec4f selection_vec_ws(right*selection_vec_cs[0] + forwards*selection_vec_cs[1] + up*selection_vec_cs[2]);
-//
-//		const Vec4f new_sel_point_ws = origin + selection_vec_ws;
-//		//const Vec4f new_sel_point_ws = origin + dir*this->selection_point_dist;
-//
-//		
-//		const Vec4f new_ob_pos = this->selected_ob_pos_upon_selection + (new_sel_point_ws - this->selection_point_ws);
-//
-//		// Set world object pos
-//		this->selected_ob->pos = toVec3d(new_ob_pos);
-//
-//		// Set graphics object pos and update in opengl engine.
-//		GLObjectRef opengl_ob(this->selected_ob->opengl_engine_ob);
-//		opengl_ob->ob_to_world_matrix.setColumn(3, new_ob_pos);
-//		this->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
-//	}
 }
 
 
@@ -3572,8 +3538,9 @@ void MainWindow::deleteSelectedObject()
 
 				this->client_thread->enqueueDataToSend(packet);
 
-
 				deselectObject();
+
+				showInfoNotification("Object deleted.");
 			}
 		}
 	}
@@ -3607,6 +3574,8 @@ void MainWindow::deselectObject()
 		this->shown_object_modification_error_msg = false;
 
 		this->ui->helpInfoDockWidget->hide();
+
+		setUIForSelectedObject();
 	}
 }
 
@@ -3738,7 +3707,9 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& content)
 {
-	// conPrint("makeHypercardGLObject(), content: " + content);
+	//conPrint("makeHypercardGLObject(), content: " + content);
+	
+	//Timer timer;
 	const int W = 512;
 	const int H = 512;
 
@@ -3760,8 +3731,13 @@ Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& cont
 		const QRgb* line = (const QRgb*)image.scanLine(y);
 		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
 	}
+	//conPrint("drawing text took " + timer.elapsedString());
+	//timer.reset();
+	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
+	
+	//conPrint("getOrLoadOpenGLTexture took " + timer.elapsedString());
 
-	return ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
+	return tex;
 }
 
 

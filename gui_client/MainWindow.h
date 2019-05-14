@@ -116,6 +116,7 @@ private:
 	void updateVoxelEditMarkers();
 	void pickUpSelectedObject();
 	void dropSelectedObject();
+	void setUIForSelectedObject(); // Enable/disable delete object action etc..
 
 	struct EdgeMarker
 	{

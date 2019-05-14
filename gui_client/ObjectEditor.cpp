@@ -106,6 +106,9 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->targetURLLineEdit->setText(QtUtils::toQString(ob.target_url));
 	}
 
+	this->posXDoubleSpinBox->setEnabled(true);
+	this->posYDoubleSpinBox->setEnabled(true);
+	this->posZDoubleSpinBox->setEnabled(true);
 	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
 	SignalBlocker::setValue(this->posYDoubleSpinBox, ob.pos.y);
 	SignalBlocker::setValue(this->posZDoubleSpinBox, ob.pos.z);
@@ -212,6 +215,22 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	for(size_t i=0; i<cloned_materials.size(); ++i)
 		ob_out.materials[i] = cloned_materials[i]->clone();
 
+}
+
+
+void ObjectEditor::objectPickedUp()
+{
+	this->posXDoubleSpinBox->setEnabled(false);
+	this->posYDoubleSpinBox->setEnabled(false);
+	this->posZDoubleSpinBox->setEnabled(false);
+}
+
+
+void ObjectEditor::objectDropped()
+{
+	this->posXDoubleSpinBox->setEnabled(true);
+	this->posYDoubleSpinBox->setEnabled(true);
+	this->posZDoubleSpinBox->setEnabled(true);
 }
 
 

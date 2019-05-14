@@ -172,7 +172,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>419</height>
+          <height>267</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -269,7 +269,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>115</height>
+          <height>267</height>
          </rect>
         </property>
        </widget>
@@ -301,6 +301,9 @@
   <action name="actionCloneObject">
    <property name="text">
     <string>Clone Object</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+C</string>
    </property>
   </action>
   <action name="actionLogIn">

@@ -266,7 +266,7 @@
           <number>0</number>
          </property>
          <item>
-          <widget class="QDoubleSpinBox" name="rotAxisXDoubleSpinBox">
+          <widget class="IndigoDoubleSpinBox" name="rotAxisXDoubleSpinBox">
            <property name="minimum">
             <double>-100.000000000000000</double>
            </property>
@@ -279,7 +279,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QDoubleSpinBox" name="rotAxisYDoubleSpinBox">
+          <widget class="IndigoDoubleSpinBox" name="rotAxisYDoubleSpinBox">
            <property name="minimum">
             <double>-100.000000000000000</double>
            </property>
@@ -292,7 +292,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QDoubleSpinBox" name="rotAxisZDoubleSpinBox">
+          <widget class="IndigoDoubleSpinBox" name="rotAxisZDoubleSpinBox">
            <property name="minimum">
             <double>-100.000000000000000</double>
            </property>
@@ -315,7 +315,7 @@
        </widget>
       </item>
       <item row="11" column="1">
-       <widget class="QDoubleSpinBox" name="rotAngleDoubleSpinBox">
+       <widget class="IndigoDoubleSpinBox" name="rotAngleDoubleSpinBox">
         <property name="minimum">
          <double>-100.000000000000000</double>
         </property>
