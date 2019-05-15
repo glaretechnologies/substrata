@@ -125,7 +125,7 @@ void WorkerThread::handleResourceUploadConnection()
 	const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
 	const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-	conPrint("\tusername: '" + username + "', password: '" + password + "'");
+	conPrint("\tusername: '" + username + "'");
 
 	UserRef client_user;
 	{
@@ -837,7 +837,7 @@ void WorkerThread::doRun()
 						const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-						conPrint("username: '" + username + "', password: '" + password + "'");
+						conPrint("username: '" + username + "'");
 						
 						bool logged_in = false;
 						{
@@ -898,7 +898,7 @@ void WorkerThread::doRun()
 						const std::string email    = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-						conPrint("username: '" + username + "', email: '" + email + "', password: '" + password + "'");
+						conPrint("username: '" + username + "', email: '" + email + "'");
 
 						bool signed_up = false;
 						{
@@ -1001,7 +1001,7 @@ void WorkerThread::doRun()
 
 						conPrint("email: " + email);
 						conPrint("reset_token: " + reset_token);
-						conPrint("new_password: " + new_password);
+						//conPrint("new_password: " + new_password);
 
 						{
 							Lock lock(world_state->mutex);
@@ -1015,7 +1015,7 @@ void WorkerThread::doRun()
 									if(reset)
 									{
 										world_state->changed = true; // Mark as changed so gets saved to disk.
-										conPrint("User password successfully updated to '" + new_password + "'");
+										conPrint("User password successfully updated.");
 									}
 								}
 						}
