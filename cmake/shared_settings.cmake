@@ -398,12 +398,16 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLTexture.cpp
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLTexture.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngine.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngine.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.h
 )
 
 set(opengl_shaders
