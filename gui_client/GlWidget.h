@@ -40,7 +40,7 @@ public:
 	void addOverlayObject(const Reference<OverlayObject>& object);
 
 	void setEnvMat(OpenGLMaterial& mat);
-	
+
 	void setCurrentTime(float time) { current_time = time; }
 	void playerPhyicsThink(float dt); // Process keys held down.
 
@@ -82,7 +82,7 @@ private:
 
 	int viewport_w, viewport_h;
 
-	bool SHIFT_down, A_down, W_down, S_down, D_down;
+	bool SHIFT_down, A_down, W_down, S_down, D_down, Space_down, C_down;
 	Timer timer;
 	float current_time;
 public:

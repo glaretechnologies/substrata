@@ -64,6 +64,8 @@ GlWidget::GlWidget(QWidget *parent)
 	A_down = false;
 	S_down = false;
 	D_down = false;
+	Space_down = false;
+	C_down = false;
 
 	viewport_w = viewport_h = 100;
 
@@ -129,7 +131,7 @@ void GlWidget::paintGL()
 		cam_controller->getBasis(right, up, forwards);
 
 		const Matrix4f rot = Matrix4f(right.toVec4fVector(), forwards.toVec4fVector(), up.toVec4fVector(), Vec4f(0,0,0,1)).getTranspose();
-		
+
 		Matrix4f world_to_camera_space_matrix;
 		rot.rightMultiplyAffine3WithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_space_matrix);
 
@@ -142,7 +144,7 @@ void GlWidget::paintGL()
 		opengl_engine->setCurrentTime(current_time);
 		opengl_engine->draw();
 	}
-	
+
 	//conPrint("FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
 	//timer.reset();
 }
@@ -189,6 +191,7 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 		if(e->key() == Qt::Key::Key_Space)
 		{
 			this->player_physics->processJump(*this->cam_controller);
+			Space_down = true;
 		}
 		if(e->key() == Qt::Key::Key_W)
 		{
@@ -206,6 +209,10 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 		{
 			D_down = true;
 		}
+		if(e->key() == Qt::Key::Key_C)
+		{
+			C_down = true;
+		}
 	}
 
 	emit keyPressed(e);
@@ -218,6 +225,10 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 	{
 		SHIFT_down = (e->modifiers() & Qt::ShiftModifier);
 
+		if(e->key() == Qt::Key::Key_Space)
+		{
+			Space_down = false;
+		}
 		if(e->key() == Qt::Key::Key_W)
 		{
 			W_down = false;
@@ -233,6 +244,10 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 		if(e->key() == Qt::Key::Key_D)
 		{
 			D_down = false;
+		}
+		if(e->key() == Qt::Key::Key_C)
+		{
+			C_down = false;
 		}
 	}
 
@@ -282,6 +297,12 @@ void GlWidget::playerPhyicsThink(float dt)
 		this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller);
 	if(D_down)
 		this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
+
+		// Move vertically up or down in flymode.
+	if(Space_down)
+		this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller);
+	if(C_down)
+		this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller);
 #endif
 }
 
@@ -291,11 +312,17 @@ void GlWidget::mousePressEvent(QMouseEvent* e)
 	//conPrint("mousePressEvent at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
 	mouse_move_origin = QCursor::pos();
 	last_mouse_press_pos = QCursor::pos();
+
+	// Hide cursor when moving view.
+	this->setCursor(QCursor(Qt::BlankCursor));
 }
 
 
 void GlWidget::mouseReleaseEvent(QMouseEvent* e)
 {
+	// Unhide cursor.
+	this->unsetCursor();
+
 	//conPrint("mouseReleaseEvent at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
 
 	//if((QCursor::pos() - last_mouse_press_pos).manhattanLength() < 4)
@@ -333,16 +360,19 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
 			emit cameraUpdated();
 
-		mouse_move_origin = new_pos;
+		// Instead of updating the mouse_move_origin, reset the cursor position
+		// to where we started, so we never run out of space to move.
+		//mouse_move_origin = new_pos;
+		QCursor::setPos(mouse_move_origin);
 
 		emit mouseMoved(e);
-		
+
 		//conPrint("mouseMoveEvent FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
 		//timer.reset();
 	}
-	
+
 	QGLWidget::mouseMoveEvent(e);
-	
+
 	//conPrint("mouseMoveEvent time since last event: " + doubleToStringNSigFigs(timer.elapsed(), 5));
 	//timer.reset();
 }
