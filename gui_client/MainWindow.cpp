@@ -235,7 +235,7 @@ void MainWindow::afterGLInitInitialise()
 		this->player_physics.setFlyModeEnabled(true);
 	}
 
-	//OpenGLEngineTests::doTextureLoadingSpeedTests(*ui->glWidget->opengl_engine);
+	//OpenGLEngineTests::doTextureLoadingTests(*ui->glWidget->opengl_engine);
 }
 
 
@@ -2634,13 +2634,17 @@ void MainWindow::on_actionCloneObject_triggered()
 
 		WorldObjectRef new_world_object = new WorldObject();
 		new_world_object->uid = UID(0); // Will be set by server
+		new_world_object->object_type = this->selected_ob->object_type;
 		new_world_object->model_url = this->selected_ob->model_url;
 		new_world_object->script_url = this->selected_ob->script_url;
 		new_world_object->materials = this->selected_ob->materials; // TODO: clone?
+		new_world_object->content = this->selected_ob->content;
+		new_world_object->target_url = this->selected_ob->target_url;
 		new_world_object->pos = new_ob_pos;
 		new_world_object->axis = selected_ob->axis;
 		new_world_object->angle = selected_ob->angle;
 		new_world_object->scale = selected_ob->scale;
+		new_world_object->voxel_group = selected_ob->voxel_group;
 
 		// Send CreateObject message to server
 		{
@@ -3880,6 +3884,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			TextureLoading::test();
 			js::Triangle::test();
 			//Timer::test();
 			//IPAddress::test();
