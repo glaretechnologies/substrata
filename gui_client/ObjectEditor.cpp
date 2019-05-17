@@ -76,12 +76,15 @@ ObjectEditor::~ObjectEditor()
 
 void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 {
+	std::string ob_type;
 	switch(ob.object_type)
 	{
-	case WorldObject::ObjectType_Generic: this->objectTypeLabel->setText("Generic"); break;
-	case WorldObject::ObjectType_Hypercard: this->objectTypeLabel->setText("Hypercard"); break;
-	case WorldObject::ObjectType_VoxelGroup: this->objectTypeLabel->setText("Voxel Group"); break;
+	case WorldObject::ObjectType_Generic: ob_type = "Generic"; break;
+	case WorldObject::ObjectType_Hypercard: ob_type = "Hypercard"; break;
+	case WorldObject::ObjectType_VoxelGroup: ob_type = "Voxel Group"; break;
 	}
+
+	this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
 
 	this->cloned_materials.resize(ob.materials.size());
 	for(size_t i=0; i<ob.materials.size(); ++i)
