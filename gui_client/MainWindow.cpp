@@ -3380,10 +3380,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 	// Trace ray through scene
 	const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
-	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
-	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
-
 	const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 	RayTraceResult results;
