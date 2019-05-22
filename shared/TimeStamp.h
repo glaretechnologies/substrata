@@ -22,6 +22,7 @@ class TimeStamp
 {
 public:
 	TimeStamp();
+	explicit TimeStamp(uint64 time);
 	~TimeStamp();
 
 
