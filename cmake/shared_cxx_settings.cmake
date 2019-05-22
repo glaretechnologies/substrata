@@ -55,8 +55,11 @@ addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common")
 
 
 # Add OpenCL paths
-
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opencl/khronos")
+
+
+addIncludeDirectory("${MYSQL_CONNECTOR_DIR}/include")
+
 
 # Append INDIGO_SHARED_INCLUDE_DIRS
 
