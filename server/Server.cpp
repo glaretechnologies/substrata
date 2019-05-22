@@ -25,6 +25,8 @@ Copyright Glare Technologies Limited 2016 -
 #include <TLSSocket.h>
 #include <MTwister.h>
 
+#include <mysqlx/xdevapi.h>
+
 
 static const int parcel_coords[10][4][2] ={
 	{ { 5, 50 },{ 25, 50 },{ 25, 70 },{ 5, 70 } }, // 0
@@ -142,6 +144,227 @@ static void assignParcelToUser(Reference<ServerWorldState>& world_state, const P
 }
 
 
+inline static const std::string twoDigitString(int x)
+{
+	return ::leftPad(::toString(x), '0', 2);
+}
+
+
+// Format a timestamp into MySQL TIMESTAMP format: YYYY-MM-DD HH:MM:SS
+static std::string mySQLTimeStamp(const TimeStamp& timestamp)
+{
+	time_t t = timestamp.time;
+
+	tm thetime;
+	// Get calender time in UTC.  Use threadsafe versions of gmtime.
+#ifdef _WIN32
+	gmtime_s(&thetime, &t);
+#else
+	gmtime_r(&t, &thetime);
+#endif
+
+	const int day = thetime.tm_mday; // Day of month (1 – 31).
+	const int month = thetime.tm_mon + 1; // Month (0 – 11; January = 0).
+	const int year = thetime.tm_year + 1900; // tm_year = Year (current year minus 1900).
+
+	return toString(year) + "-" + toString(month) + "-" + toString(day) + " " + 
+		twoDigitString(thetime.tm_hour) + ":" + twoDigitString(thetime.tm_min) + ":" + twoDigitString(thetime.tm_sec);
+}
+
+
+static void updateUsersTableFromDataStore(mysqlx::Schema& default_schema, ServerWorldState& world_state)
+{
+	mysqlx::Table users_table = default_schema.getTable("users");
+
+	// Clear users table
+	users_table.remove().execute();
+
+	// https://dev.mysql.com/doc/x-devapi-userguide/en/sql-crud-functions.html#table-insert
+	for(auto i = world_state.user_id_to_users.begin(); i != world_state.user_id_to_users.end(); ++i)
+	{
+		Reference<User>& user = i->second;
+
+		const std::string created_time_s = mySQLTimeStamp(user->created_time);
+
+		const mysqlx::Value hashed_password_val(mysqlx::bytes((const mysqlx::byte*)user->hashed_password.data(), user->hashed_password.size()));
+
+		users_table.insert("id", "created_time", "name", "email_address", "hashed_password", "password_hash_salt")
+			.values((int)user->id.value(), created_time_s, user->name, user->email_address, hashed_password_val, user->password_hash_salt)
+			.execute();
+	}
+}
+
+
+static void updateParcelsTableFromDataStore(mysqlx::Schema& default_schema, ServerWorldState& world_state)
+{
+	mysqlx::Table parcels_table = default_schema.getTable("parcels");
+	mysqlx::Table parcel_admins_table = default_schema.getTable("parcel_admins");
+	mysqlx::Table parcel_writers_table = default_schema.getTable("parcel_writers");
+
+	// Clear tables
+	parcels_table.remove().execute();
+	parcel_admins_table.remove().execute();
+	parcel_writers_table.remove().execute();
+
+	// https://dev.mysql.com/doc/x-devapi-userguide/en/sql-crud-functions.html#table-insert
+	for(auto i=world_state.parcels.begin(); i != world_state.parcels.end(); ++i)
+	{
+		Reference<Parcel>& parcel = i->second;
+
+		const std::string created_time_s = mySQLTimeStamp(parcel->created_time);
+
+		parcels_table.insert("id", "owner_id", "created_time", "description", "all_writeable",
+			"vert0_x", "vert0_y",
+			"vert1_x", "vert1_y",
+			"vert2_x", "vert2_y",
+			"vert3_x", "vert3_y",
+			"zbounds_x", "zbounds_y")
+			.values((int)parcel->id.value(), (int)parcel->owner_id.value(), created_time_s, parcel->description, parcel->all_writeable,
+				parcel->verts[0].x, parcel->verts[0].y,
+				parcel->verts[1].x, parcel->verts[1].y,
+				parcel->verts[2].x, parcel->verts[2].y,
+				parcel->verts[3].x, parcel->verts[3].y,
+				parcel->zbounds.x, parcel->zbounds.y)
+			.execute();
+
+		// Add parcel admins for this parcel
+		for(size_t z=0; z<parcel->admin_ids.size(); ++z)
+			parcel_admins_table.insert("parcel_id", "user_id")
+				.values((int)parcel->id.value(), (int)parcel->admin_ids[z].value())
+				.execute();
+
+		// Add parcel writers for this parcel
+		for(size_t z=0; z<parcel->writer_ids.size(); ++z)
+			parcel_writers_table.insert("parcel_id", "user_id")
+			.values((int)parcel->id.value(), (int)parcel->writer_ids[z].value())
+			.execute();
+	}
+}
+
+
+static void readUsersFromMySQL(mysqlx::Schema& default_schema, ServerWorldState& world_state)
+{
+	conPrint("Reading users from MySQL...");
+	Timer timer;
+
+	mysqlx::Table users_table = default_schema.getTable("users");
+	mysqlx::RowResult result = users_table.select("id", "UNIX_TIMESTAMP(CONVERT_TZ(created_time, '+00:00', 'SYSTEM'))", "name", "email_address", "hashed_password", "password_hash_salt").execute();
+
+	std::list<mysqlx::Row> rows = result.fetchAll();
+
+	world_state.user_id_to_users.clear();
+	world_state.name_to_users.clear();
+
+	for(auto i = rows.begin(); i != rows.end(); ++i)
+	{
+		mysqlx::Row row = *i;
+
+		UserRef user = new User();
+
+		user->id = UserID((int)row[0]);
+
+		user->created_time = TimeStamp((uint64)row[1]);
+
+		user->name = (std::string)row[2];
+		user->email_address = (std::string)row[3];
+
+		user->hashed_password = (std::string)row[4];
+		user->password_hash_salt = (std::string)row[5];
+
+		world_state.user_id_to_users[user->id] = user;
+		world_state.name_to_users[user->name] = user;
+	}
+
+	conPrint("\tDone. (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
+}
+
+
+static void readParcelsFromMySQL(mysqlx::Schema& default_schema, ServerWorldState& world_state)
+{
+	conPrint("Reading parcels from MySQL...");
+	Timer timer;
+	{
+		mysqlx::Table parcels_table = default_schema.getTable("parcels");
+		mysqlx::RowResult result = parcels_table.select("id", "owner_id", "UNIX_TIMESTAMP(CONVERT_TZ(created_time, '+00:00', 'SYSTEM'))", "description", "all_writeable",
+			"vert0_x", "vert0_y",
+			"vert1_x", "vert1_y",
+			"vert2_x", "vert2_y",
+			"vert3_x", "vert3_y",
+			"zbounds_x", "zbounds_y").execute();
+
+		std::list<mysqlx::Row> rows = result.fetchAll();
+
+		world_state.parcels.clear();
+
+		for(auto i = rows.begin(); i != rows.end(); ++i)
+		{
+			mysqlx::Row row = *i;
+
+			ParcelRef parcel = new Parcel();
+
+			parcel->id = ParcelID((int)row[0]);
+			parcel->owner_id = UserID((int)row[1]);
+
+			parcel->created_time = TimeStamp((uint64)row[2]);
+
+			parcel->description = (std::string)row[3];
+			parcel->all_writeable = (int)row[4] != 0;
+
+			int col = 5;
+			parcel->verts[0].x = (double)row[col++];
+			parcel->verts[0].y = (double)row[col++];
+			parcel->verts[1].x = (double)row[col++];
+			parcel->verts[1].y = (double)row[col++];
+			parcel->verts[2].x = (double)row[col++];
+			parcel->verts[2].y = (double)row[col++];
+			parcel->verts[3].x = (double)row[col++];
+			parcel->verts[3].y = (double)row[col++];
+			parcel->zbounds.x = (double)row[col++];
+			parcel->zbounds.y = (double)row[col++];
+
+			world_state.parcels[parcel->id] = parcel;
+		}
+	}
+	{
+		// Read data from parcel_admins table
+		mysqlx::Table parcel_admins_table = default_schema.getTable("parcel_admins");
+		mysqlx::RowResult result = parcel_admins_table.select("parcel_id", "user_id").execute();
+		std::list<mysqlx::Row> rows = result.fetchAll();
+		for(auto i = rows.begin(); i != rows.end(); ++i)
+		{
+			mysqlx::Row row = *i;
+
+			const ParcelID parcel_id((int)row[0]);
+			const UserID user_id((int)row[1]);
+
+			assert(world_state.parcels.count(parcel_id) > 0);
+			//assert(world_state.user_id_to_users.count(user_id) > 0);
+
+			world_state.parcels[parcel_id]->admin_ids.push_back(user_id);
+		}
+	}
+	{
+		// Read data from parcel_writers table
+		mysqlx::Table parcel_writers_table = default_schema.getTable("parcel_writers");
+		mysqlx::RowResult result = parcel_writers_table.select("parcel_id", "user_id").execute();
+		std::list<mysqlx::Row> rows = result.fetchAll();
+		for(auto i = rows.begin(); i != rows.end(); ++i)
+		{
+			mysqlx::Row row = *i;
+
+			const ParcelID parcel_id((int)row[0]);
+			const UserID user_id((int)row[1]);
+
+			assert(world_state.parcels.count(parcel_id) > 0);
+			//assert(world_state.user_id_to_users.count(user_id) > 0);
+
+			world_state.parcels[parcel_id]->writer_ids.push_back(user_id);
+		}
+	}
+	conPrint("\tDone. (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
+}
+
+
 int main(int argc, char *argv[])
 {
 	Clock::init();
@@ -204,6 +427,34 @@ int main(int argc, char *argv[])
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path);
 
+
+
+		//==============================================================================
+		// https://dev.mysql.com/doc/x-devapi-userguide/en/using-sql.html
+		try
+		{
+			Timer timer;
+			const std::string url = "root:5TD853_J6RQFm@127.0.0.1:33060/sys?ssl-mode=required";
+			mysqlx::SessionSettings settings(url);
+			mysqlx::Session session(settings);
+
+			conPrint("Conecting to DB took " + timer.elapsedStringNSigFigs(3));
+
+			mysqlx::Schema default_schema = session.getDefaultSchema();
+
+			updateUsersTableFromDataStore(default_schema, *server.world_state);
+			updateParcelsTableFromDataStore(default_schema, *server.world_state);
+
+			readUsersFromMySQL(default_schema, *server.world_state);
+			readParcelsFromMySQL(default_schema, *server.world_state);
+
+			conPrint("done.");
+		}
+		catch(mysqlx::Error& err)
+		{
+			conPrint("MySQL Error: " + std::string(err.what()));
+			return 1;
+		}
 
 		//TEMP:
 		//server.world_state->resource_manager->getResourcesForURL().clear();

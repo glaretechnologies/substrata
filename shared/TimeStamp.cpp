@@ -26,6 +26,9 @@ TimeStamp::TimeStamp()
 }
 
 
+TimeStamp::TimeStamp(uint64 time_) : time(time_) {}
+
+
 TimeStamp::~TimeStamp()
 {
 
