@@ -37,7 +37,7 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 
 	opengl_mat.fresnel_scale = 0.3f;
 
-	opengl_mat.tex_matrix = mat.tex_matrix;
+	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
 }
 
 
@@ -53,7 +53,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, Reso
 
 	opengl_mat.fresnel_scale = 0.3f;
 
-	opengl_mat.tex_matrix = mat.tex_matrix;
+	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
 }
 
 

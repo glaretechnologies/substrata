@@ -53,6 +53,9 @@ addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/little_cms/include")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common")
 
+#Indigo SDK:
+addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
+
 
 # Add OpenCL paths
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opencl/khronos")

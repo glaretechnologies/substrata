@@ -79,6 +79,7 @@ private slots:;
 	void glWidgetKeyPressed(QKeyEvent* e);
 	void glWidgetkeyReleased(QKeyEvent* e);
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
+	void cameraUpdated();
 
 	void objectEditedSlot();
 	void URLChangedSlot();
@@ -91,7 +92,7 @@ private:
 	void deselectObject();
 	void deselectParcel();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
-	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content);
+	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out);
 	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
 	void loadScriptForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
