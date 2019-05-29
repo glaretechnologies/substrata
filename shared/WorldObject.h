@@ -13,6 +13,9 @@ Copyright Glare Technologies Limited 2016 -
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
 #include "vec3.h"
+#if GUI_CLIENT
+#include <graphics/ImageMap.h>
+#endif
 #include <string>
 #include <vector>
 #include <set>
@@ -20,7 +23,6 @@ struct GLObject;
 class PhysicsObject;
 class ResourceManager;
 class WinterShaderEvaluator;
-
 
 
 class Voxel
@@ -120,6 +122,8 @@ public:
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
+
+	ImageMapUInt8Ref hypercard_map;
 #endif
 	Reference<WinterShaderEvaluator> script_evaluator;
 

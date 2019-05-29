@@ -278,6 +278,21 @@
     </layout>
    </widget>
   </widget>
+  <widget class="QDockWidget" name="indigoViewDockWidget">
+   <property name="windowTitle">
+    <string>Indigo View</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>8</number>
+   </attribute>
+   <widget class="QWidget" name="indigoViewDockWidgetContents">
+    <layout class="QVBoxLayout" name="verticalLayout_10">
+     <item>
+      <widget class="IndigoView" name="indigoView" native="true"/>
+     </item>
+    </layout>
+   </widget>
+  </widget>
   <action name="actionAvatarSettings">
    <property name="text">
     <string>Avatar Settings</string>
@@ -374,6 +389,12 @@
    <class>MaterialBrowser</class>
    <extends>QWidget</extends>
    <header>MaterialBrowser.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>IndigoView</class>
+   <extends>QWidget</extends>
+   <header>IndigoView.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

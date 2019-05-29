@@ -173,6 +173,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(keyReleased(QKeyEvent*)), this, SLOT(glWidgetkeyReleased(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
+	connect(ui->glWidget, SIGNAL(cameraUpdated()), this, SLOT(cameraUpdated()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
@@ -218,6 +219,9 @@ void MainWindow::initialise()
 
 	if(!settings->contains("mainwindow/geometry"))
 		need_help_info_dock_widget_position = true;
+
+
+	this->ui->indigoView->initialise();
 }
 
 
@@ -460,6 +464,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 				physics_world->rebuild(task_manager, print_output);
 
+
 				ob->using_placeholder_model = true;
 			}
 		}
@@ -490,7 +495,8 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
 				gl_ob->materials.resize(1);
 				gl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-				gl_ob->materials[0].albedo_texture = makeHypercardTexMap(ob->content);
+				gl_ob->materials[0].albedo_texture = makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
+				gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				gl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 				ob->loaded_content = ob->content;
@@ -550,6 +556,9 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			physics_ob->userdata_type = 0;
 			physics_world->addObject(physics_ob);
 			physics_world->rebuild(task_manager, print_output);
+
+			//TEMP NEW:
+			ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
 			loadScriptForObject(ob); // Load any script for the object.
 		}
@@ -879,6 +888,8 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	const double cur_time = Clock::getTimeSinceInit();
+
+	ui->indigoView->timerThink();
 
 	updateGroundPlane();
 
@@ -1272,8 +1283,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Process player physics
 	Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
-	player_physics.update(*this->physics_world, dt, this->thread_context, campos);
+	const Vec4f last_campos = campos;
+	player_physics.update(*this->physics_world, dt, this->thread_context, /*campos_out=*/campos);
 	this->cam_controller.setPosition(toVec3d(campos));
+
+	if(campos.getDist(last_campos) > 0.01)
+	{
+		ui->indigoView->cameraUpdated(this->cam_controller);
+	}
 
 	// Update avatar graphics
 	try
@@ -2693,6 +2710,10 @@ void MainWindow::on_actionReset_Layout_triggered()
 	this->addDockWidget(Qt::TopDockWidgetArea, ui->materialBrowserDockWidget, Qt::Horizontal);
 	ui->materialBrowserDockWidget->show();
 
+	ui->indigoViewDockWidget->setFloating(false);
+	this->addDockWidget(Qt::RightDockWidgetArea, ui->indigoViewDockWidget, Qt::Vertical);
+	ui->indigoViewDockWidget->show();
+
 	ui->helpInfoDockWidget->setFloating(true);
 	ui->helpInfoDockWidget->show();
 	// Position near bottom right corner of glWidget.
@@ -3042,7 +3063,8 @@ void MainWindow::objectEditedSlot()
 						ui->glWidget->makeCurrent();
 
 						opengl_ob->materials.resize(1);
-						opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content);
+						opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content, /*uint8map_out=*/selected_ob->hypercard_map);
+						opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 
 						opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
 						selected_ob->opengl_engine_ob = opengl_ob;
@@ -3654,6 +3676,12 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 				dropSelectedObject();
 		}
 	}
+
+	//TEMP:
+	if(e->key() == Qt::Key::Key_1)
+	{
+		ui->indigoView->saveSceneToDisk();
+	}
 }
 
 
@@ -3668,6 +3696,12 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 	{
 		this->selection_vec_cs[1] *= (1.0f + e->delta() * 0.0005f);
 	}
+}
+
+
+void MainWindow::cameraUpdated()
+{
+	ui->indigoView->cameraUpdated(this->cam_controller);
 }
 
 
@@ -3705,7 +3739,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 }
 
 
-Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& content)
+Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out)
 {
 	//conPrint("makeHypercardGLObject(), content: " + content);
 	
@@ -3729,13 +3763,15 @@ Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& cont
 	for(int y=0; y<H; ++y)
 	{
 		const QRgb* line = (const QRgb*)image.scanLine(y);
-		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
+		std::memcpy(map->getPixel(0, y), line, 3*W);
 	}
 	//conPrint("drawing text took " + timer.elapsedString());
 	//timer.reset();
 	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
 	
 	//conPrint("getOrLoadOpenGLTexture took " + timer.elapsedString());
+
+	uint8_map_out = map;
 
 	return tex;
 }
@@ -4616,14 +4652,19 @@ int main(int argc, char *argv[])
 		// Make hypercard physics mesh
 		{
 			mw.hypercard_quad_raymesh = new RayMesh("quad", false);
+			mw.hypercard_quad_raymesh->setMaxNumTexcoordSets(1);
 			mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 0));
 			mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 0));
 			mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 1));
 			mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 1));
 
-			unsigned int uv_i[] ={ 0, 0, 0, 0 };
-			unsigned int v_i[]  ={ 0, 3, 2, 1 };
-			mw.hypercard_quad_raymesh->addQuad(v_i, uv_i, 0);
+			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 0)));
+			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 0)));
+			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 1)));
+			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 1)));
+
+			unsigned int v_i[] = { 0, 3, 2, 1 };
+			mw.hypercard_quad_raymesh->addQuad(v_i, v_i, 0);
 
 			mw.hypercard_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;

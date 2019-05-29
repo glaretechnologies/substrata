@@ -27,6 +27,7 @@ addMocFileRule(gui_client URLWidget)
 addMocFileRule(gui_client ResetPasswordDialog)
 addMocFileRule(gui_client ChangePasswordDialog)
 addMocFileRule(gui_client MaterialBrowser)
+addMocFileRule(gui_client IndigoView)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -73,6 +74,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_URLWidget.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ResetPasswordDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ChangePasswordDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialBrowser.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_IndigoView.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
@@ -244,6 +246,8 @@ if(WIN32)
 		debug Qt5Cored
 		debug Qt5OpenGLd
 		debug Qt5Widgetsd
+		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
+		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
 		)
 
 	# Disable ASLR (/DYNAMICBASE)

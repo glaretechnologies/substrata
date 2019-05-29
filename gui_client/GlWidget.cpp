@@ -261,49 +261,57 @@ void GlWidget::playerPhyicsThink(float dt)
 	// On Mac OS / Linux we will use our W_down etc.. state.
 	// This isn't as good because if we miss the keyReleaseEvent due to not having focus when the key is released, the key will act as if it's stuck down.
 	// TODO: Find an equivalent solution to GetAsyncKeyState on Mac/Linux.
+
+	bool cam_changed = false;
 #ifdef _WIN32
 	if(hasFocus())
 	{
 		SHIFT_down = GetAsyncKeyState(VK_SHIFT);
 
 		if(GetAsyncKeyState('W') || GetAsyncKeyState(VK_UP))
-			this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller);
+		{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('S') || GetAsyncKeyState(VK_DOWN))
-			this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller);
+		{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('A'))
-			this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller);
+		{	this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('D'))
-			this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
+		{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 
 		// Move vertically up or down in flymode.
 		if(GetAsyncKeyState(' '))
-			this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller);
+		{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('C'))
-			this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller);
+		{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 
 		// Turn left or right
 		const float base_rotate_speed = 200;
 		if(GetAsyncKeyState(VK_LEFT))
-			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0)));
+		{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
 		if(GetAsyncKeyState(VK_RIGHT))
-			this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0)));
+		{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
+
+		if(cam_changed)
+			emit cameraUpdated();
 	}
 #else
 	if(W_down)
-		this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller);
+	{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 	if(S_down)
-		this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller);
+	{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 	if(A_down)
-		this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller);
+	{	this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 	if(D_down)
-		this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller);
+	{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 
 		// Move vertically up or down in flymode.
 	if(Space_down)
-		this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller);
+	{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 	if(C_down)
-		this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller);
+	{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 #endif
+
+	if(cam_changed)
+		emit cameraUpdated();
 }
 
 

@@ -1,0 +1,433 @@
+/*=====================================================================
+IndigoView.cpp
+--------------
+Copyright Glare Technologies Limited 2019 -
+=====================================================================*/
+#include "IndigoView.h"
+
+
+#include <dll/include/IndigoContext.h>
+#include <dll/include/IndigoString.h>
+#include <dll/include/IndigoErrorCodes.h>
+#include <dll/include/IndigoLogMessageInterface.h>
+#include <dll/include/IndigoErrorMessageInterface.h>
+#include <dll/include/IndigoPassDoneMessageInterface.h>
+#include <dll/include/IndigoToneMapper.h>
+#include <dll/include/IndigoDataManager.h>
+#include <dll/include/IndigoHardwareInfo.h>
+#include <dll/include/IndigoSettings.h>
+#include <dll/include/Renderer.h>
+#include <dll/include/RenderBuffer.h>
+#include <dll/include/SceneNodeRoot.h>
+#include <dll/include/SceneNodeTonemapping.h>
+#include <dll/include/SceneNodeCamera.h>
+#include <dll/include/SceneNodeRenderSettings.h>
+
+#include <utils/ConPrint.h>
+#include <utils/PlatformUtils.h>
+
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLayout>
+#include <QtWidgets/QVBoxLayout>
+#include <QtGui/QResizeEvent>
+#include <QtCore/QTimer>
+
+#include "IndigoConversion.h"
+#include "CameraController.h"
+#include "GlWidget.h"
+
+
+// Standard conversions between std::string and Indigo::String.
+static const std::string toStdString(const Indigo::String& s)
+{
+	return std::string(s.dataPtr(), s.length());
+}
+
+static const Indigo::String toIndigoString(const std::string& s)
+{
+	return Indigo::String(s.c_str(), s.length());
+}
+
+
+IndigoView::IndigoView(QWidget* parent)
+:	QWidget(parent),
+	resize_timer(new QTimer(this))
+{
+	this->setContentsMargins(0, 0, 0, 0);
+
+	this->label = new QLabel(this);
+	this->label->setContentsMargins(0, 0, 0, 0);
+	this->label->setMargin(0);
+
+	this->setLayout(new QVBoxLayout());
+	this->layout()->addWidget(this->label);
+
+	this->layout()->setContentsMargins(0, 0, 0, 0);
+	this->layout()->setMargin(0);
+
+	this->label->setMinimumSize(QSize(64, 64));
+
+	clearPreview();
+
+	// Set up timer.
+	resize_timer->setSingleShot(true);
+	resize_timer->setInterval(200);
+
+	connect(resize_timer, SIGNAL(timeout()), this, SLOT(resizeDone()));
+}
+
+
+IndigoView::~IndigoView()
+{}
+
+
+void IndigoView::initialise()
+{
+	try
+	{
+		this->context = new Indigo::IndigoContext();
+
+		//const std::string dll_dir = ".";
+#ifndef NDEBUG
+		const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/Debug";
+#else
+		const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo";
+#endif
+
+		Indigo::String error_msg;
+		indResult res = this->context->initialise(toIndigoString(dll_dir), Indigo::IndigoContext::getDefaultAppDataPath(), error_msg);
+		if(res != Indigo::INDIGO_SUCCESS)
+			throw Indigo::IndigoException(error_msg);
+
+
+		this->root_node = new Indigo::SceneNodeRoot();
+
+		// Create camera node
+		{
+			this->camera_node = new Indigo::SceneNodeCamera();
+			this->camera_node->sensor_width = GlWidget::sensorWidth();
+			this->camera_node->lens_sensor_dist = GlWidget::lensSensorDist();
+			this->camera_node->autofocus = true;
+
+			this->camera_node->setPos(Indigo::Vec3d(0, 0, 2));
+
+			this->root_node->addChildNode(this->camera_node);
+		}
+
+		// Create tonemapping node
+		{
+			Indigo::SceneNodeTonemappingRef tonemapping = new Indigo::SceneNodeTonemapping(0.003);
+
+			this->root_node->addChildNode(tonemapping);
+		}
+
+		// Create render settings node
+		{
+			this->settings_node = Indigo::SceneNodeRenderSettings::getDefaults();
+
+			settings_node->bidirectional.setValue(false);
+			settings_node->metropolis.setValue(false);
+			settings_node->width.setValue(600);
+			settings_node->height.setValue(400);
+			settings_node->gpu.setValue(false);
+			settings_node->vignetting.setValue(false);
+
+			settings_node->setWhitePoint(Indigo::SceneNodeRenderSettings::getWhitepointForWhiteBalance("D65"));
+
+			this->root_node->addChildNode(settings_node);
+		}
+
+		// Create background settings / sun-sky node
+		{
+			Indigo::SunSkyMaterialRef sunsky = new Indigo::SunSkyMaterial();
+
+			const float sun_phi = 1.f;
+			const float sun_theta = Maths::pi<float>() / 4;
+			const Vec4f sundir = normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0));
+
+			sunsky->sundir = Indigo::Vec3d(sundir[0], sundir[1], sundir[2]);
+			sunsky->model = "captured-simulation";
+
+			Indigo::SceneNodeBackgroundSettingsRef background_settings = new Indigo::SceneNodeBackgroundSettings(sunsky);
+
+			this->root_node->addChildNode(background_settings);
+		}
+
+		//  Create ground plane geometry, material and model.
+		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
+			// Make a single quad
+			Indigo::Quad q;
+			q.mat_index = 0;
+			for(int i = 0; i < 4; ++i)
+				q.vertex_indices[i] = q.uv_indices[i] = i;
+			mesh->quads.push_back(q);
+
+			const float W = 1000;
+			mesh->vert_positions.push_back(Indigo::Vec3f(-W, -W, 0));
+			mesh->vert_positions.push_back(Indigo::Vec3f(-W, W, 0));
+			mesh->vert_positions.push_back(Indigo::Vec3f(W, W, 0));
+			mesh->vert_positions.push_back(Indigo::Vec3f(W, -W, 0));
+
+			// Make a UV mapping for the quad
+			mesh->num_uv_mappings = 1;
+
+			mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+			mesh->uv_pairs.push_back(Indigo::Vec2f(0, W*2));
+			mesh->uv_pairs.push_back(Indigo::Vec2f(W*2, W*2));
+			mesh->uv_pairs.push_back(Indigo::Vec2f(W*2, 0));
+
+			Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(mesh);
+			mesh_node->setName("Ground Mesh");
+
+			//==================== Create the ground material =========================
+			Indigo::DiffuseMaterialRef diffuse = new Indigo::DiffuseMaterial(
+				new Indigo::TextureWavelengthDependentParam(Indigo::Texture("resources/obstacle.png")) // albedo param
+			);
+
+			Indigo::SceneNodeMaterialRef mat_node = new Indigo::SceneNodeMaterial(diffuse);
+			mat_node->setName("Ground diffuse material");
+
+			//==================== Create the ground object =========================
+			Indigo::SceneNodeModelRef model = new Indigo::SceneNodeModel();
+			model->setName("Ground Object");
+			model->setGeometry(mesh_node);
+			model->keyframes.push_back(Indigo::KeyFrame());
+			model->rotation = new Indigo::MatrixRotation();
+			model->setMaterials(Indigo::Vector<Indigo::SceneNodeMaterialRef>(1, mat_node));
+
+			this->root_node->addChildNode(model); // Add node to scene graph.
+		}
+
+
+		// Query GPU devices
+		Indigo::HardwareInfoRef hardware_info = new Indigo::HardwareInfo(this->context);
+
+		Indigo::Handle<Indigo::OpenCLDeviceList> device_list = hardware_info->queryOpenCLDevices();
+		const Indigo::Vector<Indigo::OpenCLDevice> devices = device_list->getOpenCLDevices();
+
+		// Work out which devices to use.  We will use all GPU devices.
+		Indigo::Vector<Indigo::OpenCLDevice> devices_to_use;
+		for(size_t i=0; i<devices.size(); ++i)
+		{
+			if(!devices[i].is_cpu_device) // If this is a GPU device:
+			{
+				conPrint("Using device " + toStdString(devices[i].device_name));
+				devices_to_use.push_back(devices[i]);
+			}
+		}
+
+		if(!devices_to_use.empty()) // If we found at least once GPU device:
+		{
+			// Enable GPU rendering
+			settings_node->gpu.setValue(true);
+
+			// Tell indigo which devices to use.
+			Indigo::Settings settings(this->context);
+			settings.setSelectedOpenCLDevices(devices_to_use);
+		}
+
+		this->root_node->finalise("dummy_scene_path");
+
+		this->data_manager = new Indigo::DataManager(this->context);
+
+		this->renderer = new Indigo::Renderer(this->context);
+
+		this->render_buffer = new Indigo::RenderBuffer(this->root_node);
+
+		this->uint8_buffer = new Indigo::UInt8Buffer();
+
+		this->tone_mapper = new Indigo::ToneMapper(this->context, this->render_buffer, this->uint8_buffer, /*float_buffer=*/NULL);
+
+		this->tone_mapper->update(this->root_node->getToneMapping(), this->settings_node, this->camera_node);
+
+		Indigo::Vector<Indigo::String> command_line_args;
+		command_line_args.push_back("dummy_scene_path");
+
+		res = this->renderer->initialiseWithScene(this->root_node, render_buffer, command_line_args, data_manager, tone_mapper);
+		if(res != Indigo::INDIGO_SUCCESS)
+			throw Indigo::IndigoException("initialiseWithScene error.");
+
+		this->renderer->startRendering();
+	}
+	catch(Indigo::IndigoException& e)
+	{
+		conPrint("Indigo initialisation error: " + toStdString(e.what()));
+		return;
+	}
+}
+
+
+void IndigoView::objectAdded(WorldObject& object, ResourceManager& resource_manager)
+{
+	if(this->renderer.isNull())
+		return;
+
+	Indigo::SceneNodeModelRef model_node = IndigoConversion::convertObject(object, resource_manager);
+
+	{
+		Indigo::Lock lock(this->root_node->getMutex());
+
+		this->root_node->addChildNode(model_node);
+
+		model_node->setDirtyFlags(Indigo::SceneNode::IsDirty); // Make sure to do this after adding this node to the scene graph!
+	}
+
+	this->renderer->updateScene();
+}
+
+
+void IndigoView::objectRemoved(WorldObject& object)
+{
+}
+
+
+void IndigoView::objectTransformChanged(WorldObject& object)
+{
+}
+
+
+void IndigoView::cameraUpdated(const CameraController& cam_controller)
+{
+	if(this->renderer.isNull())
+		return;
+
+	const Vec3d pos = cam_controller.getPosition();
+	const Vec3d fwd = cam_controller.getForwardsVec();
+	{
+		Indigo::Lock lock(this->root_node->getMutex());
+
+		this->camera_node->setPosAndForwards(Indigo::Vec3d(pos.x, pos.y, pos.z), Indigo::Vec3d(fwd.x, fwd.y, fwd.z));
+
+		this->camera_node->setDirtyFlags(Indigo::SceneNode::IsDirty | Indigo::SceneNode::TransformChanged);
+	}
+
+	this->renderer->updateScene();
+}
+
+
+void IndigoView::saveSceneToDisk()
+{
+	if(this->root_node.isNull())
+		return;
+
+	try
+	{
+		Indigo::SceneNodeRoot::WriteToXmlFileOptions options;
+		options.disk_path = "scene.igs";
+
+		root_node->writeToXMLFileOnDisk2(options);
+	}
+	catch(Indigo::IndigoException& e)
+	{
+		conPrint("Error saving scene to disk: " + toStdString(e.what()));
+	}
+}
+
+
+void IndigoView::clearPreview()
+{
+	const QSize use_res = this->label->size();
+
+	QPixmap p(use_res);
+	p.fill(Qt::darkGray);
+
+	this->label->setPixmap(p);
+}
+
+
+void IndigoView::resizeEvent(QResizeEvent* ev)
+{
+	resize_timer->start();
+}
+
+
+void IndigoView::resizeDone()
+{
+	clearPreview();
+
+	if(this->renderer.isNull())
+		return;
+
+	const int W = this->label->width();
+	const int H = this->label->height();
+
+	{
+		Indigo::Lock lock(this->root_node->getMutex());
+		settings_node->width.setValue(W);
+		settings_node->height.setValue(H);
+		this->settings_node->setDirtyFlags(Indigo::SceneNode::IsDirty);
+	}
+
+	this->renderer->updateScene();
+}
+
+
+void IndigoView::timerThink()
+{
+	if(this->renderer.isNull())
+		return;
+
+	//if(timer.elapsed() > 0.2)
+	{
+		//this->tone_mapper->toneMapBlocking();
+
+		if(this->tone_mapper->isImageFresh())
+		{
+			Indigo::Lock lock(this->uint8_buffer->getMutex());
+
+			const int W = (int)this->uint8_buffer->width();
+			const int H = (int)this->uint8_buffer->height();
+			QImage im(W, H, QImage::Format_RGB32);
+			
+			for(int y=0; y<H; ++y)
+			{
+				uint32* scanline = (uint32*)im.scanLine(y);
+
+				for(int x=0; x<W; ++x)
+				{
+					const uint8* src = this->uint8_buffer->getPixel(x, y);
+					scanline[x] = qRgb(src[0], src[1], src[2]);
+				}
+			}
+
+			this->label->setPixmap(QPixmap::fromImage(im));
+		}
+
+		timer.reset();
+	}
+
+
+	// Print out any progress logs
+	{
+		Indigo::Vector<Indigo::Handle<Indigo::MessageInterface> > messages;
+		this->renderer->getMessages(messages);
+
+		for(size_t i=0; i<messages.size(); ++i)
+		{
+			switch(messages[i]->getType())
+			{
+			case Indigo::MessageInterface::LOG_MESSAGE:
+			{
+				const Indigo::LogMessageInterface* m = static_cast<const Indigo::LogMessageInterface*>(messages[i].getPointer());
+				conPrint("INDIGO: " + toStdString(m->getMessage()));
+				break;
+			}
+			case Indigo::MessageInterface::ERROR_MESSAGE:
+			{
+				const Indigo::ErrorMessageInterface* m = static_cast<const Indigo::ErrorMessageInterface*>(messages[i].getPointer());
+				conPrint("INDIGO ERROR: " + toStdString(m->getMessage()));
+				break;
+			}
+			//case Indigo::MessageInterface::PASS_DONE:
+			//{
+			//	//const Indigo::PassDoneMessageInterface* m = static_cast<const Indigo::PassDoneMessageInterface*>(messages[i].getPointer());
+			//	//conPrint("PASS DONE");
+			//	break;
+			//}
+			}
+		}
+	}
+}
