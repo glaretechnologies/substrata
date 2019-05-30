@@ -70,5 +70,4 @@ private:
 	
 	QLabel* label;
 	QTimer* resize_timer;
-	Timer timer;
 };

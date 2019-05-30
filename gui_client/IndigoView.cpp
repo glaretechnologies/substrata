@@ -271,16 +271,72 @@ void IndigoView::objectAdded(WorldObject& object, ResourceManager& resource_mana
 	}
 
 	this->renderer->updateScene();
+
+	object.indigo_model_node = model_node;
 }
 
 
+// NOTE: This code currently has no effect on the Indigo rendering, will be fixed soon.
 void IndigoView::objectRemoved(WorldObject& object)
 {
+	if(this->renderer.isNull())
+		return;
+
+	if(object.indigo_model_node.nonNull())
+	{
+		{
+			Indigo::Lock lock(this->root_node->getMutex());
+
+			this->root_node->removeChildNode(object.indigo_model_node);
+
+			object.indigo_model_node->setDirtyFlags(Indigo::SceneNode::IsDirty);
+		}
+
+		this->renderer->updateScene();
+
+		object.indigo_model_node = NULL;
+	}
 }
 
 
+// without pos
+static const Matrix4f obToWorldMatrix(const WorldObject* ob)
+{
+	return Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
+		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+}
+
+
+inline static Indigo::Vec3d toIndigoVec3d(const Vec3d& c)
+{
+	return Indigo::Vec3d(c.x, c.y, c.z);
+}
+
+
+// NOTE: This code generally kicks of a full scene rebuild, will be fixed soon.
 void IndigoView::objectTransformChanged(WorldObject& object)
 {
+	if(this->renderer.isNull())
+		return;
+
+	if(object.indigo_model_node.nonNull())
+	{
+		{
+			Indigo::Lock lock(this->root_node->getMutex());
+
+			object.indigo_model_node->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
+				0.0,
+				toIndigoVec3d(object.pos),
+				Indigo::AxisAngle::identity()
+			));
+
+			object.indigo_model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(&object).getUpperLeftMatrix().e);
+
+			object.indigo_model_node->setDirtyFlags(Indigo::SceneNode::IsDirty | Indigo::SceneNode::TransformChanged);
+		}
+
+		this->renderer->updateScene();
+	}
 }
 
 
@@ -365,37 +421,29 @@ void IndigoView::timerThink()
 	if(this->renderer.isNull())
 		return;
 
-	//if(timer.elapsed() > 0.2)
+	if(this->tone_mapper->isImageFresh())
 	{
-		//this->tone_mapper->toneMapBlocking();
+		Indigo::Lock lock(this->uint8_buffer->getMutex());
 
-		if(this->tone_mapper->isImageFresh())
-		{
-			Indigo::Lock lock(this->uint8_buffer->getMutex());
-
-			const int W = (int)this->uint8_buffer->width();
-			const int H = (int)this->uint8_buffer->height();
-			QImage im(W, H, QImage::Format_RGB32);
+		const int W = (int)this->uint8_buffer->width();
+		const int H = (int)this->uint8_buffer->height();
+		QImage im(W, H, QImage::Format_RGB32);
 			
-			for(int y=0; y<H; ++y)
+		for(int y=0; y<H; ++y)
+		{
+			uint32* scanline = (uint32*)im.scanLine(y);
+
+			for(int x=0; x<W; ++x)
 			{
-				uint32* scanline = (uint32*)im.scanLine(y);
-
-				for(int x=0; x<W; ++x)
-				{
-					const uint8* src = this->uint8_buffer->getPixel(x, y);
-					scanline[x] = qRgb(src[0], src[1], src[2]);
-				}
+				const uint8* src = this->uint8_buffer->getPixel(x, y);
+				scanline[x] = qRgb(src[0], src[1], src[2]);
 			}
-
-			this->label->setPixmap(QPixmap::fromImage(im));
 		}
 
-		timer.reset();
+		this->label->setPixmap(QPixmap::fromImage(im));
 	}
 
-
-	// Print out any progress logs
+	// Print out any progress logs and error messages coming back from Indigo.
 	{
 		Indigo::Vector<Indigo::Handle<Indigo::MessageInterface> > messages;
 		this->renderer->getMessages(messages);
@@ -407,7 +455,7 @@ void IndigoView::timerThink()
 			case Indigo::MessageInterface::LOG_MESSAGE:
 			{
 				const Indigo::LogMessageInterface* m = static_cast<const Indigo::LogMessageInterface*>(messages[i].getPointer());
-				conPrint("INDIGO: " + toStdString(m->getMessage()));
+				conPrintStr("INDIGO: " + toStdString(m->getMessage()));
 				break;
 			}
 			case Indigo::MessageInterface::ERROR_MESSAGE:
@@ -416,12 +464,6 @@ void IndigoView::timerThink()
 				conPrint("INDIGO ERROR: " + toStdString(m->getMessage()));
 				break;
 			}
-			//case Indigo::MessageInterface::PASS_DONE:
-			//{
-			//	//const Indigo::PassDoneMessageInterface* m = static_cast<const Indigo::PassDoneMessageInterface*>(messages[i].getPointer());
-			//	//conPrint("PASS DONE");
-			//	break;
-			//}
 			}
 		}
 	}

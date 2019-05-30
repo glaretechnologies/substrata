@@ -23,6 +23,7 @@ struct GLObject;
 class PhysicsObject;
 class ResourceManager;
 class WinterShaderEvaluator;
+namespace Indigo { class SceneNodeModel; }
 
 
 class Voxel
@@ -124,6 +125,8 @@ public:
 	Reference<PhysicsObject> physics_object;
 
 	ImageMapUInt8Ref hypercard_map;
+
+	Reference<Indigo::SceneNodeModel> indigo_model_node;
 #endif
 	Reference<WinterShaderEvaluator> script_evaluator;
 
