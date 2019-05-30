@@ -205,8 +205,7 @@ void IndigoView::initialise()
 		// Query GPU devices
 		Indigo::HardwareInfoRef hardware_info = new Indigo::HardwareInfo(this->context);
 
-		Indigo::Handle<Indigo::OpenCLDeviceList> device_list = hardware_info->queryOpenCLDevices();
-		const Indigo::Vector<Indigo::OpenCLDevice> devices = device_list->getOpenCLDevices();
+		const Indigo::Vector<Indigo::OpenCLDevice> devices = hardware_info->queryOpenCLDevices()->getOpenCLDevices();
 
 		// Work out which devices to use.  We will use all GPU devices.
 		Indigo::Vector<Indigo::OpenCLDevice> devices_to_use;
@@ -221,12 +220,8 @@ void IndigoView::initialise()
 
 		if(!devices_to_use.empty()) // If we found at least once GPU device:
 		{
-			// Enable GPU rendering
-			settings_node->gpu.setValue(true);
-
-			// Tell indigo which devices to use.
-			Indigo::Settings settings(this->context);
-			settings.setSelectedOpenCLDevices(devices_to_use);
+			settings_node->gpu.setValue(true); // Enable GPU rendering
+			settings_node->enabled_opencl_devices = devices_to_use; // Tell indigo which devices to use.
 		}
 
 		this->root_node->finalise("dummy_scene_path");
