@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <FileChecksum.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
+#include <SceneNodeModel.h>
 #endif
 #include "../gui_client/PhysicsObject.h"
 #include "../gui_client/WinterShaderEvaluator.h"

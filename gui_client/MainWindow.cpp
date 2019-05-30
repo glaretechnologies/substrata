@@ -1624,6 +1624,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								// Update in physics engine
 								ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
 								physics_world->updateObjectTransformData(*ob->physics_object);
+
+								// Update in Indigo view
+								ui->indigoView->objectTransformChanged(*ob);
 							}
 
 							active_objects.insert(ob);
@@ -1883,6 +1886,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
 				this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
 				need_physics_world_rebuild = true;
+
+				// Update in Indigo view
+				ui->indigoView->objectTransformChanged(*selected_ob);
 
 				this->ui->objectEditor->updateObjectPos(*selected_ob);
 
@@ -3081,6 +3087,9 @@ void MainWindow::objectEditedSlot()
 				selected_ob->physics_object->ob_to_world = new_ob_to_world_matrix;
 				this->physics_world->updateObjectTransformData(*selected_ob->physics_object);
 
+				// Update in Indigo view
+				ui->indigoView->objectTransformChanged(*selected_ob);
+
 				updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
 				// Mark as from-local-dirty to send an object updated message to the server
@@ -3288,6 +3297,9 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						if(this->selected_ob->physics_object.nonNull())
 							physics_world->removeObject(this->selected_ob->physics_object);
 
+						// Update in Indigo view
+						ui->indigoView->objectRemoved(*selected_ob);
+
 						if(this->selected_ob->voxel_group.voxels.size() > 0)
 						{
 							// Add updated model!
@@ -3309,6 +3321,9 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 							this->selected_ob->opengl_engine_ob = gl_ob;
 							ui->glWidget->addObject(gl_ob);
+
+							// Update in Indigo view
+							ui->indigoView->objectAdded(*selected_ob, *this->resource_manager);
 
 							ui->glWidget->opengl_engine->selectObject(gl_ob);
 
@@ -3537,6 +3552,9 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		// Update physics object
 		ob->physics_object->ob_to_world = new_ob_to_world;
 		this->physics_world->updateObjectTransformData(*ob->physics_object);
+
+		// Update in Indigo view
+		ui->indigoView->objectTransformChanged(*ob);
 
 		// Update object values in editor
 		ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
