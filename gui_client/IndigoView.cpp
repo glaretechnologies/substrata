@@ -519,6 +519,8 @@ void IndigoView::timerThink()
 				conPrint("INDIGO ERROR: " + toStdString(m->getMessage()));
 				break;
 			}
+			default:
+				break;
 			}
 		}
 	}
