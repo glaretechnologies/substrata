@@ -23,6 +23,7 @@ namespace Indigo { class SceneNodeRoot; }
 namespace Indigo { class SceneNodeCamera; }
 namespace Indigo { class SceneNodeRenderSettings; }
 class WorldObject;
+class WorldState;
 class QLabel;
 class QTimer;
 class ResourceManager;
@@ -37,6 +38,9 @@ public:
 	~IndigoView();
 
 	void initialise();
+	void shutdown();
+
+	void addExistingObjects(const WorldState& world_state, ResourceManager& resource_manager);
 
 	void objectAdded(WorldObject& object, ResourceManager& resource_manager);
 	void objectRemoved(WorldObject& object);

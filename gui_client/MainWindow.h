@@ -80,6 +80,7 @@ private slots:;
 	void glWidgetkeyReleased(QKeyEvent* e);
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 	void cameraUpdated();
+	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
 	void objectEditedSlot();
 	void URLChangedSlot();
