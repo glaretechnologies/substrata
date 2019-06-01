@@ -79,7 +79,7 @@ public:
 	std::string model_url;
 	//std::string material_url;
 	std::vector<WorldMaterialRef> materials;
-	std::string script_url;
+	std::string script;
 	std::string content; // For ObjectType_Hypercard
 	std::string target_url; // For ObjectType_Hypercard
 	Vec3d pos;
@@ -113,7 +113,7 @@ public:
 
 	std::string loaded_content;
 
-	std::string loaded_script_url;
+	std::string loaded_script;
 	int instance_index;
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 	Reference<WorldObject> prototype_object; // for instances - this is the object this object is a copy of.

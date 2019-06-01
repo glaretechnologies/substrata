@@ -2,6 +2,7 @@
 
 
 #include "PlayerPhysics.h"
+#include "ShaderEditorDialog.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
@@ -25,6 +26,7 @@
 #include <QtGui/QMouseEvent>
 #include <QtGui/QDesktopServices>
 #include <QtWidgets/QErrorMessage>
+#include <QtCore/QTimer>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -32,12 +34,13 @@
 
 ObjectEditor::ObjectEditor(QWidget *parent)
 :	QWidget(parent),
-	selected_mat_index(0)
+	selected_mat_index(0),
+	edit_timer(new QTimer(this)),
+	shader_editor(NULL)
 {
 	setupUi(this);
 
 	this->modelFileSelectWidget->force_use_last_dir_setting = true;
-	this->scriptFileSelectWidget->force_use_last_dir_setting = true;
 
 	this->scaleXDoubleSpinBox->setMinimum(0.00001);
 	this->scaleYDoubleSpinBox->setMinimum(0.00001);
@@ -46,8 +49,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->matEditor,				SIGNAL(materialChanged()),			this, SIGNAL(objectChanged()));
 
 	connect(this->modelFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
-	connect(this->scriptFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
-
+	connect(this->scriptTextEdit,			SIGNAL(textChanged()),				this, SLOT(scriptTextEditChanged()));
 	connect(this->contentTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
 	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SIGNAL(objectChanged()));
 	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SLOT(targetURLChanged()));
@@ -66,6 +68,12 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->rotAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	this->visitURLLabel->hide();
+
+	// Set up script edit timer.
+	edit_timer->setSingleShot(true);
+	edit_timer->setInterval(300);
+
+	connect(edit_timer, SIGNAL(timeout()), this, SLOT(editTimerTimeout()));
 }
 
 
@@ -98,8 +106,10 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 
 	this->selected_mat_index = selected_mat_index_;
 	this->modelFileSelectWidget->setFilename(QtUtils::toQString(ob.model_url));
-	this->scriptFileSelectWidget->setFilename(QtUtils::toQString(ob.script_url));
-
+	{
+		SignalBlocker b(this->scriptTextEdit);
+		this->scriptTextEdit->setPlainText(QtUtils::toQString(ob.script));
+	}
 	{
 		SignalBlocker b(this->contentTextEdit);
 		this->contentTextEdit->setText(QtUtils::toQString(ob.content));
@@ -181,7 +191,7 @@ void ObjectEditor::updateObjectPos(const WorldObject& ob)
 void ObjectEditor::toObject(WorldObject& ob_out)
 {
 	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
-	ob_out.script_url = QtUtils::toIndString(this->scriptFileSelectWidget->filename());
+	ob_out.script     = QtUtils::toIndString(this->scriptTextEdit->toPlainText());
 	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 
@@ -246,7 +256,7 @@ void ObjectEditor::setControlsEnabled(bool enabled)
 void ObjectEditor::setControlsEditable(bool editable)
 {
 	this->modelFileSelectWidget->setReadOnly(!editable);
-	this->scriptFileSelectWidget->setReadOnly(!editable);
+	this->scriptTextEdit->setReadOnly(!editable);
 	this->contentTextEdit->setReadOnly(!editable);
 	this->targetURLLineEdit->setReadOnly(!editable);
 
@@ -322,9 +332,51 @@ void ObjectEditor::on_newMaterialPushButton_clicked(bool checked)
 }
 
 
+void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
+{
+	if(!shader_editor)
+	{
+		shader_editor = new ShaderEditorDialog(NULL, base_dir_path);
+
+		shader_editor->setWindowTitle("Script Editor");
+		shader_editor->initialise(QtUtils::toIndString(this->scriptTextEdit->toPlainText()));
+
+		QObject::connect(shader_editor, SIGNAL(shaderChanged()), SLOT(scriptChangedFromEditor()));
+	}
+
+	shader_editor->show();
+}
+
+
 void ObjectEditor::targetURLChanged()
 {
 	this->visitURLLabel->setVisible(!this->targetURLLineEdit->text().isEmpty());
+}
+
+
+void ObjectEditor::scriptTextEditChanged()
+{
+	edit_timer->start();
+
+	if(shader_editor)
+		shader_editor->update(QtUtils::toIndString(scriptTextEdit->toPlainText()));
+}
+
+
+void ObjectEditor::scriptChangedFromEditor()
+{
+	{
+		SignalBlocker b(this->scriptTextEdit);
+		this->scriptTextEdit->setPlainText(shader_editor->getShaderText());
+	}
+
+	emit objectChanged();
+}
+
+
+void ObjectEditor::editTimerTimeout()
+{
+	emit objectChanged();
 }
 
 

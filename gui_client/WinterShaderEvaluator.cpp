@@ -64,6 +64,27 @@ WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_
 	jitted_evalTranslation(NULL)
 {
 	Timer timer;
+	
+	std::string error_msg;
+	Winter::BufferPosition error_pos(NULL, 0, 0);
+	build(base_cyberspace_path, shader, this->vm, jitted_evalRotation, jitted_evalTranslation, error_msg, error_pos);
+	if(!error_msg.empty())
+		throw Indigo::Exception(error_msg);
+}
+
+
+WinterShaderEvaluator::~WinterShaderEvaluator()
+{
+}
+
+
+void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const std::string& shader,
+	Winter::VirtualMachineRef& vm_out,
+	EVAL_ROTATION_TYPE& jitted_evalRotation_out,
+	EVAL_TRANSLATION_TYPE& jitted_evalTranslation_out,
+	std::string& error_out,
+	Winter::BufferPosition& error_pos_out)
+{
 	try
 	{
 		Winter::VMConstructionArgs vm_args;
@@ -91,48 +112,50 @@ WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_
 		vm_args.entry_point_sigs.push_back(evalRotation_sig);
 		vm_args.entry_point_sigs.push_back(evalTranslation_sig);
 
-		this->vm = new Winter::VirtualMachine(vm_args);
-		
+		vm_out = new Winter::VirtualMachine(vm_args);
+
 		//========== Find evalRotation function ===========
 		{
-			Winter::FunctionDefinitionRef func = vm->findMatchingFunction(evalRotation_sig);
+			Winter::FunctionDefinitionRef func = vm_out->findMatchingFunction(evalRotation_sig);
 
 			if(func.nonNull())
 			{
 				if(*func->returnType() != *vec3Type())
 					throw Indigo::Exception(func->sig.toString() + "  must return vec3.");
 
-				this->jitted_evalRotation = (EVAL_ROTATION_TYPE)vm->getJittedFunction(evalRotation_sig);
+				jitted_evalRotation_out = (EVAL_ROTATION_TYPE)vm_out->getJittedFunction(evalRotation_sig);
 
 				checkFunctionBounds(func); // Check time and space bounds for this function
 			}
 		}
 		//========== Find evalTranslation function ===========
 		{
-			Winter::FunctionDefinitionRef func = vm->findMatchingFunction(evalTranslation_sig);
+			Winter::FunctionDefinitionRef func = vm_out->findMatchingFunction(evalTranslation_sig);
 
 			if(func.nonNull())
 			{
 				if(*func->returnType() != *vec3Type())
 					throw Indigo::Exception(func->sig.toString() + "  must return vec3.");
 
-				this->jitted_evalTranslation = (EVAL_ROTATION_TYPE)vm->getJittedFunction(evalTranslation_sig);
+				jitted_evalTranslation_out = (EVAL_ROTATION_TYPE)vm_out->getJittedFunction(evalTranslation_sig);
 
 				checkFunctionBounds(func); // Check time and space bounds for this function
 			}
 		}
 
-		conPrint("Shader build took " + timer.elapsedString());
 	}
 	catch(Winter::BaseException& e)
 	{
-		throw Indigo::Exception(e.what() + "\n(Shader build took " + timer.elapsedString() + ")");
+		if(dynamic_cast<Winter::ExceptionWithPosition*>(&e) != NULL)
+		{
+			error_out = e.what();
+			error_pos_out = dynamic_cast<Winter::ExceptionWithPosition*>(&e)->pos();
+		}
+		else
+		{
+			error_out = e.what();
+		}
 	}
-}
-
-
-WinterShaderEvaluator::~WinterShaderEvaluator()
-{
 }
 
 

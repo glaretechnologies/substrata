@@ -132,6 +132,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui->setupUi(this);
 
 	ui->glWidget->setBaseDir(base_dir_path);
+	ui->objectEditor->base_dir_path = base_dir_path;
 
 	// Add a space to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
 	QWidget* spacer = new QWidget();
@@ -599,17 +600,15 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 {
 	try
 	{
-		if(!ob->script_url.empty())
+		if(!ob->script.empty())
 		{
-			if(ob->loaded_script_url == ob->script_url) // If we have already loaded this script, return.
+			if(ob->script == ob->loaded_script)
 				return;
 
-			ob->loaded_script_url = ob->script_url;
-
+			ob->loaded_script = ob->script;
 			try
 			{
-				const std::string script_path = resource_manager->pathForURL(ob->script_url);
-				const std::string script_content = FileUtils::readEntireFileTextMode(script_path);
+				const std::string script_content = ob->script;
 
 				// Handle instancing command if present
 				int count = 0;
@@ -644,7 +643,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 						instance->object_type = ob->object_type;
 						instance->model_url = ob->model_url;
 						instance->materials = ob->materials;
-						instance->script_url = ob->script_url;
+						//instance->script_url = ob->script_url;
 						instance->content = ob->content;
 						instance->target_url = ob->target_url;
 						instance->pos = ob->pos;// +Vec3d((double)z, 0, 0); // TEMP HACK
@@ -673,10 +672,10 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				// If this user created this model, show the error message.
 				if(ob->creator_id == this->logged_in_user_id)
 				{
-					showErrorNotification("Error while loading script '" + ob->script_url + "': " + e.what());
+					// showErrorNotification("Error while loading script '" + ob->script + "': " + e.what());
 				}
 
-				throw Indigo::Exception("Error while loading script '" + ob->script_url + "': " + e.what());
+				throw Indigo::Exception("Error while loading script '" + ob->script + "': " + e.what());
 			}
 		}
 	}
@@ -2678,7 +2677,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->uid = UID(0); // Will be set by server
 		new_world_object->object_type = this->selected_ob->object_type;
 		new_world_object->model_url = this->selected_ob->model_url;
-		new_world_object->script_url = this->selected_ob->script_url;
+		new_world_object->script = this->selected_ob->script;
 		new_world_object->materials = this->selected_ob->materials; // TODO: clone?
 		new_world_object->content = this->selected_ob->content;
 		new_world_object->target_url = this->selected_ob->target_url;

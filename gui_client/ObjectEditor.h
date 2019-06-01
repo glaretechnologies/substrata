@@ -18,6 +18,7 @@
 namespace Indigo { class Mesh; }
 class TextureServer;
 class EnvEmitter;
+class ShaderEditorDialog;
 
 
 class ObjectEditor : public QWidget, public Ui::ObjectEditor
@@ -42,16 +43,22 @@ public:
 	int getSelectedMatIndex() const { return selected_mat_index; }
 
 	void materialSelectedInBrowser(const std::string& path);
+
+	std::string base_dir_path;
 protected:
 
 signals:;
 	void objectChanged();
-
+	
 private slots:
 	void on_visitURLLabel_linkActivated(const QString& link);
 	void on_materialComboBox_currentIndexChanged(int index);
 	void on_newMaterialPushButton_clicked(bool checked);
 	void targetURLChanged();
+	void scriptTextEditChanged();
+	void scriptChangedFromEditor();
+	void on_editScriptPushButton_clicked(bool checked);
+	void editTimerTimeout();
 
 private:
 	// Store a cloned copy of the materials.
@@ -60,4 +67,8 @@ private:
 	std::vector<WorldMaterialRef> cloned_materials;
 
 	int selected_mat_index;
+
+	QTimer* edit_timer;
+
+	ShaderEditorDialog* shader_editor;
 };
