@@ -50,7 +50,6 @@ void WorldObject::appendDependencyURLs(std::vector<std::string>& URLs_out)
 	URLs_out.push_back(model_url);
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(URLs_out);
-	URLs_out.push_back(script_url);
 }
 
 
@@ -70,9 +69,6 @@ void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->convertLocalPathsToURLS(resource_manager);
-	
-	if(FileUtils::fileExists(this->script_url)) // If the URL is a local path:
-		this->script_url = resource_manager.URLForPathAndHash(this->script_url, FileChecksum::fileChecksum(this->script_url));
 }
 
 
@@ -233,10 +229,11 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 9;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 10;
 /*
 Version history:
 9: introduced voxels
+10: changed script_url to script
 
 */
 
@@ -258,7 +255,7 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 	for(size_t i=0; i<world_ob.materials.size(); ++i)
 		writeToStream(*world_ob.materials[i], stream);
 
-	stream.writeStringLengthFirst(world_ob.script_url);
+	stream.writeStringLengthFirst(world_ob.script);
 	stream.writeStringLengthFirst(world_ob.content);
 	stream.writeStringLengthFirst(world_ob.target_url);
 
@@ -309,8 +306,14 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		}
 	}
 
-	if(v >= 4)
-		ob.script_url = stream.readStringLengthFirst(10000);
+	if(v >= 4 && v < 10)
+	{
+		stream.readStringLengthFirst(10000); // read and discard script URL
+	}
+	else if(v >= 10)
+	{
+		ob.script = stream.readStringLengthFirst(10000);
+	}
 
 	if(v >= 6)
 		ob.content = stream.readStringLengthFirst(10000);
@@ -369,7 +372,7 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 	for(size_t i=0; i<world_ob.materials.size(); ++i)
 		writeToStream(*world_ob.materials[i], stream);
 
-	stream.writeStringLengthFirst(world_ob.script_url);
+	stream.writeStringLengthFirst(world_ob.script);
 	stream.writeStringLengthFirst(world_ob.content);
 	stream.writeStringLengthFirst(world_ob.target_url);
 
@@ -411,7 +414,7 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 		}
 	}
 
-	ob.script_url = stream.readStringLengthFirst(10000);
+	ob.script = stream.readStringLengthFirst(10000);
 	ob.content = stream.readStringLengthFirst(10000);
 	ob.target_url = stream.readStringLengthFirst(10000);
 
