@@ -25,7 +25,9 @@ Copyright Glare Technologies Limited 2016 -
 #include <TLSSocket.h>
 #include <MTwister.h>
 
+#if MY_SQL_STUFF
 #include <mysqlx/xdevapi.h>
+#endif
 
 
 static const int parcel_coords[10][4][2] ={
@@ -54,7 +56,7 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 		test_parcel->admin_ids.push_back(UserID(0));
 		test_parcel->writer_ids.push_back(UserID(0));
 		test_parcel->created_time = TimeStamp::currentTime();
-		test_parcel->zbounds = Vec2d(-1, 6);
+		test_parcel->zbounds = Vec2d(-1, 10);
 
 		for(int v=0; v<4; ++v)
 			test_parcel->verts[v] = M * Vec2d(parcel_coords[i][v][0], parcel_coords[i][v][1]);
@@ -97,7 +99,7 @@ static void makeBlock(const Vec2d& botleft, MTwister& rng, int& next_id, Referen
 				test_parcel->admin_ids.push_back(UserID(0));
 				test_parcel->writer_ids.push_back(UserID(0));
 				test_parcel->created_time = TimeStamp::currentTime();
-				test_parcel->zbounds = Vec2d(-1, 6);
+				test_parcel->zbounds = Vec2d(-1, 10);
 
 				test_parcel->verts[0] = botleft + Vec2d(xi * 20, yi * 20);
 				test_parcel->verts[1] = botleft + Vec2d((xi+1)* 20, yi * 20);
@@ -150,6 +152,7 @@ inline static const std::string twoDigitString(int x)
 }
 
 
+#if MY_SQL_STUFF
 // Format a timestamp into MySQL TIMESTAMP format: YYYY-MM-DD HH:MM:SS
 static std::string mySQLTimeStamp(const TimeStamp& timestamp)
 {
@@ -363,6 +366,7 @@ static void readParcelsFromMySQL(mysqlx::Schema& default_schema, ServerWorldStat
 	}
 	conPrint("\tDone. (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
 }
+#endif
 
 
 int main(int argc, char *argv[])
@@ -431,6 +435,7 @@ int main(int argc, char *argv[])
 
 		//==============================================================================
 		// https://dev.mysql.com/doc/x-devapi-userguide/en/using-sql.html
+#if MY_SQL_STUFF
 		try
 		{
 			Timer timer;
@@ -455,6 +460,7 @@ int main(int argc, char *argv[])
 			conPrint("MySQL Error: " + std::string(err.what()));
 			return 1;
 		}
+#endif
 
 		//TEMP:
 		//server.world_state->resource_manager->getResourcesForURL().clear();
