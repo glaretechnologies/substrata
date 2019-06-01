@@ -36,6 +36,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "IndigoConversion.h"
 #include "CameraController.h"
 #include "GlWidget.h"
+#include "../shared/WorldState.h"
 
 
 // Standard conversions between std::string and Indigo::String.
@@ -84,6 +85,12 @@ IndigoView::~IndigoView()
 
 void IndigoView::initialise()
 {
+	// conPrint("=====================================================");
+	// conPrint("IndigoView::initialise");
+	// conPrint("=====================================================");
+	if(this->renderer.nonNull()) // Return if already initialised.
+		return;
+
 	try
 	{
 		this->context = new Indigo::IndigoContext();
@@ -252,6 +259,54 @@ void IndigoView::initialise()
 		conPrint("Indigo initialisation error: " + toStdString(e.what()));
 		return;
 	}
+}
+
+
+void IndigoView::shutdown()
+{
+	// conPrint("=====================================================");
+	// conPrint("IndigoView::shutdown");
+	// conPrint("=====================================================");
+	
+	try
+	{
+		this->renderer = NULL;
+		this->tone_mapper = NULL;
+		this->uint8_buffer = NULL;
+		this->render_buffer = NULL;
+		this->data_manager = NULL;
+		this->root_node = NULL;
+		this->settings_node = NULL;
+		this->camera_node = NULL;
+		this->context = NULL;
+	}
+	catch(Indigo::IndigoException& e)
+	{
+		conPrint("Error while deleting Indigo API objects: " + toStdString(e.what()));
+	}
+}
+
+
+void IndigoView::addExistingObjects(const WorldState& world_state, ResourceManager& resource_manager)
+{
+	if(this->renderer.isNull())
+		return;
+
+	for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
+	{
+		WorldObject* ob = it->second.ptr();
+
+		Indigo::SceneNodeModelRef model_node = IndigoConversion::convertObject(*ob, resource_manager);
+
+		{
+			Indigo::Lock lock(this->root_node->getMutex());
+			this->root_node->addChildNode(model_node);
+			model_node->setDirtyFlags(Indigo::SceneNode::IsDirty); // Make sure to do this after adding this node to the scene graph!
+			ob->indigo_model_node = model_node;
+		}
+	}
+
+	this->renderer->updateScene();
 }
 
 

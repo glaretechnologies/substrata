@@ -220,8 +220,7 @@ void MainWindow::initialise()
 	if(!settings->contains("mainwindow/geometry"))
 		need_help_info_dock_widget_position = true;
 
-
-	this->ui->indigoView->initialise();
+	connect(this->ui->indigoViewDockWidget, SIGNAL(visibilityChanged(bool)), this, SLOT(onIndigoViewDockWidgetVisibilityChanged(bool)));
 }
 
 
@@ -270,6 +269,26 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	settings->setValue("mainwindow/windowState", saveState());
 
 	QMainWindow::closeEvent(event);
+}
+
+
+void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
+{
+	// conPrint("--------------------------------------- MainWindow::onIndigoViewDockWidgetVisibilityChanged (visible: " + boolToString(visible) + ") --------------");
+	if(visible)
+	{
+		this->ui->indigoView->initialise();
+
+		if(this->world_state.nonNull())
+		{
+			Lock lock(this->world_state->mutex);
+			this->ui->indigoView->addExistingObjects(*this->world_state, *this->resource_manager);
+		}
+	}
+	else
+	{
+		this->ui->indigoView->shutdown();
+	}
 }
 
 
