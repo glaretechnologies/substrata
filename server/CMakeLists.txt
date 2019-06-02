@@ -99,7 +99,7 @@ endif()
 
 
 if(WIN32)
-	SET(MYSQL_CONNECTOR_LIB ${MYSQL_CONNECTOR_DIR}/lib64/vs14/$(Configuration)/mysqlcppconn8.lib)
+#	SET(MYSQL_CONNECTOR_LIB ${MYSQL_CONNECTOR_DIR}/lib64/vs14/$(Configuration)/mysqlcppconn8.lib)
 else()
 	# TODO
 endif()
@@ -108,5 +108,5 @@ endif()
 target_link_libraries(${CURRENT_TARGET}
 ${QT_WIN32_LIBS}
 ${QT_LINUX_LIBS}
-${MYSQL_CONNECTOR_LIB}
+#${MYSQL_CONNECTOR_LIB}
 )
