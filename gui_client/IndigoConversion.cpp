@@ -12,6 +12,9 @@ Copyright Glare Technologies Limited 2019 -
 #include <maths/Matrix4f.h>
 
 
+#if INDIGO_SUPPORT
+
+
 inline static Indigo::Vec3d toIndigoVec3d(const Colour3f& c)
 {
 	return Indigo::Vec3d(c.r, c.g, c.b);
@@ -210,3 +213,6 @@ Indigo::SceneNodeModelRef IndigoConversion::convertObject(const WorldObject& obj
 
 	return model;
 }
+
+
+#endif

@@ -21,9 +21,11 @@ Conversion from world objects and materials to Indigo API scene graph nodes.
 class IndigoConversion
 {
 public:
+#if INDIGO_SUPPORT
 	static Indigo::SceneNodeMaterialRef convertMaterialToIndigoMat(const WorldMaterial& mat, ResourceManager& resource_manager);
 
 	static Indigo::SceneNodeMeshRef convertMesh(const WorldObject& object);
 
 	static Indigo::SceneNodeModelRef convertObject(const WorldObject& object, ResourceManager& resource_manager);
+#endif
 };
