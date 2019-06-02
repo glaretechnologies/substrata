@@ -45,6 +45,13 @@
      </widget>
     </item>
     <item>
+     <widget class="QLabel" name="buildStatusLabel">
+      <property name="text">
+       <string>build status</string>
+      </property>
+     </widget>
+    </item>
+    <item>
      <widget class="QTextEdit" name="outputTextEdit">
       <property name="font">
        <font>

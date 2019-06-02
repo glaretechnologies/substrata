@@ -222,6 +222,11 @@ void MainWindow::initialise()
 		need_help_info_dock_widget_position = true;
 
 	connect(this->ui->indigoViewDockWidget, SIGNAL(visibilityChanged(bool)), this, SLOT(onIndigoViewDockWidgetVisibilityChanged(bool)));
+
+#if INDIGO_SUPPORT
+#else
+	this->ui->indigoViewDockWidget->hide();
+#endif
 }
 
 
@@ -2734,9 +2739,11 @@ void MainWindow::on_actionReset_Layout_triggered()
 	this->addDockWidget(Qt::TopDockWidgetArea, ui->materialBrowserDockWidget, Qt::Horizontal);
 	ui->materialBrowserDockWidget->show();
 
+#if INDIGO_SUPPORT
 	ui->indigoViewDockWidget->setFloating(false);
 	this->addDockWidget(Qt::RightDockWidgetArea, ui->indigoViewDockWidget, Qt::Vertical);
 	ui->indigoViewDockWidget->show();
+#endif
 
 	ui->helpInfoDockWidget->setFloating(true);
 	ui->helpInfoDockWidget->show();

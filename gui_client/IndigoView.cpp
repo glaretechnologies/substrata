@@ -6,6 +6,8 @@ Copyright Glare Technologies Limited 2019 -
 #include "IndigoView.h"
 
 
+#if INDIGO_SUPPORT
+
 #include <dll/include/IndigoContext.h>
 #include <dll/include/IndigoString.h>
 #include <dll/include/IndigoErrorCodes.h>
@@ -23,6 +25,8 @@ Copyright Glare Technologies Limited 2019 -
 #include <dll/include/SceneNodeCamera.h>
 #include <dll/include/SceneNodeRenderSettings.h>
 
+#endif
+
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
 
@@ -39,6 +43,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "../shared/WorldState.h"
 
 
+#if INDIGO_SUPPORT
 // Standard conversions between std::string and Indigo::String.
 static const std::string toStdString(const Indigo::String& s)
 {
@@ -49,6 +54,7 @@ static const Indigo::String toIndigoString(const std::string& s)
 {
 	return Indigo::String(s.c_str(), s.length());
 }
+#endif
 
 
 IndigoView::IndigoView(QWidget* parent)
@@ -85,6 +91,7 @@ IndigoView::~IndigoView()
 
 void IndigoView::initialise()
 {
+#if INDIGO_SUPPORT
 	// conPrint("=====================================================");
 	// conPrint("IndigoView::initialise");
 	// conPrint("=====================================================");
@@ -259,6 +266,7 @@ void IndigoView::initialise()
 		conPrint("Indigo initialisation error: " + toStdString(e.what()));
 		return;
 	}
+#endif
 }
 
 
@@ -267,7 +275,7 @@ void IndigoView::shutdown()
 	// conPrint("=====================================================");
 	// conPrint("IndigoView::shutdown");
 	// conPrint("=====================================================");
-	
+#if INDIGO_SUPPORT
 	try
 	{
 		this->renderer = NULL;
@@ -284,11 +292,13 @@ void IndigoView::shutdown()
 	{
 		conPrint("Error while deleting Indigo API objects: " + toStdString(e.what()));
 	}
+#endif
 }
 
 
 void IndigoView::addExistingObjects(const WorldState& world_state, ResourceManager& resource_manager)
 {
+#if INDIGO_SUPPORT
 	if(this->renderer.isNull())
 		return;
 
@@ -307,11 +317,13 @@ void IndigoView::addExistingObjects(const WorldState& world_state, ResourceManag
 	}
 
 	this->renderer->updateScene();
+#endif
 }
 
 
 void IndigoView::objectAdded(WorldObject& object, ResourceManager& resource_manager)
 {
+#if INDIGO_SUPPORT
 	if(this->renderer.isNull())
 		return;
 
@@ -328,12 +340,14 @@ void IndigoView::objectAdded(WorldObject& object, ResourceManager& resource_mana
 	this->renderer->updateScene();
 
 	object.indigo_model_node = model_node;
+#endif
 }
 
 
 // NOTE: This code currently has no effect on the Indigo rendering, will be fixed soon.
 void IndigoView::objectRemoved(WorldObject& object)
 {
+#if INDIGO_SUPPORT
 	if(this->renderer.isNull())
 		return;
 
@@ -351,9 +365,10 @@ void IndigoView::objectRemoved(WorldObject& object)
 
 		object.indigo_model_node = NULL;
 	}
+#endif
 }
 
-
+#if INDIGO_SUPPORT
 // without pos
 static const Matrix4f obToWorldMatrix(const WorldObject* ob)
 {
@@ -366,11 +381,13 @@ inline static Indigo::Vec3d toIndigoVec3d(const Vec3d& c)
 {
 	return Indigo::Vec3d(c.x, c.y, c.z);
 }
+#endif
 
 
 // NOTE: This code generally kicks of a full scene rebuild, will be fixed soon.
 void IndigoView::objectTransformChanged(WorldObject& object)
 {
+#if INDIGO_SUPPORT
 	if(this->renderer.isNull())
 		return;
 
@@ -392,11 +409,13 @@ void IndigoView::objectTransformChanged(WorldObject& object)
 
 		this->renderer->updateScene();
 	}
+#endif
 }
 
 
 void IndigoView::cameraUpdated(const CameraController& cam_controller)
 {
+#if INDIGO_SUPPORT
 	if(this->renderer.isNull())
 		return;
 
@@ -411,11 +430,13 @@ void IndigoView::cameraUpdated(const CameraController& cam_controller)
 	}
 
 	this->renderer->updateScene();
+#endif
 }
 
 
 void IndigoView::saveSceneToDisk()
 {
+#if INDIGO_SUPPORT
 	if(this->root_node.isNull())
 		return;
 
@@ -430,6 +451,7 @@ void IndigoView::saveSceneToDisk()
 	{
 		conPrint("Error saving scene to disk: " + toStdString(e.what()));
 	}
+#endif
 }
 
 
@@ -453,7 +475,7 @@ void IndigoView::resizeEvent(QResizeEvent* ev)
 void IndigoView::resizeDone()
 {
 	clearPreview();
-
+#if INDIGO_SUPPORT
 	if(this->renderer.isNull())
 		return;
 
@@ -468,11 +490,13 @@ void IndigoView::resizeDone()
 	}
 
 	this->renderer->updateScene();
+#endif
 }
 
 
 void IndigoView::timerThink()
 {
+#if INDIGO_SUPPORT
 	if(this->renderer.isNull())
 		return;
 
@@ -524,4 +548,5 @@ void IndigoView::timerThink()
 			}
 		}
 	}
+#endif
 }
