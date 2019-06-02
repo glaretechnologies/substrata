@@ -250,8 +250,8 @@ if(WIN32)
 		debug Qt5Cored
 		debug Qt5OpenGLd
 		debug Qt5Widgetsd
-		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
-		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
+#		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
+#		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
 		)
 
 	# Disable ASLR (/DYNAMICBASE)
