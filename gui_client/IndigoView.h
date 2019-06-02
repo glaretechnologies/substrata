@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2019 -
 #pragma once
 
 
+// #define INDIGO_SUPPORT
+
+
 #include "../utils/Timer.h"
 #include "../utils/Reference.h"
 #include "../utils/RefCounted.h"
@@ -60,7 +63,7 @@ protected:
 
 private:
 	void clearPreview();
-
+#if INDIGO_SUPPORT
 	Reference<Indigo::SceneNodeRoot> root_node;
 	Reference<Indigo::SceneNodeRenderSettings> settings_node;
 	Reference<Indigo::SceneNodeCamera> camera_node;
@@ -71,7 +74,7 @@ private:
 	Reference<Indigo::UInt8Buffer> uint8_buffer;
 	Reference<Indigo::ToneMapper> tone_mapper;
 	Reference<Indigo::DataManager> data_manager;
-	
+#endif
 	QLabel* label;
 	QTimer* resize_timer;
 };

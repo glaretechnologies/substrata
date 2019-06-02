@@ -135,13 +135,18 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 
 		WinterShaderEvaluator::build(base_dir_path, shader, vm, jitted_evalRotation, jitted_evalTranslation, error_msg, error_pos);
 
+		const QSize status_label_size(60, 4);
 		if(error_msg.empty())
 		{
-			this->outputTextEdit->setPlainText(QtUtils::toQString("Script built successfully in " + build_timer.elapsedString()));
+			this->outputTextEdit->setPlainText("Script built successfully."); // QtUtils::toQString("Script built successfully."));// in " + build_timer.elapsedString()));
 
 			shaderEdit->blockSignals(true);
 			this->highlighter->clearError();
 			shaderEdit->blockSignals(false);
+
+			QPixmap p(status_label_size);
+			p.fill(Qt::green);
+			this->buildStatusLabel->setPixmap(p);
 		}
 		else
 		{
@@ -151,6 +156,10 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			shaderEdit->blockSignals(true);
 			this->highlighter->showErrorAtCharIndex((int)error_pos.pos, (int)error_pos.len);
 			shaderEdit->blockSignals(false);
+
+			QPixmap p(status_label_size);
+			p.fill(Qt::red);
+			this->buildStatusLabel->setPixmap(p);
 		}
 	}
 	catch(Indigo::Exception& e)
