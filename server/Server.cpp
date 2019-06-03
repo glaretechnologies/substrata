@@ -569,6 +569,7 @@ int main(int argc, char *argv[])
 		Timer save_state_timer;
 
 		// Main server loop
+		uint64 loop_iter = 0;
 		while(1)
 		{
 			PlatformUtils::Sleep(100);
@@ -766,6 +767,23 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
+			
+			if((loop_iter % 40) == 0) // Approx every 4 s.
+			{
+				// Send out TimeSyncMessage packets to clients
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::TimeSyncMessage);
+				packet.writeDouble(server.getCurrentGlobalTime());
+				std::string packet_string(packet.buf.size(), '\0');
+				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+
+				Lock lock3(server.worker_thread_manager.getMutex());
+				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
+				{
+					assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+					static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+				}
+			}
 
 
 			if(server.world_state->changed && (save_state_timer.elapsed() > 5.0))
@@ -787,6 +805,8 @@ int main(int argc, char *argv[])
 				}
 			}
 
+
+			loop_iter++;
 		} // End of main server loop
 	}
 	catch(ArgumentParserExcep& e)
@@ -813,4 +833,10 @@ int main(int argc, char *argv[])
 Server::Server()
 {
 	world_state = new ServerWorldState();
+}
+
+
+double Server::getCurrentGlobalTime() const
+{
+	return Clock::getCurTimeRealSec();
 }
