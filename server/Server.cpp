@@ -535,8 +535,15 @@ int main(int argc, char *argv[])
 					else
 						makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, server.world_state);
 				}
-			
-			
+		}
+
+		// TEMP: make all parcels have zmax = 10
+		{
+			for(auto i = server.world_state->parcels.begin(); i != server.world_state->parcels.end(); ++i)
+			{
+				ParcelRef parcel = i->second;
+				parcel->zbounds.y = 10.0f;
+			}
 		}
 
 		// TEMP: Assign some parcel permissions
