@@ -501,6 +501,12 @@ void ClientThread::doRun()
 						out_msg_queue->enqueue(new SignedUpMessage(user_id, signed_up_username));
 						break;
 					}
+				case Protocol::TimeSyncMessage:
+					{
+						const double global_time = socket->readDouble();
+						world_state->updateWithGlobalTimeReceived(global_time);
+						break;
+					}
 				default:
 					{
 						conPrint("Unknown message id: " + ::toString(msg_type));

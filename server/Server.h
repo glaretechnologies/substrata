@@ -20,6 +20,8 @@ class Server
 public:
 	Server();
 
+	double getCurrentGlobalTime() const;
+
 	Reference<ServerWorldState> world_state;
 
 	// Connected client worker threads

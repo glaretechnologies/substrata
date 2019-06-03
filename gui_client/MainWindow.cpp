@@ -915,7 +915,7 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
-	const double cur_time = Clock::getTimeSinceInit();
+	const double cur_time = this->world_state->getCurrentGlobalTime();
 
 	ui->indigoView->timerThink();
 

@@ -36,6 +36,16 @@ public:
 	std::map<ParcelID, ParcelRef> parcels;
 
 	Mutex mutex;
+
+	// Just used on clients:
+	void updateWithGlobalTimeReceived(double t);
+	double getCurrentGlobalTime() const;
+
+	double last_global_time_received;
+	double local_time_global_time_received;
+
+	double correction_start_time; // Time we started correcting/skewing to the target time, as measured with Clock::getCurTimeRealSec().
+	double correction_amount; // Clock delta.  At the end of the correction time we want to have changed the current time by this much.
 private:
 
 };

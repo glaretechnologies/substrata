@@ -366,6 +366,13 @@ void WorkerThread::doRun()
 			client_avatar_uid = world_state->getNextAvatarUID();
 			writeToStream(client_avatar_uid, *socket);
 
+			// Send TimeSyncMessage packet to client
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::TimeSyncMessage);
+				packet.writeDouble(server->getCurrentGlobalTime());
+				socket->writeData(packet.buf.data(), packet.buf.size());
+			}
 
 			// Send all current avatar state data to client
 			{
