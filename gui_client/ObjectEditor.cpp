@@ -345,6 +345,7 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 	}
 
 	shader_editor->show();
+	shader_editor->raise();
 }
 
 

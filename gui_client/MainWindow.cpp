@@ -605,7 +605,12 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 {
 	try
 	{
-		if(!ob->script.empty())
+		if(ob->script.empty())
+		{
+			ob->script_evaluator = NULL;
+			ob->loaded_script = ob->script;
+		}
+		else
 		{
 			if(ob->script == ob->loaded_script)
 				return;
