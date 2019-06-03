@@ -838,5 +838,5 @@ Server::Server()
 
 double Server::getCurrentGlobalTime() const
 {
-	return Clock::getCurTimeRealSec();
+	return Clock::getTimeSinceInit();
 }
