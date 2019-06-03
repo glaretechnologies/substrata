@@ -339,10 +339,11 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 		shader_editor = new ShaderEditorDialog(NULL, base_dir_path);
 
 		shader_editor->setWindowTitle("Script Editor");
-		shader_editor->initialise(QtUtils::toIndString(this->scriptTextEdit->toPlainText()));
 
 		QObject::connect(shader_editor, SIGNAL(shaderChanged()), SLOT(scriptChangedFromEditor()));
 	}
+
+	shader_editor->initialise(QtUtils::toIndString(this->scriptTextEdit->toPlainText()));
 
 	shader_editor->show();
 	shader_editor->raise();
