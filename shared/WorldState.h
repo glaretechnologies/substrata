@@ -31,7 +31,7 @@ public:
 
 	std::map<UID, Reference<WorldObject>> objects;
 
-	std::set<Reference<WorldObject> > instances; // Objects created by the intancing command in scripts.
+	std::set<Reference<WorldObject> > instances; // Objects created by the instancing command in scripts.
 
 	std::map<ParcelID, ParcelRef> parcels;
 
