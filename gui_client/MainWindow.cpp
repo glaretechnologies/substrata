@@ -618,6 +618,20 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 			ob->loaded_script = ob->script;
 			try
 			{
+				// Remove any existing instances of this object
+				for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); )
+				{
+					if((*it)->prototype_object.ptr() == ob) // If the instance has this object as a prototype:
+					{
+						ui->glWidget->removeObject((*it)->opengl_engine_ob); // Remove from 3d engine
+
+						auto it_to_erase = it++;
+						this->world_state->instances.erase(it_to_erase);
+					}
+					else
+						++it;
+				}
+
 				const std::string script_content = ob->script;
 
 				// Handle instancing command if present
@@ -635,6 +649,9 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 					}
 				}
 
+				const int MAX_COUNT = 100;
+				count = myMin(count, MAX_COUNT);
+
 				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
 
 				if(count > 0) // If instancing was requested:
@@ -645,7 +662,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 					for(size_t z=0; z<(size_t)count; ++z)
 					{
 						WorldObjectRef instance = new WorldObject();
-						instance->instance_index = (int)z;
+						instance->instance_index = 1 + (int)z; // Prototype object can be considered instance 0.
 						instance->script_evaluator = ob->script_evaluator;
 						instance->prototype_object = ob;
 
@@ -653,7 +670,6 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 						instance->object_type = ob->object_type;
 						instance->model_url = ob->model_url;
 						instance->materials = ob->materials;
-						//instance->script_url = ob->script_url;
 						instance->content = ob->content;
 						instance->target_url = ob->target_url;
 						instance->pos = ob->pos;// +Vec3d((double)z, 0, 0); // TEMP HACK
