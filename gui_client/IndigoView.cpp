@@ -28,7 +28,6 @@ Copyright Glare Technologies Limited 2019 -
 #endif
 
 #include <utils/ConPrint.h>
-#include <utils/PlatformUtils.h>
 
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QLabel>
