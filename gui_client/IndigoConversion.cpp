@@ -39,7 +39,7 @@ inline static const Indigo::String toIndigoString(const std::string& s)
 }
 
 
-Indigo::String convertURLToPath(const std::string& URL, ResourceManager& resource_manager)
+static Indigo::String convertURLToPath(const std::string& URL, ResourceManager& resource_manager)
 {
 	return toIndigoString(resource_manager.pathForURL(URL));
 }
@@ -158,7 +158,7 @@ Indigo::SceneNodeMeshRef IndigoConversion::convertMesh(const WorldObject& object
 }
 
 
-// without pos
+// Without translation
 static const Matrix4f obToWorldMatrix(const WorldObject* ob)
 {
 	return Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *

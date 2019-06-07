@@ -283,7 +283,7 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 	// conPrint("--------------------------------------- MainWindow::onIndigoViewDockWidgetVisibilityChanged (visible: " + boolToString(visible) + ") --------------");
 	if(visible)
 	{
-		this->ui->indigoView->initialise();
+		this->ui->indigoView->initialise(this->base_dir_path);
 
 		if(this->world_state.nonNull())
 		{
@@ -716,6 +716,35 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 }
 
 
+void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
+{
+	// Remove any existing instances of this object
+	for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); ++it)
+	{
+		WorldObject* instance = it->ptr();
+
+		if(instance->prototype_object.ptr() == ob) // If the instance has this object as a prototype:
+		{
+			instance->materials = ob->materials;
+
+			instance->opengl_engine_ob->materials.resize(ob->materials.size());
+			for(uint32 i=0; i<ob->materials.size(); ++i)
+				ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, instance->opengl_engine_ob->materials[i]);
+
+			instance->angle = ob->angle;
+			instance->pos = ob->pos;
+			instance->scale = ob->scale;
+
+			if(instance->opengl_engine_ob.nonNull())
+			{
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(instance->opengl_engine_ob);
+				ui->glWidget->opengl_engine->updateObjectTransformData(*instance->opengl_engine_ob);
+			}
+		}
+	}
+}
+
+
 void MainWindow::print(const std::string& message) // Print to log and console
 {
 	conPrint(message);
@@ -782,14 +811,14 @@ void MainWindow::showInfoNotification(const std::string& message)
 }
 
 
-void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
+void MainWindow::evalObjectScript(WorldObject* ob, double global_time)
 {
 	CybWinterEnv winter_env;
 	winter_env.instance_index = ob->instance_index;
 
 	if(ob->script_evaluator->jitted_evalRotation)
 	{
-		const Vec4f rot = ob->script_evaluator->evalRotation((float)cur_time, winter_env);
+		const Vec4f rot = ob->script_evaluator->evalRotation((float)global_time, winter_env);
 		ob->angle = rot.length();
 		if(ob->angle > 0)
 			ob->axis = Vec3f(normalise(rot));
@@ -801,7 +830,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, double cur_time)
 	{
 		if(ob->prototype_object.nonNull())
 			ob->pos = ob->prototype_object->pos;
-		ob->translation = ob->script_evaluator->evalTranslation((float)cur_time, winter_env);
+		ob->translation = ob->script_evaluator->evalTranslation((float)global_time, winter_env);
 	}
 
 	// Update transform in 3d engine
@@ -931,7 +960,8 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
-	const double cur_time = this->world_state->getCurrentGlobalTime();
+	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+	const double global_time = this->world_state->getCurrentGlobalTime(); // Used as input into script functions
 
 	ui->indigoView->timerThink();
 
@@ -1307,7 +1337,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			WorldObject* ob = it->second.getPointer();
 			if(ob->script_evaluator.nonNull())
-				evalObjectScript(ob, cur_time);
+				evalObjectScript(ob, global_time);
 		}
 
 		// Evaluate scripts on instances
@@ -1315,7 +1345,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			WorldObject* ob = it->getPointer();
 			if(ob->script_evaluator.nonNull())
-				evalObjectScript(ob, cur_time);
+				evalObjectScript(ob, global_time);
 		}
 	}
 
@@ -1672,6 +1702,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								// Update in Indigo view
 								ui->indigoView->objectTransformChanged(*ob);
 							}
+
+							updateInstancedCopiesOfObject(ob);
 
 							active_objects.insert(ob);
 						}
@@ -3021,10 +3053,6 @@ void MainWindow::objectEditedSlot()
 	// Update object material(s) with values from editor.
 	if(this->selected_ob.nonNull())
 	{
-		//if(selected_ob->materials.empty())
-		//	selected_ob->materials.push_back(new WorldMaterial());
-
-		//this->matEditor->toMaterial(*this->selected_ob->materials[0]);
 		ui->objectEditor->toObject(*this->selected_ob);
 
 		// Copy all dependencies into resource directory if they are not there already.
@@ -3147,7 +3175,11 @@ void MainWindow::objectEditedSlot()
 					this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 				}
 
-				loadScriptForObject(this->selected_ob.getPointer());
+				loadScriptForObject(this->selected_ob.ptr());
+
+				// Update any instanced copies of object
+				updateInstancedCopiesOfObject(this->selected_ob.ptr());
+
 			}
 			else // Else if new transform is not valid
 			{

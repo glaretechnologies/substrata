@@ -73,7 +73,7 @@ public:
 	static const int HISTORY_BUF_SIZE = 4;
 	Vec3d pos_snapshots[HISTORY_BUF_SIZE];
 	Vec3f rotation_snapshots[HISTORY_BUF_SIZE];
-	double snapshot_times[HISTORY_BUF_SIZE];
+	double snapshot_times[HISTORY_BUF_SIZE]; // Time as measured by Clock::getTimeSinceInit().
 	//double last_snapshot_time;
 	uint32 next_snapshot_i;
 private:
