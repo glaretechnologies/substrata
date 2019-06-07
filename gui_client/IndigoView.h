@@ -40,7 +40,7 @@ public:
 	IndigoView(QWidget* parent = 0);
 	~IndigoView();
 
-	void initialise();
+	void initialise(const std::string& base_dir_path);
 	void shutdown();
 
 	void addExistingObjects(const WorldState& world_state, ResourceManager& resource_manager);

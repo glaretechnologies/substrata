@@ -88,7 +88,7 @@ IndigoView::~IndigoView()
 {}
 
 
-void IndigoView::initialise()
+void IndigoView::initialise(const std::string& base_dir_path)
 {
 #if INDIGO_SUPPORT
 	// conPrint("=====================================================");
@@ -101,12 +101,12 @@ void IndigoView::initialise()
 	{
 		this->context = new Indigo::IndigoContext();
 
-		//const std::string dll_dir = ".";
 #ifndef NDEBUG
-		const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/Debug";
+		//const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/Debug";
 #else
-		const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo";
+		//const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo";
 #endif
+		const std::string dll_dir = base_dir_path; // base_dir_path is the dir the main executable is in.
 
 		Indigo::String error_msg;
 		indResult res = this->context->initialise(toIndigoString(dll_dir), Indigo::IndigoContext::getDefaultAppDataPath(), error_msg);
@@ -368,7 +368,7 @@ void IndigoView::objectRemoved(WorldObject& object)
 }
 
 #if INDIGO_SUPPORT
-// without pos
+// Without translation
 static const Matrix4f obToWorldMatrix(const WorldObject* ob)
 {
 	return Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
@@ -383,7 +383,7 @@ inline static Indigo::Vec3d toIndigoVec3d(const Vec3d& c)
 #endif
 
 
-// NOTE: This code generally kicks of a full scene rebuild, will be fixed soon.
+// NOTE: This code generally kicks of a full scene rebuild, will be fixed soon to only do partial rebuilds.
 void IndigoView::objectTransformChanged(WorldObject& object)
 {
 #if INDIGO_SUPPORT
@@ -501,6 +501,7 @@ void IndigoView::timerThink()
 
 	if(this->tone_mapper->isImageFresh())
 	{
+		// Copy image from the Indigo API Uint8 buffer, to the Qt label, in order to display it.
 		Indigo::Lock lock(this->uint8_buffer->getMutex());
 
 		const int W = (int)this->uint8_buffer->width();
