@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2017 -
 struct CybWinterEnv
 {
 	int instance_index;
+	int num_instances;
 };
 
 /*=====================================================================

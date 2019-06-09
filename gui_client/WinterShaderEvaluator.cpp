@@ -97,9 +97,13 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 		vm_args.source_buffers.push_back(new Winter::SourceBuffer("buffer", shader));
 
 
+		// NOTE: These names are ignored in practice.
+		std::vector<std::string> elem_names(2);
+		elem_names[0] = "instance_index";
+		elem_names[1] = "num_instances";
 		Winter::TypeVRef CybWinterEnv_type = new Winter::StructureType("WinterEnv",
-			std::vector<Winter::TypeVRef>(1, new Winter::Int()),
-			std::vector<std::string>(1, "instance_index")
+			std::vector<Winter::TypeVRef>(2, new Winter::Int()),
+			elem_names
 		);
 
 

@@ -327,7 +327,7 @@
         </property>
        </widget>
       </item>
-      <item row="12" column="1">
+      <item row="13" column="1">
        <spacer name="verticalSpacer_3">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -343,21 +343,21 @@
         </property>
        </spacer>
       </item>
-      <item row="13" column="0">
+      <item row="14" column="0">
        <widget class="QLabel" name="label_9">
         <property name="text">
          <string>Script</string>
         </property>
        </widget>
       </item>
-      <item row="15" column="0">
+      <item row="16" column="0">
        <widget class="QLabel" name="label_12">
         <property name="text">
          <string>Content</string>
         </property>
        </widget>
       </item>
-      <item row="15" column="1">
+      <item row="16" column="1">
        <widget class="QTextEdit" name="contentTextEdit">
         <property name="minimumSize">
          <size>
@@ -367,17 +367,17 @@
         </property>
        </widget>
       </item>
-      <item row="16" column="0">
+      <item row="17" column="0">
        <widget class="QLabel" name="targetURLLabel">
         <property name="text">
          <string>Target URL</string>
         </property>
        </widget>
       </item>
-      <item row="16" column="1">
+      <item row="17" column="1">
        <widget class="QLineEdit" name="targetURLLineEdit"/>
       </item>
-      <item row="17" column="1">
+      <item row="18" column="1">
        <widget class="QLabel" name="visitURLLabel">
         <property name="text">
          <string>&lt;a href=&quot;#boo&quot;&gt;Open URL in web browser&lt;/a&gt;</string>
@@ -411,7 +411,7 @@
         </property>
        </widget>
       </item>
-      <item row="13" column="1">
+      <item row="14" column="1">
        <widget class="QWidget" name="widget_5" native="true">
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <property name="spacing">
@@ -462,6 +462,20 @@
           </widget>
          </item>
         </layout>
+       </widget>
+      </item>
+      <item row="12" column="1">
+       <widget class="QCheckBox" name="collidableCheckBox">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="12" column="0">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Collidable</string>
+        </property>
        </widget>
       </item>
      </layout>

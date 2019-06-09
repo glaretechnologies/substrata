@@ -63,6 +63,8 @@ public:
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
 	void setPosAndHistory(const Vec3d& pos);
+	inline bool isCollidable() const;
+	inline void setCollidable(bool c);
 
 	enum ObjectType
 	{
@@ -86,6 +88,9 @@ public:
 	Vec3f axis;
 	float angle;
 	Vec3f scale;
+
+	static const int COLLIDABLE_FLAG = 1; // Is this object solid from the point of view of the physics engine?
+	uint32 flags;
 
 	VoxelGroup voxel_group;
 
@@ -115,6 +120,7 @@ public:
 
 	std::string loaded_script;
 	int instance_index;
+	int num_instances; // number of instances of the prototype object that this is object is an instance of.
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 	Reference<WorldObject> prototype_object; // for instances - this is the object this object is a copy of.
 
@@ -150,6 +156,21 @@ private:
 
 
 typedef Reference<WorldObject> WorldObjectRef;
+
+
+bool WorldObject::isCollidable() const
+{
+	return (flags & COLLIDABLE_FLAG) != 0;
+}
+
+
+void WorldObject::setCollidable(bool c)
+{
+	if(c)
+		flags |= COLLIDABLE_FLAG;
+	else
+		flags &= ~COLLIDABLE_FLAG;
+}
 
 
 void writeToStream(const WorldObject& world_ob, OutStream& stream);

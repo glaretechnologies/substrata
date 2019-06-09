@@ -478,7 +478,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				ui->glWidget->addObject(cube_gl_ob);
 
 				// Make physics object
-				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 				physics_ob->geometry = this->unit_cube_raymesh;
 				physics_ob->ob_to_world = cube_ob_to_world_matrix;
 
@@ -548,7 +548,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 					Reference<RayMesh> raymesh;
 					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, task_manager, raymesh);
 
-					physics_ob = new PhysicsObject(/*collidable=*/true);
+					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 					physics_ob->geometry = raymesh;
 					physics_ob->ob_to_world = ob_to_world_matrix;
 
@@ -568,7 +568,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, this->task_manager, ob_to_world_matrix, mesh, raymesh);
 				
 				// Make physics object
-				physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 				physics_ob->geometry = raymesh;
 				physics_ob->ob_to_world = ob_to_world_matrix;
 			}
@@ -601,6 +601,27 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 }
 
 
+// Remove any existing instances of this object from the instance set, also from 3d engine and physics engine.
+void MainWindow::removeInstancesOfObject(const WorldObject* ob)
+{
+	for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); )
+	{
+		WorldObject* instance = (*it).ptr();
+		if(instance->prototype_object.ptr() == ob) // If the instance has ob as a prototype:
+		{
+			ui->glWidget->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
+
+			physics_world->removeObject(instance->physics_object); // Remove from physics engine
+
+			auto it_to_erase = it++;
+			this->world_state->instances.erase(it_to_erase);
+		}
+		else
+			++it;
+	}
+}
+
+
 void MainWindow::loadScriptForObject(WorldObject* ob)
 {
 	try
@@ -618,19 +639,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 			ob->loaded_script = ob->script;
 			try
 			{
-				// Remove any existing instances of this object
-				for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); )
-				{
-					if((*it)->prototype_object.ptr() == ob) // If the instance has this object as a prototype:
-					{
-						ui->glWidget->removeObject((*it)->opengl_engine_ob); // Remove from 3d engine
-
-						auto it_to_erase = it++;
-						this->world_state->instances.erase(it_to_erase);
-					}
-					else
-						++it;
-				}
+				removeInstancesOfObject(ob);
 
 				const std::string script_content = ob->script;
 
@@ -653,6 +662,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				count = myMin(count, MAX_COUNT);
 
 				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
+				ob->num_instances = count;
 
 				if(count > 0) // If instancing was requested:
 				{
@@ -663,6 +673,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 					{
 						WorldObjectRef instance = new WorldObject();
 						instance->instance_index = 1 + (int)z; // Prototype object can be considered instance 0.
+						instance->num_instances = count;
 						instance->script_evaluator = ob->script_evaluator;
 						instance->prototype_object = ob;
 
@@ -676,6 +687,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 						instance->axis = ob->axis;
 						instance->angle = ob->angle;
 						instance->scale = ob->scale;
+						instance->flags = ob->flags;
 
 						instance->state = WorldObject::State_Alive;
 
@@ -687,6 +699,16 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 
 						// Add to 3d engine
 						ui->glWidget->addObject(instance->opengl_engine_ob);
+
+						// Make physics object
+						PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+						physics_ob->geometry = ob->physics_object->geometry;
+						physics_ob->ob_to_world = ob->physics_object->ob_to_world;
+
+						instance->physics_object = physics_ob;
+						physics_ob->userdata = instance.ptr();
+						physics_ob->userdata_type = 0;
+						physics_world->addObject(physics_ob);
 
 						// Add to instances list
 						this->world_state->instances.insert(instance);
@@ -739,6 +761,11 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 			{
 				ui->glWidget->opengl_engine->objectMaterialsUpdated(instance->opengl_engine_ob);
 				ui->glWidget->opengl_engine->updateObjectTransformData(*instance->opengl_engine_ob);
+			}
+
+			if(instance->physics_object.nonNull())
+			{
+				physics_world->updateObjectTransformData(*instance->physics_object);
 			}
 		}
 	}
@@ -815,15 +842,24 @@ void MainWindow::evalObjectScript(WorldObject* ob, double global_time)
 {
 	CybWinterEnv winter_env;
 	winter_env.instance_index = ob->instance_index;
+	winter_env.num_instances = ob->num_instances;
 
 	if(ob->script_evaluator->jitted_evalRotation)
 	{
 		const Vec4f rot = ob->script_evaluator->evalRotation((float)global_time, winter_env);
 		ob->angle = rot.length();
-		if(ob->angle > 0)
-			ob->axis = Vec3f(normalise(rot));
+		if(isFinite(ob->angle))
+		{
+			if(ob->angle > 0)
+				ob->axis = Vec3f(normalise(rot));
+			else
+				ob->axis = Vec3f(1, 0, 0);
+		}
 		else
+		{
+			ob->angle = 0;
 			ob->axis = Vec3f(1, 0, 0);
+		}
 	}
 
 	if(ob->script_evaluator->jitted_evalTranslation)
@@ -1626,6 +1662,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						physics_world->removeObject(ob->physics_object);
 						need_physics_world_rebuild = true;
 					}
+
+					removeInstancesOfObject(ob);
 
 					//// Remove object from object map
 					auto old_object_iterator = it;
@@ -2743,6 +2781,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->axis = selected_ob->axis;
 		new_world_object->angle = selected_ob->angle;
 		new_world_object->scale = selected_ob->scale;
+		new_world_object->flags = selected_ob->flags;
 		new_world_object->voxel_group = selected_ob->voxel_group;
 
 		// Send CreateObject message to server
@@ -3179,7 +3218,6 @@ void MainWindow::objectEditedSlot()
 
 				// Update any instanced copies of object
 				updateInstancedCopiesOfObject(this->selected_ob.ptr());
-
 			}
 			else // Else if new transform is not valid
 			{
@@ -3392,7 +3430,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 							for(uint32 i=0; i<this->selected_ob->materials.size(); ++i)
 								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager, gl_ob->materials[i]);
 
-							Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/true);
+							Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/this->selected_ob->isCollidable());
 							physics_ob->geometry = raymesh;
 							physics_ob->ob_to_world = ob_to_world;
 
@@ -3523,6 +3561,11 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 			assert(this->selected_ob->getRefCount() >= 0);
+
+			// If we hit an instance, select the prototype object instead.
+			if(this->selected_ob->instance_index > 0 && this->selected_ob->prototype_object.nonNull())
+				this->selected_ob = this->selected_ob->prototype_object;
+
 
 			// Mark the materials on the hit object as selected
 			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);

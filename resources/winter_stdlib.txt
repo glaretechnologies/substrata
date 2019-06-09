@@ -1,11 +1,12 @@
 # Indigo Shader Language standard library functions
-# Copyright Glare Technologies Limited 2014 -
+# Copyright Glare Technologies Limited 2019 -
 
 
 
 struct WinterEnv
 {
-	int instance_index
+	int instance_index,
+	int num_instances
 }
 
 
