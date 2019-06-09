@@ -108,6 +108,7 @@ private:
 	void recolourParcelsForLoggedInState();
 	void updateSelectedObjectPlacementBeam();
 	void updateInstancedCopiesOfObject(WorldObject* ob);
+	void removeInstancesOfObject(const WorldObject* ob);
 	
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.

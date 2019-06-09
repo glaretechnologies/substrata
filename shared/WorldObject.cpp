@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2016 -
 WorldObject::WorldObject()
 {
 	creator_id = UserID::invalidUserID();
+	flags = COLLIDABLE_FLAG;
 
 	object_type = ObjectType_Generic;
 	from_remote_transform_dirty = false;
@@ -35,6 +36,7 @@ WorldObject::WorldObject()
 	//last_snapshot_time = 0;
 
 	instance_index = 0;
+	num_instances = 0;
 	translation = Vec4f(0.f);
 }
 
@@ -229,12 +231,12 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 10;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 11;
 /*
 Version history:
 9: introduced voxels
 10: changed script_url to script
-
+11: Added flags
 */
 
 
@@ -266,6 +268,8 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 
 	world_ob.created_time.writeToStream(stream); // new in v5
 	writeToStream(world_ob.creator_id, stream); // new in v5
+
+	stream.writeUInt32(world_ob.flags); // new in v11
 
 	if(world_ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -341,6 +345,9 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		ob.creator_id = UserID::invalidUserID();
 	}
 
+	if(v >= 11)
+		ob.flags = stream.readUInt32();
+
 	if(v >= 9 && ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		// Read num voxels
@@ -383,6 +390,8 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 
 	world_ob.created_time.writeToStream(stream); // new in v5
 	writeToStream(world_ob.creator_id, stream); // new in v5
+
+	stream.writeUInt32(world_ob.flags); // new in v11
 
 	stream.writeStringLengthFirst(world_ob.creator_name);
 
@@ -427,6 +436,8 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 
 	ob.created_time.readFromStream(stream);
 	ob.creator_id = readUserIDFromStream(stream);
+
+	ob.flags = stream.readUInt32();
 
 	ob.creator_name = stream.readStringLengthFirst(10000);
 

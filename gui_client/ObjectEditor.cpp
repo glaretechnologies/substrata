@@ -67,6 +67,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->rotAxisZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
+	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+
 	this->visitURLLabel->hide();
 
 	// Set up script edit timer.
@@ -134,6 +136,9 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, ob.axis.y);
 	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, ob.axis.z);
 	SignalBlocker::setValue(this->rotAngleDoubleSpinBox, ob.angle);
+
+	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
+
 
 	WorldMaterialRef selected_mat;
 	if(selected_mat_index >= 0 && selected_mat_index < (int)ob.materials.size())
@@ -213,6 +218,8 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.axis = Vec3f(0,0,1);
 		ob_out.angle = 0;
 	}
+
+	ob_out.setCollidable(this->collidableCheckBox->isChecked());
 
 	if(selected_mat_index >= cloned_materials.size())
 	{
