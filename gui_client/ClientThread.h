@@ -151,11 +151,14 @@ public:
 	void enqueueDataToSend(const std::string& data); // threadsafe
 	void enqueueDataToSend(const SocketBufferOutStream& packet); // threadsafe
 
+	virtual void kill();
+
 	void killConnection();
 
 	Reference<WorldState> world_state;
 	UID client_avatar_uid;
 private:
+	IndigoAtomic should_die;
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	ThreadSafeQueue<std::string> data_to_send;
 	EventFD event_fd;

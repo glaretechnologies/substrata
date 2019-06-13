@@ -45,6 +45,8 @@ public:
 
 	void initialise();
 
+	void connectToServer(const std::string& hostname, const std::string& userpath); // Disconnect from any current server, connect to new server
+
 	void afterGLInitInitialise();
 
 	void updateGroundPlane();
@@ -248,7 +250,8 @@ public:
 	bool need_help_info_dock_widget_position; // We may need to position the Help info dock widget to the bottom right of the GL view.
 	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
 
-	std::string server_hostname;
+	std::string server_hostname; // e.g. "substrata.info" or "localhost"
+	std::string server_userpath; // e.g. "" or "ono-sendai"
 
 	size_t total_num_res_to_download;
 
