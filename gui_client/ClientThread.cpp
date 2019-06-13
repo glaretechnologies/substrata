@@ -42,6 +42,12 @@ ClientThread::~ClientThread()
 }
 
 
+void ClientThread::kill()
+{
+	should_die = glare_atomic_int(1);
+}
+
+
 void ClientThread::killConnection()
 {
 	if(socket.nonNull())
@@ -106,6 +112,12 @@ void ClientThread::doRun()
 
 		while(1) // write to / read from socket loop
 		{
+			if(should_die)
+			{
+				out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage());
+				return;
+			}
+
 			// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
 			if(VERBOSE) conPrint("ClientThread: checking for pending data to send...");
 			{

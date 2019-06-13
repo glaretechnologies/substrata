@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ResetPasswordDialog.h"
 #include "ChangePasswordDialog.h"
 #include "URLWidget.h"
+#include "URLParser.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include <QtCore/QProcess>
@@ -1029,7 +1030,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Update URL Bar
 	if(!this->url_widget->hasFocus())
-		this->url_widget->setURL("cyb://" + server_hostname + 
+		this->url_widget->setURL("sub://" + server_hostname + "/" + server_userpath +
 			"?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().x, 1) + 
 			"&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().y, 1) +
 			"&z=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().z, 1));
@@ -1559,9 +1560,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 					{
 						// We want to rotate the nametag towards the camera.
-						const Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
+						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
+						if(!isFinite(to_cam[0]))
+							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
 
 						const Vec4f axis_k = Vec4f(0, 0, 1, 0);
+						if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
+							to_cam[0] += 0.1;
+
 						const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
 						const Vec4f axis_i = crossProduct(axis_j, axis_k);
 						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
@@ -1576,6 +1582,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) *
 							rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
 
+						assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
 						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
 					}
 
@@ -2254,19 +2261,28 @@ void MainWindow::updateVoxelEditMarkers()
 }
 
 
+static std::string printableServerURL(const std::string& hostname, const std::string& userpath)
+{
+	if(userpath.empty())
+		return hostname;
+	else
+		return hostname + "/" + userpath;
+}
+
+
 void MainWindow::updateStatusBar()
 {
 	std::string status;
-	switch(connection_state)
+	switch(this->connection_state)
 	{
 	case ServerConnectionState_NotConnected:
 		status += "Not connected to server.";
 		break;
 	case ServerConnectionState_Connecting:
-		status += "Connecting to " + this->server_hostname + "...";
+		status += "Connecting to " + printableServerURL(this->server_hostname, this->server_userpath) + "...";
 		break;
 	case ServerConnectionState_Connected:
-		status += "Connected to " + this->server_hostname;
+		status += "Connected to " + printableServerURL(this->server_hostname, this->server_userpath);
 		break;
 	}
 
@@ -3247,82 +3263,128 @@ void MainWindow::URLChangedSlot()
 	try
 	{
 		const std::string URL = this->url_widget->getURL();
-		Parser parser(URL.c_str(), (unsigned int)URL.size());
-		// Parse protocol
-		string_view protocol;
-		parser.parseAlphaToken(protocol);
-		if(protocol != "cyb")
-			throw Indigo::Exception("Unhandled protocol scheme '" + protocol + "'.");
-		if(!parser.parseString("://"))
-			throw Indigo::Exception("Expected '://' after protocol scheme.");
+		URLParseResults parse_res = URLParser::parseURL(URL);
 
-		string_view host;
-		//parser.parseAlphaToken(host);
-
-		parser.parseToCharOrEOF('?', host);
-		
-		// TEMP: ignore host for now.
-
-		double x = 0;
-		double y = 0;
-		double z = 2;
-		if(parser.currentIsChar('?'))
+		const std::string hostname = parse_res.hostname;
+		const std::string userpath = parse_res.userpath;
+		if(hostname != this->server_hostname || userpath != this->server_userpath)
 		{
-			if(!parser.parseChar('?'))
-				throw Indigo::Exception("Expected '?' after host.");
-
-			if(!parser.parseChar('x'))
-				throw Indigo::Exception("Expected 'x' after '?'.");
-
-			if(!parser.parseChar('='))
-				throw Indigo::Exception("Expected '=' after 'x'.");
-
-			if(!parser.parseDouble(x))
-				throw Indigo::Exception("Failed to parse x coord.");
-
-			if(!parser.parseChar('&'))
-				throw Indigo::Exception("Expected '&' after x coodinate.");
-
-			if(!parser.parseChar('y'))
-				throw Indigo::Exception("Expected 'y' after '?'.");
-
-			if(!parser.parseChar('='))
-				throw Indigo::Exception("Expected '=' after 'y'.");
-
-			if(!parser.parseDouble(y))
-				throw Indigo::Exception("Failed to parse y coord.");
-
-			if(parser.currentIsChar('&'))
-			{
-				parser.advance();
-
-				string_view URL_arg_name;
-				if(!parser.parseToChar('=', URL_arg_name))
-					throw Indigo::Exception("Failed to parse URL argument after &");
-				if(URL_arg_name == "z")
-				{
-					if(!parser.parseChar('='))
-						throw Indigo::Exception("Expected '=' after 'z'.");
-
-					if(!parser.parseDouble(z))
-						throw Indigo::Exception("Failed to parse z coord.");
-				}
-				else
-					throw Indigo::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
-			}
-
-			conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
+			// Connect to a different server!
+			connectToServer(hostname, userpath);
 		}
 
-		this->cam_controller.setPosition(Vec3d(x, y, z));
+		this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 	}
-	catch(Indigo::Exception& e)
+	catch(Indigo::Exception& e) // Handle URL parse failure
 	{
 		conPrint(e.what());
 		QMessageBox msgBox;
 		msgBox.setText(QtUtils::toQString(e.what()));
 		msgBox.exec();
 	}
+}
+
+
+void MainWindow::connectToServer(const std::string& hostname, const std::string& userpath)
+{
+	this->server_hostname = hostname;
+	this->server_userpath = userpath;
+
+	//-------------------------------- Do disconnect process --------------------------------
+	// Kill any existing threads connected to the server
+	resource_download_thread_manager.killThreadsBlocking();
+	resource_upload_thread_manager.killThreadsBlocking();
+
+	if(client_thread.nonNull())
+	{
+		this->client_thread = NULL;
+		this->client_thread_manager.killThreadsBlocking();
+	}
+
+	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
+	if(world_state.nonNull())
+	{
+		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+		{
+			WorldObject* ob = it->second.ptr();
+
+			if(ob->opengl_engine_ob.nonNull())
+				ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
+
+			if(ob->physics_object.nonNull())
+				this->physics_world->removeObject(ob->physics_object);
+		}
+
+		for(auto it = world_state->instances.begin(); it != world_state->instances.end(); ++it)
+		{
+			WorldObject* ob = it->ptr();
+
+			if(ob->opengl_engine_ob.nonNull())
+				ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
+
+			if(ob->physics_object.nonNull())
+				this->physics_world->removeObject(ob->physics_object);
+		}
+
+		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+		{
+			Parcel* parcel = it->second.ptr();
+
+			if(parcel->opengl_engine_ob.nonNull())
+				ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
+
+			if(parcel->physics_object.nonNull())
+				this->physics_world->removeObject(parcel->physics_object);
+		}
+
+		for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
+		{
+			Avatar* avatar = it->second.ptr();
+
+			if(avatar->opengl_engine_nametag_ob.nonNull())
+				ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+
+			if(avatar->graphics.nonNull())
+				avatar->graphics->destroy(*ui->glWidget->opengl_engine);
+		}
+	}
+
+
+	// Remove any ground quads.
+	for(auto it = ground_quads.begin(); it != ground_quads.end(); ++it)
+	{
+		// Remove this ground quad as it is not needed any more.
+		ui->glWidget->removeObject(it->second.gl_ob);
+		physics_world->removeObject(it->second.phy_ob);
+	}
+	ground_quads.clear();
+
+	
+	world_state = NULL;
+	//-------------------------------- End disconnect process --------------------------------
+
+
+	//-------------------------------- Do connect process --------------------------------
+
+	world_state = new WorldState();
+
+	const std::string avatar_path = QtUtils::toStdString(settings->value("avatarPath").toString());
+
+	uint64 avatar_model_hash = 0;
+	if(FileUtils::fileExists(avatar_path))
+		avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
+	const std::string avatar_URL = resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
+
+	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, this, avatar_URL);
+	client_thread->world_state = world_state;
+	client_thread_manager.addThread(client_thread);
+
+	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port));
+
+	if(physics_world.isNull())
+		physics_world = new PhysicsWorld();
+
+	updateGroundPlane();
 }
 
 
@@ -4055,8 +4117,9 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			TextureLoading::test();
-			js::Triangle::test();
+			URLParser::test();
+			//TextureLoading::test();
+			//js::Triangle::test();
 			//Timer::test();
 			//IPAddress::test();
 			//FormatDecoderGLTF::test();
@@ -4068,7 +4131,7 @@ int main(int argc, char *argv[])
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
 			//SMTPClient::test();
 			//js::VectorUnitTests::test();
-			js::TreeTest::doTests(appdata_path);
+			//js::TreeTest::doTests(appdata_path);
 			//Vec4f::test();
 			//js::AABBox::test();
 			//Matrix4f::test();
@@ -4082,6 +4145,8 @@ int main(int argc, char *argv[])
 		std::string server_hostname = "substrata.info";
 		if(parsed_args.isArgPresent("-h"))
 			server_hostname = parsed_args.getArgStringValue("-h");
+
+		std::string server_userpath = "";
 
 
 		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
@@ -4102,29 +4167,8 @@ int main(int argc, char *argv[])
 			mw.print("opengl_engine init failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg());
 		}
 
-		mw.server_hostname = server_hostname;
-		mw.world_state = new WorldState();
-
-		mw.resource_download_thread_manager.addThread(new DownloadResourcesThread(&mw.msg_queue, mw.resource_manager, mw.server_hostname, server_port));
-
 		for(int i=0; i<4; ++i)
 			mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager));
-
-		const std::string avatar_path = QtUtils::toStdString(mw.settings->value("avatarPath").toString());
-		//const std::string username    = QtUtils::toStdString(mw.settings->value("username").toString());
-
-		uint64 avatar_model_hash = 0;
-		if(FileUtils::fileExists(avatar_path))
-			avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
-		const std::string avatar_URL = mw.resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
-
-		mw.client_thread = new ClientThread(&mw.msg_queue, server_hostname, server_port, &mw, avatar_URL);
-		mw.client_thread->world_state = mw.world_state;
-		mw.client_thread_manager.addThread(mw.client_thread);
-
-
-		mw.physics_world = new PhysicsWorld();
-
 
 		mw.cam_controller.setPosition(Vec3d(0,0,4.7));
 		mw.ui->glWidget->setCameraController(&mw.cam_controller);
@@ -4785,7 +4829,8 @@ int main(int argc, char *argv[])
 			mw.ground_quad_raymesh->build(options, mw.print_output, false, mw.task_manager);
 		}
 
-		mw.updateGroundPlane();
+
+		mw.connectToServer(server_hostname, server_userpath);
 
 
 		// Make hypercard physics mesh
