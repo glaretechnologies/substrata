@@ -42,39 +42,12 @@ if(WIN32)
 	
 	if(INDIGO_LLVM_VERSION STREQUAL "6.0.0")
 		SET(LLVM_LIBS
-			LLVMAArch64AsmParser.lib
-			LLVMAArch64AsmPrinter.lib
-			LLVMAArch64CodeGen.lib
-			LLVMAArch64Desc.lib
-			LLVMAArch64Disassembler.lib
-			LLVMAArch64Info.lib
-			LLVMAArch64Utils.lib
-			LLVMAMDGPUAsmParser.lib
-			LLVMAMDGPUAsmPrinter.lib
-			LLVMAMDGPUCodeGen.lib
-			LLVMAMDGPUDesc.lib
-			LLVMAMDGPUDisassembler.lib
-			LLVMAMDGPUInfo.lib
-			LLVMAMDGPUUtils.lib
 			LLVMAnalysis.lib
-			LLVMARMAsmParser.lib
-			LLVMARMAsmPrinter.lib
-			LLVMARMCodeGen.lib
-			LLVMARMDesc.lib
-			LLVMARMDisassembler.lib
-			LLVMARMInfo.lib
-			LLVMARMUtils.lib
 			LLVMAsmParser.lib
 			LLVMAsmPrinter.lib
 			LLVMBinaryFormat.lib
 			LLVMBitReader.lib
 			LLVMBitWriter.lib
-			LLVMBPFAsmParser.lib
-			LLVMBPFAsmPrinter.lib
-			LLVMBPFCodeGen.lib
-			LLVMBPFDesc.lib
-			LLVMBPFDisassembler.lib
-			LLVMBPFInfo.lib
 			LLVMCodeGen.lib
 			LLVMCore.lib
 			LLVMCoroutines.lib
@@ -88,22 +61,11 @@ if(WIN32)
 			LLVMExecutionEngine.lib
 			LLVMFuzzMutate.lib
 			LLVMGlobalISel.lib
-			LLVMHexagonAsmParser.lib
-			LLVMHexagonCodeGen.lib
-			LLVMHexagonDesc.lib
-			LLVMHexagonDisassembler.lib
-			LLVMHexagonInfo.lib
 			LLVMInstCombine.lib
 			LLVMInstrumentation.lib
 			LLVMInterpreter.lib
 			LLVMipo.lib
 			LLVMIRReader.lib
-			LLVMLanaiAsmParser.lib
-			LLVMLanaiAsmPrinter.lib
-			LLVMLanaiCodeGen.lib
-			LLVMLanaiDesc.lib
-			LLVMLanaiDisassembler.lib
-			LLVMLanaiInfo.lib
 			LLVMLibDriver.lib
 			LLVMLineEditor.lib
 			LLVMLinker.lib
@@ -112,51 +74,18 @@ if(WIN32)
 			LLVMMCDisassembler.lib
 			LLVMMCJIT.lib
 			LLVMMCParser.lib
-			LLVMMipsAsmParser.lib
-			LLVMMipsAsmPrinter.lib
-			LLVMMipsCodeGen.lib
-			LLVMMipsDesc.lib
-			LLVMMipsDisassembler.lib
-			LLVMMipsInfo.lib
-			LLVMMIRParser.lib
-			LLVMMSP430AsmPrinter.lib
-			LLVMMSP430CodeGen.lib
-			LLVMMSP430Desc.lib
-			LLVMMSP430Info.lib
-			LLVMNVPTXAsmPrinter.lib
-			LLVMNVPTXCodeGen.lib
-			LLVMNVPTXDesc.lib
-			LLVMNVPTXInfo.lib
 			LLVMObjCARCOpts.lib
 			LLVMObject.lib
 			LLVMObjectYAML.lib
 			LLVMOption.lib
 			LLVMOrcJIT.lib
 			LLVMPasses.lib
-			LLVMPowerPCAsmParser.lib
-			LLVMPowerPCAsmPrinter.lib
-			LLVMPowerPCCodeGen.lib
-			LLVMPowerPCDesc.lib
-			LLVMPowerPCDisassembler.lib
-			LLVMPowerPCInfo.lib
 			LLVMProfileData.lib
 			LLVMRuntimeDyld.lib
 			LLVMScalarOpts.lib
 			LLVMSelectionDAG.lib
-			LLVMSparcAsmParser.lib
-			LLVMSparcAsmPrinter.lib
-			LLVMSparcCodeGen.lib
-			LLVMSparcDesc.lib
-			LLVMSparcDisassembler.lib
-			LLVMSparcInfo.lib
 			LLVMSupport.lib
 			LLVMSymbolize.lib
-			LLVMSystemZAsmParser.lib
-			LLVMSystemZAsmPrinter.lib
-			LLVMSystemZCodeGen.lib
-			LLVMSystemZDesc.lib
-			LLVMSystemZDisassembler.lib
-			LLVMSystemZInfo.lib
 			LLVMTableGen.lib
 			LLVMTarget.lib
 			LLVMTransformUtils.lib
@@ -169,11 +98,6 @@ if(WIN32)
 			LLVMX86Disassembler.lib
 			LLVMX86Info.lib
 			LLVMX86Utils.lib
-			LLVMXCoreAsmPrinter.lib
-			LLVMXCoreCodeGen.lib
-			LLVMXCoreDesc.lib
-			LLVMXCoreDisassembler.lib
-			LLVMXCoreInfo.lib
 			LLVMXRay.lib
 		)
 	elseif(LLVM_VERSION STREQUAL "3.6")
