@@ -15,8 +15,6 @@ $qt_version = "5.11.1" if OS.mac?
 $qt_version = "5.11.1" if OS.linux?
 
 
-$libressl_version = "2.6.4"
-
 # Get Qt path.
 indigo_libs_dir = ENV['INDIGO_LIBS']
 if indigo_libs_dir.nil?
