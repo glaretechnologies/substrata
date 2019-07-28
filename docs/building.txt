@@ -3,7 +3,8 @@
 Building LLVM
 ===================
 from indigo trunk scripts dir:
-ruby .\build_llvm.rb --vsversion 2015 --release 6.0.0
+ruby .\build_llvm.rb --vsversion 2015 --release 6.0.0 --config Release
+ruby .\build_llvm.rb --vsversion 2015 --release 6.0.0 --config Debug
 
 rename dir to llvm_6_0_0_install_vs2015_64
 
