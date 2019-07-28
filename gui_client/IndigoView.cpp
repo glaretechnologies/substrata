@@ -91,9 +91,9 @@ IndigoView::~IndigoView()
 void IndigoView::initialise(const std::string& base_dir_path)
 {
 #if INDIGO_SUPPORT
-	// conPrint("=====================================================");
-	// conPrint("IndigoView::initialise");
-	// conPrint("=====================================================");
+	conPrint("=====================================================");
+	conPrint("IndigoView::initialise");
+	conPrint("=====================================================");
 	if(this->renderer.nonNull()) // Return if already initialised.
 		return;
 
@@ -102,11 +102,11 @@ void IndigoView::initialise(const std::string& base_dir_path)
 		this->context = new Indigo::IndigoContext();
 
 #ifndef NDEBUG
-		//const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/Debug";
+		const std::string dll_dir = "D:/indigo/output/vs2015/indigo_x64/Debug";
 #else
-		//const std::string dll_dir = "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo";
+		const std::string dll_dir = "D:/indigo/output/vs2015/indigo_x64/RelWithDebInfo";
 #endif
-		const std::string dll_dir = base_dir_path; // base_dir_path is the dir the main executable is in.
+		//const std::string dll_dir = base_dir_path; // base_dir_path is the dir the main executable is in.
 
 		Indigo::String error_msg;
 		indResult res = this->context->initialise(toIndigoString(dll_dir), Indigo::IndigoContext::getDefaultAppDataPath(), error_msg);
@@ -141,10 +141,11 @@ void IndigoView::initialise(const std::string& base_dir_path)
 
 			settings_node->bidirectional.setValue(false);
 			settings_node->metropolis.setValue(false);
-			settings_node->width.setValue(600);
-			settings_node->height.setValue(400);
-			settings_node->gpu.setValue(false);
+			settings_node->width.setValue(1920);
+			settings_node->height.setValue(1280);
+			settings_node->gpu.setValue(true);
 			settings_node->vignetting.setValue(false);
+			settings_node->merging.setValue(false); // Set to false for now, to allow moving objects etc.. without requiring full rebuilds.  Will be improved in Indigo SDK soon.
 
 			settings_node->setWhitePoint(Indigo::SceneNodeRenderSettings::getWhitepointForWhiteBalance("D65"));
 
@@ -178,7 +179,7 @@ void IndigoView::initialise(const std::string& base_dir_path)
 				q.vertex_indices[i] = q.uv_indices[i] = i;
 			mesh->quads.push_back(q);
 
-			const float W = 1000;
+			const float W = 2000;
 			mesh->vert_positions.push_back(Indigo::Vec3f(-W, -W, 0));
 			mesh->vert_positions.push_back(Indigo::Vec3f(-W, W, 0));
 			mesh->vert_positions.push_back(Indigo::Vec3f(W, W, 0));
@@ -254,11 +255,11 @@ void IndigoView::initialise(const std::string& base_dir_path)
 		Indigo::Vector<Indigo::String> command_line_args;
 		command_line_args.push_back("dummy_scene_path");
 
-		res = this->renderer->initialiseWithScene(this->root_node, render_buffer, command_line_args, data_manager, tone_mapper);
-		if(res != Indigo::INDIGO_SUCCESS)
-			throw Indigo::IndigoException("initialiseWithScene error.");
-
-		this->renderer->startRendering();
+		//res = this->renderer->initialiseWithScene(this->root_node, render_buffer, command_line_args, data_manager, tone_mapper);
+		//if(res != Indigo::INDIGO_SUCCESS)
+		//	throw Indigo::IndigoException("initialiseWithScene error.");
+		//
+		//this->renderer->startRendering();
 	}
 	catch(Indigo::IndigoException& e)
 	{
@@ -305,13 +306,17 @@ void IndigoView::addExistingObjects(const WorldState& world_state, ResourceManag
 	{
 		WorldObject* ob = it->second.ptr();
 
-		Indigo::SceneNodeModelRef model_node = IndigoConversion::convertObject(*ob, resource_manager);
-
+		if(ob->physics_object.nonNull())
 		{
-			Indigo::Lock lock(this->root_node->getMutex());
-			this->root_node->addChildNode(model_node);
-			model_node->setDirtyFlags(Indigo::SceneNode::IsDirty); // Make sure to do this after adding this node to the scene graph!
-			ob->indigo_model_node = model_node;
+			Indigo::SceneNodeModelRef model_node = IndigoConversion::convertObject(*ob, resource_manager);
+
+			{
+				Indigo::Lock lock(this->root_node->getMutex());
+
+				this->root_node->addChildNode(model_node);
+
+				ob->indigo_model_node = model_node;
+			}
 		}
 	}
 
@@ -332,8 +337,6 @@ void IndigoView::objectAdded(WorldObject& object, ResourceManager& resource_mana
 		Indigo::Lock lock(this->root_node->getMutex());
 
 		this->root_node->addChildNode(model_node);
-
-		model_node->setDirtyFlags(Indigo::SceneNode::IsDirty); // Make sure to do this after adding this node to the scene graph!
 	}
 
 	this->renderer->updateScene();
@@ -356,8 +359,6 @@ void IndigoView::objectRemoved(WorldObject& object)
 			Indigo::Lock lock(this->root_node->getMutex());
 
 			this->root_node->removeChildNode(object.indigo_model_node);
-
-			object.indigo_model_node->setDirtyFlags(Indigo::SceneNode::IsDirty);
 		}
 
 		this->renderer->updateScene();
@@ -441,10 +442,14 @@ void IndigoView::saveSceneToDisk()
 
 	try
 	{
+		conPrint("Saving scene to disk...");
+
 		Indigo::SceneNodeRoot::WriteToXmlFileOptions options;
 		options.disk_path = "scene.igs";
 
 		root_node->writeToXMLFileOnDisk2(options);
+
+		conPrint("Done.");
 	}
 	catch(Indigo::IndigoException& e)
 	{

@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "../shared/ResourceManager.h"
 #include <maths/matrix3.h>
 #include <maths/Matrix4f.h>
+#include <ConPrint.h>
 
 
 #if INDIGO_SUPPORT
@@ -47,9 +48,11 @@ static Indigo::String convertURLToPath(const std::string& URL, ResourceManager& 
 
 static Indigo::WavelengthDependentParamRef getAlbedoParam(const WorldMaterial& mat, ResourceManager& resource_manager)
 {
+	Indigo::RGBSpectrumRef rgb_spect = new Indigo::RGBSpectrum(toIndigoVec3d(mat.colour_rgb), 2.2);
+
 	if(mat.colour_texture_url.empty())
 	{
-		return new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(toIndigoVec3d(mat.colour_rgb), 2.2));
+		return new Indigo::ConstantWavelengthDependentParam(rgb_spect);
 	}
 	else
 	{
@@ -58,7 +61,7 @@ static Indigo::WavelengthDependentParamRef getAlbedoParam(const WorldMaterial& m
 			Indigo::Matrix2(mat.tex_matrix.e),
 			Indigo::Vec2d(0.0)
 		);
-		return new Indigo::TextureWavelengthDependentParam(tex);
+		return new Indigo::TextureWavelengthDependentParam(tex, rgb_spect);
 	}
 }
 

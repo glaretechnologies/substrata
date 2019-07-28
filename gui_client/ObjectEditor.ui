@@ -182,7 +182,7 @@
          <item>
           <widget class="IndigoDoubleSpinBox" name="scaleXDoubleSpinBox">
            <property name="minimum">
-            <double>0.000000000000000</double>
+            <double>-1000000.000000000000000</double>
            </property>
            <property name="maximum">
             <double>1000000.000000000000000</double>
@@ -198,7 +198,7 @@
          <item>
           <widget class="IndigoDoubleSpinBox" name="scaleYDoubleSpinBox">
            <property name="minimum">
-            <double>0.000000000000000</double>
+            <double>-1000000.000000000000000</double>
            </property>
            <property name="maximum">
             <double>1000000.000000000000000</double>
@@ -213,6 +213,9 @@
          </item>
          <item>
           <widget class="IndigoDoubleSpinBox" name="scaleZDoubleSpinBox">
+           <property name="minimum">
+            <double>-1000000.000000000000000</double>
+           </property>
            <property name="maximum">
             <double>1000000.000000000000000</double>
            </property>

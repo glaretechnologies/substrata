@@ -42,9 +42,9 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 
 	this->modelFileSelectWidget->force_use_last_dir_setting = true;
 
-	this->scaleXDoubleSpinBox->setMinimum(0.00001);
-	this->scaleYDoubleSpinBox->setMinimum(0.00001);
-	this->scaleZDoubleSpinBox->setMinimum(0.00001);
+	//this->scaleXDoubleSpinBox->setMinimum(0.00001);
+	//this->scaleYDoubleSpinBox->setMinimum(0.00001);
+	//this->scaleZDoubleSpinBox->setMinimum(0.00001);
 
 	connect(this->matEditor,				SIGNAL(materialChanged()),			this, SIGNAL(objectChanged()));
 
