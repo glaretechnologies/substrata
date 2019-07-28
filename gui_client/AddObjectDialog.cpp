@@ -236,7 +236,7 @@ void AddObjectDialog::timerEvent(QTimerEvent* event)
 		{
 			const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
 
-			conPrint("ResourceDownloadedMessage, URL: " + m->URL);
+			//conPrint("ResourceDownloadedMessage, URL: " + m->URL);
 			try
 			{
 				// Now that the model is downloaded, set the result to be the local path where it was downloaded to.

@@ -281,7 +281,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 {
-	// conPrint("--------------------------------------- MainWindow::onIndigoViewDockWidgetVisibilityChanged (visible: " + boolToString(visible) + ") --------------");
+	conPrint("--------------------------------------- MainWindow::onIndigoViewDockWidgetVisibilityChanged (visible: " + boolToString(visible) + ") --------------");
 	if(visible)
 	{
 		this->ui->indigoView->initialise(this->base_dir_path);
@@ -372,7 +372,7 @@ static const Matrix4f worldToObMatrix(const WorldObjectRef& ob)
 
 void MainWindow::startDownloadingResource(const std::string& url)
 {
-	conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
+	//conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
 
 	ResourceRef resource = resource_manager->getResourceForURL(url);
 	if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
@@ -402,7 +402,7 @@ void MainWindow::startDownloadingResource(const std::string& url)
 // If not, set a placeholder model and queue up the downloads.
 void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_missing_files)
 {
-	print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
+	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
 	ob->loaded_model_url = ob->model_url;
 
@@ -496,7 +496,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 		}
 		else
 		{
-			print("\tAll resources present for object.  Adding Object to OpenGL Engine etc..");
+			//print("\tAll resources present for object.  Adding Object to OpenGL Engine etc..");
 			
 			// Remove any existing OpenGL and physics model
 			if(ob->opengl_engine_ob.nonNull())
@@ -547,7 +547,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				else
 				{
 					Reference<RayMesh> raymesh;
-					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, task_manager, raymesh);
+					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, task_manager, /*do_opengl_stuff=*/true, raymesh);
 
 					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 					physics_ob->geometry = raymesh;
@@ -589,7 +589,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			loadScriptForObject(ob); // Load any script for the object.
 		}
 
-		print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 	}
 	catch(Indigo::Exception& e)
 	{
@@ -1067,11 +1067,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	
 	// Handle any messages (chat messages etc..)
 	{
-		Lock msg_queue_lock(this->msg_queue.getMutex());
-		while(!msg_queue.unlockedEmpty())
+		// Remove any messages
+		std::vector<Reference<ThreadMessage> > msgs;
 		{
-			Reference<ThreadMessage> msg;
-			this->msg_queue.unlockedDequeue(msg);
+			Lock msg_queue_lock(this->msg_queue.getMutex());
+			while(!msg_queue.unlockedEmpty())
+			{
+				Reference<ThreadMessage> msg;
+				this->msg_queue.unlockedDequeue(msg);
+				msgs.push_back(msg);
+			}
+		}
+
+		for(size_t i=0; i<msgs.size(); ++i)
+		{
+			Reference<ThreadMessage> msg = msgs[i];
 
 			if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
@@ -1311,7 +1321,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
 
-				conPrint("ResourceDownloadedMessage, URL: " + m->URL);
+				//conPrint("ResourceDownloadedMessage, URL: " + m->URL);
 
 				// Since we have a new downloaded resource, iterate over objects and avatars and if they were using a placeholder model for this resource, load the proper model.
 				try
@@ -1669,6 +1679,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						physics_world->removeObject(ob->physics_object);
 						need_physics_world_rebuild = true;
 					}
+
+					ui->indigoView->objectRemoved(*ob);
 
 					removeInstancesOfObject(ob);
 
@@ -3359,6 +3371,7 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 	}
 	ground_quads.clear();
 
+	this->ui->indigoView->shutdown();
 	
 	world_state = NULL;
 	//-------------------------------- End disconnect process --------------------------------
@@ -3385,6 +3398,13 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 		physics_world = new PhysicsWorld();
 
 	updateGroundPlane();
+
+	// Init indigoView
+	this->ui->indigoView->initialise(this->base_dir_path);
+	{
+		Lock lock(this->world_state->mutex);
+		this->ui->indigoView->addExistingObjects(*this->world_state, *this->resource_manager);
+	}
 }
 
 
@@ -3482,7 +3502,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						{
 							// Add updated model!
 							Reference<RayMesh> raymesh;
-							Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(this->selected_ob->voxel_group, task_manager, raymesh);
+							Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(this->selected_ob->voxel_group, task_manager, /*do_opengl_stuff=*/true, raymesh);
 
 							GLObjectRef gl_ob = new GLObject();
 							gl_ob->ob_to_world_matrix = ob_to_world;
@@ -3883,6 +3903,11 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	{
 		ui->indigoView->saveSceneToDisk();
 	}
+
+	if(e->key() == Qt::Key::Key_F5)
+	{
+		this->connectToServer(this->server_hostname, this->server_userpath);
+	}
 }
 
 
@@ -4117,6 +4142,27 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			ModelLoading::test();
+			return 0;
+			// Download with HTTP client
+			//const std::string url = "https://www.justcolor.net/wp-content/uploads/sites/1/nggallery/mandalas/coloring-page-mandala-big-flower.jpg";
+			// 564,031 bytes
+
+			// https://gateway.ipfs.io/ipfs/QmQCYpCD3UYsftDBVy2BbGfMXG7jA2Pfo26VRzQwsogchw
+
+			// https://s-media-cache-ak0.pinimg.com/originals/c8/a3/38/c8a3387e38465e99432eeb5e0e4de231.jpg   301 redirect
+
+			const std::string url = "https://s-media-cache-ak0.pinimg.com/originals/c8/a3/38/c8a3387e38465e99432eeb5e0e4de231.jpg";
+
+			HTTPClient client;
+			std::string data;
+			HTTPClient::ResponseInfo response_info = client.downloadFile(url, data);
+			if(response_info.response_code != 200)
+				throw Indigo::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
+
+			//conPrint(data);
+			FileUtils::writeEntireFile("image.jpg", data);
+
 			URLParser::test();
 			//TextureLoading::test();
 			//js::Triangle::test();
@@ -4251,515 +4297,6 @@ int main(int argc, char *argv[])
 		//mw.ui->glWidget->opengl_engine->setDrawWireFrames(true);
 
 
-
-
-
-		// Test loading ben's world data (CryptoVoxels), data is from https://www.cryptovoxels.com/grid/parcels
-		if(false)
-		{
-			const std::string scene_dir = "D:\\files\\CV_world";
-			const bool save_indigo_scene = true;
-
-			std::string indigo_xml =
-				"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-				"<scene>\n"
-				"	<renderer_settings>	 \n"
-				"		<width>800</width>		 \n"
-				"		<height>600</height>	 \n"
-				"	</renderer_settings>	 \n";
-
-			indigo_xml +=
-				"<skylight>									\n"
-				"	<sundir>1 1 1</sundir>					\n"
-				"	<turbidity>2</turbidity>					\n"
-				"												\n"
-				"	<model>captured-simulation</model>			\n"
-				"</skylight>								\n";
-
-			indigo_xml +=
-				"<camera>											   \n"
-				"	<pos>2 0 3</pos>								   \n"
-				"	<up>0 0 1</up>									   \n"
-				"	<forwards>1 0 0</forwards>						   \n"
-				"	<!--<forwards>1 1 0</forwards>-->				   \n"
-				"													   \n"
-				"													   \n"
-				"	<aperture_radius>0.001</aperture_radius>			   \n"
-				"	<focus_distance>10000.0</focus_distance>		   \n"
-				"	<aspect_ratio>1.33</aspect_ratio>				   \n"
-				"	<sensor_width>0.036</sensor_width>				   \n"
-				"	<lens_sensor_dist>0.03</lens_sensor_dist>		   \n"
-				"	<white_balance>D65</white_balance>				   \n"
-				"													   \n"
-				"	</camera>										   \n";
-			indigo_xml +=
-				"<tonemapping>											  \n"
-				"	<linear>											  \n"
-				"		<scale>0.05</scale>								  \n"
-				"	</linear>											  \n"
-				"	</tonemapping>										  \n";
-
-			// Add ground mesh
-			indigo_xml +=
-				"	<material>																  \n"
-				"		<name>white</name>													  \n"
-				"		<diffuse>															  \n"
-				"			<colour>0.85 0.85 0.85</colour>									  \n"
-				"		</diffuse>															  \n"
-				"	</material>																  \n"
-				"																			  \n"
-				"	<mesh>																	  \n"
-				"		<name>groundmesh</name>												  \n"
-				"		<normal_smoothing>false</normal_smoothing>							  \n"
-				"		<embedded>															  \n"
-				"			<expose_uv_set>													  \n"
-				"				<index>0</index>											  \n"
-				"				<name>albedo</name>											  \n"
-				"			</expose_uv_set>												  \n"
-				"																			  \n"
-				"			<vertex pos=\"-1000 -1000 1\" normal=\"0 0 1\" uv0=\"0 0\" />				  \n"
-				"			<vertex pos=\"-1000 1000 1\" normal=\"0 0 1\" uv0=\"0 10000\" />			  \n"
-				"			<vertex pos=\"1000 1000 1\" normal=\"0 0 1\" uv0=\"10000 10000\" />		  \n"
-				"			<vertex pos=\"1000 -1000 1\" normal=\"0 0 1\" uv0=\"10000 0\" />			  \n"
-				"																			  \n"
-				"			<triangle_set>													  \n"
-				"				<material_name>white</material_name>						  \n"
-				"				<tri>0 1 2</tri>											  \n"
-				"				<tri>0 2 3</tri>											  \n"
-				"			</triangle_set>													  \n"
-				"		</embedded>															  \n"
-				"	</mesh>																	  \n"
-				"																			  \n"
-				"	<model>																	  \n"
-				"		<pos>0 0 0</pos>													  \n"
-				"		<scale>1.0</scale>													  \n"
-				"		<mesh_name>groundmesh</mesh_name>									  \n"
-				"	</model>																  \n";
-
-			// Make texture mats
-			std::vector<OpenGLMaterial> cv_mats(16 + 8);
-			const char* paths[] ={
-				"00-grid.png",
-				"01-grid.png",
-				"02-window.png",
-				"03-white-square.png",
-				"04-line.png",
-				"05-bricks.png",
-				"06-the-xx.png",
-				"07-lined.png",
-				"08-nick-batt.png",
-				"09-scots.png",
-				"10-subgrid.png",
-				"11-microblob.png",
-				"12-smallblob.png",
-				"13-smallblob.png",
-				"14-blob.png",
-				"03-white-square.png"
-			};
-			const std::string base_path = "D:\\files\\cryptovoxels_textures";
-			for(int i=0; i<16; ++i)
-				cv_mats[i].albedo_tex_path = base_path + "/" + paths[i];
-
-			cv_mats[2].transparent = true;
-
-			// Make constant colour mats
-			const char* colors[] ={
-				"#ffffff",
-				"#888888",
-				"#000000",
-				"#ff71ce",
-				"#01cdfe",
-				"#05ffa1",
-				"#b967ff",
-				"#fffb96"
-			};
-			for(int i=0; i<8; ++i)
-				cv_mats[16 + i].albedo_rgb = Colour3f(
-					hexStringToUInt32(std::string(colors[i]).substr(1, 2)) / 255.0f,
-					hexStringToUInt32(std::string(colors[i]).substr(3, 2)) / 255.0f,
-					hexStringToUInt32(std::string(colors[i]).substr(5, 2)) / 255.0f
-				);
-
-			// Write mats to Indigo materials
-			if(save_indigo_scene)
-			{
-				/*for(int i=0; i<24; ++i)
-					indigo_xml +=
-					"<material>									  \n"
-					"	<name>mat " + toString(i) + "</name>		\n"
-					"	<uid>" + toString(100 + i) + "</uid>		\n"
-					"											  \n"
-					"	<phong>									  \n"
-					"		<diffuse>" + toString(cv_mats[i].albedo_rgb.r) + " " + toString(cv_mats[i].albedo_rgb.g) + " " + toString(cv_mats[i].albedo_rgb.b) + "</diffuse>\n"
-					"		<texture>								   \n"
-					"			<path>" + cv_mats[i].albedo_tex_path + "</path>				   \n"
-					"		</texture>								   \n"
-					"	<ior>1.5</ior>								  \n"
-					"	<exponent>10000</exponent>					  \n"
-					"</phong>									  \n"
-					"</material>								  \n";*/
-				for(int i=0; i<16; ++i)
-					if(i != 2)
-						indigo_xml +=
-						"<material>									  \n"
-						"	<name>mat " + toString(i) + "</name>		\n"
-						"	<uid>" + toString(100 + i) + "</uid>		\n"
-						"	<diffuse>										  \n"
-						"		<albedo>									   \n"
-						"			<texture>						  \n"
-						"				<path>" + cv_mats[i].albedo_tex_path + "</path>				   \n"
-						"			</texture>							  \n"
-						"		</albedo>									   \n"
-						"	</diffuse>										\n"
-						"</material>									  \n";
-
-				for(int i=16; i<24; ++i)
-					indigo_xml +=
-					"<material>									  \n"
-					"	<name>mat " + toString(i) + "</name>		\n"
-					"	<uid>" + toString(100 + i) + "</uid>		\n"
-					"	<diffuse>										  \n"
-					"		<albedo>									   \n"
-					"			<constant>								   \n"
-					"				<rgb>								   \n"
-					"					<rgb>" + toString(cv_mats[i].albedo_rgb.r) + " " + toString(cv_mats[i].albedo_rgb.g) + " " + toString(cv_mats[i].albedo_rgb.b) + "</rgb>			   \n"
-					"				</rgb>								   \n"
-					"			</constant>								   \n"
-					"		</albedo>									   \n"
-					"	</diffuse>										\n"
-					"</material>									  \n";
-
-				// Make mat 2 specular
-				indigo_xml +=
-					"<medium>																\n"
-					"	<name>medium1</name>												\n"
-					"																		\n"
-					"	<basic>																\n"
-					"		<ior>1.5</ior>													\n"
-					"		<cauchy_b_coeff>0.0</cauchy_b_coeff>							\n"
-					"		<absorption_coefficient_spectrum>								\n"
-					"			<rgb>														   \n"
-					"				<rgb>1 0.3 0.1</rgb>									   \n"
-					"			</rgb>														   \n"
-					"		</absorption_coefficient_spectrum>								\n"
-					"	</basic>															\n"
-					"</medium>																\n"
-					"																		\n"
-					"<material>																\n"
-					"	<name>mat " + toString(2) + "</name>		\n"
-					"	<uid>" + toString(100 + 2) + "</uid>		\n"
-					"																		\n"
-					"	<specular>															\n"
-					"		<transparent>true</transparent>									\n"
-					"		<internal_medium_name>medium1</internal_medium_name>			\n"
-					"	</specular>															\n"
-					"</material>															\n";
-
-				/*" 
-				<absorption_layer_transmittance>										\n"
-					"	<constant>															\n"
-					"	  <rgb>																\n"
-					"		<rgb>1 0 0</rgb>												\n"
-					"		<gamma>2.2</gamma>												\n"
-					"	  </rgb>															\n"
-					"	</constant>															\n"
-					"  </absorption_layer_transmittance>									\n"
-					*/
-
-			}																		
-
-			Timer timer;
-			JSONParser parser;
-			parser.parseFile("D:\\downloads\\parcels.json");
-
-			std::vector<uint16> voxel_data;
-			voxel_data.resize(1000000);
-
-			std::vector<unsigned char> data;
-
-			assert(parser.nodes[0].type == JSONNode::Type_Object);
-
-			int total_num_voxels = 0;
-			int custom_uid = 500000;
-
-			const JSONNode& parcels_array = parser.nodes[0].getChildArray(parser, "parcels");
-
-			conPrint("Num parcels: " + toString(parcels_array.child_indices.size()));
-
-			for(size_t q=0; q<parcels_array.child_indices.size(); ++q)
-			{
-				const JSONNode& parcel_node = parser.nodes[parcels_array.child_indices[q]];
-
-				int x1, y1, z1, x2, y2, z2, id;
-				x1 = y1 = z1 = x2 = y2 = z2 = id = 0;
-
-				std::vector<OpenGLMaterial> parcel_mats = cv_mats; // Copy mats as may be updated with custom mats for this parcel.
-				bool custom_palette_used = false;
-
-				for(size_t w=0; w<parcel_node.name_val_pairs.size(); ++w)
-				{
-					if(parcel_node.name_val_pairs[w].name == "voxels")
-					{
-						const JSONNode& voxel_node = parser.nodes[parcel_node.name_val_pairs[w].value_node_index];
-
-						assert(voxel_node.type == JSONNode::Type_String);
-						
-						Base64::decode(voxel_node.string_v, data);
-
-						// Allocate deflate state
-						z_stream stream;
-						stream.zalloc = Z_NULL;
-						stream.zfree = Z_NULL;
-						stream.opaque = Z_NULL;
-						stream.next_in = (Bytef*)data.data();
-						stream.avail_in = (unsigned int)data.size();
-
-						int ret = inflateInit(&stream);
-						if(ret != Z_OK)
-							throw Indigo::Exception("inflateInit failed.");
-
-						stream.next_out = (Bytef*)voxel_data.data();
-						stream.avail_out = (unsigned int)(voxel_data.size() * sizeof(uint16));
-
-						int result = inflate(&stream, Z_FINISH);
-						if(result != Z_STREAM_END)
-							throw Indigo::Exception("inflate failed.");
-
-						inflateEnd(&stream);
-					}
-					else if(parcel_node.name_val_pairs[w].name == "x1")
-						x1 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
-					else if(parcel_node.name_val_pairs[w].name == "y1")
-						y1 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
-					else if(parcel_node.name_val_pairs[w].name == "z1")
-						z1 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
-					else if(parcel_node.name_val_pairs[w].name == "x2")
-						x2 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
-					else if(parcel_node.name_val_pairs[w].name == "y2")
-						y2 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
-					else if(parcel_node.name_val_pairs[w].name == "z2")
-						z2 = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
-					else if(parcel_node.name_val_pairs[w].name == "id")
-						id = (int)parser.nodes[parcel_node.name_val_pairs[w].value_node_index].getDoubleValue();
-					else if(parcel_node.name_val_pairs[w].name == "palette")
-					{
-						// Load custom palette, e.g. "palette":["#ffffff","#888888","#000000","#80ffff","#01cdfe","#0080ff","#008080","#004080"]
-						const JSONNode& palette_array = parser.nodes[parcel_node.name_val_pairs[w].value_node_index];
-
-						if(palette_array.type != JSONNode::Type_Null)
-						{
-							if(palette_array.child_indices.size() != 8)
-								throw Indigo::Exception("Invalid number of colours in palette.");
-
-							for(size_t p=0; p<8; ++p) // For each palette entry
-							{
-								const JSONNode& col_node = parser.nodes[palette_array.child_indices[p]];
-								assert(col_node.type == JSONNode::Type_String);
-
-								parcel_mats[16 + p].albedo_rgb = Colour3f(
-										hexStringToUInt32(std::string(col_node.string_v).substr(1, 2)) / 255.0f,
-										hexStringToUInt32(std::string(col_node.string_v).substr(3, 2)) / 255.0f,
-										hexStringToUInt32(std::string(col_node.string_v).substr(5, 2)) / 255.0f
-									);
-							}
-
-							custom_palette_used = true;
-						}
-					}
-				}
-
-				//if(id != 1045) continue;
-
-				// At this point hopefully we have parsed voxel data and coords
-				const int xspan = x2 - x1;
-				const int yspan = y2 - y1;
-				const int zspan = z2 - z1;
-
-				const int voxels_x = xspan * 2;
-				const int voxels_y = yspan * 2;
-				const int voxels_z = zspan * 2;
-
-				const int expected_num_voxels = voxels_x * voxels_y * voxels_z;
-
-				//assert(expected_num_voxels == voxel_data.size());
-
-				// Do a pass over voxels to get list of used mats
-				std::vector<bool> mat_used(16 + 8);
-
-				for(int x=0; x<expected_num_voxels; ++x)
-				{
-					const uint16 v = voxel_data[x];
-					if(v != 0)
-					{
-						int mat_index;
-						if((v >> 5) & 0x7)
-							mat_index = 16 + ((v >> 5) & 0x7); // flat colour mat
-						else
-							mat_index = v & 0xF; // texture mat
-
-						mat_used[mat_index] = true;
-					}
-				}
-
-				// Make material array and material indices in material array
-				std::vector<OpenGLMaterial> used_mats;
-				std::vector<int> used_mat_index(24);
-				for(int i=0; i<24; ++i)
-					if(mat_used[i])
-					{
-						used_mat_index[i] = (int)used_mats.size();
-						used_mats.push_back(parcel_mats[i]);
-					}
-
-				VoxelGroup voxel_group;
-				int read_i = 0;
-				for(int x=x1; x<x1+voxels_x; ++x)
-					for(int y=y1; y<y1+voxels_y; ++y)
-						for(int z=z1; z<z1+voxels_z; ++z)
-						{
-							const uint16 v = voxel_data[read_i++];
-							if(v != 0)
-							{
-								int mat_index;
-								if((v >> 5) & 0x7)
-									mat_index = 16 + ((v >> 5) & 0x7); // flat colour mat
-								else
-									mat_index = v & 0xF; // texture mat
-
-								const int final_mat_index = used_mat_index[mat_index];
-
-								// Get relative xyz in CV coords (y-up, left-handed)
-								const int rx = x - x1;
-								const int ry = y - y1;
-								const int rz = z - z1;
-
-								// Convert to substrata coords (z-up)
-								const int use_x = -rx;
-								const int use_y = -rz;
-								const int use_z = ry;
-								voxel_group.voxels.push_back(Voxel(Vec3<int>(use_x, use_y, use_z), final_mat_index));
-							}
-						}
-
-				assert(read_i == expected_num_voxels);
-
-				if(voxel_group.voxels.size() > 0)
-				{
-					Reference<RayMesh> raymesh;
-					Reference<OpenGLMeshRenderData> gl_meshdata;
-					gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
-
-					// Convert to substrata coords (z-up)
-					const int use_x = -x1;
-					const int use_y = -z1;
-					const int use_z = y1;
-
-					// Scale matrix is 0.5 as voxels are 0.5 m wide in CV.
-					GLObjectRef gl_ob = new GLObject();
-					gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)use_x, (float)use_y, (float)use_z) * Matrix4f::uniformScaleMatrix(0.5f);
-					gl_ob->mesh_data = gl_meshdata;
-					
-					gl_ob->materials = used_mats;
-
-					mw.ui->glWidget->addObject(gl_ob);
-
-					
-					if(save_indigo_scene)
-					{
-						// Write out any custom materials
-						int ob_custom_uid_start = custom_uid;
-						if(custom_palette_used)
-						{
-							// Save materials for custom palette.
-							for(int i=16; i<24; ++i)
-							{
-								indigo_xml +=
-									"<material>									  \n"
-									"	<name>custom palette mat " + toString(custom_uid) + "</name>		\n"
-									"	<uid>" + toString(custom_uid) + "</uid>		\n"
-									"	<diffuse>										  \n"
-									"		<albedo>									   \n"
-									"			<constant>								   \n"
-									"				<rgb>								   \n"
-									"					<rgb>" + toString(parcel_mats[i].albedo_rgb.r) + " " + toString(parcel_mats[i].albedo_rgb.g) + " " + toString(parcel_mats[i].albedo_rgb.b) + "</rgb>\n"
-									"				</rgb>								   \n"
-									"			</constant>								   \n"
-									"		</albedo>									   \n"
-									"	</diffuse>										\n"
-									"</material>									  \n";
-								custom_uid++;
-							}
-						}
-
-						const std::string mesh_path = scene_dir + "/mesh_" + toString(id) + ".igmesh";
-						raymesh->saveToIndigoMeshOnDisk(mesh_path, /*use_compression=*/true);
-
-						indigo_xml +=
-							"	<mesh>											\n"
-							"	<name>mesh_" + toString(id) + "</name>			\n"
-							"	<uid>" + toString(1000000 + id) + "</uid>	\n"
-							"	<scale>1</scale>								\n"
-							"	<normal_smoothing>false</normal_smoothing>		\n"
-							"	<external>										\n"
-							"		<path>" + mesh_path + "</path>							\n"
-							"	</external>										\n"
-							"	</mesh>											\n";
-
-						indigo_xml +=
-							"<model2>											  \n"
-							"	<uid>" + toString(2000000 + id) + "</uid>	\n"
-							"	<name>parcel #" + toString(id) + "</name>			\n"
-							"	<geometry_uid>" + toString(1000000 + id) + "</geometry_uid>					  \n"
-							"	<scale>0.5</scale>								  \n"
-							"	<rotation>										  \n"
-							"		<matrix>									  \n"
-							"			1 0 0 0 1 0 0 0 1 						  \n"
-							"		</matrix>									  \n"
-							"	</rotation>										  \n"
-							"	<keyframe>										  \n"
-							"		<time>0</time>								  \n"
-							"		<pos>" + toString(use_x) + " " + toString(use_y) + " " + toString(use_z) + "</pos>							  \n"
-							"		<rotation_quaternion>						  \n"
-							"			<axis>1 0 0</axis>						  \n"
-							"			<angle>0</angle>						  \n"
-							"		</rotation_quaternion>						  \n"
-							"	</keyframe>										  \n"
-							"	<materials>										  \n";
-
-						for(int i=0; i<24; ++i)
-							if(mat_used[i])
-							{
-								//const int mat_index = used_mat_index[i];
-								int mat_uid = 100 + i;// mat_index;
-
-								if(custom_palette_used && i >= 16)
-									mat_uid = ob_custom_uid_start + (i - 16);
-
-								indigo_xml += "		<material_uid>" + toString(mat_uid) + "</material_uid>				  \n";
-							}
-						indigo_xml +=
-							"	</materials>									  \n"
-							"</model2>											  \n";
-					}														
-
-
-					total_num_voxels += (int)voxel_group.voxels.size();
-				}
-			}
-
-			if(save_indigo_scene)
-			{
-				indigo_xml += "</scene>\n";
-				FileUtils::writeEntireFileTextMode(scene_dir + "/scene.igs", indigo_xml);
-			}
-
-			conPrint("Loaded all voxel data in " + timer.elapsedString());
-			conPrint("total_num_voxels " + toString(total_num_voxels));
-		}
-
-
-
-		
 		// Load a test overlay quad
 		if(false)
 		{

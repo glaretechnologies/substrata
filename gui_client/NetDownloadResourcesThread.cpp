@@ -8,7 +8,6 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 #include "../shared/Protocol.h"
-#include "mysocket.h"
 #include "HTTPClient.h"
 #include "url.h"
 #include <ConPrint.h>
@@ -68,7 +67,7 @@ void NetDownloadResourcesThread::doRun()
 				// Check to see if we have the resource now, we may have downloaded it recently.
 				if(resource->getState() != Resource::State_NotPresent)
 				{
-					conPrint("Already have file, not downloading.");
+					//conPrint("Already have file, not downloading.");
 				}
 				else
 				{
@@ -84,6 +83,9 @@ void NetDownloadResourcesThread::doRun()
 						const URL url_components = URL::parseURL(url);
 						if(url_components.scheme == "http" || url_components.scheme == "https")
 						{
+							if(url_components.host == "gateway.ipfs.io")
+								throw Indigo::Exception("Skipping " + url);
+
 							// Download with HTTP client
 							HTTPClient client;
 							HTTPClient::ResponseInfo response_info = client.downloadFile(url, data);
@@ -139,10 +141,6 @@ void NetDownloadResourcesThread::doRun()
 				}
 			}
 		}
-	}
-	catch(MySocketExcep& e)
-	{
-		conPrint("NetDownloadResourcesThread Socket error: " + e.what());
 	}
 	catch(Indigo::Exception& e)
 	{
