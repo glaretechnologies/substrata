@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2016 -
 
 #include "ListenerThread.h"
 #include "WorkerThread.h"
+#include "CryptoVoxelsLoader.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../networking/networking.h"
@@ -24,6 +25,9 @@ Copyright Glare Technologies Limited 2016 -
 #include <SocketBufferOutStream.h>
 #include <TLSSocket.h>
 #include <MTwister.h>
+#include <Matrix4f.h>
+#include <Quat.h>
+#include <networking/HTTPClient.h>//TEMP for testing
 
 #if MY_SQL_STUFF
 #include <mysqlx/xdevapi.h>
@@ -401,6 +405,8 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			StringUtils::test();
+			HTTPClient::test();
 			Base64::test();
 			Parser::doUnitTests();
 			conPrint("----Finished tests----");
@@ -565,6 +571,10 @@ int main(int argc, char *argv[])
 			}
 		}
 
+
+		// TEMP: Load CryptoVoxels data.
+		server.world_state->objects.clear();
+		CryptoVoxelsLoader::loadCryptoVoxelsData(*server.world_state);
 
 
 		server.world_state->denormaliseData();
@@ -731,7 +741,7 @@ int main(int argc, char *argv[])
 					}
 					else
 					{
-						conPrint("ERROR: invalid object state.");
+						conPrint("ERROR: invalid object state (ob->state=" + toString(ob->state) + ")");
 						assert(0);
 					}
 				}

@@ -124,7 +124,9 @@ void DownloadResourcesThread::doRun()
 				{
 					ResourceRef resource = resource_manager->getResourceForURL(*it);
 					if(resource->getState() != Resource::State_NotPresent)
-						conPrint("Already have file or downloading file '" + *it + "', not downloading.");
+					{
+						//conPrint("Already have file or downloading file '" + *it + "', not downloading.");
+					}
 					else
 					{
 						URLs_to_download.push_back(*it);
