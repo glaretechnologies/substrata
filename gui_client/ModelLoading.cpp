@@ -531,17 +531,18 @@ static inline unsigned int getUVIndex(const Vec2f& uv)
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, Reference<RayMesh>& raymesh_out)
+Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
 	const size_t num_voxels = voxel_group.voxels.size();
 	assert(num_voxels > 0);
 	// conPrint("Adding " + toString(num_voxels) + " voxels.");
 
+	// hash from voxel indices to voxel material
 	const Vec3<int> empty_key(std::numeric_limits<int>::max());
 	HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/empty_key, /*expected_num_items=*/num_voxels);
 
 	for(int v=0; v<(int)num_voxels; ++v)
-		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, (int)1));
+		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, voxel_group.voxels[v].mat_index));
 
 	const float w = 1.f;
 
@@ -567,7 +568,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	int max_mat_index = 0;
 	for(int v=0; v<(int)num_voxels; ++v)
 	{
-		max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
+		const int voxel_mat_i = voxel_group.voxels[v].mat_index;
+		max_mat_index = myMax(max_mat_index, voxel_mat_i);
 
 		const Vec3<int> v_p = voxel_group.voxels[v].pos;
 
@@ -576,7 +578,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		const int initial_face = face;
 
 		// x = 0 face
-		if(voxel_hash.count(Vec3<int>(v_p.x - 1, v_p.y, v_p.z)) == 0)
+		auto res = voxel_hash.find(Vec3<int>(v_p.x - 1, v_p.y, v_p.z));
+		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
 			verts[face*4 + 0] = Vec3f(0, 0, 0) + voxel_pos_offset;
 			verts[face*4 + 1] = Vec3f(0, 0, w) + voxel_pos_offset;
@@ -602,7 +605,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 
 		// x = 1 face
-		if(voxel_hash.count(Vec3<int>(v_p.x + 1, v_p.y, v_p.z)) == 0)
+		res = voxel_hash.find(Vec3<int>(v_p.x + 1, v_p.y, v_p.z));
+		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
 			verts[face*4 + 0] = Vec3f(w, 0, 0) + voxel_pos_offset;
 			verts[face*4 + 1] = Vec3f(w, w, 0) + voxel_pos_offset;
@@ -628,7 +632,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 
 		// y = 0 face
-		if(voxel_hash.count(Vec3<int>(v_p.x, v_p.y - 1, v_p.z)) == 0)
+		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y - 1, v_p.z));
+		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
 			verts[face*4 + 0] = Vec3f(0, 0, 0) + voxel_pos_offset;
 			verts[face*4 + 1] = Vec3f(w, 0, 0) + voxel_pos_offset;
@@ -654,7 +659,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 
 		// y = 1 face
-		if(voxel_hash.count(Vec3<int>(v_p.x, v_p.y + 1, v_p.z)) == 0)
+		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y + 1, v_p.z));
+		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
 			verts[face*4 + 0] = Vec3f(0, w, 0) + voxel_pos_offset;
 			verts[face*4 + 1] = Vec3f(0, w, w) + voxel_pos_offset;
@@ -680,7 +686,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 
 		// z = 0 face
-		if(voxel_hash.count(Vec3<int>(v_p.x, v_p.y, v_p.z - 1)) == 0)
+		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z - 1));
+		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
 			verts[face*4 + 0] = Vec3f(0, 0, 0) + voxel_pos_offset;
 			verts[face*4 + 1] = Vec3f(0, w, 0) + voxel_pos_offset;
@@ -706,7 +713,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 
 		// z = 1 face
-		if(voxel_hash.count(Vec3<int>(v_p.x, v_p.y, v_p.z + 1)) == 0)
+		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z + 1));
+		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
 			verts[face*4 + 0] = Vec3f(0, 0, w) + voxel_pos_offset;
 			verts[face*4 + 1] = Vec3f(w, 0, w) + voxel_pos_offset;
@@ -869,8 +877,11 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 	}
 
-	meshdata->vert_vbo = new VBO(&combined_data[0], combined_data.dataSizeBytes());
-	meshdata->vert_indices_buf = new VBO(&sorted_indices[0], sorted_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+	if(do_opengl_stuff)
+	{
+		meshdata->vert_vbo = new VBO(&combined_data[0], combined_data.dataSizeBytes());
+		meshdata->vert_indices_buf = new VBO(&sorted_indices[0], sorted_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+	}
 	meshdata->index_type = GL_UNSIGNED_INT;
 
 	VertexSpec spec;
@@ -903,7 +914,84 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	uv_attrib.offset = (uint32)(sizeof(float) * 3 + sizeof(float) * 3); // after position and possibly normal.
 	spec.attributes.push_back(uv_attrib);
 
-	meshdata->vert_vao = new VAO(meshdata->vert_vbo, spec);
+	if(do_opengl_stuff)
+		meshdata->vert_vao = new VAO(meshdata->vert_vbo, spec);
 
 	return meshdata;
 }
+
+
+#if BUILD_TESTS
+
+
+#include <simpleraytracer/raymesh.h>
+#include <utils/TaskManager.h>
+#include <indigo/TestUtils.h>
+
+
+void ModelLoading::test()
+{
+	Indigo::TaskManager task_manager;
+	
+	// Test a single voxel
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		testAssert(raymesh->getTriangles().size() == 6 * 2);
+	}
+
+	// Test two adjacent voxels with same material.  Two cube faces on each voxel should be missing.
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+	}
+
+	// Test two adjacent voxels (along y axis) with same material.  Two cube faces on each voxel should be missing.
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 0));
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+	}
+
+	// Test two adjacent voxels (along z axis) with same material.  Two cube faces on each voxel should be missing.
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+	}
+
+	// Test two adjacent voxels with different materials.  All faces should be added.
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		testAssert(raymesh->getTriangles().size() == 2 * 6 * 2);
+	}
+}
+
+
+#endif
