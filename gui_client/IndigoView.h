@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2019 -
 #pragma once
 
 
-// #define INDIGO_SUPPORT
+// #define INDIGO_SUPPORT 1
 
 
 #include "../utils/Timer.h"

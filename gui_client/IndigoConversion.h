@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2019 -
 #pragma once
 
 
+// #define INDIGO_SUPPORT 1
+
+
 #include "../shared/WorldMaterial.h"
 #include "../shared/WorldObject.h"
 #include <IndigoMaterial.h>
