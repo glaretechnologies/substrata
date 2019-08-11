@@ -172,7 +172,7 @@ public:
 
 	QSettings* settings;
 
-	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue; // for messages from ClientThread etc..
+	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue; // for messages from ClientThread etc.. to this object.
 
 	WorldObjectRef selected_ob;
 	Vec4f selection_vec_cs; // Vector from camera to selected point on object, in camera space
