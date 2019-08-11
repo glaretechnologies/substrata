@@ -409,7 +409,7 @@ ${pugixmldir}/pugiconfig.hpp
 
 # MESSAGE(${pugixml})
 
-FILE(GLOB giflib "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.c" "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/giflib-5.0.4/lib/*.h")
+FILE(GLOB giflib "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.c" "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.h")
 FILE(GLOB little_cms "${INDIGO_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${INDIGO_TRUNK_DIR_ENV}/little_cms/include/*.h")
 #FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
 FILE(GLOB zstandard "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/*.h"  "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common/*.c" "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common/*.h"
