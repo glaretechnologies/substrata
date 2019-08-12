@@ -397,6 +397,123 @@ void MainWindow::startDownloadingResource(const std::string& url)
 }
 
 
+class ModelLoadedThreadMessage : public ThreadMessage
+{
+public:
+	WorldObjectRef ob;
+};
+
+
+class LoadModelTask : public Indigo::Task
+{
+public:
+	virtual void run(size_t thread_index)
+	{
+		const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
+
+		GLObjectRef opengl_ob;
+		PhysicsObjectRef physics_ob;
+
+		try
+		{
+			if(ob->object_type == WorldObject::ObjectType_Hypercard)
+			{
+				return; // Done in main thread for now.
+
+				// physics_ob = new PhysicsObject(/*collidable=*/true);
+				// physics_ob->geometry = main_window->hypercard_quad_raymesh;
+				// physics_ob->ob_to_world = ob_to_world_matrix;
+				// 
+				// opengl_ob = new GLObject();
+				// opengl_ob->mesh_data = main_window->hypercard_quad_opengl_mesh;
+				// opengl_ob->materials.resize(1);
+				// opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				// opengl_ob->materials[0].albedo_texture = main_window->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
+				// opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+				// opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+				// 
+				// ob->loaded_content = ob->content;
+			}
+			else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+			{
+				if(ob->voxel_group.voxels.size() == 0)
+				{
+					// Add dummy cube marker for zero-voxel case.
+					physics_ob = new PhysicsObject(/*collidable=*/false);
+					physics_ob->geometry = main_window->unit_cube_raymesh;
+					physics_ob->ob_to_world = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+
+					opengl_ob = new GLObject();
+					opengl_ob->mesh_data = main_window->ui->glWidget->opengl_engine->getCubeMeshData();
+					opengl_ob->materials.resize(1);
+					opengl_ob->materials[0].albedo_rgb = Colour3f(0.8);
+					opengl_ob->materials[0].albedo_tex_path = "resources/voxel_dummy_texture.png";
+					opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+					opengl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+				}
+				else
+				{
+					Reference<RayMesh> raymesh;
+					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+					physics_ob->geometry = raymesh;
+					physics_ob->ob_to_world = ob_to_world_matrix;
+
+					opengl_ob = new GLObject();
+					opengl_ob->mesh_data = gl_meshdata;
+					opengl_ob->materials.resize(ob->materials.size());
+					for(uint32 i=0; i<ob->materials.size(); ++i)
+						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
+					opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+				}
+			}
+			else
+			{
+				//Lock lock(main_window->opengl_context_mutex);
+				//main_window->ui->glWidget->makeCurrent();
+				Indigo::MeshRef mesh;
+				Reference<RayMesh> raymesh;
+				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
+					true, // skip_opengl_calls
+					mesh, raymesh);
+				//main_window->ui->glWidget->doneCurrent();
+
+				// Make physics object
+				physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+				physics_ob->geometry = raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->userdata = ob.ptr();
+				physics_ob->userdata_type = 0;
+			}
+
+			// Load any textures from disk
+			for(size_t i=0; i<opengl_ob->materials.size(); ++i)
+				if(!opengl_ob->materials[i].albedo_tex_path.empty())
+					main_window->texture_server->getTexForPath(".", opengl_ob->materials[i].albedo_tex_path);
+		
+			ob->opengl_engine_ob = opengl_ob;
+			ob->physics_object = physics_ob;
+
+			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
+			msg->ob = ob;
+			main_window_msg_queue->enqueue(msg);
+		}
+		catch(Indigo::Exception& e)
+		{
+			conPrint(e.what());
+		}
+	}
+
+	MainWindow* main_window;
+	MeshManager mesh_manager;
+	Reference<ResourceManager> resource_manager;
+	WorldObjectRef ob;
+	Indigo::TaskManager* model_building_task_manager;
+	ThreadSafeQueue<Reference<ThreadMessage> >* main_window_msg_queue;
+};
+
+
 // Check if the model file and any material dependencies (textures etc..) are downloaded.
 // If so load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the downloads.
@@ -490,7 +607,6 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 				physics_world->rebuild(task_manager, print_output);
 
-
 				ob->using_placeholder_model = true;
 			}
 		}
@@ -499,94 +615,56 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			//print("\tAll resources present for object.  Adding Object to OpenGL Engine etc..");
 			
 			// Remove any existing OpenGL and physics model
-			if(ob->opengl_engine_ob.nonNull())
-				ui->glWidget->removeObject(ob->opengl_engine_ob);
+			{
+				if(ob->opengl_engine_ob.nonNull())
+					ui->glWidget->removeObject(ob->opengl_engine_ob);
 
-			if(ob->physics_object.nonNull())
-				physics_world->removeObject(ob->physics_object);
+				if(ob->physics_object.nonNull())
+					physics_world->removeObject(ob->physics_object);
 
-			ob->using_placeholder_model = false;
+				ob->using_placeholder_model = false;
+			}
 
-			
-			GLObjectRef gl_ob;
-			Reference<PhysicsObject> physics_ob;
 
 			if(ob->object_type == WorldObject::ObjectType_Hypercard)
 			{
-				physics_ob = new PhysicsObject(/*collidable=*/true);
+				// Since makeHypercardTexMap does OpenGL calls, do this in the main thread for now.
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->geometry = this->hypercard_quad_raymesh;
 				physics_ob->ob_to_world = ob_to_world_matrix;
 
-				gl_ob = new GLObject();
-				gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-				gl_ob->materials.resize(1);
-				gl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-				gl_ob->materials[0].albedo_texture = makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
-				gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-				gl_ob->ob_to_world_matrix = ob_to_world_matrix;
+				GLObjectRef opengl_ob = new GLObject();
+				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+				opengl_ob->materials.resize(1);
+				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				opengl_ob->materials[0].albedo_texture = this->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
+				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
 				ob->loaded_content = ob->content;
-			}
-			else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
-			{
-				if(ob->voxel_group.voxels.size() == 0)
-				{
-					// Add dummy cube marker for zero-voxel case.
-					physics_ob = new PhysicsObject(/*collidable=*/false);
-					physics_ob->geometry = this->unit_cube_raymesh;
-					physics_ob->ob_to_world = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 
-					gl_ob = new GLObject();
-					gl_ob->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
-					gl_ob->materials.resize(1);
-					gl_ob->materials[0].albedo_rgb = Colour3f(0.8);
-					gl_ob->materials[0].albedo_tex_path = "resources/voxel_dummy_texture.png";
-					gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-					gl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-				}
-				else
-				{
-					Reference<RayMesh> raymesh;
-					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, task_manager, /*do_opengl_stuff=*/true, raymesh);
+				ui->glWidget->addObject(ob->opengl_engine_ob);
 
-					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-					physics_ob->geometry = raymesh;
-					physics_ob->ob_to_world = ob_to_world_matrix;
-
-					gl_ob = new GLObject();
-					gl_ob->mesh_data = gl_meshdata;
-					gl_ob->materials.resize(ob->materials.size());
-					for(uint32 i=0; i<ob->materials.size(); ++i)
-						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, gl_ob->materials[i]);
-					gl_ob->ob_to_world_matrix = ob_to_world_matrix;
-				}
+				physics_world->addObject(ob->physics_object);
+				physics_world->rebuild(task_manager, print_output);
 			}
 			else
 			{
-				// Make GL object, add to OpenGL engine
-				Indigo::MeshRef mesh;
-				Reference<RayMesh> raymesh;
-				gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, this->task_manager, ob_to_world_matrix, mesh, raymesh);
-				
-				// Make physics object
-				physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-				physics_ob->geometry = raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
+				// Do the model loading in a different thread
+				Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+				load_model_task->main_window = this;
+				load_model_task->mesh_manager = mesh_manager;
+				load_model_task->resource_manager = resource_manager;
+				load_model_task->ob = ob;
+				load_model_task->model_building_task_manager = &model_building_task_manager;
+				load_model_task->main_window_msg_queue = &msg_queue;
+
+				task_manager.addTask(load_model_task);
 			}
-
-			ob->opengl_engine_ob = gl_ob;
-			ui->glWidget->addObject(gl_ob);
-
-			ob->physics_object = physics_ob;
-			physics_ob->userdata = ob;
-			physics_ob->userdata_type = 0;
-			physics_world->addObject(physics_ob);
-			physics_world->rebuild(task_manager, print_output);
-
-			//TEMP NEW:
-			ui->indigoView->objectAdded(*ob, *this->resource_manager);
-
-			loadScriptForObject(ob); // Load any script for the object.
 		}
 
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
@@ -1083,7 +1161,34 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			Reference<ThreadMessage> msg = msgs[i];
 
-			if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
+			if(dynamic_cast<ModelLoadedThreadMessage*>(msg.getPointer()))
+			{
+				const ModelLoadedThreadMessage* message = (ModelLoadedThreadMessage*)msg.ptr();
+
+				WorldObjectRef ob = message->ob;
+
+				ui->glWidget->makeCurrent();
+				
+				if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull())
+				{
+					//Timer timer;
+					OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+					//conPrint("loadOpenGLMeshDataIntoOpenGL took " + timer.elapsedString());
+				}
+
+				Timer timer;
+				ui->glWidget->addObject(ob->opengl_engine_ob);
+				conPrint("addObject took " + timer.elapsedString());
+
+				physics_world->addObject(ob->physics_object);
+				physics_world->rebuild(task_manager, print_output);
+
+				//TEMP NEW:
+				ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+				loadScriptForObject(ob.ptr()); // Load any script for the object.
+			}
+			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
 				this->connection_state = ServerConnectionState_Connected;
 				updateStatusBar();
@@ -3960,7 +4065,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_rgb = Colour3f(0.8f);
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("nametag_" + nametag), *map);
 	return gl_ob;
 }
 
@@ -3993,7 +4098,7 @@ Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& cont
 	}
 	//conPrint("drawing text took " + timer.elapsedString());
 	//timer.reset();
-	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(*map);
+	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("hypercard_" + content), *map);
 	
 	//conPrint("getOrLoadOpenGLTexture took " + timer.elapsedString());
 
@@ -4143,7 +4248,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test"))
 		{
 			ModelLoading::test();
-			return 0;
+			//return 0;
 			// Download with HTTP client
 			//const std::string url = "https://www.justcolor.net/wp-content/uploads/sites/1/nggallery/mandalas/coloring-page-mandala-big-flower.jpg";
 			// 564,031 bytes
