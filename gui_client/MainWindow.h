@@ -236,6 +236,7 @@ public:
 
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;
+	Indigo::TaskManager model_building_task_manager; // For use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
 
 	MeshManager mesh_manager;
 

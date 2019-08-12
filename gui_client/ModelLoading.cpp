@@ -392,7 +392,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 
 GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
 												   ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
-												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out)
+												   const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
 	Indigo::MeshRef mesh;
@@ -442,7 +442,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 
 		checkValidAndSanitiseMesh(*mesh); // Throws Indigo::Exception on invalid mesh.
 
-		gl_meshdata = OpenGLEngine::buildIndigoMesh(mesh, /*skip opengl calls=*/false);
+		gl_meshdata = OpenGLEngine::buildIndigoMesh(mesh, /*skip opengl calls=*/skip_opengl_calls);
 
 
 		raymesh = new RayMesh("mesh", false);
@@ -828,10 +828,12 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		batch_offset += mat_face_counts[i];
 	}
 
-	js::Vector<float, 16> combined_data;
 	const int NUM_COMPONENTS = 8; // num float components per vertex.
-	combined_data.resizeNoCopy(num_faces*4 * NUM_COMPONENTS); // num verts = num_faces*4
-	js::Vector<uint32, 16> sorted_indices(num_faces * 6);
+	meshdata->vert_data.resizeNoCopy(num_faces*4 * NUM_COMPONENTS * sizeof(float)); // num verts = num_faces*4
+	float* combined_data = (float*)meshdata->vert_data.data();
+	
+	js::Vector<uint32, 16>& sorted_indices = meshdata->vert_index_buffer;
+	sorted_indices.resizeNoCopy(num_faces * 6);
 
 	for(int v=0; v<(int)num_voxels; ++v)
 	{
@@ -879,12 +881,12 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 	if(do_opengl_stuff)
 	{
-		meshdata->vert_vbo = new VBO(&combined_data[0], combined_data.dataSizeBytes());
-		meshdata->vert_indices_buf = new VBO(&sorted_indices[0], sorted_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+		meshdata->vert_vbo = new VBO(meshdata->vert_data.data(), meshdata->vert_data.dataSizeBytes());
+		meshdata->vert_indices_buf = new VBO(sorted_indices.data(), sorted_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
 	}
 	meshdata->index_type = GL_UNSIGNED_INT;
 
-	VertexSpec spec;
+	VertexSpec& spec = meshdata->vertex_spec;
 	const uint32 vert_stride = (uint32)(sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float) * 2); // also vertex size.
 
 	VertexAttrib pos_attrib;
