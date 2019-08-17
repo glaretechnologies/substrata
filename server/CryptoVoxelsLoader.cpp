@@ -21,7 +21,7 @@ Copyright Glare Technologies Limited 2019 -
 //#include <bitset>
 
 
-// Load Ben's world data (CryptoVoxels), data is from https://www.cryptovoxels.com/grid/parcels
+// Load Ben's world data (CryptoVoxels), data in JSON format is from https://www.cryptovoxels.com/grid/parcels
 void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 {
 	conPrint("loadCryptoVoxelsData()");
@@ -84,7 +84,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 
 		Timer timer;
 		JSONParser parser;
-		parser.parseFile("D:\\new_cyberspace\\parcels.json");
+		parser.parseFile("D:\\downloads\\parcels.json");
 
 		std::vector<uint16> voxel_data;
 		voxel_data.resize(1000000);
@@ -110,30 +110,40 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 
 			std::vector<Colour3f> parcel_cols = default_cols;
 
+			id = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "id", 0.0);
+			//if(id != 177) continue; // 2 Cyber Junction (inverted doom skull)
+			//if(id != 863) continue; // 20 Tune Drive (maze)
+			//if(id != 50) continue; // house of pepe
+			//if(id != 73) continue; NFT gallery
+			// 2 = bens parcel in the middle
+
+			//if(!(
+			//	id == 177 ||
+			//	id == 863 ||
+			//	id == 50 ||
+			//	id == 24 ||
+			//	id == 2
+			//	))
+			//	continue;
+
+			x1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "x1", 0.0);
+			y1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "y1", 0.0);
+			z1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "z1", 0.0);
+			x2 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "x2", 0.0);
+			y2 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "y2", 0.0);
+			z2 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "z2", 0.0);
+
+			// At this point hopefully we have parsed voxel data and coords
+			const int xspan = x2 - x1;
+			const int yspan = y2 - y1;
+			const int zspan = z2 - z1;
+
+			const int voxels_x = xspan * 2;
+			const int voxels_y = yspan * 2;
+			const int voxels_z = zspan * 2;
+
 			for(size_t w = 0; w<parcel_node.name_val_pairs.size(); ++w)
 			{
-				id = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "id", 0.0);
-				//if(id != 177) continue; // 2 Cyber Junction (inverted doom skull)
-				//if(id != 863) continue; // 20 Tune Drive (maze)
-				//if(id != 50) continue; // house of pepe
-				//if(id != 73) continue; NFT gallery
-				// 2 = bens parcel in the middle
-
-				if(!(
-					id == 177 ||
-					id == 863 ||
-					id == 50 ||
-					id == 24
-					))
-					continue;
-
-				x1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "x1", 0.0);
-				y1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "y1", 0.0);
-				z1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "z1", 0.0);
-				x2 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "x2", 0.0);
-				y2 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "y2", 0.0);
-				z2 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "z2", 0.0);
-
 				if(parcel_node.name_val_pairs[w].name == "voxels")
 				{
 					const JSONNode& voxel_node = parser.nodes[parcel_node.name_val_pairs[w].value_node_index];
@@ -225,9 +235,10 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 								// cv x is - indigo x
 								// cv y is - indigo z
 								// cv z is - indigo y
-								Matrix4f rot = Matrix4f::rotationAroundXAxis((float)-rotation.x) * Matrix4f::rotationAroundYAxis((float)-rotation.z) * 
+
+								Matrix4f rot = Matrix4f::rotationAroundXAxis((float)-rotation.x) * Matrix4f::rotationAroundYAxis((float)-rotation.z) *
 									Matrix4f::rotationAroundZAxis((float)-rotation.y);
-								//Matrix4f rot = Matrix4f::rotationAroundXAxis(rotation.x) * Matrix4f::rotationAroundXAxis(rotation.y) * Matrix4f::rotationAroundXAxis(rotation.z);
+								
 								Quatf quat = Quatf::fromMatrix(rot);
 								Vec4f unit_axis;
 								float angle;
@@ -238,40 +249,46 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 								ob->uid = UID(next_uid++);
 								ob->object_type = WorldObject::ObjectType_Generic;
 
-								ob->model_url = "Quad_obj_13906643289783913481.igmesh"; // TEMP
+								ob->model_url = "Quad_obj_13906643289783913481.igmesh"; // This mesh ranges in x and z from -0.5 to 0.5
+
+								// The quad in babylon js ranges in x and y axes from -0.5 to 0.5
 
 								ob->materials.resize(1);
 								ob->materials[0] = new WorldMaterial();
 								ob->materials[0]->colour_texture_url = url;
 
-								Vec4f nudge = rot * Vec4f(0.0f, -0.02f, 0, 0); // Nudge forwads to avoid z-fighting with walls.
+								Vec4f nudge_ws = rot * Vec4f(0.0f, 0.02f, 0, 0); // Nudge vector, to avoid z-fighting with walls, in Substrata world space
 
-								Vec3d offset(0.75, 1.25, 0.23);
+								Vec3d offset(0.75, 0.75, 0.25); // An offset vector to put the images in the correct place.  Still not sure why this is needed.
 
-								Vec3d pos_cvws = position + Vec3d((x1 + x2) / 2, y1, (z1 + z2) / 2) + Vec3d(nudge[0], nudge[1], nudge[2]);
-								//Vec3d pos_cvws = position + Vec3d((int)((x1 + x2) / 2), y1, (int)((z1 + z2) / 2)) + Vec3d(nudge[0], nudge[1], nudge[2]);
-								//Vec3d pos_cvws = position + Vec3d((x1 + x2) / 2 - 0.25, y1 + 0.25, (z1 + z2) / 2 - 0.25) + Vec3d(nudge[0], nudge[1], nudge[2]);
+								// Get parcel centre in CV world space.  This is the centre of the parcel bounding box, but with y = 0.
+								// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/parcel.ts#L94
+								Vec3d parcel_centre_cvws = Vec3d(((double)x1 + (double)x2) / 2, 0, ((double)z1 + (double)z2) / 2);
 
-								// Convert to substrata coords (z-up)
-								ob->pos = Vec3d(-pos_cvws.x, -pos_cvws.z, pos_cvws.y + z_offset) + offset;
+								Vec3d pos_cvws = position + parcel_centre_cvws;
 
-								if(scale.x == 0 || scale.y == 0 || scale.z == 0)
-								{
-									conPrint("scale elem was zero: " + scale.toString());
-									scale = Vec3d(1, 1, 1);
-								}
-								//else
-								{
-									ob->scale = Vec3f((float)-scale.x, (float)scale.z, (float)scale.y);
+								// Convert to substrata/indigo coords (z-up)
+								ob->pos = Vec3d(
+									-pos_cvws.x, // - CV x
+									-pos_cvws.z, // - CV z
+									pos_cvws.y + z_offset) + // - CV y
+									offset + Vec3d(nudge_ws[0], nudge_ws[1], nudge_ws[2]);
 
-									ob->axis = Vec3f(unit_axis[0], unit_axis[1], unit_axis[2]);
-									ob->angle = angle;
+								// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/features/feature.ts#L107
+								const double SCALE_EPSILON = 0.01;
+								if(scale.x == 0) scale.x = SCALE_EPSILON;
+								if(scale.y == 0) scale.y = SCALE_EPSILON;
+								if(scale.z == 0) scale.z = SCALE_EPSILON;
 
-									ob->created_time = TimeStamp::currentTime();
-									ob->creator_id = UserID(0);
+								ob->scale = Vec3f((float)-scale.x, (float)scale.z, (float)scale.y);
 
-									world_state.objects[ob->uid] = ob;
-								}
+								ob->axis = Vec3f(unit_axis[0], unit_axis[1], unit_axis[2]);
+								ob->angle = angle;
+
+								ob->created_time = TimeStamp::currentTime();
+								ob->creator_id = UserID(0);
+
+								world_state.objects[ob->uid] = ob;
 
 								ob->state = WorldObject::State_Alive;
 							}
@@ -280,14 +297,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 				}
 			}
 
-			// At this point hopefully we have parsed voxel data and coords
-			const int xspan = x2 - x1;
-			const int yspan = y2 - y1;
-			const int zspan = z2 - z1;
-
-			const int voxels_x = xspan * 2;
-			const int voxels_y = yspan * 2;
-			const int voxels_z = zspan * 2;
+			
 
 			const int expected_num_voxels = voxels_x * voxels_y * voxels_z;
 
