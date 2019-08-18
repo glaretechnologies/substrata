@@ -138,8 +138,6 @@ SET(shared_files
 ../shared/UID.h
 ../shared/UserID.h
 ../shared/Version.h
-../shared/WorldState.cpp
-../shared/WorldState.h
 ../shared/WorldObject.cpp
 ../shared/WorldObject.h
 ../shared/WorldMaterial.cpp

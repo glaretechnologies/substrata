@@ -458,3 +458,13 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;
 }
+
+
+const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
+{
+	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+
+	return Matrix4f::translationMatrix(pos + ob->translation) *
+		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
+		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+}

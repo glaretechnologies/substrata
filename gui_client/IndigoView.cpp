@@ -39,7 +39,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "IndigoConversion.h"
 #include "CameraController.h"
 #include "GlWidget.h"
-#include "../shared/WorldState.h"
+#include "WorldState.h"
 
 
 #if INDIGO_SUPPORT

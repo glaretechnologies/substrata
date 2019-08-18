@@ -34,6 +34,7 @@ Caches meshes and OpenGL data loaded from disk and built.
 class MeshManager
 {
 public:
+	Mutex mutex;
 	std::map<std::string, MeshData> model_URL_to_mesh_map;
 };
 

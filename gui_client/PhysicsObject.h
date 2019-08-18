@@ -26,7 +26,7 @@ PhysicsObject
 #pragma warning(disable:4324) // Disable 'structure was padded due to __declspec(align())' warning.
 #endif
 
-class PhysicsObject : public RefCounted
+class PhysicsObject : public ThreadSafeRefCounted
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE

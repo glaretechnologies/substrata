@@ -30,6 +30,9 @@ Copyright Glare Technologies Limited 2018 -
 #include "ChangePasswordDialog.h"
 #include "URLWidget.h"
 #include "URLParser.h"
+#include "LoadModelTask.h"
+#include "LoadTextureTask.h"
+#include "SaveResourcesDBThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include <QtCore/QProcess>
@@ -79,6 +82,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../indigo/TextureServer.h"
 #include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
+#include "../graphics/ImFormatDecoder.h"
 #include <clocale>
 #include <zlib.h>
 
@@ -88,6 +92,8 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/JSONParser.h" // Just for testing
 #include "../opengl/OpenGLEngineTests.h" // Just for testing
 #include "../graphics/FormatDecoderGLTF.h" // Just for testing
+#include "../graphics/GifDecoder.h" // Just for testing
+
 
 
 #if defined(_WIN32) || defined(_WIN64)
@@ -129,6 +135,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false)
 {
+	// model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
@@ -188,6 +196,20 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	print("resources_dir: " + resources_dir);
 	resource_manager = new ResourceManager(this->resources_dir);
+
+	const std::string resources_db_path = appdata_path + "/resources_db";
+	try
+	{
+		
+		if(FileUtils::fileExists(resources_db_path))
+			resource_manager->loadFromDisk(resources_db_path);
+	}
+	catch(Indigo::Exception& e)
+	{
+		conPrint("WARNING: failed to load resources database from '" + resources_db_path + "': " + e.what());
+	}
+
+	save_resources_db_thread_manager.addThread(new SaveResourcesDBThread(resource_manager, resources_db_path));
 
 	cam_controller.setMouseSensitivity(-1.0);
 }
@@ -251,6 +273,19 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
+	// Save resources DB to disk if it has un-saved changes.
+	const std::string resources_db_path = appdata_path + "/resources_db";
+	try
+	{
+		if(resource_manager->hasChanged())
+			resource_manager->saveToDisk(resources_db_path);
+	}
+	catch(Indigo::Exception& e)
+	{
+		conPrint("WARNING: failed to save resources database to '" + resources_db_path + "': " + e.what());
+	}
+
+
 	// Kill ClientThread
 	print("killing ClientThread");
 	this->client_thread->killConnection();
@@ -261,9 +296,20 @@ MainWindow::~MainWindow()
 	ui->glWidget->makeCurrent();
 
 	// Kill various threads before we start destroying members of MainWindow they may depend on.
+	save_resources_db_thread_manager.killThreadsBlocking();
 	resource_upload_thread_manager.killThreadsBlocking();
 	resource_download_thread_manager.killThreadsBlocking();
 	net_resource_download_thread_manager.killThreadsBlocking();
+
+	
+	task_manager.removeQueuedTasks();
+	task_manager.waitForTasksToComplete();
+
+	model_building_task_manager.removeQueuedTasks();
+	model_building_task_manager.waitForTasksToComplete();
+
+	texture_loader_task_manager.removeQueuedTasks();
+	texture_loader_task_manager.waitForTasksToComplete();
 
 	delete ui;
 }
@@ -349,16 +395,6 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 }*/
 
 
-static const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
-{
-	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
-
-	return Matrix4f::translationMatrix(pos + ob->translation) *
-		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
-		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-}
-
-
 // TODO: check/test
 static const Matrix4f worldToObMatrix(const WorldObjectRef& ob)
 {
@@ -397,121 +433,19 @@ void MainWindow::startDownloadingResource(const std::string& url)
 }
 
 
-class ModelLoadedThreadMessage : public ThreadMessage
+bool MainWindow::checkAddTextureToProcessedSet(const std::string& path)
 {
-public:
-	WorldObjectRef ob;
-};
+	Lock lock(textures_processed_mutex);
+	auto res = textures_processed.insert(path);
+	return res.second; // Was texture inserted? (will be false if already present in set)
+}
 
 
-class LoadModelTask : public Indigo::Task
+bool MainWindow::isTextureProcessed(const std::string& path) const
 {
-public:
-	virtual void run(size_t thread_index)
-	{
-		const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
-
-		GLObjectRef opengl_ob;
-		PhysicsObjectRef physics_ob;
-
-		try
-		{
-			if(ob->object_type == WorldObject::ObjectType_Hypercard)
-			{
-				return; // Done in main thread for now.
-
-				// physics_ob = new PhysicsObject(/*collidable=*/true);
-				// physics_ob->geometry = main_window->hypercard_quad_raymesh;
-				// physics_ob->ob_to_world = ob_to_world_matrix;
-				// 
-				// opengl_ob = new GLObject();
-				// opengl_ob->mesh_data = main_window->hypercard_quad_opengl_mesh;
-				// opengl_ob->materials.resize(1);
-				// opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-				// opengl_ob->materials[0].albedo_texture = main_window->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
-				// opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-				// opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
-				// 
-				// ob->loaded_content = ob->content;
-			}
-			else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
-			{
-				if(ob->voxel_group.voxels.size() == 0)
-				{
-					// Add dummy cube marker for zero-voxel case.
-					physics_ob = new PhysicsObject(/*collidable=*/false);
-					physics_ob->geometry = main_window->unit_cube_raymesh;
-					physics_ob->ob_to_world = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-
-					opengl_ob = new GLObject();
-					opengl_ob->mesh_data = main_window->ui->glWidget->opengl_engine->getCubeMeshData();
-					opengl_ob->materials.resize(1);
-					opengl_ob->materials[0].albedo_rgb = Colour3f(0.8);
-					opengl_ob->materials[0].albedo_tex_path = "resources/voxel_dummy_texture.png";
-					opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-					opengl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-				}
-				else
-				{
-					Reference<RayMesh> raymesh;
-					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
-
-					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-					physics_ob->geometry = raymesh;
-					physics_ob->ob_to_world = ob_to_world_matrix;
-
-					opengl_ob = new GLObject();
-					opengl_ob->mesh_data = gl_meshdata;
-					opengl_ob->materials.resize(ob->materials.size());
-					for(uint32 i=0; i<ob->materials.size(); ++i)
-						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
-					opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
-				}
-			}
-			else
-			{
-				//Lock lock(main_window->opengl_context_mutex);
-				//main_window->ui->glWidget->makeCurrent();
-				Indigo::MeshRef mesh;
-				Reference<RayMesh> raymesh;
-				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
-					true, // skip_opengl_calls
-					mesh, raymesh);
-				//main_window->ui->glWidget->doneCurrent();
-
-				// Make physics object
-				physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-				physics_ob->geometry = raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
-				physics_ob->userdata = ob.ptr();
-				physics_ob->userdata_type = 0;
-			}
-
-			// Load any textures from disk
-			for(size_t i=0; i<opengl_ob->materials.size(); ++i)
-				if(!opengl_ob->materials[i].albedo_tex_path.empty())
-					main_window->texture_server->getTexForPath(".", opengl_ob->materials[i].albedo_tex_path);
-		
-			ob->opengl_engine_ob = opengl_ob;
-			ob->physics_object = physics_ob;
-
-			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
-			msg->ob = ob;
-			main_window_msg_queue->enqueue(msg);
-		}
-		catch(Indigo::Exception& e)
-		{
-			conPrint(e.what());
-		}
-	}
-
-	MainWindow* main_window;
-	MeshManager mesh_manager;
-	Reference<ResourceManager> resource_manager;
-	WorldObjectRef ob;
-	Indigo::TaskManager* model_building_task_manager;
-	ThreadSafeQueue<Reference<ThreadMessage> >* main_window_msg_queue;
-};
+	Lock lock(textures_processed_mutex);
+	return textures_processed.count(path) > 0;
+}
 
 
 // Check if the model file and any material dependencies (textures etc..) are downloaded.
@@ -614,13 +548,16 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 		{
 			//print("\tAll resources present for object.  Adding Object to OpenGL Engine etc..");
 			
-			// Remove any existing OpenGL and physics model
+			// Remove and delete any existing OpenGL and physics models.
 			{
 				if(ob->opengl_engine_ob.nonNull())
 					ui->glWidget->removeObject(ob->opengl_engine_ob);
 
 				if(ob->physics_object.nonNull())
 					physics_world->removeObject(ob->physics_object);
+
+				ob->opengl_engine_ob = NULL;
+				ob->physics_object = NULL;
 
 				ob->using_placeholder_model = false;
 			}
@@ -656,12 +593,12 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 				// Do the model loading in a different thread
 				Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
+				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 				load_model_task->main_window = this;
-				load_model_task->mesh_manager = mesh_manager;
+				load_model_task->mesh_manager = &mesh_manager;
 				load_model_task->resource_manager = resource_manager;
 				load_model_task->ob = ob;
 				load_model_task->model_building_task_manager = &model_building_task_manager;
-				load_model_task->main_window_msg_queue = &msg_queue;
 
 				task_manager.addTask(load_model_task);
 			}
@@ -1080,6 +1017,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	ui->indigoView->timerThink();
 
+	ui->glWidget->makeCurrent();
+
 	updateGroundPlane();
 
 	//------------- Check to see if we should remove any old notifications ------------
@@ -1142,6 +1081,61 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 		
 
+	// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
+	// We don't want to do too much at one time or it will cause hitches.
+	const double MAX_LOADING_TIME = 0.010; // 10 ms.
+	Timer loading_timer;
+	while(!model_loaded_messages_to_process.empty() && (loading_timer.elapsed() < MAX_LOADING_TIME))
+	{
+		const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
+		model_loaded_messages_to_process.pop_front();
+
+		try
+		{
+			WorldObjectRef ob = message->ob;
+
+			if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+			{
+				//Timer timer;
+				OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+				//if(timer.elapsed() > 0.01) conPrint("loadOpenGLMeshDataIntoOpenGL took " + timer.elapsedStringNSigFigs(5));
+			}
+
+			//Timer timer;
+			ui->glWidget->addObject(ob->opengl_engine_ob);
+			//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+
+			physics_world->addObject(ob->physics_object);
+			physics_world->rebuild(task_manager, print_output);
+
+			ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+			loadScriptForObject(ob.ptr()); // Load any script for the object.
+		}
+		catch(Indigo::Exception& e)
+		{
+			print("Error while loading model: " + e.what());
+		}
+	}
+	
+	// Process any loaded textures
+	while(!texture_loaded_messages_to_process.empty() && (loading_timer.elapsed() < MAX_LOADING_TIME))
+	{
+		const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
+		texture_loaded_messages_to_process.pop_front();
+
+		//Timer timer;
+		try
+		{
+			ui->glWidget->opengl_engine->textureLoaded(message->path);
+		}
+		catch(Indigo::Exception& e)
+		{
+			print("Error while loading texture: " + e.what());
+		}
+		//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
+	}
+
 	
 	// Handle any messages (chat messages etc..)
 	{
@@ -1163,30 +1157,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			if(dynamic_cast<ModelLoadedThreadMessage*>(msg.getPointer()))
 			{
-				const ModelLoadedThreadMessage* message = (ModelLoadedThreadMessage*)msg.ptr();
-
-				WorldObjectRef ob = message->ob;
-
-				ui->glWidget->makeCurrent();
-				
-				if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull())
-				{
-					//Timer timer;
-					OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
-					//conPrint("loadOpenGLMeshDataIntoOpenGL took " + timer.elapsedString());
-				}
-
-				Timer timer;
-				ui->glWidget->addObject(ob->opengl_engine_ob);
-				conPrint("addObject took " + timer.elapsedString());
-
-				physics_world->addObject(ob->physics_object);
-				physics_world->rebuild(task_manager, print_output);
-
-				//TEMP NEW:
-				ui->indigoView->objectAdded(*ob, *this->resource_manager);
-
-				loadScriptForObject(ob.ptr()); // Load any script for the object.
+				// Add to model_loaded_messages_to_process to process later.
+				model_loaded_messages_to_process.push_back((ModelLoadedThreadMessage*)msg.ptr());
+			}
+			else if(dynamic_cast<TextureLoadedThreadMessage*>(msg.getPointer()))
+			{
+				// Add to texture_loaded_messages_to_process to process later.
+				texture_loaded_messages_to_process.push_back((TextureLoadedThreadMessage*)msg.ptr());
 			}
 			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
@@ -4065,7 +4042,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_rgb = Colour3f(0.8f);
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("nametag_" + nametag), *map);
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("nametag_" + nametag), *map/*, this->build_uint8_map_scratch_state*/);
 	return gl_ob;
 }
 
@@ -4098,7 +4075,7 @@ Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& cont
 	}
 	//conPrint("drawing text took " + timer.elapsedString());
 	//timer.reset();
-	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("hypercard_" + content), *map);
+	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("hypercard_" + content), *map/*, this->build_uint8_map_scratch_state*/);
 	
 	//conPrint("getOrLoadOpenGLTexture took " + timer.elapsedString());
 
@@ -4247,6 +4224,10 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			//GIFDecoder::test();
+			FileUtils::doUnitTests();
+			StringUtils::test();
+			return 0;
 			ModelLoading::test();
 			//return 0;
 			// Download with HTTP client
@@ -4299,10 +4280,10 @@ int main(int argc, char *argv[])
 
 		std::string server_userpath = "";
 
+		TextureServer texture_server;
 
 		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
 
-		TextureServer texture_server;
 		mw.texture_server = &texture_server;
 
 		mw.initialise();

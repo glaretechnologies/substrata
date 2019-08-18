@@ -7,7 +7,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #pragma once
 
 
-#include "../shared/WorldState.h"
+#include "WorldState.h"
 #include <MessageableThread.h>
 #include <Platform.h>
 #include <MyThread.h>

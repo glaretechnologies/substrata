@@ -28,6 +28,7 @@ public:
 		State_NotPresent, // Resource is not present on local disk.
 		State_Transferring, // Resource is currently downloading to the local client from the server.
 		State_Present // Resource is completely present on local disk.
+		//State_ResourceDownloadFailed
 	};
 
 	Resource(const std::string& URL_, const std::string& local_path_, State s, const UserID& owner_id_) : URL(URL_), local_path(local_path_), state(s), owner_id(owner_id_) {}
@@ -43,7 +44,7 @@ public:
 	UserID owner_id;
 private:
 	State state; // May be protected by mutex soon.
-	std::string local_path;
+	std::string local_path; // path on local disk.
 };
 
 typedef Reference<Resource> ResourceRef;

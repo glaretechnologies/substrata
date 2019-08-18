@@ -10,10 +10,10 @@ Copyright Glare Technologies Limited 2018 -
 #include "ModelLoading.h"
 #include "PlayerPhysics.h"
 #include "ClientThread.h"
+#include "WorldState.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
-#include "../shared/WorldState.h"
 #include "../indigo/ThreadContext.h"
 #include "../utils/CameraController.h"
 #include "../utils/ArgumentParser.h"
@@ -26,6 +26,8 @@ Copyright Glare Technologies Limited 2018 -
 #include <QtWidgets/QMainWindow>
 #include <string>
 #include <fstream>
+#include <unordered_set>
+#include <deque>
 class ArgumentParser;
 namespace Ui { class MainWindow; }
 class TextureServer;
@@ -33,6 +35,8 @@ class QSettings;
 class UserDetailsWidget;
 class URLWidget;
 class QLabel;
+class ModelLoadedThreadMessage;
+class TextureLoadedThreadMessage;
 
 
 class MainWindow : public QMainWindow
@@ -138,7 +142,12 @@ private:
 	// new_ob_pos_out is set to new, clamped position.
 	bool clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
+public:
+	bool checkAddTextureToProcessedSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool isTextureProcessed(const std::string& path) const;
 
+	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
+private:
 	std::string base_dir_path;
 	std::string appdata_path;
 	ArgumentParser parsed_args;
@@ -162,6 +171,7 @@ public:
 	ThreadManager resource_upload_thread_manager;
 	ThreadManager resource_download_thread_manager;
 	ThreadManager net_resource_download_thread_manager;
+	ThreadManager save_resources_db_thread_manager;
 
 	Reference<WorldState> world_state;
 
@@ -237,7 +247,9 @@ public:
 	StandardPrintOutput print_output;
 	Indigo::TaskManager task_manager;
 	Indigo::TaskManager model_building_task_manager; // For use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
-
+public:
+	Indigo::TaskManager texture_loader_task_manager;
+private:
 	MeshManager mesh_manager;
 
 	struct Notification
@@ -258,4 +270,16 @@ public:
 
 	Timer fps_display_timer;
 	int num_frames;
+
+	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
+	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
+	
+	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
+
+
+
+	mutable Mutex textures_processed_mutex;
+	// Textures being loaded or already loaded.
+	// We have this set so that we don't process the same texture from multiple LoadTextureTasks running in parallel.
+	std::unordered_set<std::string> textures_processed; 
 };
