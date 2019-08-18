@@ -30,6 +30,15 @@ NetDownloadResourcesThread::~NetDownloadResourcesThread()
 {}
 
 
+void NetDownloadResourcesThread::kill()
+{
+	should_die = 1;
+}
+
+
+static const bool VERBOSE = true;
+
+
 void NetDownloadResourcesThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("NetDownloadResourcesThread");
@@ -59,6 +68,9 @@ void NetDownloadResourcesThread::doRun()
 			}
 			else
 			{
+				if(this->should_die != 0)
+					return;
+
 				std::string url = *URLs_to_get.begin();
 				URLs_to_get.erase(URLs_to_get.begin());
 
@@ -71,7 +83,7 @@ void NetDownloadResourcesThread::doRun()
 				}
 				else
 				{
-					conPrint("NetDownloadResourcesThread: Downloading file '" + url + "'...");
+					if(VERBOSE) conPrint("NetDownloadResourcesThread: Downloading file '" + url + "'...");
 
 					resource->setState(Resource::State_Transferring);
 
@@ -109,8 +121,15 @@ void NetDownloadResourcesThread::doRun()
 								if(!hasExtension(resource->getLocalPath(), extension))
 								{
 									resource->setLocalPath(resource->getLocalPath() + "." + extension);
-									conPrint("Added extension to local path, new local path: " + resource->getLocalPath());
+
+									// Avoid path being too long for Windows now that we have appended the extension.
+									if(resource->getLocalPath().size() >= 260)
+										resource->setLocalPath(resource_manager->computeLocalPathFromURLHash(resource->URL, extension));
+
+									if(VERBOSE) conPrint("Added extension to local path, new local path: " + resource->getLocalPath());
 								}
+
+							
 
 							// Save to disk
 							const std::string path = resource->getLocalPath();
@@ -118,16 +137,18 @@ void NetDownloadResourcesThread::doRun()
 							{
 								FileUtils::writeEntireFile(path, (const char*)data.data(), data.size());
 
-								conPrint("NetDownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(data.size()) + ") ");
+								if(VERBOSE) conPrint("NetDownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(data.size()) + ") ");
 
 								resource->setState(Resource::State_Present);
+								resource_manager->markAsChanged();
 
 								out_msg_queue->enqueue(new ResourceDownloadedMessage(url));
 							}
 							catch(FileUtils::FileUtilsExcep& e)
 							{
 								resource->setState(Resource::State_NotPresent);
-								conPrint("NetDownloadResourcesThread: Error while writing file to disk: " + e.what());
+								resource_manager->markAsChanged();
+								if(VERBOSE) conPrint("NetDownloadResourcesThread: Error while writing file to disk: " + e.what());
 							}
 						}
 						else
@@ -136,7 +157,8 @@ void NetDownloadResourcesThread::doRun()
 					catch(Indigo::Exception& e)
 					{
 						resource->setState(Resource::State_NotPresent);
-						conPrint("NetDownloadResourcesThread: Error while downloading file: " + e.what());
+						resource_manager->markAsChanged();
+						if(VERBOSE) conPrint("NetDownloadResourcesThread: Error while downloading file: " + e.what());
 					}
 				}
 			}

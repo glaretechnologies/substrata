@@ -399,8 +399,15 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 	Reference<RayMesh> raymesh;
 
-	if(mesh_manager.model_URL_to_mesh_map.count(model_URL) > 0)
+	bool present;
 	{
+		Lock lock(mesh_manager.mutex);
+		present = mesh_manager.model_URL_to_mesh_map.count(model_URL) > 0;
+	}
+
+	if(present)
+	{
+		Lock lock(mesh_manager.mutex);
 		mesh        = mesh_manager.model_URL_to_mesh_map[model_URL].mesh;
 		gl_meshdata = mesh_manager.model_URL_to_mesh_map[model_URL].gl_meshdata;
 		raymesh     = mesh_manager.model_URL_to_mesh_map[model_URL].raymesh;
@@ -458,7 +465,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		mesh_data.mesh = mesh;
 		mesh_data.gl_meshdata = gl_meshdata;
 		mesh_data.raymesh = raymesh;
-		mesh_manager.model_URL_to_mesh_map[model_URL] = mesh_data;
+		{
+			Lock lock(mesh_manager.mutex);
+			mesh_manager.model_URL_to_mesh_map[model_URL] = mesh_data;
+		}
 	}
 
 	// Make the GLObject

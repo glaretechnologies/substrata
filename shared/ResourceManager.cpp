@@ -13,10 +13,14 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Exception.h>
 #include <FileChecksum.h>
 #include <Lock.h>
+#include <Timer.h>
+#include <FileInStream.h>
+#include <FileOutStream.h>
+#include <IncludeXXHash.h>
 
 
 ResourceManager::ResourceManager(const std::string& base_resource_dir_)
-:	base_resource_dir(base_resource_dir_)
+:	base_resource_dir(base_resource_dir_), changed(0)
 {
 }
 
@@ -79,9 +83,29 @@ bool ResourceManager::isValidURL(const std::string& URL)
 }
 
 
-const std::string ResourceManager::computeLocalPathForURL(const std::string& URL)
+// Compute default local path for URL.
+const std::string ResourceManager::computeDefaultLocalPathForURL(const std::string& URL)
 {
-	return base_resource_dir + "/" + escapeString(URL);
+	const std::string path = base_resource_dir + "/" + escapeString(URL);
+#ifdef WIN32
+	if(path.size() >= MAX_PATH) // path length seems to include null terminator, e.g. paths of length 260 fail as well.
+	{
+		// Path is too long for windows.  Use a hash of the URL instead
+		const uint64 hash = XXH64(URL.data(), URL.size(), /*seed=*/1);
+
+		return base_resource_dir + "/" + toHexString(hash) + "." + ::getExtension(path);
+	}
+#endif
+
+	return path;
+}
+
+
+const std::string ResourceManager::computeLocalPathFromURLHash(const std::string& URL, const std::string& extension)
+{
+	const uint64 hash = XXH64(URL.data(), URL.size(), /*seed=*/1);
+
+	return base_resource_dir + "/" + toHexString(hash) + "." + extension;// ::getExtension(URL);
 }
 
 
@@ -93,7 +117,7 @@ ResourceRef ResourceManager::getResourceForURL(const std::string& URL) // Thread
 	if(res == resource_for_url.end())
 	{
 		// Insert it
-		const std::string local_path = computeLocalPathForURL(URL);
+		const std::string local_path = computeDefaultLocalPathForURL(URL);
 		ResourceRef resource = new Resource(
 			URL, 
 			local_path,
@@ -101,6 +125,7 @@ ResourceRef ResourceManager::getResourceForURL(const std::string& URL) // Thread
 			UserID::invalidUserID()
 		);
 		resource_for_url[URL] = resource;
+		this->changed = 1;
 		return resource;
 	}
 	else
@@ -119,6 +144,8 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 		Lock lock(mutex);
 		ResourceRef res = getResourceForURL(URL);
 		res->setState(Resource::State_Present);
+
+		this->changed = 1;
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -150,6 +177,120 @@ bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws Indi
 
 void ResourceManager::addResource(ResourceRef& res)
 {
+	Lock lock(mutex);
+
 	resource_for_url[res->URL] = res;
 	res->setState(Resource::State_Present); // Assume present for now.
+
+	this->changed = 1;
+}
+
+
+void ResourceManager::markAsChanged() // Thread-safe
+{
+	this->changed = 1;
+}
+
+
+static const uint32 RESOURCE_MANAGER_MAGIC_NUMBER = 587732371;
+static const uint32 RESOURCE_MANAGER_SERIALISATION_VERSION = 1;
+static const uint32 RESOURCE_CHUNK = 103;
+static const uint32 EOS_CHUNK = 1000;
+
+
+void ResourceManager::loadFromDisk(const std::string& path)
+{
+	conPrint("Reading resources from '" + path + "'...");
+	Timer timer;
+
+	FileInStream stream(path);
+
+	// Read magic number
+	const uint32 m = stream.readUInt32();
+	if(m != RESOURCE_MANAGER_MAGIC_NUMBER)
+		throw Indigo::Exception("Invalid magic number " + toString(m) + ", expected " + toString(RESOURCE_MANAGER_MAGIC_NUMBER) + ".");
+
+	// Read version
+	const uint32 v = stream.readUInt32();
+	if(v != RESOURCE_MANAGER_SERIALISATION_VERSION)
+		throw Indigo::Exception("Unknown version " + toString(v) + ", expected " + toString(RESOURCE_MANAGER_SERIALISATION_VERSION) + ".");
+	
+	size_t num_resources_present = 0;
+	while(1)
+	{
+		const uint32 chunk = stream.readUInt32();
+		if(chunk == RESOURCE_CHUNK)
+		{
+			// Deserialise resource
+			ResourceRef resource = new Resource();
+			readFromStream(stream, *resource);
+
+			// conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
+
+			resource_for_url[resource->URL] = resource;
+
+			//TEMP:
+			//if(resource->getLocalPath().size() >= 260)
+			//	resource->setLocalPath(this->computeLocalPathFromURLHash(resource->URL, ::getExtension(resource->getLocalPath())));
+
+			if(FileUtils::fileExists(resource->getLocalPath()))
+			{
+				resource->setState(Resource::State_Present);
+				num_resources_present++;
+			}
+		}
+		else if(chunk == EOS_CHUNK)
+		{
+			break;
+		}
+		else
+		{
+			throw Indigo::Exception("Unknown chunk type '" + toString(chunk) + "'");
+		}
+	}
+
+	conPrint("Loaded " + toString(resource_for_url.size()) + " resource(s).  (" + toString(num_resources_present) + " present on disk)  Elapsed: " + timer.elapsedStringNSigFigs(3) + "");
+}
+
+
+void ResourceManager::saveToDisk(const std::string& path)
+{
+	conPrint("Saving resources to disk...");
+	Timer timer;
+
+	Lock lock(mutex);
+
+	try
+	{
+		const std::string temp_path = path + "_temp";
+
+		{
+			FileOutStream stream(temp_path);
+
+			// Write magic number
+			stream.writeUInt32(RESOURCE_MANAGER_MAGIC_NUMBER);
+
+			// Write version
+			stream.writeUInt32(RESOURCE_MANAGER_SERIALISATION_VERSION);
+
+			// Write resource objects
+			{
+				for(auto i=resource_for_url.begin(); i != resource_for_url.end(); ++i)
+				{
+					stream.writeUInt32(RESOURCE_CHUNK);
+					writeToStream(*i->second, stream);
+				}
+			}
+
+			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
+		}
+
+		FileUtils::moveFile(temp_path, path);
+
+		conPrint("\tDone saving resources to disk.  (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		throw Indigo::Exception(e.what());
+	}
 }

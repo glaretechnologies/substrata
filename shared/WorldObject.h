@@ -23,6 +23,7 @@ struct GLObject;
 class PhysicsObject;
 class ResourceManager;
 class WinterShaderEvaluator;
+class Matrix4f;
 namespace Indigo { class SceneNodeModel; }
 
 
@@ -178,3 +179,6 @@ void readFromStream(InStream& stream, WorldObject& ob);
 
 void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream); // Write without version
 void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID will have been read already
+
+
+const Matrix4f obToWorldMatrix(const WorldObjectRef& ob);

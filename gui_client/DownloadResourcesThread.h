@@ -8,7 +8,7 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 #include "../shared/ResourceManager.h"
-#include "../shared/WorldState.h"
+#include "WorldState.h"
 #include <MessageableThread.h>
 #include <Platform.h>
 #include <MyThread.h>

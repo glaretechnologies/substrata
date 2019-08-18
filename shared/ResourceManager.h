@@ -14,6 +14,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Reference.h>
 #include <map>
 #include <Mutex.h>
+#include <IndigoAtomic.h>
 
 
 /*=====================================================================
@@ -35,7 +36,7 @@ public:
 
 	static bool isValidURL(const std::string& URL);
 
-	// Will create a new Resource ob if not already inserted.
+	// Will create a new Resource object if not already inserted.
 	ResourceRef getResourceForURL(const std::string& URL); // Threadsafe
 
 	// Copy a local file with given local path and corresponding URL into the resource dir
@@ -44,7 +45,9 @@ public:
 
 	const std::string pathForURL(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
 
-	const std::string computeLocalPathForURL(const std::string& URL);
+	const std::string computeDefaultLocalPathForURL(const std::string& URL); // Compute default local path for URL.
+
+	const std::string computeLocalPathFromURLHash(const std::string& URL, const std::string& extension);
 
 	bool isFileForURLPresent(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
 
@@ -52,9 +55,20 @@ public:
 	void addResource(ResourceRef& res);
 	const std::map<std::string, ResourceRef>& getResourcesForURL() const { return resource_for_url; }
 	std::map<std::string, ResourceRef>& getResourcesForURL() { return resource_for_url; }
+
+	bool hasChanged() const { return changed != 0; }
+	void clearChangedFlag() { changed = 0; }
+	void markAsChanged(); // Thread-safe
+
+	Mutex& getMutex() { return mutex; }
+
+	// Just used on client:
+	void loadFromDisk(const std::string& path);
+	void saveToDisk(const std::string& path);
 private:
 	std::string base_resource_dir;
 
 	Mutex mutex;
 	std::map<std::string, ResourceRef> resource_for_url;
+	IndigoAtomic changed;
 };
