@@ -74,39 +74,39 @@ void LoadModelTask::run(size_t thread_index)
 		{
 			assert(ob->object_type == WorldObject::ObjectType_Generic);
 
-			Indigo::MeshRef mesh;
-			Reference<RayMesh> raymesh;
-			opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
-				true, // skip_opengl_calls
-				mesh, raymesh);
+			// We want to load and build the mesh at ob->model_url.
+			const bool just_inserted = main_window->checkAddModelToProcessedSet(ob->model_url); // Mark model as being processed so another LoadModelTask doesn't try and process it also.
+			if(just_inserted)
+			{
+				conPrint("LoadModelTask: loading mesh with URL '" + ob->model_url + "'.");
+				Indigo::MeshRef mesh;
+				Reference<RayMesh> raymesh;
+				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
+					true, // skip_opengl_calls
+					mesh, raymesh);
 
-			// Make physics object
-			physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-			physics_ob->geometry = raymesh;
-			physics_ob->ob_to_world = ob_to_world_matrix;
+				// Make physics object
+				physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+				physics_ob->geometry = raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+			}
 		}
 
-		physics_ob->userdata = ob.ptr();
-		physics_ob->userdata_type = 0;
+		if(physics_ob.nonNull())
+		{
+			physics_ob->userdata = ob.ptr();
+			physics_ob->userdata_type = 0;
+		}
 
-		// Process model materials - start loading any textures that are not already loaded and processed:
-		for(size_t i=0; i<opengl_ob->materials.size(); ++i)
-			if(!opengl_ob->materials[i].albedo_tex_path.empty())
-			{
-				if(!main_window->texture_server->isTextureLoadedForPath(opengl_ob->materials[i].albedo_tex_path) && // If not loaded
-					!main_window->isTextureProcessed(opengl_ob->materials[i].albedo_tex_path)) // and not being loaded already:
-				{
-					main_window->texture_loader_task_manager.addTask(new LoadTextureTask(opengl_engine, main_window, opengl_ob->materials[i].albedo_tex_path));
-				}
-			}
-
-		ob->opengl_engine_ob = opengl_ob;
-		ob->physics_object = physics_ob;
-
-		// Send a ModelLoadedThreadMessage back to main window.
-		Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
-		msg->ob = ob;
-		main_window->msg_queue.enqueue(msg);
+		if(opengl_ob.nonNull()) // If we actually loaded a model:
+		{
+			// Send a ModelLoadedThreadMessage back to main window.
+			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
+			msg->opengl_ob = opengl_ob;
+			msg->physics_ob = physics_ob;
+			msg->ob = ob;
+			main_window->msg_queue.enqueue(msg);
+		}
 	}
 	catch(Indigo::Exception& e)
 	{

@@ -34,7 +34,9 @@ Caches meshes and OpenGL data loaded from disk and built.
 class MeshManager
 {
 public:
-	Mutex mutex;
+	bool isMeshDataInserted(const std::string& model_url) const;
+
+	mutable Mutex mutex;
 	std::map<std::string, MeshData> model_URL_to_mesh_map;
 };
 

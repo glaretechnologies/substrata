@@ -36,7 +36,7 @@ void NetDownloadResourcesThread::kill()
 }
 
 
-static const bool VERBOSE = true;
+static const bool VERBOSE = false;
 
 
 void NetDownloadResourcesThread::doRun()

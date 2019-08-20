@@ -25,6 +25,14 @@ Code By Nicholas Chapman.
 #include <limits>
 
 
+bool MeshManager::isMeshDataInserted(const std::string& model_url) const
+{
+	Lock lock(mutex);
+
+	return model_URL_to_mesh_map.count(model_url) > 0;
+}
+
+
 void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;

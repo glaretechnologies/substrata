@@ -67,11 +67,13 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/ContainerUtils.h"
 #include "../utils/JSONParser.h"
 #include "../utils/Base64.h"
+#include "../utils/OpenSSL.h"
 #include "../networking/networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
 #include "../networking/HTTPClient.h" // Just for testing
 #include "../networking/url.h" // Just for testing
+//#include "../networking/TLSSocketTests.h" // Just for testing
 
 #include "../simpleraytracer/ray.h"
 #include "../graphics/formatdecoderobj.h"
@@ -135,7 +137,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false)
 {
-	// model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -448,6 +450,92 @@ bool MainWindow::isTextureProcessed(const std::string& path) const
 }
 
 
+bool MainWindow::checkAddModelToProcessedSet(const std::string& url)
+{
+	Lock lock(models_processed_mutex);
+	auto res = models_processed.insert(url);
+	return res.second; // Was model inserted? (will be false if already present in set)
+}
+
+
+bool MainWindow::isModelProcessed(const std::string& url) const
+{
+	Lock lock(models_processed_mutex);
+	return models_processed.count(url) > 0;
+}
+
+
+void MainWindow::startLoadingTexturesForObject(const WorldObject& ob)
+{
+	// Process model materials - start loading any textures that are not already loaded and processed:
+	for(size_t i=0; i<ob.materials.size(); ++i)
+	{
+		if(!ob.materials[i]->colour_texture_url.empty())
+		{
+			const std::string tex_path = resource_manager->pathForURL(ob.materials[i]->colour_texture_url);
+
+			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
+				!this->isTextureProcessed(tex_path)) // and not being loaded already:
+			{
+				this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+			}
+		}
+	}
+}
+
+
+void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
+{
+	if(ob.opengl_engine_ob.nonNull())
+		ui->glWidget->removeObject(ob.opengl_engine_ob);
+
+	if(ob.physics_object.nonNull())
+		physics_world->removeObject(ob.physics_object);
+
+	ob.opengl_engine_ob = NULL;
+	ob.physics_object = NULL;
+
+	ob.using_placeholder_model = false;
+}
+
+
+void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
+{
+	WorldObject* ob = &ob_;
+
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
+
+	// Remove any existing OpenGL and physics model
+	if(ob->opengl_engine_ob.nonNull())
+		ui->glWidget->removeObject(ob->opengl_engine_ob);
+	
+	if(ob->physics_object.nonNull())
+		physics_world->removeObject(ob->physics_object);
+
+	// Use a temporary placeholder cube model.
+	const Matrix4f cube_ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+
+	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+	cube_gl_ob->ob_to_world_matrix = cube_ob_to_world_matrix;
+	ob->opengl_engine_ob = cube_gl_ob;
+	ui->glWidget->addObject(cube_gl_ob);
+
+	// Make physics object
+	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+	physics_ob->geometry = this->unit_cube_raymesh;
+	physics_ob->ob_to_world = cube_ob_to_world_matrix;
+
+	ob->physics_object = physics_ob;
+	physics_ob->userdata = ob;
+	physics_ob->userdata_type = 0;
+	physics_world->addObject(physics_ob);
+
+	physics_world->rebuild(task_manager, print_output);
+
+	ob->using_placeholder_model = true;
+}
+
+
 // Check if the model file and any material dependencies (textures etc..) are downloaded.
 // If so load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the downloads.
@@ -513,63 +601,23 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 		if(!all_downloaded)
 		{
 			if(!ob->using_placeholder_model)
-			{
-				// Remove any existing OpenGL and physics model
-				if(ob->opengl_engine_ob.nonNull())
-					ui->glWidget->removeObject(ob->opengl_engine_ob);
-
-				if(ob->physics_object.nonNull())
-					physics_world->removeObject(ob->physics_object);
-
-				// Use a temporary placeholder cube model.
-				const Matrix4f cube_ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
-
-				GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-				cube_gl_ob->ob_to_world_matrix = cube_ob_to_world_matrix;
-				ob->opengl_engine_ob = cube_gl_ob;
-				ui->glWidget->addObject(cube_gl_ob);
-
-				// Make physics object
-				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-				physics_ob->geometry = this->unit_cube_raymesh;
-				physics_ob->ob_to_world = cube_ob_to_world_matrix;
-
-				ob->physics_object = physics_ob;
-				physics_ob->userdata = ob;
-				physics_ob->userdata_type = 0;
-				physics_world->addObject(physics_ob);
-
-				physics_world->rebuild(task_manager, print_output);
-
-				ob->using_placeholder_model = true;
-			}
+				addPlaceholderObjectsForOb(*ob);
 		}
 		else
 		{
 			//print("\tAll resources present for object.  Adding Object to OpenGL Engine etc..");
 			
-			// Remove and delete any existing OpenGL and physics models.
-			{
-				if(ob->opengl_engine_ob.nonNull())
-					ui->glWidget->removeObject(ob->opengl_engine_ob);
-
-				if(ob->physics_object.nonNull())
-					physics_world->removeObject(ob->physics_object);
-
-				ob->opengl_engine_ob = NULL;
-				ob->physics_object = NULL;
-
-				ob->using_placeholder_model = false;
-			}
-
-
 			if(ob->object_type == WorldObject::ObjectType_Hypercard)
 			{
 				// Since makeHypercardTexMap does OpenGL calls, do this in the main thread for now.
 
+				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->geometry = this->hypercard_quad_raymesh;
 				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
 
 				GLObjectRef opengl_ob = new GLObject();
 				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
@@ -590,19 +638,66 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			}
 			else
 			{
-				// Do the model loading in a different thread
-				Reference<LoadModelTask> load_model_task = new LoadModelTask();
+				startLoadingTexturesForObject(*ob);
 
-				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-				load_model_task->main_window = this;
-				load_model_task->mesh_manager = &mesh_manager;
-				load_model_task->resource_manager = resource_manager;
-				load_model_task->ob = ob;
-				load_model_task->model_building_task_manager = &model_building_task_manager;
+				const bool load_in_task = (ob->object_type != WorldObject::ObjectType_Generic) || // Always load voxel models in a LoadModelTask
+					!(this->isModelProcessed(ob->model_url) || mesh_manager.isMeshDataInserted(ob->model_url)); // Is model not being loaded or is not loaded already.
 
-				task_manager.addTask(load_model_task);
+				if(load_in_task)
+				{
+					// Do the model loading in a different thread
+					Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+					load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
+					load_model_task->main_window = this;
+					load_model_task->mesh_manager = &mesh_manager;
+					load_model_task->resource_manager = resource_manager;
+					load_model_task->ob = ob;
+					load_model_task->model_building_task_manager = &model_building_task_manager;
+
+					task_manager.addTask(load_model_task);
+				}
+				else
+				{
+					// Model is either being loaded, or is already loaded.
+					
+					if(mesh_manager.isMeshDataInserted(ob->model_url)) // If model mesh data is already loaded:
+					{
+						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+						// Create gl and physics object now
+						Indigo::MeshRef indigo_mesh;
+						Reference<RayMesh> raymesh;
+						ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+							false, // skip opengl calls
+							indigo_mesh, raymesh);
+
+						if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
+							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+
+						ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+						ob->physics_object->geometry = raymesh;
+						ob->physics_object->ob_to_world = ob_to_world_matrix;
+						ob->physics_object->userdata = ob;
+						ob->physics_object->userdata_type = 0;
+
+						//Timer timer;
+						ui->glWidget->addObject(ob->opengl_engine_ob);
+						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+
+						physics_world->addObject(ob->physics_object);
+						physics_world->rebuild(task_manager, print_output);
+
+						ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+						loadScriptForObject(ob); // Load any script for the object.
+					}
+				}
 			}
 		}
+
+		if(ob->opengl_engine_ob.isNull())
+			addPlaceholderObjectsForOb(*ob);
 
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 	}
@@ -1092,25 +1187,88 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		try
 		{
-			WorldObjectRef ob = message->ob;
+			WorldObjectRef message_ob = message->ob;
 
-			if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+			// Remove placeholder model if using one.
+			if(message_ob->using_placeholder_model)
+				removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
+
+			message_ob->opengl_engine_ob = message->opengl_ob;
+			message_ob->physics_object = message->physics_ob;
+
+			const std::string loaded_model_url = message_ob->model_url;
+
+			if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+				OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
+
+			// Add this object to the GL engine and physics engine.
+			if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 			{
-				//Timer timer;
-				OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
-				//if(timer.elapsed() > 0.01) conPrint("loadOpenGLMeshDataIntoOpenGL took " + timer.elapsedStringNSigFigs(5));
+				ui->glWidget->addObject(message_ob->opengl_engine_ob);
+
+				physics_world->addObject(message_ob->physics_object);
+				physics_world->rebuild(task_manager, print_output);
+
+				ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+
+				loadScriptForObject(message_ob.ptr()); // Load any script for the object.
 			}
 
-			//Timer timer;
-			ui->glWidget->addObject(ob->opengl_engine_ob);
-			//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+			// Iterate over objects, and assign the loaded model for any other objects also using this model:
+			if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
+			{
+				Lock lock(this->world_state->mutex);
+				for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+				{
+					WorldObject* ob = it->second.getPointer();
 
-			physics_world->addObject(ob->physics_object);
-			physics_world->rebuild(task_manager, print_output);
+					if(ob->model_url == loaded_model_url)
+					{
+						// Remove any existing OpenGL and physics model
+						if(ob->using_placeholder_model)
+							removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+						
+						// Create GLObject and PhysicsObjects for this world object if they have not been created already.
+						// They may have been created in the LoadModelTask already.
+						if(ob->opengl_engine_ob.isNull())
+						{
+							const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
 
-			ui->indigoView->objectAdded(*ob, *this->resource_manager);
+							Indigo::MeshRef indigo_mesh;
+							Reference<RayMesh> raymesh;
+							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+								false, // skip opengl calls
+								indigo_mesh, raymesh);
 
-			loadScriptForObject(ob.ptr()); // Load any script for the object.
+							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+							ob->physics_object->geometry = message_ob->physics_object->geometry;
+							ob->physics_object->ob_to_world = ob_to_world_matrix;
+							ob->physics_object->userdata = ob;
+							ob->physics_object->userdata_type = 0;
+						}
+						else
+						{
+							assert(ob->physics_object.nonNull());
+						}
+
+						if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
+						{
+							// Shouldn't be needed.
+							if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+
+							ui->glWidget->addObject(ob->opengl_engine_ob);
+
+							physics_world->addObject(ob->physics_object);
+							physics_world->rebuild(task_manager, print_output);
+
+							ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+							loadScriptForObject(ob); // Load any script for the object.
+						}
+					}
+				}
+			}
 		}
 		catch(Indigo::Exception& e)
 		{
@@ -4177,6 +4335,7 @@ int main(int argc, char *argv[])
 	Clock::init();
 	Networking::createInstance();
 	Winter::VirtualMachine::init();
+	OpenSSL::init();
 	TLSSocket::initTLS();
 
 	PlatformUtils::ignoreUnixSignals();
@@ -4224,8 +4383,13 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			//GIFDecoder::test();
 			FileUtils::doUnitTests();
+			//StringUtils::test();
+			//HTTPClient::test();
+			//return 0;
+			//GIFDecoder::test();
+			//TLSSocketTests::test();
+			
 			StringUtils::test();
 			return 0;
 			ModelLoading::test();
@@ -4280,7 +4444,8 @@ int main(int argc, char *argv[])
 
 		std::string server_userpath = "";
 
-		TextureServer texture_server;
+		// Since we will be inserted textures based on URLs, the textures should be different if they have different paths, so we don't need to do path canonicalisation.
+		TextureServer texture_server(/*use_canonical_path_keys=*/false);
 
 		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
 
