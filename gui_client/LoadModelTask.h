@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2019 -
 
 
 #include "../shared/WorldObject.h"
+#include "PhysicsObject.h"
+#include <opengl/OpenGLEngine.h>
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <string>
@@ -19,6 +21,10 @@ class ResourceManager;
 class ModelLoadedThreadMessage : public ThreadMessage
 {
 public:
+	// Results of the task:
+	GLObjectRef opengl_ob;
+	PhysicsObjectRef physics_ob;
+
 	WorldObjectRef ob;
 };
 

@@ -145,6 +145,13 @@ private:
 public:
 	bool checkAddTextureToProcessedSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool isTextureProcessed(const std::string& path) const;
+	
+	bool checkAddModelToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool isModelProcessed(const std::string& url) const;
+
+	void startLoadingTexturesForObject(const WorldObject& ob);
+	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
+	void addPlaceholderObjectsForOb(WorldObject& ob);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 private:
@@ -281,5 +288,10 @@ private:
 	mutable Mutex textures_processed_mutex;
 	// Textures being loaded or already loaded.
 	// We have this set so that we don't process the same texture from multiple LoadTextureTasks running in parallel.
-	std::unordered_set<std::string> textures_processed; 
+	std::unordered_set<std::string> textures_processed;
+
+	mutable Mutex models_processed_mutex;
+	// Models being loaded or already loaded.
+	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
+	std::unordered_set<std::string> models_processed;
 };

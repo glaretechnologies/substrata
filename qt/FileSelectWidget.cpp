@@ -164,7 +164,7 @@ void FileSelectWidget::on_filePath_editingFinished()
 	{
 		try
 		{
-			if(FileUtils::getPathKey(QtUtils::toIndString(new_file)) != FileUtils::getPathKey(QtUtils::toIndString(internal_filename))) // If it actually changed.
+			if(FileUtils::getCanonicalPath(QtUtils::toIndString(new_file)) != FileUtils::getCanonicalPath(QtUtils::toIndString(internal_filename))) // If it actually changed.
 			{
 				internal_filename = new_file;
 

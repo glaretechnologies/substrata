@@ -21,18 +21,18 @@ LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, 
 
 void LoadTextureTask::run(size_t thread_index)
 {
-	if(main_window->texture_server->isTextureLoadedForPath(path))
-		return;
-
-	const bool just_inserted = main_window->checkAddTextureToProcessedSet(path); // Mark texture as being processed so another LoadTextureTask doesn't try and process it also.
-	if(!just_inserted)
-		return;
-
-	//conPrint("LoadTextureTask: processing texture '" + path + "'");
-
 	try
 	{
-		const std::string key = main_window->texture_server->keyForPath(path);
+		//conPrint("LoadTextureTask: processing texture '" + path + "'");
+
+		const std::string key = main_window->texture_server->keyForPath(path); // Get canonical path.  May throw TextureServerExcep
+
+		if(main_window->texture_server->isTextureLoadedForRawName(key)) // If this texture is already loaded, return.
+			return;
+
+		const bool just_inserted = main_window->checkAddTextureToProcessedSet(path); // Mark texture as being processed so another LoadTextureTask doesn't try and process it also.
+		if(!just_inserted)
+			return;
 
 		Reference<Map2D> map = ImFormatDecoder::decodeImage(".", key);
 
@@ -53,6 +53,10 @@ void LoadTextureTask::run(size_t thread_index)
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
 		msg->path = path;
 		main_window->msg_queue.enqueue(msg);
+	}
+	catch(TextureServerExcep& e)
+	{
+		conPrint("Warning: failed to get canonical key for path '" + path + "': " + e.what());
 	}
 	catch(ImFormatExcep& e)
 	{
