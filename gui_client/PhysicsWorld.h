@@ -1,19 +1,19 @@
 /*=====================================================================
 PhysicsWorld.h
 --------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2019 -
 =====================================================================*/
 #pragma once
 
 
 #include "PhysicsObject.h"
 #include "PhysicsObjectBVH.h"
-#include "../maths/Vec4f.h"
-#include "../maths/vec3.h"
-#include "../maths/vec2.h"
-#include "../utils/ThreadSafeRefCounted.h"
-#include "utils/Vector.h"
-#include "physics/jscol_boundingsphere.h"
+#include <physics/jscol_boundingsphere.h>
+#include <maths/Vec4f.h>
+#include <maths/vec2.h>
+#include <utils/ThreadSafeRefCounted.h>
+#include <utils/Vector.h>
+#include <unordered_set>
 namespace Indigo { class TaskManager; }
 class PrintOutput;
 
@@ -58,9 +58,8 @@ public:
 	void getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const;
 
 private:
-	js::Vector<Reference<PhysicsObject>, 32> objects;
+	//js::Vector<Reference<PhysicsObject>, 32> objects;
+	std::unordered_set<Reference<PhysicsObject>, PhysicsObjectHash> objects_set;
 
 	PhysicsObjectBVH object_bvh;
 };
-
-

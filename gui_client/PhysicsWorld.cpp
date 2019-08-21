@@ -1,14 +1,15 @@
 /*=====================================================================
 PhysicsWorld.cpp
 ----------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2019 -
 =====================================================================*/
 #include "PhysicsWorld.h"
 
 
-#include "../simpleraytracer/ray.h"
-#include "../utils/StringUtils.h"
-#include "../utils/ConPrint.h"
+#include <simpleraytracer/ray.h>
+#include <utils/StringUtils.h>
+#include <utils/ConPrint.h>
+#include <utils/Timer.h>
 
 
 PhysicsWorld::PhysicsWorld()
@@ -37,20 +38,22 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 	// Compute world space AABB of object
 	updateObjectTransformData(*object.getPointer());
 	
-	this->objects.push_back(object);
+	//this->objects.push_back(object);
+	this->objects_set.insert(object);
 }
 
 
 void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 {
 	// NOTE: linear time
-
-	for(size_t i=0; i<objects.size(); ++i)
+	/*for(size_t i=0; i<objects.size(); ++i)
 		if(objects[i].getPointer() == object.getPointer())
 		{
 			objects.erase(i);
 			break;
-		}
+		}*/
+
+	this->objects_set.erase(object);
 }
 
 void PhysicsWorld::rebuild(Indigo::TaskManager& task_manager, PrintOutput& print_output)
@@ -77,14 +80,16 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext
 
 	const Ray ray(origin, dir, 0.f, std::numeric_limits<float>::infinity());
 
-	for(size_t i=0; i<objects.size(); ++i)
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
 	{
+		const PhysicsObject* object = it->ptr();
+
 		RayTraceResult ob_results;
-		objects[i]->traceRay(ray, 1.0e30f, thread_context, ob_results);
+		object->traceRay(ray, 1.0e30f, thread_context, ob_results);
 		if(ob_results.hit_object && ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
 		{
 			results_out = ob_results;
-			results_out.hit_object = objects[i].getPointer();
+			results_out.hit_object = object;
 			closest_dist = ob_results.hitdist_ws;
 		}
 	}
@@ -104,14 +109,16 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 
 	float closest_dist_ws = std::numeric_limits<float>::infinity();
 
-	for(size_t i=0; i<objects.size(); ++i)
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
 	{
+		const PhysicsObject* object = it->ptr();
+
 		RayTraceResult ob_results;
-		objects[i]->traceSphere(sphere, translation_ws, spherepath_aabb_ws, thread_context, ob_results);
+		object->traceSphere(sphere, translation_ws, spherepath_aabb_ws, thread_context, ob_results);
 		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist_ws)
 		{
 			results_out = ob_results;
-			results_out.hit_object = objects[i].getPointer();
+			results_out.hit_object = object;
 			closest_dist_ws = ob_results.hitdist_ws;
 		}
 	}
@@ -125,7 +132,30 @@ void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, ThreadContext
 	const float r = sphere.getRadius();
 	const js::AABBox sphere_aabb_ws(sphere.getCenter() - Vec4f(r, r, r, 0), sphere.getCenter() + Vec4f(r, r, r, 0));
 
-	for(size_t i=0; i<objects.size(); ++i)
-		objects[i]->appendCollPoints(sphere, sphere_aabb_ws, thread_context, points_out);
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	{
+		const PhysicsObject* object = it->ptr();
+		object->appendCollPoints(sphere, sphere_aabb_ws, thread_context, points_out);
+	}
 }
 
+
+// TEMP: test iteration speed
+/*{
+	Timer timer;
+	size_t num_collidable = 0;
+	for(size_t i=0; i<objects.size(); ++i)
+	{
+		num_collidable += objects[i]->collidable ? 1 : 0;
+	}
+	conPrint("array iter:         " + timer.elapsedStringNSigFigs(5) + " (num_collidable=" + toString(num_collidable) + ")");
+}
+{
+	Timer timer;
+	size_t num_collidable = 0;
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	{
+		num_collidable += (*it)->collidable ? 1 : 0;
+	}
+	conPrint("unordered_set iter: " + timer.elapsedStringNSigFigs(5) + " (num_collidable=" + toString(num_collidable) + ")");
+}*/

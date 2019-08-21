@@ -63,3 +63,12 @@ private:
 
 
 typedef Reference<PhysicsObject> PhysicsObjectRef;
+
+
+struct PhysicsObjectHash
+{
+	size_t operator() (const PhysicsObjectRef& ob) const
+	{
+		return (size_t)ob.getPointer() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};
