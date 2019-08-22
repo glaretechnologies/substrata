@@ -95,6 +95,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../opengl/OpenGLEngineTests.h" // Just for testing
 #include "../graphics/FormatDecoderGLTF.h" // Just for testing
 #include "../graphics/GifDecoder.h" // Just for testing
+#include "../graphics/PNGDecoder.h" // Just for testing
 
 
 
@@ -3612,6 +3613,14 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 	ground_quads.clear();
 
 	this->ui->indigoView->shutdown();
+
+	// Clear textures_processed set.
+	{
+		Lock lock(textures_processed_mutex);
+		textures_processed.clear();
+	}
+
+	texture_server->clear();
 	
 	world_state = NULL;
 	//-------------------------------- End disconnect process --------------------------------
@@ -4383,13 +4392,14 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			FileUtils::doUnitTests();
+			PNGDecoder::test();
+			//FileUtils::doUnitTests();
 			//StringUtils::test();
 			//HTTPClient::test();
 			//return 0;
 			//GIFDecoder::test();
 			//TLSSocketTests::test();
-			
+#if 0	
 			StringUtils::test();
 			return 0;
 			ModelLoading::test();
@@ -4434,6 +4444,7 @@ int main(int argc, char *argv[])
 			//ReferenceTest::run();
 			//Matrix4f::test();
 			//CameraController::test();
+#endif
 			return 0;
 		}
 #endif
