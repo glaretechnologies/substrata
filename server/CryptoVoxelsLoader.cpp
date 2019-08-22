@@ -107,11 +107,12 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 		if(download)
 		{
 			// Download latest parcels.json
+			Timer timer;
 			conPrint("Downloading https://www.cryptovoxels.com/grid/parcels...");
 			HTTPClient client;
 			std::string parcels_json;
 			HTTPClient::ResponseInfo response_info = client.downloadFile("https://www.cryptovoxels.com/grid/parcels", parcels_json);
-			conPrint("\tDone.");
+			conPrint("\tDone.  (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
 			if(response_info.response_code != 200)
 				throw Indigo::Exception("HTTP Download failed: response code was " + toString(response_info.response_code) + ": " + response_info.response_message);
 
