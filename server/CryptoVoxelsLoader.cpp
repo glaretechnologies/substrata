@@ -34,7 +34,7 @@ void CryptoVoxelsLoaderThread::doRun()
 
 		// Wait for N seconds or until we get a KillThreadMessage.
 		ThreadMessageRef message;
-		const bool got_message = getMessageQueue().dequeueWithTimeout(/*wait time (s)=*/30.0, message);
+		const bool got_message = getMessageQueue().dequeueWithTimeout(/*wait time (s)=*/120.0, message);
 		if(got_message)
 			if(dynamic_cast<KillThreadMessage*>(message.getPointer()))
 				return;
