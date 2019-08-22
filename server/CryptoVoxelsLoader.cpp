@@ -145,7 +145,11 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 			"03-white-square.png"
 		};
 		std::vector<std::string> inverted_paths(16);
-		const std::string base_path = "D:\\files\\cryptovoxels_textures";
+#if _WIN32
+		const std::string base_path = "O:\\new_cyberspace\\trunk\\resources\\CV";
+#else
+		const std::string base_path = "/home/nick/cyberspace_server_resources";
+#endif
 		for(int i = 0; i < 16; ++i)
 		{
 			world_state.resource_manager->copyLocalFileToResourceDir(base_path + "/" + paths[i], /*URL=*/paths[i]);
