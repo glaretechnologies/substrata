@@ -78,7 +78,7 @@ void LoadModelTask::run(size_t thread_index)
 			const bool just_inserted = main_window->checkAddModelToProcessedSet(ob->model_url); // Mark model as being processed so another LoadModelTask doesn't try and process it also.
 			if(just_inserted)
 			{
-				conPrint("LoadModelTask: loading mesh with URL '" + ob->model_url + "'.");
+				// conPrint("LoadModelTask: loading mesh with URL '" + ob->model_url + "'.");
 				Indigo::MeshRef mesh;
 				Reference<RayMesh> raymesh;
 				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,

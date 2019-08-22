@@ -32,6 +32,10 @@ class Voxel
 public:
 	Voxel(const Vec3<int>& pos_, int mat_index_) : pos(pos_), mat_index(mat_index_) {}
 	Voxel() {}
+
+	bool operator == (const Voxel& other) const { return pos == other.pos && mat_index == other.mat_index; }
+	bool operator != (const Voxel& other) const { return pos != other.pos || mat_index != other.mat_index; }
+
 	Vec3<int> pos;
 	int mat_index; // Index into materials
 };

@@ -572,15 +572,15 @@ int main(int argc, char *argv[])
 		}
 
 
-		// TEMP: Load CryptoVoxels data.
-		server.world_state->objects.clear();
-		CryptoVoxelsLoader::loadCryptoVoxelsData(*server.world_state);
+		//server.world_state->objects.clear();
+
 
 
 		server.world_state->denormaliseData();
 
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server));
+		thread_manager.addThread(new CryptoVoxelsLoaderThread(server.world_state));
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
 
 		Timer save_state_timer;
@@ -692,7 +692,7 @@ int main(int argc, char *argv[])
 				WorldObject* ob = i->second.getPointer();
 				if(ob->from_remote_other_dirty)
 				{
-					conPrint("Object 'other' dirty, sending full update");
+					// conPrint("Object 'other' dirty, sending full update");
 
 					if(ob->state == WorldObject::State_Alive)
 					{
