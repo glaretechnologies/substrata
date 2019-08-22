@@ -84,7 +84,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../indigo/TextureServer.h"
 #include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
-#include "../graphics/ImFormatDecoder.h"
+#include "../graphics/imformatdecoder.h"
 #include <clocale>
 #include <zlib.h>
 
