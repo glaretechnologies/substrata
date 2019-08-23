@@ -322,38 +322,22 @@ void ClientThread::doRun()
 					{
 						//conPrint("ObjectCreated");
 						const UID object_uid = readUIDFromStream(*socket);
-						//const std::string name = socket->readStringLengthFirst(); //TODO: enforce max len
-						//const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
-						//const Vec3d pos = readVec3FromStream<double>(*socket);
-						//const Vec3f axis = readVec3FromStream<float>(*socket);
-						//const float angle = socket->readFloat();
 
-						// Look up existing object in world state
+						// Read from network
+						WorldObjectRef ob = new WorldObject();
+						ob->uid = object_uid;
+						readFromNetworkStreamGivenUID(*socket, *ob);
+
+						ob->state = WorldObject::State_JustCreated;
+						ob->from_remote_other_dirty = true;
+						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+
+						// Insert into world state.
 						{
 							::Lock lock(world_state->mutex);
-							auto res = world_state->objects.find(object_uid);
-							if(res == world_state->objects.end())
-							{
-								// Object for UID not already created, create it now.
-								WorldObjectRef ob = new WorldObject();
-								ob->uid = object_uid;
-								//ob->name = name;
-								readFromNetworkStreamGivenUID(*socket, *ob);
-								//ob->model_url = model_url;
-								//ob->pos = pos;
-								//ob->axis = axis;
-								//ob->angle = angle;
-								ob->state = WorldObject::State_JustCreated;
-								ob->from_remote_other_dirty = true;
-								world_state->objects.insert(std::make_pair(object_uid, ob));
 
-								ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
-							}
-							else
-							{
-								WorldObject dummy_object;
-								readFromNetworkStreamGivenUID(*socket, dummy_object);
-							}
+							// NOTE: will not replace existing object with that UID if it exists in the map.
+							world_state->objects.insert(std::make_pair(object_uid, ob));
 						}
 						break;
 					}
