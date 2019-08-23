@@ -23,16 +23,21 @@ Generated at 2016-01-16 22:59:23 +1300
 NetDownloadResourcesThread::NetDownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_)
 :	out_msg_queue(out_msg_queue_),
 	resource_manager(resource_manager_)
-{}
+{
+	client = new HTTPClient();
+}
 
 
 NetDownloadResourcesThread::~NetDownloadResourcesThread()
-{}
+{
+	delete client;
+}
 
 
 void NetDownloadResourcesThread::kill()
 {
 	should_die = 1;
+	client->kill();
 }
 
 
@@ -99,8 +104,7 @@ void NetDownloadResourcesThread::doRun()
 								throw Indigo::Exception("Skipping " + url);
 
 							// Download with HTTP client
-							HTTPClient client;
-							HTTPClient::ResponseInfo response_info = client.downloadFile(url, data);
+							HTTPClient::ResponseInfo response_info = client->downloadFile(url, data);
 							if(response_info.response_code != 200)
 								throw Indigo::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
 

@@ -23,6 +23,7 @@ class WorkUnit;
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
+class HTTPClient;
 
 
 /*=====================================================================
@@ -46,4 +47,5 @@ private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	Reference<ResourceManager> resource_manager;
 	IndigoAtomic should_die;
+	HTTPClient* client;
 };
