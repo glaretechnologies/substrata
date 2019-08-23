@@ -24,7 +24,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <ArgumentParser.h>
 #include <SocketBufferOutStream.h>
 #include <TLSSocket.h>
-#include <MTwister.h>
+#include <PCG32.h>
 #include <Matrix4f.h>
 #include <Quat.h>
 #include <OpenSSL.h>
@@ -71,7 +71,7 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 }
 
 
-static void makeBlock(const Vec2d& botleft, MTwister& rng, int& next_id, Reference<ServerWorldState> world_state)
+static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state)
 {
 	// Randomly omit one of the 4 edge blocks
 	const int e = (int)(rng.unitRandom() * 3.9999);
@@ -530,7 +530,7 @@ int main(int argc, char *argv[])
 			makeParcels(Matrix2d(0, -1, -1, 0), next_id, server.world_state); // Mirror in x=-y line (x' = -y, y' = -x)
 			makeParcels(Matrix2d(0, -1, 1, 0), next_id, server.world_state); // Rotate left 90 degrees (x' = -y, y' = x)
 
-			MTwister rng(1);
+			PCG32 rng(1);
 			const int D = 4;
 			for(int x=-D; x<D; ++x)
 				for(int y=-D; y<D; ++y)
