@@ -300,16 +300,17 @@ function prototypes
         .
 */
 
+// GLARE NEW: Moved these function declarations out of the function scope below.
+void makewt(int nw, int* ip, double* w);
+void bitrv2col(int n1, int n, int* ip, double** a);
+void bitrv2row(int n, int n2, int* ip, double** a);
+void cftbcol(int n1, int n, double** a, double* w);
+void cftbrow(int n, int n2, double** a, double* w);
+void cftfcol(int n1, int n, double** a, double* w);
+void cftfrow(int n, int n2, double** a, double* w);
 
 void cdft2d(int n1, int n2, int isgn, double **a, int *ip, double *w)
 {
-    void makewt(int nw, int *ip, double *w);
-    void bitrv2col(int n1, int n, int *ip, double **a);
-    void bitrv2row(int n, int n2, int *ip, double **a);
-    void cftbcol(int n1, int n, double **a, double *w);
-    void cftbrow(int n, int n2, double **a, double *w);
-    void cftfcol(int n1, int n, double **a, double *w);
-    void cftfrow(int n, int n2, double **a, double *w);
     int n;
     
     n = n1 << 1;
@@ -335,18 +336,19 @@ void cdft2d(int n1, int n2, int isgn, double **a, int *ip, double *w)
 }
 
 
+void makewt(int nw, int* ip, double* w);
+void makect(int nc, int* ip, double* c);
+void bitrv2col(int n1, int n, int* ip, double** a);
+void bitrv2row(int n, int n2, int* ip, double** a);
+void cftbcol(int n1, int n, double** a, double* w);
+void cftbrow(int n, int n2, double** a, double* w);
+void cftfcol(int n1, int n, double** a, double* w);
+void cftfrow(int n, int n2, double** a, double* w);
+void rftbcol(int n1, int n, double** a, int nc, double* c);
+void rftfcol(int n1, int n, double** a, int nc, double* c);
+
 void rdft2d(int n1, int n2, int isgn, double **a, int *ip, double *w)
 {
-    void makewt(int nw, int *ip, double *w);
-    void makect(int nc, int *ip, double *c);
-    void bitrv2col(int n1, int n, int *ip, double **a);
-    void bitrv2row(int n, int n2, int *ip, double **a);
-    void cftbcol(int n1, int n, double **a, double *w);
-    void cftbrow(int n, int n2, double **a, double *w);
-    void cftfcol(int n1, int n, double **a, double *w);
-    void cftfrow(int n, int n2, double **a, double *w);
-    void rftbcol(int n1, int n, double **a, int nc, double *c);
-    void rftfcol(int n1, int n, double **a, int nc, double *c);
     int n, nw, nc, n1h, i, j;
     double xi;
     
@@ -416,21 +418,22 @@ void rdft2d(int n1, int n2, int isgn, double **a, int *ip, double *w)
 }
 
 
+void makewt(int nw, int* ip, double* w);
+void makect(int nc, int* ip, double* c);
+void bitrv2col(int n1, int n, int* ip, double** a);
+void bitrv2row(int n, int n2, int* ip, double** a);
+void cftbcol(int n1, int n, double** a, double* w);
+void cftbrow(int n, int n2, double** a, double* w);
+void cftfcol(int n1, int n, double** a, double* w);
+void cftfrow(int n, int n2, double** a, double* w);
+void rftbcol(int n1, int n, double** a, int nc, double* c);
+void rftfcol(int n1, int n, double** a, int nc, double* c);
+void dctbsub(int n1, int n2, double** a, int nc, double* c);
+void dctfsub(int n1, int n2, double** a, int nc, double* c);
+
 void ddct2d(int n1, int n2, int isgn, double **a, double **t, 
     int *ip, double *w)
 {
-    void makewt(int nw, int *ip, double *w);
-    void makect(int nc, int *ip, double *c);
-    void bitrv2col(int n1, int n, int *ip, double **a);
-    void bitrv2row(int n, int n2, int *ip, double **a);
-    void cftbcol(int n1, int n, double **a, double *w);
-    void cftbrow(int n, int n2, double **a, double *w);
-    void cftfcol(int n1, int n, double **a, double *w);
-    void cftfrow(int n, int n2, double **a, double *w);
-    void rftbcol(int n1, int n, double **a, int nc, double *c);
-    void rftfcol(int n1, int n, double **a, int nc, double *c);
-    void dctbsub(int n1, int n2, double **a, int nc, double *c);
-    void dctfsub(int n1, int n2, double **a, int nc, double *c);
     int n, nw, nc, n1h, n2h, i, ix, ic, j, jx, jc;
     double xi;
     
@@ -550,22 +553,22 @@ void ddct2d(int n1, int n2, int isgn, double **a, double **t,
     }
 }
 
+void makewt(int nw, int* ip, double* w);
+void makect(int nc, int* ip, double* c);
+void bitrv2col(int n1, int n, int* ip, double** a);
+void bitrv2row(int n, int n2, int* ip, double** a);
+void cftbcol(int n1, int n, double** a, double* w);
+void cftbrow(int n, int n2, double** a, double* w);
+void cftfcol(int n1, int n, double** a, double* w);
+void cftfrow(int n, int n2, double** a, double* w);
+void rftbcol(int n1, int n, double** a, int nc, double* c);
+void rftfcol(int n1, int n, double** a, int nc, double* c);
+void dstbsub(int n1, int n2, double** a, int nc, double* c);
+void dstfsub(int n1, int n2, double** a, int nc, double* c);
 
 void ddst2d(int n1, int n2, int isgn, double **a, double **t, 
     int *ip, double *w)
 {
-    void makewt(int nw, int *ip, double *w);
-    void makect(int nc, int *ip, double *c);
-    void bitrv2col(int n1, int n, int *ip, double **a);
-    void bitrv2row(int n, int n2, int *ip, double **a);
-    void cftbcol(int n1, int n, double **a, double *w);
-    void cftbrow(int n, int n2, double **a, double *w);
-    void cftfcol(int n1, int n, double **a, double *w);
-    void cftfrow(int n, int n2, double **a, double *w);
-    void rftbcol(int n1, int n, double **a, int nc, double *c);
-    void rftfcol(int n1, int n, double **a, int nc, double *c);
-    void dstbsub(int n1, int n2, double **a, int nc, double *c);
-    void dstfsub(int n1, int n2, double **a, int nc, double *c);
     int n, nw, nc, n1h, n2h, i, ix, ic, j, jx, jc;
     double xi;
     
@@ -691,9 +694,10 @@ void ddst2d(int n1, int n2, int isgn, double **a, double **t,
 
 #include <math.h>
 
+void bitrv2(int n, int* ip, double* a);
+
 void makewt(int nw, int *ip, double *w)
 {
-    void bitrv2(int n, int *ip, double *a);
     int nwh, j;
     double delta, x, y;
     
