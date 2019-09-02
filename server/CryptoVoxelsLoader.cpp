@@ -122,7 +122,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 			parser.parseFile("D:\\downloads\\parcels2.json");
 
 
-		const Vec3d final_offset_ws(800, 0, // Move to side of main parcels.
+		const Vec3d final_offset_ws(600, 0, // Move to side of main parcels.
 			-0.9);// parcels seem to have 2 voxels of stuff 'underground', so offset loaded data downwards a bit, in order to embed intro ground plane at z = 0.
 
 
@@ -323,7 +323,8 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 							if(feature_type == "image")
 							{
 								const std::string url = feature.getChildStringValueWithDefaultVal(parser, "url", "");
-								if(url != "")
+								const size_t MAX_URL_LEN = 4096; // Make sure texture URL is too long - there are some excessively long URLs in the data.
+								if((url != "") && (url.size() <= MAX_URL_LEN))
 								{
 									const bool color = feature.getChildBoolValueWithDefaultVal(parser, "color", true);
 

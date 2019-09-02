@@ -280,6 +280,7 @@ void ClientThread::doRun()
 									ob->next_snapshot_i++;
 
 									ob->from_remote_transform_dirty = true;
+									world_state->dirty_from_remote_objects.insert(ob);
 
 									//conPrint("updated object transform");
 								}
@@ -305,6 +306,7 @@ void ClientThread::doRun()
 									readFromNetworkStreamGivenUID(*socket, *ob);
 									read = true;
 									ob->from_remote_other_dirty = true;
+									world_state->dirty_from_remote_objects.insert(ob);
 								}
 							}
 
@@ -338,6 +340,8 @@ void ClientThread::doRun()
 
 							// NOTE: will not replace existing object with that UID if it exists in the map.
 							world_state->objects.insert(std::make_pair(object_uid, ob));
+
+							world_state->dirty_from_remote_objects.insert(ob.ptr());
 						}
 						break;
 					}
@@ -355,6 +359,7 @@ void ClientThread::doRun()
 								WorldObject* ob = res->second.getPointer();
 								ob->state = WorldObject::State_Dead;
 								ob->from_remote_other_dirty = true;
+								world_state->dirty_from_remote_objects.insert(ob);
 							}
 						}
 						break;
@@ -371,6 +376,7 @@ void ClientThread::doRun()
 						{
 							::Lock lock(world_state->mutex);
 							world_state->parcels[parcel->id] = parcel;
+							world_state->dirty_from_remote_parcels.insert(parcel);
 						}
 						break;
 					}
@@ -388,6 +394,7 @@ void ClientThread::doRun()
 								Parcel* parcel = res->second.getPointer();
 								parcel->state = Parcel::State_Dead;
 								parcel->from_remote_dirty = true;
+								world_state->dirty_from_remote_parcels.insert(parcel);
 							}
 						}
 						break;
@@ -408,6 +415,7 @@ void ClientThread::doRun()
 								readFromNetworkStreamGivenID(*socket, *parcel);
 								read = true;
 								parcel->from_remote_dirty = true;
+								world_state->dirty_from_remote_parcels.insert(parcel);
 							}
 
 							// Make sure we have read the whole pracel from the network stream

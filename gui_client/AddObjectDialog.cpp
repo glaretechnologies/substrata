@@ -56,7 +56,7 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 
 	loaded_model = false;
 
-	thread_manager.addThread(new NetDownloadResourcesThread(&this->msg_queue, resource_manager_));
+	thread_manager.addThread(new NetDownloadResourcesThread(&this->msg_queue, resource_manager_, &num_net_resources_downloading));
 
 	
 	listWidget->setViewMode(QListWidget::IconMode);

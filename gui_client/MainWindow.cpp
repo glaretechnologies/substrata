@@ -132,11 +132,11 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	logged_in_user_id(UserID::invalidUserID()),
 	shown_object_modification_error_msg(false),
 	need_help_info_dock_widget_position(false),
-	total_num_res_to_download(0),
 	num_frames(0),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
-	selected_ob_picked_up(false)
+	selected_ob_picked_up(false),
+	process_model_loaded_next(true)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -399,13 +399,13 @@ static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Ma
 
 
 // TODO: check/test
-static const Matrix4f worldToObMatrix(const WorldObjectRef& ob)
+static const Matrix4f worldToObMatrix(const WorldObject& ob)
 {
-	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
 
-	return Matrix4f::scaleMatrix(1/ob->scale.x, 1/ob->scale.y, 1/ob->scale.z) *
-		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), -ob->angle) *
-		Matrix4f::translationMatrix(-pos - ob->translation);
+	return Matrix4f::scaleMatrix(1/ob.scale.x, 1/ob.scale.y, 1/ob.scale.z) *
+		Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), -ob.angle) *
+		Matrix4f::translationMatrix(-pos - ob.translation);
 }
 
 
@@ -425,7 +425,10 @@ void MainWindow::startDownloadingResource(const std::string& url)
 		const URL parsed_url = URL::parseURL(url);
 
 		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
+		{
 			this->net_resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
+			num_net_resources_downloading++;
+		}
 		else
 			this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
 	}
@@ -468,14 +471,15 @@ bool MainWindow::isModelProcessed(const std::string& url) const
 
 void MainWindow::startLoadingTexturesForObject(const WorldObject& ob)
 {
-	// Process model materials - start loading any textures that are not already loaded and processed:
+	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
 		if(!ob.materials[i]->colour_texture_url.empty())
 		{
 			const std::string tex_path = resource_manager->pathForURL(ob.materials[i]->colour_texture_url);
 
-			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
+			if(resource_manager->isFileForURLPresent(ob.materials[i]->colour_texture_url) && // If the texture is present on disk,
+				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
 				!this->isTextureProcessed(tex_path)) // and not being loaded already:
 			{
 				this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
@@ -500,11 +504,13 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 }
 
 
+// Adds a temporary placeholder cube model for the object.
+// Removes any existing model for the object.
 void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 {
 	WorldObject* ob = &ob_;
 
-	const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob_);
 
 	// Remove any existing OpenGL and physics model
 	if(ob->opengl_engine_ob.nonNull())
@@ -513,8 +519,11 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	if(ob->physics_object.nonNull())
 		physics_world->removeObject(ob->physics_object);
 
-	// Use a temporary placeholder cube model.
-	const Matrix4f cube_ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
+	
+	// Scale up the cube for voxel groups since there are likely a few voxels.
+	const float extra_scale = (ob->object_type == WorldObject::ObjectType_VoxelGroup) ? 10.0f : 1.0f;
+
+	const Matrix4f cube_ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix * Matrix4f::uniformScaleMatrix(extra_scale);
 
 	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
 	cube_gl_ob->ob_to_world_matrix = cube_ob_to_world_matrix;
@@ -537,10 +546,55 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 }
 
 
-// Check if the model file and any material dependencies (textures etc..) are downloaded.
+// Throws Indigo::Exception if transform not OK, for example if any components are infinite or NaN. 
+static void checkTransformOK(const WorldObject* ob)
+{
+	// Sanity check position, axis, angle
+	if(!::isFinite(ob->pos.x) || !::isFinite(ob->pos.y) || !::isFinite(ob->pos.z))
+		throw Indigo::Exception("Position had non-finite component.");
+	if(!::isFinite(ob->axis.x) || !::isFinite(ob->axis.y) || !::isFinite(ob->axis.z))
+		throw Indigo::Exception("axis had non-finite component.");
+	if(!::isFinite(ob->angle))
+		throw Indigo::Exception("angle was non-finite.");
+
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+
+	// Sanity check ob_to_world_matrix matrix
+	for(int i=0; i<16; ++i)
+		if(!::isFinite(ob_to_world_matrix.e[i]))
+			throw Indigo::Exception("ob_to_world_matrix had non-finite component.");
+
+	Matrix4f world_to_ob;
+	const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
+	if(!ob_to_world_invertible)
+		throw Indigo::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
+
+	// Check world_to_ob matrix
+	for(int i=0; i<16; ++i)
+		if(!::isFinite(world_to_ob.e[i]))
+			throw Indigo::Exception("world_to_ob had non-finite component.");
+}
+
+
+// For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
+void MainWindow::startDownloadingResourcesForObject(WorldObject* ob)
+{
+	std::set<std::string> dependency_URLs;
+	ob->getDependencyURLSet(dependency_URLs);
+	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
+	{
+		const std::string& url = *it;
+		if(!resource_manager->isFileForURLPresent(url))
+			startDownloadingResource(url);
+	}
+}
+
+
+// Check if the model file is downloaded.
 // If so load the model into the OpenGL and physics engines.
-// If not, set a placeholder model and queue up the downloads.
-void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_missing_files)
+// If not, set a placeholder model and queue up the model download.
+// Also enqueue any downloads for missing resources such as textures.
+void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_missing_files*/)
 {
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
@@ -550,64 +604,17 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 
 	try
 	{
-		// Sanity check position, axis, angle
-		if(!::isFinite(ob->pos.x) || !::isFinite(ob->pos.y) || !::isFinite(ob->pos.z))
-			throw Indigo::Exception("Position had non-finite component.");
-		if(!::isFinite(ob->axis.x) || !::isFinite(ob->axis.y) || !::isFinite(ob->axis.z))
-			throw Indigo::Exception("axis had non-finite component.");
-		if(!::isFinite(ob->angle))
-			throw Indigo::Exception("angle was non-finite.");
+		checkTransformOK(ob); // Throws Indigo::Exception if not ok.
 
+		const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-		// See if we have the files downloaded
-		std::set<std::string> dependency_URLs;
-		ob->getDependencyURLSet(dependency_URLs);
+		// Start downloading any resources we don't have that the object uses.
+		startDownloadingResourcesForObject(ob);
 
-		// Do we have all the objects downloaded?
-		bool all_downloaded = true;
-		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
+		startLoadingTexturesForObject(*ob);
+
+		if(ob->model_url.empty() || resource_manager->isFileForURLPresent(ob->model_url)) // If this object doesn't use a model resource, or we have downloaded the model resource:
 		{
-			const std::string& url = *it;
-			if(resource_manager->isValidURL(url))
-			{
-				if(!resource_manager->isFileForURLPresent(url))
-				{
-					all_downloaded = false;
-					if(start_downloading_missing_files)
-						startDownloadingResource(url);
-				}
-			}
-			else
-				all_downloaded = false;
-		}
-
-		const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
-
-		// Sanity check ob_to_world_matrix matrix
-		for(int i=0; i<16; ++i)
-			if(!::isFinite(ob_to_world_matrix.e[i]))
-				throw Indigo::Exception("ob_to_world_matrix had non-finite component.");
-
-		Matrix4f world_to_ob;
-		const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
-		if(!ob_to_world_invertible)
-			throw Indigo::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
-
-		// Check world_to_ob matrix
-		for(int i=0; i<16; ++i)
-			if(!::isFinite(world_to_ob.e[i]))
-				throw Indigo::Exception("world_to_ob had non-finite component.");
-
-
-		if(!all_downloaded)
-		{
-			if(!ob->using_placeholder_model)
-				addPlaceholderObjectsForOb(*ob);
-		}
-		else
-		{
-			//print("\tAll resources present for object.  Adding Object to OpenGL Engine etc..");
-			
 			if(ob->object_type == WorldObject::ObjectType_Hypercard)
 			{
 				// Since makeHypercardTexMap does OpenGL calls, do this in the main thread for now.
@@ -639,9 +646,7 @@ void MainWindow::loadModelForObject(WorldObject* ob, bool start_downloading_miss
 			}
 			else
 			{
-				startLoadingTexturesForObject(*ob);
-
-				const bool load_in_task = (ob->object_type != WorldObject::ObjectType_Generic) || // Always load voxel models in a LoadModelTask
+				const bool load_in_task = (ob->object_type == WorldObject::ObjectType_VoxelGroup) || // Always load voxel models in a LoadModelTask
 					!(this->isModelProcessed(ob->model_url) || mesh_manager.isMeshDataInserted(ob->model_url)); // Is model not being loaded or is not loaded already.
 
 				if(load_in_task)
@@ -982,7 +987,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, double global_time)
 	}
 
 	// Update transform in 3d engine
-	ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(ob);
+	ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
 
 	ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 
@@ -1106,8 +1111,26 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 }
 
 
+// Adapted from ImFormatDecoder::decodeImage
+static bool hasTextureExtension(const std::string& path)
+{
+	return 
+		hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
+		hasExtension(path, "tga") ||
+		hasExtension(path, "bmp") ||
+		hasExtension(path, "png") ||
+		hasExtension(path, "tif") || hasExtension(path, "tiff") ||
+		hasExtension(path, "exr") ||
+		hasExtension(path, "float") ||
+		hasExtension(path, "gif") ||
+		hasExtension(path, "hdr");
+}
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
+	updateStatusBar();
+
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 	const double global_time = this->world_state->getCurrentGlobalTime(); // Used as input into script functions
 
@@ -1179,120 +1202,127 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
 	// We don't want to do too much at one time or it will cause hitches.
+	// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
+	// We alternate for fairness.
 	const double MAX_LOADING_TIME = 0.010; // 10 ms.
 	Timer loading_timer;
-	while(!model_loaded_messages_to_process.empty() && (loading_timer.elapsed() < MAX_LOADING_TIME))
+	while((!model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
 	{
-		const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
-		model_loaded_messages_to_process.pop_front();
-
-		try
+		if(process_model_loaded_next && !model_loaded_messages_to_process.empty())
 		{
-			WorldObjectRef message_ob = message->ob;
+			const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
+			model_loaded_messages_to_process.pop_front();
 
-			// Remove placeholder model if using one.
-			if(message_ob->using_placeholder_model)
-				removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
-
-			message_ob->opengl_engine_ob = message->opengl_ob;
-			message_ob->physics_object = message->physics_ob;
-
-			const std::string loaded_model_url = message_ob->model_url;
-
-			if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-				OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
-
-			// Add this object to the GL engine and physics engine.
-			if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
+			try
 			{
-				ui->glWidget->addObject(message_ob->opengl_engine_ob);
+				WorldObjectRef message_ob = message->ob;
 
-				physics_world->addObject(message_ob->physics_object);
-				physics_world->rebuild(task_manager, print_output);
+				// Remove placeholder model if using one.
+				if(message_ob->using_placeholder_model)
+					removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
 
-				ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+				message_ob->opengl_engine_ob = message->opengl_ob;
+				message_ob->physics_object = message->physics_ob;
 
-				loadScriptForObject(message_ob.ptr()); // Load any script for the object.
-			}
+				const std::string loaded_model_url = message_ob->model_url;
 
-			// Iterate over objects, and assign the loaded model for any other objects also using this model:
-			if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
-			{
-				Lock lock(this->world_state->mutex);
-				for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+				if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+					OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
+
+				// Add this object to the GL engine and physics engine.
+				if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 				{
-					WorldObject* ob = it->second.getPointer();
+					ui->glWidget->addObject(message_ob->opengl_engine_ob);
 
-					if(ob->model_url == loaded_model_url)
+					physics_world->addObject(message_ob->physics_object);
+					physics_world->rebuild(task_manager, print_output);
+
+					ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+
+					loadScriptForObject(message_ob.ptr()); // Load any script for the object.
+				}
+
+				// Iterate over objects, and assign the loaded model for any other objects also using this model:
+				if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
+				{
+					Lock lock(this->world_state->mutex);
+					for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 					{
-						// Remove any existing OpenGL and physics model
-						if(ob->using_placeholder_model)
-							removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-						
-						// Create GLObject and PhysicsObjects for this world object if they have not been created already.
-						// They may have been created in the LoadModelTask already.
-						if(ob->opengl_engine_ob.isNull())
+						WorldObject* ob = it->second.getPointer();
+
+						if(ob->model_url == loaded_model_url)
 						{
-							const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
+							// Remove any existing OpenGL and physics model
+							if(ob->using_placeholder_model)
+								removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-							Indigo::MeshRef indigo_mesh;
-							Reference<RayMesh> raymesh;
-							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
-								false, // skip opengl calls
-								indigo_mesh, raymesh);
+							// Create GLObject and PhysicsObjects for this world object if they have not been created already.
+							// They may have been created in the LoadModelTask already.
+							if(ob->opengl_engine_ob.isNull())
+							{
+								const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-							ob->physics_object->geometry = message_ob->physics_object->geometry;
-							ob->physics_object->ob_to_world = ob_to_world_matrix;
-							ob->physics_object->userdata = ob;
-							ob->physics_object->userdata_type = 0;
-						}
-						else
-						{
-							assert(ob->physics_object.nonNull());
-						}
+								Indigo::MeshRef indigo_mesh;
+								Reference<RayMesh> raymesh;
+								ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+									false, // skip opengl calls
+									indigo_mesh, raymesh);
 
-						if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
-						{
-							// Shouldn't be needed.
-							if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+								ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+								ob->physics_object->geometry = message_ob->physics_object->geometry;
+								ob->physics_object->ob_to_world = ob_to_world_matrix;
+								ob->physics_object->userdata = ob;
+								ob->physics_object->userdata_type = 0;
+							}
+							else
+							{
+								assert(ob->physics_object.nonNull());
+							}
 
-							ui->glWidget->addObject(ob->opengl_engine_ob);
+							if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
+							{
+								// Shouldn't be needed.
+								if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
-							physics_world->addObject(ob->physics_object);
-							physics_world->rebuild(task_manager, print_output);
+								ui->glWidget->addObject(ob->opengl_engine_ob);
 
-							ui->indigoView->objectAdded(*ob, *this->resource_manager);
+								physics_world->addObject(ob->physics_object);
+								physics_world->rebuild(task_manager, print_output);
 
-							loadScriptForObject(ob); // Load any script for the object.
+								ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+								loadScriptForObject(ob); // Load any script for the object.
+							}
 						}
 					}
 				}
 			}
+			catch(Indigo::Exception& e)
+			{
+				print("Error while loading model: " + e.what());
+			}
 		}
-		catch(Indigo::Exception& e)
-		{
-			print("Error while loading model: " + e.what());
-		}
-	}
-	
-	// Process any loaded textures
-	while(!texture_loaded_messages_to_process.empty() && (loading_timer.elapsed() < MAX_LOADING_TIME))
-	{
-		const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
-		texture_loaded_messages_to_process.pop_front();
 
-		//Timer timer;
-		try
+		if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
 		{
-			ui->glWidget->opengl_engine->textureLoaded(message->path);
+			// Process any loaded textures
+			const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
+			texture_loaded_messages_to_process.pop_front();
+
+			//Timer timer;
+			try
+			{
+				ui->glWidget->opengl_engine->textureLoaded(message->path);
+			}
+			catch(Indigo::Exception& e)
+			{
+				print("Error while loading texture: " + e.what());
+			}
+			//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
 		}
-		catch(Indigo::Exception& e)
-		{
-			print("Error while loading texture: " + e.what());
-		}
-		//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
+
+		process_model_loaded_next = !process_model_loaded_next;
 	}
 
 	
@@ -1552,66 +1582,76 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 				}
 			}
-			else if(dynamic_cast<const ResourceDownloadingStatus*>(msg.getPointer()))
+			/*else if(dynamic_cast<const ResourceDownloadingStatus*>(msg.getPointer()))
 			{
 				const ResourceDownloadingStatus* m = msg.downcastToPtr<const ResourceDownloadingStatus>();
 				this->total_num_res_to_download = m->total_to_download;
 				updateStatusBar();
-			}
+			}*/
 			else if(dynamic_cast<const ResourceDownloadedMessage*>(msg.getPointer()))
 			{
 				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
+				const std::string& URL = m->URL;
+				// conPrint("ResourceDownloadedMessage, URL: " + URL);
 
-				//conPrint("ResourceDownloadedMessage, URL: " + m->URL);
-
-				// Since we have a new downloaded resource, iterate over objects and avatars and if they were using a placeholder model for this resource, load the proper model.
-				try
+				// If we just downloaded a texture, start loading it.
+				// NOTE: Do we want to check this texture is actually used by an object?
+				if(hasTextureExtension(URL))
 				{
-					Lock lock(this->world_state->mutex);
+					// conPrint("Downloaded texture resource, loading it...");
 
-					for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+					const std::string tex_path = resource_manager->pathForURL(URL);
+
+					if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
+						!this->isTextureProcessed(tex_path)) // and not being loaded already:
 					{
-						WorldObject* ob = it->second.getPointer();
-
-						//if(ob->using_placeholder_model)
-						{
-							std::set<std::string> URL_set;
-							ob->getDependencyURLSet(URL_set);
-							if(URL_set.count(m->URL)) // If the downloaded resource was used by this model:
-							{
-								loadModelForObject(ob, /*start_downloading_missing_files=*/false);
-							}
-						}
+						this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
 					}
-
-					//for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-					//{
-					//	Avatar* avatar = it->second.getPointer();
-					//	if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
-					//	{
-					//		// Remove placeholder GL object
-					//		assert(avatar->opengl_engine_ob.nonNull());
-					//		ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
-
-					//		conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
-					//		//const std::string path = resources_dir + "/" + ob->model_url;
-					//		const std::string path = this->resource_manager->pathForURL(avatar->model_url);
-
-					//		// Make GL object, add to OpenGL engine
-					//		Indigo::MeshRef mesh;
-					//		const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
-					//			Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
-					//		GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
-					//		avatar->opengl_engine_ob = gl_ob;
-					//		ui->glWidget->addObject(gl_ob);
-
-					//		avatar->using_placeholder_model = false;
-					//	}
-					//}
 				}
-				catch(Indigo::Exception& e)
+				else // Else we didn't download a texture, but maybe a model:
 				{
-					print("Error while loading object: " + e.what());
+					// Iterate over objects and avatars and if they were using a placeholder model for this newly-downloaded resource, load the proper model.
+					try
+					{
+						Lock lock(this->world_state->mutex);
+
+						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						{
+							WorldObject* ob = it->second.getPointer();
+
+							if(ob->model_url == URL)
+								loadModelForObject(ob);
+						}
+
+						//for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+						//{
+						//	Avatar* avatar = it->second.getPointer();
+						//	if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
+						//	{
+						//		// Remove placeholder GL object
+						//		assert(avatar->opengl_engine_ob.nonNull());
+						//		ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+
+						//		conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
+						//		//const std::string path = resources_dir + "/" + ob->model_url;
+						//		const std::string path = this->resource_manager->pathForURL(avatar->model_url);
+
+						//		// Make GL object, add to OpenGL engine
+						//		Indigo::MeshRef mesh;
+						//		const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
+						//			Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
+						//		GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+						//		avatar->opengl_engine_ob = gl_ob;
+						//		ui->glWidget->addObject(gl_ob);
+
+						//		avatar->using_placeholder_model = false;
+						//	}
+						//}
+					}
+					catch(Indigo::Exception& e)
+					{
+						print("Error while loading object: " + e.what());
+					}
 				}
 			}
 		}
@@ -1901,49 +1941,42 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		Lock lock(this->world_state->mutex);
 
-		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end();)
+		for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
 		{
-			WorldObject* ob = it->second.getPointer();
-			if(ob->from_remote_other_dirty || ob->from_remote_transform_dirty)
+			WorldObject* ob = it->ptr();
+
+			// conPrint("Processing dirty object.");
+
+			if(ob->from_remote_other_dirty)
 			{
 				if(ob->state == WorldObject::State_Dead)
 				{
 					print("Removing WorldObject.");
 				
-					// Remove any OpenGL object for it
-					if(ob->opengl_engine_ob.nonNull())
-						ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
-
-					// Remove physics object
-					if(ob->physics_object.nonNull())
-					{
-						physics_world->removeObject(ob->physics_object);
-						need_physics_world_rebuild = true;
-					}
+					removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+					need_physics_world_rebuild = true;
 
 					ui->indigoView->objectRemoved(*ob);
 
 					removeInstancesOfObject(ob);
 
-					//// Remove object from object map
-					auto old_object_iterator = it;
-					it++;
-					this->world_state->objects.erase(old_object_iterator);
+					this->world_state->objects.erase(ob->uid);
+					//this->objects_to_remove.push_back(it->second); // Mark as to-be-removed
 				}
 				else
 				{
-					bool reload_opengl_model = false; // load or reload model?
+					bool reload_opengl_model = false; // Do we need to load or reload model?
 					if(ob->opengl_engine_ob.isNull())
 						reload_opengl_model = true;
 
 					if(ob->object_type == WorldObject::ObjectType_Generic)
 					{
-						if(ob->loaded_model_url != ob->model_url)
+						if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
 							reload_opengl_model = true;
 					}
 					else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 					{
-						reload_opengl_model = ob->from_remote_other_dirty;
+						reload_opengl_model = true;
 					}
 					else if(ob->object_type == WorldObject::ObjectType_Hypercard)
 					{
@@ -1952,84 +1985,70 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					if(reload_opengl_model)
 					{
-						loadModelForObject(ob, /*start_downloading_missing_files=*/true);
-
-						ob->from_remote_other_dirty     = false;
-						ob->from_remote_transform_dirty = false;
+						loadModelForObject(ob);
 					}
-					else // else if opengl ob is not null:
+					else
 					{
 						// Update transform for object in OpenGL engine
 						if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
 						{
-							if(ob->from_remote_other_dirty)
-							{
-								// TODO: handle model path change etc..
+							// Update materials in opengl engine.
+							GLObjectRef opengl_ob = ob->opengl_engine_ob;
 
-								// Update materials in opengl engine.
-								GLObjectRef opengl_ob = ob->opengl_engine_ob;
+							for(size_t i=0; i<ob->materials.size(); ++i)
+								if(i < opengl_ob->materials.size())
+									ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
 
-								for(size_t i=0; i<ob->materials.size(); ++i)
-									if(i < opengl_ob->materials.size())
-									{
-										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
-									}
-
-								ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
-							}
-							else
-							{
-								assert(ob->from_remote_transform_dirty);
-
-								// Compute interpolated transformation
-								Vec3d pos;
-								Vec3f axis;
-								float angle;
-								ob->getInterpolatedTransform(cur_time, pos, axis, angle);
-
-								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
-									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
-									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-
-								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
-
-								// Update in physics engine
-								ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
-								physics_world->updateObjectTransformData(*ob->physics_object);
-
-								// Update in Indigo view
-								ui->indigoView->objectTransformChanged(*ob);
-							}
+							ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 
 							updateInstancedCopiesOfObject(ob);
 
 							active_objects.insert(ob);
 						}
-						
-						ob->from_remote_other_dirty     = false;
-						ob->from_remote_transform_dirty = false;
 					}
 
-					++it;
+					ob->from_remote_other_dirty = false;
 				}
-			}// end if(ob->from_server_dirty)
-			/*else if(ob->from_local_dirty)
-			{
-				if(ob->state == WorldObject::State_JustCreated)
-				{
-					// Send object created message to server
-
-
-					// Clear dirty flags
-					ob->from_local_dirty = false;
-				}
-
-				++it;
-			}*/
-			else
-				++it;
+			}
 			
+			if(ob->from_remote_transform_dirty)
+			{
+				if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
+				{
+					// Compute interpolated transformation
+					Vec3d pos;
+					Vec3f axis;
+					float angle;
+					ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+
+					const Matrix4f interpolated_to_world_mat = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
+						Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
+						Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+
+					if(ob->opengl_engine_ob.nonNull())
+					{
+						ob->opengl_engine_ob->ob_to_world_matrix = interpolated_to_world_mat;
+						ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+					}
+
+					// Update in physics engine
+					if(ob->physics_object.nonNull())
+					{
+						ob->physics_object->ob_to_world = interpolated_to_world_mat;
+						physics_world->updateObjectTransformData(*ob->physics_object);
+					}
+
+					// Update in Indigo view
+					ui->indigoView->objectTransformChanged(*ob);
+
+					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
+				}
+
+				ob->from_remote_transform_dirty = false;
+			}
 		}
+
+		this->world_state->dirty_from_remote_objects.clear();
 	}
 	catch(Indigo::Exception& e)
 	{
@@ -2043,9 +2062,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		Lock lock(this->world_state->mutex);
 
-		for(auto it = this->world_state->parcels.begin(); it != this->world_state->parcels.end();)
+		for(auto it = this->world_state->dirty_from_remote_parcels.begin(); it != this->world_state->dirty_from_remote_parcels.end(); ++it)
 		{
-			Parcel* parcel = it->second.getPointer();
+			Parcel* parcel = it->getPointer();
 			if(parcel->from_remote_dirty)
 			{
 				if(parcel->state == Parcel::State_Dead)
@@ -2063,10 +2082,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						need_physics_world_rebuild = true;
 					}
 
-					//// Remove object from object map
-					auto old_parcel_iterator = it;
-					it++;
-					this->world_state->parcels.erase(old_parcel_iterator);
+					this->world_state->parcels.erase(parcel->id);
 				}
 				else
 				{
@@ -2104,13 +2120,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 					}
 
-					parcel->from_remote_dirty     = false;
-					++it;
+					parcel->from_remote_dirty = false;
 				}
-			}// end if(parcel->from_remote_dirty)
-			else
-				++it;
+			} // end if(parcel->from_remote_dirty)
 		}
+
+		this->world_state->dirty_from_remote_parcels.clear();
 	}
 	catch(Indigo::Exception& e)
 	{
@@ -2176,7 +2191,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			const Vec4f new_sel_point_ws = origin + selection_vec_ws;
 
 			// Get the current position for the selection point in world-space.
-			const Vec4f selection_point_ws = obToWorldMatrix(this->selected_ob) * this->selection_point_os;
+			const Vec4f selection_point_ws = obToWorldMatrix(*this->selected_ob) * this->selection_point_os;
 
 			const Vec4f desired_new_ob_pos = this->selected_ob->pos.toVec4fPoint() + (new_sel_point_ws - selection_point_ws);
 
@@ -2268,6 +2283,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				// Mark as from-local-dirty to send an object transform updated message to the server
 				this->selected_ob->from_local_transform_dirty = true;
+				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 				updateSelectedObjectPlacementBeam();
 			} 
@@ -2310,16 +2326,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			Lock lock(this->world_state->mutex);
 
-			for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+			for(auto it = this->world_state->dirty_from_local_objects.begin(); it != this->world_state->dirty_from_local_objects.end(); ++it)
 			{
-				WorldObject* world_ob = it->second.getPointer();
+				WorldObject* world_ob = it->getPointer();
 				if(world_ob->from_local_other_dirty)
 				{
 					// Enqueue ObjectFullUpdate
 					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 					packet.writeUInt32(Protocol::ObjectFullUpdate);
 					writeToNetworkStream(*world_ob, packet);
-					
+
 					this->client_thread->enqueueDataToSend(packet);
 
 					world_ob->from_local_other_dirty = false;
@@ -2339,8 +2355,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					world_ob->from_local_transform_dirty = false;
 				}
-
 			}
+
+			this->world_state->dirty_from_local_objects.clear();
 		}
 
 
@@ -2396,8 +2413,8 @@ void MainWindow::updateVoxelEditMarkers()
 					{
 						const float current_voxel_w = 1;
 
-						Matrix4f ob_to_world = obToWorldMatrix(selected_ob);
-						Matrix4f world_to_ob = worldToObMatrix(selected_ob);
+						Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
+						Matrix4f world_to_ob = worldToObMatrix(*selected_ob);
 
 						if(ctrl_key_down)
 						{
@@ -2539,8 +2556,15 @@ void MainWindow::updateStatusBar()
 		break;
 	}
 
-	if(total_num_res_to_download > 0)
-		status += " | Downloading " + toString(total_num_res_to_download) + ((total_num_res_to_download == 1) ? " resource..." : " resources...");
+	if(num_non_net_resources_downloading > 0)
+		status += " | Downloading " + toString(num_non_net_resources_downloading) + ((num_non_net_resources_downloading == 1) ? " resource..." : " resources...");
+
+	if(num_net_resources_downloading > 0)
+		status += " | Downloading " + toString(num_net_resources_downloading) + ((num_net_resources_downloading == 1) ? " web resource..." : " web resources...");
+
+	const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks();
+	if(num_tex_tasks > 0)
+		status += " | Loading " + toString(num_tex_tasks) + ((num_tex_tasks == 1) ? " texture..." : " textures...");
 
 	this->statusBar()->showMessage(QtUtils::toQString(status));
 }
@@ -3476,10 +3500,11 @@ void MainWindow::objectEditedSlot()
 
 				// Mark as from-local-dirty to send an object updated message to the server
 				this->selected_ob->from_local_other_dirty = true;
+				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 				if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
 				{
-					loadModelForObject(this->selected_ob.getPointer(), /*start_downloading_missing_files=*/false);
+					loadModelForObject(this->selected_ob.getPointer());
 					this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 				}
 
@@ -3641,7 +3666,7 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
-	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port));
+	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading));
 
 	if(physics_world.isNull())
 		physics_world = new PhysicsWorld();
@@ -3697,8 +3722,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 				{
 					const float current_voxel_w = 1;
 
-					Matrix4f ob_to_world = obToWorldMatrix(selected_ob);
-					Matrix4f world_to_ob = worldToObMatrix(selected_ob);
+					Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
+					Matrix4f world_to_ob = worldToObMatrix(*selected_ob);
 
 					bool voxels_changed = false;
 
@@ -3783,6 +3808,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 						// Mark as from-local-dirty to send an object updated message to the server
 						this->selected_ob->from_local_other_dirty = true;
+						this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 					}
 				}
 			}
@@ -3805,7 +3831,7 @@ void MainWindow::pickUpSelectedObject()
 			const Vec4f right = cam_controller.getRightVec().toVec4fVector();
 			const Vec4f up = cam_controller.getUpVec().toVec4fVector();
 
-			const Vec4f selection_point_ws = obToWorldMatrix(this->selected_ob) * this->selection_point_os;
+			const Vec4f selection_point_ws = obToWorldMatrix(*this->selected_ob) * this->selection_point_os;
 
 			const Vec4f selection_vec_ws = selection_point_ws - origin;
 			this->selection_vec_cs = Vec4f(dot(selection_vec_ws, right), dot(selection_vec_ws, forwards), dot(selection_vec_ws, up), 0.f);
@@ -4476,7 +4502,7 @@ int main(int argc, char *argv[])
 		}
 
 		for(int i=0; i<4; ++i)
-			mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager));
+			mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager, &mw.num_net_resources_downloading));
 
 		mw.cam_controller.setPosition(Vec3d(0,0,4.7));
 		mw.ui->glWidget->setCameraController(&mw.cam_controller);

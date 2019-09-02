@@ -35,7 +35,6 @@ ServerWorldState::ServerWorldState()
 {
 	next_avatar_uid = UID(0);
 	next_object_uid = UID(0);
-	changed = false;
 }
 
 

@@ -100,11 +100,12 @@ private:
 	void deselectParcel();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out);
-	void loadModelForObject(WorldObject* ob, bool start_downloading_missing_files);
+	void loadModelForObject(WorldObject* ob);
 	void loadScriptForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
-	void startDownloadingResource(const std::string& url);
+	void startDownloadingResourcesForObject(WorldObject* ob);
+	void startDownloadingResource(const std::string& url); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void evalObjectScript(WorldObject* ob, double cur_time);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
@@ -179,6 +180,9 @@ public:
 	ThreadManager resource_download_thread_manager;
 	ThreadManager net_resource_download_thread_manager;
 	ThreadManager save_resources_db_thread_manager;
+
+	IndigoAtomic num_non_net_resources_downloading;
+	IndigoAtomic num_net_resources_downloading;
 
 	Reference<WorldState> world_state;
 
@@ -273,8 +277,6 @@ private:
 	std::string server_hostname; // e.g. "substrata.info" or "localhost"
 	std::string server_userpath; // e.g. "" or "ono-sendai"
 
-	size_t total_num_res_to_download;
-
 	Timer fps_display_timer;
 	int num_frames;
 
@@ -282,6 +284,8 @@ private:
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
 	
 	std::deque<Reference<TextureLoadedThreadMessage> > texture_loaded_messages_to_process;
+	
+	bool process_model_loaded_next;
 
 
 

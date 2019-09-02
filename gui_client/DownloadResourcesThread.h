@@ -21,6 +21,7 @@ class WorkUnit;
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
+class IndigoAtomic;
 
 
 
@@ -42,12 +43,12 @@ public:
 };
 
 
-class ResourceDownloadingStatus : public ThreadMessage
-{
-public:
-	ResourceDownloadingStatus(size_t num) : total_to_download(num) {}
-	size_t total_to_download;
-};
+//class ResourceDownloadingStatus : public ThreadMessage
+//{
+//public:
+//	ResourceDownloadingStatus(size_t num) : total_to_download(num) {}
+//	size_t total_to_download;
+//};
 
 
 /*=====================================================================
@@ -60,7 +61,8 @@ It sends ResourceDownloadedMessage's back to MainWindow via the out_msg_queue wh
 class DownloadResourcesThread : public MessageableThread
 {
 public:
-	DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager, const std::string& hostname, int port);
+	DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager, const std::string& hostname, int port,
+		IndigoAtomic* num_resources_downloading_);
 	virtual ~DownloadResourcesThread();
 
 	virtual void doRun();
@@ -71,4 +73,5 @@ private:
 	std::string hostname;
 	//std::string resources_dir;
 	int port;
+	IndigoAtomic* num_resources_downloading;
 };
