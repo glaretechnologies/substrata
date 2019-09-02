@@ -185,4 +185,13 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream); // Wr
 void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID will have been read already
 
 
-const Matrix4f obToWorldMatrix(const WorldObjectRef& ob);
+const Matrix4f obToWorldMatrix(const WorldObject& ob);
+
+
+struct WorldObjectRefHash
+{
+	size_t operator() (const WorldObjectRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

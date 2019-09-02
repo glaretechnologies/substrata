@@ -25,7 +25,7 @@ LoadModelTask::~LoadModelTask()
 
 void LoadModelTask::run(size_t thread_index)
 {
-	const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob);
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
 	GLObjectRef opengl_ob;
 	PhysicsObjectRef physics_ob;

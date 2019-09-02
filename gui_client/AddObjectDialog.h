@@ -64,6 +64,7 @@ private:
 
 	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue; // From threads
 	ThreadManager thread_manager; // For NetDownloadResourcesThread
+	IndigoAtomic num_net_resources_downloading;
 
 	Reference<ResourceManager> resource_manager;
 };

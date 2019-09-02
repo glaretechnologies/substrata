@@ -107,3 +107,12 @@ void readFromStream(InStream& stream, Parcel& parcel);
 
 void writeToNetworkStream(const Parcel& parcel, OutStream& stream); // write without version
 void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel);
+
+
+struct ParcelRefHash
+{
+	size_t operator() (const ParcelRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

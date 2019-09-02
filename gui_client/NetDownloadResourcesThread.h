@@ -36,7 +36,8 @@ It sends ResourceDownloadedMessage's back to MainWindow via the out_msg_queue wh
 class NetDownloadResourcesThread : public MessageableThread
 {
 public:
-	NetDownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager);
+	NetDownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager,
+		IndigoAtomic* num_net_resources_downloading_);
 	virtual ~NetDownloadResourcesThread();
 
 	virtual void doRun();
@@ -46,6 +47,7 @@ public:
 private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	Reference<ResourceManager> resource_manager;
+	IndigoAtomic* num_net_resources_downloading;
 	IndigoAtomic should_die;
 	HTTPClient* client;
 };

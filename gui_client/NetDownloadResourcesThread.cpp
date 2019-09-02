@@ -20,9 +20,11 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <PlatformUtils.h>
 
 
-NetDownloadResourcesThread::NetDownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_)
+NetDownloadResourcesThread::NetDownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_,
+	IndigoAtomic* num_net_resources_downloading_)
 :	out_msg_queue(out_msg_queue_),
-	resource_manager(resource_manager_)
+	resource_manager(resource_manager_),
+	num_net_resources_downloading(num_net_resources_downloading_)
 {
 	client = new HTTPClient();
 }
@@ -39,6 +41,14 @@ void NetDownloadResourcesThread::kill()
 	should_die = 1;
 	client->kill();
 }
+
+
+// Make sure num_net_resources_downloading gets decremented even in the presence of exceptions.
+struct NumResourcesDownloadingDecrementor
+{
+	~NumResourcesDownloadingDecrementor() { (*num_net_resources_downloading)--; }
+	IndigoAtomic* num_net_resources_downloading;
+};
 
 
 static const bool VERBOSE = false;
@@ -75,6 +85,9 @@ void NetDownloadResourcesThread::doRun()
 			{
 				if(this->should_die != 0)
 					return;
+
+				NumResourcesDownloadingDecrementor d;
+				d.num_net_resources_downloading = this->num_net_resources_downloading;
 
 				std::string url = *URLs_to_get.begin();
 				URLs_to_get.erase(URLs_to_get.begin());

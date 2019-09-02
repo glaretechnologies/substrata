@@ -597,6 +597,7 @@ void WorkerThread::doRun()
 										ob->axis = axis;
 										ob->angle = angle;
 										ob->from_remote_transform_dirty = true;
+										world_state->dirty_from_remote_objects.insert(ob);
 									}
 
 									//conPrint("updated object transform");
@@ -639,6 +640,7 @@ void WorkerThread::doRun()
 									{
 										readFromNetworkStreamGivenUID(*socket, *ob);
 										ob->from_remote_other_dirty = true;
+										world_state->dirty_from_remote_objects.insert(ob);
 
 										// Process resources
 										std::set<std::string> URLs;
@@ -688,6 +690,7 @@ void WorkerThread::doRun()
 								new_ob->uid = world_state->getNextObjectUID();
 								new_ob->state = WorldObject::State_JustCreated;
 								new_ob->from_remote_other_dirty = true;
+								world_state->dirty_from_remote_objects.insert(new_ob);
 								world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
 							}
 						}
@@ -721,6 +724,7 @@ void WorkerThread::doRun()
 									// Mark object as dead
 									ob->state = WorldObject::State_Dead;
 									ob->from_remote_other_dirty = true;
+									world_state->dirty_from_remote_objects.insert(ob);
 								}
 							}
 						}
@@ -936,7 +940,7 @@ void WorkerThread::doRun()
 								// Add new user to world state
 								world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
 								world_state->name_to_users   .insert(std::make_pair(username,     new_user));
-								world_state->changed = true; // Mark as changed so gets saved to disk.
+								world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 
 								client_user = new_user; // Log user in as well.
 								signed_up = true;
@@ -986,7 +990,7 @@ void WorkerThread::doRun()
 									try
 									{
 										user->sendPasswordResetEmail();
-										world_state->changed = true; // Mark as changed so gets saved to disk.
+										world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 										conPrint("Sent user password reset email to '" + email + ", username '" + user->name + "'");
 									}
 									catch(Indigo::Exception& e)
@@ -1021,7 +1025,7 @@ void WorkerThread::doRun()
 									const bool reset = user->resetPasswordWithToken(reset_token, new_password);
 									if(reset)
 									{
-										world_state->changed = true; // Mark as changed so gets saved to disk.
+										world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 										conPrint("User password successfully updated.");
 									}
 								}

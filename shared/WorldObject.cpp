@@ -49,7 +49,9 @@ WorldObject::~WorldObject()
 
 void WorldObject::appendDependencyURLs(std::vector<std::string>& URLs_out)
 {
-	URLs_out.push_back(model_url);
+	if(!model_url.empty())
+		URLs_out.push_back(model_url);
+
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(URLs_out);
 }
@@ -460,11 +462,11 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 }
 
 
-const Matrix4f obToWorldMatrix(const WorldObjectRef& ob)
+const Matrix4f obToWorldMatrix(const WorldObject& ob)
 {
-	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
 
-	return Matrix4f::translationMatrix(pos + ob->translation) *
-		Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
-		Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+	return Matrix4f::translationMatrix(pos + ob.translation) *
+		Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), ob.angle) *
+		Matrix4f::scaleMatrix(ob.scale.x, ob.scale.y, ob.scale.z);
 }

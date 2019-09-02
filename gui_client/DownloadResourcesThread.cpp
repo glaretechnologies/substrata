@@ -19,12 +19,14 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <PlatformUtils.h>
 
 
-DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_, const std::string& hostname_, int port_)
+DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_, const std::string& hostname_, int port_, 
+	IndigoAtomic* num_resources_downloading_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	//resources_dir(resources_dir_),
 	resource_manager(resource_manager_),
-	port(port_)
+	port(port_),
+	num_resources_downloading(num_resources_downloading_)
 {}
 
 
@@ -53,6 +55,14 @@ static bool checkMessageQueue(ThreadSafeQueue<Reference<ThreadMessage> >& queue,
 	}
 	return false;
 }
+
+
+// Make sure num_resources_downloading gets decremented even in the presence of exceptions.
+struct NumNonNetResourcesDownloadingDecrementor
+{
+	~NumNonNetResourcesDownloadingDecrementor() { (*num_resources_downloading)--; }
+	IndigoAtomic* num_resources_downloading;
+};
 
 
 void DownloadResourcesThread::doRun()
@@ -91,24 +101,20 @@ void DownloadResourcesThread::doRun()
 		else
 			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
-		std::set<std::string> URLs_to_get; // Set of URLs to get from the server
+		std::set<std::string> URLs_to_get; // Set of URLs that this thread will get from the server.
 
 		while(1)
 		{
 			if(URLs_to_get.empty())
 			{
-				// Wait on the message queue until we have something to download
+				// Wait on the message queue until we have something to download, or we get a kill-thread message.
 				ThreadMessageRef msg;
 				getMessageQueue().dequeue(msg);
 
 				if(dynamic_cast<DownloadResourceMessage*>(msg.getPointer()))
-				{
 					URLs_to_get.insert(msg.downcastToPtr<DownloadResourceMessage>()->URL);
-				}
 				else if(dynamic_cast<KillThreadMessage*>(msg.getPointer()))
-				{
 					return;
-				}
 
 				// Get any more messages from the queue while we're woken up.
 				if(checkMessageQueue(getMessageQueue(), URLs_to_get))
@@ -116,89 +122,91 @@ void DownloadResourcesThread::doRun()
 			}
 			else
 			{
-				out_msg_queue->enqueue(new ResourceDownloadingStatus(URLs_to_get.size()));
-
-				// Iterate over URLs_to_get, for each one that is not present on disk, add to URLs_to_download and mark as downloading.
-				std::vector<std::string> URLs_to_download;
-				for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
+				for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); )
 				{
 					ResourceRef resource = resource_manager->getResourceForURL(*it);
 					if(resource->getState() != Resource::State_NotPresent)
 					{
 						//conPrint("Already have file or downloading file '" + *it + "', not downloading.");
+						auto to_remove = it++;
+						URLs_to_get.erase(to_remove);
 					}
 					else
 					{
-						URLs_to_download.push_back(*it);
 						resource->setState(Resource::State_Transferring);
+						++it;
 					}
 				}
 
-				socket->writeUInt32(Protocol::GetFiles);
-				socket->writeUInt64(URLs_to_download.size()); // Write number of files to get
+				*this->num_resources_downloading = URLs_to_get.size();
 
-				for(size_t i=0; i<URLs_to_download.size(); ++i)
+				if(!URLs_to_get.empty())
 				{
-					conPrint("DownloadResourcesThread: Querying server for file '" + URLs_to_download[i] + "'...");
-					socket->writeStringLengthFirst(URLs_to_download[i]);
-				}
+					socket->writeUInt32(Protocol::GetFiles);
+					socket->writeUInt64(URLs_to_get.size()); // Write number of files to get
 
-				// Read reply, which has an error code for each resource download.
-				for(size_t i=0; i<URLs_to_download.size(); ++i)
-				{
-					const std::string& URL = URLs_to_download[i];
-					ResourceRef resource = resource_manager->getResourceForURL(URL);
-
-					const uint32 result = socket->readUInt32();
-					if(result == 0) // If OK:
+					for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
 					{
-						// Download resource
-						const uint64 file_len = socket->readUInt64();
-						if(file_len > 0)
+						const std::string URL = *it;
+
+						// conPrint("DownloadResourcesThread: Querying server for file '" + URL + "'...");
+						socket->writeStringLengthFirst(URL);
+					}
+
+					// Read reply, which has an error code for each resource download.
+					for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
+					{
+						NumNonNetResourcesDownloadingDecrementor d;
+						d.num_resources_downloading = this->num_resources_downloading;
+
+						const std::string URL = *it;
+						ResourceRef resource = resource_manager->getResourceForURL(URL);
+
+						const uint32 result = socket->readUInt32();
+						if(result == 0) // If OK:
 						{
-							// TODO: cap length in a better way
-							if(file_len > 1000000000)
-								throw Indigo::Exception("downloaded file too large (len=" + toString(file_len) + ").");
-
-							std::vector<uint8> buf(file_len);
-							socket->readData(buf.data(), file_len);
-
-							// Save to disk
-							const std::string path = resource_manager->pathForURL(URL);
-							try
+							// Download resource
+							const uint64 file_len = socket->readUInt64();
+							if(file_len > 0)
 							{
-								FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
+								// TODO: cap length in a better way
+								if(file_len > 1000000000)
+									throw Indigo::Exception("downloaded file too large (len=" + toString(file_len) + ").");
 
-								conPrint("DownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(file_len) + ") ");
+								std::vector<uint8> buf(file_len);
+								socket->readData(buf.data(), file_len);
 
-								resource->setState(Resource::State_Present);
+								// Save to disk
+								const std::string path = resource_manager->pathForURL(URL);
+								try
+								{
+									FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
 
-								out_msg_queue->enqueue(new ResourceDownloadedMessage(URL));
+									conPrint("DownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(file_len) + ") ");
+
+									resource->setState(Resource::State_Present);
+
+									out_msg_queue->enqueue(new ResourceDownloadedMessage(URL));
+								}
+								catch(FileUtils::FileUtilsExcep& e)
+								{
+									resource->setState(Resource::State_NotPresent);
+									conPrint("DownloadResourcesThread: Error while writing file to disk: " + e.what());
+								}
 							}
-							catch(FileUtils::FileUtilsExcep& e)
-							{
-								resource->setState(Resource::State_NotPresent);
-								conPrint("DownloadResourcesThread: Error while writing file to disk: " + e.what());
-							}
+
+							conPrint("DownloadResourcesThread: Got file.");
 						}
-
-						conPrint("DownloadResourcesThread: Got file.");
-					
-						URLs_to_get.erase(URL);
-						out_msg_queue->enqueue(new ResourceDownloadingStatus(URLs_to_get.size()));
-					}
-					else
-					{
-						resource->setState(Resource::State_NotPresent);
-						conPrint("DownloadResourcesThread: Server couldn't send file. (Result=" + toString(result) + ")");
-
-						URLs_to_get.erase(URL); // Even though we failed to get this URL, remove from set to get so we don't try and repeatedly download it.
-						out_msg_queue->enqueue(new ResourceDownloadingStatus(URLs_to_get.size()));
+						else
+						{
+							resource->setState(Resource::State_NotPresent);
+							conPrint("DownloadResourcesThread: Server couldn't send file. (Result=" + toString(result) + ")");
+						}
 					}
 				}
 
-				if(checkMessageQueue(getMessageQueue(), URLs_to_get))
-					return;
+				URLs_to_get.clear();
+				*this->num_resources_downloading = URLs_to_get.size();
 			}
 		}
 	}

@@ -22,9 +22,9 @@ static void writeToStreamCommon(const Resource& resource, OutStream& stream)
 
 static void readFromStreamCommon(InStream& stream, uint32 version, Resource& resource) // UID will have been read already
 {
-	resource.URL = stream.readStringLengthFirst(10000);
+	resource.URL = stream.readStringLengthFirst(20000);
 	if(version >= 2)
-		resource.setLocalPath(stream.readStringLengthFirst(10000));
+		resource.setLocalPath(stream.readStringLengthFirst(20000));
 	resource.owner_id = readUserIDFromStream(stream);
 }
 

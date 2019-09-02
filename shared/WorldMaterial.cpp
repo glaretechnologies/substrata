@@ -258,7 +258,14 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 	else
 	{
 		mat.colour_rgb = readColour3fFromStram(stream);
-		mat.colour_texture_url = stream.readStringLengthFirst(10000);
+		try
+		{
+			mat.colour_texture_url = stream.readStringLengthFirst(20000);
+		}
+		catch(Indigo::Exception& e)
+		{
+			throw Indigo::Exception("Error while reading colour_texture_url: " + e.what());
+		}
 	}
 	
 	if(v <= 2)

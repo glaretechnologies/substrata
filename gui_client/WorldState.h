@@ -11,8 +11,9 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
 #include <ThreadSafeRefCounted.h>
-#include <map>
 #include <Mutex.h>
+#include <map>
+#include <unordered_set>
 
 
 /*=====================================================================
@@ -29,11 +30,14 @@ public:
 
 	std::map<UID, Reference<Avatar>> avatars;
 
-	std::map<UID, Reference<WorldObject>> objects;
+	std::map<UID, WorldObjectRef> objects;
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects;
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_local_objects;
 
-	std::set<Reference<WorldObject> > instances; // Objects created by the instancing command in scripts.
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> instances; // Objects created by the instancing command in scripts.
 
 	std::map<ParcelID, ParcelRef> parcels;
+	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_remote_parcels;
 
 	Mutex mutex;
 
