@@ -18,7 +18,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Timer.h>
 
 
-#define MY_SQL_STUFF 1
+#define MY_SQL_STUFF 0
 
 #if MY_SQL_STUFF
 #include <mysql_driver.h>
