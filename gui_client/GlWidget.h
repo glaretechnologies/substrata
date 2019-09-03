@@ -35,7 +35,7 @@ public:
 	void setCameraController(CameraController* cam_controller_);
 	void setPlayerPhysics(PlayerPhysics* player_physics_);
 
-	void addObject(const Reference<GLObject>& object);
+	void addObject(const Reference<GLObject>& object, bool force_load_textures_immediately = false);
 	void removeObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
 

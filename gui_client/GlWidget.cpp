@@ -150,11 +150,11 @@ void GlWidget::paintGL()
 }
 
 
-void GlWidget::addObject(const Reference<GLObject>& object)
+void GlWidget::addObject(const Reference<GLObject>& object, bool force_load_textures_immediately)
 {
 	this->makeCurrent();
 
-	opengl_engine->addObject(object);
+	opengl_engine->addObject(object, force_load_textures_immediately);
 }
 
 
