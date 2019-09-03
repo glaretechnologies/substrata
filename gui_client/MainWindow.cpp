@@ -4326,7 +4326,7 @@ void MainWindow::updateGroundPlane()
 			gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * (float)ground_quad_w, it->y * (float)ground_quad_w, 0);
 			gl_ob->mesh_data = ground_quad_mesh_opengl_data;
 
-			ui->glWidget->addObject(gl_ob);
+			ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
 
 			Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
 			phy_ob->geometry = ground_quad_raymesh;
@@ -4418,7 +4418,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			PNGDecoder::test();
+			HTTPClient::test();
+			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
 			//StringUtils::test();
 			//HTTPClient::test();

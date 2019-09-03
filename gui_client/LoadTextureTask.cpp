@@ -60,7 +60,7 @@ void LoadTextureTask::run(size_t thread_index)
 	}
 	catch(ImFormatExcep& e)
 	{
-		conPrint("Warning: failed to decode texture '" + path + "': " + e.what());
+		//conPrint("Warning: failed to decode texture '" + path + "': " + e.what());
 	}
 	catch(Indigo::Exception& e)
 	{
