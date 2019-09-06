@@ -92,6 +92,31 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(ServerWorldState& world_state)
 			}
 		}
 
+		//TEMP: Remove all CV objects
+		const bool REMOVE_ALL_CV_OBS = true;
+		if(REMOVE_ALL_CV_OBS)
+		{
+			conPrint("Removing all CV objects...");
+			Lock lock(world_state.mutex);
+			const size_t initial_size = world_state.objects.size();
+			for(auto it = world_state.objects.begin(); it != world_state.objects.end();)
+			{
+				if(::hasPrefix(it->second->content, parcel_prefix) || ::hasPrefix(it->second->content, feature_prefix)) // If a CV object
+				{
+					auto ob_it = it++;
+					world_state.objects.erase(ob_it);
+				}
+				else
+					++it;
+			}
+			if(world_state.objects.size() != initial_size)
+				world_state.markAsChanged();
+
+			conPrint("Done removing all CV objects.");
+			return;
+		}
+
+
 		std::unordered_set<std::string> uuids_seen;
 
 		size_t num_parcels_added = 0;
