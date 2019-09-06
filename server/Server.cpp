@@ -195,6 +195,7 @@ int main(int argc, char *argv[])
 
 #if _WIN32
 		const std::string server_state_dir = "D:/cyberspace_server_state";
+		//const std::string server_state_dir = "D:/substrata_stuff/cyberspace_server_state";
 #else
 		const std::string server_state_dir = "/home/nick/cyberspace_server_state";
 #endif
@@ -299,12 +300,19 @@ int main(int argc, char *argv[])
 			}
 		}
 
+		// TEMP: Print out users
+		for(auto i = server.world_state->user_id_to_users.begin(); i != server.world_state->user_id_to_users.end(); ++i)
+			conPrint("User with id " + i->second->id.toString() + ": " + i->second->name);
+
 		// TEMP: Assign some parcel permissions
 		assignParcelToUser(server.world_state, ParcelID(10), UserID(1));
 		assignParcelToUser(server.world_state, ParcelID(11), UserID(2)); // dirtypunk
 		assignParcelToUser(server.world_state, ParcelID(12), UserID(3)); // zom-b
+		assignParcelToUser(server.world_state, ParcelID(15), UserID(3)); // zom-b
 		assignParcelToUser(server.world_state, ParcelID(32), UserID(4)); // lycium
+		assignParcelToUser(server.world_state, ParcelID(35), UserID(4)); // lycium		
 		assignParcelToUser(server.world_state, ParcelID(31), UserID(5)); // Harry
+		assignParcelToUser(server.world_state, ParcelID(41), UserID(6)); // Originalplan
 		assignParcelToUser(server.world_state, ParcelID(40), UserID(8)); // trislit
 		assignParcelToUser(server.world_state, ParcelID(30), UserID(9)); // fused
 
