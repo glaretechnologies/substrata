@@ -91,7 +91,15 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	// Add env mat
 	{
 		OpenGLMaterial env_mat;
-		env_mat.albedo_tex_path = basedir_path + "/resources/sky_no_sun.exr";
+		try
+		{
+			env_mat.albedo_texture = opengl_engine->getTexture(basedir_path + "/resources/sky_no_sun.exr");
+		}
+		catch(Indigo::Exception& e)
+		{
+			assert(0);
+			conPrint("ERROR: " + e.what());
+		}
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 		opengl_engine->setEnvMat(env_mat);
 	}
@@ -103,7 +111,15 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		GLObjectRef ob = new GLObject();
 		ob->materials.resize(1);
 		ob->materials[0].albedo_rgb = Colour3f(0.9f);
-		ob->materials[0].albedo_tex_path = "resources/obstacle.png";
+		try
+		{
+			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
+		}
+		catch(Indigo::Exception& e)
+		{
+			assert(0);
+			conPrint("ERROR: " + e.what());
+		}
 		ob->materials[0].roughness = 0.8f;
 		ob->materials[0].fresnel_scale = 0.5f;
 		ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
@@ -146,7 +162,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 		for(size_t i=0; i<filepaths.size(); ++i)
 		{
-			const std::string EPOCH_STRING = "_2"; // Can change to invalidate cache.
+			const std::string EPOCH_STRING = "_3"; // Can change to invalidate cache.
 			const std::string cache_key_input = FileUtils::getFilename(filepaths[i]) + EPOCH_STRING;
 			const uint64 cache_hashkey = XXH64(cache_key_input.data(), cache_key_input.size(), 1);
 			const uint64 dir_bits = cache_hashkey >> 58; // 6 bits for the dirs => 64 subdirs in program_cache.
@@ -181,6 +197,9 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 					voxel_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, voxel_w/2) * Matrix4f::rotationAroundZAxis(Maths::pi_4<float>()) *
 						Matrix4f::uniformScaleMatrix(voxel_w) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 					voxel_ob->mesh_data = opengl_engine->getCubeMeshData();
+
+					for(size_t z=0; z<voxel_ob->materials.size(); ++z)
+						voxel_ob->materials[z].albedo_texture = opengl_engine->getTexture(voxel_ob->materials[z].tex_path);
 
 					opengl_engine->addObject(voxel_ob);
 				}

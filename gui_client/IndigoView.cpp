@@ -102,9 +102,9 @@ void IndigoView::initialise(const std::string& base_dir_path)
 		this->context = new Indigo::IndigoContext();
 
 #ifndef NDEBUG
-		const std::string dll_dir = "D:/indigo/output/vs2015/indigo_x64/Debug";
+		const std::string dll_dir = "C:/programming/indigo/output/vs2019/indigo_x64/Debug";
 #else
-		const std::string dll_dir = "D:/indigo/output/vs2015/indigo_x64/RelWithDebInfo";
+		const std::string dll_dir = "C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo";
 #endif
 		//const std::string dll_dir = base_dir_path; // base_dir_path is the dir the main executable is in.
 
@@ -237,6 +237,8 @@ void IndigoView::initialise(const std::string& base_dir_path)
 			settings_node->gpu.setValue(true); // Enable GPU rendering
 			settings_node->enabled_opencl_devices = devices_to_use; // Tell indigo which devices to use.
 		}
+		else
+			settings_node->gpu.setValue(false); // Disable GPU rendering
 
 		this->root_node->finalise("dummy_scene_path");
 

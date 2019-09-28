@@ -154,7 +154,21 @@ void GlWidget::addObject(const Reference<GLObject>& object, bool force_load_text
 {
 	this->makeCurrent();
 
-	opengl_engine->addObject(object, force_load_textures_immediately);
+	if(force_load_textures_immediately)
+	{
+		try
+		{
+			for(size_t i=0; i<object->materials.size(); ++i)
+				if(!object->materials[i].tex_path.empty())
+					object->materials[i].albedo_texture = opengl_engine->getTexture(object->materials[i].tex_path);
+		}
+		catch(Indigo::Exception& e)
+		{
+			conPrint("ERROR: " + e.what());
+		}
+	}
+
+	opengl_engine->addObject(object);
 }
 
 

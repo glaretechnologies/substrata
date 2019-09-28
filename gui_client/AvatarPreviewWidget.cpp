@@ -99,7 +99,7 @@ void AvatarPreviewWidget::initializeGL()
 	// Add env mat
 	{
 		OpenGLMaterial env_mat;
-		env_mat.albedo_tex_path = "resources/sky.png";
+		//env_mat.albedo_tex_path = "resources/sky.png";
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
 		opengl_engine->setEnvMat(env_mat);

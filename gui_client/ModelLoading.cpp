@@ -36,7 +36,7 @@ bool MeshManager::isMeshDataInserted(const std::string& model_url) const
 void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;
-	opengl_mat.albedo_tex_path = mat.colour_texture_url;
+	opengl_mat.tex_path = mat.colour_texture_url;
 
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
@@ -52,7 +52,7 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;
-	opengl_mat.albedo_tex_path = (mat.colour_texture_url.empty() ? "" : resource_manager.pathForURL(mat.colour_texture_url));
+	opengl_mat.tex_path = (mat.colour_texture_url.empty() ? "" : resource_manager.pathForURL(mat.colour_texture_url));
 
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
@@ -232,7 +232,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 					const std::string tex_path = (!mats.materials[z].map_Kd.path.empty()) ? FileUtils::join(FileUtils::getDirectory(mats.mtl_file_path), mats.materials[z].map_Kd.path) : "";
 
 					ob->materials[i].albedo_rgb = mats.materials[z].Kd;
-					ob->materials[i].albedo_tex_path = tex_path;
+					ob->materials[i].tex_path = tex_path;
 					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
 
@@ -297,7 +297,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			const std::string tex_path = mats.materials[i].diffuse_map.path;
 
 			ob->materials[i].albedo_rgb = mats.materials[i].diffuse;
-			ob->materials[i].albedo_tex_path = tex_path;
+			ob->materials[i].tex_path = tex_path;
 			ob->materials[i].roughness = mats.materials[i].roughness;
 			ob->materials[i].alpha = mats.materials[i].alpha;
 			ob->materials[i].transparent = mats.materials[i].alpha < 1.0f;
@@ -375,7 +375,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-				//ob->materials[i].albedo_tex_path = "resources/obstacle.png";
+				ob->materials[i].tex_path = "resources/obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
@@ -495,7 +495,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		{
 			// Assign dummy mat
 			ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-			ob->materials[i].albedo_tex_path = "resources/obstacle.png";
+			ob->materials[i].tex_path = "resources/obstacle.png";
 			ob->materials[i].roughness = 0.5f;
 		}
 	}
