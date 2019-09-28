@@ -681,6 +681,9 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 						if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
 							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
+						for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+							ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(ob->opengl_engine_ob->materials[z].tex_path);
+
 						ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 						ob->physics_object->geometry = raymesh;
 						ob->physics_object->ob_to_world = ob_to_world_matrix;
@@ -1232,6 +1235,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Add this object to the GL engine and physics engine.
 				if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 				{
+					for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
+						message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(message_ob->opengl_engine_ob->materials[z].tex_path);
+
 					ui->glWidget->addObject(message_ob->opengl_engine_ob);
 
 					physics_world->addObject(message_ob->physics_object);
@@ -1284,6 +1290,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								// Shouldn't be needed.
 								if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
 									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+
+								for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+									ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(ob->opengl_engine_ob->materials[z].tex_path);
 
 								ui->glWidget->addObject(ob->opengl_engine_ob);
 
@@ -3406,28 +3415,33 @@ void MainWindow::objectEditedSlot()
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
+		startLoadingTexturesForObject(*this->selected_ob);
+
+		startDownloadingResourcesForObject(this->selected_ob.ptr());
+
 		// All paths should be URLs now
-		URLs.clear();
-		this->selected_ob->appendDependencyURLs(URLs);
+		//URLs.clear();
+		//this->selected_ob->appendDependencyURLs(URLs);
+		//
+		//// See if we have all required resources, we may have changed a texture URL to something we don't have
+		//bool all_downloaded = true;
+		//for(auto it = URLs.begin(); it != URLs.end(); ++it)
+		//{
+		//	const std::string& url = *it;
+		//	if(resource_manager->isValidURL(url))
+		//	{
+		//		if(!resource_manager->isFileForURLPresent(url))
+		//		{
+		//			all_downloaded = false;
+		//			startDownloadingResource(url);
+		//		}
+		//	}
+		//	else
+		//		all_downloaded = false;
+		//}
 
-		// See if we have all required resources, we may have changed a texture URL to something we don't have
-		bool all_downloaded = true;
-		for(auto it = URLs.begin(); it != URLs.end(); ++it)
-		{
-			const std::string& url = *it;
-			if(resource_manager->isValidURL(url))
-			{
-				if(!resource_manager->isFileForURLPresent(url))
-				{
-					all_downloaded = false;
-					startDownloadingResource(url);
-				}
-			}
-			else
-				all_downloaded = false;
-		}
-
-		if(all_downloaded)
+		//if(all_downloaded)
+		if(selected_ob->model_url.empty() || resource_manager->isFileForURLPresent(selected_ob->model_url))
 		{
 			Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
 				Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
@@ -3462,6 +3476,9 @@ void MainWindow::objectEditedSlot()
 								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager,
 									opengl_ob->materials[i]
 								);
+
+							for(size_t z=0; z<opengl_ob->materials.size(); ++z)
+								opengl_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(opengl_ob->materials[z].tex_path);
 						}
 					}
 
@@ -4319,7 +4336,15 @@ void MainWindow::updateGroundPlane()
 			gl_ob->materials.resize(1);
 			gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
 			//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
-			gl_ob->materials[0].albedo_tex_path = "resources/obstacle.png";
+			try
+			{
+				gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture("resources/obstacle.png");
+			}
+			catch(Indigo::Exception& e)
+			{
+				assert(0);
+				conPrint("ERROR: " + e.what());
+			}
 			gl_ob->materials[0].roughness = 0.8f;
 			gl_ob->materials[0].fresnel_scale = 0.5f;
 
@@ -4521,7 +4546,15 @@ int main(int argc, char *argv[])
 		*/
 		{
 			OpenGLMaterial env_mat;
-			env_mat.albedo_tex_path = cyberspace_base_dir_path + "/resources/sky_no_sun.exr";
+			try
+			{
+				env_mat.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture(cyberspace_base_dir_path + "/resources/sky_no_sun.exr");
+			}
+			catch(Indigo::Exception& e)
+			{
+				assert(0);
+				conPrint("ERROR: " + e.what());
+			}
 			env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
 			mw.ui->glWidget->setEnvMat(env_mat);
@@ -4595,7 +4628,15 @@ int main(int argc, char *argv[])
 
 			ob->material.albedo_rgb = Colour3f(0.7f, 0.2f, 0.2f);
 			ob->material.alpha = 1.f;
-			ob->material.albedo_tex_path = "N:\\indigo\\trunk\\testscenes\\ColorChecker_sRGB_from_Ref.jpg";
+			try
+			{
+				ob->material.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture("N:\\indigo\\trunk\\testscenes\\ColorChecker_sRGB_from_Ref.jpg");
+			}
+			catch(Indigo::Exception& e)
+			{
+				assert(0);
+				conPrint("ERROR: " + e.what());
+			}
 			ob->material.tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 
 			ob->mesh_data = OpenGLEngine::makeOverlayQuadMesh();

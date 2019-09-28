@@ -97,7 +97,15 @@ void AddObjectPreviewWidget::initializeGL()
 	// Add env mat
 	{
 		OpenGLMaterial env_mat;
-		env_mat.albedo_tex_path = base_dir_path + "/resources/sky_no_sun.exr";
+		try
+		{
+			env_mat.albedo_texture = opengl_engine->getTexture(base_dir_path + "/resources/sky_no_sun.exr");
+		}
+		catch(Indigo::Exception& e)
+		{
+			assert(0);
+			conPrint("ERROR: " + e.what());
+		}
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
 		opengl_engine->setEnvMat(env_mat);
@@ -114,7 +122,15 @@ void AddObjectPreviewWidget::initializeGL()
 		GLObjectRef ob = new GLObject();
 		ob->materials.resize(1);
 		ob->materials[0].albedo_rgb = Colour3f(0.9f);
-		ob->materials[0].albedo_tex_path = "resources/obstacle.png";
+		try
+		{
+			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
+		}
+		catch(Indigo::Exception& e)
+		{
+			assert(0);
+			conPrint("ERROR: " + e.what());
+		}
 		ob->materials[0].roughness = 0.8f;
 		ob->materials[0].fresnel_scale = 0.5f;
 		ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);

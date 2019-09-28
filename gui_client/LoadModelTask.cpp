@@ -49,7 +49,7 @@ void LoadModelTask::run(size_t thread_index)
 				opengl_ob->mesh_data = opengl_engine->getCubeMeshData();
 				opengl_ob->materials.resize(1);
 				opengl_ob->materials[0].albedo_rgb = Colour3f(0.8);
-				opengl_ob->materials[0].albedo_tex_path = "resources/voxel_dummy_texture.png";
+//				opengl_ob->materials[0].albedo_tex_path = "resources/voxel_dummy_texture.png";
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 			}

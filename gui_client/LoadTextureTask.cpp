@@ -43,7 +43,7 @@ void LoadTextureTask::run(size_t thread_index)
 		{
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
 
-			Reference<TextureData> texture_data = TextureLoading::buildUInt8MapTextureData(imagemap, opengl_engine/*, main_window->build_uint8_map_scratch_state*/);
+			Reference<TextureData> texture_data = TextureLoading::buildUInt8MapTextureData(imagemap, opengl_engine/*, main_window->build_uint8_map_scratch_state*/, /*multithread=*/true);
 
 			// Give data to OpenGL engine
 			opengl_engine->texture_data_manager->insertBuiltTextureData(imagemap, texture_data);
@@ -58,7 +58,7 @@ void LoadTextureTask::run(size_t thread_index)
 	{
 		conPrint("Warning: failed to get canonical key for path '" + path + "': " + e.what());
 	}
-	catch(ImFormatExcep& e)
+	catch(ImFormatExcep& )
 	{
 		//conPrint("Warning: failed to decode texture '" + path + "': " + e.what());
 	}
