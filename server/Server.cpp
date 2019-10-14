@@ -8,7 +8,6 @@ Copyright Glare Technologies Limited 2016 -
 
 #include "ListenerThread.h"
 #include "WorkerThread.h"
-#include "CryptoVoxelsLoader.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../networking/networking.h"
@@ -335,7 +334,6 @@ int main(int argc, char *argv[])
 
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server));
-		thread_manager.addThread(new CryptoVoxelsLoaderThread(server.world_state));
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
 
 		Timer save_state_timer;

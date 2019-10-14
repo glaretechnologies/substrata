@@ -142,7 +142,7 @@ Maintains network connection to server.
 class ClientThread : public MessageableThread
 {
 public:
-	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port, MainWindow* main_window,
+	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
 		const std::string& avatar_URL);
 	virtual ~ClientThread();
 
@@ -165,6 +165,5 @@ private:
 	std::string hostname;
 	int port;
 	MySocketRef socket;
-	MainWindow* main_window;
 	std::string avatar_URL;
 };

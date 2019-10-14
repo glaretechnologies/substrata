@@ -143,6 +143,9 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 {
 	this->objectPreviewGLWidget->makeCurrent();
 
+	this->loaded_object = new WorldObject();
+	this->loaded_object->scale.set(1, 1, 1);
+
 	// Try and load model
 	try
 	{
@@ -152,9 +155,10 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			objectPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
 		}
 
-		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(local_path, Matrix4f::translationMatrix(Vec4f(0, 0, 0, 1)), 
+		Indigo::TaskManager task_manager;
+		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(task_manager, local_path,
 			this->loaded_mesh, // mesh out
-			this->loaded_materials // loaded materials out
+			*this->loaded_object
 		);
 
 		objectPreviewGLWidget->addObject(preview_gl_ob);

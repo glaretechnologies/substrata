@@ -31,7 +31,9 @@ WorldObject::WorldObject()
 	from_local_transform_dirty = false;
 	from_local_other_dirty = false;
 	using_placeholder_model = false;
-
+#if GUI_CLIENT
+	is_selected = false;
+#endif
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
 

@@ -13,6 +13,7 @@ Code By Nicholas Chapman.
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/FormatDecoderSTL.h"
 #include "../graphics/FormatDecoderGLTF.h"
+#include "../graphics/FormatDecoderVox.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
@@ -185,10 +186,58 @@ static void scaleMesh(Indigo::Mesh& mesh)
 }
 
 // We don't have a material file, just the model file:
-GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path, 
-												   const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, std::vector<WorldMaterialRef>& loaded_materials_out)
+GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_manager, const std::string& model_path,
+												   Indigo::MeshRef& mesh_out, 
+	WorldObject& loaded_object_out
+)
 {
-	if(hasExtension(model_path, "obj"))
+	if(hasExtension(model_path, "vox"))
+	{
+		VoxFileContents vox_contents;
+		FormatDecoderVox::loadModel(model_path, vox_contents);
+
+		// Convert voxels
+		const VoxModel& model = vox_contents.models[0];
+		loaded_object_out.voxel_group.voxels.resize(model.voxels.size());
+		for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
+		{
+			loaded_object_out.voxel_group.voxels[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
+			loaded_object_out.voxel_group.voxels[i].mat_index = model.voxels[i].mat_index;
+		}
+
+		// Convert materials
+		loaded_object_out.materials.resize(vox_contents.used_materials.size());
+		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
+		{
+			loaded_object_out.materials[i] = new WorldMaterial();
+			loaded_object_out.materials[i]->colour_rgb = Colour3f(
+				vox_contents.used_materials[i].col_from_palette[0], 
+				vox_contents.used_materials[i].col_from_palette[1], 
+				vox_contents.used_materials[i].col_from_palette[2]);
+		}
+
+		// Scale down voxels so model isn't too large.
+		const float use_scale = 0.1f;
+
+		// Make opengl object
+		GLObjectRef ob = new GLObject();
+		ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
+
+		Reference<RayMesh> raymesh;
+		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.voxel_group, task_manager, /*do opengl stuff=*/true, raymesh);
+
+		ob->materials.resize(loaded_object_out.materials.size());
+		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
+		{
+			setGLMaterialFromWorldMaterialWithLocalPaths(*loaded_object_out.materials[i], ob->materials[i]);
+		}
+
+		loaded_object_out.scale.set(use_scale, use_scale, use_scale);
+
+		mesh_out = NULL;
+		return ob;
+	}
+	else if(hasExtension(model_path, "obj"))
 	{
 		MLTLibMaterials mats;
 		Indigo::MeshRef mesh = new Indigo::Mesh();
@@ -212,17 +261,17 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			min_z = myMin(min_z, mesh->vert_positions[i].z);
 
 		// Move object so that it lies on the z=0 (ground) plane
-		const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z) * ob_to_world_matrix;
+		const Matrix4f use_matrix = Matrix4f::identity(); // Matrix4f::translationMatrix(0, 0, -min_z)* ob_to_world_matrix;
 
 		GLObjectRef ob = new GLObject();
 		ob->ob_to_world_matrix = use_matrix;
 		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 		ob->materials.resize(mesh->num_materials_referenced);
-		loaded_materials_out.resize(mesh->num_materials_referenced);
+		loaded_object_out.materials/*loaded_materials_out*/.resize(mesh->num_materials_referenced);
 		for(uint32 i=0; i<ob->materials.size(); ++i)
 		{
-			loaded_materials_out[i] = new WorldMaterial();
+			loaded_object_out.materials[i] = new WorldMaterial();
 
 			// Have we parsed such a material from the .mtl file?
 			bool found_mat = false;
@@ -236,10 +285,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
 
-					loaded_materials_out[i]->colour_rgb = mats.materials[z].Kd;
-					loaded_materials_out[i]->colour_texture_url = tex_path;
-					loaded_materials_out[i]->opacity = ScalarVal(ob->materials[i].alpha);
-					loaded_materials_out[i]->roughness = ScalarVal(0.5f);
+					loaded_object_out.materials[i]->colour_rgb = mats.materials[z].Kd;
+					loaded_object_out.materials[i]->colour_texture_url = tex_path;
+					loaded_object_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
+					loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
 
 					found_mat = true;
 				}
@@ -252,8 +301,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].roughness = 0.5f;
 
 				//loaded_materials_out[i]->colour_texture_url = "resources/obstacle.png";
-				loaded_materials_out[i]->opacity = ScalarVal(1.f);
-				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
+				loaded_object_out.materials[i]->opacity = ScalarVal(1.f);
+				loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
 			}
 
 			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
@@ -280,7 +329,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 		//	mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
 
 		GLObjectRef ob = new GLObject();
-		ob->ob_to_world_matrix = ob_to_world_matrix;
+		ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
 		timer.reset();
 		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 		conPrint("Build OpenGL mesh for GLTF model in " + timer.elapsedString());
@@ -289,10 +338,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			throw Indigo::Exception("mats.materials had incorrect size.");
 
 		ob->materials.resize(mesh->num_materials_referenced);
-		loaded_materials_out.resize(mesh->num_materials_referenced);
+		loaded_object_out.materials.resize(mesh->num_materials_referenced);
 		for(uint32 i=0; i<mesh->num_materials_referenced; ++i)
 		{
-			loaded_materials_out[i] = new WorldMaterial();
+			loaded_object_out.materials[i] = new WorldMaterial();
 
 			const std::string tex_path = mats.materials[i].diffuse_map.path;
 
@@ -303,11 +352,11 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			ob->materials[i].transparent = mats.materials[i].alpha < 1.0f;
 			ob->materials[i].metallic_frac = mats.materials[i].metallic;
 
-			loaded_materials_out[i]->colour_rgb = mats.materials[i].diffuse;
-			loaded_materials_out[i]->colour_texture_url = tex_path;
-			loaded_materials_out[i]->opacity = ScalarVal(ob->materials[i].alpha);
-			loaded_materials_out[i]->roughness = mats.materials[i].roughness;
-			loaded_materials_out[i]->opacity = mats.materials[i].alpha;
+			loaded_object_out.materials[i]->colour_rgb = mats.materials[i].diffuse;
+			loaded_object_out.materials[i]->colour_texture_url = tex_path;
+			loaded_object_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
+			loaded_object_out.materials[i]->roughness = mats.materials[i].roughness;
+			loaded_object_out.materials[i]->opacity = mats.materials[i].alpha;
 
 			ob->materials[i].tex_matrix = Matrix2f::identity();// Matrix2f(1, 0, 0, -1);
 		}
@@ -331,21 +380,21 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				min_z = myMin(min_z, mesh->vert_positions[i].z);
 
 			// Move object so that it lies on the z=0 (ground) plane
-			const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z) * ob_to_world_matrix;
+			const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z);// *ob_to_world_matrix;
 
 			GLObjectRef ob = new GLObject();
 			ob->ob_to_world_matrix = use_matrix;
 			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
-			loaded_materials_out.resize(mesh->num_materials_referenced);
+			loaded_object_out.materials.resize(mesh->num_materials_referenced);
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
-				loaded_materials_out[i] = new WorldMaterial();
+				loaded_object_out.materials[i] = new WorldMaterial();
 			}
 
 			mesh_out = mesh;
@@ -366,11 +415,11 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 			checkValidAndSanitiseMesh(*mesh);
 			
 			GLObjectRef ob = new GLObject();
-			ob->ob_to_world_matrix = ob_to_world_matrix;
+			ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
 			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
-			loaded_materials_out.resize(mesh->num_materials_referenced);
+			loaded_object_out.materials.resize(mesh->num_materials_referenced);
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
@@ -379,10 +428,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(const std::string& model_path
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
-				loaded_materials_out[i] = new WorldMaterial();
-				//loaded_materials_out[i]->colour_texture_url = "resources/obstacle.png";
-				loaded_materials_out[i]->opacity = ScalarVal(1.f);
-				loaded_materials_out[i]->roughness = ScalarVal(0.5f);
+				loaded_object_out.materials[i] = new WorldMaterial();
+				//loaded_object_out.materials[i]->colour_texture_url = "resources/obstacle.png";
+				loaded_object_out.materials[i]->opacity = ScalarVal(1.f);
+				loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
 			}
 			
 			mesh_out = mesh;
@@ -427,6 +476,21 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		
 		mesh = new Indigo::Mesh();
 
+		//if(hasExtension(model_path, "vox"))
+		//{
+		//	VoxFileContents vox_content;
+		//	FormatDecoderVox::loadModel(model_path, vox_content);
+
+		//	// Convert voxels
+		//	const VoxModel& model = vox_contents.models[0];
+		//	loaded_object_out.voxel_group.voxels.resize(model.voxels.size());
+		//	for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
+		//	{
+		//		loaded_object_out.voxel_group.voxels[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
+		//		loaded_object_out.voxel_group.voxels[i].mat_index = model.voxels[i].mat_index;
+		//	}
+		//}
+		//else 
 		if(hasExtension(model_path, "obj"))
 		{
 			MLTLibMaterials mats;

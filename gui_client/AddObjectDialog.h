@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "ui_AddObjectDialog.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../shared/WorldMaterial.h"
+#include "../shared/WorldObject.h"
 #include <utils/ThreadManager.h>
 #include <QtCore/QString>
 class QSettings;
@@ -54,7 +55,7 @@ public:
 	std::string result_path;
 	//uint64 model_hash;
 	Indigo::MeshRef loaded_mesh;
-	std::vector<WorldMaterialRef> loaded_materials;
+	WorldObjectRef loaded_object;
 
 private:
 	std::string base_dir_path;

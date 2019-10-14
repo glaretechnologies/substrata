@@ -1221,7 +1221,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				WorldObjectRef message_ob = message->ob;
 
 				// Remove placeholder model if using one.
-				if(message_ob->using_placeholder_model)
+				//if(message_ob->using_placeholder_model)
 					removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
 
 				message_ob->opengl_engine_ob = message->opengl_ob;
@@ -2864,39 +2864,49 @@ void MainWindow::on_actionAddObject_triggered()
 				physics_ob->userdata = world_ob.getPointer();
 			}*/
 
+			WorldObjectRef new_world_object = new WorldObject();
+
 			// If the user selected an obj, convert it to an indigo mesh file
 			std::string igmesh_disk_path = d.result_path;
-			if(!hasExtension(d.result_path, "igmesh"))
+			if(d.loaded_mesh.nonNull())
 			{
-				// Save as IGMESH in temp location
-				igmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.igmesh";
-				Indigo::Mesh::writeToFile(toIndigoString(igmesh_disk_path), *d.loaded_mesh, /*use compression=*/true);
+				if(!hasExtension(d.result_path, "igmesh"))
+				{
+					// Save as IGMESH in temp location
+					igmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.igmesh";
+					Indigo::Mesh::writeToFile(toIndigoString(igmesh_disk_path), *d.loaded_mesh, /*use compression=*/true);
+				}
+				else
+				{
+					igmesh_disk_path = d.result_path;
+				}
+
+				// Compute hash over model
+				const uint64 model_hash = FileChecksum::fileChecksum(igmesh_disk_path);
+
+				const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
+				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(igmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
+
+				// Copy model to local resources dir.  UploadResourceThread will read from here.
+				this->resource_manager->copyLocalFileToResourceDir(igmesh_disk_path, mesh_URL);
+
+				new_world_object->model_url = mesh_URL;
 			}
 			else
 			{
-				igmesh_disk_path = d.result_path;
+				// We loaded a voxel model.
+				assert(!d.loaded_object->voxel_group.voxels.empty());
+
+				new_world_object->voxel_group = d.loaded_object->voxel_group;
+				new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
 			}
 
-			// Compute hash over model
-			const uint64 model_hash = FileChecksum::fileChecksum(igmesh_disk_path);
-
-			const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
-			const std::string URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(igmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
-
-			// Copy model to local resources dir.  UploadResourceThread will read from here.
-			this->resource_manager->copyLocalFileToResourceDir(igmesh_disk_path, URL);
-
-			
-
-
-			WorldObjectRef new_world_object = new WorldObject();
 			new_world_object->uid = UID(0); // Will be set by server
-			new_world_object->model_url = URL;
-			new_world_object->materials = d.loaded_materials;
+			new_world_object->materials = d.loaded_object->materials;//d.loaded_materials;
 			new_world_object->pos = ob_pos;
 			new_world_object->axis = Vec3f(0, 0, 1);
 			new_world_object->angle = 0;
-			new_world_object->scale = Vec3f(1.f);
+			new_world_object->scale = d.loaded_object->scale;
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 			std::set<std::string> paths;
@@ -3679,7 +3689,7 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 		avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
 	const std::string avatar_URL = resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
 
-	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, this, avatar_URL);
+	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL);
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
@@ -3936,6 +3946,8 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
 			assert(this->selected_ob->getRefCount() >= 0);
 
+			this->selected_ob->is_selected = true;
+
 			// If we hit an instance, select the prototype object instead.
 			if(this->selected_ob->instance_index > 0 && this->selected_ob->prototype_object.nonNull())
 				this->selected_ob = this->selected_ob->prototype_object;
@@ -4086,6 +4098,7 @@ void MainWindow::deselectObject()
 {
 	if(this->selected_ob.nonNull())
 	{
+		this->selected_ob->is_selected = false;
 		dropSelectedObject();
 
 		// Remove placement beam from 3d engine
@@ -4888,17 +4901,48 @@ int main(int argc, char *argv[])
 				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
 
+
+
+			// Test loading a vox file
 			if(false)
 			{
 				Indigo::MeshRef mesh;
-				std::vector<WorldMaterialRef> loaded_materials;
+				WorldObjectRef world_object = new WorldObject();
+
+				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\teapot.vox";
+				//const std::string path = "D:\\downloads\\monu1.vox";
+				//const std::string path = "D:\\downloads\\chr_knight.vox";
+				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\test.vox";
+				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\monu10.vox";
+				const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
+
+				Indigo::TaskManager task_manager;
+				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
+					//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
+					mesh,
+					*world_object
+				);
+
+				ob->ob_to_world_matrix = Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f);
+
+				mw.ui->glWidget->addObject(ob);
+
+				//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+			}
+
+
+
+			if(false)
+			{
+				Indigo::MeshRef mesh;
+				WorldObjectRef world_object = new WorldObject();
 
 				const std::string path = "C:\\Users\\nick\\Downloads\\cemetery_angel_-_miller\\scene.gltf";
 
-				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(path,
-					Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(1.f),
+				Indigo::TaskManager task_manager;
+				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
 					mesh,
-					loaded_materials
+					*world_object
 				);
 
 				mw.ui->glWidget->addObject(ob);
@@ -4909,14 +4953,14 @@ int main(int argc, char *argv[])
 			if(false)
 			{
 				Indigo::MeshRef mesh;
-				std::vector<WorldMaterialRef> loaded_materials;
+				WorldObjectRef world_object = new WorldObject();
 
 				const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";
 
-				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(path,
-					Matrix4f::translationMatrix(9, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
+				Indigo::TaskManager task_manager;
+				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
 					mesh,
-					loaded_materials
+					*world_object
 				);
 
 				mw.ui->glWidget->addObject(ob);

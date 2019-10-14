@@ -138,6 +138,8 @@ public:
 	ImageMapUInt8Ref hypercard_map;
 
 	Reference<Indigo::SceneNodeModel> indigo_model_node;
+
+	bool is_selected;
 #endif
 	Reference<WinterShaderEvaluator> script_evaluator;
 

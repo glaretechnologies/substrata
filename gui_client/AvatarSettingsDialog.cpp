@@ -92,8 +92,9 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 		}
 
 		Indigo::MeshRef mesh;
-		std::vector<WorldMaterialRef> loaded_materials;
-		avatar_gl_ob = ModelLoading::makeGLObjectForModelFile(path, Matrix4f::translationMatrix(Vec4f(0,0,0,1)), mesh, loaded_materials);
+		WorldObjectRef world_object = new WorldObject();
+		Indigo::TaskManager task_manager;
+		avatar_gl_ob = ModelLoading::makeGLObjectForModelFile(task_manager, path, mesh, *world_object);
 		
 		avatarPreviewGLWidget->addObject(avatar_gl_ob);
 	}
