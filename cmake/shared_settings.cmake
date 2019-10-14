@@ -30,6 +30,8 @@ ${INDIGO_GRAPHICS_DIR}/formatdecoderobj.cpp
 ${INDIGO_GRAPHICS_DIR}/formatdecoderobj.h
 ${INDIGO_GRAPHICS_DIR}/FormatDecoderSTL.cpp
 ${INDIGO_GRAPHICS_DIR}/FormatDecoderSTL.h
+${INDIGO_GRAPHICS_DIR}/FormatDecoderVox.cpp
+${INDIGO_GRAPHICS_DIR}/FormatDecoderVox.h
 ${INDIGO_GRAPHICS_DIR}/GaussianFilterFunction.cpp
 ${INDIGO_GRAPHICS_DIR}/GaussianFilterFunction.h
 ${INDIGO_GRAPHICS_DIR}/GaussianImageFilter.cpp

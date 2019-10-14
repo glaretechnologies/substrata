@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "../shared/WorldMaterial.h"
+#include "../shared/WorldObject.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../dll/include/IndigoMesh.h"
 struct GLObject;
@@ -55,17 +56,25 @@ public:
 
 	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);
 
-	// We don't have a material file, just the model file:
+
+	// Load a mesh from disk.
+	// Make an OpenGL object from it, also make an IndigoMesh from it (unless we are loading a voxel format such as .vox).
+	// If loading a voxel format, set loaded_object_out.voxel_group.
+	// Set loaded_object_out.materials as well.
+	// May set a scale on loaded_object_out.
+	//
 	// Throws Indigo::Exception on invalid mesh.
-	static GLObjectRef makeGLObjectForModelFile(const std::string& path, 
-		const Matrix4f& ob_to_world_matrix, Indigo::MeshRef& mesh_out, std::vector<WorldMaterialRef>& loaded_materials_out); // throws Indigo::Exception on failure.
+	static GLObjectRef makeGLObjectForModelFile(Indigo::TaskManager& task_manager, const std::string& path,
+		Indigo::MeshRef& mesh_out,
+		WorldObject& loaded_object_out);
 
 
 	// For when we have materials:
+	//
 	// Throws Indigo::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
 		ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
-		const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out); // throws Indigo::Exception on failure.
+		const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out);
 
 
 	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);

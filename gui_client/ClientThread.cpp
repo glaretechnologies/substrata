@@ -23,12 +23,11 @@ Generated at 2016-01-16 22:59:23 +1300
 static const bool VERBOSE = false;
 
 
-ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_, MainWindow* main_window_,
+ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
 						   const std::string& avatar_URL_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
-	main_window(main_window_),
 	avatar_URL(avatar_URL_)
 {
 	socket = new MySocket();
@@ -266,7 +265,9 @@ void ClientThread::doRun()
 							{
 								
 								WorldObject* ob = res->second.getPointer();
-								if(main_window->selected_ob.getPointer() != ob) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
+#if GUI_CLIENT
+								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
+#endif
 								{
 									ob->pos = pos;
 									ob->axis = axis;
@@ -301,7 +302,9 @@ void ClientThread::doRun()
 							if(res != world_state->objects.end())
 							{
 								WorldObject* ob = res->second.getPointer();
-								if(main_window->selected_ob.getPointer() != ob) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
+#if GUI_CLIENT
+								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
+#endif
 								{
 									readFromNetworkStreamGivenUID(*socket, *ob);
 									read = true;

@@ -293,3 +293,5 @@ ADD_SUBDIRECTORY(gui_client gui_client)
 
 # server
 ADD_SUBDIRECTORY(server server)
+
+ADD_SUBDIRECTORY(cv_bot cv_bot)
