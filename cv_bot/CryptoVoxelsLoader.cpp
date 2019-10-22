@@ -184,7 +184,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 			parser.parseBuffer(parcels_json.data(), parcels_json.size());
 		}
 		else
-			parser.parseFile("D:\\downloads\\parcels3.json");
+			parser.parseFile("D:\\downloads\\parcels4.json");
 
 
 		//const Vec3d final_offset_ws(600, 0, // Move to side of main parcels.
@@ -283,15 +283,15 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 			//if(id != 73) continue; NFT gallery
 			// 2 = bens parcel in the middle
 
-			if(!(
-				//id == 177 ||
-				//id == 863 ||
-				//id == 50 ||
-				id == 24 ||
-				id == 2 ||
-				id == 2783 // voxel farm
-				))
-				continue;
+			//if(!(
+			//	//id == 177 ||
+			//	//id == 863 ||
+			//	//id == 50 ||
+			//	id == 24 ||
+			//	id == 2 ||
+			//	id == 2783 // voxel farm
+			//	))
+			//	continue;
 
 			x1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "x1", 0.0);
 			y1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "y1", 0.0);
@@ -531,6 +531,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 										// Try and download it
 										try
 										{
+											conPrint("Downloading vox model '" + url + "'...");
 											HTTPClient client;
 											std::string file_data;
 											HTTPClient::ResponseInfo response = client.downloadFile(url, file_data);
@@ -600,68 +601,28 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 											float angle;
 											quat.toAxisAndAngle(unit_axis, angle);
 
-
-
-
 											/*
-											phase 1:
-											phase1(v) = translate(scale(rotAroundX(v, -Math.PI / 2), 0.01), vec3(-0.16, 0.16, 0.16))
+											From https://github.com/cryptovoxels/cryptovoxels/blob/master/src/utils/vox-worker.ts :
 
-											phase 2:
-											phase2(v) = translate(scale(v, 2), phase1(vox_bounds).y * 2 + 0.02)
-
-											so phase2(phase1(v)) = 
-											
-											translate(scale(phase1(v), 2), phase1(vox_bounds).y * 2 + 0.02)
-
-											total_translate = phase1(vox_bounds).y * 2 + 0.02
-											total_scale = 0.01 * 2
-											total_rot = rotAroundX(v, -Math.PI / 2)
-
-
-
-
-											From https://github.com/cryptovoxels/cryptovoxels/blob/master/src/utils/vox-import.ts#L152:
-											let scaling = 0.01
-											mesh.scaling.set(scaling, scaling, scaling)
-											mesh.rotation.set(-Math.PI / 2, 0, 0)			[Convert from z up to y up. Not sure about minus sign tho]
-											mesh.position.set(-0.16, 0.16, 0.16)			[still effectively applied in z-up space. (magicavoxel space)]
-
-											// Apply the changes
-											mesh.bakeCurrentTransformIntoVertices()
-
-											// Sit on the ground
-											mesh.scaling.set(2, 2, 2)
-											mesh.position.y -= mesh.geometry.extend.minimum.y * 2
-											mesh.position.y += 0.02
-											mesh.bakeCurrentTransformIntoVertices()
+											// Identity function, use these to nudge the mesh as needed
+											const fx = x => 0.02 * (x - originalSize.x / 2)
+											const fy = y => 0.02 * (y - originalSize.y / 2)
+											const fz = z => 0.02 * (z - originalSize.z * 0)
 											*/
-											scale *= 0.02; // Need to do this otherwise objects are absurdly large.
+											scale *= 0.02;
 
-											//Vec3d vox_translation_cv_os = Vec3d(-0.32, 0.32, 0.32);
-											Vec3d vox_translation_cv_os = Vec3d(0.32, 0.32, 0);// Vec3d(-0.32, 0.32, -0.32);
-
-											//position.z += 0.02;
-											//position.z += 0.1;
-
-											// .vox AABB min z gets mapped to min y upon rotation.  Then 0.16 is added to it.
-											const float phase_1_vox_min_y = vox_contents.models[0].aabb.min_[2] * 0.01 + 0.016;
-
-											vox_translation_cv_os.y -= phase_1_vox_min_y * 2;/*vox_contents.models[0].aabb.min_[2] * 0.02 - 0.016*/;
-
-											// Convert to substrata/indigo coords (z-up)
-											const Vec3d vox_translation_sub_os = Vec3d(-vox_translation_cv_os.x, -vox_translation_cv_os.z, vox_translation_cv_os.y);
+											// NOTE: not sure scale.x and scale.z are not mixed up here.
+											const Vec3d vox_translation_sub_os = Vec3d(-vox_contents.models[0].size_x/2 * scale.x, -vox_contents.models[0].size_y/2 * scale.z, 0);
 
 											const Vec4f vox_translation_sub_ws = rot * vox_translation_sub_os.toVec4fVector();
 
-										
-											Vec3d offset(0.75, 0.75, 0);// 0.75, 1.4, 0);// 0.75, 0.75, 0.25); // An offset vector to put the images in the correct place.  Still not sure why this is needed.
+											const Vec3d offset(0.75, 0.75, 0.25); // An offset vector to put the models in the correct place.  Still not sure why this is needed.
 
 											// Get parcel centre in CV world space.  This is the centre of the parcel bounding box, but with y = 0.
 											// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/parcel.ts#L94
-											Vec3d parcel_centre_cvws = Vec3d(((double)x1 + (double)x2) / 2, 0, ((double)z1 + (double)z2) / 2);
+											const Vec3d parcel_centre_cvws = Vec3d(((double)x1 + (double)x2) / 2, 0, ((double)z1 + (double)z2) / 2);
 
-											Vec3d pos_cvws = position + parcel_centre_cvws;
+											const Vec3d pos_cvws = position + parcel_centre_cvws;
 
 											// Convert to substrata/indigo coords (z-up)
 											ob->pos = Vec3d(
@@ -670,17 +631,14 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 												pos_cvws.y) + // + CV y
 												toVec3d(vox_translation_sub_ws) + offset + final_offset_ws;
 
-											
-											
-
-
 											// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/features/feature.ts#L107
 											const double SCALE_EPSILON = 0.01;
 											if(scale.x == 0) scale.x = SCALE_EPSILON;
 											if(scale.y == 0) scale.y = SCALE_EPSILON;
 											if(scale.z == 0) scale.z = SCALE_EPSILON;
 
-											ob->scale = Vec3f((float)-scale.x, (float)scale.z, (float)scale.y);
+											// NOTE: don't have to negate x scale (don't have to mirror object), because .vox models and substrata are both in right-handed coord systems.
+											ob->scale = Vec3f((float)scale.x, (float)scale.z, (float)scale.y);
 
 											ob->axis = Vec3f(unit_axis[0], unit_axis[1], unit_axis[2]);
 											ob->angle = angle;
