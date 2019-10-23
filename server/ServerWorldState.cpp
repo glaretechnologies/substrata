@@ -31,14 +31,16 @@ Generated at 2016-01-12 12:22:34 +1300
 #endif
 
 
-ServerWorldState::ServerWorldState()
+ServerAllWorldsState::ServerAllWorldsState()
 {
 	next_avatar_uid = UID(0);
 	next_object_uid = UID(0);
+
+	world_states[""] = new ServerWorldState();
 }
 
 
-ServerWorldState::~ServerWorldState()
+ServerAllWorldsState::~ServerAllWorldsState()
 {
 }
 
@@ -293,7 +295,7 @@ static void readParcelsFromMySQL(sql::Connection* sql_connection, ServerWorldSta
 #endif // MY_SQL_STUFF
 
 
-void ServerWorldState::updateFromDatabase()
+void ServerAllWorldsState::updateFromDatabase()
 {
 #if MY_SQL_STUFF
 	try
@@ -324,7 +326,8 @@ void ServerWorldState::updateFromDatabase()
 
 
 static const uint32 WORLD_STATE_MAGIC_NUMBER = 487173571;
-static const uint32 WORLD_STATE_SERIALISATION_VERSION = 1;
+static const uint32 WORLD_STATE_SERIALISATION_VERSION = 2;
+static const uint32 WORLD_CHUNK = 50;
 static const uint32 WORLD_OBJECT_CHUNK = 100;
 static const uint32 USER_CHUNK = 101;
 static const uint32 PARCEL_CHUNK = 102;
@@ -332,7 +335,7 @@ static const uint32 RESOURCE_CHUNK = 103;
 static const uint32 EOS_CHUNK = 1000;
 
 
-void ServerWorldState::readFromDisk(const std::string& path)
+void ServerAllWorldsState::readFromDisk(const std::string& path)
 {
 	conPrint("Reading world state from '" + path + "'...");
 
@@ -345,19 +348,33 @@ void ServerWorldState::readFromDisk(const std::string& path)
 
 	// Read version
 	const uint32 v = stream.readUInt32();
-	if(v != WORLD_STATE_SERIALISATION_VERSION)
+	if(v > WORLD_STATE_SERIALISATION_VERSION)
 		throw Indigo::Exception("Unknown version " + toString(v) + ", expected " + toString(WORLD_STATE_SERIALISATION_VERSION) + ".");
 
+	Reference<ServerWorldState> current_world = new ServerWorldState();
+	world_states[""] = current_world;
+
+	size_t num_obs = 0;
+	size_t num_parcels = 0;
 	while(1)
 	{
 		const uint32 chunk = stream.readUInt32();
-		if(chunk == WORLD_OBJECT_CHUNK)
+		if(chunk == WORLD_CHUNK)
+		{
+			const std::string world_name = stream.readStringLengthFirst(1000);
+			if(world_states.count(world_name) == 0)
+				world_states[world_name] = new ServerWorldState();
+
+			current_world = world_states[world_name];
+		}
+		else if(chunk == WORLD_OBJECT_CHUNK)
 		{
 			// Deserialise object
 			WorldObjectRef world_ob = new WorldObject();
 			readFromStream(stream, *world_ob);
 
-			objects[world_ob->uid] = world_ob; // Add to object map
+			current_world->objects[world_ob->uid] = world_ob; // Add to object map
+			num_obs++;
 
 			next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
 		}
@@ -376,7 +393,8 @@ void ServerWorldState::readFromDisk(const std::string& path)
 			ParcelRef parcel = new Parcel();
 			readFromStream(stream, *parcel);
 
-			parcels[parcel->id] = parcel; // Add to parcel map
+			current_world->parcels[parcel->id] = parcel; // Add to parcel map
+			num_parcels++;
 		}
 		else if(chunk == RESOURCE_CHUNK)
 		{
@@ -400,62 +418,69 @@ void ServerWorldState::readFromDisk(const std::string& path)
 
 	denormaliseData();
 
-	conPrint("Loaded " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
-		toString(parcels.size()) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
+	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
+		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
 }
 
 
-void ServerWorldState::denormaliseData()
+void ServerAllWorldsState::denormaliseData()
 {
-	// Build cached fields like creator_name
-	for(auto i=objects.begin(); i != objects.end(); ++i)
+	for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
 	{
-		auto res = user_id_to_users.find(i->second->creator_id);
-		if(res != user_id_to_users.end())
-			i->second->creator_name = res->second->name;
-	}
+		Reference<ServerWorldState> world_state = world_it->second;
 
-	for(auto i=parcels.begin(); i != parcels.end(); ++i)
-	{
-		// Denormalise owner_name
+		// Build cached fields like creator_name
+		for(auto i=world_state->objects.begin(); i != world_state->objects.end(); ++i)
 		{
-			auto res = user_id_to_users.find(i->second->owner_id);
+			auto res = user_id_to_users.find(i->second->creator_id);
 			if(res != user_id_to_users.end())
-				i->second->owner_name = res->second->name;
+				i->second->creator_name = res->second->name;
 		}
 
-		// Denormalise admin_names
-		i->second->admin_names.resize(i->second->admin_ids.size());
-		for(size_t z=0; z<i->second->admin_ids.size(); ++z)
+		for(auto i=world_state->parcels.begin(); i != world_state->parcels.end(); ++i)
 		{
-			auto res = user_id_to_users.find(i->second->owner_id);
-			if(res != user_id_to_users.end())
+			// Denormalise owner_name
 			{
-				//conPrint("admin: " + res->second->name);
-				i->second->admin_names[z] = res->second->name;
+				auto res = user_id_to_users.find(i->second->owner_id);
+				if(res != user_id_to_users.end())
+					i->second->owner_name = res->second->name;
 			}
-		}
 
-		// Denormalise writer_names
-		i->second->writer_names.resize(i->second->writer_ids.size());
-		for(size_t z=0; z<i->second->writer_ids.size(); ++z)
-		{
-			auto res = user_id_to_users.find(i->second->owner_id);
-			if(res != user_id_to_users.end())
+			// Denormalise admin_names
+			i->second->admin_names.resize(i->second->admin_ids.size());
+			for(size_t z=0; z<i->second->admin_ids.size(); ++z)
 			{
-				//conPrint("writer: " + res->second->name);
-				i->second->writer_names[z] = res->second->name;
+				auto res = user_id_to_users.find(i->second->owner_id);
+				if(res != user_id_to_users.end())
+				{
+					//conPrint("admin: " + res->second->name);
+					i->second->admin_names[z] = res->second->name;
+				}
+			}
+
+			// Denormalise writer_names
+			i->second->writer_names.resize(i->second->writer_ids.size());
+			for(size_t z=0; z<i->second->writer_ids.size(); ++z)
+			{
+				auto res = user_id_to_users.find(i->second->owner_id);
+				if(res != user_id_to_users.end())
+				{
+					//conPrint("writer: " + res->second->name);
+					i->second->writer_names[z] = res->second->name;
+				}
 			}
 		}
 	}
 }
 
 
-void ServerWorldState::serialiseToDisk(const std::string& path)
+void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 {
 	conPrint("Saving world state to disk...");
 	try
 	{
+		size_t num_obs = 0;
+		size_t num_parcels = 0;
 
 		const std::string temp_path = path + "_temp";
 		{
@@ -467,12 +492,34 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 			// Write version
 			stream.writeUInt32(WORLD_STATE_SERIALISATION_VERSION);
 
-			// Write objects
+			// For each world
+			for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
 			{
-				for(auto i=objects.begin(); i != objects.end(); ++i)
+				Reference<ServerWorldState> world_state = world_it->second;
+
+				// Write world chunk
+				stream.writeUInt32(WORLD_CHUNK);
+
+				stream.writeStringLengthFirst(world_it->first); // Write world name.
+
+				// Write objects
 				{
-					stream.writeUInt32(WORLD_OBJECT_CHUNK);
-					writeToStream(*i->second, stream);
+					for(auto i=world_state->objects.begin(); i != world_state->objects.end(); ++i)
+					{
+						stream.writeUInt32(WORLD_OBJECT_CHUNK);
+						writeToStream(*i->second, stream);
+						num_obs++;
+					}
+				}
+
+				// Write parcels
+				{
+					for(auto i=world_state->parcels.begin(); i != world_state->parcels.end(); ++i)
+					{
+						stream.writeUInt32(PARCEL_CHUNK);
+						writeToStream(*i->second, stream);
+						num_parcels++;
+					}
 				}
 			}
 
@@ -481,15 +528,6 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 				for(auto i=user_id_to_users.begin(); i != user_id_to_users.end(); ++i)
 				{
 					stream.writeUInt32(USER_CHUNK);
-					writeToStream(*i->second, stream);
-				}
-			}
-
-			// Write parcels
-			{
-				for(auto i=parcels.begin(); i != parcels.end(); ++i)
-				{
-					stream.writeUInt32(PARCEL_CHUNK);
 					writeToStream(*i->second, stream);
 				}
 			}
@@ -508,8 +546,8 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 
 		FileUtils::moveFile(temp_path, path);
 
-		conPrint("Saved " + toString(objects.size()) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " + 
-			toString(parcels.size()) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
+		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
+			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -518,7 +556,7 @@ void ServerWorldState::serialiseToDisk(const std::string& path)
 }
 
 
-UID ServerWorldState::getNextObjectUID()
+UID ServerAllWorldsState::getNextObjectUID()
 {
 	const UID next = next_object_uid;
 	next_object_uid = UID(next_object_uid.value() + 1);
@@ -526,7 +564,7 @@ UID ServerWorldState::getNextObjectUID()
 }
 
 
-UID ServerWorldState::getNextAvatarUID()
+UID ServerAllWorldsState::getNextAvatarUID()
 {
 	Lock lock(mutex);
 

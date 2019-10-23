@@ -301,9 +301,16 @@ void WorkerThread::handleResourceDownloadConnection()
 }
 
 
-static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id)
+static bool userHasObjectWritePermissions(const WorldObject& ob, const User& user, const std::string& connected_world_name)
 {
-	return user_id.valid() && ((user_id == ob.creator_id) || isGodUser(user_id));
+	if(user.id.valid())
+	{
+		return (user.id == ob.creator_id) || // If the user created/owns the object
+			isGodUser(user.id) || // or if the user is the god user (id 0)
+			((connected_world_name != "") && (user.name == connected_world_name)); // or if this is the user's personal world
+	}
+	else
+		return false;
 }
 
 
@@ -311,10 +318,11 @@ void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
 
-	ServerWorldState* world_state = server->world_state.getPointer();
+	ServerAllWorldsState* world_state = server->world_state.getPointer();
 
 	UID client_avatar_uid(0);
 	Reference<User> client_user; // Will be a null reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
+	Reference<ServerWorldState> cur_world_state; // World the client is connected to.
 
 	try
 	{
@@ -348,8 +356,7 @@ void WorkerThread::doRun()
 		}
 
 		const uint32 connection_type = socket->readUInt32();
-
-		
+	
 		if(connection_type == Protocol::ConnectionTypeUploadResource)
 		{
 			handleResourceUploadConnection();
@@ -362,6 +369,19 @@ void WorkerThread::doRun()
 		}
 		else if(connection_type == Protocol::ConnectionTypeUpdates)
 		{
+			// Read name of world to connect to
+			const std::string world_name = socket->readStringLengthFirst(1000);
+			this->connected_world_name = world_name;
+
+			{
+				Lock lock(world_state->mutex);
+				// Create world if didn't exist before.
+				// TODO: do this here? or restrict possible world names to those of users etc..?
+				if(world_state->world_states[world_name].isNull())
+					world_state->world_states[world_name] = new ServerWorldState();
+				cur_world_state = world_state->world_states[world_name];
+			}
+
 			// Write avatar UID assigned to the connected client.
 			client_avatar_uid = world_state->getNextAvatarUID();
 			writeToStream(client_avatar_uid, *socket);
@@ -377,7 +397,7 @@ void WorkerThread::doRun()
 			// Send all current avatar state data to client
 			{
 				Lock lock(world_state->mutex);
-				for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
+				for(auto it = cur_world_state->avatars.begin(); it != cur_world_state->avatars.end(); ++it)
 				{
 					const Avatar* avatar = it->second.getPointer();
 
@@ -397,7 +417,7 @@ void WorkerThread::doRun()
 			// Send all current object data to client
 			{
 				Lock lock(world_state->mutex);
-				for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+				for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
 				{
 					const WorldObject* ob = it->second.getPointer();
 
@@ -412,7 +432,7 @@ void WorkerThread::doRun()
 			// Send all current parcel data to client
 			{
 				Lock lock(world_state->mutex);
-				for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+				for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
 				{
 					const Parcel* parcel = it->second.getPointer();
 
@@ -423,7 +443,17 @@ void WorkerThread::doRun()
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
 			}
+
+			// Send a message saying we have sent all initial state
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::InitialStateSent);
+				socket->writeData(packet.buf.data(), packet.buf.size());
+			}
 		}
+
+		assert(cur_world_state.nonNull());
+
 
 		socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
@@ -473,8 +503,8 @@ void WorkerThread::doRun()
 						// Look up existing avatar in world state
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->avatars.find(avatar_uid);
-							if(res != world_state->avatars.end())
+							auto res = cur_world_state->avatars.find(avatar_uid);
+							if(res != cur_world_state->avatars.end())
 							{
 								Avatar* avatar = res->second.getPointer();
 								avatar->pos = pos;
@@ -494,8 +524,8 @@ void WorkerThread::doRun()
 						// Look up existing avatar in world state
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->avatars.find(avatar_uid);
-							if(res != world_state->avatars.end())
+							auto res = cur_world_state->avatars.find(avatar_uid);
+							if(res != cur_world_state->avatars.end())
 							{
 								Avatar* avatar = res->second.getPointer();
 								readFromNetworkStreamGivenUID(*socket, *avatar);
@@ -523,8 +553,8 @@ void WorkerThread::doRun()
 						// Look up existing avatar in world state
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->avatars.find(use_avatar_uid);
-							if(res == world_state->avatars.end())
+							auto res = cur_world_state->avatars.find(use_avatar_uid);
+							if(res == cur_world_state->avatars.end())
 							{
 								// Avatar for UID not already created, create it now.
 								AvatarRef avatar = new Avatar();
@@ -535,7 +565,7 @@ void WorkerThread::doRun()
 								avatar->rotation = rotation;
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
-								world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
+								cur_world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
 
 								conPrint("created new avatar");
 							}
@@ -555,8 +585,8 @@ void WorkerThread::doRun()
 						// Mark avatar as dead
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->avatars.find(avatar_uid);
-							if(res != world_state->avatars.end())
+							auto res = cur_world_state->avatars.find(avatar_uid);
+							if(res != cur_world_state->avatars.end())
 							{
 								Avatar* avatar = res->second.getPointer();
 								avatar->state = Avatar::State_Dead;
@@ -583,13 +613,13 @@ void WorkerThread::doRun()
 							// Look up existing object in world state
 							{
 								Lock lock(world_state->mutex);
-								auto res = world_state->objects.find(object_uid);
-								if(res != world_state->objects.end())
+								auto res = cur_world_state->objects.find(object_uid);
+								if(res != cur_world_state->objects.end())
 								{
 									WorldObject* ob = res->second.getPointer();
 
 									// See if the user has permissions to alter this object:
-									if(!userHasObjectWritePermissions(*ob, client_user->id))
+									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name))
 										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
 									else
 									{
@@ -597,7 +627,7 @@ void WorkerThread::doRun()
 										ob->axis = axis;
 										ob->angle = angle;
 										ob->from_remote_transform_dirty = true;
-										world_state->dirty_from_remote_objects.insert(ob);
+										cur_world_state->dirty_from_remote_objects.insert(ob);
 									}
 
 									//conPrint("updated object transform");
@@ -624,13 +654,13 @@ void WorkerThread::doRun()
 							// Look up existing object in world state
 							{
 								Lock lock(world_state->mutex);
-								auto res = world_state->objects.find(object_uid);
-								if(res != world_state->objects.end())
+								auto res = cur_world_state->objects.find(object_uid);
+								if(res != cur_world_state->objects.end())
 								{
 									WorldObject* ob = res->second.getPointer();
 
 									// See if the user has permissions to alter this object:
-									if(!userHasObjectWritePermissions(*ob, client_user->id))
+									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name))
 									{
 										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
 										WorldObject dummy_ob;
@@ -640,7 +670,7 @@ void WorkerThread::doRun()
 									{
 										readFromNetworkStreamGivenUID(*socket, *ob);
 										ob->from_remote_other_dirty = true;
-										world_state->dirty_from_remote_objects.insert(ob);
+										cur_world_state->dirty_from_remote_objects.insert(ob);
 
 										// Process resources
 										std::set<std::string> URLs;
@@ -666,6 +696,7 @@ void WorkerThread::doRun()
 						// If client is not logged in, refuse object creation.
 						if(client_user.isNull())
 						{
+							conPrint("Creation denied, user was not logged in.");
 							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 							packet.writeUInt32(Protocol::ErrorMessageID);
 							packet.writeStringLengthFirst("You must be logged in to create an object.");
@@ -690,8 +721,8 @@ void WorkerThread::doRun()
 								new_ob->uid = world_state->getNextObjectUID();
 								new_ob->state = WorldObject::State_JustCreated;
 								new_ob->from_remote_other_dirty = true;
-								world_state->dirty_from_remote_objects.insert(new_ob);
-								world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
+								cur_world_state->dirty_from_remote_objects.insert(new_ob);
+								cur_world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
 							}
 						}
 
@@ -710,13 +741,13 @@ void WorkerThread::doRun()
 						else
 						{
 							Lock lock(world_state->mutex);
-							auto res = world_state->objects.find(object_uid);
-							if(res != world_state->objects.end())
+							auto res = cur_world_state->objects.find(object_uid);
+							if(res != cur_world_state->objects.end())
 							{
 								WorldObject* ob = res->second.getPointer();
 
 								// See if the user has permissions to alter this object:
-								const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user->id);
+								const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name);
 								if(!have_delete_perms)
 									writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
 								else
@@ -724,7 +755,7 @@ void WorkerThread::doRun()
 									// Mark object as dead
 									ob->state = WorldObject::State_Dead;
 									ob->from_remote_other_dirty = true;
-									world_state->dirty_from_remote_objects.insert(ob);
+									cur_world_state->dirty_from_remote_objects.insert(ob);
 								}
 							}
 						}
@@ -739,8 +770,8 @@ void WorkerThread::doRun()
 						
 						{
 							Lock lock(world_state->mutex);
-							packet.writeUInt64(world_state->parcels.size()); // Write num parcels
-							for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+							packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
+							for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
 								writeToNetworkStream(*it->second, packet); // Write parcel
 						}
 
@@ -762,8 +793,8 @@ void WorkerThread::doRun()
 							if(have_permissions)
 							{
 								Lock lock(world_state->mutex);
-								auto res = world_state->parcels.find(parcel_id);
-								if(res != world_state->parcels.end())
+								auto res = cur_world_state->parcels.find(parcel_id);
+								if(res != cur_world_state->parcels.end())
 								{
 									// TODO: Check if this client has permissions to update the parcel information.
 
@@ -857,7 +888,9 @@ void WorkerThread::doRun()
 							if(res != world_state->name_to_users.end())
 							{
 								User* user = res->second.getPointer();
-								if(user->isPasswordValid(password))
+								const bool password_valid = user->isPasswordValid(password);
+								conPrint("password_valid: " + boolToString(password_valid));
+								if(password_valid)
 								{
 									// Password is valid, log user in.
 									client_user = user;
@@ -1072,12 +1105,13 @@ void WorkerThread::doRun()
 	}
 
 	// Mark avatar corresponding to client as dead
+	if(cur_world_state.nonNull())
 	{
 		Lock lock(world_state->mutex);
-		if(world_state->avatars.count(client_avatar_uid) == 1)
+		if(cur_world_state->avatars.count(client_avatar_uid) == 1)
 		{
-			world_state->avatars[client_avatar_uid]->state = Avatar::State_Dead;
-			world_state->avatars[client_avatar_uid]->other_dirty = true;
+			cur_world_state->avatars[client_avatar_uid]->state = Avatar::State_Dead;
+			cur_world_state->avatars[client_avatar_uid]->other_dirty = true;
 		}
 	}
 }

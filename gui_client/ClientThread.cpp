@@ -24,11 +24,13 @@ static const bool VERBOSE = false;
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
-						   const std::string& avatar_URL_)
+						   const std::string& avatar_URL_, const std::string& world_name_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
-	avatar_URL(avatar_URL_)
+	avatar_URL(avatar_URL_),
+	world_name(world_name_),
+	initial_state_received(false)
 {
 	socket = new MySocket();
 	socket->setUseNetworkByteOrder(false);
@@ -74,9 +76,8 @@ void ClientThread::doRun()
 		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
 		socket->writeUInt32(Protocol::ConnectionTypeUpdates); // Write connection type
 
-		
+		socket->writeStringLengthFirst(world_name); // Write world name
 
-		
 
 		const int MAX_STRING_LEN = 10000;
 
@@ -147,6 +148,12 @@ void ClientThread::doRun()
 				const uint32 msg_type = socket->readUInt32();
 				switch(msg_type)
 				{
+				case Protocol::InitialStateSent:
+					{
+						// This message has no payload.
+						this->initial_state_received = true;
+						break;
+					}
 				case Protocol::AvatarTransformUpdate:
 					{
 						//conPrint("AvatarTransformUpdate");

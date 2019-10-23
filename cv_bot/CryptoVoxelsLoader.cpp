@@ -676,9 +676,8 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 												Lock lock(world_state.mutex);
 												WorldObjectRef existing_ob = res->second;
 
-												if(true) // TEMP
-												//if(!epsEqual(existing_ob->pos, ob->pos) || (existing_ob->materials.size() != ob->materials.size()) ||
-												//	!epsEqual(existing_ob->scale, ob->scale))
+												if(!epsEqual(existing_ob->pos, ob->pos) || (existing_ob->materials.size() != ob->materials.size()) ||
+													!epsEqual(existing_ob->scale, ob->scale))
 												{
 													//printVar(existing_ob->pos);
 													//printVar(ob->pos);

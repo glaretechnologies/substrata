@@ -37,7 +37,8 @@ int main(int argc, char* argv[])
 		&msg_queue,
 		"localhost",
 		server_port, // port
-		"sdfsdf" // avatar URL
+		"sdfsdf", // avatar URL
+		"cryptovoxels" // world name
 	);
 	client_thread->world_state = world_state;
 
@@ -54,22 +55,17 @@ int main(int argc, char* argv[])
 	{
 		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 		packet.writeUInt32(Protocol::LogInMessage);
-		packet.writeStringLengthFirst("test");
-		packet.writeStringLengthFirst("test");
+		packet.writeStringLengthFirst("cryptovoxels");
+		packet.writeStringLengthFirst("MQqpGu9L");
 
 		client_thread->enqueueDataToSend(packet);
 	}
 
 	// Wait until we have received parcel data.  This means we have received all objects
-	while(1)
+	while(!client_thread->initial_state_received)
 	{
-		{
-			Lock lock(world_state->mutex);
-			if(!world_state->parcels.empty())
-				break;
-		}
-
-		PlatformUtils::Sleep(10);
+		PlatformUtils::Sleep(100);
+		conPrint("Waiting for initial data to be received.");
 	}
 
 	conPrint("Received objects.  world_state->objects.size(): " + toString(world_state->objects.size()));

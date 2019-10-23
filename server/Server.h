@@ -22,7 +22,7 @@ public:
 
 	double getCurrentGlobalTime() const;
 
-	Reference<ServerWorldState> world_state;
+	Reference<ServerAllWorldsState> world_state;
 
 	// Connected client worker threads
 	ThreadManager worker_thread_manager;
