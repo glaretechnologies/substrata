@@ -59,9 +59,18 @@
     </property>
     <addaction name="actionFly_Mode"/>
    </widget>
+   <widget class="QMenu" name="menuGo">
+    <property name="title">
+     <string>Go</string>
+    </property>
+    <addaction name="actionGoToMainWorld"/>
+    <addaction name="actionGoToPersonalWorld"/>
+    <addaction name="actionGo_to_CryptoVoxels_World"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuWindow"/>
    <addaction name="menuMovement"/>
+   <addaction name="menuGo"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
@@ -363,6 +372,21 @@
   <action name="actionAdd_Voxels">
    <property name="text">
     <string>Add Voxels</string>
+   </property>
+  </action>
+  <action name="actionGoToMainWorld">
+   <property name="text">
+    <string>Go to Main World</string>
+   </property>
+  </action>
+  <action name="actionGoToPersonalWorld">
+   <property name="text">
+    <string>Go to Personal World</string>
+   </property>
+  </action>
+  <action name="actionGo_to_CryptoVoxels_World">
+   <property name="text">
+    <string>Go to Cryptovoxels World</string>
    </property>
   </action>
  </widget>
