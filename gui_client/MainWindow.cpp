@@ -2755,7 +2755,8 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 	Vec3d parcel_aabb_min;
 	Vec3d parcel_aabb_max;
 
-	if(isGodUser(this->logged_in_user_id))
+	// If god user, or if this is the personal world of the user:
+	if(isGodUser(this->logged_in_user_id) || (server_worldname != "" && server_worldname == this->logged_in_user_name))
 	{
 		const Vec4f newpos = tentative_to_world_matrix.getColumn(3);
 		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
