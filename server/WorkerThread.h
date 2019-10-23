@@ -32,6 +32,7 @@ public:
 
 	virtual void doRun();
 
+	std::string connected_world_name;
 
 	void enqueueDataToSend(const std::string& data); // threadsafe
 

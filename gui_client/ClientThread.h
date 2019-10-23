@@ -143,7 +143,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
-		const std::string& avatar_URL);
+		const std::string& avatar_URL, const std::string& world_name);
 	virtual ~ClientThread();
 
 	virtual void doRun();
@@ -155,6 +155,7 @@ public:
 
 	void killConnection();
 
+	bool initial_state_received;
 	Reference<WorldState> world_state;
 	UID client_avatar_uid;
 private:
@@ -166,4 +167,5 @@ private:
 	int port;
 	MySocketRef socket;
 	std::string avatar_URL;
+	std::string world_name;
 };

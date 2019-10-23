@@ -14,7 +14,7 @@ namespace Protocol
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 17;
+const uint32 CyberspaceProtocolVersion = 18;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -48,6 +48,8 @@ const uint32 ParcelFullUpdate		= 3103;
 
 const uint32 QueryParcels			= 3150;
 const uint32 ParcelList				= 3160;
+
+const uint32 InitialStateSent		= 3500;
 
 
 //TEMP HACK move elsewhere

@@ -1025,19 +1025,6 @@ void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 }
 
 
-bool MainWindow::objectModificationAllowed(const WorldObject& ob)
-{
-	if(!this->logged_in_user_id.valid())
-	{
-		return false;
-	}
-	else
-	{
-		return (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id);
-	}
-}
-
-
 // Update object placement beam - a beam that goes from the object to what's below it.
 void MainWindow::updateSelectedObjectPlacementBeam()
 {
@@ -1080,6 +1067,20 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 }
 
 
+bool MainWindow::objectModificationAllowed(const WorldObject& ob)
+{
+	if(!this->logged_in_user_id.valid())
+	{
+		return false;
+	}
+	else
+	{
+		return (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id) ||
+			(server_worldname != "" && server_worldname == this->logged_in_user_name); // If this is the personal world of the user:
+	}
+}
+
+
 // Also shows error notifications if modification is not allowed.
 bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action)
 {
@@ -1097,7 +1098,9 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 	}
 	else
 	{
-		const bool logged_in_user_can_modify = (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id);
+		const bool logged_in_user_can_modify = (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id) ||
+			(server_worldname != "" && server_worldname == this->logged_in_user_name); // If this is the personal world of the user:
+		
 		if(!logged_in_user_can_modify)
 		{
 			allow_modification = false;
@@ -1169,7 +1172,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Update URL Bar
 	if(!this->url_widget->hasFocus())
-		this->url_widget->setURL("sub://" + server_hostname + "/" + server_userpath +
+		this->url_widget->setURL("sub://" + server_hostname + "/" + server_worldname +
 			"?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().x, 1) + 
 			"&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().y, 1) +
 			"&z=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().z, 1));
@@ -1444,6 +1447,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				user_details->setTextAsLoggedIn(m->username);
 				this->logged_in_user_id = m->user_id;
+				this->logged_in_user_name = m->username;
 
 				conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
 
@@ -1468,6 +1472,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				user_details->setTextAsNotLoggedIn();
 				this->logged_in_user_id = UserID::invalidUserID();
+				this->logged_in_user_name = "";
 
 				recolourParcelsForLoggedInState();
 
@@ -1496,6 +1501,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				user_details->setTextAsLoggedIn(m->username);
 				this->logged_in_user_id = m->user_id;
+				this->logged_in_user_name = m->username;
 
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -2558,10 +2564,10 @@ void MainWindow::updateStatusBar()
 		status += "Not connected to server.";
 		break;
 	case ServerConnectionState_Connecting:
-		status += "Connecting to " + printableServerURL(this->server_hostname, this->server_userpath) + "...";
+		status += "Connecting to " + printableServerURL(this->server_hostname, this->server_worldname) + "...";
 		break;
 	case ServerConnectionState_Connected:
-		status += "Connected to " + printableServerURL(this->server_hostname, this->server_userpath);
+		status += "Connected to " + printableServerURL(this->server_hostname, this->server_worldname);
 		break;
 	}
 
@@ -2645,6 +2651,13 @@ bool MainWindow::haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool
 		return true;
 	}
 
+	// If this is the personal world of the user:
+	if(server_worldname != "" && server_worldname == this->logged_in_user_name)
+	{
+		ob_pos_in_parcel_out = true; // Just treat as in parcel.
+		return true;
+	}
+
 	// See if the user is in a parcel that they have write permissions for.
 	// For now just do a linear scan over parcels
 	bool have_creation_perms = false;
@@ -2684,6 +2697,13 @@ bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool&
 	ob_pos_in_parcel_out = false;
 
 	if(isGodUser(this->logged_in_user_id))
+	{
+		ob_pos_in_parcel_out = true; // Just treat as in parcel.
+		return true;
+	}
+
+	// If this is the personal world of the user:
+	if(server_worldname != "" && server_worldname == this->logged_in_user_name)
 	{
 		ob_pos_in_parcel_out = true; // Just treat as in parcel.
 		return true;
@@ -3571,11 +3591,11 @@ void MainWindow::URLChangedSlot()
 		URLParseResults parse_res = URLParser::parseURL(URL);
 
 		const std::string hostname = parse_res.hostname;
-		const std::string userpath = parse_res.userpath;
-		if(hostname != this->server_hostname || userpath != this->server_userpath)
+		const std::string worldname = parse_res.userpath;
+		if(hostname != this->server_hostname || worldname != this->server_worldname)
 		{
 			// Connect to a different server!
-			connectToServer(hostname, userpath);
+			connectToServer(hostname, worldname);
 		}
 
 		this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
@@ -3590,10 +3610,10 @@ void MainWindow::URLChangedSlot()
 }
 
 
-void MainWindow::connectToServer(const std::string& hostname, const std::string& userpath)
+void MainWindow::connectToServer(const std::string& hostname, const std::string& worldname)
 {
-	this->server_hostname = hostname;
-	this->server_userpath = userpath;
+	this->server_hostname  = hostname;
+	this->server_worldname = worldname;
 
 	//-------------------------------- Do disconnect process --------------------------------
 	// Kill any existing threads connected to the server
@@ -3689,7 +3709,7 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 		avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
 	const std::string avatar_URL = resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
 
-	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL);
+	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL, server_worldname);
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
@@ -4211,7 +4231,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 
 	if(e->key() == Qt::Key::Key_F5)
 	{
-		this->connectToServer(this->server_hostname, this->server_userpath);
+		this->connectToServer(this->server_hostname, this->server_worldname);
 	}
 }
 
@@ -4446,6 +4466,7 @@ int main(int argc, char *argv[])
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
+		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
@@ -4515,10 +4536,30 @@ int main(int argc, char *argv[])
 #endif
 
 		std::string server_hostname = "substrata.info";
+		std::string server_userpath = "";
+		
 		if(parsed_args.isArgPresent("-h"))
 			server_hostname = parsed_args.getArgStringValue("-h");
+		if(parsed_args.isArgPresent("-u"))
+		{
+			const std::string URL = parsed_args.getArgStringValue("-u");
+			try
+			{
+				URLParseResults parse_res = URLParser::parseURL(URL);
 
-		std::string server_userpath = "";
+				server_hostname = parse_res.hostname;
+				server_userpath = parse_res.userpath;
+			}
+			catch(Indigo::Exception& e) // Handle URL parse failure
+			{
+				QMessageBox msgBox;
+				msgBox.setText(QtUtils::toQString(e.what()));
+				msgBox.exec();
+				return 1;
+			}
+		}
+
+		
 
 		// Since we will be inserted textures based on URLs, the textures should be different if they have different paths, so we don't need to do path canonicalisation.
 		TextureServer texture_server(/*use_canonical_path_keys=*/false);

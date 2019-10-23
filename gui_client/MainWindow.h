@@ -49,7 +49,7 @@ public:
 
 	void initialise();
 
-	void connectToServer(const std::string& hostname, const std::string& userpath); // Disconnect from any current server, connect to new server
+	void connectToServer(const std::string& hostname, const std::string& worldname); // Disconnect from any current server, connect to new server
 
 	void afterGLInitInitialise();
 
@@ -223,6 +223,7 @@ public:
 	ServerConnectionState connection_state;
 
 	UserID logged_in_user_id;
+	std::string logged_in_user_name;
 
 	bool shown_object_modification_error_msg;
 
@@ -275,7 +276,7 @@ private:
 	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
 
 	std::string server_hostname; // e.g. "substrata.info" or "localhost"
-	std::string server_userpath; // e.g. "" or "ono-sendai"
+	std::string server_worldname; // e.g. "" or "ono-sendai"
 
 	Timer fps_display_timer;
 	int num_frames;

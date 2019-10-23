@@ -125,7 +125,7 @@ static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::
 }
 
 
-static void assignParcelToUser(Reference<ServerWorldState>& world_state, const ParcelID& parcel_id, const UserID& user_id)
+static void assignParcelToUser(const Reference<ServerWorldState>& world_state, const ParcelID& parcel_id, const UserID& user_id)
 {
 	conPrint("Assigning parcel " + parcel_id.toString() + " to user " + user_id.toString());
 
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 			test_object->axis = Vec3f(1,0,0);
 			test_object->model_url = "teapot_obj_12507117953098989663.obj";
 			test_object->scale = Vec3f(1.f);
-			server.world_state->objects[uid] = test_object;
+			//server.world_state->objects[uid] = test_object;
 		}
 
 		//TEMP
@@ -256,24 +256,24 @@ int main(int argc, char *argv[])
 			test_parcel->build();
 
 			test_parcel->description = "This is a pretty cool parcel.";
-			server.world_state->parcels[parcel_id] = test_parcel;
+			//server.world_state->parcels[parcel_id] = test_parcel;
 		}
 
 		
 		// Add 'town square' parcels
-		if(server.world_state->parcels.empty())
+		if(server.world_state->getRootWorldState()->parcels.empty())
 		{
 			conPrint("Adding some parcels!");
 
 			int next_id = 10;
-			makeParcels(Matrix2d(1, 0, 0, 1), next_id, server.world_state);
-			makeParcels(Matrix2d(-1, 0, 0, 1), next_id, server.world_state); // Mirror in y axis (x' = -x)
-			makeParcels(Matrix2d(0, 1, 1, 0), next_id, server.world_state); // Mirror in x=y line(x' = y, y' = x)
-			makeParcels(Matrix2d(0, 1, -1, 0), next_id, server.world_state); // Rotate right 90 degrees (x' = y, y' = -x)
-			makeParcels(Matrix2d(1, 0, 0, -1), next_id, server.world_state); // Mirror in x axis (y' = -y)
-			makeParcels(Matrix2d(-1, 0, 0, -1), next_id, server.world_state); // Rotate 180 degrees (x' = -x, y' = -y)
-			makeParcels(Matrix2d(0, -1, -1, 0), next_id, server.world_state); // Mirror in x=-y line (x' = -y, y' = -x)
-			makeParcels(Matrix2d(0, -1, 1, 0), next_id, server.world_state); // Rotate left 90 degrees (x' = -y, y' = x)
+			makeParcels(Matrix2d(1, 0, 0, 1), next_id, server.world_state->getRootWorldState());
+			makeParcels(Matrix2d(-1, 0, 0, 1), next_id, server.world_state->getRootWorldState()); // Mirror in y axis (x' = -x)
+			makeParcels(Matrix2d(0, 1, 1, 0), next_id, server.world_state->getRootWorldState()); // Mirror in x=y line(x' = y, y' = x)
+			makeParcels(Matrix2d(0, 1, -1, 0), next_id, server.world_state->getRootWorldState()); // Rotate right 90 degrees (x' = y, y' = -x)
+			makeParcels(Matrix2d(1, 0, 0, -1), next_id, server.world_state->getRootWorldState()); // Mirror in x axis (y' = -y)
+			makeParcels(Matrix2d(-1, 0, 0, -1), next_id, server.world_state->getRootWorldState()); // Rotate 180 degrees (x' = -x, y' = -y)
+			makeParcels(Matrix2d(0, -1, -1, 0), next_id, server.world_state->getRootWorldState()); // Mirror in x=-y line (x' = -y, y' = -x)
+			makeParcels(Matrix2d(0, -1, 1, 0), next_id, server.world_state->getRootWorldState()); // Rotate left 90 degrees (x' = -y, y' = x)
 
 			PCG32 rng(1);
 			const int D = 4;
@@ -286,13 +286,13 @@ int main(int argc, char *argv[])
 						// Special town square blocks
 					}
 					else
-						makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, server.world_state);
+						makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, server.world_state->getRootWorldState());
 				}
 		}
 
 		// TEMP: make all parcels have zmax = 10
 		{
-			for(auto i = server.world_state->parcels.begin(); i != server.world_state->parcels.end(); ++i)
+			for(auto i = server.world_state->getRootWorldState()->parcels.begin(); i != server.world_state->getRootWorldState()->parcels.end(); ++i)
 			{
 				ParcelRef parcel = i->second;
 				parcel->zbounds.y = 10.0f;
@@ -304,21 +304,21 @@ int main(int argc, char *argv[])
 			conPrint("User with id " + i->second->id.toString() + ": " + i->second->name);
 
 		// TEMP: Assign some parcel permissions
-		assignParcelToUser(server.world_state, ParcelID(10), UserID(1));
-		assignParcelToUser(server.world_state, ParcelID(11), UserID(2)); // dirtypunk
-		assignParcelToUser(server.world_state, ParcelID(12), UserID(3)); // zom-b
-		assignParcelToUser(server.world_state, ParcelID(15), UserID(3)); // zom-b
-		assignParcelToUser(server.world_state, ParcelID(32), UserID(4)); // lycium
-		assignParcelToUser(server.world_state, ParcelID(35), UserID(4)); // lycium		
-		assignParcelToUser(server.world_state, ParcelID(31), UserID(5)); // Harry
-		assignParcelToUser(server.world_state, ParcelID(41), UserID(6)); // Originalplan
-		assignParcelToUser(server.world_state, ParcelID(40), UserID(8)); // trislit
-		assignParcelToUser(server.world_state, ParcelID(30), UserID(9)); // fused
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(10), UserID(1));
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(11), UserID(2)); // dirtypunk
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(12), UserID(3)); // zom-b
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(15), UserID(3)); // zom-b
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(32), UserID(4)); // lycium
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(35), UserID(4)); // lycium		
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(31), UserID(5)); // Harry
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(41), UserID(6)); // Originalplan
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(40), UserID(8)); // trislit
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(30), UserID(9)); // fused
 
 		// Make parcel with id 20 a 'sandbox', world-writeable parcel
 		{
-			auto res = server.world_state->parcels.find(ParcelID(20));
-			if(res != server.world_state->parcels.end())
+			auto res = server.world_state->getRootWorldState()->parcels.find(ParcelID(20));
+			if(res != server.world_state->getRootWorldState()->parcels.end())
 			{
 				res->second->all_writeable = true;
 				conPrint("Made parcel 20 all-writeable.");
@@ -338,194 +338,209 @@ int main(int argc, char *argv[])
 
 		Timer save_state_timer;
 
+		// A map from world name to a vector of packets to send to clients connected to that world.
+		std::map<std::string, std::vector<std::string>> broadcast_packets;
+
 		// Main server loop
 		uint64 loop_iter = 0;
 		while(1)
 		{
 			PlatformUtils::Sleep(100);
 
-			std::vector<std::string> broadcast_packets;
+			//broadcast_packets.clear();
 
 			{ // Begin scope for world_state->mutex lock
 
 				Lock lock(server.world_state->mutex);
 
-				// Generate packets for avatar changes
-				for(auto i = server.world_state->avatars.begin(); i != server.world_state->avatars.end();)
+				for(auto world_it = server.world_state->world_states.begin(); world_it != server.world_state->world_states.end(); ++world_it)
 				{
-					Avatar* avatar = i->second.getPointer();
-					if(avatar->other_dirty)
+					Reference<ServerWorldState> world_state = world_it->second;
+
+					std::vector<std::string>& world_packets = broadcast_packets[world_it->first];
+
+					// Generate packets for avatar changes
+					for(auto i = world_state->avatars.begin(); i != world_state->avatars.end();)
 					{
-						if(avatar->state == Avatar::State_Alive)
+						Avatar* avatar = i->second.getPointer();
+						if(avatar->other_dirty)
 						{
-							// Send AvatarFullUpdate packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::AvatarFullUpdate);
-							writeToNetworkStream(*avatar, packet);
+							if(avatar->state == Avatar::State_Alive)
+							{
+								// Send AvatarFullUpdate packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::AvatarFullUpdate);
+								writeToNetworkStream(*avatar, packet);
 
-							enqueuePacketToBroadcast(packet, broadcast_packets);
+								enqueuePacketToBroadcast(packet, world_packets);
 
-							avatar->other_dirty = false;
-							avatar->transform_dirty = false;
-							i++;
+								avatar->other_dirty = false;
+								avatar->transform_dirty = false;
+								i++;
+							}
+							else if(avatar->state == Avatar::State_JustCreated)
+							{
+								// Send AvatarCreated packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::AvatarCreated);
+								writeToStream(avatar->uid, packet);
+								packet.writeStringLengthFirst(avatar->name);
+								packet.writeStringLengthFirst(avatar->model_url);
+								writeToStream(avatar->pos, packet);
+								writeToStream(avatar->rotation, packet);
+
+								enqueuePacketToBroadcast(packet, world_packets);
+
+								avatar->state = Avatar::State_Alive;
+								avatar->other_dirty = false;
+								avatar->transform_dirty = false;
+
+								i++;
+							}
+							else if(avatar->state == Avatar::State_Dead)
+							{
+								// Send AvatarDestroyed packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::AvatarDestroyed);
+								writeToStream(avatar->uid, packet);
+
+								enqueuePacketToBroadcast(packet, world_packets);
+
+								// Remove avatar from avatar map
+								auto old_avatar_iterator = i;
+								i++;
+								world_state->avatars.erase(old_avatar_iterator);
+
+								conPrint("Removed avatar from world_state->avatars");
+							}
+							else
+							{
+								assert(0);
+							}
 						}
-						else if(avatar->state == Avatar::State_JustCreated)
+						else if(avatar->transform_dirty)
 						{
-							// Send AvatarCreated packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::AvatarCreated);
-							writeToStream(avatar->uid, packet);
-							packet.writeStringLengthFirst(avatar->name);
-							packet.writeStringLengthFirst(avatar->model_url);
-							writeToStream(avatar->pos, packet);
-							writeToStream(avatar->rotation, packet);
+							if(avatar->state == Avatar::State_Alive)
+							{
+								// Send AvatarTransformUpdate packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::AvatarTransformUpdate);
+								writeToStream(avatar->uid, packet);
+								writeToStream(avatar->pos, packet);
+								writeToStream(avatar->rotation, packet);
 
-							enqueuePacketToBroadcast(packet, broadcast_packets);
+								enqueuePacketToBroadcast(packet, world_packets);
 
-							avatar->state = Avatar::State_Alive;
-							avatar->other_dirty = false;
-							avatar->transform_dirty = false;
-
+								avatar->transform_dirty = false;
+							}
 							i++;
-						}
-						else if(avatar->state == Avatar::State_Dead)
-						{
-							// Send AvatarDestroyed packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::AvatarDestroyed);
-							writeToStream(avatar->uid, packet);
-
-							enqueuePacketToBroadcast(packet, broadcast_packets);
-
-							// Remove avatar from avatar map
-							auto old_avatar_iterator = i;
-							i++;
-							server.world_state->avatars.erase(old_avatar_iterator);
-
-							conPrint("Removed avatar from world_state->avatars");
 						}
 						else
 						{
-							assert(0);
+							i++;
 						}
 					}
-					else if(avatar->transform_dirty)
+
+
+					// Generate packets for object changes
+					for(auto i = world_state->dirty_from_remote_objects.begin(); i != world_state->dirty_from_remote_objects.end(); ++i)
 					{
-						if(avatar->state == Avatar::State_Alive)
+						WorldObject* ob = i->ptr();
+						if(ob->from_remote_other_dirty)
 						{
-							// Send AvatarTransformUpdate packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::AvatarTransformUpdate);
-							writeToStream(avatar->uid, packet);
-							writeToStream(avatar->pos, packet);
-							writeToStream(avatar->rotation, packet);
+							// conPrint("Object 'other' dirty, sending full update");
 
-							enqueuePacketToBroadcast(packet, broadcast_packets);
+							if(ob->state == WorldObject::State_Alive)
+							{
+								// Send ObjectFullUpdate packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::ObjectFullUpdate);
+								writeToNetworkStream(*ob, packet);
 
-							avatar->transform_dirty = false;
+								enqueuePacketToBroadcast(packet, world_packets);
+
+								ob->from_remote_other_dirty = false;
+								ob->from_remote_transform_dirty = false; // transform is sent in full packet also.
+								server.world_state->markAsChanged();
+							}
+							else if(ob->state == WorldObject::State_JustCreated)
+							{
+								// Send ObjectCreated packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::ObjectCreated);
+								writeToNetworkStream(*ob, packet);
+
+								enqueuePacketToBroadcast(packet, world_packets);
+
+								ob->state = WorldObject::State_Alive;
+								ob->from_remote_other_dirty = false;
+								server.world_state->markAsChanged();
+							}
+							else if(ob->state == WorldObject::State_Dead)
+							{
+								// Send ObjectDestroyed packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::ObjectDestroyed);
+								writeToStream(ob->uid, packet);
+
+								enqueuePacketToBroadcast(packet, world_packets);
+
+								// Remove ob from object map
+								world_state->objects.erase(ob->uid);
+
+								conPrint("Removed object from world_state->objects");
+								server.world_state->markAsChanged();
+							}
+							else
+							{
+								conPrint("ERROR: invalid object state (ob->state=" + toString(ob->state) + ")");
+								assert(0);
+							}
 						}
-						i++;
-					}
-					else
-					{
-						i++;
-					}
-				}
-
-
-
-				// Generate packets for object changes
-				for(auto i = server.world_state->dirty_from_remote_objects.begin(); i != server.world_state->dirty_from_remote_objects.end(); ++i)
-				{
-					WorldObject* ob = i->ptr();
-					if(ob->from_remote_other_dirty)
-					{
-						// conPrint("Object 'other' dirty, sending full update");
-
-						if(ob->state == WorldObject::State_Alive)
+						else if(ob->from_remote_transform_dirty)
 						{
-							// Send ObjectFullUpdate packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectFullUpdate);
-							writeToNetworkStream(*ob, packet);
+							//conPrint("Object 'transform' dirty, sending transform update");
 
-							enqueuePacketToBroadcast(packet, broadcast_packets);
+							if(ob->state == WorldObject::State_Alive)
+							{
+								// Send ObjectTransformUpdate packet
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::ObjectTransformUpdate);
+								writeToStream(ob->uid, packet);
+								writeToStream(ob->pos, packet);
+								writeToStream(ob->axis, packet);
+								packet.writeFloat(ob->angle);
 
-							ob->from_remote_other_dirty = false;
-							ob->from_remote_transform_dirty = false; // transform is sent in full packet also.
-							server.world_state->markAsChanged();
-						}
-						else if(ob->state == WorldObject::State_JustCreated)
-						{
-							// Send ObjectCreated packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectCreated);
-							writeToNetworkStream(*ob, packet);
+								enqueuePacketToBroadcast(packet, world_packets);
 
-							enqueuePacketToBroadcast(packet, broadcast_packets);
-
-							ob->state = WorldObject::State_Alive;
-							ob->from_remote_other_dirty = false;
-							server.world_state->markAsChanged();
-						}
-						else if(ob->state == WorldObject::State_Dead)
-						{
-							// Send ObjectDestroyed packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectDestroyed);
-							writeToStream(ob->uid, packet);
-
-							enqueuePacketToBroadcast(packet, broadcast_packets);
-
-							// Remove ob from object map
-							server.world_state->objects.erase(ob->uid);
-
-							conPrint("Removed object from world_state->objects");
-							server.world_state->markAsChanged();
-						}
-						else
-						{
-							conPrint("ERROR: invalid object state (ob->state=" + toString(ob->state) + ")");
-							assert(0);
+								ob->from_remote_transform_dirty = false;
+								server.world_state->markAsChanged();
+							}
 						}
 					}
-					else if(ob->from_remote_transform_dirty)
-					{
-						//conPrint("Object 'transform' dirty, sending transform update");
 
-						if(ob->state == WorldObject::State_Alive)
-						{
-							// Send ObjectTransformUpdate packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectTransformUpdate);
-							writeToStream(ob->uid, packet);
-							writeToStream(ob->pos, packet);
-							writeToStream(ob->axis, packet);
-							packet.writeFloat(ob->angle);
+					world_state->dirty_from_remote_objects.clear();
+				} // End for each server world
 
-							enqueuePacketToBroadcast(packet, broadcast_packets);
-
-							ob->from_remote_transform_dirty = false;
-							server.world_state->markAsChanged();
-						}
-					}
-				}
-
-				server.world_state->dirty_from_remote_objects.clear();
 			} // End scope for world_state->mutex lock
 
 			// Enqueue packets to worker threads to send
+			// For each connected client, get packets for the world the client is connected to, and send to them.
 			{
 				Lock lock2(server.worker_thread_manager.getMutex());
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 				{
-					for(size_t z=0; z<broadcast_packets.size(); ++z)
-					{
-						assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-						static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(broadcast_packets[z]);
-					}
+					WorkerThread* worker = static_cast<WorkerThread*>(i->getPointer());
+					std::vector<std::string>& packets = broadcast_packets[worker->connected_world_name];
+
+					for(size_t z=0; z<packets.size(); ++z)
+						worker->enqueueDataToSend(packets[z]);
 				}
 			}
+
+			// Clear broadcast_packets
+			for(auto it = broadcast_packets.begin(); it != broadcast_packets.end(); ++it)
+				it->second.clear();
 			
 			if((loop_iter % 40) == 0) // Approx every 4 s.
 			{
@@ -545,7 +560,7 @@ int main(int argc, char *argv[])
 			}
 
 
-			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 5.0))
+			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 60.0))
 			{
 				try
 				{
@@ -591,7 +606,7 @@ int main(int argc, char *argv[])
 
 Server::Server()
 {
-	world_state = new ServerWorldState();
+	world_state = new ServerAllWorldsState();
 }
 
 

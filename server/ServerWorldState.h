@@ -19,16 +19,29 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <unordered_set>
 
 
+class ServerWorldState : public ThreadSafeRefCounted
+{
+public:
+
+	std::map<UID, Reference<Avatar>> avatars;
+
+	std::map<UID, WorldObjectRef> objects;
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects;
+
+	std::map<ParcelID, ParcelRef> parcels;
+};
+
+
 /*=====================================================================
 ServerWorldState
 ----------------
 
 =====================================================================*/
-class ServerWorldState : public ThreadSafeRefCounted
+class ServerAllWorldsState : public ThreadSafeRefCounted
 {
 public:
-	ServerWorldState();
-	~ServerWorldState();
+	ServerAllWorldsState();
+	~ServerAllWorldsState();
 
 	void readFromDisk(const std::string& path);
 	void serialiseToDisk(const std::string& path);
@@ -45,20 +58,16 @@ public:
 
 	Reference<ResourceManager> resource_manager;
 
-	std::map<UID, Reference<Avatar>> avatars;
-
-	std::map<UID, WorldObjectRef> objects;
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects;
-
-
 	std::map<UserID, Reference<User>> user_id_to_users;  // User id to user
 	std::map<std::string, Reference<User>> name_to_users; // Username to user
 
-	std::map<ParcelID, ParcelRef> parcels;
-	
+	std::map<std::string, Reference<ServerWorldState> > world_states;
+
+	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; }
+
 	::Mutex mutex;
 private:
-	INDIGO_DISABLE_COPY(ServerWorldState);
+	INDIGO_DISABLE_COPY(ServerAllWorldsState);
 
 	IndigoAtomic changed;
 
