@@ -74,7 +74,10 @@ private slots:;
 	void on_actionLogOut_triggered();
 	void on_actionShow_Parcels_triggered();
 	void on_actionFly_Mode_triggered();
-	
+	void on_actionGoToMainWorld_triggered();
+	void on_actionGoToPersonalWorld_triggered();
+	void on_actionGo_to_CryptoVoxels_World_triggered();
+
 	void passwordResetRequested();
 
 	void sendChatMessageSlot();

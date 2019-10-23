@@ -3402,6 +3402,34 @@ void MainWindow::on_actionFly_Mode_triggered()
 }
 
 
+void MainWindow::on_actionGoToMainWorld_triggered()
+{
+	connectToServer(this->server_hostname, "");
+}
+
+
+void MainWindow::on_actionGoToPersonalWorld_triggered()
+{
+	if(this->logged_in_user_name != "")
+	{
+		connectToServer(this->server_hostname, this->logged_in_user_name);
+	}
+	else
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Not logged in");
+		msgBox.setText("You are not logged in, so we don't know your personal world name.  Please log in first.");
+		msgBox.exec();
+	}
+}
+
+
+void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
+{
+	connectToServer(this->server_hostname, "cryptovoxels");
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -3696,6 +3724,10 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 	texture_server->clear();
 	
 	world_state = NULL;
+
+	// Move player position back to origin
+	this->cam_controller.setPosition(Vec3d(0, 0, 2));
+	this->cam_controller.resetRotation();
 	//-------------------------------- End disconnect process --------------------------------
 
 
