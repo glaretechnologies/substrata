@@ -34,24 +34,27 @@ void LoadTextureTask::run(size_t thread_index)
 		if(!just_inserted)
 			return;
 
-		Reference<Map2D> map = ImFormatDecoder::decodeImage(".", key);
-
-		main_window->texture_server->insertTextureForRawName(map, key);
+		Reference<Map2D> map = ImFormatDecoder::decodeImage(".", key); // Load texture from disk and decode it.
 
 		// Process 8-bit textures (do DXT compression, mip-map computation etc..) in this thread.
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
 		{
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
 
-			Reference<TextureData> texture_data = TextureLoading::buildUInt8MapTextureData(imagemap, opengl_engine/*, main_window->build_uint8_map_scratch_state*/, /*multithread=*/true);
+			Reference<TextureData> texture_data = TextureLoading::buildUInt8MapTextureData(imagemap, opengl_engine, /*multithread=*/true);
 
 			// Give data to OpenGL engine
-			opengl_engine->texture_data_manager->insertBuiltTextureData(imagemap, texture_data);
+			opengl_engine->texture_data_manager->insertBuiltTextureData(key, texture_data);
+		}
+		else
+		{
+			main_window->texture_server->insertTextureForRawName(map, key);
 		}
 
 		// Send a message to MainWindow saying the texture has been loaded
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
-		msg->path = path;
+		msg->tex_path = path;
+		msg->tex_key = key;
 		main_window->msg_queue.enqueue(msg);
 	}
 	catch(TextureServerExcep& e)
