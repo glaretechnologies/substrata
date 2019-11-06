@@ -16,7 +16,8 @@ class OpenGLEngine;
 class TextureLoadedThreadMessage : public ThreadMessage
 {
 public:
-	std::string path;
+	std::string tex_path;
+	std::string tex_key;
 };
 
 

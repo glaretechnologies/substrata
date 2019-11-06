@@ -682,7 +682,8 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
 						for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-							ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(ob->opengl_engine_ob->materials[z].tex_path);
+							if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+								ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
 
 						ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 						ob->physics_object->geometry = raymesh;
@@ -1239,7 +1240,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 				{
 					for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
-						message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(message_ob->opengl_engine_ob->materials[z].tex_path);
+						if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
+							message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
 
 					ui->glWidget->addObject(message_ob->opengl_engine_ob);
 
@@ -1295,7 +1297,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
 								for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-									ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(ob->opengl_engine_ob->materials[z].tex_path);
+									if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+										ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
 
 								ui->glWidget->addObject(ob->opengl_engine_ob);
 
@@ -1325,7 +1328,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			//Timer timer;
 			try
 			{
-				ui->glWidget->opengl_engine->textureLoaded(message->path);
+				ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key));
 			}
 			catch(Indigo::Exception& e)
 			{
@@ -3537,7 +3540,8 @@ void MainWindow::objectEditedSlot()
 								);
 
 							for(size_t z=0; z<opengl_ob->materials.size(); ++z)
-								opengl_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(opengl_ob->materials[z].tex_path);
+								if(!opengl_ob->materials[z].tex_path.empty())
+									opengl_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(opengl_ob->materials[z].tex_path));
 						}
 					}
 
