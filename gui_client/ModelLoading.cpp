@@ -655,7 +655,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 		const Vec3<int> v_p = voxel_group.voxels[v].pos;
 
-		const Vec3f voxel_pos_offset(v_p.x, v_p.y, v_p.z);
+		const Vec3f voxel_pos_offset((float)v_p.x, (float)v_p.y, (float)v_p.z);
 
 		const int initial_face = face;
 

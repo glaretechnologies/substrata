@@ -104,8 +104,8 @@ static Colour3f colForPrivs(bool write_privileges)
 
 Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine, bool write_privileges)
 {
-	const Vec4f aabb_min_v4(aabb_min.x, aabb_min.y, aabb_min.z, 1.0f);
-	const Vec4f aabb_max_v4(aabb_max.x, aabb_max.y, aabb_max.z, 1.0f);
+	const Vec4f aabb_min_v4((float)aabb_min.x, (float)aabb_min.y, (float)aabb_min.z, 1.0f);
+	const Vec4f aabb_max_v4((float)aabb_max.x, (float)aabb_max.y, (float)aabb_max.z, 1.0f);
 
 	const Colour3f col = colForPrivs(write_privileges);
 
@@ -143,10 +143,10 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 			Vec2d v = this->verts[i];
 			Vec2d next_v = this->verts[(i + 1) % 4];
 
-			Vec3f v0(v.x, v.y, zbounds.x);
-			Vec3f v1(next_v.x, next_v.y, zbounds.x);
-			Vec3f v2(next_v.x, next_v.y, zbounds.y);
-			Vec3f v3(v.x, v.y, zbounds.y);
+			Vec3f v0((float)v.x,		(float)v.y,			(float)zbounds.x);
+			Vec3f v1((float)next_v.x,	(float)next_v.y,	(float)zbounds.x);
+			Vec3f v2((float)next_v.x,	(float)next_v.y,	(float)zbounds.y);
+			Vec3f v3((float)v.x,		(float)v.y,			(float)zbounds.y);
 
 			const int face = i;
 			mesh_verts[face*4 + 0] = v0;
@@ -165,10 +165,10 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 
 		// Bottom
 		{
-			Vec3f v0(verts[0].x, verts[0].y, zbounds.x);
-			Vec3f v1(verts[3].x, verts[3].y, zbounds.x);
-			Vec3f v2(verts[2].x, verts[2].y, zbounds.x);
-			Vec3f v3(verts[1].x, verts[1].y, zbounds.x);
+			Vec3f v0((float)verts[0].x, (float)verts[0].y, (float)zbounds.x);
+			Vec3f v1((float)verts[3].x, (float)verts[3].y, (float)zbounds.x);
+			Vec3f v2((float)verts[2].x, (float)verts[2].y, (float)zbounds.x);
+			Vec3f v3((float)verts[1].x, (float)verts[1].y, (float)zbounds.x);
 
 			const int face = 4;
 			mesh_verts[face*4 + 0] = v0;
@@ -187,10 +187,10 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 
 		// Top
 		{
-			Vec3f v0(verts[0].x, verts[0].y, zbounds.y);
-			Vec3f v1(verts[1].x, verts[1].y, zbounds.y);
-			Vec3f v2(verts[2].x, verts[2].y, zbounds.y);
-			Vec3f v3(verts[3].x, verts[3].y, zbounds.y);
+			Vec3f v0((float)verts[0].x, (float)verts[0].y, (float)zbounds.y);
+			Vec3f v1((float)verts[1].x, (float)verts[1].y, (float)zbounds.y);
+			Vec3f v2((float)verts[2].x, (float)verts[2].y, (float)zbounds.y);
+			Vec3f v3((float)verts[3].x, (float)verts[3].y, (float)zbounds.y);
 
 			const int face = 5;
 			mesh_verts[face*4 + 0] = v0;
@@ -235,8 +235,8 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 
 	if(isAxisAlignedBox())
 	{
-		const Vec4f aabb_min_v4(aabb_min.x, aabb_min.y, aabb_min.z, 1.0f);
-		const Vec4f aabb_max_v4(aabb_max.x, aabb_max.y, aabb_max.z, 1.0f);
+		const Vec4f aabb_min_v4((float)aabb_min.x, (float)aabb_min.y, (float)aabb_min.z, 1.0f);
+		const Vec4f aabb_max_v4((float)aabb_max.x, (float)aabb_max.y, (float)aabb_max.z, 1.0f);
 
 		const Vec4f span = aabb_max_v4 - aabb_min_v4;
 
@@ -263,10 +263,10 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 			Vec2d v = this->verts[i];
 			Vec2d next_v = this->verts[(i + 1) % 4];
 
-			Vec3f v0(v.x, v.y, zbounds.x);
-			Vec3f v1(next_v.x, next_v.y, zbounds.x);
-			Vec3f v2(next_v.x, next_v.y, zbounds.y);
-			Vec3f v3(v.x, v.y, zbounds.y);
+			Vec3f v0((float)v.x, (float)v.y, (float)zbounds.x);
+			Vec3f v1((float)next_v.x, (float)next_v.y, (float)zbounds.x);
+			Vec3f v2((float)next_v.x, (float)next_v.y, (float)zbounds.y);
+			Vec3f v3((float)v.x, (float)v.y, (float)zbounds.y);
 
 			const int face = i;
 			mesh->getVertices()[face*4 + 0].pos = v0;
@@ -284,10 +284,10 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 
 		// Bottom
 		{
-			Vec3f v0(verts[0].x, verts[0].y, zbounds.x);
-			Vec3f v1(verts[3].x, verts[3].y, zbounds.x);
-			Vec3f v2(verts[2].x, verts[2].y, zbounds.x);
-			Vec3f v3(verts[1].x, verts[1].y, zbounds.x);
+			Vec3f v0((float)verts[0].x, (float)verts[0].y, (float)zbounds.x);
+			Vec3f v1((float)verts[3].x, (float)verts[3].y, (float)zbounds.x);
+			Vec3f v2((float)verts[2].x, (float)verts[2].y, (float)zbounds.x);
+			Vec3f v3((float)verts[1].x, (float)verts[1].y, (float)zbounds.x);
 
 			const int face = 4;
 			mesh->getVertices()[face*4 + 0].pos = v0;
@@ -305,10 +305,10 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 
 		// Top
 		{
-			Vec3f v0(verts[0].x, verts[0].y, zbounds.y);
-			Vec3f v1(verts[1].x, verts[1].y, zbounds.y);
-			Vec3f v2(verts[2].x, verts[2].y, zbounds.y);
-			Vec3f v3(verts[3].x, verts[3].y, zbounds.y);
+			Vec3f v0((float)verts[0].x, (float)verts[0].y, (float)zbounds.y);
+			Vec3f v1((float)verts[1].x, (float)verts[1].y, (float)zbounds.y);
+			Vec3f v2((float)verts[2].x, (float)verts[2].y, (float)zbounds.y);
+			Vec3f v3((float)verts[3].x, (float)verts[3].y, (float)zbounds.y);
 
 			const int face = 5;
 			mesh->getVertices()[face*4 + 0].pos = v0;
