@@ -172,6 +172,8 @@ ${INDIGO_UTILS_DIR}/KillThreadMessage.h
 ${INDIGO_UTILS_DIR}/Lock.cpp
 ${INDIGO_UTILS_DIR}/Lock.h
 ${INDIGO_UTILS_DIR}/Maybe.h
+${INDIGO_UTILS_DIR}/MemAlloc.cpp
+${INDIGO_UTILS_DIR}/MemAlloc.h
 ${INDIGO_UTILS_DIR}/MemMappedFile.cpp
 ${INDIGO_UTILS_DIR}/MemMappedFile.h
 ${INDIGO_UTILS_DIR}/MessageableThread.cpp
