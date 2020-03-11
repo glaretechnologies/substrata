@@ -50,8 +50,8 @@ addIncludeDirectory("${sparsehashdir}/src/windows")
 endif()
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/giflib/lib")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/little_cms/include")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common")
+addIncludeDirectory("${zstddir}/lib")
+addIncludeDirectory("${zstddir}/lib/common")
 
 #Indigo SDK:
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
@@ -78,6 +78,7 @@ else()
 endif()
 
 add_definitions(-DNO_EMBREE)
+add_definitions(-DMAP2D_FILTERING_SUPPORT=1)
 
 if(INDIGO_USE_LIBRESSL)
 	add_definitions(-DUSING_LIBRESSL)

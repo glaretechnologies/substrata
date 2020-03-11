@@ -170,7 +170,8 @@ set(ilmbasedir	"${INDIGO_TRUNK_DIR_ENV}/IlmBase")
 set(openexrdir	"${INDIGO_TRUNK_DIR_ENV}/OpenEXR")
 set(zlibdir		"${INDIGO_TRUNK_DIR_ENV}/zlib-1.2.11")
 set(pugixmldir	"${INDIGO_TRUNK_DIR_ENV}/pugixml-1.9/src")
-set(pngdir		"${INDIGO_TRUNK_DIR_ENV}/lpng1635")
+set(pngdir		"${INDIGO_TRUNK_DIR_ENV}/libpng-1.6.37")
+set(zstddir		"${INDIGO_TRUNK_DIR_ENV}/zstd-1.4.4")
 
 # The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
 # So get via getConfigOption()
