@@ -412,9 +412,10 @@ ${pugixmldir}/pugiconfig.hpp
 FILE(GLOB giflib "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.c" "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.h")
 FILE(GLOB little_cms "${INDIGO_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${INDIGO_TRUNK_DIR_ENV}/little_cms/include/*.h")
 #FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
-FILE(GLOB zstandard "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/*.h"  "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common/*.c" "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/common/*.h"
-"${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/compress/*.c" "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/compress/*.h"
-"${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/decompress/*.c" "${INDIGO_TRUNK_DIR_ENV}/zstd-1.0.0/lib/decompress/*.h"
+FILE(GLOB zstandard "${zstddir}/lib/*.h"  
+"${zstddir}/lib/common/*.c"     "${zstddir}/lib/common/*.h"
+"${zstddir}/lib/compress/*.c"   "${zstddir}/lib/compress/*.h"
+"${zstddir}/lib/decompress/*.c" "${zstddir}/lib/decompress/*.h"
 )
 
 SOURCE_GROUP(fftss FILES ${fftss})
