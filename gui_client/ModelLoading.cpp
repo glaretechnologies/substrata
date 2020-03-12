@@ -23,6 +23,7 @@ Code By Nicholas Chapman.
 #include "../utils/ConPrint.h"
 #include "../utils/StandardPrintOutput.h"
 #include "../utils/HashMapInsertOnly2.h"
+#include "../utils/Sort.h"
 #include <limits>
 
 
@@ -586,6 +587,24 @@ public:
 	}
 };
 
+
+class Vec3fHashFunc
+{
+public:
+	size_t operator() (const Vec3f& v) const
+	{
+		return hashBytes((const uint8*)&v.x, sizeof(Vec3f)); // TODO: use better hash func.
+	}
+};
+
+struct VoxelsMatPred
+{
+	bool operator() (const Voxel& a, const Voxel& b)
+	{
+		return a.mat_index < b.mat_index;
+	}
+};
+
 struct VoxelBuildInfo
 {
 	int face_offset; // number of faces added before this voxel.
@@ -613,6 +632,30 @@ static inline unsigned int getUVIndex(const Vec2f& uv)
 }
 
 
+inline static int addVert(const Vec4f& vert_pos, const Vec2f& uv, HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc>& vertpos_hash, float* combined_data, int NUM_COMPONENTS)
+{
+	auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(vert_pos[0], vert_pos[1], vert_pos[2]), (int)vertpos_hash.size()));
+	const int vertpos_i = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
+	
+	combined_data[vertpos_i * NUM_COMPONENTS + 0] = vert_pos[0];
+	combined_data[vertpos_i * NUM_COMPONENTS + 1] = vert_pos[1];
+	combined_data[vertpos_i * NUM_COMPONENTS + 2] = vert_pos[2];
+	combined_data[vertpos_i * NUM_COMPONENTS + 3] = uv.x;
+	combined_data[vertpos_i * NUM_COMPONENTS + 4] = uv.y;
+
+	return vertpos_i;
+}
+
+
+//struct GetMatIndex
+//{
+//	size_t operator() (const Voxel& v)
+//	{
+//		return (size_t)v.mat_index;
+//	}
+//};
+
+
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
 	const size_t num_voxels = voxel_group.voxels.size();
@@ -626,63 +669,83 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	for(int v=0; v<(int)num_voxels; ++v)
 		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, voxel_group.voxels[v].mat_index));
 
-	const float w = 1.f;
+	const float w = 1.f; // voxel width
 
-	js::Vector<VoxelBuildInfo, 16> voxel_info(num_voxels);
 
-	js::Vector<Vec3f, 16> verts;
-	verts.resize(num_voxels * 24); // 6 faces * 4 verts/face
+	//-------------- Sort voxels by material --------------------
+	std::vector<Voxel> voxels = voxel_group.voxels;
+	std::sort(voxels.begin(), voxels.end(), VoxelsMatPred());
 
-	js::Vector<Vec3f, 16> normals;
-	normals.resize(num_voxels * 24);
+	//std::vector<Voxel> voxels(voxel_group.voxels.size());
+	//Sort::countingSort(task_manager, voxel_group.voxels.data(), voxels.data(), voxel_group.voxels.size(), GetMatIndex());
 
-	js::Vector<Vec2f, 16> uvs;
-	uvs.resize(num_voxels * 24);
 
-	// Each face has 2 tris, each of which has 3 indices, so 6 indices per face.
-	js::Vector<uint32, 16> indices;
-	indices.resize(num_voxels * 36); // 6 indices per face * 6 faces per voxel = 36 indices per voxel
+	const Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
+	HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
+
+
+	const size_t num_faces_upper_bound = num_voxels * 6;
+	Reference<OpenGLMeshRenderData> meshdata = new OpenGLMeshRenderData();
+	meshdata->has_uvs = true;
+	meshdata->has_shading_normals = false;
+
+	const int NUM_COMPONENTS = 5; // num float components per vertex.
+	meshdata->vert_data.resizeNoCopy(num_faces_upper_bound*4 * NUM_COMPONENTS * sizeof(float)); // num verts = num_faces*4
+	float* combined_data = (float*)meshdata->vert_data.data();
+
+
+	js::Vector<uint32, 16>& mesh_indices = meshdata->vert_index_buffer;
+	mesh_indices.resizeNoCopy(num_faces_upper_bound * 6);
 
 	js::AABBox aabb_os = js::AABBox::emptyAABBox();
 
-	int face = 0; // total face write index
+	size_t face = 0; // total face write index
 
-	int max_mat_index = 0;
+	int prev_mat_i = -1;
+	size_t prev_start_face_i = 0;
+
 	for(int v=0; v<(int)num_voxels; ++v)
 	{
 		const int voxel_mat_i = voxel_group.voxels[v].mat_index;
-		max_mat_index = myMax(max_mat_index, voxel_mat_i);
+
+		if(voxel_mat_i != prev_mat_i)
+		{
+			// Create a new batch
+			if(face > prev_start_face_i)
+			{
+				meshdata->batches.push_back(OpenGLBatch());
+				meshdata->batches.back().material_index = prev_mat_i;
+				meshdata->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
+				meshdata->batches.back().prim_start_offset = (uint32)(prev_start_face_i * 6 * sizeof(uint32)); // Offset in bytes
+
+				prev_start_face_i = face;
+			}
+		}
+		prev_mat_i = voxel_mat_i;
 
 		const Vec3<int> v_p = voxel_group.voxels[v].pos;
+		const Vec4f v_pf((float)v_p.x, (float)v_p.y, (float)v_p.z, 0); // voxel_pos_offset
 
-		const Vec3f voxel_pos_offset((float)v_p.x, (float)v_p.y, (float)v_p.z);
-
-		const int initial_face = face;
+		// We will nudge the vertices outwards along the face normal a little.
+		// This means that vertices from non-coplanar faces that share the same position, and which shouldn't get merged due to differing uvs, won't.
+		// Note that we could also achieve this by using the UV in the hash table key.
+		const float nudge = 1.0e-4f;
 
 		// x = 0 face
 		auto res = voxel_hash.find(Vec3<int>(v_p.x - 1, v_p.y, v_p.z));
 		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
-			verts[face*4 + 0] = Vec3f(0, 0, 0) + voxel_pos_offset;
-			verts[face*4 + 1] = Vec3f(0, 0, w) + voxel_pos_offset;
-			verts[face*4 + 2] = Vec3f(0, w, w) + voxel_pos_offset;
-			verts[face*4 + 3] = Vec3f(0, w, 0) + voxel_pos_offset;
+			const int v0i = addVert(Vec4f(-nudge, 0, 0, 1) + v_pf, Vec2f(1 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v1i = addVert(Vec4f(-nudge, 0, w, 1) + v_pf, Vec2f(1 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v2i = addVert(Vec4f(-nudge, w, w, 1) + v_pf, Vec2f(0 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v3i = addVert(Vec4f(-nudge, w, 0, 1) + v_pf, Vec2f(0 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
 
-			uvs[face*4 + 0] = Vec2f(1, 0);
-			uvs[face*4 + 1] = Vec2f(1, 1);
-			uvs[face*4 + 2] = Vec2f(0, 1);
-			uvs[face*4 + 3] = Vec2f(0, 0);
-
-			for(int i=0; i<4; ++i)
-				normals[face*4 + i] = Vec3f(-1, 0, 0);
-
-			indices[face*6 + 0] = face*4 + 0;
-			indices[face*6 + 1] = face*4 + 1;
-			indices[face*6 + 2] = face*4 + 2;
-			indices[face*6 + 3] = face*4 + 0;
-			indices[face*6 + 4] = face*4 + 2;
-			indices[face*6 + 5] = face*4 + 3;
-
+			mesh_indices[face * 6 + 0] = v0i;
+			mesh_indices[face * 6 + 1] = v1i;
+			mesh_indices[face * 6 + 2] = v2i;
+			mesh_indices[face * 6 + 3] = v0i;
+			mesh_indices[face * 6 + 4] = v2i;
+			mesh_indices[face * 6 + 5] = v3i;
 			face++;
 		}
 
@@ -690,26 +753,17 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		res = voxel_hash.find(Vec3<int>(v_p.x + 1, v_p.y, v_p.z));
 		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
-			verts[face*4 + 0] = Vec3f(w, 0, 0) + voxel_pos_offset;
-			verts[face*4 + 1] = Vec3f(w, w, 0) + voxel_pos_offset;
-			verts[face*4 + 2] = Vec3f(w, w, w) + voxel_pos_offset;
-			verts[face*4 + 3] = Vec3f(w, 0, w) + voxel_pos_offset;
+			const int v0i = addVert(Vec4f(w + nudge, 0, 0, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v1i = addVert(Vec4f(w + nudge, w, 0, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v2i = addVert(Vec4f(w + nudge, w, w, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v3i = addVert(Vec4f(w + nudge, 0, w, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
 
-			uvs[face*4 + 0] = Vec2f(0, 0);
-			uvs[face*4 + 1] = Vec2f(1, 0);
-			uvs[face*4 + 2] = Vec2f(1, 1);
-			uvs[face*4 + 3] = Vec2f(0, 1);
-
-			for(int i=0; i<4; ++i)
-				normals[face*4 + i] = Vec3f(1, 0, 0);
-
-			indices[face*6 + 0] = face*4 + 0;
-			indices[face*6 + 1] = face*4 + 1;
-			indices[face*6 + 2] = face*4 + 2;
-			indices[face*6 + 3] = face*4 + 0;
-			indices[face*6 + 4] = face*4 + 2;
-			indices[face*6 + 5] = face*4 + 3;
-
+			mesh_indices[face * 6 + 0] = v0i;
+			mesh_indices[face * 6 + 1] = v1i;
+			mesh_indices[face * 6 + 2] = v2i;
+			mesh_indices[face * 6 + 3] = v0i;
+			mesh_indices[face * 6 + 4] = v2i;
+			mesh_indices[face * 6 + 5] = v3i;
 			face++;
 		}
 
@@ -717,26 +771,17 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y - 1, v_p.z));
 		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
-			verts[face*4 + 0] = Vec3f(0, 0, 0) + voxel_pos_offset;
-			verts[face*4 + 1] = Vec3f(w, 0, 0) + voxel_pos_offset;
-			verts[face*4 + 2] = Vec3f(w, 0, w) + voxel_pos_offset;
-			verts[face*4 + 3] = Vec3f(0, 0, w) + voxel_pos_offset;
+			const int v0i = addVert(Vec4f(0, 0 - nudge, 0, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v1i = addVert(Vec4f(w, 0 - nudge, 0, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v2i = addVert(Vec4f(w, 0 - nudge, w, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v3i = addVert(Vec4f(0, 0 - nudge, w, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
 
-			uvs[face*4 + 0] = Vec2f(0, 0);
-			uvs[face*4 + 1] = Vec2f(1, 0);
-			uvs[face*4 + 2] = Vec2f(1, 1);
-			uvs[face*4 + 3] = Vec2f(0, 1);
-
-			for(int i=0; i<4; ++i)
-				normals[face*4 + i] = Vec3f(0, -1, 0);
-
-			indices[face*6 + 0] = face*4 + 0;
-			indices[face*6 + 1] = face*4 + 1;
-			indices[face*6 + 2] = face*4 + 2;
-			indices[face*6 + 3] = face*4 + 0;
-			indices[face*6 + 4] = face*4 + 2;
-			indices[face*6 + 5] = face*4 + 3;
-
+			mesh_indices[face * 6 + 0] = v0i;
+			mesh_indices[face * 6 + 1] = v1i;
+			mesh_indices[face * 6 + 2] = v2i;
+			mesh_indices[face * 6 + 3] = v0i;
+			mesh_indices[face * 6 + 4] = v2i;
+			mesh_indices[face * 6 + 5] = v3i;
 			face++;
 		}
 
@@ -744,26 +789,17 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y + 1, v_p.z));
 		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
-			verts[face*4 + 0] = Vec3f(0, w, 0) + voxel_pos_offset;
-			verts[face*4 + 1] = Vec3f(0, w, w) + voxel_pos_offset;
-			verts[face*4 + 2] = Vec3f(w, w, w) + voxel_pos_offset;
-			verts[face*4 + 3] = Vec3f(w, w, 0) + voxel_pos_offset;
+			const int v0i = addVert(Vec4f(0, w + nudge, 0, 1) + v_pf, Vec2f(1 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v1i = addVert(Vec4f(0, w + nudge, w, 1) + v_pf, Vec2f(1 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v2i = addVert(Vec4f(w, w + nudge, w, 1) + v_pf, Vec2f(0 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v3i = addVert(Vec4f(w, w + nudge, 0, 1) + v_pf, Vec2f(0 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
 
-			uvs[face*4 + 0] = Vec2f(1, 0);
-			uvs[face*4 + 1] = Vec2f(1, 1);
-			uvs[face*4 + 2] = Vec2f(0, 1);
-			uvs[face*4 + 3] = Vec2f(0, 0);
-
-			for(int i=0; i<4; ++i)
-				normals[face*4 + i] = Vec3f(0, 1, 0);
-			
-			indices[face*6 + 0] = face*4 + 0;
-			indices[face*6 + 1] = face*4 + 1;
-			indices[face*6 + 2] = face*4 + 2;
-			indices[face*6 + 3] = face*4 + 0;
-			indices[face*6 + 4] = face*4 + 2;
-			indices[face*6 + 5] = face*4 + 3;
-
+			mesh_indices[face * 6 + 0] = v0i;
+			mesh_indices[face * 6 + 1] = v1i;
+			mesh_indices[face * 6 + 2] = v2i;
+			mesh_indices[face * 6 + 3] = v0i;
+			mesh_indices[face * 6 + 4] = v2i;
+			mesh_indices[face * 6 + 5] = v3i;
 			face++;
 		}
 
@@ -771,26 +807,17 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z - 1));
 		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
-			verts[face*4 + 0] = Vec3f(0, 0, 0) + voxel_pos_offset;
-			verts[face*4 + 1] = Vec3f(0, w, 0) + voxel_pos_offset;
-			verts[face*4 + 2] = Vec3f(w, w, 0) + voxel_pos_offset;
-			verts[face*4 + 3] = Vec3f(w, 0, 0) + voxel_pos_offset;
+			const int v0i = addVert(Vec4f(0, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v1i = addVert(Vec4f(0, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v2i = addVert(Vec4f(w, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v3i = addVert(Vec4f(w, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
 
-			uvs[face*4 + 0] = Vec2f(0, 0);
-			uvs[face*4 + 1] = Vec2f(1, 0);
-			uvs[face*4 + 2] = Vec2f(1, 1);
-			uvs[face*4 + 3] = Vec2f(0, 1);
-
-			for(int i=0; i<4; ++i)
-				normals[face*4 + i] = Vec3f(0, 0, -1);
-
-			indices[face*6 + 0] = face*4 + 0;
-			indices[face*6 + 1] = face*4 + 1;
-			indices[face*6 + 2] = face*4 + 2;
-			indices[face*6 + 3] = face*4 + 0;
-			indices[face*6 + 4] = face*4 + 2;
-			indices[face*6 + 5] = face*4 + 3;
-
+			mesh_indices[face * 6 + 0] = v0i;
+			mesh_indices[face * 6 + 1] = v1i;
+			mesh_indices[face * 6 + 2] = v2i;
+			mesh_indices[face * 6 + 3] = v0i;
+			mesh_indices[face * 6 + 4] = v2i;
+			mesh_indices[face * 6 + 5] = v3i;
 			face++;
 		}
 
@@ -798,178 +825,152 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z + 1));
 		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
 		{
-			verts[face*4 + 0] = Vec3f(0, 0, w) + voxel_pos_offset;
-			verts[face*4 + 1] = Vec3f(w, 0, w) + voxel_pos_offset;
-			verts[face*4 + 2] = Vec3f(w, w, w) + voxel_pos_offset;
-			verts[face*4 + 3] = Vec3f(0, w, w) + voxel_pos_offset;
+			const int v0i = addVert(Vec4f(0, 0, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v1i = addVert(Vec4f(w, 0, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v2i = addVert(Vec4f(w, w, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
+			const int v3i = addVert(Vec4f(0, w, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
 
-			uvs[face*4 + 0] = Vec2f(0, 0);
-			uvs[face*4 + 1] = Vec2f(1, 0);
-			uvs[face*4 + 2] = Vec2f(1, 1);
-			uvs[face*4 + 3] = Vec2f(0, 1);
 
-			for(int i=0; i<4; ++i)
-				normals[face*4 + i] = Vec3f(0, 0, 1);
-
-			indices[face*6 + 0] = face*4 + 0;
-			indices[face*6 + 1] = face*4 + 1;
-			indices[face*6 + 2] = face*4 + 2;
-			indices[face*6 + 3] = face*4 + 0;
-			indices[face*6 + 4] = face*4 + 2;
-			indices[face*6 + 5] = face*4 + 3;
-
+			mesh_indices[face * 6 + 0] = v0i;
+			mesh_indices[face * 6 + 1] = v1i;
+			mesh_indices[face * 6 + 2] = v2i;
+			mesh_indices[face * 6 + 3] = v0i;
+			mesh_indices[face * 6 + 4] = v2i;
+			mesh_indices[face * 6 + 5] = v3i;
 			face++;
 		}
 
-		voxel_info[v].face_offset = initial_face;
-		voxel_info[v].num_faces = face - initial_face;
-
-		aabb_os.enlargeToHoldPoint(voxel_pos_offset.toVec4fPoint());
-		aabb_os.enlargeToHoldPoint((voxel_pos_offset + Vec3f(1,1,1)).toVec4fPoint());
+		aabb_os.enlargeToHoldPoint(v_pf);
 	}
 
-	const size_t num_faces = face;
+	// Add last batch
+	if(face > prev_start_face_i)
+	{
+		meshdata->batches.push_back(OpenGLBatch());
+		meshdata->batches.back().material_index = prev_mat_i;
+		meshdata->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
+		meshdata->batches.back().prim_start_offset = (uint32)(prev_start_face_i * 6 * sizeof(uint32)); // Offset in bytes
+	}
 
-	Reference<RayMesh> raymesh = new RayMesh("mesh", false);
+	meshdata->aabb_os = js::AABBox(aabb_os.min_, aabb_os.max_ + Vec4f(w, w, w, 0)); // Extend AABB to enclose the +xyz bounds of the voxels.
+
+	const size_t num_faces = face;
+	const size_t num_verts = vertpos_hash.size();
+
+	// Trim arrays to actual size
+	meshdata->vert_data.resize(num_verts * NUM_COMPONENTS * sizeof(float));
+	meshdata->vert_index_buffer.resize(num_faces * 6);
+
+
+	//------------------------------------------------------------------------------------
+	Reference<RayMesh> raymesh = new RayMesh("mesh", /*enable shading normals=*/false);
 
 	// Copy over tris to raymesh
 	raymesh->getTriangles().resizeNoCopy(num_faces * 2);
 	RayMeshTriangle* const dest_tris = raymesh->getTriangles().data();
-	for(size_t v=0; v<num_voxels; ++v)
+
+	for(size_t b=0; b<meshdata->batches.size(); ++b) // Iterate over batches to do this so we know the material index for each face.
 	{
-		const int mat_index = voxel_group.voxels[v].mat_index;
-		const int face_offset = voxel_info[v].face_offset;
-		const int voxel_num_faces = voxel_info[v].num_faces;
+		const int batch_num_faces = meshdata->batches[b].num_indices / 6;
+		const int start_face      = meshdata->batches[b].prim_start_offset / (6 * sizeof(uint32));
+		const int mat_index       = meshdata->batches[b].material_index;
 
-		for(int f=face_offset; f<face_offset + voxel_num_faces; ++f)
+		for(size_t f=start_face; f<start_face + batch_num_faces; ++f)
 		{
-			dest_tris[f*2 + 0].vertex_indices[0] = indices[f*6 + 0];
-			dest_tris[f*2 + 0].vertex_indices[1] = indices[f*6 + 1];
-			dest_tris[f*2 + 0].vertex_indices[2] = indices[f*6 + 2];
-
-			dest_tris[f*2 + 0].uv_indices[0] = getUVIndex(uvs[indices[f*6 + 0]]);
-			dest_tris[f*2 + 0].uv_indices[1] = getUVIndex(uvs[indices[f*6 + 1]]);
-			dest_tris[f*2 + 0].uv_indices[2] = getUVIndex(uvs[indices[f*6 + 2]]);
+			dest_tris[f*2 + 0].vertex_indices[0] = mesh_indices[f * 6 + 0];
+			dest_tris[f*2 + 0].vertex_indices[1] = mesh_indices[f * 6 + 1];
+			dest_tris[f*2 + 0].vertex_indices[2] = mesh_indices[f * 6 + 2];
+			dest_tris[f*2 + 0].uv_indices[0] = 0;
+			dest_tris[f*2 + 0].uv_indices[1] = 0;
+			dest_tris[f*2 + 0].uv_indices[2] = 0;
 			dest_tris[f*2 + 0].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
 
-			dest_tris[f*2 + 1].vertex_indices[0] = indices[f*6 + 3];
-			dest_tris[f*2 + 1].vertex_indices[1] = indices[f*6 + 4];
-			dest_tris[f*2 + 1].vertex_indices[2] = indices[f*6 + 5];
-			dest_tris[f*2 + 1].uv_indices[0] = getUVIndex(uvs[indices[f*6 + 3]]);
-			dest_tris[f*2 + 1].uv_indices[1] = getUVIndex(uvs[indices[f*6 + 4]]);
-			dest_tris[f*2 + 1].uv_indices[2] = getUVIndex(uvs[indices[f*6 + 5]]);
+			dest_tris[f*2 + 1].vertex_indices[0] =  mesh_indices[f * 6 + 3];
+			dest_tris[f*2 + 1].vertex_indices[1] =  mesh_indices[f * 6 + 4];
+			dest_tris[f*2 + 1].vertex_indices[2] =  mesh_indices[f * 6 + 5];
+			dest_tris[f*2 + 1].uv_indices[0] = 0;
+			dest_tris[f*2 + 1].uv_indices[1] = 0;
+			dest_tris[f*2 + 1].uv_indices[2] = 0;
 			dest_tris[f*2 + 1].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
 		}
 	}
-
+	
 	// Copy verts positions and normals
-	raymesh->getVertices().resizeNoCopy(num_faces*4);
+	raymesh->getVertices().resizeNoCopy(num_verts);
 	RayMeshVertex* const dest_verts = raymesh->getVertices().data();
-	for(size_t i=0; i<num_faces*4; ++i)
+	for(size_t i=0; i<num_verts; ++i)
 	{
-		dest_verts[i].pos = verts[i];
-		dest_verts[i].normal = normals[i];
+		dest_verts[i].pos.x = combined_data[i * NUM_COMPONENTS + 0];
+		dest_verts[i].pos.y = combined_data[i * NUM_COMPONENTS + 1];
+		dest_verts[i].pos.z = combined_data[i * NUM_COMPONENTS + 2];
+
+		// Skip UV data for now
+
+		dest_verts[i].normal = Vec3f(1, 0, 0);
 	}
 
 	// Set UVs (Note: only needed for dumping RayMesh to disk)
-	raymesh->setMaxNumTexcoordSets(1);
-	raymesh->getUVs().resize(4);
-	raymesh->getUVs()[0] = Vec2f(0, 0);
-	raymesh->getUVs()[1] = Vec2f(0, 1);
-	raymesh->getUVs()[2] = Vec2f(1, 1);
-	raymesh->getUVs()[3] = Vec2f(1, 0);
+	raymesh->setMaxNumTexcoordSets(0);
+	//raymesh->getUVs().resize(4);
+	//raymesh->getUVs()[0] = Vec2f(0, 0);
+	//raymesh->getUVs()[1] = Vec2f(0, 1);
+	//raymesh->getUVs()[2] = Vec2f(1, 1);
+	//raymesh->getUVs()[3] = Vec2f(1, 0);
 
 	Geometry::BuildOptions options;
 	StandardPrintOutput print_output;
 	raymesh->build(options, print_output, /*verbose=*/false, task_manager);
-
 	raymesh_out = raymesh;
+	//--------------------------------------------------------------------------------------
 
-	Reference<OpenGLMeshRenderData> meshdata = new OpenGLMeshRenderData();
-	meshdata->aabb_os = aabb_os;
-
-	// Do a pass over voxels to count number of faces for each mat
-	const int num_mat_batches = max_mat_index + 1;
-	std::vector<int> mat_face_counts(num_mat_batches);
-	for(size_t v=0; v<num_voxels; ++v)
-		mat_face_counts[voxel_group.voxels[v].mat_index] += voxel_info[v].num_faces;
-
-	// Loop over material face batches, and compute number of indices, starting byte offset etc..
-	meshdata->has_uvs = true;
-	meshdata->has_shading_normals = true;
-	meshdata->batches.resize(num_mat_batches);
-	int batch_offset = 0; // in faces
-	std::vector<int> batch_write_indices(num_mat_batches); // in faces
-	for(size_t i=0; i<num_mat_batches; ++i)
+	const size_t vert_index_buffer_size = meshdata->vert_index_buffer.size();
+	if(num_verts < 256)
 	{
-		meshdata->batches[i].material_index = (uint32)i;
-		meshdata->batches[i].num_indices = mat_face_counts[i] * 6; // 6 indices per face.
-		meshdata->batches[i].prim_start_offset = batch_offset * 6 * sizeof(uint32); // Offset in bytes from the start of the index buffer.
+		js::Vector<uint8, 16>& index_buf = meshdata->vert_index_buffer_uint8;
+		index_buf.resize(vert_index_buffer_size);
+		for(size_t i=0; i<vert_index_buffer_size; ++i)
+		{
+			assert(mesh_indices[i] < 256);
+			index_buf[i] = (uint8)mesh_indices[i];
+		}
+		if(do_opengl_stuff)
+			meshdata->vert_indices_buf = new VBO(index_buf.data(), index_buf.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
 
-		batch_write_indices[i] = batch_offset;
-		batch_offset += mat_face_counts[i];
+		meshdata->index_type = GL_UNSIGNED_BYTE;
+		// Go through the batches and adjust the start offset to take into account we're using uint8s.
+		for(size_t i=0; i<meshdata->batches.size(); ++i)
+			meshdata->batches[i].prim_start_offset /= 4;
+	}
+	else if(num_verts < 65536)
+	{
+		js::Vector<uint16, 16>& index_buf = meshdata->vert_index_buffer_uint16;
+		index_buf.resize(vert_index_buffer_size);
+		for(size_t i=0; i<vert_index_buffer_size; ++i)
+		{
+			assert(mesh_indices[i] < 65536);
+			index_buf[i] = (uint16)mesh_indices[i];
+		}
+		if(do_opengl_stuff)
+			meshdata->vert_indices_buf = new VBO(index_buf.data(), index_buf.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+
+		meshdata->index_type = GL_UNSIGNED_SHORT;
+		// Go through the batches and adjust the start offset to take into account we're using uint16s.
+		for(size_t i=0; i<meshdata->batches.size(); ++i)
+			meshdata->batches[i].prim_start_offset /= 2;
+	}
+	else
+	{
+		if(do_opengl_stuff)
+			meshdata->vert_indices_buf = new VBO(mesh_indices.data(), mesh_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+		meshdata->index_type = GL_UNSIGNED_INT;
 	}
 
-	const int NUM_COMPONENTS = 8; // num float components per vertex.
-	meshdata->vert_data.resizeNoCopy(num_faces*4 * NUM_COMPONENTS * sizeof(float)); // num verts = num_faces*4
-	float* combined_data = (float*)meshdata->vert_data.data();
-	
-	js::Vector<uint32, 16>& sorted_indices = meshdata->vert_index_buffer;
-	sorted_indices.resizeNoCopy(num_faces * 6);
-
-	for(int v=0; v<(int)num_voxels; ++v)
-	{
-		const int src_face_offset = voxel_info[v].face_offset; // index into indices and verts, normals, uvs, for reading
-		const int src_voxel_num_faces = voxel_info[v].num_faces; // num faces to read/write for this voxel.
-
-		const int mat_index = voxel_group.voxels[v].mat_index;
-		const int initial_write_i = batch_write_indices[mat_index]; // write index for this material, in faces.
-		batch_write_indices[mat_index] += src_voxel_num_faces;
-
-		int write_i = initial_write_i * 4 * NUM_COMPONENTS; // write index in floats.
-		for(int f=src_face_offset; f<src_face_offset + src_voxel_num_faces; ++f) // f = src face index
-		{
-			// For each vert for face, copy vert data to combined_data
-			for(int z=0; z<4; ++z)
-			{
-				const int src_vert_index = f*4 + z;
-				const Vec3f& vertpos = verts[src_vert_index];
-
-				combined_data[write_i + 0] = vertpos.x;
-				combined_data[write_i + 1] = vertpos.y;
-				combined_data[write_i + 2] = vertpos.z;
-				combined_data[write_i + 3] = normals[src_vert_index].x;
-				combined_data[write_i + 4] = normals[src_vert_index].y;
-				combined_data[write_i + 5] = normals[src_vert_index].z;
-				combined_data[write_i + 6] = uvs[src_vert_index].x;
-				combined_data[write_i + 7] = uvs[src_vert_index].y;
-
-				write_i += NUM_COMPONENTS;
-			}
-		}
-
-		// Since the vertex data for this voxel may have moved during the sort, we need to update the indices for the faces in this voxel.
-		const int vert_index_translation = (initial_write_i - src_face_offset) * 4;
-
-		// Copy indices for the faces of this voxel to sorted_indices
-		int indices_write_i = initial_write_i * 6;
-		for(int z=0; z<src_voxel_num_faces*6; ++z)
-		{
-			const int new_vert_index = indices[src_face_offset*6 + z] + vert_index_translation;
-			assert(new_vert_index >= 0 && new_vert_index < num_faces*4);
-			sorted_indices[indices_write_i++] = new_vert_index;
-		}
-	}
 
 	if(do_opengl_stuff)
-	{
 		meshdata->vert_vbo = new VBO(meshdata->vert_data.data(), meshdata->vert_data.dataSizeBytes());
-		meshdata->vert_indices_buf = new VBO(sorted_indices.data(), sorted_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
-	}
-	meshdata->index_type = GL_UNSIGNED_INT;
 
 	VertexSpec& spec = meshdata->vertex_spec;
-	const uint32 vert_stride = (uint32)(sizeof(float) * 3 + sizeof(float) * 3 + sizeof(float) * 2); // also vertex size.
+	const uint32 vert_stride = (uint32)(sizeof(float) * 3 + sizeof(float) * 2); // also vertex size.
 
 	VertexAttrib pos_attrib;
 	pos_attrib.enabled = true;
@@ -980,8 +981,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	pos_attrib.offset = 0;
 	spec.attributes.push_back(pos_attrib);
 
-	VertexAttrib normal_attrib;
-	normal_attrib.enabled = true;
+	VertexAttrib normal_attrib; // NOTE: We need this attribute, disabled, because it's expected, see OpenGLProgram.cpp
+	normal_attrib.enabled = false;
 	normal_attrib.num_comps = 3;
 	normal_attrib.type = GL_FLOAT;
 	normal_attrib.normalised = false;
@@ -995,11 +996,20 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	uv_attrib.type = GL_FLOAT;
 	uv_attrib.normalised = false;
 	uv_attrib.stride = vert_stride;
-	uv_attrib.offset = (uint32)(sizeof(float) * 3 + sizeof(float) * 3); // after position and possibly normal.
+	uv_attrib.offset = (uint32)(sizeof(float) * 3); // after position
 	spec.attributes.push_back(uv_attrib);
 
 	if(do_opengl_stuff)
 		meshdata->vert_vao = new VAO(meshdata->vert_vbo, spec);
+
+	// If we did the OpenGL calls, then the data has been uploaded to VBOs etc.. so we can free it.
+	if(do_opengl_stuff)
+	{
+		meshdata->vert_data.clearAndFreeMem();
+		meshdata->vert_index_buffer.clearAndFreeMem();
+		meshdata->vert_index_buffer_uint16.clearAndFreeMem();
+		meshdata->vert_index_buffer_uint8.clearAndFreeMem();
+	}
 
 	return meshdata;
 }
