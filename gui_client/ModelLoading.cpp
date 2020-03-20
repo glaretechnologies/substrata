@@ -178,11 +178,27 @@ static void scaleMesh(Indigo::Mesh& mesh)
 		}
 	}
 
+
+	// Scale up if needed
+	const float min_span = 0.01f;
+	if(::isFinite(span))
+	{
+		while(span <= min_span)
+		{
+			use_scale *= 10.f;
+			span *= 10.f;
+		}
+	}
+
+
 	if(use_scale != 1.f)
 	{
 		conPrint("Scaling object by " + toString(use_scale));
 		for(size_t i=0; i<mesh.vert_positions.size(); ++i)
 			mesh.vert_positions[i] *= use_scale;
+
+		mesh.aabb_os.bound[0] *= use_scale;
+		mesh.aabb_os.bound[1] *= use_scale;
 	}
 }
 
@@ -311,23 +327,29 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 		mesh_out = mesh;
 		return ob;
 	}
-	else if(hasExtension(model_path, "gltf"))
+	else if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb"))
 	{
 		Indigo::MeshRef mesh = new Indigo::Mesh();
 
 		Timer timer;
 		GLTFMaterials mats;
-		FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
+		if(hasExtension(model_path, "gltf"))
+			FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
+		else
+			FormatDecoderGLTF::loadGLBFile(model_path, *mesh, 1.0f, mats);
 		conPrint("Loaded GLTF model in " + timer.elapsedString());
 
 		checkValidAndSanitiseMesh(*mesh);
 
 		// Convert model coordinates to z up
-		//for(size_t i=0; i<mesh->vert_positions.size(); ++i)
-		//	mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
+		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
+			mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
 		//
-		//for(size_t i=0; i<mesh->vert_normals.size(); ++i)
-		//	mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
+		for(size_t i=0; i<mesh->vert_normals.size(); ++i)
+			mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
+
+		// Automatically scale object down until it is < x m across
+		scaleMesh(*mesh);
 
 		GLObjectRef ob = new GLObject();
 		ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
@@ -352,14 +374,15 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 			ob->materials[i].alpha = mats.materials[i].alpha;
 			ob->materials[i].transparent = mats.materials[i].alpha < 1.0f;
 			ob->materials[i].metallic_frac = mats.materials[i].metallic;
+			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
 			loaded_object_out.materials[i]->colour_rgb = mats.materials[i].diffuse;
 			loaded_object_out.materials[i]->colour_texture_url = tex_path;
 			loaded_object_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
 			loaded_object_out.materials[i]->roughness = mats.materials[i].roughness;
 			loaded_object_out.materials[i]->opacity = mats.materials[i].alpha;
-
-			ob->materials[i].tex_matrix = Matrix2f::identity();// Matrix2f(1, 0, 0, -1);
+			loaded_object_out.materials[i]->metallic_fraction = mats.materials[i].metallic;
+			loaded_object_out.materials[i]->tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
 		mesh_out = mesh;
 		return ob;
@@ -647,13 +670,13 @@ inline static int addVert(const Vec4f& vert_pos, const Vec2f& uv, HashMapInsertO
 }
 
 
-//struct GetMatIndex
-//{
-//	size_t operator() (const Voxel& v)
-//	{
-//		return (size_t)v.mat_index;
-//	}
-//};
+struct GetMatIndex
+{
+	size_t operator() (const Voxel& v)
+	{
+		return (size_t)v.mat_index;
+	}
+};
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
@@ -662,32 +685,36 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	assert(num_voxels > 0);
 	// conPrint("Adding " + toString(num_voxels) + " voxels.");
 
-	// hash from voxel indices to voxel material
+	// Make hash from voxel indices to voxel material
 	const Vec3<int> empty_key(std::numeric_limits<int>::max());
 	HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/empty_key, /*expected_num_items=*/num_voxels);
 
+	int max_mat_index = 0;
 	for(int v=0; v<(int)num_voxels; ++v)
+	{
+		max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
 		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, voxel_group.voxels[v].mat_index));
-
-	const float w = 1.f; // voxel width
-
+	}
+	const size_t num_mats = (size_t)max_mat_index + 1;
 
 	//-------------- Sort voxels by material --------------------
-	std::vector<Voxel> voxels = voxel_group.voxels;
-	std::sort(voxels.begin(), voxels.end(), VoxelsMatPred());
+	std::vector<Voxel> voxels(num_voxels);
+	Sort::serialCountingSortWithNumBuckets(/*in=*/voxel_group.voxels.data(), /*out=*/voxels.data(), voxel_group.voxels.size(), num_mats, GetMatIndex());
 
-	//std::vector<Voxel> voxels(voxel_group.voxels.size());
-	//Sort::countingSort(task_manager, voxel_group.voxels.data(), voxels.data(), voxel_group.voxels.size(), GetMatIndex());
 
+	Reference<OpenGLMeshRenderData> meshdata = new OpenGLMeshRenderData();
+	meshdata->has_uvs = true;
+	meshdata->has_shading_normals = false;
+	meshdata->batches.reserve(num_mats);
+
+	const float w = 1.f; // voxel width
 
 	const Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
 	HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
 
 
 	const size_t num_faces_upper_bound = num_voxels * 6;
-	Reference<OpenGLMeshRenderData> meshdata = new OpenGLMeshRenderData();
-	meshdata->has_uvs = true;
-	meshdata->has_shading_normals = false;
+	
 
 	const int NUM_COMPONENTS = 5; // num float components per vertex.
 	meshdata->vert_data.resizeNoCopy(num_faces_upper_bound*4 * NUM_COMPONENTS * sizeof(float)); // num verts = num_faces*4
@@ -706,7 +733,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 	for(int v=0; v<(int)num_voxels; ++v)
 	{
-		const int voxel_mat_i = voxel_group.voxels[v].mat_index;
+		const int voxel_mat_i = voxels[v].mat_index;
 
 		if(voxel_mat_i != prev_mat_i)
 		{
@@ -723,7 +750,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 		prev_mat_i = voxel_mat_i;
 
-		const Vec3<int> v_p = voxel_group.voxels[v].pos;
+		const Vec3<int> v_p = voxels[v].pos;
 		const Vec4f v_pf((float)v_p.x, (float)v_p.y, (float)v_p.z, 0); // voxel_pos_offset
 
 		// We will nudge the vertices outwards along the face normal a little.
@@ -1026,6 +1053,25 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 void ModelLoading::test()
 {
 	Indigo::TaskManager task_manager;
+
+	// Test two adjacent voxels with different materials.  All faces should be added.
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(10, 0, 1), 1));
+		group.voxels.push_back(Voxel(Vec3<int>(20, 0, 1), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(30, 0, 1), 1));
+		group.voxels.push_back(Voxel(Vec3<int>(40, 0, 1), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(50, 0, 1), 1));
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		testAssert(data->batches.size() == 2);
+		testAssert(raymesh->getTriangles().size() == 6 * 6 * 2);
+	}
+
+
 	
 	// Test a single voxel
 	{
@@ -1084,6 +1130,23 @@ void ModelLoading::test()
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(raymesh->getTriangles().size() == 2 * 6 * 2);
+	}
+
+	// Performance test
+	if(true)
+	{
+		VoxelGroup group;
+		for(int z=0; z<100; z += 2)
+			for(int y=0; y<100; ++y)
+				for(int x=0; x<10; ++x)
+					group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
+
+		Timer timer;
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
+		conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
 	}
 }
 
