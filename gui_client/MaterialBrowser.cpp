@@ -125,7 +125,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
 
 		ob->ob_to_world_matrix = Matrix4f::scaleMatrix(W, W, 1) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
-		ob->mesh_data = opengl_engine->makeUnitQuadMesh();
+		ob->mesh_data = opengl_engine->getUnitQuadMeshData();
 
 		opengl_engine->addObject(ob);
 	}

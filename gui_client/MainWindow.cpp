@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2018 -
 #ifdef _MSC_VER // Qt headers suppress some warnings on Windows, make sure the warning suppression doesn't propagate to our code. See https://bugreports.qt.io/browse/QTBUG-26877
 #pragma warning(push, 0) // Disable warnings
 #endif
+#include <QtOpenGL/QGLWidget>
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "UserDetailsWidget.h"
@@ -1983,6 +1984,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 				else
 				{
+					// Decompress voxel group
+					ob->decompressVoxels();
+
 					bool reload_opengl_model = false; // Do we need to load or reload model?
 					if(ob->opengl_engine_ob.isNull())
 						reload_opengl_model = true;
@@ -2922,6 +2926,7 @@ void MainWindow::on_actionAddObject_triggered()
 				assert(!d.loaded_object->voxel_group.voxels.empty());
 
 				new_world_object->voxel_group = d.loaded_object->voxel_group;
+				new_world_object->compressVoxels();
 				new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
 			}
 
@@ -3062,6 +3067,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	new_world_object->angle = 0;
 	new_world_object->scale = Vec3f(0.5f); // This will be the initial width of the voxels
 	new_world_object->voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0)); // Start with a single voxel.
+	new_world_object->compressVoxels();
 
 	// Send CreateObject message to server
 	{
@@ -3119,6 +3125,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->scale = selected_ob->scale;
 		new_world_object->flags = selected_ob->flags;
 		new_world_object->voxel_group = selected_ob->voxel_group;
+		new_world_object->compressed_voxels = selected_ob->compressed_voxels;
 
 		// Send CreateObject message to server
 		{
@@ -3846,6 +3853,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 					if(voxels_changed)
 					{
+						this->selected_ob->compressVoxels();
+
 						// Remove any existing OpenGL and physics model
 						if(this->selected_ob->opengl_engine_ob.nonNull())
 							ui->glWidget->removeObject(this->selected_ob->opengl_engine_ob);
@@ -3856,7 +3865,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						// Update in Indigo view
 						ui->indigoView->objectRemoved(*selected_ob);
 
-						if(this->selected_ob->voxel_group.voxels.size() > 0)
+						if(!this->selected_ob->voxel_group.voxels.empty())
 						{
 							// Add updated model!
 							Reference<RayMesh> raymesh;
@@ -3876,7 +3885,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 
 							this->selected_ob->opengl_engine_ob = gl_ob;
-							ui->glWidget->addObject(gl_ob);
+							ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
 
 							// Update in Indigo view
 							ui->indigoView->objectAdded(*selected_ob, *this->resource_manager);
@@ -4514,7 +4523,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			HTTPClient::test();
+			ModelLoading::test();
+			//HTTPClient::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
 			//StringUtils::test();
@@ -4730,7 +4740,7 @@ int main(int argc, char *argv[])
 			}
 			ob->material.tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 
-			ob->mesh_data = OpenGLEngine::makeOverlayQuadMesh();
+			ob->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
 
 			mw.ui->glWidget->addOverlayObject(ob);
 		}
@@ -4911,7 +4921,7 @@ int main(int argc, char *argv[])
 		{
 			mw.voxel_edit_face_marker = new GLObject();
 			mw.voxel_edit_face_marker->ob_to_world_matrix = Matrix4f::identity();
-			mw.voxel_edit_face_marker->mesh_data = mw.ui->glWidget->opengl_engine->makeUnitQuadMesh();
+			mw.voxel_edit_face_marker->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
 
 			OpenGLMaterial material;
 			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);

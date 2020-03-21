@@ -16,6 +16,8 @@ Copyright Glare Technologies Limited 2019 -
 #include <Clock.h>
 #include <ConPrint.h>
 #include <OpenSSL.h>
+#include <JSONParser.h>
+#include <Exception.h>
 
 
 const int server_port = 7600;
@@ -35,6 +37,7 @@ int main(int argc, char* argv[])
 
 	Reference<ClientThread> client_thread = new ClientThread(
 		&msg_queue,
+		//"substrata.info",
 		"localhost",
 		server_port, // port
 		"sdfsdf", // avatar URL
@@ -62,10 +65,11 @@ int main(int argc, char* argv[])
 	}
 
 	// Wait until we have received parcel data.  This means we have received all objects
+	conPrint("Waiting for initial data to be received");
 	while(!client_thread->initial_state_received)
 	{
-		PlatformUtils::Sleep(100);
-		conPrint("Waiting for initial data to be received.");
+		PlatformUtils::Sleep(200);
+		conPrintStr(".");
 	}
 
 	conPrint("Received objects.  world_state->objects.size(): " + toString(world_state->objects.size()));

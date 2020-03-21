@@ -222,6 +222,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 			loaded_object_out.voxel_group.voxels[i].mat_index = model.voxels[i].mat_index;
 		}
 
+		loaded_object_out.compressVoxels();
+
 		// Convert materials
 		loaded_object_out.materials.resize(vox_contents.used_materials.size());
 		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)

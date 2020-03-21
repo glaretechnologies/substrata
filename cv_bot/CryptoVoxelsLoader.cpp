@@ -27,9 +27,12 @@ Copyright Glare Technologies Limited 2019 -
 #include <HTTPClient.h>
 #include <Lock.h>
 #include <KillThreadMessage.h>
+#include <ContainerUtils.h>
+#include <Sort.h>
 #include <unordered_set>
 //#include <iostream>
 //#include <bitset>
+#include <zstd.h>
 
 
 void CryptoVoxelsLoaderThread::doRun()
@@ -86,6 +89,206 @@ void sendObjectFullUpdateMessageToServer(WorldObjectRef& ob, Reference<ClientThr
 }
 
 
+/*
+//NOTE: From Escaping.cpp in website core repo
+
+
+See http://www.rfc-editor.org/rfc/rfc1738.txt
+
+Section 2.2:
+
+" The characters ";",
+"/", "?", ":", "@", "=" and "&" are the characters which may be
+reserved for special meaning within a scheme.
+"
+
+"Thus, only alphanumerics, the special characters "$-_.+!*'(),", and
+reserved characters used for their reserved purposes may be used
+unencoded within a URL."
+
+Since we're encoding ' ' to '+', we'll encode '+' as well, to guarantee a one-to-one mapping
+*/
+const std::string URLEscape(const std::string& s)
+{
+	std::string result;
+	result.reserve(s.size());
+
+	for(size_t i=0; i<s.size(); ++i)
+	{
+		if(::isAlphaNumeric(s[i]))
+		{
+			result.push_back(s[i]);
+		}
+		else if(getNumMatches("$-_.!*'(),", s[i]) > 0)  // Was: "/?:@=&$-_.+!*'(),"
+		{
+			result.push_back(s[i]);
+		}
+		else if(s[i] == ' ')
+		{
+			result.push_back('+');
+		}
+		else
+		{
+			// Encode using '%'.
+			// TODO: How is unicode handled?  Is unicode valid in URLs?
+			result += std::string(1, '%') + ::toHexString((unsigned int)s[i]);
+		}
+	}
+	return result;
+}
+
+
+struct VoxelComparator
+{
+	bool operator () (const Voxel& va, const Voxel& vb)
+	{
+		if(va.mat_index < vb.mat_index)
+			return true;
+		else if(va.mat_index > vb.mat_index)
+			return false;
+		else
+		{
+			const Vec3<int> a = va.pos;
+			const Vec3<int> b = vb.pos;
+
+			//if(a.x < b.x)
+			//	return true;
+			//else if(a.x > b.x)
+			//	return false;
+			//else // else a.x == b.x:
+			//{
+			//	if(a.y < b.y)
+			//		return true;
+			//	else if(a.y > b.y)
+			//		return false;
+			//	else // else a.y == b.y:
+			//	{
+			//		return a.z < b.z;
+			//	}
+			//}
+			if(a.z < b.z)
+				return true;
+			else if(a.z > b.z)
+				return false;
+			else
+			{
+				if(a.y < b.y)
+					return true;
+				else if(a.y > b.y)
+					return false;
+				else
+				{
+					return a.x < b.x;
+				}
+			}
+		}
+	}
+};
+
+
+struct GetMatIndex
+{
+	size_t operator() (const Voxel& v)
+	{
+		return (size_t)v.mat_index;
+	}
+};
+
+#if 0
+
+std::vector<int> total_dict;
+size_t total_compressed_size = 0;
+size_t total_dict_compressed_size = 0;
+size_t total_decoded_size = 0;
+
+static void compressVoxelGroup(const VoxelGroup& group)
+{
+	// Step 1: sort by materials
+	//std::vector<Voxel> sorted_voxels(group.voxels.size());
+	//Sort::serialCountingSort(group.voxels.data(), sorted_voxels.data(), group.voxels.size(), GetMatIndex());
+
+	std::vector<Voxel> sorted_voxels = group.voxels;
+	std::sort(sorted_voxels.begin(), sorted_voxels.end(), VoxelComparator());
+
+	size_t max_bucket = 0;
+	for(size_t i=0; i<group.voxels.size(); ++i)
+		max_bucket = myMax<size_t>(max_bucket, group.voxels[i].mat_index);
+
+	const size_t num_buckets = max_bucket + 1;
+
+	// Count num items in each bucket
+	std::vector<size_t> counts(num_buckets, 0);
+	for(size_t i=0; i<group.voxels.size(); ++i)
+		counts[group.voxels[i].mat_index]++;
+
+
+	Vec3<int> current_pos(0, 0, 0);
+	int v_i = 0;
+
+	std::vector<int> data;
+	for(size_t z=0; z<counts.size(); ++z)
+	{
+		const int count = (int)counts[z];
+		data.push_back(count); // count of voxels with that material
+
+		for(size_t i=0; i<count; ++i)
+		{
+			Vec3<int> relative_pos = sorted_voxels[v_i].pos - current_pos;
+			//conPrint("relative_pos: " + relative_pos.toString());
+
+			data.push_back(relative_pos.x);
+			data.push_back(relative_pos.y);
+			data.push_back(relative_pos.z);
+
+			current_pos = sorted_voxels[v_i].pos;
+
+			v_i++;
+		}
+	}
+
+	
+
+	//std::vector<int> dict;
+
+	// Print out data:
+	//conPrint("------------data-----------");
+	//for(size_t z=0; z<data.size(); ++z)
+	//	conPrint(toString(data[z]));
+
+	ZSTD_CCtx* context = ZSTD_createCCtx();
+
+	// Compress data
+	const size_t compressed_bound = ZSTD_compressBound(data.size() * sizeof(int));
+	js::Vector<uint8, 16> compressed_data(compressed_bound);
+	//Timer timer;
+	const size_t compressed_size = ZSTD_compress(compressed_data.data(), compressed_data.size(), data.data(), data.size() * sizeof(int),
+		ZSTD_CLEVEL_DEFAULT // compression level
+	);
+
+	const size_t dict_compressed_size = ZSTD_compress_usingDict(context, /*dest=*/compressed_data.data(), /*dest capacity=*/compressed_data.size(), data.data(), data.size() * sizeof(int),
+		/*dict=*/total_dict.data(), total_dict.size() * sizeof(int),
+		ZSTD_CLEVEL_DEFAULT // compression level
+	);
+
+	ContainerUtils::append(total_dict, data);
+
+	total_compressed_size += compressed_size;
+	total_dict_compressed_size += dict_compressed_size;
+
+	conPrint("uncompressed size:      " + toString(group.voxels.size() * sizeof(Voxel)) + " B");
+	conPrint("compressed_size:        " + toString(compressed_size) + " B");
+	conPrint("dict_compressed_size:   " + toString(dict_compressed_size) + " B");
+
+	const double ratio = (double)group.voxels.size() * sizeof(Voxel) / compressed_size;
+	//conPrint("compression ratio: " + toString(ratio));
+	
+	printVar(total_decoded_size);
+	printVar(total_compressed_size);
+	printVar(total_dict_compressed_size);
+}
+#endif
+
+
 // Load Ben's world data (CryptoVoxels), data in JSON format is from https://www.cryptovoxels.com/grid/parcels
 void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference<ClientThread>& client_thread, Reference<ResourceManager>& resource_manager)
 {
@@ -131,6 +334,8 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 				}
 			}
 		}
+
+		const bool FORCE_UPDATE_ALL_CV_OBS = false;
 
 		//TEMP: Remove all CV objects
 		const bool REMOVE_ALL_CV_OBS = false;
@@ -184,7 +389,11 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 			parser.parseBuffer(parcels_json.data(), parcels_json.size());
 		}
 		else
-			parser.parseFile("D:\\downloads\\parcels4.json");
+		{
+			conPrint("Loading parcel data..");
+			parser.parseFile("D:\\downloads\\parcels6.json");
+			conPrint("Done.");
+		}
 
 
 		//const Vec3d final_offset_ws(600, 0, // Move to side of main parcels.
@@ -319,7 +528,10 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 
 					Base64::decode(voxel_node.string_v, data);
 
-					// Allocate deflate state
+					//conPrint("\nDecoded size: " + toString(data.size()) + " B");
+					//total_decoded_size += data.size();
+
+					// Allocate inflate state
 					z_stream stream;
 					stream.zalloc = Z_NULL;
 					stream.zfree = Z_NULL;
@@ -372,337 +584,350 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 
 					for(size_t s = 0; s < features_array.child_indices.size(); ++s)
 					{
-						const JSONNode& feature = parser.nodes[features_array.child_indices[s]];
-						if(feature.type != JSONNode::Type_Object)
-							throw Indigo::Exception("feature.type != JSONNode::Type_Object.");
-
-						const std::string feature_type = feature.getChildStringValue(parser, "type");
-
-						const std::string uuid = feature.getChildStringValueWithDefaultVal(parser, "uuid", "uuid_missing");
-						if(uuid == "uuid_missing")
-							conPrint("Warning: feature has no uuid.");
-						else if(uuids_seen.count(uuid) == 1)
-							conPrint("Warning: already processed feature with uuid " + uuid);
-						else
+						try
 						{
-							uuids_seen.insert(uuid);
+							const JSONNode& feature = parser.nodes[features_array.child_indices[s]];
+							if(feature.type != JSONNode::Type_Object)
+								throw Indigo::Exception("feature.type != JSONNode::Type_Object.");
 
-							if(feature_type == "image")
+							const std::string feature_type = feature.getChildStringValue(parser, "type");
+
+							const std::string uuid = feature.getChildStringValueWithDefaultVal(parser, "uuid", "uuid_missing");
+							if(uuid == "uuid_missing")
+								conPrint("Warning: feature has no uuid.");
+							else if(uuids_seen.count(uuid) == 1)
+								conPrint("Warning: already processed feature with uuid " + uuid);
+							else
 							{
-								const std::string url = feature.getChildStringValueWithDefaultVal(parser, "url", "");
-								const size_t MAX_URL_LEN = 4096; // Make sure texture URL is too long - there are some excessively long URLs in the data.
-								if((url != "") && (url.size() <= MAX_URL_LEN))
+								uuids_seen.insert(uuid);
+
+								if(feature_type == "image")
 								{
-									const bool color = feature.getChildBoolValueWithDefaultVal(parser, "color", true);
+									const std::string url = feature.getChildStringValueWithDefaultVal(parser, "url", "");
 
-									Vec3d rotation, scale, position;
-									feature.getChildArray(parser, "rotation").parseDoubleArrayValues(parser, 3, &rotation.x);
-									feature.getChildArray(parser, "scale").parseDoubleArrayValues(parser, 3, &scale.x);
-									feature.getChildArray(parser, "position").parseDoubleArrayValues(parser, 3, &position.x);
+									// Load the image through the CV image proxy, in order to reduce the image size, and for faster loading.
+									const std::string proxy_url = "https://cdn.cryptovoxels.com/node/img?url=" + URLEscape(url) + "&mode=color";
 
-									//printVar(rotation);
-									//printVar(scale);
-									//printVar(position);
-
-									//Matrix4f cv_to_indigo()
-									// Do rotations around 
-									// indigo x is -cv x
-									// indigo y is -cv z
-									// indigo z is -cv y
-									// cv x is - indigo x
-									// cv y is - indigo z
-									// cv z is - indigo y
-
-									Matrix4f rot = Matrix4f::rotationAroundXAxis((float)-rotation.x) * Matrix4f::rotationAroundYAxis((float)-rotation.z) *
-										Matrix4f::rotationAroundZAxis((float)-rotation.y);
-								
-									Quatf quat = Quatf::fromMatrix(rot);
-									Vec4f unit_axis;
-									float angle;
-									quat.toAxisAndAngle(unit_axis, angle);
-
-									// Make a hypercard object
-									WorldObjectRef ob = new WorldObject();
-									//ob->uid = UID(next_uid++);
-									ob->object_type = WorldObject::ObjectType_Generic;
-
-									ob->model_url = "Quad_obj_13906643289783913481.igmesh"; // This mesh ranges in x and z from -0.5 to 0.5
-
-									// The quad in babylon js ranges in x and y axes from -0.5 to 0.5
-
-									ob->materials.resize(1);
-									ob->materials[0] = new WorldMaterial();
-									ob->materials[0]->colour_texture_url = url;
-
-									Vec4f nudge_ws = rot * Vec4f(0.0f, 0.02f, 0, 0); // Nudge vector, to avoid z-fighting with walls, in Substrata world space
-
-									Vec3d offset(0.75, 0.75, 0.25); // An offset vector to put the images in the correct place.  Still not sure why this is needed.
-
-									// Get parcel centre in CV world space.  This is the centre of the parcel bounding box, but with y = 0.
-									// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/parcel.ts#L94
-									Vec3d parcel_centre_cvws = Vec3d(((double)x1 + (double)x2) / 2, 0, ((double)z1 + (double)z2) / 2);
-
-									Vec3d pos_cvws = position + parcel_centre_cvws;
-
-									// Convert to substrata/indigo coords (z-up)
-									ob->pos = Vec3d(
-										-pos_cvws.x, // - CV x
-										-pos_cvws.z, // - CV z
-										pos_cvws.y) + // - CV y
-										offset + Vec3d(nudge_ws[0], nudge_ws[1], nudge_ws[2]) + final_offset_ws;
-
-									// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/features/feature.ts#L107
-									const double SCALE_EPSILON = 0.01;
-									if(scale.x == 0) scale.x = SCALE_EPSILON;
-									if(scale.y == 0) scale.y = SCALE_EPSILON;
-									if(scale.z == 0) scale.z = SCALE_EPSILON;
-
-									ob->scale = Vec3f((float)-scale.x, (float)scale.z, (float)scale.y);
-
-									ob->axis = Vec3f(unit_axis[0], unit_axis[1], unit_axis[2]);
-									ob->angle = angle;
-
-									ob->created_time = TimeStamp::currentTime();
-									ob->creator_id = UserID(0);
-
-									ob->content = feature_prefix + uuid;
-
-									ob->state = WorldObject::State_Alive;
-
-									// Compare to existing feature object, if present.
-									auto res = feature_obs.find(uuid);
-									if(res == feature_obs.end())
+									const size_t MAX_URL_LEN = 4096; // Make sure texture URL is too long - there are some excessively long URLs in the data.
+									if((proxy_url != "") && (proxy_url.size() <= MAX_URL_LEN))
 									{
-										// This is a new feature:
-										ob->uid = UID(next_uid++); // Alloc new id
-										ob->state = WorldObject::State_JustCreated;
-										//ob->from_remote_other_dirty = true;
-										ob->from_local_other_dirty = true;
+										const bool color = feature.getChildBoolValueWithDefaultVal(parser, "color", true);
 
-										//Lock lock(world_state.mutex);
-										//world_state.objects[ob->uid] = ob;
-										
-										sendCreateObjectMessageToServer(ob, client_thread);
+										Vec3d rotation, scale, position;
+										feature.getChildArray(parser, "rotation").parseDoubleArrayValues(parser, 3, &rotation.x);
+										feature.getChildArray(parser, "scale").parseDoubleArrayValues(parser, 3, &scale.x);
+										feature.getChildArray(parser, "position").parseDoubleArrayValues(parser, 3, &position.x);
 
-										num_features_added++;
-									}
-									else
-									{
-										// We are updating an existing feature.
+										//printVar(rotation);
+										//printVar(scale);
+										//printVar(position);
 
-										// See if the feature has actually changed:
-										Lock lock(world_state.mutex);
-										WorldObjectRef existing_ob = res->second;
+										//Matrix4f cv_to_indigo()
+										// Do rotations around 
+										// indigo x is -cv x
+										// indigo y is -cv z
+										// indigo z is -cv y
+										// cv x is - indigo x
+										// cv y is - indigo z
+										// cv z is - indigo y
 
-										if(!epsEqual(existing_ob->pos, ob->pos))
+										Matrix4f rot = Matrix4f::rotationAroundXAxis((float)-rotation.x) * Matrix4f::rotationAroundYAxis((float)-rotation.z) *
+											Matrix4f::rotationAroundZAxis((float)-rotation.y);
+
+										Quatf quat = Quatf::fromMatrix(rot);
+										Vec4f unit_axis;
+										float angle;
+										quat.toAxisAndAngle(unit_axis, angle);
+
+										// Make a hypercard object
+										WorldObjectRef ob = new WorldObject();
+										//ob->uid = UID(next_uid++);
+										ob->object_type = WorldObject::ObjectType_Generic;
+
+										ob->model_url = "Quad_obj_13906643289783913481.igmesh"; // This mesh ranges in x and z from -0.5 to 0.5
+
+										// The quad in babylon js ranges in x and y axes from -0.5 to 0.5
+
+										ob->materials.resize(1);
+										ob->materials[0] = new WorldMaterial();
+										ob->materials[0]->colour_texture_url = proxy_url;
+
+										Vec4f nudge_ws = rot * Vec4f(0.0f, 0.02f, 0, 0); // Nudge vector, to avoid z-fighting with walls, in Substrata world space
+
+										Vec3d offset(0.75, 0.75, 0.25); // An offset vector to put the images in the correct place.  Still not sure why this is needed.
+
+										// Get parcel centre in CV world space.  This is the centre of the parcel bounding box, but with y = 0.
+										// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/parcel.ts#L94
+										Vec3d parcel_centre_cvws = Vec3d(((double)x1 + (double)x2) / 2, 0, ((double)z1 + (double)z2) / 2);
+
+										Vec3d pos_cvws = position + parcel_centre_cvws;
+
+										// Convert to substrata/indigo coords (z-up)
+										ob->pos = Vec3d(
+											-pos_cvws.x, // - CV x
+											-pos_cvws.z, // - CV z
+											pos_cvws.y) + // - CV y
+											offset + Vec3d(nudge_ws[0], nudge_ws[1], nudge_ws[2]) + final_offset_ws;
+
+										// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/features/feature.ts#L107
+										const double SCALE_EPSILON = 0.01;
+										if(scale.x == 0) scale.x = SCALE_EPSILON;
+										if(scale.y == 0) scale.y = SCALE_EPSILON;
+										if(scale.z == 0) scale.z = SCALE_EPSILON;
+
+										ob->scale = Vec3f((float)-scale.x, (float)scale.z, (float)scale.y);
+
+										ob->axis = Vec3f(unit_axis[0], unit_axis[1], unit_axis[2]);
+										ob->angle = angle;
+
+										ob->created_time = TimeStamp::currentTime();
+										ob->creator_id = UserID(0);
+
+										ob->content = feature_prefix + uuid;
+
+										ob->state = WorldObject::State_Alive;
+
+										// Compare to existing feature object, if present.
+										auto res = feature_obs.find(uuid);
+										if(res == feature_obs.end())
 										{
-											//printVar(existing_ob->pos);
-											//printVar(ob->pos);
-											ob->uid = existing_ob->uid; // Use existing object id.
+											// This is a new feature:
+											ob->uid = UID(next_uid++); // Alloc new id
+											ob->state = WorldObject::State_JustCreated;
+											//ob->from_remote_other_dirty = true;
+											ob->from_local_other_dirty = true;
+
+											//Lock lock(world_state.mutex);
 											//world_state.objects[ob->uid] = ob;
 
-											//ob->state = WorldObject::State_Alive;
-											//ob->from_remote_other_dirty = true;
+											sendCreateObjectMessageToServer(ob, client_thread);
 
-											sendObjectFullUpdateMessageToServer(ob, client_thread);
-
-											num_features_updated++;
+											num_features_added++;
 										}
 										else
-											num_features_unchanged++;
-									}
-								}
-							}
-							else if(feature_type == "vox-model")
-							{
-								const std::string url = feature.getChildStringValueWithDefaultVal(parser, "url", "");
-								const size_t MAX_URL_LEN = 4096; // Make sure texture URL is too long - there are some excessively long URLs in the data.
-								if((url != "") && (url.size() <= MAX_URL_LEN))
-								{
-									// Process vox-model
-
-									std::string local_path;
-									if(resource_manager->isFileForURLPresent(url))
-									{
-										local_path = resource_manager->pathForURL(url);
-									}
-									else
-									{
-										// Try and download it
-										try
 										{
-											conPrint("Downloading vox model '" + url + "'...");
-											HTTPClient client;
-											std::string file_data;
-											HTTPClient::ResponseInfo response = client.downloadFile(url, file_data);
-											if(response.response_code == 200)
+											// We are updating an existing feature.
+
+											// See if the feature has actually changed:
+											Lock lock(world_state.mutex);
+											WorldObjectRef existing_ob = res->second;
+
+											if(!epsEqual(existing_ob->pos, ob->pos) || FORCE_UPDATE_ALL_CV_OBS)
 											{
-												local_path = resource_manager->computeDefaultLocalPathForURL(url);
-												FileUtils::writeEntireFile(local_path, file_data);
-											}
-											else
-											{
-												throw Indigo::Exception("HTTP Download failed: response code was " + toString(response.response_code) + ": " + response.response_message);
-											}
-										}
-										catch(Indigo::Exception& e)
-										{
-											conPrint("Error while downloading vox: " + e.what());
-											local_path = "";
-										}
-										catch(FileUtils::FileUtilsExcep& e)
-										{
-											conPrint("Error while downloading vox: " + e.what());
-											local_path = "";
-										}
-									}
-
-									if(!local_path.empty())
-									{
-										WorldObjectRef ob = new WorldObject();
-										ob->object_type = WorldObject::ObjectType_VoxelGroup;
-
-										// Load the vox:
-										try
-										{
-											VoxFileContents vox_contents;
-											FormatDecoderVox::loadModel(local_path, vox_contents);
-
-											// Convert voxels
-											const VoxModel& model = vox_contents.models[0];
-											ob->voxel_group.voxels.resize(model.voxels.size());
-											for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
-											{
-												ob->voxel_group.voxels[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
-												ob->voxel_group.voxels[i].mat_index = model.voxels[i].mat_index;
-											}
-
-											// Convert materials
-											ob->materials.resize(vox_contents.used_materials.size());
-											for(size_t i=0; i<ob->materials.size(); ++i)
-											{
-												ob->materials[i] = new WorldMaterial();
-												ob->materials[i]->colour_rgb = Colour3f(
-													vox_contents.used_materials[i].col_from_palette[0],
-													vox_contents.used_materials[i].col_from_palette[1],
-													vox_contents.used_materials[i].col_from_palette[2]);
-											}
-
-											Vec3d rotation, scale, position;
-											feature.getChildArray(parser, "rotation").parseDoubleArrayValues(parser, 3, &rotation.x);
-											feature.getChildArray(parser, "scale").parseDoubleArrayValues(parser, 3, &scale.x);
-											feature.getChildArray(parser, "position").parseDoubleArrayValues(parser, 3, &position.x); // In CV space
-
-											Matrix4f rot = Matrix4f::rotationAroundXAxis((float)-rotation.x) * Matrix4f::rotationAroundYAxis((float)-rotation.z) *
-												Matrix4f::rotationAroundZAxis((float)-rotation.y);
-
-											Quatf quat = Quatf::fromMatrix(rot);
-											Vec4f unit_axis;
-											float angle;
-											quat.toAxisAndAngle(unit_axis, angle);
-
-											/*
-											From https://github.com/cryptovoxels/cryptovoxels/blob/master/src/utils/vox-worker.ts :
-
-											// Identity function, use these to nudge the mesh as needed
-											const fx = x => 0.02 * (x - originalSize.x / 2)
-											const fy = y => 0.02 * (y - originalSize.y / 2)
-											const fz = z => 0.02 * (z - originalSize.z * 0)
-											*/
-											scale *= 0.02;
-
-											// NOTE: not sure scale.x and scale.z are not mixed up here.
-											const Vec3d vox_translation_sub_os = Vec3d(-vox_contents.models[0].size_x/2 * scale.x, -vox_contents.models[0].size_y/2 * scale.z, 0);
-
-											const Vec4f vox_translation_sub_ws = rot * vox_translation_sub_os.toVec4fVector();
-
-											const Vec3d offset(0.75, 0.75, 0.25); // An offset vector to put the models in the correct place.  Still not sure why this is needed.
-
-											// Get parcel centre in CV world space.  This is the centre of the parcel bounding box, but with y = 0.
-											// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/parcel.ts#L94
-											const Vec3d parcel_centre_cvws = Vec3d(((double)x1 + (double)x2) / 2, 0, ((double)z1 + (double)z2) / 2);
-
-											const Vec3d pos_cvws = position + parcel_centre_cvws;
-
-											// Convert to substrata/indigo coords (z-up)
-											ob->pos = Vec3d(
-												-pos_cvws.x, // - CV x
-												-pos_cvws.z, // - CV z
-												pos_cvws.y) + // + CV y
-												toVec3d(vox_translation_sub_ws) + offset + final_offset_ws;
-
-											// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/features/feature.ts#L107
-											const double SCALE_EPSILON = 0.01;
-											if(scale.x == 0) scale.x = SCALE_EPSILON;
-											if(scale.y == 0) scale.y = SCALE_EPSILON;
-											if(scale.z == 0) scale.z = SCALE_EPSILON;
-
-											// NOTE: don't have to negate x scale (don't have to mirror object), because .vox models and substrata are both in right-handed coord systems.
-											ob->scale = Vec3f((float)scale.x, (float)scale.z, (float)scale.y);
-
-											ob->axis = Vec3f(unit_axis[0], unit_axis[1], unit_axis[2]);
-											ob->angle = angle;
-
-											ob->created_time = TimeStamp::currentTime();
-											ob->creator_id = UserID(0);
-
-											ob->content = feature_prefix + uuid;
-
-											ob->flags = 0; // Make not collidable.
-
-											ob->state = WorldObject::State_Alive;
-
-											// Compare to existing feature object, if present.
-											auto res = feature_obs.find(uuid);
-											if(res == feature_obs.end())
-											{
-												// This is a new feature:
-												ob->uid = UID(next_uid++); // Alloc new id
-												ob->state = WorldObject::State_JustCreated;
-												ob->from_remote_other_dirty = true;
-
-												//Lock lock(world_state.mutex);
+												//printVar(existing_ob->pos);
+												//printVar(ob->pos);
+												ob->uid = existing_ob->uid; // Use existing object id.
 												//world_state.objects[ob->uid] = ob;
 
-												sendCreateObjectMessageToServer(ob, client_thread);
+												//ob->state = WorldObject::State_Alive;
+												//ob->from_remote_other_dirty = true;
 
-												num_features_added++;
+												sendObjectFullUpdateMessageToServer(ob, client_thread);
+
+												num_features_updated++;
 											}
 											else
+												num_features_unchanged++;
+										}
+									}
+								}
+								else if(feature_type == "vox-model")
+								{
+									const std::string url = feature.getChildStringValueWithDefaultVal(parser, "url", "");
+									const size_t MAX_URL_LEN = 4096; // Make sure texture URL is too long - there are some excessively long URLs in the data.
+									if((url != "") && (url.size() <= MAX_URL_LEN))
+									{
+										// Process vox-model
+
+										std::string local_path;
+										if(resource_manager->isFileForURLPresent(url))
+										{
+											local_path = resource_manager->pathForURL(url);
+										}
+										else
+										{
+											// Try and download it
+											try
 											{
-												// We are updating an existing feature.
-
-												// See if the feature has actually changed:
-												Lock lock(world_state.mutex);
-												WorldObjectRef existing_ob = res->second;
-
-												if(!epsEqual(existing_ob->pos, ob->pos) || (existing_ob->materials.size() != ob->materials.size()) ||
-													!epsEqual(existing_ob->scale, ob->scale))
+												conPrint("Downloading vox model '" + url + "'...");
+												HTTPClient client;
+												std::string file_data;
+												HTTPClient::ResponseInfo response = client.downloadFile(url, file_data);
+												if(response.response_code == 200)
 												{
-													//printVar(existing_ob->pos);
-													//printVar(ob->pos);
-													ob->uid = existing_ob->uid; // Use existing object id.
-
-													//world_state.objects[ob->uid] = ob;
-
-													//ob->state = WorldObject::State_Alive;
-													//ob->from_remote_other_dirty = true;
-
-													sendObjectFullUpdateMessageToServer(ob, client_thread);
-
-													num_features_updated++;
+													local_path = resource_manager->computeDefaultLocalPathForURL(url);
+													FileUtils::writeEntireFile(local_path, file_data);
 												}
 												else
-													num_features_unchanged++;
+												{
+													throw Indigo::Exception("HTTP Download failed: response code was " + toString(response.response_code) + ": " + response.response_message);
+												}
+											}
+											catch(Indigo::Exception& e)
+											{
+												conPrint("Error while downloading vox: " + e.what());
+												local_path = "";
+											}
+											catch(FileUtils::FileUtilsExcep& e)
+											{
+												conPrint("Error while downloading vox: " + e.what());
+												local_path = "";
 											}
 										}
-										catch(Indigo::Exception& e)
+
+										if(!local_path.empty())
 										{
-											conPrint("Error loading VOX file: " + e.what());
+											WorldObjectRef ob = new WorldObject();
+											ob->object_type = WorldObject::ObjectType_VoxelGroup;
+
+											// Load the vox:
+											try
+											{
+												VoxFileContents vox_contents;
+												FormatDecoderVox::loadModel(local_path, vox_contents);
+
+												// Convert voxels
+												const VoxModel& model = vox_contents.models[0];
+												ob->voxel_group.voxels.resize(model.voxels.size());
+												for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
+												{
+													ob->voxel_group.voxels[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
+													ob->voxel_group.voxels[i].mat_index = model.voxels[i].mat_index;
+												}
+
+												ob->compressVoxels();
+
+												// Convert materials
+												ob->materials.resize(vox_contents.used_materials.size());
+												for(size_t i=0; i<ob->materials.size(); ++i)
+												{
+													ob->materials[i] = new WorldMaterial();
+													ob->materials[i]->colour_rgb = Colour3f(
+														vox_contents.used_materials[i].col_from_palette[0],
+														vox_contents.used_materials[i].col_from_palette[1],
+														vox_contents.used_materials[i].col_from_palette[2]);
+												}
+
+												Vec3d rotation, scale, position;
+												feature.getChildArray(parser, "rotation").parseDoubleArrayValues(parser, 3, &rotation.x);
+												feature.getChildArray(parser, "scale").parseDoubleArrayValues(parser, 3, &scale.x);
+												feature.getChildArray(parser, "position").parseDoubleArrayValues(parser, 3, &position.x); // In CV space
+
+												Matrix4f rot = Matrix4f::rotationAroundXAxis((float)-rotation.x) * Matrix4f::rotationAroundYAxis((float)-rotation.z) *
+													Matrix4f::rotationAroundZAxis((float)-rotation.y);
+
+												Quatf quat = Quatf::fromMatrix(rot);
+												Vec4f unit_axis;
+												float angle;
+												quat.toAxisAndAngle(unit_axis, angle);
+
+												/*
+												From https://github.com/cryptovoxels/cryptovoxels/blob/master/src/utils/vox-worker.ts :
+
+												// Identity function, use these to nudge the mesh as needed
+												const fx = x => 0.02 * (x - originalSize.x / 2)
+												const fy = y => 0.02 * (y - originalSize.y / 2)
+												const fz = z => 0.02 * (z - originalSize.z * 0)
+												*/
+												scale *= 0.02;
+
+												// NOTE: not sure scale.x and scale.z are not mixed up here.
+												const Vec3d vox_translation_sub_os = Vec3d(-vox_contents.models[0].size_x/2 * scale.x, -vox_contents.models[0].size_y/2 * scale.z, 0);
+
+												const Vec4f vox_translation_sub_ws = rot * vox_translation_sub_os.toVec4fVector();
+
+												const Vec3d offset(0.75, 0.75, 0.25); // An offset vector to put the models in the correct place.  Still not sure why this is needed.
+
+												// Get parcel centre in CV world space.  This is the centre of the parcel bounding box, but with y = 0.
+												// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/parcel.ts#L94
+												const Vec3d parcel_centre_cvws = Vec3d(((double)x1 + (double)x2) / 2, 0, ((double)z1 + (double)z2) / 2);
+
+												const Vec3d pos_cvws = position + parcel_centre_cvws;
+
+												// Convert to substrata/indigo coords (z-up)
+												ob->pos = Vec3d(
+													-pos_cvws.x, // - CV x
+													-pos_cvws.z, // - CV z
+													pos_cvws.y) + // + CV y
+													toVec3d(vox_translation_sub_ws) + offset + final_offset_ws;
+
+												// See https://github.com/cryptovoxels/cryptovoxels/blob/master/src/features/feature.ts#L107
+												const double SCALE_EPSILON = 0.01;
+												if(scale.x == 0) scale.x = SCALE_EPSILON;
+												if(scale.y == 0) scale.y = SCALE_EPSILON;
+												if(scale.z == 0) scale.z = SCALE_EPSILON;
+
+												// NOTE: don't have to negate x scale (don't have to mirror object), because .vox models and substrata are both in right-handed coord systems.
+												ob->scale = Vec3f((float)scale.x, (float)scale.z, (float)scale.y);
+
+												ob->axis = Vec3f(unit_axis[0], unit_axis[1], unit_axis[2]);
+												ob->angle = angle;
+
+												ob->created_time = TimeStamp::currentTime();
+												ob->creator_id = UserID(0);
+
+												ob->content = feature_prefix + uuid;
+
+												ob->flags = 0; // Make not collidable.
+
+												ob->state = WorldObject::State_Alive;
+
+												// Compare to existing feature object, if present.
+												auto res = feature_obs.find(uuid);
+												if(res == feature_obs.end())
+												{
+													// This is a new feature:
+													ob->uid = UID(next_uid++); // Alloc new id
+													ob->state = WorldObject::State_JustCreated;
+													ob->from_remote_other_dirty = true;
+
+													//Lock lock(world_state.mutex);
+													//world_state.objects[ob->uid] = ob;
+
+													sendCreateObjectMessageToServer(ob, client_thread);
+
+													num_features_added++;
+												}
+												else
+												{
+													// We are updating an existing feature.
+
+													// See if the feature has actually changed:
+													Lock lock(world_state.mutex);
+													WorldObjectRef existing_ob = res->second;
+
+													if(!epsEqual(existing_ob->pos, ob->pos) || (existing_ob->materials.size() != ob->materials.size()) ||
+														!epsEqual(existing_ob->scale, ob->scale) || FORCE_UPDATE_ALL_CV_OBS)
+													{
+														//printVar(existing_ob->pos);
+														//printVar(ob->pos);
+														ob->uid = existing_ob->uid; // Use existing object id.
+
+														//world_state.objects[ob->uid] = ob;
+
+														//ob->state = WorldObject::State_Alive;
+														//ob->from_remote_other_dirty = true;
+
+														sendObjectFullUpdateMessageToServer(ob, client_thread);
+
+														num_features_updated++;
+													}
+													else
+														num_features_unchanged++;
+												}
+											}
+											catch(Indigo::Exception& e)
+											{
+												conPrint("Error loading VOX file: " + e.what());
+											}
 										}
 									}
 								}
 							}
+						}
+						catch(Indigo::Exception& e)
+						{
+							conPrint("Error while loading feature: " + e.what());
 						}
 					}
 				}
@@ -816,6 +1041,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 				voxels_ob->angle = 0;
 
 				voxels_ob->voxel_group = voxel_group;
+				voxels_ob->compressVoxels();
 
 				voxels_ob->created_time = TimeStamp::currentTime();
 				voxels_ob->creator_id = UserID(0);
@@ -849,7 +1075,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 					WorldObjectRef existing_ob = res->second;
 
 					if(existing_ob->voxel_group.voxels != voxels_ob->voxel_group.voxels ||   // If voxels changed:
-						!epsEqual(existing_ob->pos, voxels_ob->pos))
+						!epsEqual(existing_ob->pos, voxels_ob->pos) || FORCE_UPDATE_ALL_CV_OBS)
 					{
 						// Use existing uid
 						voxels_ob->uid = existing_ob->uid;
