@@ -4628,7 +4628,7 @@ int main(int argc, char *argv[])
 			mw.print("opengl_engine init failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg());
 		}
 
-		for(int i=0; i<4; ++i)
+		for(int i=0; i<8; ++i)
 			mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager, &mw.num_net_resources_downloading));
 
 		mw.cam_controller.setPosition(Vec3d(0,0,4.7));
