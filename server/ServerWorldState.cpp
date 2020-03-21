@@ -418,6 +418,20 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 	denormaliseData();
 
+	// Compress voxel data if needed.
+	for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
+	{
+		Reference<ServerWorldState> world_state = world_it->second;
+		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+		{
+			WorldObject* ob = it->second.ptr();
+			if(!ob->voxel_group.voxels.empty() && ob->compressed_voxels.empty())
+			{
+				WorldObject::compressVoxelGroup(ob->voxel_group, ob->compressed_voxels);
+			}
+		}
+	}
+
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
 }

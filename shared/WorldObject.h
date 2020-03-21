@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "WorldMaterial.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
+#include <Vector.h>
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
 #include "vec3.h"
@@ -71,6 +72,11 @@ public:
 	inline bool isCollidable() const;
 	inline void setCollidable(bool c);
 
+	static void compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 16>& compressed_data_out);
+	static void decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, VoxelGroup& group_out);
+	void compressVoxels();
+	void decompressVoxels();
+
 	enum ObjectType
 	{
 		ObjectType_Generic,
@@ -98,6 +104,7 @@ public:
 	uint32 flags;
 
 	VoxelGroup voxel_group;
+	js::Vector<uint8, 16> compressed_voxels;
 
 	TimeStamp created_time;
 	UserID creator_id;

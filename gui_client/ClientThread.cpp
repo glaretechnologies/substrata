@@ -298,7 +298,7 @@ void ClientThread::doRun()
 					}
 				case Protocol::ObjectFullUpdate:
 					{
-						conPrint("ObjectFullUpdate");
+						//conPrint("ObjectFullUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
 
 						// Look up existing object in world state

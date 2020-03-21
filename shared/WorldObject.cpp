@@ -11,6 +11,8 @@ Copyright Glare Technologies Limited 2016 -
 #include <FileUtils.h>
 #include <ConPrint.h>
 #include <FileChecksum.h>
+#include <Sort.h>
+#include <BufferInStream.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include <SceneNodeModel.h>
@@ -18,6 +20,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../gui_client/PhysicsObject.h"
 #include "../gui_client/WinterShaderEvaluator.h"
 #include "../shared/ResourceManager.h"
+#include <zstd.h>
 
 
 WorldObject::WorldObject()
@@ -235,12 +238,13 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 11;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 12;
 /*
 Version history:
 9: introduced voxels
 10: changed script_url to script
 11: Added flags
+12: Added compressed voxel field.
 */
 
 
@@ -277,12 +281,10 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 
 	if(world_ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
-		// Write num voxels
-		stream.writeUInt32((uint32)world_ob.voxel_group.voxels.size());
-
-		// Write voxel data
-		if(world_ob.voxel_group.voxels.size() > 0)
-			stream.writeData(world_ob.voxel_group.voxels.data(), sizeof(Voxel) * world_ob.voxel_group.voxels.size());
+		// Write compressed voxel data
+		stream.writeUInt32((uint32)world_ob.compressed_voxels.size());
+		if(world_ob.compressed_voxels.size() > 0)
+			stream.writeData(world_ob.compressed_voxels.data(), world_ob.compressed_voxels.dataSizeBytes());
 	}
 }
 
@@ -354,16 +356,31 @@ void readFromStream(InStream& stream, WorldObject& ob)
 
 	if(v >= 9 && ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
-		// Read num voxels
-		const uint32 num_voxels = stream.readUInt32();
-		if(num_voxels > 1000000)
-			throw Indigo::Exception("Invalid num voxels: " + toString(num_voxels));
+		if(v <= 11)
+		{
+			// Read num voxels
+			const uint32 num_voxels = stream.readUInt32();
+			if(num_voxels > 1000000)
+				throw Indigo::Exception("Invalid num voxels: " + toString(num_voxels));
 
-		ob.voxel_group.voxels.resize(num_voxels);
+			ob.voxel_group.voxels.resize(num_voxels);
 
-		// Read voxel data
-		if(num_voxels > 0)
-			stream.readData(ob.voxel_group.voxels.data(), sizeof(Voxel) * num_voxels);
+			// Read voxel data
+			if(num_voxels > 0)
+				stream.readData(ob.voxel_group.voxels.data(), sizeof(Voxel) * num_voxels);
+		}
+		else
+		{
+			// Read compressed voxel data
+			const uint32 voxel_data_size = stream.readUInt32();
+			if(voxel_data_size > 1000000)
+				throw Indigo::Exception("Invalid voxel_data_size: " + toString(voxel_data_size));
+
+			// Read voxel data
+			ob.compressed_voxels.resize(voxel_data_size);
+			if(voxel_data_size > 0)
+				stream.readData(ob.compressed_voxels.data(), voxel_data_size);
+		}
 	}
 
 
@@ -401,12 +418,10 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 
 	if(world_ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
-		// Write num voxels
-		stream.writeUInt32((uint32)world_ob.voxel_group.voxels.size());
-
-		// Write voxel data
-		if(world_ob.voxel_group.voxels.size() > 0)
-			stream.writeData(world_ob.voxel_group.voxels.data(), sizeof(Voxel) * world_ob.voxel_group.voxels.size());
+		// Write compressed voxel data
+		stream.writeUInt32((uint32)world_ob.compressed_voxels.size());
+		if(world_ob.compressed_voxels.size() > 0)
+			stream.writeData(world_ob.compressed_voxels.data(), world_ob.compressed_voxels.dataSizeBytes());
 	}
 }
 
@@ -447,16 +462,15 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 
 	if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
-		// Read num voxels
-		const uint32 num_voxels = stream.readUInt32();
-		if(num_voxels > 1000000)
-			throw Indigo::Exception("Invalid num voxels: " + toString(num_voxels));
-
-		ob.voxel_group.voxels.resize(num_voxels);
+		// Read compressed voxel data
+		const uint32 voxel_data_size = stream.readUInt32();
+		if(voxel_data_size > 1000000)
+			throw Indigo::Exception("Invalid voxel_data_size (too large): " + toString(voxel_data_size));
 
 		// Read voxel data
-		if(num_voxels > 0)
-			stream.readData(ob.voxel_group.voxels.data(), sizeof(Voxel) * num_voxels);
+		ob.compressed_voxels.resize(voxel_data_size);
+		if(voxel_data_size > 0)
+			stream.readData(ob.compressed_voxels.data(), voxel_data_size);
 	}
 
 	// Set ephemeral state
@@ -471,4 +485,148 @@ const Matrix4f obToWorldMatrix(const WorldObject& ob)
 	return Matrix4f::translationMatrix(pos + ob.translation) *
 		Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), ob.angle) *
 		Matrix4f::scaleMatrix(ob.scale.x, ob.scale.y, ob.scale.z);
+}
+
+
+struct GetMatIndex
+{
+	size_t operator() (const Voxel& v)
+	{
+		return (size_t)v.mat_index;
+	}
+};
+
+
+void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 16>& compressed_data_out)
+{
+	size_t max_bucket = 0;
+	for(size_t i=0; i<group.voxels.size(); ++i)
+		max_bucket = myMax<size_t>(max_bucket, group.voxels[i].mat_index);
+
+	const size_t num_buckets = max_bucket + 1;
+
+	// Step 1: sort by materials
+	std::vector<Voxel> sorted_voxels(group.voxels.size());
+	Sort::serialCountingSortWithNumBuckets(group.voxels.data(), sorted_voxels.data(), group.voxels.size(), num_buckets, GetMatIndex());
+
+	//std::vector<Voxel> sorted_voxels = group.voxels;
+	//std::sort(sorted_voxels.begin(), sorted_voxels.end(), VoxelComparator());
+
+
+	// Count num items in each bucket
+	std::vector<size_t> counts(num_buckets, 0);
+	for(size_t i=0; i<group.voxels.size(); ++i)
+		counts[group.voxels[i].mat_index]++;
+
+	Vec3<int> current_pos(0, 0, 0);
+	int v_i = 0;
+
+	js::Vector<int, 16> data(1 + (int)counts.size() + group.voxels.size() * 3);
+	size_t write_i = 0;
+
+	data[write_i++] = (int)counts.size(); // Write num materials
+
+	for(size_t z=0; z<counts.size(); ++z)
+	{
+		const int count = (int)counts[z];
+		data[write_i++] = count; // Wriite count of voxels with that material
+
+		for(size_t i=0; i<count; ++i)
+		{
+			Vec3<int> relative_pos = sorted_voxels[v_i].pos - current_pos;
+			//conPrint("relative_pos: " + relative_pos.toString());
+
+			data[write_i++] = relative_pos.x;
+			data[write_i++] = relative_pos.y;
+			data[write_i++] = relative_pos.z;
+
+			current_pos = sorted_voxels[v_i].pos;
+
+			v_i++;
+		}
+	}
+
+	assert(write_i == data.size());
+
+	const size_t compressed_bound = ZSTD_compressBound(data.size() * sizeof(int));
+
+	compressed_data_out.resizeNoCopy(compressed_bound);
+	
+	const size_t compressed_size = ZSTD_compress(compressed_data_out.data(), compressed_data_out.size(), data.data(), data.dataSizeBytes(),
+		ZSTD_CLEVEL_DEFAULT // compression level
+	);
+
+	compressed_data_out.resize(compressed_size);
+
+
+	conPrint("uncompressed size:      " + toString(group.voxels.size() * sizeof(Voxel)) + " B");
+	conPrint("compressed_size:        " + toString(compressed_size) + " B");
+	const double ratio = (double)group.voxels.size() * sizeof(Voxel) / compressed_size;
+	conPrint("compression ratio: " + toString(ratio));
+
+	//TEMP: decompress and check we get the same value
+#ifndef NDEBUG
+	VoxelGroup group2;
+	decompressVoxelGroup(compressed_data_out.data(), compressed_data_out.size(), group2);
+	assert(group2.voxels == sorted_voxels);
+#endif
+}
+
+
+void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, VoxelGroup& group_out)
+{
+	const uint64 decompressed_size = ZSTD_getDecompressedSize(compressed_data, compressed_data_len);
+
+	//js::Vector<int, 16> decompressed_data(compressed_data_len);
+	BufferInStream instream;
+	instream.buf.resizeNoCopy(decompressed_size);
+
+	//ZSTD_decompress(decompressed_data.data(), decompressed_size, compressed_data, compressed_data_len);
+	ZSTD_decompress(instream.buf.data(), decompressed_size, compressed_data, compressed_data_len);
+
+	//size_t read_i = 0;
+
+	//int num_mats;
+	//std::memcpy(&num_mats, &decompressed_data[read_i++], sizeof(int));
+	Vec3<int> current_pos(0, 0, 0);
+
+	const int num_mats = instream.readInt32();
+	for(int m=0; m<num_mats; ++m)
+	{
+		const int count = instream.readInt32();
+		for(int i=0; i<count; ++i)
+		{
+			Vec3<int> relative_pos;
+			instream.readData(&relative_pos, sizeof(Vec3<int>));
+
+			const Vec3<int> pos = current_pos + relative_pos;
+
+			group_out.voxels.push_back(Voxel(pos, m));
+
+			current_pos = pos;
+		}
+	}
+
+	if(!instream.endOfStream())
+		throw Indigo::Exception("Didn't reach EOF while reading voxels.");
+}
+
+
+void WorldObject::compressVoxels()
+{
+	if(!this->voxel_group.voxels.empty())
+	{
+		compressVoxelGroup(this->voxel_group, this->compressed_voxels);
+	}
+	else
+		this->compressed_voxels.clear();
+}
+
+
+void WorldObject::decompressVoxels()
+{ 
+	if(!this->compressed_voxels.empty())
+		decompressVoxelGroup(this->compressed_voxels.data(), this->compressed_voxels.size(), this->voxel_group);
+	else
+		this->voxel_group.voxels.clear();
 }

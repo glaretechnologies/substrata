@@ -136,7 +136,7 @@ void AddObjectPreviewWidget::initializeGL()
 		ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
 
 		ob->ob_to_world_matrix = Matrix4f::scaleMatrix(W, W, 1) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
-		ob->mesh_data = opengl_engine->makeUnitQuadMesh();
+		ob->mesh_data = opengl_engine->getUnitQuadMeshData();
 
 		opengl_engine->addObject(ob);
 	}
@@ -247,7 +247,7 @@ void AddObjectPreviewWidget::wheelEvent(QWheelEvent* ev)
 {
 	// Make change proportional to distance value.
 	// Mouse wheel scroll up reduces distance.
-	cam_dist = myClamp<float>(cam_dist - (cam_dist * ev->delta() * 0.002f), 0.01f, 100.f);
+	cam_dist = myClamp<float>(cam_dist - (cam_dist * ev->delta() * 0.002f), 0.01f, 10000.f);
 
 	ev->accept(); // We want to kill the event now.
 	this->setFocus(); // otherwise this loses focus for some reason.
