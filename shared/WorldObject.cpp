@@ -558,11 +558,10 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 
 	compressed_data_out.resize(compressed_size);
 
-
-	conPrint("uncompressed size:      " + toString(group.voxels.size() * sizeof(Voxel)) + " B");
-	conPrint("compressed_size:        " + toString(compressed_size) + " B");
-	const double ratio = (double)group.voxels.size() * sizeof(Voxel) / compressed_size;
-	conPrint("compression ratio: " + toString(ratio));
+	// conPrint("uncompressed size:      " + toString(group.voxels.size() * sizeof(Voxel)) + " B");
+	// conPrint("compressed_size:        " + toString(compressed_size) + " B");
+	// const double ratio = (double)group.voxels.size() * sizeof(Voxel) / compressed_size;
+	// conPrint("compression ratio: " + toString(ratio));
 
 	//TEMP: decompress and check we get the same value
 #ifndef NDEBUG
