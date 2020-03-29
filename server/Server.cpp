@@ -193,11 +193,14 @@ int main(int argc, char *argv[])
 		conPrint("listen port: " + toString(listen_port));
 
 #if _WIN32
-		const std::string server_state_dir = "D:/cyberspace_server_state";
-		//const std::string server_state_dir = "D:/substrata_stuff/cyberspace_server_state";
+		const std::string substrata_appdata_dir = PlatformUtils::getOrCreateAppDataDirectory("Substrata");
+		const std::string server_state_dir = substrata_appdata_dir + "/server_data";
 #else
-		const std::string server_state_dir = "/home/nick/cyberspace_server_state";
+		const std::string username = PlatformUtils::getLoggedInUserName();
+		const std::string server_state_dir = "/home/" + username + "/cyberspace_server_state";
 #endif
+
+		FileUtils::createDirIfDoesNotExist(server_state_dir);
 
 		const std::string server_resource_dir = server_state_dir + "/server_resources";
 		conPrint("server_resource_dir: " + server_resource_dir);
@@ -596,6 +599,11 @@ int main(int argc, char *argv[])
 	catch(FileUtils::FileUtilsExcep& e)
 	{
 		conPrint("FileUtils::FileUtilsExcep: " + e.what());
+		return 1;
+	}
+	catch(PlatformUtils::PlatformUtilsExcep& e)
+	{
+		conPrint("PlatformUtils::PlatformUtilsExcep: " + e.what());
 		return 1;
 	}
 
