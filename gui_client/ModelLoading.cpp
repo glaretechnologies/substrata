@@ -528,6 +528,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
 
 			checkValidAndSanitiseMesh(*mesh);
+
+			// Automatically scale object down until it is < x m across
+			scaleMesh(*mesh);
 			
 			GLObjectRef ob = new GLObject();
 			ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
