@@ -2861,38 +2861,6 @@ void MainWindow::on_actionAddObject_triggered()
 		{
 			ui->glWidget->makeCurrent();
 
-			
-
-			// Make GL object
-			/*const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)ob_pos.x, (float)ob_pos.y, (float)ob_pos.z);
-			Indigo::MeshRef mesh;
-			GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(d.result_path, ob_to_world_matrix, mesh);
-			glWidget->addObject(gl_ob);
-
-			// Make physics object
-			StandardPrintOutput print_output;
-			Indigo::TaskManager task_manager;
-			PhysicsObjectRef physics_ob = makePhysicsObject(mesh, ob_to_world_matrix, print_output, task_manager);
-			physics_world->addObject(physics_ob);*/
-
-			// Add world object to local world state.
-			/*{
-				Lock lock(world_state->mutex);
-
-				const UID uid(next_uid++);//TEMP
-				WorldObjectRef world_ob = new WorldObject();
-				world_ob->state = WorldObject::State_JustCreated;
-				world_ob->from_local_dirty = true;
-				world_ob->uid = uid;
-				world_ob->angle = 0;
-				world_ob->axis = Vec3f(1,0,0);
-				world_ob->model_url = "teapot.obj";
-				world_ob->opengl_engine_ob = gl_ob.getPointer();
-				world_ob->physics_object = physics_ob.getPointer();
-				world_state->objects[uid] = world_ob;
-
-				physics_ob->userdata = world_ob.getPointer();
-			}*/
 
 			WorldObjectRef new_world_object = new WorldObject();
 
@@ -2904,7 +2872,11 @@ void MainWindow::on_actionAddObject_triggered()
 				{
 					// Save as bmesh in temp location
 					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
-					d.loaded_mesh->writeToFile(bmesh_disk_path, /*use compression=*/true);
+
+					BatchedMesh::WriteOptions write_options;
+					write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+					// TODO: show 'processing...' dialog while it compresses and saves?
+					d.loaded_mesh->writeToFile(bmesh_disk_path, write_options);
 				}
 				else
 				{
