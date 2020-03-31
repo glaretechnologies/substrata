@@ -8,8 +8,10 @@ Copyright Glare Technologies Limited 2016 -
 
 #include "../shared/WorldMaterial.h"
 #include "../shared/WorldObject.h"
-#include "../opengl/OpenGLEngine.h"
-#include "../dll/include/IndigoMesh.h"
+#include <opengl/OpenGLEngine.h>
+#include <dll/include/IndigoMesh.h>
+#include <graphics/BatchedMesh.h>
+
 struct GLObject;
 class Matrix4f;
 class ResourceManager;
@@ -20,7 +22,7 @@ namespace Indigo { class TaskManager; }
 
 struct MeshData
 {
-	Indigo::MeshRef mesh;
+	BatchedMeshRef mesh;
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 
 	Reference<RayMesh> raymesh;
@@ -55,6 +57,7 @@ public:
 
 
 	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);
+	static void checkValidAndSanitiseMesh(BatchedMesh& mesh);
 
 
 	// Load a mesh from disk.
@@ -65,7 +68,7 @@ public:
 	//
 	// Throws Indigo::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelFile(Indigo::TaskManager& task_manager, const std::string& path,
-		Indigo::MeshRef& mesh_out,
+		BatchedMeshRef& mesh_out,
 		WorldObject& loaded_object_out);
 
 
@@ -74,7 +77,7 @@ public:
 	// Throws Indigo::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
 		ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
-		const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out);
+		const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out);
 
 
 	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);

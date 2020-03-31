@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../shared/WorldMaterial.h"
 #include "../shared/WorldObject.h"
 #include <utils/ThreadManager.h>
+#include <graphics/BatchedMesh.h>
 #include <QtCore/QString>
 class QSettings;
 struct GLObject;
@@ -54,7 +55,7 @@ private:
 public:
 	std::string result_path;
 	//uint64 model_hash;
-	Indigo::MeshRef loaded_mesh;
+	BatchedMeshRef loaded_mesh;
 	WorldObjectRef loaded_object;
 
 private:

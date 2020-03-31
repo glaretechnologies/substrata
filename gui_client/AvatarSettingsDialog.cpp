@@ -91,7 +91,7 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 			avatarPreviewGLWidget->opengl_engine->removeObject(avatar_gl_ob);
 		}
 
-		Indigo::MeshRef mesh;
+		BatchedMeshRef mesh;
 		WorldObjectRef world_object = new WorldObject();
 		Indigo::TaskManager task_manager;
 		avatar_gl_ob = ModelLoading::makeGLObjectForModelFile(task_manager, path, mesh, *world_object);

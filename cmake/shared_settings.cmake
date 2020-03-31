@@ -2,6 +2,8 @@
 
 set(INDIGO_GRAPHICS_DIR "${INDIGO_TRUNK_DIR_ENV}/graphics")
 set(graphics
+${INDIGO_GRAPHICS_DIR}/BatchedMesh.cpp
+${INDIGO_GRAPHICS_DIR}/BatchedMesh.h
 ${INDIGO_GRAPHICS_DIR}/bitmap.cpp
 ${INDIGO_GRAPHICS_DIR}/bitmap.h
 ${INDIGO_GRAPHICS_DIR}/bmpdecoder.cpp
