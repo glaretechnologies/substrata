@@ -97,6 +97,8 @@ Copyright Glare Technologies Limited 2018 -
 #include "../graphics/FormatDecoderGLTF.h" // Just for testing
 #include "../graphics/GifDecoder.h" // Just for testing
 #include "../graphics/PNGDecoder.h" // Just for testing
+#include "../graphics/FormatDecoderVox.h" // Just for testing
+#include "../graphics/BatchedMesh.h" // Just for testing
 
 
 
@@ -325,6 +327,20 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	settings->setValue("mainwindow/geometry", saveGeometry());
 	settings->setValue("mainwindow/windowState", saveState());
 
+	// Close all OpenGL related tasks because opengl operations such as making textures fail after this closeEvent call, possibly due to a context being destroyed
+	task_manager.removeQueuedTasks();
+	task_manager.waitForTasksToComplete();
+
+	model_building_task_manager.removeQueuedTasks();
+	model_building_task_manager.waitForTasksToComplete();
+
+	model_loaded_messages_to_process.clear();
+
+	texture_loader_task_manager.removeQueuedTasks();
+	texture_loader_task_manager.waitForTasksToComplete();
+
+	texture_loaded_messages_to_process.clear();
+
 	QMainWindow::closeEvent(event);
 }
 
@@ -346,21 +362,6 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 	{
 		this->ui->indigoView->shutdown();
 	}
-}
-
-
-static Reference<PhysicsObject> makePhysicsObject(Indigo::MeshRef mesh, const Matrix4f& ob_to_world_matrix, StandardPrintOutput& print_output, Indigo::TaskManager& task_manager)
-{
-	Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
-	phy_ob->geometry = new RayMesh("mesh", false);
-	phy_ob->geometry->fromIndigoMesh(*mesh);
-				
-	phy_ob->geometry->buildTrisFromQuads();
-	Geometry::BuildOptions options;
-	phy_ob->geometry->build(options, print_output, false, task_manager);
-
-	phy_ob->ob_to_world = ob_to_world_matrix;
-	return phy_ob;
 }
 
 
@@ -532,7 +533,7 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	ui->glWidget->addObject(cube_gl_ob);
 
 	// Make physics object
-	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false); // Make non-collidable, so avatar doesn't get stuck in large placeholder objects.
 	physics_ob->geometry = this->unit_cube_raymesh;
 	physics_ob->ob_to_world = cube_ob_to_world_matrix;
 
@@ -673,11 +674,10 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
 						// Create gl and physics object now
-						Indigo::MeshRef indigo_mesh;
 						Reference<RayMesh> raymesh;
 						ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 							false, // skip opengl calls
-							indigo_mesh, raymesh);
+							raymesh);
 
 						if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
 							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
@@ -1216,6 +1216,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	Timer loading_timer;
 	while((!model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
 	{
+		// ui->glWidget->makeCurrent();
+
 		if(process_model_loaded_next && !model_loaded_messages_to_process.empty())
 		{
 			const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
@@ -1274,11 +1276,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-								Indigo::MeshRef indigo_mesh;
 								Reference<RayMesh> raymesh;
 								ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 									false, // skip opengl calls
-									indigo_mesh, raymesh);
+									raymesh);
 
 								ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 								ob->physics_object->geometry = message_ob->physics_object->geometry;
@@ -1329,6 +1330,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			//Timer timer;
 			try
 			{
+				// ui->glWidget->makeCurrent();
 				ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key));
 			}
 			catch(Indigo::Exception& e)
@@ -2895,28 +2897,28 @@ void MainWindow::on_actionAddObject_triggered()
 			WorldObjectRef new_world_object = new WorldObject();
 
 			// If the user selected an obj, convert it to an indigo mesh file
-			std::string igmesh_disk_path = d.result_path;
+			std::string bmesh_disk_path = d.result_path;
 			if(d.loaded_mesh.nonNull())
 			{
-				if(!hasExtension(d.result_path, "igmesh"))
+				if(!hasExtension(d.result_path, "bmesh"))
 				{
-					// Save as IGMESH in temp location
-					igmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.igmesh";
-					Indigo::Mesh::writeToFile(toIndigoString(igmesh_disk_path), *d.loaded_mesh, /*use compression=*/true);
+					// Save as bmesh in temp location
+					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+					d.loaded_mesh->writeToFile(bmesh_disk_path, /*use compression=*/true);
 				}
 				else
 				{
-					igmesh_disk_path = d.result_path;
+					bmesh_disk_path = d.result_path;
 				}
 
 				// Compute hash over model
-				const uint64 model_hash = FileChecksum::fileChecksum(igmesh_disk_path);
+				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
 
 				const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
-				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(igmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
+				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
 
 				// Copy model to local resources dir.  UploadResourceThread will read from here.
-				this->resource_manager->copyLocalFileToResourceDir(igmesh_disk_path, mesh_URL);
+				this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
 
 				new_world_object->model_url = mesh_URL;
 			}
@@ -4523,7 +4525,9 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			ModelLoading::test();
+			BatchedMesh::test();
+			//FormatDecoderVox::test();
+			//ModelLoading::test();
 			//HTTPClient::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
@@ -4986,7 +4990,7 @@ int main(int argc, char *argv[])
 
 				mw.ui->glWidget->addObject(ob);
 
-				mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				// mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
 
 
@@ -4994,7 +4998,7 @@ int main(int argc, char *argv[])
 			// Test loading a vox file
 			if(false)
 			{
-				Indigo::MeshRef mesh;
+				BatchedMeshRef mesh;
 				WorldObjectRef world_object = new WorldObject();
 
 				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\teapot.vox";
@@ -5022,7 +5026,7 @@ int main(int argc, char *argv[])
 
 			if(false)
 			{
-				Indigo::MeshRef mesh;
+				BatchedMeshRef mesh;
 				WorldObjectRef world_object = new WorldObject();
 
 				const std::string path = "C:\\Users\\nick\\Downloads\\cemetery_angel_-_miller\\scene.gltf";
@@ -5040,7 +5044,7 @@ int main(int argc, char *argv[])
 
 			if(false)
 			{
-				Indigo::MeshRef mesh;
+				BatchedMeshRef mesh;
 				WorldObjectRef world_object = new WorldObject();
 
 				const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";

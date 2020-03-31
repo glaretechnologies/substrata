@@ -32,7 +32,14 @@ public:
 /*=====================================================================
 LoadModelTask
 -------------
+For the WorldObject ob, 
+Builds the OpenGL mesh and Physics mesh for it.
 
+Once it's done, sends a ModelLoadedThreadMessage back to the main window
+via main_window->msg_queue.
+
+Note for making the OpenGL Mesh, data isn't actually loaded into OpenGL in this task,
+since that needs to be done on the main thread.
 =====================================================================*/
 class LoadModelTask : public Indigo::Task
 {

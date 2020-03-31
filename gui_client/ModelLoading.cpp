@@ -160,6 +160,90 @@ void ModelLoading::checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 }
 
 
+void ModelLoading::checkValidAndSanitiseMesh(BatchedMesh& mesh)
+{
+	if(mesh.numMaterialsReferenced() > 10000)
+		throw Indigo::Exception("Too many materials referenced.");
+
+	/*	if(mesh.vert_normals.size() == 0)
+		{
+			for(size_t i = 0; i < mesh.vert_positions.size(); ++i)
+			{
+				this->vertices[i].pos.set(mesh.vert_positions[i].x, mesh.vert_positions[i].y, mesh.vert_positions[i].z);
+				this->vertices[i].normal.set(0.f, 0.f, 0.f);
+			}
+
+			vertex_shading_normals_provided = false;
+		}
+		else
+		{
+			assert(mesh.vert_normals.size() == mesh.vert_positions.size());
+
+			for(size_t i = 0; i < mesh.vert_positions.size(); ++i)
+			{
+				this->vertices[i].pos.set(mesh.vert_positions[i].x, mesh.vert_positions[i].y, mesh.vert_positions[i].z);
+				this->vertices[i].normal.set(mesh.vert_normals[i].x, mesh.vert_normals[i].y, mesh.vert_normals[i].z);
+
+				assert(::isFinite(mesh.vert_normals[i].x) && ::isFinite(mesh.vert_normals[i].y) && ::isFinite(mesh.vert_normals[i].z));
+			}
+
+			vertex_shading_normals_provided = true;
+		}*/
+
+
+	// Check any supplied normals are valid.
+	// NOTE: since all batched meshes currently use packed normal encoding, we can skip this
+	
+	// Check all UVs are not NaNs, as NaN UVs cause NaN filtered texture values, which cause a crash in TextureUnit table look-up.  See https://bugs.glaretechnologies.com/issues/271
+	//const size_t uv_size = mesh.uv_pairs.size();
+	//for(size_t i=0; i<uv_size; ++i)
+	//{
+	//	if(!isFinite(mesh.uv_pairs[i].x))
+	//		mesh.uv_pairs[i].x = 0;
+	//	if(!isFinite(mesh.uv_pairs[i].y))
+	//		mesh.uv_pairs[i].y = 0;
+	//}
+
+	const uint32 num_verts = (uint32)mesh.numVerts();
+
+
+	const BatchedMesh::ComponentType index_type = mesh.index_type;
+	const size_t num_indices = mesh.numIndices();
+	const size_t num_tris = num_indices / 3;
+
+	const uint8* const index_data_uint8  = (const uint8*)mesh.index_data.data();
+	const uint16* const index_data_uint16 = (const uint16*)mesh.index_data.data();
+	const uint32* const index_data_uint32 = (const uint32*)mesh.index_data.data();
+
+	for(size_t t = 0; t < num_tris; ++t)
+	{
+		uint32 vertex_indices[3];
+		if(index_type == BatchedMesh::ComponentType_UInt8)
+		{
+			vertex_indices[0] = index_data_uint8[t*3 + 0];
+			vertex_indices[1] = index_data_uint8[t*3 + 1];
+			vertex_indices[2] = index_data_uint8[t*3 + 2];
+		}
+		else if(index_type == BatchedMesh::ComponentType_UInt16)
+		{
+			vertex_indices[0] = index_data_uint16[t*3 + 0];
+			vertex_indices[1] = index_data_uint16[t*3 + 1];
+			vertex_indices[2] = index_data_uint16[t*3 + 2];
+		}
+		else if(index_type == BatchedMesh::ComponentType_UInt32)
+		{
+			vertex_indices[0] = index_data_uint32[t*3 + 0];
+			vertex_indices[1] = index_data_uint32[t*3 + 1];
+			vertex_indices[2] = index_data_uint32[t*3 + 2];
+		}
+
+		for(unsigned int v = 0; v < 3; ++v)
+			if(vertex_indices[v] >= num_verts)
+				throw Indigo::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
+	}
+}
+
+
 static void scaleMesh(Indigo::Mesh& mesh)
 {
 	// Automatically scale object down until it is < x m across
@@ -203,8 +287,10 @@ static void scaleMesh(Indigo::Mesh& mesh)
 }
 
 // We don't have a material file, just the model file:
-GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_manager, const std::string& model_path,
-												   Indigo::MeshRef& mesh_out, 
+GLObjectRef ModelLoading::makeGLObjectForModelFile(
+	Indigo::TaskManager& task_manager, 
+	const std::string& model_path,
+	BatchedMeshRef& mesh_out,
 	WorldObject& loaded_object_out
 )
 {
@@ -326,7 +412,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 
 			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
-		mesh_out = mesh;
+		mesh_out = new BatchedMesh();
+		mesh_out->buildFromIndigoMesh(*mesh);
 		return ob;
 	}
 	else if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb"))
@@ -386,7 +473,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 			loaded_object_out.materials[i]->metallic_fraction = mats.materials[i].metallic;
 			loaded_object_out.materials[i]->tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
-		mesh_out = mesh;
+		mesh_out = new BatchedMesh();
+		mesh_out->buildFromIndigoMesh(*mesh);
 		return ob;
 	}
 	else if(hasExtension(model_path, "stl"))
@@ -423,7 +511,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 				loaded_object_out.materials[i] = new WorldMaterial();
 			}
 
-			mesh_out = mesh;
+			mesh_out = new BatchedMesh();
+			mesh_out->buildFromIndigoMesh(*mesh);
 			return ob;
 		}
 		catch(Indigo::IndigoException& e)
@@ -460,7 +549,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 				loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
 			}
 			
-			mesh_out = mesh;
+			mesh_out = new BatchedMesh();
+			mesh_out->buildFromIndigoMesh(*mesh);
 			return ob;
 		}
 		catch(Indigo::IndigoException& e)
@@ -475,10 +565,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(Indigo::TaskManager& task_man
 
 GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials,
 												   ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
-												   const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Indigo::MeshRef& mesh_out, Reference<RayMesh>& raymesh_out)
+												   const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
-	Indigo::MeshRef mesh;
+	BatchedMeshRef batched_mesh;
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 	Reference<RayMesh> raymesh;
 
@@ -491,16 +581,16 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	if(present)
 	{
 		Lock lock(mesh_manager.mutex);
-		mesh        = mesh_manager.model_URL_to_mesh_map[model_URL].mesh;
-		gl_meshdata = mesh_manager.model_URL_to_mesh_map[model_URL].gl_meshdata;
-		raymesh     = mesh_manager.model_URL_to_mesh_map[model_URL].raymesh;
+		batched_mesh = mesh_manager.model_URL_to_mesh_map[model_URL].mesh;
+		gl_meshdata  = mesh_manager.model_URL_to_mesh_map[model_URL].gl_meshdata;
+		raymesh      = mesh_manager.model_URL_to_mesh_map[model_URL].raymesh;
 	}
 	else
 	{
 		// Load mesh from disk:
 		const std::string model_path = resource_manager.pathForURL(model_URL);
 		
-		mesh = new Indigo::Mesh();
+		batched_mesh = new BatchedMesh();
 
 		//if(hasExtension(model_path, "vox"))
 		//{
@@ -519,20 +609,34 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		//else 
 		if(hasExtension(model_path, "obj"))
 		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
 			MLTLibMaterials mats;
 			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws Indigo::Exception on failure.
+
+			batched_mesh->buildFromIndigoMesh(*mesh);
 		}
 		else if(hasExtension(model_path, "stl"))
 		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
 			FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
+
+			batched_mesh->buildFromIndigoMesh(*mesh);
 		}
 		else if(hasExtension(model_path, "gltf"))
 		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
 			GLTFMaterials mats;
 			FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
+
+			batched_mesh->buildFromIndigoMesh(*mesh);
 		}
 		else if(hasExtension(model_path, "igmesh"))
 		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
 			try
 			{
 				Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
@@ -541,26 +645,32 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			{
 				throw Indigo::Exception(toStdString(e.what()));
 			}
+
+			batched_mesh->buildFromIndigoMesh(*mesh);
+		}
+		else if(hasExtension(model_path, "bmesh"))
+		{
+			BatchedMesh::readFromFile(model_path, *batched_mesh);
 		}
 		else
 			throw Indigo::Exception("unhandled model format: " + model_path);
 
-		checkValidAndSanitiseMesh(*mesh); // Throws Indigo::Exception on invalid mesh.
 
-		gl_meshdata = OpenGLEngine::buildIndigoMesh(mesh, /*skip opengl calls=*/skip_opengl_calls);
+		checkValidAndSanitiseMesh(*batched_mesh); // Throws Indigo::Exception on invalid mesh.
 
+		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls);
 
+		// Build RayMesh from our batched mesh (used for physics + picking)
 		raymesh = new RayMesh("mesh", false);
-		raymesh->fromIndigoMesh(*mesh);
+		raymesh->fromBatchedMesh(*batched_mesh);
 
-		raymesh->buildTrisFromQuads();
 		Geometry::BuildOptions options;
 		StandardPrintOutput print_output;
 		raymesh->build(options, print_output, false, task_manager);
 
 		// Add to map
 		MeshData mesh_data;
-		mesh_data.mesh = mesh;
+		mesh_data.mesh = batched_mesh;
 		mesh_data.gl_meshdata = gl_meshdata;
 		mesh_data.raymesh = raymesh;
 		{
@@ -574,7 +684,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	ob->ob_to_world_matrix = ob_to_world_matrix;
 	ob->mesh_data = gl_meshdata;
 
-	ob->materials.resize(mesh->num_materials_referenced);
+	ob->materials.resize(batched_mesh->numMaterialsReferenced());
 	for(uint32 i=0; i<ob->materials.size(); ++i)
 	{
 		if(i < materials.size())
@@ -590,7 +700,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		}
 	}
 
-	mesh_out = mesh;
 	raymesh_out = raymesh;
 	return ob;
 }

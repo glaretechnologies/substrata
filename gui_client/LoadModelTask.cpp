@@ -79,11 +79,10 @@ void LoadModelTask::run(size_t thread_index)
 			if(just_inserted)
 			{
 				// conPrint("LoadModelTask: loading mesh with URL '" + ob->model_url + "'.");
-				Indigo::MeshRef mesh;
 				Reference<RayMesh> raymesh;
 				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
-					true, // skip_opengl_calls
-					mesh, raymesh);
+					true, // skip_opengl_calls - we need to do these on the main thread.
+					raymesh);
 
 				// Make physics object
 				physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
