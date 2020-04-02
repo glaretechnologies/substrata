@@ -749,26 +749,6 @@ struct VoxelBuildInfo
 };
 
 
-/*
-raymesh->getUVs()[0] = Vec2f(0, 0);
-raymesh->getUVs()[1] = Vec2f(0, 1);
-raymesh->getUVs()[2] = Vec2f(1, 1);
-raymesh->getUVs()[3] = Vec2f(1, 0);
-*/
-static inline unsigned int getUVIndex(const Vec2f& uv)
-{
-	// TODO: can optimise by checking x first and branching, then y.
-	if(uv == Vec2f(0, 0))
-		return 0;
-	else if(uv == Vec2f(0, 1))
-		return 1;
-	else if(uv == Vec2f(1, 1))
-		return 2;
-	else
-		return 3;
-}
-
-
 inline static int addVert(const Vec4f& vert_pos, const Vec2f& uv, HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc>& vertpos_hash, float* combined_data, int NUM_COMPONENTS)
 {
 	auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(vert_pos[0], vert_pos[1], vert_pos[2]), (int)vertpos_hash.size()));
