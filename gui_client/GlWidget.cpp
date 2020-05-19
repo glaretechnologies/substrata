@@ -133,7 +133,7 @@ void GlWidget::paintGL()
 		const Matrix4f rot = Matrix4f(right.toVec4fVector(), forwards.toVec4fVector(), up.toVec4fVector(), Vec4f(0,0,0,1)).getTranspose();
 
 		Matrix4f world_to_camera_space_matrix;
-		rot.rightMultiplyAffine3WithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_space_matrix);
+		rot.rightMultiplyWithTranslationMatrix(-cam_pos.toVec4fVector(), /*result=*/world_to_camera_space_matrix);
 
 		const float sensor_width = sensorWidth();
 		const float lens_sensor_dist = lensSensorDist();
