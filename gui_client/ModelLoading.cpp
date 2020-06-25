@@ -16,6 +16,7 @@ Code By Nicholas Chapman.
 #include "../graphics/FormatDecoderVox.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
+#include "../utils/ShouldCancelCallback.h"
 #include "../utils/FileUtils.h"
 #include "../utils/Exception.h"
 #include "../utils/PlatformUtils.h"
@@ -668,8 +669,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		raymesh->fromBatchedMesh(*batched_mesh);
 
 		Geometry::BuildOptions options;
+		DummyShouldCancelCallback should_cancel_callback;
 		StandardPrintOutput print_output;
-		raymesh->build(options, print_output, false, task_manager);
+		raymesh->build(options, should_cancel_callback, print_output, false, task_manager);
 
 		// Add to map
 		MeshData mesh_data;
@@ -1039,8 +1041,9 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	//raymesh->getUVs()[3] = Vec2f(1, 0);
 
 	Geometry::BuildOptions options;
+	DummyShouldCancelCallback should_cancel_callback;
 	StandardPrintOutput print_output;
-	raymesh->build(options, print_output, /*verbose=*/false, task_manager);
+	raymesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
 	raymesh_out = raymesh;
 	//--------------------------------------------------------------------------------------
 
