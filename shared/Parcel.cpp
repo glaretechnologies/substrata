@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <StringUtils.h>
 #include <ContainerUtils.h>
 #include <ConPrint.h>
+#include <ShouldCancelCallback.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #endif
@@ -326,8 +327,9 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 
 		mesh->buildTrisFromQuads();
 		Geometry::BuildOptions options;
+		DummyShouldCancelCallback should_cancel_callback;
 		StandardPrintOutput print_output;
-		mesh->build(options, print_output, /*verbose=*/false, task_manager);
+		mesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
 
 		new_physics_object->geometry = mesh;
 		new_physics_object->ob_to_world = Matrix4f::identity();

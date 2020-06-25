@@ -14,8 +14,8 @@ Copyright Glare Technologies Limited 2016 -
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/Timer.h"
+#include "../utils/ShouldCancelCallback.h"
 #include <limits>
-
 
 
 PhysicsObjectBVH::PhysicsObjectBVH()
@@ -238,8 +238,10 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 		builder.setObjectAABB(i, objects[i]->getAABBoxWS());
 
 	js::Vector<ResultNode, 64> result_nodes;
+	DummyShouldCancelCallback should_cancel_callback;
 	builder.build(
 		task_manager,
+		should_cancel_callback,
 		print_output,
 		verbose,
 		result_nodes

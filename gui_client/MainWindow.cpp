@@ -69,6 +69,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/JSONParser.h"
 #include "../utils/Base64.h"
 #include "../utils/OpenSSL.h"
+#include "../utils/ShouldCancelCallback.h"
 #include "../networking/networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -4654,6 +4655,8 @@ int main(int argc, char *argv[])
 		}
 
 
+		// drawField(mw.ui->glWidget->opengl_engine.ptr());
+
 		// Load a test voxel
 		/*{
 			VoxelGroup voxel_group;
@@ -4770,7 +4773,8 @@ int main(int argc, char *argv[])
 
 			mw.ground_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			mw.ground_quad_raymesh->build(options, mw.print_output, false, mw.task_manager);
+			DummyShouldCancelCallback should_cancel_callback;
+			mw.ground_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
 		}
 
 
@@ -4796,7 +4800,8 @@ int main(int argc, char *argv[])
 
 			mw.hypercard_quad_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			mw.hypercard_quad_raymesh->build(options, mw.print_output, false, mw.task_manager);
+			DummyShouldCancelCallback should_cancel_callback;
+			mw.hypercard_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
 		}
 
 		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
@@ -4841,7 +4846,8 @@ int main(int argc, char *argv[])
 
 			mw.unit_cube_raymesh->buildTrisFromQuads();
 			Geometry::BuildOptions options;
-			mw.unit_cube_raymesh->build(options, mw.print_output, /*verbose=*/false, mw.task_manager);
+			DummyShouldCancelCallback should_cancel_callback;
+			mw.unit_cube_raymesh->build(options, should_cancel_callback, mw.print_output, /*verbose=*/false, mw.task_manager);
 		}
 
 		// Make object-placement beam model
