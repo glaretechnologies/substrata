@@ -59,6 +59,8 @@ void WorldObject::appendDependencyURLs(std::vector<std::string>& URLs_out)
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(URLs_out);
+
+	URLs_out.push_back(lightmap_url);
 }
 
 
@@ -78,6 +80,10 @@ void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->convertLocalPathsToURLS(resource_manager);
+
+	if(FileUtils::fileExists(this->lightmap_url)) // If the URL is a local path:
+		this->lightmap_url = resource_manager.URLForPathAndHash(this->lightmap_url, FileChecksum::fileChecksum(this->lightmap_url));
+
 }
 
 
@@ -238,13 +244,14 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 12;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 13;
 /*
 Version history:
 9: introduced voxels
 10: changed script_url to script
 11: Added flags
 12: Added compressed voxel field.
+13: Added lightmap URL
 */
 
 
@@ -264,6 +271,8 @@ void writeToStream(const WorldObject& world_ob, OutStream& stream)
 	stream.writeUInt32((uint32)world_ob.materials.size());
 	for(size_t i=0; i<world_ob.materials.size(); ++i)
 		writeToStream(*world_ob.materials[i], stream);
+
+	stream.writeStringLengthFirst(world_ob.lightmap_url); // new in v13
 
 	stream.writeStringLengthFirst(world_ob.script);
 	stream.writeStringLengthFirst(world_ob.content);
@@ -314,6 +323,12 @@ void readFromStream(InStream& stream, WorldObject& ob)
 				ob.materials[i] = new WorldMaterial();
 			readFromStream(stream, *ob.materials[i]);
 		}
+	}
+
+	if(v >= 13)
+	{
+		ob.lightmap_url = stream.readStringLengthFirst(10000);
+		conPrint("readFromStream: read lightmap_url: " + ob.lightmap_url);
 	}
 
 	if(v >= 4 && v < 10)
@@ -400,6 +415,8 @@ void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Wri
 	for(size_t i=0; i<world_ob.materials.size(); ++i)
 		writeToStream(*world_ob.materials[i], stream);
 
+	stream.writeStringLengthFirst(world_ob.lightmap_url); // new in v13
+
 	stream.writeStringLengthFirst(world_ob.script);
 	stream.writeStringLengthFirst(world_ob.content);
 	stream.writeStringLengthFirst(world_ob.target_url);
@@ -441,6 +458,8 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 			readFromStream(stream, *ob.materials[i]);
 		}
 	}
+
+	ob.lightmap_url = stream.readStringLengthFirst(10000);
 
 	ob.script = stream.readStringLengthFirst(10000);
 	ob.content = stream.readStringLengthFirst(10000);

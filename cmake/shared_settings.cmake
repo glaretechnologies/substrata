@@ -4,6 +4,8 @@ set(INDIGO_GRAPHICS_DIR "${INDIGO_TRUNK_DIR_ENV}/graphics")
 set(graphics
 ${INDIGO_GRAPHICS_DIR}/BatchedMesh.cpp
 ${INDIGO_GRAPHICS_DIR}/BatchedMesh.h
+${INDIGO_GRAPHICS_DIR}/BatchedMeshTests.cpp
+${INDIGO_GRAPHICS_DIR}/BatchedMeshTests.h
 ${INDIGO_GRAPHICS_DIR}/bitmap.cpp
 ${INDIGO_GRAPHICS_DIR}/bitmap.h
 ${INDIGO_GRAPHICS_DIR}/bmpdecoder.cpp
@@ -210,6 +212,8 @@ ${INDIGO_UTILS_DIR}/PlatformUtils.cpp
 ${INDIGO_UTILS_DIR}/PlatformUtils.h
 ${INDIGO_UTILS_DIR}/Plotter.cpp
 ${INDIGO_UTILS_DIR}/Plotter.h
+${INDIGO_UTILS_DIR}/GlareProcess.cpp
+${INDIGO_UTILS_DIR}/GlareProcess.h
 ${INDIGO_UTILS_DIR}/prebuild_repos_info.h
 ${INDIGO_UTILS_DIR}/RefCounted.h
 ${INDIGO_UTILS_DIR}/Reference.cpp
@@ -401,6 +405,8 @@ ${INDIGO_SRC_DIR}/TestUtils.cpp
 ${INDIGO_SRC_DIR}/TestUtils.h
 ${INDIGO_SRC_DIR}/ThreadContext.cpp
 ${INDIGO_SRC_DIR}/ThreadContext.h
+${INDIGO_SRC_DIR}/UVUnwrapper.cpp
+${INDIGO_SRC_DIR}/UVUnwrapper.h
 )
 
 set(INDIGO_DLL_DIR "${INDIGO_TRUNK_DIR_ENV}/dll")

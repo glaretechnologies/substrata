@@ -66,7 +66,7 @@ void LoadModelTask::run(size_t thread_index)
 				opengl_ob->mesh_data = gl_meshdata;
 				opengl_ob->materials.resize(ob->materials.size());
 				for(uint32 i=0; i<ob->materials.size(); ++i)
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 			}
 		}
@@ -80,7 +80,7 @@ void LoadModelTask::run(size_t thread_index)
 			{
 				// conPrint("LoadModelTask: loading mesh with URL '" + ob->model_url + "'.");
 				Reference<RayMesh> raymesh;
-				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
+				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
 					true, // skip_opengl_calls - we need to do these on the main thread.
 					raymesh);
 

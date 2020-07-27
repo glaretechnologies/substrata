@@ -99,7 +99,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../graphics/GifDecoder.h" // Just for testing
 #include "../graphics/PNGDecoder.h" // Just for testing
 #include "../graphics/FormatDecoderVox.h" // Just for testing
-#include "../graphics/BatchedMesh.h" // Just for testing
+#include "../graphics/BatchedMeshTests.h" // Just for testing
 
 
 
@@ -489,6 +489,19 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob)
 			}
 		}
 	}
+
+	// Start loading lightmap
+	if(!ob.lightmap_url.empty())
+	{
+		const std::string tex_path = resource_manager->pathForURL(ob.lightmap_url);
+
+		if(resource_manager->isFileForURLPresent(ob.lightmap_url) && // If the texture is present on disk,
+			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
+			!this->isTextureProcessed(tex_path)) // and not being loaded already:
+		{
+			this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+		}
+	}
 }
 
 
@@ -676,7 +689,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 						// Create gl and physics object now
 						Reference<RayMesh> raymesh;
-						ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+						ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 							false, // skip opengl calls
 							raymesh);
 
@@ -874,7 +887,7 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 
 			instance->opengl_engine_ob->materials.resize(ob->materials.size());
 			for(uint32 i=0; i<ob->materials.size(); ++i)
-				ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, instance->opengl_engine_ob->materials[i]);
+				ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, instance->opengl_engine_ob->materials[i]);
 
 			instance->angle = ob->angle;
 			instance->pos = ob->pos;
@@ -1278,7 +1291,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
 								Reference<RayMesh> raymesh;
-								ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+								ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 									false, // skip opengl calls
 									raymesh);
 
@@ -2022,7 +2035,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							for(size_t i=0; i<ob->materials.size(); ++i)
 								if(i < opengl_ob->materials.size())
-									ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], *this->resource_manager, opengl_ob->materials[i]);
+									ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 
 							ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 
@@ -3098,7 +3111,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->axis = selected_ob->axis;
 		new_world_object->angle = selected_ob->angle;
 		new_world_object->scale = selected_ob->scale;
-		new_world_object->flags = selected_ob->flags;
+		new_world_object->flags = selected_ob->flags | WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG; // Lightmaps need to be built for it.
 		new_world_object->voxel_group = selected_ob->voxel_group;
 		new_world_object->compressed_voxels = selected_ob->compressed_voxels;
 
@@ -3517,7 +3530,7 @@ void MainWindow::objectEditedSlot()
 							opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
 
 							for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager,
+								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], this->selected_ob->lightmap_url, *this->resource_manager,
 									opengl_ob->materials[i]
 								);
 
@@ -3852,7 +3865,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 							gl_ob->materials.resize(this->selected_ob->materials.size());
 							for(uint32 i=0; i<this->selected_ob->materials.size(); ++i)
-								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], *this->resource_manager, gl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], this->selected_ob->lightmap_url, *this->resource_manager, gl_ob->materials[i]);
 
 							Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/this->selected_ob->isCollidable());
 							physics_ob->geometry = raymesh;
@@ -4498,7 +4511,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			BatchedMesh::test();
+			BatchedMeshTests::test();
 			//FormatDecoderVox::test();
 			//ModelLoading::test();
 			//HTTPClient::test();
@@ -4616,6 +4629,7 @@ int main(int argc, char *argv[])
 		const float sun_phi = 1.f;
 		const float sun_theta = Maths::pi<float>() / 4;
 		mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
+		// printVar(mw.ui->glWidget->opengl_engine->getSunDir());
 
 		mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
 

@@ -72,3 +72,6 @@ private:
 	std::map<std::string, ResourceRef> resource_for_url;
 	IndigoAtomic changed;
 };
+
+
+typedef Reference<ResourceManager> ResourceManagerRef;

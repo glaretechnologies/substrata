@@ -307,6 +307,7 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const User& use
 	{
 		return (user.id == ob.creator_id) || // If the user created/owns the object
 			isGodUser(user.id) || // or if the user is the god user (id 0)
+			user.name == "lightmapperbot" || // lightmapper bot has full write permissions for now.
 			((connected_world_name != "") && (user.name == connected_world_name)); // or if this is the user's personal world
 	}
 	else
