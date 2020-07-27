@@ -92,6 +92,7 @@ public:
 	std::string model_url;
 	//std::string material_url;
 	std::vector<WorldMaterialRef> materials;
+	std::string lightmap_url;
 	std::string script;
 	std::string content; // For ObjectType_Hypercard
 	std::string target_url; // For ObjectType_Hypercard
@@ -100,7 +101,8 @@ public:
 	float angle;
 	Vec3f scale;
 
-	static const int COLLIDABLE_FLAG = 1; // Is this object solid from the point of view of the physics engine?
+	static const uint32 COLLIDABLE_FLAG               = 1; // Is this object solid from the point of view of the physics engine?
+	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG = 2; // Does the lightmap for this object need to be built or rebuilt?
 	uint32 flags;
 
 	VoxelGroup voxel_group;
