@@ -363,10 +363,13 @@ public:
 		root_node->addChildNode(model_node);
 
 		Indigo::SceneNodeRenderSettingsRef settings_node = Indigo::SceneNodeRenderSettings::getDefaults();
+		settings_node->width.setValue(1024);
+		settings_node->height.setValue(1024);
 		settings_node->bidirectional.setValue(false);
 		settings_node->metropolis.setValue(false);
-		settings_node->light_map_baking_ob_uid.setValue(model_node->getUniqueID().value()); // Enable light mapping
+		settings_node->light_map_baking_ob_uid.setValue(model_node->getUniqueID().value()); // Enable light map baking
 		settings_node->generate_lightmap_uvs.setValue(false);
+		settings_node->capture_direct_sun_illum.setValue(false);
 		//settings_node->image_save_period.setValue(5);
 		settings_node->merging.setValue(false); // Needed for now
 		root_node->addChildNode(settings_node);
@@ -389,7 +392,9 @@ public:
 		root_node->addChildNode(cam);
 
 		Reference<Indigo::SunSkyMaterial> sun_sky_mat = new Indigo::SunSkyMaterial();
-		sun_sky_mat->sundir = normalise(Indigo::Vec3d(1, -1, 1));
+		const float sun_phi = 1.f; // See MainWindow.cpp
+		const float sun_theta = Maths::pi<float>() / 4;
+		sun_sky_mat->sundir = normalise(Indigo::Vec3d(std::cos(sun_phi) * std::sin(sun_theta), std::sin(sun_phi) * sun_theta, std::cos(sun_theta)));
 		sun_sky_mat->model = "captured-simulation";
 		Indigo::SceneNodeBackgroundSettingsRef background_node = new Indigo::SceneNodeBackgroundSettings(sun_sky_mat);
 		root_node->addChildNode(background_node);
@@ -418,7 +423,7 @@ public:
 		command_line_args.push_back("-uexro");
 		command_line_args.push_back(lightmap_path);
 		command_line_args.push_back("-halt");
-		command_line_args.push_back("2");
+		command_line_args.push_back("200");
 		Process indigo_process(indigo_exe_path, command_line_args);
 
 		Timer timer;
@@ -485,6 +490,9 @@ public:
 						buildLightMapForOb(ob);
 				}
 			}
+
+			// Wait a while until ObjectFullUpdate msgs have been sent.  TODO: do properly.
+			PlatformUtils::Sleep(5000);
 		}
 		catch(Indigo::Exception& e)
 		{
