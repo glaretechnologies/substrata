@@ -57,6 +57,6 @@ indigo_libs
 ${INDIGO_WIN32_LIBS}
 ${LINUX_LIBS}
 ${TURBOJPEG_LIB}
-C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
+#C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
 #C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
 )
