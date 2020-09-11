@@ -42,6 +42,9 @@ Copyright Glare Technologies Limited 2019 -
 #include "WorldState.h"
 
 
+static const bool DO_REALTIME_VIEW = false;
+
+
 #if INDIGO_SUPPORT
 // Standard conversions between std::string and Indigo::String.
 static const std::string toStdString(const Indigo::String& s)
@@ -257,11 +260,14 @@ void IndigoView::initialise(const std::string& base_dir_path)
 		Indigo::Vector<Indigo::String> command_line_args;
 		command_line_args.push_back("dummy_scene_path");
 
-		//res = this->renderer->initialiseWithScene(this->root_node, render_buffer, command_line_args, data_manager, tone_mapper);
-		//if(res != Indigo::INDIGO_SUCCESS)
-		//	throw Indigo::IndigoException("initialiseWithScene error.");
-		//
-		//this->renderer->startRendering();
+		if(DO_REALTIME_VIEW)
+		{
+			res = this->renderer->initialiseWithScene(this->root_node, render_buffer, command_line_args, data_manager, tone_mapper);
+			if(res != Indigo::INDIGO_SUCCESS)
+				throw Indigo::IndigoException("initialiseWithScene error.");
+
+			this->renderer->startRendering();
+		}
 	}
 	catch(Indigo::IndigoException& e)
 	{
