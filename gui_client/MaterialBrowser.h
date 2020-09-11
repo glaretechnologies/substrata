@@ -16,6 +16,7 @@ class QOffscreenSurface;
 class FlowLayout;
 class TextureServer;
 class OpenGLEngine;
+class FrameBuffer;
 class OpenGLMaterial;
 class QOpenGLFramebufferObject;
 class QOpenGLContext;
@@ -52,6 +53,8 @@ private:
 	QOpenGLFramebufferObject* fbo;
 	QOpenGLContext* context;
 	QOffscreenSurface* offscreen_surface;
+
+	Reference<FrameBuffer> frame_buffer;
 	
 	Reference<OpenGLEngine> opengl_engine;
 	std::string basedir_path, appdata_path;
