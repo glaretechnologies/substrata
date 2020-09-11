@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "../shared/WorldMaterial.h"
 #include "ModelLoading.h"
 #include <opengl/OpenGLEngine.h>
+#include <opengl/FrameBuffer.h>
 #include <graphics/PNGDecoder.h>
 #include <graphics/imformatdecoder.h>
 #include <qt/QtUtils.h>
@@ -84,6 +85,11 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	this->fbo = new QOpenGLFramebufferObject(QSize(PREVIEW_SIZE, PREVIEW_SIZE), fbo_format);
 	assert(fbo->isValid());
 
+	this->frame_buffer = new FrameBuffer();
+	this->frame_buffer->buffer_name = this->fbo->handle();
+	this->frame_buffer->xres = this->fbo->width();
+	this->frame_buffer->yres = this->fbo->height();
+
 	const float sun_phi = 1.f;
 	const float sun_theta = Maths::pi<float>() / 4;
 	opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
@@ -131,7 +137,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	}
 
 	glViewport(0, 0, PREVIEW_SIZE, PREVIEW_SIZE);
-	opengl_engine->viewportChanged(PREVIEW_SIZE, PREVIEW_SIZE);
+	opengl_engine->setViewport(PREVIEW_SIZE, PREVIEW_SIZE);
 
 	const Matrix4f world_to_camera_space_matrix =  Matrix4f::rotationAroundXAxis(0.5f) * Matrix4f::translationMatrix(0, 0.8, -0.6) * Matrix4f::rotationAroundZAxis(2.5);
 
@@ -139,7 +145,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	const float lens_sensor_dist = 0.03f;
 	const float render_aspect_ratio = 1.0;
 
-	opengl_engine->setViewportAspectRatio(1.0, PREVIEW_SIZE, PREVIEW_SIZE);
+	opengl_engine->setViewport(PREVIEW_SIZE, PREVIEW_SIZE);
 	opengl_engine->setMaxDrawDistance(100.f);
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 }
@@ -204,7 +210,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 					opengl_engine->addObject(voxel_ob);
 				}
 
-				opengl_engine->setTargetFrameBuffer(this->fbo->handle());
+				opengl_engine->setTargetFrameBufferAndViewport(frame_buffer);
 				opengl_engine->draw();
 
 				glFinish();
@@ -253,6 +259,8 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 	{
 		conPrint("Error: " + e.what());
 	}
+
+	this->frame_buffer->buffer_name = 0; // Don't let our FrameBufferRef delete the fbo.
 
 	// Free OpenGL engine, offscreen surfaces etc. if they were allocated.
 	delete this->fbo;
