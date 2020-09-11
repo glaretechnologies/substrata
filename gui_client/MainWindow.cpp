@@ -34,6 +34,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "LoadModelTask.h"
 #include "LoadTextureTask.h"
 #include "SaveResourcesDBThread.h"
+#include "CameraController.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include <QtCore/QProcess>
@@ -58,7 +59,6 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/PlatformUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/Exception.h"
-#include "../utils/CameraController.h"
 #include "../utils/TaskManager.h"
 #include "../utils/SocketBufferOutStream.h"
 #include "../utils/StringUtils.h"

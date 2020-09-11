@@ -2,6 +2,7 @@
 
 
 #include "PlayerPhysics.h"
+#include "CameraController.h"
 #include "ShaderEditorDialog.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
@@ -19,7 +20,6 @@
 #include "../utils/FileUtils.h"
 #include "../utils/Reference.h"
 #include "../utils/StringUtils.h"
-#include "../utils/CameraController.h"
 #include "../utils/TaskManager.h"
 #include "../qt/SignalBlocker.h"
 #include "../qt/QtUtils.h"

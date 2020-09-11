@@ -2,6 +2,7 @@
 
 
 #include "PlayerPhysics.h"
+#include "CameraController.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
@@ -18,7 +19,6 @@
 #include "../utils/FileUtils.h"
 #include "../utils/Reference.h"
 #include "../utils/StringUtils.h"
-#include "../utils/CameraController.h"
 #include "../utils/TaskManager.h"
 #include <QtGui/QMouseEvent>
 #include <set>
@@ -155,7 +155,7 @@ void AddObjectPreviewWidget::paintGL()
 	const float lens_sensor_dist = 0.03f;
 	const float render_aspect_ratio = viewport_aspect_ratio;
 
-	opengl_engine->setViewportAspectRatio(viewport_aspect_ratio, viewport_w, viewport_h);
+	opengl_engine->setViewport(viewport_w, viewport_h);
 	opengl_engine->setMaxDrawDistance(100.f);
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 	opengl_engine->draw();
