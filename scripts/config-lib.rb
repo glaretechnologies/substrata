@@ -10,9 +10,9 @@
 $vs_version = 2015 # Visual studio option used to build distribution.  Used in build.rb
 
 
-$qt_version = "5.11.1" if OS.windows?
-$qt_version = "5.11.1" if OS.mac?
-$qt_version = "5.11.1" if OS.linux?
+$qt_version = "5.13.2" if OS.windows?
+$qt_version = "5.13.2" if OS.mac?
+$qt_version = "5.13.2" if OS.linux?
 
 
 # Get Qt path.
