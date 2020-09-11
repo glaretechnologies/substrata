@@ -260,9 +260,10 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 		conPrint("Error: " + e.what());
 	}
 
-	this->frame_buffer->buffer_name = 0; // Don't let our FrameBufferRef delete the fbo.
-
 	// Free OpenGL engine, offscreen surfaces etc. if they were allocated.
+	if(this->frame_buffer.nonNull())
+		this->frame_buffer->buffer_name = 0; // Don't let our FrameBufferRef delete the fbo.
+	this->frame_buffer = NULL;
 	delete this->fbo;
 	opengl_engine = NULL;
 	delete this->offscreen_surface;
