@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2018 -
 
 
 #include "PlayerPhysics.h"
+#include "CameraController.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
@@ -23,7 +24,6 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/FileUtils.h"
 #include "../utils/Reference.h"
 #include "../utils/StringUtils.h"
-#include "../utils/CameraController.h"
 #include "../utils/TaskManager.h"
 #include <QtGui/QMouseEvent>
 #include <set>
@@ -97,11 +97,11 @@ void GlWidget::resizeGL(int width_, int height_)
 	viewport_w = width_;
 	viewport_h = height_;
 
-	glViewport(0, 0, width_, height_);
+	//glViewport(0, 0, width_, height_);
 
 	viewport_aspect_ratio = (double)width_ / (double)height_;
 
-	this->opengl_engine->viewportChanged(viewport_w, viewport_h);
+	this->opengl_engine->setViewport(viewport_w, viewport_h);
 }
 
 
@@ -138,7 +138,7 @@ void GlWidget::paintGL()
 		const float sensor_width = sensorWidth();
 		const float lens_sensor_dist = lensSensorDist();
 		const float render_aspect_ratio = viewport_aspect_ratio;
-		opengl_engine->setViewportAspectRatio(viewport_aspect_ratio, viewport_w, viewport_h);
+		opengl_engine->setViewport(viewport_w, viewport_h);
 		opengl_engine->setMaxDrawDistance(1000.f);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 		opengl_engine->setCurrentTime(current_time);

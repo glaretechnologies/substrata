@@ -118,8 +118,6 @@ ${INDIGO_UTILS_DIR}/BufferInStream.cpp
 ${INDIGO_UTILS_DIR}/BufferInStream.h
 ${INDIGO_UTILS_DIR}/BufferOutStream.cpp
 ${INDIGO_UTILS_DIR}/BufferOutStream.h
-${INDIGO_UTILS_DIR}/CameraController.cpp
-${INDIGO_UTILS_DIR}/CameraController.h
 ${INDIGO_UTILS_DIR}/Checksum.cpp
 ${INDIGO_UTILS_DIR}/Checksum.h
 #${INDIGO_UTILS_DIR}/CircularBuffer.cpp
