@@ -367,6 +367,7 @@ public:
 		settings_node->height.setValue(1024);
 		settings_node->bidirectional.setValue(false);
 		settings_node->metropolis.setValue(false);
+		settings_node->gpu.setValue(true);
 		settings_node->light_map_baking_ob_uid.setValue(model_node->getUniqueID().value()); // Enable light map baking
 		settings_node->generate_lightmap_uvs.setValue(false);
 		settings_node->capture_direct_sun_illum.setValue(false);
@@ -423,7 +424,7 @@ public:
 		command_line_args.push_back("-uexro");
 		command_line_args.push_back(lightmap_path);
 		command_line_args.push_back("-halt");
-		command_line_args.push_back("200");
+		command_line_args.push_back("20");
 		Process indigo_process(indigo_exe_path, command_line_args);
 
 		Timer timer;
