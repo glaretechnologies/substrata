@@ -122,111 +122,134 @@ void WorkerThread::handleResourceUploadConnection()
 {
 	conPrint("handleResourceUploadConnection()");
 
-	const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
-	const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
-
-	conPrint("\tusername: '" + username + "'");
-
-	UserRef client_user;
+	try
 	{
-		Lock lock(server->world_state->mutex);
-		auto res = server->world_state->name_to_users.find(username);
-		if(res != server->world_state->name_to_users.end())
+
+		const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
+		const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+		conPrint("\tusername: '" + username + "'");
+
+		UserRef client_user;
 		{
-			User* user = res->second.getPointer();
-			if(user->isPasswordValid(password))
-				client_user = user; // Password is valid, log user in.
+			Lock lock(server->world_state->mutex);
+			auto res = server->world_state->name_to_users.find(username);
+			if(res != server->world_state->name_to_users.end())
+			{
+				User* user = res->second.getPointer();
+				if(user->isPasswordValid(password))
+					client_user = user; // Password is valid, log user in.
+			}
 		}
-	}
 
-	if(client_user.isNull())
-	{
-		conPrint("\tLogin failed.");
-		socket->writeUInt32(Protocol::LogInFailure);
-		socket->writeStringLengthFirst("Login failed.");
-		return;
-	}
-
-
-	const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
-
-	conPrint("\tURL: '" + URL + "'");
-
-	/*if(!ResourceManager::isValidURL(URL))
-	{
-	conPrint("Invalid URL '" + URL + "'");
-	throw Indigo::Exception("Invalid URL '" + URL + "'");
-	}*/
-
-	// See if we have a resource in the ResourceManager already
-	ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL); // Will create a new Resource ob if not already inserted.
-	if(resource->owner_id == UserID::invalidUserID())
-	{
-		// No such resource existed before, client may create this resource.
-	}
-	else // else if resource already existed:
-	{
-		if(resource->owner_id != client_user->id) // If this resource already exists and was created by someone else:
+		if(client_user.isNull())
 		{
-			socket->writeUInt32(Protocol::NoWritePermissions);
-			socket->writeStringLengthFirst("Not allowed to upload resource to URL '" + URL + ", someone else created a resource at this URL already.");
+			conPrint("\tLogin failed.");
+			socket->writeUInt32(Protocol::LogInFailure);
+			socket->writeStringLengthFirst("Login failed.");
 			return;
 		}
-	}
+
+
+		const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
+
+		conPrint("\tURL: '" + URL + "'");
+
+		/*if(!ResourceManager::isValidURL(URL))
+		{
+		conPrint("Invalid URL '" + URL + "'");
+		throw Indigo::Exception("Invalid URL '" + URL + "'");
+		}*/
+
+		// See if we have a resource in the ResourceManager already
+		ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL); // Will create a new Resource ob if not already inserted.
+		if(resource->owner_id == UserID::invalidUserID())
+		{
+			// No such resource existed before, client may create this resource.
+		}
+		else // else if resource already existed:
+		{
+			if(resource->owner_id != client_user->id) // If this resource already exists and was created by someone else:
+			{
+				socket->writeUInt32(Protocol::NoWritePermissions);
+				socket->writeStringLengthFirst("Not allowed to upload resource to URL '" + URL + ", someone else created a resource at this URL already.");
+				return;
+			}
+		}
 		
-	// resource->setState(Resource::State_Transferring); // Don't set this (for now) or we will have to handle changing it on exceptions below.
+		// resource->setState(Resource::State_Transferring); // Don't set this (for now) or we will have to handle changing it on exceptions below.
 
 
-	const uint64 file_len = socket->readUInt64();
-	conPrint("\tfile_len: " + toString(file_len) + " B");
-	if(file_len == 0)
-	{
-		socket->writeUInt32(Protocol::InvalidFileSize);
-		socket->writeStringLengthFirst("Invalid file len of zero.");
-		return;
+		const uint64 file_len = socket->readUInt64();
+		conPrint("\tfile_len: " + toString(file_len) + " B");
+		if(file_len == 0)
+		{
+			socket->writeUInt32(Protocol::InvalidFileSize);
+			socket->writeStringLengthFirst("Invalid file len of zero.");
+			return;
+		}
+
+		// TODO: cap length in a better way
+		if(file_len > 1000000000)
+		{
+			socket->writeUInt32(Protocol::InvalidFileSize);
+			socket->writeStringLengthFirst("uploaded file too large.");
+			return;
+		}
+
+		// Otherwise upload is allowed:
+		socket->writeUInt32(Protocol::UploadAllowed);
+
+		std::vector<uint8> buf(file_len);
+		socket->readData(buf.data(), file_len);
+
+		conPrint("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
+
+		// Save to disk
+		const std::string local_path = server->world_state->resource_manager->pathForURL(URL);
+
+		conPrint("\tWriting to disk at '" + local_path + "'...");
+
+		FileUtils::writeEntireFile(local_path, (const char*)buf.data(), buf.size());
+
+		conPrint("\tWritten to disk.");
+
+		resource->owner_id = client_user->id;
+		resource->setState(Resource::State_Present);
+		server->world_state->markAsChanged();
+
+
+		// Send NewResourceOnServer message to connected clients
+		{
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+			packet.writeUInt32(Protocol::NewResourceOnServer);
+			packet.writeStringLengthFirst(URL);
+
+			enqueuePacketToBroadcast(packet, server);
+		}
+
+		// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
+		//socket->waitForGracefulDisconnect();
 	}
-
-	// TODO: cap length in a better way
-	if(file_len > 1000000000)
+	catch(MySocketExcep& e)
 	{
-		socket->writeUInt32(Protocol::InvalidFileSize);
-		socket->writeStringLengthFirst("uploaded file too large.");
-		return;
+		if(e.excepType() == MySocketExcep::ExcepType_ConnectionClosedGracefully)
+			conPrint("Resource upload client from " + IPAddress::formatIPAddressAndPort(socket->getOtherEndIPAddress(), socket->getOtherEndPort()) + " closed connection gracefully.");
+		else
+			conPrint("Socket error: " + e.what());
 	}
-
-	// Otherwise upload is allowed:
-	socket->writeUInt32(Protocol::UploadAllowed);
-
-	std::vector<uint8> buf(file_len);
-	socket->readData(buf.data(), file_len);
-
-	conPrint("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
-
-	// Save to disk
-	const std::string local_path = server->world_state->resource_manager->pathForURL(URL);
-
-	conPrint("\tWriting to disk at '" + local_path + "'...");
-
-	FileUtils::writeEntireFile(local_path, (const char*)buf.data(), buf.size());
-
-	conPrint("\tWritten to disk.");
-
-	resource->owner_id = client_user->id;
-	resource->setState(Resource::State_Present);
-	server->world_state->markAsChanged();
-
-
-	// Send NewResourceOnServer message to connected clients
+	catch(Indigo::Exception& e)
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::NewResourceOnServer);
-		packet.writeStringLengthFirst(URL);
-
-		enqueuePacketToBroadcast(packet, server);
+		conPrint("Indigo::Exception: " + e.what());
 	}
-
-	// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
-	//socket->waitForGracefulDisconnect();
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		conPrint("FileUtils::FileUtilsExcep: " + e.what());
+	}
+	catch(std::bad_alloc&)
+	{
+		conPrint("WorkerThread: Caught std::bad_alloc.");
+	}
 }
 
 
@@ -234,69 +257,92 @@ void WorkerThread::handleResourceDownloadConnection()
 {
 	conPrint("handleResourceDownloadConnection()");
 
-	while(1)
+	try
 	{
-		const uint32 msg_type = socket->readUInt32();
-		if(msg_type == Protocol::GetFiles)
+
+		while(1)
 		{
-			conPrint("------GetFiles-----");
-
-			const uint64 num_resources = socket->readUInt64();
-			conPrint("\tnum_resources requested: " + toString(num_resources));
-
-			for(size_t i=0; i<num_resources; ++i)
+			const uint32 msg_type = socket->readUInt32();
+			if(msg_type == Protocol::GetFiles)
 			{
-				const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
+				conPrint("------GetFiles-----");
 
-				conPrint("\tRequested URL: '" + URL + "'");
+				const uint64 num_resources = socket->readUInt64();
+				conPrint("\tnum_resources requested: " + toString(num_resources));
 
-				if(!ResourceManager::isValidURL(URL))
+				for(size_t i=0; i<num_resources; ++i)
 				{
-					conPrint("\tRequested URL was invalid.");
-					socket->writeUInt32(1); // write error msg to client
-				}
-				else
-				{
-					conPrint("\tRequested URL was valid.");
+					const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-					const ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL);
-					if(resource->getState() != Resource::State_Present)
+					conPrint("\tRequested URL: '" + URL + "'");
+
+					if(!ResourceManager::isValidURL(URL))
 					{
-						conPrint("\tRequested URL was not present on disk.");
+						conPrint("\tRequested URL was invalid.");
 						socket->writeUInt32(1); // write error msg to client
 					}
 					else
 					{
-						const std::string local_path = resource->getLocalPath();
+						conPrint("\tRequested URL was valid.");
 
-						conPrint("\tlocal path: '" + local_path + "'");
-
-						try
+						const ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL);
+						if(resource->getState() != Resource::State_Present)
 						{
-							// Load resource off disk
-							MemMappedFile file(local_path);
-							conPrint("\tSending file to client.");
-							socket->writeUInt32(0); // write OK msg to client
-							socket->writeUInt64(file.fileSize()); // Write file size
-							socket->writeData(file.fileData(), file.fileSize()); // Write file data
-
-							conPrint("\tSent file '" + local_path + "' to client. (" + toString(file.fileSize()) + " B)");
-						}
-						catch(Indigo::Exception& e)
-						{
-							conPrint("\tException while trying to load file for URL: " + e.what());
-
+							conPrint("\tRequested URL was not present on disk.");
 							socket->writeUInt32(1); // write error msg to client
+						}
+						else
+						{
+							const std::string local_path = resource->getLocalPath();
+
+							conPrint("\tlocal path: '" + local_path + "'");
+
+							try
+							{
+								// Load resource off disk
+								MemMappedFile file(local_path);
+								conPrint("\tSending file to client.");
+								socket->writeUInt32(0); // write OK msg to client
+								socket->writeUInt64(file.fileSize()); // Write file size
+								socket->writeData(file.fileData(), file.fileSize()); // Write file data
+
+								conPrint("\tSent file '" + local_path + "' to client. (" + toString(file.fileSize()) + " B)");
+							}
+							catch(Indigo::Exception& e)
+							{
+								conPrint("\tException while trying to load file for URL: " + e.what());
+
+								socket->writeUInt32(1); // write error msg to client
+							}
 						}
 					}
 				}
 			}
+			else
+			{
+				conPrint("handleResourceDownloadConnection(): Unhandled msg type: " + toString(msg_type));
+				return;
+			}
 		}
+	}
+	catch(MySocketExcep& e)
+	{
+		if(e.excepType() == MySocketExcep::ExcepType_ConnectionClosedGracefully)
+			conPrint("Resource download client from " + IPAddress::formatIPAddressAndPort(socket->getOtherEndIPAddress(), socket->getOtherEndPort()) + " closed connection gracefully.");
 		else
-		{
-			conPrint("handleResourceDownloadConnection(): Unhandled msg type: " + toString(msg_type));
-			return;
-		}
+			conPrint("Socket error: " + e.what());
+	}
+	catch(Indigo::Exception& e)
+	{
+		conPrint("Indigo::Exception: " + e.what());
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		conPrint("FileUtils::FileUtilsExcep: " + e.what());
+	}
+	catch(std::bad_alloc&)
+	{
+		conPrint("WorkerThread: Caught std::bad_alloc.");
 	}
 }
 
@@ -1090,7 +1136,10 @@ void WorkerThread::doRun()
 	}
 	catch(MySocketExcep& e)
 	{
-		conPrint("Socket error: " + e.what());
+		if(e.excepType() == MySocketExcep::ExcepType_ConnectionClosedGracefully)
+			conPrint("Updates client from " + IPAddress::formatIPAddressAndPort(socket->getOtherEndIPAddress(), socket->getOtherEndPort()) + " closed connection gracefully.");
+		else
+			conPrint("Socket error: " + e.what());
 	}
 	catch(Indigo::Exception& e)
 	{
