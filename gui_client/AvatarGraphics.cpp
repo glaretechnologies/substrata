@@ -185,7 +185,7 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 		const float rot_len = std::sqrt(rot_len2);
 		m.setToRotationMatrix(rotation.toVec4fVector() / rot_len, rot_len);
 	}
-	m.setColumn(3, Vec4f(translation.x, translation.y, translation.z, 1.f));
+	m.setColumn(3, Vec4f((float)translation.x, (float)translation.y, (float)translation.z, 1.f));
 	return m;
 }
 
@@ -310,10 +310,6 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 	feet[0].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_0) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans) * feet[0].base_transform;
 	feet[1].gl_ob->ob_to_world_matrix = overall * Matrix4f::translationMatrix(ankle_pos_1) * Matrix4f::translationMatrix(0, 0, -foot_downwards_trans) * feet[1].base_transform;
 
-
-	
-
-
 	engine.updateObjectTransformData(*upper_arms[0].gl_ob);
 	engine.updateObjectTransformData(*upper_arms[1].gl_ob);
 	engine.updateObjectTransformData(*lower_arms[0].gl_ob);
@@ -362,15 +358,15 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 	Vec4f ankle_pos_0;
 	float foot_rot_angle_0;
 	{
-		const float phase = cur_time * freq / Maths::get2Pi<float>() + 0.75f;
+		const float phase = (float)cur_time * freq / Maths::get2Pi<float>() + 0.75f;
 		const int index = myClamp<int>((int)(Maths::fract(phase) * NUM_FRAMES), 0, NUM_FRAMES-1);
 		const int index_1 = (index == NUM_FRAMES-1) ? 0 : index + 1;
 		const float t = (Maths::fract(phase) * NUM_FRAMES) - index;
 		const float anim_x = Maths::lerp(ankle_data[index*3 + 0], ankle_data[index_1*3 + 0], t);
 		const float anim_y = Maths::lerp(ankle_data[index*3 + 1], ankle_data[index_1*3 + 1], t);
 		const float anim_z = Maths::lerp(ankle_data[index*3 + 2], ankle_data[index_1*3 + 2], t);
-		const float xpos = anim_x * 0.1 - 0.6;
-		const float ypos = anim_y * -0.1 - 0.02;
+		const float xpos = anim_x * 0.1f - 0.6f;
+		const float ypos = anim_y * -0.1f - 0.02f;
 		foot_rot_angle_0 = degreeToRad(anim_z);
 		ankle_pos_0 = Vec4f(xpos, -foot_pos_half_width, ypos, 1.f);
 	}
@@ -378,7 +374,7 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 	Vec4f ankle_pos_1;
 	float foot_rot_angle_1;
 	{
-		const float phase = cur_time * freq / Maths::get2Pi<float>() + 0.75f + 0.5f;
+		const float phase = (float)cur_time * freq / Maths::get2Pi<float>() + 0.75f + 0.5f;
 		const int index = myClamp<int>((int)(Maths::fract(phase) * NUM_FRAMES), 0, NUM_FRAMES-1);
 		//printVar(130 + index*2);
 		const int index_1 = (index == NUM_FRAMES-1) ? 0 : index + 1;
@@ -386,8 +382,8 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 		const float anim_x = Maths::lerp(ankle_data[index*3 + 0], ankle_data[index_1*3 + 0], t);
 		const float anim_y = Maths::lerp(ankle_data[index*3 + 1], ankle_data[index_1*3 + 1], t);
 		const float anim_z = Maths::lerp(ankle_data[index*3 + 2], ankle_data[index_1*3 + 2], t);
-		const float xpos = anim_x * 0.1 - 0.6;
-		const float ypos = anim_y * -0.1 - 0.02;
+		const float xpos = anim_x * 0.1f - 0.6f;
+		const float ypos = anim_y * -0.1f - 0.02f;
 		foot_rot_angle_1 = degreeToRad(anim_z);
 		ankle_pos_1 = Vec4f(xpos, foot_pos_half_width, ypos, 1.f);
 	}
