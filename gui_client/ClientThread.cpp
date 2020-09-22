@@ -107,7 +107,7 @@ void ClientThread::doRun()
 		this->client_avatar_uid = readUIDFromStream(*socket);
 
 
-		socket->setNoDelayEnabled(true); // For websocket connections, we will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+		socket->setNoDelayEnabled(true); // We will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 		
 
 		while(1) // write to / read from socket loop
@@ -150,6 +150,7 @@ void ClientThread::doRun()
 				{
 				case Protocol::InitialStateSent:
 					{
+						conPrint("Initial state finished sending.  " + toString(world_state->objects.size()) + " objects.");
 						// This message has no payload.
 						this->initial_state_received = true;
 						break;
