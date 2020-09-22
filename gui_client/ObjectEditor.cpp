@@ -138,7 +138,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	SignalBlocker::setValue(this->rotAngleDoubleSpinBox, ob.angle);
 
 	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
-
+	
+	lightmapURLLabel->setText(QtUtils::toQString(ob.lightmap_url));
 
 	WorldMaterialRef selected_mat;
 	if(selected_mat_index >= 0 && selected_mat_index < (int)ob.materials.size())
