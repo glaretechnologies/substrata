@@ -331,6 +331,50 @@ void ClientThread::doRun()
 						}
 						break;
 					}
+				case Protocol::ObjectLightmapURLChanged:
+					{
+						//conPrint("ObjectLightmapURLChanged");
+						const UID object_uid = readUIDFromStream(*socket);
+						const std::string new_lightmap_url = socket->readStringLengthFirst(10000);
+						//conPrint("new_lightmap_url: " + new_lightmap_url);
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+
+								ob->lightmap_url = new_lightmap_url;
+
+								ob->from_remote_lightmap_url_dirty = true;
+								world_state->dirty_from_remote_objects.insert(ob);
+							}
+						}
+						break;
+					}
+				case Protocol::ObjectFlagsChanged:
+					{
+						//conPrint("ObjectFlagsChanged");
+						const UID object_uid = readUIDFromStream(*socket);
+						const uint32 flags = socket->readUInt32();
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+								
+								ob->flags = flags; // Copy flags
+								ob->from_remote_other_dirty = true;
+								world_state->dirty_from_remote_objects.insert(ob);
+							}
+						}
+						break;
+					}
 				case Protocol::ObjectCreated:
 					{
 						//conPrint("ObjectCreated");

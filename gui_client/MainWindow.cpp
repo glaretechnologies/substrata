@@ -50,6 +50,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QSplashScreen>
 #include <QtWidgets/QShortcut>
+#include <QtCore/QTimer>
 #include "../qt/QtUtils.h"
 #ifdef _MSC_VER
 #pragma warning(pop) // Re-enable warnings
@@ -83,6 +84,7 @@ Copyright Glare Technologies Limited 2018 -
 //#include "../opengl/EnvMapProcessing.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/IndigoStringUtils.h"
+#include "../dll/include/IndigoException.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
@@ -257,6 +259,10 @@ void MainWindow::initialise()
 #else
 	this->ui->indigoViewDockWidget->hide();
 #endif
+
+	lightmap_flag_timer = new QTimer(this);
+	lightmap_flag_timer->setSingleShot(true);
+	connect(lightmap_flag_timer, SIGNAL(timeout()), this, SLOT(sendLightmapNeededFlagsSlot()));
 }
 
 
@@ -1145,7 +1151,8 @@ static bool hasTextureExtension(const std::string& path)
 		hasExtension(path, "exr") ||
 		hasExtension(path, "float") ||
 		hasExtension(path, "gif") ||
-		hasExtension(path, "hdr");
+		hasExtension(path, "hdr") ||
+		hasExtension(path, "ktx");
 }
 
 
@@ -1337,6 +1344,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
 		{
+			//conPrint("Got loaded texture message.");
 			// Process any loaded textures
 			const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
 			texture_loaded_messages_to_process.pop_front();
@@ -1627,13 +1635,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
 				const std::string& URL = m->URL;
-				// conPrint("ResourceDownloadedMessage, URL: " + URL);
+				//conPrint("ResourceDownloadedMessage, URL: " + URL);
 
 				// If we just downloaded a texture, start loading it.
 				// NOTE: Do we want to check this texture is actually used by an object?
 				if(hasTextureExtension(URL))
 				{
-					// conPrint("Downloaded texture resource, loading it...");
+					//conPrint("Downloaded texture resource, loading it...");
 
 					const std::string tex_path = resource_manager->pathForURL(URL);
 
@@ -2048,6 +2056,23 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					ob->from_remote_other_dirty = false;
 				}
 			}
+			else if(ob->from_remote_lightmap_url_dirty)
+			{
+				// Try and download and resources we don't have for this object
+				startDownloadingResourcesForObject(ob);
+
+				// Update materials in opengl engine, so it picks up the new lightmap URL
+				GLObjectRef opengl_ob = ob->opengl_engine_ob;
+				if(opengl_ob.nonNull())
+				{
+					for(size_t i=0; i<ob->materials.size(); ++i)
+						if(i < opengl_ob->materials.size())
+							ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+					ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+				}
+
+				ob->from_remote_lightmap_url_dirty = false;
+			}
 			
 			if(ob->from_remote_transform_dirty)
 			{
@@ -2319,6 +2344,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				this->ui->objectEditor->updateObjectPos(*selected_ob);
 
+
+				this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+				objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+				lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+				
 				// Mark as from-local-dirty to send an object transform updated message to the server
 				this->selected_ob->from_local_transform_dirty = true;
 				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
@@ -3577,6 +3607,12 @@ void MainWindow::objectEditedSlot()
 				this->selected_ob->from_local_other_dirty = true;
 				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
+
+				this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+				objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+				lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+
+
 				if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
 				{
 					loadModelForObject(this->selected_ob.getPointer());
@@ -3607,6 +3643,26 @@ void MainWindow::materialSelectedInBrowser(const std::string& path)
 		else
 			showErrorNotification("You do not have write permissions for this object, so you can't apply a material to it.");
 	}
+}
+
+
+void MainWindow::sendLightmapNeededFlagsSlot()
+{
+	//conPrint("MainWindow::sendLightmapNeededFlagsSlot");
+	for(auto it = objs_with_lightmap_rebuild_needed.begin(); it != objs_with_lightmap_rebuild_needed.end(); ++it)
+	{
+		WorldObjectRef ob = *it;
+
+		// Enqueue ObjectFlagsChanged
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::ObjectFlagsChanged);
+		writeToStream(ob->uid, packet);
+		packet.writeUInt32(ob->flags);
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
+
+	objs_with_lightmap_rebuild_needed.clear();
 }
 
 
@@ -4119,6 +4175,16 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 
 		// Update object values in editor
 		ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
+
+
+		// Mark as from-local-dirty to send an object updated message to the server
+		ob->from_local_other_dirty = true;
+		this->world_state->dirty_from_local_objects.insert(ob);
+
+
+		ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+		objs_with_lightmap_rebuild_needed.insert(ob);
+		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
 	}
 }
 

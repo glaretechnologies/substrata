@@ -30,6 +30,7 @@ Copyright Glare Technologies Limited 2020 -
 // Indigo SDK headers:
 #if USE_INDIGO_SDK
 #include <dll/include/IndigoMesh.h>
+#include <dll/include/IndigoException.h>
 #include <dll/include/IndigoMaterial.h>
 #include <dll/include/SceneNodeModel.h>
 #include <dll/include/SceneNodeRenderSettings.h>
@@ -221,256 +222,339 @@ public:
 		}
 	}
 
+	// Without translation
+	static const Matrix4f obToWorldMatrix(const WorldObject* ob)
+	{
+		return Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle) *
+			Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+	}
+
+
+	inline static Indigo::Vec3d toIndigoVec3d(const Vec3d& c)
+	{
+		return Indigo::Vec3d(c.x, c.y, c.z);
+	}
 
 	void buildLightMapForOb(WorldObject* ob)
 	{
-		//if(BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG))
+		try
 		{
+			// Clear LIGHTMAP_NEEDS_COMPUTING_FLAG.
+			// We do this here, so other clients can re-set the LIGHTMAP_NEEDS_COMPUTING_FLAG while we are baking the lightmap, which means that the
+			// lightmap will re-bake when done.
+			{
+				BitUtils::zeroBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+
+				// Enqueue ObjectFlagsChanged
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::ObjectFlagsChanged);
+				writeToStream(ob->uid, packet);
+				packet.writeUInt32(ob->flags);
+
+				this->client_thread->enqueueDataToSend(packet);
+			}
+
+
 			// Start downloading any resources we don't have that the object uses.
 			startDownloadingResourcesForObject(ob);
-		}
 
-		// Wait until we have downloaded all resources for the object
+			// Wait until we have downloaded all resources for the object
 
-		Timer wait_timer;
-		while(1)
-		{
-			if(allResourcesPresentForOb(ob))
-				break;
-
-			PlatformUtils::Sleep(50);
-
-			if(wait_timer.elapsed() > 30)
-				throw Indigo::Exception("Failed to download all resources for object with UID " + ob->uid.toString());
-		}
-
-
-		// Load mesh from disk:
-		// If batched mesh (bmesh), convert to indigo mesh
-		// If indigo mesh, can use directly
-		const std::string model_path = resource_manager->pathForURL(ob->model_url);
-
-		Indigo::MeshRef indigo_mesh;
-		if(hasExtension(model_path, "igmesh"))
-		{
-			try
+			Timer wait_timer;
+			while(1)
 			{
-				Indigo::Mesh::readFromFile(toIndigoString(model_path), *indigo_mesh);
+				if(allResourcesPresentForOb(ob))
+					break;
+
+				PlatformUtils::Sleep(50);
+
+				if(wait_timer.elapsed() > 30)
+					throw Indigo::Exception("Failed to download all resources for object with UID " + ob->uid.toString());
 			}
-			catch(Indigo::IndigoException& e)
+
+
+			// Load mesh from disk:
+			// If batched mesh (bmesh), convert to indigo mesh
+			// If indigo mesh, can use directly
+			const std::string model_path = resource_manager->pathForURL(ob->model_url);
+
+			Indigo::MeshRef indigo_mesh;
+			if(hasExtension(model_path, "igmesh"))
 			{
-				throw Indigo::Exception(toStdString(e.what()));
+				try
+				{
+					Indigo::Mesh::readFromFile(toIndigoString(model_path), *indigo_mesh);
+				}
+				catch(Indigo::IndigoException& e)
+				{
+					throw Indigo::Exception(toStdString(e.what()));
+				}
 			}
-		}
-		else if(hasExtension(model_path, "bmesh"))
-		{
-			BatchedMeshRef batched_mesh = new BatchedMesh();
-			BatchedMesh::readFromFile(model_path, *batched_mesh);
+			else if(hasExtension(model_path, "bmesh"))
+			{
+				BatchedMeshRef batched_mesh = new BatchedMesh();
+				BatchedMesh::readFromFile(model_path, *batched_mesh);
 
-			indigo_mesh = new Indigo::Mesh();
-			batched_mesh->buildIndigoMesh(*indigo_mesh);
-		}
-		else
-			throw Indigo::Exception("unhandled model format: " + model_path);
+				indigo_mesh = new Indigo::Mesh();
+				batched_mesh->buildIndigoMesh(*indigo_mesh);
+			}
+			else
+				throw Indigo::Exception("unhandled model format: " + model_path);
 
-		checkValidAndSanitiseMesh(*indigo_mesh); // Throws Indigo::Exception on invalid mesh.
+			checkValidAndSanitiseMesh(*indigo_mesh); // Throws Indigo::Exception on invalid mesh.
 
-		// If voxel object, convert to mesh
+			// If voxel object, convert to mesh
 
-		// See if this object has a lightmap-suitable UV map already
-		const bool has_lightmap_uvs = indigo_mesh->num_uv_mappings >= 2; // TEMP
-		if(!has_lightmap_uvs)
-		{
-			// Generate lightmap UVs
-			StandardPrintOutput print_output;
-			UVUnwrapper::build(*indigo_mesh, print_output); // Adds UV set to indigo_mesh.
+			// See if this object has a lightmap-suitable UV map already
+			const bool has_lightmap_uvs = indigo_mesh->num_uv_mappings >= 2; // TEMP
+			if(!has_lightmap_uvs)
+			{
+				// Generate lightmap UVs
+				StandardPrintOutput print_output;
+				UVUnwrapper::build(*indigo_mesh, print_output); // Adds UV set to indigo_mesh.
 
-			// Convert indigo_mesh to a BatchedMesh.
-			// This will also merge verts with the same pos and normal.
-			BatchedMeshRef batched_mesh = new BatchedMesh();
-			batched_mesh->buildFromIndigoMesh(*indigo_mesh);
+				// Convert indigo_mesh to a BatchedMesh.
+				// This will also merge verts with the same pos and normal.
+				BatchedMeshRef batched_mesh = new BatchedMesh();
+				batched_mesh->buildFromIndigoMesh(*indigo_mesh);
 
 
-			// Save as bmesh in temp location
-			const std::string bmesh_disk_path = PlatformUtils::getTempDirPath() + "/lightmapper_bot_temp.bmesh";
+				// Save as bmesh in temp location
+				const std::string bmesh_disk_path = PlatformUtils::getTempDirPath() + "/lightmapper_bot_temp.bmesh";
 
-			BatchedMesh::WriteOptions write_options;
-			write_options.compression_level = 20;
-			batched_mesh->writeToFile(bmesh_disk_path);
+				BatchedMesh::WriteOptions write_options;
+				write_options.compression_level = 20;
+				batched_mesh->writeToFile(bmesh_disk_path);
 
-			// Compute hash over model
-			const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+				// Compute hash over model
+				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
 
-			//const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
-			const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash("unwrapped"/*original_filename*/, "bmesh", model_hash);
+				//const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
+				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash("unwrapped"/*original_filename*/, "bmesh", model_hash);
+
+				// Copy model to local resources dir.  UploadResourceThread will read from here.
+				this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+				ob->model_url = mesh_URL;
+
+				// Send the updated object, with the new model URL, to the server.
+
+				// Enqueue ObjectFullUpdate
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::ObjectFullUpdate);
+				writeToNetworkStream(*ob, packet);
+
+				this->client_thread->enqueueDataToSend(packet);
+
+				// Spawn an UploadResourceThread to upload the new model
+				resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(mesh_URL), mesh_URL, server_hostname, server_port, username, password));
+			}
+
+
+
+			//------------------ Make an Indigo scene graph to light the model, then save it to disk ---------------------
+
+			Indigo::SceneNodeRootRef root_node = new Indigo::SceneNodeRoot();
+
+			Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(indigo_mesh);
+
+			// Make Indigo materials from loaded parcel mats
+			Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
+			for(size_t i=0; i<ob->materials.size(); ++i)
+			{
+				const WorldMaterialRef parcel_mat = ob->materials[i];
+
+				Reference<Indigo::WavelengthDependentParam> albedo_param;
+				if(!parcel_mat->colour_texture_url.empty())
+				{
+					const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
+					albedo_param = new Indigo::TextureWavelengthDependentParam(Indigo::Texture(toIndigoString(path)), new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
+				}
+				else
+				{
+					albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
+				}
+
+				Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(
+					albedo_param
+				);
+				indigo_mat->name = toIndigoString(parcel_mat->name);
+
+				indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
+			}
+
+			Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
+			model_node->setMaterials(indigo_mat_nodes);
+			model_node->setGeometry(mesh_node);
+			model_node->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
+					0.0,
+					toIndigoVec3d(ob->pos),
+					Indigo::AxisAngle::identity()
+			));
+			model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(ob).getUpperLeftMatrix().e);
+			root_node->addChildNode(model_node);
+
+			Indigo::SceneNodeRenderSettingsRef settings_node = Indigo::SceneNodeRenderSettings::getDefaults();
+			settings_node->width.setValue(512);
+			settings_node->height.setValue(512);
+			settings_node->bidirectional.setValue(false);
+			settings_node->metropolis.setValue(false);
+			settings_node->gpu.setValue(true);
+			settings_node->light_map_baking_ob_uid.setValue(model_node->getUniqueID().value()); // Enable light map baking
+			settings_node->generate_lightmap_uvs.setValue(false);
+			settings_node->capture_direct_sun_illum.setValue(false);
+			//settings_node->image_save_period.setValue(5);
+			settings_node->merging.setValue(false); // Needed for now
+			root_node->addChildNode(settings_node);
+
+			Indigo::SceneNodeTonemappingRef tone_mapping = new Indigo::SceneNodeTonemapping();
+			tone_mapping->setType(Indigo::SceneNodeTonemapping::Reinhard);
+			tone_mapping->pre_scale = 1;
+			tone_mapping->post_scale = 1;
+			tone_mapping->burn = 6;
+			root_node->addChildNode(tone_mapping);
+
+			Indigo::SceneNodeCameraRef cam = new Indigo::SceneNodeCamera();
+			cam->lens_radius = 0.0001;
+			cam->autofocus = false;
+			cam->exposure_duration = 1.0 / 30.0;
+			cam->focus_distance = 2.0;
+			cam->forwards = Indigo::Vec3d(0, 1, 0);
+			cam->up = Indigo::Vec3d(0, 0, 1);
+			cam->setPos(Indigo::Vec3d(0, -2, 0.1));
+			root_node->addChildNode(cam);
+
+			Reference<Indigo::SunSkyMaterial> sun_sky_mat = new Indigo::SunSkyMaterial();
+			const float sun_phi = 1.f; // See MainWindow.cpp
+			const float sun_theta = Maths::pi<float>() / 4;
+			sun_sky_mat->sundir = normalise(Indigo::Vec3d(std::cos(sun_phi) * std::sin(sun_theta), std::sin(sun_phi) * sun_theta, std::cos(sun_theta)));
+			sun_sky_mat->model = "captured-simulation";
+			Indigo::SceneNodeBackgroundSettingsRef background_node = new Indigo::SceneNodeBackgroundSettings(sun_sky_mat);
+			root_node->addChildNode(background_node);
+
+			root_node->finalise(".");
+
+			const std::string scene_path = PlatformUtils::getAppDataDirectory("Cyberspace") + "/cv_baking.igs";
+		
+			// Write Indigo scene to disk.
+			root_node->writeToXMLFileOnDisk(
+				toIndigoString(scene_path),
+				false, // write_absolute_dependency_paths
+				NULL // progress_listener
+			);
+
+			conPrint("Wrote scene to cv_baking.igs");
+
+			const std::string lightmap_exr_path = PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmap.exr";
+			const std::string lightmap_ktx_path = PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmap.ktx";
+
+			if(true)
+			{
+				const std::string indigo_exe_path = "C:\\programming\\indigo\\output\\vs2019\\indigo_x64\\RelWithDebInfo\\indigo_gui.exe";
+				std::vector<std::string> command_line_args;
+				command_line_args.push_back(indigo_exe_path);
+				command_line_args.push_back(scene_path);
+				command_line_args.push_back("--noninteractive");
+				//command_line_args.push_back("-o");
+				command_line_args.push_back("-uexro");
+				command_line_args.push_back(lightmap_exr_path);
+				command_line_args.push_back("-halt");
+				command_line_args.push_back("10");
+				Process indigo_process(indigo_exe_path, command_line_args);
+
+				Timer timer;
+				while(1)
+				{
+					while(indigo_process.isStdOutReadable())
+					{
+						const std::string output = indigo_process.readStdOut();
+						std::vector<std::string> lines = ::split(output, '\n');
+						for(size_t i=0; i<lines.size(); ++i)
+							conPrint("INDIGO> " + lines[i]);
+					}
+
+					if(!indigo_process.isProcessAlive())
+						break;
+
+					PlatformUtils::Sleep(1);
+				}
+
+				std::string output, err_output;
+				indigo_process.readAllRemainingStdOutAndStdErr(output, err_output);
+				conPrint("INDIGO> " + output);
+				conPrint("INDIGO> " + err_output);
+
+				conPrint("Indigo process terminated.");
+			}
+
+
+			//================== Run Compressenator to compress the lightmap EXR with BC6 compression into a KTX file. ========================
+			{
+				const std::string compressonator_path = PlatformUtils::findProgramOnPath("CompressonatorCLI.exe");
+				std::vector<std::string> command_line_args;
+				command_line_args.push_back(compressonator_path);
+				command_line_args.push_back("-fd"); // Specifies the destination texture format to use
+				command_line_args.push_back("BC6H");
+				command_line_args.push_back("-mipsize");
+				command_line_args.push_back("1");
+				command_line_args.push_back(lightmap_exr_path); // input path
+				command_line_args.push_back(lightmap_ktx_path); // output path
+				Process compressonator_process(compressonator_path, command_line_args);
+
+				Timer timer;
+				while(1)
+				{
+					while(compressonator_process.isStdOutReadable())
+					{
+						const std::string output = compressonator_process.readStdOut();
+						std::vector<std::string> lines = ::split(output, '\n');
+						for(size_t i=0; i<lines.size(); ++i)
+							conPrint("COMPRESS> " + lines[i]);
+					}
+
+					if(!compressonator_process.isProcessAlive())
+						break;
+
+					PlatformUtils::Sleep(1);
+				}
+
+				std::string output, err_output;
+				compressonator_process.readAllRemainingStdOutAndStdErr(output, err_output);
+				conPrint("COMPRESS> " + output);
+				conPrint("COMPRESS> " + err_output);
+
+				conPrint("Compressonator process terminated.");
+			}
+
+		
+			// Compute hash over lightmap
+			const uint64 lightmap_hash = FileChecksum::fileChecksum(lightmap_ktx_path);
+
+			const std::string lightmap_URL = ResourceManager::URLForNameAndExtensionAndHash("lightmap", ::getExtension(lightmap_ktx_path), lightmap_hash);
 
 			// Copy model to local resources dir.  UploadResourceThread will read from here.
-			this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+			//this->resource_manager->copyLocalFileToResourceDir(lightmap_ktx_path, lightmap_URL);
 
-			ob->model_url = mesh_URL;
+			//ob->lightmap_url = lightmap_URL;
+			//BitUtils::zeroBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 
-			// Send the updated object, with the new model URL, to the server.
-
-			// Enqueue ObjectFullUpdate
+			// Enqueue ObjectLightmapURLChanged
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::ObjectFullUpdate);
-			writeToNetworkStream(*ob, packet);
+			packet.writeUInt32(Protocol::ObjectLightmapURLChanged);
+			//writeToNetworkStream(*ob, packet);
+			writeToStream(ob->uid, packet);
+			packet.writeStringLengthFirst(lightmap_URL);
 
 			this->client_thread->enqueueDataToSend(packet);
 
-			// Spawn an UploadResourceThread to upload the new model
-			resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(mesh_URL), mesh_URL, server_hostname, server_port, username, password));
+			// Spawn an UploadResourceThread to upload the new lightmap
+			conPrint("Uploading lightmap '" + lightmap_URL + "' to the server...");
+			resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, lightmap_ktx_path/*this->resource_manager->pathForURL(lightmap_URL)*/, lightmap_URL, server_hostname, server_port, username, password));
 		}
-
-
-
-		//------------------ Make an Indigo scene graph to light the model, then save it to disk ---------------------
-
-		Indigo::SceneNodeRootRef root_node = new Indigo::SceneNodeRoot();
-
-		Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(indigo_mesh);
-
-		// Make Indigo materials from loaded parcel mats
-		Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
-		for(size_t i=0; i<ob->materials.size(); ++i)
+		catch(PlatformUtils::PlatformUtilsExcep& e)
 		{
-			const WorldMaterialRef parcel_mat = ob->materials[i];
-
-			Reference<Indigo::WavelengthDependentParam> albedo_param;
-			if(!parcel_mat->colour_texture_url.empty())
-			{
-				const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
-				albedo_param = new Indigo::TextureWavelengthDependentParam(Indigo::Texture(toIndigoString(path)), new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
-			}
-			else
-			{
-				albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
-			}
-
-			Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(
-				albedo_param
-			);
-			indigo_mat->name = toIndigoString(parcel_mat->name);
-
-			indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
+			throw Indigo::Exception(e.what());
 		}
-
-		Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
-		model_node->setMaterials(indigo_mat_nodes);
-		model_node->setGeometry(mesh_node);
-		model_node->keyframes.push_back(Indigo::KeyFrame(0.0, Indigo::Vec3d(0, 0, 0), Indigo::AxisAngle::identity()));
-		model_node->rotation = new Indigo::MatrixRotation();
-		root_node->addChildNode(model_node);
-
-		Indigo::SceneNodeRenderSettingsRef settings_node = Indigo::SceneNodeRenderSettings::getDefaults();
-		settings_node->width.setValue(1024);
-		settings_node->height.setValue(1024);
-		settings_node->bidirectional.setValue(false);
-		settings_node->metropolis.setValue(false);
-		settings_node->gpu.setValue(true);
-		settings_node->light_map_baking_ob_uid.setValue(model_node->getUniqueID().value()); // Enable light map baking
-		settings_node->generate_lightmap_uvs.setValue(false);
-		settings_node->capture_direct_sun_illum.setValue(false);
-		//settings_node->image_save_period.setValue(5);
-		settings_node->merging.setValue(false); // Needed for now
-		root_node->addChildNode(settings_node);
-
-		Indigo::SceneNodeTonemappingRef tone_mapping = new Indigo::SceneNodeTonemapping();
-		tone_mapping->setType(Indigo::SceneNodeTonemapping::Reinhard);
-		tone_mapping->pre_scale = 1;
-		tone_mapping->post_scale = 1;
-		tone_mapping->burn = 6;
-		root_node->addChildNode(tone_mapping);
-
-		Indigo::SceneNodeCameraRef cam = new Indigo::SceneNodeCamera();
-		cam->lens_radius = 0.0001;
-		cam->autofocus = false;
-		cam->exposure_duration = 1.0 / 30.0;
-		cam->focus_distance = 2.0;
-		cam->forwards = Indigo::Vec3d(0, 1, 0);
-		cam->up = Indigo::Vec3d(0, 0, 1);
-		cam->setPos(Indigo::Vec3d(0, -2, 0.1));
-		root_node->addChildNode(cam);
-
-		Reference<Indigo::SunSkyMaterial> sun_sky_mat = new Indigo::SunSkyMaterial();
-		const float sun_phi = 1.f; // See MainWindow.cpp
-		const float sun_theta = Maths::pi<float>() / 4;
-		sun_sky_mat->sundir = normalise(Indigo::Vec3d(std::cos(sun_phi) * std::sin(sun_theta), std::sin(sun_phi) * sun_theta, std::cos(sun_theta)));
-		sun_sky_mat->model = "captured-simulation";
-		Indigo::SceneNodeBackgroundSettingsRef background_node = new Indigo::SceneNodeBackgroundSettings(sun_sky_mat);
-		root_node->addChildNode(background_node);
-
-		root_node->finalise(".");
-
-		const std::string scene_path = PlatformUtils::getAppDataDirectory("Cyberspace") + "/cv_baking.igs";
-		
-		// Write Indigo scene to disk.
-		root_node->writeToXMLFileOnDisk(
-			toIndigoString(scene_path),
-			false, // write_absolute_dependency_paths
-			NULL // progress_listener
-		);
-
-		conPrint("Wrote scene to cv_baking.igs");
-
-		const std::string lightmap_path = PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmap.exr";
-
-		const std::string indigo_exe_path = "C:\\programming\\indigo\\output\\vs2019\\indigo_x64\\RelWithDebInfo\\indigo_gui.exe";
-		std::vector<std::string> command_line_args;
-		command_line_args.push_back(indigo_exe_path);
-		command_line_args.push_back(scene_path);
-		command_line_args.push_back("--noninteractive");
-		//command_line_args.push_back("-o");
-		command_line_args.push_back("-uexro");
-		command_line_args.push_back(lightmap_path);
-		command_line_args.push_back("-halt");
-		command_line_args.push_back("20");
-		Process indigo_process(indigo_exe_path, command_line_args);
-
-		Timer timer;
-		while(1)
-		{
-			while(indigo_process.isStdOutReadable())
-			{
-				const std::string output = indigo_process.readStdOut();
-				std::vector<std::string> lines = ::split(output, '\n');
-				for(size_t i=0; i<lines.size(); ++i)
-					conPrint("INDIGO> " + lines[i]);
-			}
-
-			if(!indigo_process.isProcessAlive())
-				break;
-
-			PlatformUtils::Sleep(1);
-		}
-
-		std::string output, err_output;
-		indigo_process.readAllRemainingStdOutAndStdErr(output, err_output);
-		conPrint("INDIGO> " + output);
-		conPrint("INDIGO> " + err_output);
-
-		conPrint("Indigo process terminated.");
-
-		
-		// Compute hash over lightmap
-		const uint64 lightmap_hash = FileChecksum::fileChecksum(lightmap_path);
-
-		const std::string lightmap_URL = ResourceManager::URLForNameAndExtensionAndHash("lightmap", ::getExtension(lightmap_path), lightmap_hash);
-
-		// Copy model to local resources dir.  UploadResourceThread will read from here.
-		this->resource_manager->copyLocalFileToResourceDir(lightmap_path, lightmap_URL);
-
-		ob->lightmap_url = lightmap_URL;
-
-		// Enqueue ObjectFullUpdate
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::ObjectFullUpdate);
-		writeToNetworkStream(*ob, packet);
-
-		this->client_thread->enqueueDataToSend(packet);
-
-		// Spawn an UploadResourceThread to upload the new lightmap
-		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(lightmap_URL), lightmap_URL, server_hostname, server_port, username, password));
 	}
 
 
@@ -481,16 +565,46 @@ public:
 
 		try
 		{
+			//============= Do an initial scan over all objects, to see if any of them need lightmapping ===========
+			conPrint("Doing initial scan over all objects...");
 			{
 				Lock lock(world_state.mutex);
 
 				for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
 				{
 					WorldObject* ob = it->second.ptr();
-					if(!ob->model_url.empty())
+					conPrint("Checking object with UID " + ob->uid.toString());
+					if(!ob->model_url.empty() && BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG))
 						buildLightMapForOb(ob);
 				}
 			}
+			conPrint("Done initial scan over all objects.");
+
+			//============= Now loop and wait for any objects to be marked dirty, and check those objects for if they need lightmapping ===========
+			while(1)
+			{
+				//conPrint("Checking dirty set...");
+				{
+					Lock lock(world_state.mutex);
+
+					for(auto it = world_state.dirty_from_remote_objects.begin(); it != world_state.dirty_from_remote_objects.end(); ++it)
+					{
+						WorldObject* ob = it->ptr();
+						conPrint("Found object with UID " + ob->uid.toString() + " in dirty set.");
+						conPrint("LIGHTMAP_NEEDS_COMPUTING_FLAG: " + boolToString(BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG)));
+
+						if(!ob->model_url.empty() && BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG))
+							buildLightMapForOb(ob);
+					}
+
+					world_state.dirty_from_remote_objects.clear();
+				}
+
+				PlatformUtils::Sleep(1000);
+			}
+
+
+			
 
 			// Wait a while until ObjectFullUpdate msgs have been sent.  TODO: do properly.
 			PlatformUtils::Sleep(5000);

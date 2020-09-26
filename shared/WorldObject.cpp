@@ -31,6 +31,8 @@ WorldObject::WorldObject()
 	object_type = ObjectType_Generic;
 	from_remote_transform_dirty = false;
 	from_remote_other_dirty = false;
+	from_remote_lightmap_url_dirty = false;
+	from_remote_flags_dirty = false;
 	from_local_transform_dirty = false;
 	from_local_other_dirty = false;
 	using_placeholder_model = false;
@@ -57,10 +59,11 @@ void WorldObject::appendDependencyURLs(std::vector<std::string>& URLs_out)
 	if(!model_url.empty())
 		URLs_out.push_back(model_url);
 
+	if(!lightmap_url.empty())
+		URLs_out.push_back(lightmap_url);
+
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(URLs_out);
-
-	URLs_out.push_back(lightmap_url);
 }
 
 

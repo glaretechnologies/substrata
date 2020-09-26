@@ -16,6 +16,8 @@ ${INDIGO_GRAPHICS_DIR}/colour3.h
 ${INDIGO_GRAPHICS_DIR}/Colour3f.cpp
 ${INDIGO_GRAPHICS_DIR}/Colour4f.cpp
 ${INDIGO_GRAPHICS_DIR}/Colour4f.h
+${INDIGO_GRAPHICS_DIR}/CompressedImage.cpp
+${INDIGO_GRAPHICS_DIR}/CompressedImage.h
 ${INDIGO_GRAPHICS_DIR}/Drawing.cpp
 ${INDIGO_GRAPHICS_DIR}/Drawing.h
 ${INDIGO_GRAPHICS_DIR}/DXTCompression.cpp
@@ -66,6 +68,8 @@ ${INDIGO_GRAPHICS_DIR}/imformatdecoder.cpp
 ${INDIGO_GRAPHICS_DIR}/imformatdecoder.h
 ${INDIGO_GRAPHICS_DIR}/jpegdecoder.cpp
 ${INDIGO_GRAPHICS_DIR}/jpegdecoder.h
+${INDIGO_GRAPHICS_DIR}/KTXDecoder.cpp
+${INDIGO_GRAPHICS_DIR}/KTXDecoder.h
 ${INDIGO_GRAPHICS_DIR}/Map2D.cpp
 ${INDIGO_GRAPHICS_DIR}/Map2D.h
 ${INDIGO_GRAPHICS_DIR}/MitchellNetravali.cpp
