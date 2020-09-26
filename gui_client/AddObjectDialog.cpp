@@ -10,6 +10,7 @@ Code By Nicholas Chapman.
 #include "ModelLoading.h"
 #include "NetDownloadResourcesThread.h"
 #include "../dll/include/IndigoMesh.h"
+#include "../dll/include/IndigoException.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
