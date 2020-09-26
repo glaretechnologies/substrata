@@ -41,6 +41,8 @@ const uint32 ObjectCreated			= 3000;
 const uint32 ObjectDestroyed		= 3001;
 const uint32 ObjectTransformUpdate	= 3002;
 const uint32 ObjectFullUpdate		= 3003;
+const uint32 ObjectLightmapURLChanged		= 3010; // The object's lightmap URL changed.
+const uint32 ObjectFlagsChanged		= 3011;
 
 const uint32 CreateObject			= 3004; // Client wants to create an object.
 const uint32 DestroyObject			= 3005; // Client wants to destroy an object.

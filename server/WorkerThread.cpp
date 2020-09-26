@@ -686,7 +686,7 @@ void WorkerThread::doRun()
 					}
 				case Protocol::ObjectFullUpdate:
 					{
-						conPrint("ObjectFullUpdate");
+						//conPrint("ObjectFullUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
 
 						// If client is not logged in, refuse object modification.
@@ -726,6 +726,50 @@ void WorkerThread::doRun()
 											sendGetFileMessageIfNeeded(*it);
 									}
 								}
+							}
+						}
+						break;
+					}
+				case Protocol::ObjectLightmapURLChanged:
+					{
+						//conPrint("ObjectLightmapURLChanged");
+						const UID object_uid = readUIDFromStream(*socket);
+						const std::string new_lightmap_url = socket->readStringLengthFirst(10000);
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = cur_world_state->objects.find(object_uid);
+							if(res != cur_world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+					
+								ob->lightmap_url = new_lightmap_url;
+
+								ob->from_remote_lightmap_url_dirty = true;
+								cur_world_state->dirty_from_remote_objects.insert(ob);
+							}
+						}
+						break;
+					}
+				case Protocol::ObjectFlagsChanged:
+					{
+						//conPrint("ObjectFlagsChanged");
+						const UID object_uid = readUIDFromStream(*socket);
+						const uint32 flags = socket->readUInt32();
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = cur_world_state->objects.find(object_uid);
+							if(res != cur_world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+
+								ob->flags = flags; // Copy flags
+
+								ob->from_remote_flags_dirty = true;
+								cur_world_state->dirty_from_remote_objects.insert(ob);
 							}
 						}
 						break;

@@ -94,6 +94,7 @@ private slots:;
 	void objectEditedSlot();
 	void URLChangedSlot();
 	void materialSelectedInBrowser(const std::string& path);
+	void sendLightmapNeededFlagsSlot();
 private:
 	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
@@ -302,4 +303,8 @@ private:
 	// Models being loaded or already loaded.
 	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
 	std::unordered_set<std::string> models_processed;
+
+	QTimer* lightmap_flag_timer;
+
+	std::set<WorldObjectRef> objs_with_lightmap_rebuild_needed;
 };

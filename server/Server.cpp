@@ -520,6 +520,33 @@ int main(int argc, char *argv[])
 								server.world_state->markAsChanged();
 							}
 						}
+						else if(ob->from_remote_lightmap_url_dirty)
+						{
+							// Send ObjectResourceURLChanged packet
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							packet.writeUInt32(Protocol::ObjectLightmapURLChanged);
+							writeToStream(ob->uid, packet);
+							packet.writeStringLengthFirst(ob->lightmap_url);
+
+							enqueuePacketToBroadcast(packet, world_packets);
+
+							ob->from_remote_lightmap_url_dirty = false;
+							server.world_state->markAsChanged();
+						}
+						else if(ob->from_remote_flags_dirty)
+						{
+							// Send ObjectFlagsChanged packet
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							packet.writeUInt32(Protocol::ObjectFlagsChanged);
+							writeToStream(ob->uid, packet);
+							packet.writeUInt32(ob->flags);
+
+							enqueuePacketToBroadcast(packet, world_packets);
+
+							ob->from_remote_flags_dirty = false;
+							server.world_state->markAsChanged();
+						}
+
 					}
 
 					world_state->dirty_from_remote_objects.clear();

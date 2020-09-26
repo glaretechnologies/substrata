@@ -123,6 +123,8 @@ public:
 	State state;
 	bool from_remote_transform_dirty; // Transformation has been changed remotely
 	bool from_remote_other_dirty;     // Something else has been changed remotely
+	bool from_remote_lightmap_url_dirty;
+	bool from_remote_flags_dirty;
 
 	bool from_local_transform_dirty;  // Transformation has been changed locally
 	bool from_local_other_dirty;      // Something else has been changed locally
