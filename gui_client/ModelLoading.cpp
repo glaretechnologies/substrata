@@ -10,6 +10,7 @@ Code By Nicholas Chapman.
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
 #include "../dll/include/IndigoMesh.h"
+#include "../dll/include/IndigoException.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/FormatDecoderSTL.h"
 #include "../graphics/FormatDecoderGLTF.h"
