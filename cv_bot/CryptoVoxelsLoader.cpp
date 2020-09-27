@@ -391,7 +391,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 		else
 		{
 			conPrint("Loading parcel data..");
-			parser.parseFile("D:\\downloads\\parcels6.json");
+			parser.parseFile("D:\\downloads\\parcels7.json");
 			conPrint("Done.");
 		}
 
@@ -606,7 +606,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 									const std::string url = feature.getChildStringValueWithDefaultVal(parser, "url", "");
 
 									// Load the image through the CV image proxy, in order to reduce the image size, and for faster loading.
-									const std::string proxy_url = "https://cdn.cryptovoxels.com/node/img?url=" + URLEscape(url) + "&mode=color";
+									const std::string proxy_url = "http://cdn.cryptovoxels.com/node/img?url=" + URLEscape(url) + "&mode=color";
 
 									const size_t MAX_URL_LEN = 4096; // Make sure texture URL is too long - there are some excessively long URLs in the data.
 									if((proxy_url != "") && (proxy_url.size() <= MAX_URL_LEN))
@@ -749,24 +749,80 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 											// Try and download it
 											try
 											{
+												// Some hosts just don't send anything on the connection (but don't close it)
+												if(StringUtils::containsString(url, "file.io"))
+													throw Indigo::Exception("Skipping URL with file.io.");
+												if(StringUtils::containsString(url, "filebin.net"))
+													throw Indigo::Exception("Skipping URL with filebin.net.");
+												if(StringUtils::containsString(url, "t.co"))
+													throw Indigo::Exception("Skipping URL with t.co.");
+
+												if(StringUtils::containsString(url, "cdn.discordapp.com")) // TEMP
+													throw Indigo::Exception("Skipping URL with cdn.discordapp.com.");
+
+
 												conPrint("Downloading vox model '" + url + "'...");
-												HTTPClient client;
-												std::string file_data;
-												HTTPClient::ResponseInfo response = client.downloadFile(url, file_data);
-												if(response.response_code == 200)
+												try
 												{
-													local_path = resource_manager->computeDefaultLocalPathForURL(url);
-													FileUtils::writeEntireFile(local_path, file_data);
+													HTTPClient client;
+													std::string file_data;
+													HTTPClient::ResponseInfo response = client.downloadFile(url, file_data);
+													if(response.response_code == 200)
+													{
+														local_path = resource_manager->computeDefaultLocalPathForURL(url);
+														FileUtils::writeEntireFile(local_path, file_data);
+														
+														//conPrint("Saved to " + local_path);
+														if(!FormatDecoderVox::isValidVoxFile(local_path))
+															throw Indigo::Exception("invalid vox file.");
+
+														conPrint("Successfully downloaded valid VOX file.");
+													}
+													else
+														conPrint("HTTP Download failed: response code was " + toString(response.response_code) + ": " + response.response_message);
 												}
-												else
+												catch(Indigo::Exception& e)
 												{
-													throw Indigo::Exception("HTTP Download failed: response code was " + toString(response.response_code) + ": " + response.response_message);
+													conPrint("Error while downloading vox: " + e.what());
+													local_path = "";
 												}
-											}
-											catch(Indigo::Exception& e)
-											{
-												conPrint("Error while downloading vox: " + e.what());
-												local_path = "";
+
+												if(local_path == "")
+												{
+													try
+													{
+
+														// Try downloading via CV proxy:
+
+														const std::string proxy_url = "http://cdn.cryptovoxels.com/node/vox?url=" + URLEscape(url);
+
+														conPrint("trying to download from CV proxy, URL: " + proxy_url);
+
+														HTTPClient client;
+														std::string file_data;
+														HTTPClient::ResponseInfo response = client.downloadFile(proxy_url, file_data);
+
+														if(response.response_code == 200)
+														{
+															local_path = resource_manager->computeDefaultLocalPathForURL(url);
+															FileUtils::writeEntireFile(local_path, file_data);
+
+															if(!FormatDecoderVox::isValidVoxFile(local_path))
+																throw Indigo::Exception("invalid vox file.");
+
+															conPrint("Successfully downloaded valid VOX file.");
+														}
+														else
+														{
+															conPrint("HTTP Download from CV proxy failed: response code was " + toString(response.response_code) + ": " + response.response_message);
+														}
+													}
+													catch(Indigo::Exception& e)
+													{
+														conPrint("Error while downloading vox: " + e.what());
+														local_path = "";
+													}
+												}
 											}
 											catch(FileUtils::FileUtilsExcep& e)
 											{
@@ -868,7 +924,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 
 												ob->content = feature_prefix + uuid;
 
-												ob->flags = 0; // Make not collidable.
+												ob->flags = 0 | WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG; // Make not collidable.
 
 												ob->state = WorldObject::State_Alive;
 
@@ -896,7 +952,8 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 													Lock lock(world_state.mutex);
 													WorldObjectRef existing_ob = res->second;
 
-													if(!epsEqual(existing_ob->pos, ob->pos) || (existing_ob->materials.size() != ob->materials.size()) ||
+													if(existing_ob->voxel_group.voxels != ob->voxel_group.voxels || // If voxels changed:
+														!epsEqual(existing_ob->pos, ob->pos) || (existing_ob->materials.size() != ob->materials.size()) ||
 														!epsEqual(existing_ob->scale, ob->scale) || FORCE_UPDATE_ALL_CV_OBS)
 													{
 														//printVar(existing_ob->pos);
