@@ -2345,13 +2345,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->ui->objectEditor->updateObjectPos(*selected_ob);
 
 
-				this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-				objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-				lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
-				
 				// Mark as from-local-dirty to send an object transform updated message to the server
 				this->selected_ob->from_local_transform_dirty = true;
 				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
+
+
+				// Trigger sending update-lightmap update flag message later.
+				this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+				objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+				lightmap_flag_timer->start(/*msec=*/2000); 
+
 
 				updateSelectedObjectPlacementBeam();
 			} 
@@ -2407,7 +2410,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					this->client_thread->enqueueDataToSend(packet);
 
 					world_ob->from_local_other_dirty = false;
-					world_ob->from_local_transform_dirty = false;
+					world_ob->from_local_transform_dirty = false; // We sent all information, including transform, so transform is no longer dirty.
 				}
 				else if(world_ob->from_local_transform_dirty)
 				{
@@ -4177,14 +4180,15 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
 
 
-		// Mark as from-local-dirty to send an object updated message to the server
-		ob->from_local_other_dirty = true;
+		// Mark as from-local-dirty to send an object updated message to the server.
+		ob->from_local_transform_dirty = true;
 		this->world_state->dirty_from_local_objects.insert(ob);
 
 
+		// Trigger sending update-lightmap update flag message later.
 		ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
 		objs_with_lightmap_rebuild_needed.insert(ob);
-		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+		lightmap_flag_timer->start(/*msec=*/2000); 
 	}
 }
 
