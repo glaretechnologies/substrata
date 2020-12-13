@@ -743,13 +743,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 }
 
 
-/*
-For each voxel
-	For each face
-		if the face is not already marked as done, and if there is no adjacent voxel over the face:
-			mark face as done
-*/
-
 class VoxelHashFunc
 {
 public:
@@ -763,40 +756,18 @@ public:
 class Vec3fHashFunc
 {
 public:
-	size_t operator() (const Vec3f& v) const
+	size_t operator() (const Indigo::Vec3f& v) const
 	{
-		return hashBytes((const uint8*)&v.x, sizeof(Vec3f)); // TODO: use better hash func.
+		return hashBytes((const uint8*)&v.x, sizeof(Indigo::Vec3f)); // TODO: use better hash func.
 	}
 };
 
-struct VoxelsMatPred
-{
-	bool operator() (const Voxel& a, const Voxel& b)
-	{
-		return a.mat_index < b.mat_index;
-	}
-};
 
 struct VoxelBuildInfo
 {
 	int face_offset; // number of faces added before this voxel.
 	int num_faces; // num faces added for this voxel.
 };
-
-
-//inline static int addVert(const Vec4f& vert_pos, const Vec2f& uv, HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc>& vertpos_hash, float* const combined_data, int NUM_COMPONENTS)
-//{
-//	auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(vert_pos[0], vert_pos[1], vert_pos[2]), (int)vertpos_hash.size()));
-//	const int vertpos_i = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-//	
-//	combined_data[vertpos_i * NUM_COMPONENTS + 0] = vert_pos[0];
-//	combined_data[vertpos_i * NUM_COMPONENTS + 1] = vert_pos[1];
-//	combined_data[vertpos_i * NUM_COMPONENTS + 2] = vert_pos[2];
-//	combined_data[vertpos_i * NUM_COMPONENTS + 3] = uv.x;
-//	combined_data[vertpos_i * NUM_COMPONENTS + 4] = uv.y;
-//
-//	return vertpos_i;
-//}
 
 
 struct GetMatIndex
@@ -808,208 +779,12 @@ struct GetMatIndex
 };
 
 
-//static const int NUM_COMPONENTS = 5; // num float components per vertex.
-
-
-#if 0
-static Reference<OpenGLMeshRenderData> makeMeshForVoxelGroup(const std::vector<Voxel>& voxels, const size_t num_mats, const HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc>& voxel_hash)
-{
-	const size_t num_voxels = voxels.size();
-
-	Reference<OpenGLMeshRenderData> meshdata = new OpenGLMeshRenderData();
-	meshdata->has_uvs = true;
-	meshdata->has_shading_normals = false;
-	meshdata->batches.reserve(num_mats);
-
-	const Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
-	HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
-
-	const size_t num_faces_upper_bound = num_voxels * 6;
-
-	const float w = 1.f; // voxel width
-
-	
-	meshdata->vert_data.resizeNoCopy(num_faces_upper_bound*4 * NUM_COMPONENTS * sizeof(float)); // num verts = num_faces*4
-	float* combined_data = (float*)meshdata->vert_data.data();
-
-
-	js::Vector<uint32, 16>& mesh_indices = meshdata->vert_index_buffer;
-	mesh_indices.resizeNoCopy(num_faces_upper_bound * 6);
-
-	js::AABBox aabb_os = js::AABBox::emptyAABBox();
-
-	size_t face = 0; // total face write index
-
-	int prev_mat_i = -1;
-	size_t prev_start_face_i = 0;
-
-	for(int v=0; v<(int)num_voxels; ++v)
-	{
-		const int voxel_mat_i = voxels[v].mat_index;
-
-		if(voxel_mat_i != prev_mat_i)
-		{
-			// Create a new batch
-			if(face > prev_start_face_i)
-			{
-				meshdata->batches.push_back(OpenGLBatch());
-				meshdata->batches.back().material_index = prev_mat_i;
-				meshdata->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
-				meshdata->batches.back().prim_start_offset = (uint32)(prev_start_face_i * 6 * sizeof(uint32)); // Offset in bytes
-
-				prev_start_face_i = face;
-			}
-		}
-		prev_mat_i = voxel_mat_i;
-
-		const Vec3<int> v_p = voxels[v].pos;
-		const Vec4f v_pf((float)v_p.x, (float)v_p.y, (float)v_p.z, 0); // voxel_pos_offset
-
-		// We will nudge the vertices outwards along the face normal a little.
-		// This means that vertices from non-coplanar faces that share the same position, and which shouldn't get merged due to differing uvs, won't.
-		// Note that we could also achieve this by using the UV in the hash table key.
-		const float nudge = 1.0e-4f;
-
-		// x = 0 face
-		auto res = voxel_hash.find(Vec3<int>(v_p.x - 1, v_p.y, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(-nudge, 0, 0, 1) + v_pf, Vec2f(1 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(-nudge, 0, w, 1) + v_pf, Vec2f(1 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(-nudge, w, w, 1) + v_pf, Vec2f(0 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(-nudge, w, 0, 1) + v_pf, Vec2f(0 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// x = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x + 1, v_p.y, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(w + nudge, 0, 0, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w + nudge, w, 0, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w + nudge, w, w, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w + nudge, 0, w, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// y = 0 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y - 1, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0 - nudge, 0, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w, 0 - nudge, 0, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, 0 - nudge, w, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(0, 0 - nudge, w, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// y = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y + 1, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, w + nudge, 0, 1) + v_pf, Vec2f(1 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(0, w + nudge, w, 1) + v_pf, Vec2f(1 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w + nudge, w, 1) + v_pf, Vec2f(0 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w, w + nudge, 0, 1) + v_pf, Vec2f(0 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// z = 0 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z - 1));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(0, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// z = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z + 1));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w, 0, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(0, w, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		aabb_os.enlargeToHoldPoint(v_pf);
-	}
-
-	// Add last batch
-	if(face > prev_start_face_i)
-	{
-		meshdata->batches.push_back(OpenGLBatch());
-		meshdata->batches.back().material_index = prev_mat_i;
-		meshdata->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
-		meshdata->batches.back().prim_start_offset = (uint32)(prev_start_face_i * 6 * sizeof(uint32)); // Offset in bytes
-	}
-
-	meshdata->aabb_os = js::AABBox(aabb_os.min_, aabb_os.max_ + Vec4f(w, w, w, 0)); // Extend AABB to enclose the +xyz bounds of the voxels.
-
-	const size_t num_faces = face;
-	const size_t num_verts = vertpos_hash.size();
-
-	// Trim arrays to actual size
-	meshdata->vert_data.resize(num_verts * NUM_COMPONENTS * sizeof(float));
-	meshdata->vert_index_buffer.resize(num_faces * 6);
-
-	return meshdata;
-}
-#endif
-
-
 struct VoxelBounds
 {
 	Vec3<int> min;
 	Vec3<int> max;
 };
+
 
 // Does greedy meshing
 static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<Voxel>& voxels, const size_t num_mats, const HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc>& voxel_hash)
@@ -1018,15 +793,13 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 
 	Reference<Indigo::Mesh> mesh = new Indigo::Mesh();
 
-	const Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
-	HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
+	const Indigo::Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
+	HashMapInsertOnly2<Indigo::Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
 
-	//const size_t num_faces_upper_bound = num_voxels * 6;
 	mesh->vert_positions.reserve(voxels.size());
 	mesh->triangles.reserve(voxels.size());
 
-	const bool ADD_UVS = false;
-	mesh->setMaxNumTexcoordSets(ADD_UVS ? 1 : 0);
+	mesh->setMaxNumTexcoordSets(0);
 
 	VoxelBounds b;
 	b.min = Vec3<int>( 1000000000);
@@ -1049,27 +822,20 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 		{
 			// Want the a_axis x b_axis = dim_axis
 			int dim_a, dim_b;
-			Matrix2f lower_tex_matrix, upper_tex_matrix;
 			if(dim == 0)
 			{
 				dim_a = 1;
 				dim_b = 2;
-				lower_tex_matrix = Matrix2f(-1, 0, 0, 1); // Negate x coord
-				upper_tex_matrix = Matrix2f::identity();
 			}
 			else if(dim == 1)
 			{
 				dim_a = 2;
 				dim_b = 0;
-				lower_tex_matrix = Matrix2f(0, 1, 1, 0);
-				upper_tex_matrix = Matrix2f(0, -1, 1, 0);
 			}
 			else // dim == 2:
 			{
 				dim_a = 0;
 				dim_b = 1;
-				lower_tex_matrix = Matrix2f(-1, 0, 0, 1); // Negate x coord
-				upper_tex_matrix = Matrix2f::identity();
 			}
 
 			// Get the extents along dim_a, dim_b
@@ -1172,10 +938,6 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							face_needed.elem(x - a_min, y - b_min) = false;
 
 						// Add the greedy quad
-						//const unsigned int v_start = (unsigned int)mesh->vert_positions.size();
-						//mesh->vert_positions.resize(v_start + 4);
-						//if(ADD_UVS) mesh->uv_pairs.resize(v_start + 4);
-
 						unsigned int v_i[4];
 						{
 							Indigo::Vec3f v; // bot left
@@ -1183,19 +945,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							v[dim_a] = (float)start_x;
 							v[dim_b] = (float)start_y;
 
-							const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 							if(insert_res.second) // If inserted new value:
 								mesh->vert_positions.push_back(v);
-							
-							/*mesh->vert_positions[v_start + 0] = v;
-
-							if(ADD_UVS)
-							{
-								const ::Vec2f initial_uv((float)start_x, (float)start_y);
-								const ::Vec2f uv = lower_tex_matrix * initial_uv;
-								mesh->uv_pairs[v_start + 0] = Indigo::Vec2f(uv.x, uv.y);
-							}*/
 						}
 						{
 							Indigo::Vec3f v; // top left
@@ -1203,18 +956,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							v[dim_a] = (float)start_x;
 							v[dim_b] = (float)end_y;
 
-							const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 							if(insert_res.second) // If inserted new value:
 								mesh->vert_positions.push_back(v);
-							/*mesh->vert_positions[v_start + 1] = v;
-
-							if(ADD_UVS)
-							{	
-								const ::Vec2f initial_uv((float)start_x, (float)end_y);
-								const ::Vec2f uv = lower_tex_matrix * initial_uv;
-								mesh->uv_pairs[v_start + 1] = Indigo::Vec2f(uv.x, uv.y);
-							}*/
 						}
 						{
 							Indigo::Vec3f v; // top right
@@ -1222,18 +967,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							v[dim_a] = (float)end_x;
 							v[dim_b] = (float)end_y;
 
-							const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 							if(insert_res.second) // If inserted new value:
 								mesh->vert_positions.push_back(v);
-							/*mesh->vert_positions[v_start + 2] = v;
-
-							if(ADD_UVS)
-							{
-								const ::Vec2f initial_uv((float)end_x, (float)end_y);
-								const ::Vec2f uv = lower_tex_matrix * initial_uv;
-								mesh->uv_pairs[v_start + 2] = Indigo::Vec2f(uv.x, uv.y);
-							}*/
 						}
 						{
 							Indigo::Vec3f v; // bot right
@@ -1241,99 +978,32 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							v[dim_a] = (float)end_x;
 							v[dim_b] = (float)start_y;
 
-							const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 							if(insert_res.second) // If inserted new value:
 								mesh->vert_positions.push_back(v);
-							/*mesh->vert_positions[v_start + 3] = v;
-
-							if(ADD_UVS)
-							{
-								const ::Vec2f initial_uv((float)end_x, (float)start_y);
-								const ::Vec2f uv = lower_tex_matrix * initial_uv;
-								mesh->uv_pairs[v_start + 3] = Indigo::Vec2f(uv.x, uv.y);
-							}*/
 						}
 
 						assert(mesh->vert_positions.size() == vertpos_hash.size());
 
 						const size_t tri_start = mesh->triangles.size();
 						mesh->triangles.resize(tri_start + 2);
-						{
-							mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
-							mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
-							mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
-							/*if(ADD_UVS)
-							{
-								mesh->triangles[tri_start + 0].uv_indices[0]     = v_start + 0;
-								mesh->triangles[tri_start + 0].uv_indices[1]     = v_start + 1;
-								mesh->triangles[tri_start + 0].uv_indices[2]     = v_start + 2;
-							}
-							else*/
-							{
-								mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-								mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-								mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
-							}
-							mesh->triangles[tri_start + 0].tri_mat_index = (uint32)mat_i;
-						}
-						{
-							mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
-							mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
-							mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
-							/*if(ADD_UVS)
-							{
-								mesh->triangles[tri_start + 1].uv_indices[0]     = v_start + 0;
-								mesh->triangles[tri_start + 1].uv_indices[1]     = v_start + 2;
-								mesh->triangles[tri_start + 1].uv_indices[2]     = v_start + 3;
-							}
-							else*/
-							{
-								mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-								mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-								mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
-							}
-							mesh->triangles[tri_start + 1].tri_mat_index = (uint32)mat_i;
-						}
-
-						/*const size_t tri_start = mesh->triangles.size();
-						mesh->triangles.resize(tri_start + 2);
-						{
-							mesh->triangles[tri_start + 0].vertex_indices[0] = v_start + 0;
-							mesh->triangles[tri_start + 0].vertex_indices[1] = v_start + 1;
-							mesh->triangles[tri_start + 0].vertex_indices[2] = v_start + 2;
-							if(ADD_UVS)
-							{
-								mesh->triangles[tri_start + 0].uv_indices[0]     = v_start + 0;
-								mesh->triangles[tri_start + 0].uv_indices[1]     = v_start + 1;
-								mesh->triangles[tri_start + 0].uv_indices[2]     = v_start + 2;
-							}
-							else
-							{
-								mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-								mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-								mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
-							}
-							mesh->triangles[tri_start + 0].tri_mat_index = (uint32)mat_i;
-						}
-						{
-							mesh->triangles[tri_start + 1].vertex_indices[0] = v_start + 0;
-							mesh->triangles[tri_start + 1].vertex_indices[1] = v_start + 2;
-							mesh->triangles[tri_start + 1].vertex_indices[2] = v_start + 3;
-							if(ADD_UVS)
-							{
-								mesh->triangles[tri_start + 1].uv_indices[0]     = v_start + 0;
-								mesh->triangles[tri_start + 1].uv_indices[1]     = v_start + 2;
-								mesh->triangles[tri_start + 1].uv_indices[2]     = v_start + 3;
-							}
-							else
-							{
-								mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-								mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-								mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
-							}
-							mesh->triangles[tri_start + 1].tri_mat_index = (uint32)mat_i;
-						}*/
+						
+						mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
+						mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
+						mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
+						mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
+						mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
+						mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
+						
+						mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
+						mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
+						mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
+						mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
+						mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
+						mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
 					}
 				}
 
@@ -1426,28 +1096,17 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							const float quad_dim_coord = (float)(dim_coord + 1);
 
 							// Add the greedy quad
-							//const unsigned int v_start = (unsigned int)mesh->vert_positions.size();
-							//mesh->vert_positions.resize(v_start + 4);
-							//if(ADD_UVS) mesh->uv_pairs.resize(v_start + 4);
 							unsigned int v_i[4];
-
 							{
 								Indigo::Vec3f v; // bot left
 								v[dim] = (float)quad_dim_coord;
 								v[dim_a] = (float)start_x;
 								v[dim_b] = (float)start_y;
-								//mesh->vert_positions[v_start + 0] = v;
-								const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+								
+								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 								v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 								if(insert_res.second) // If inserted new value:
 									mesh->vert_positions.push_back(v);
-
-								/*if(ADD_UVS)
-								{
-									const ::Vec2f initial_uv((float)start_x, (float)start_y);
-									const ::Vec2f uv = upper_tex_matrix * initial_uv;
-									mesh->uv_pairs[v_start + 0] = Indigo::Vec2f(uv.x, uv.y);
-								}*/
 							}
 							{
 								Indigo::Vec3f v; // bot right
@@ -1455,19 +1114,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								v[dim_a] = (float)end_x;
 								v[dim_b] = (float)start_y;
 
-								const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 								v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 								if(insert_res.second) // If inserted new value:
 									mesh->vert_positions.push_back(v);
-
-								/*mesh->vert_positions[v_start + 1] = v;
-
-								if(ADD_UVS)
-								{
-									const ::Vec2f initial_uv((float)end_x, (float)start_y);
-									const ::Vec2f uv = upper_tex_matrix * initial_uv;
-									mesh->uv_pairs[v_start + 1] = Indigo::Vec2f(uv.x, uv.y);
-								}*/
 							}
 							{
 								Indigo::Vec3f v; // top right
@@ -1475,19 +1125,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								v[dim_a] = (float)end_x;
 								v[dim_b] = (float)end_y;
 
-								const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 								v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 								if(insert_res.second) // If inserted new value:
 									mesh->vert_positions.push_back(v);
-
-								/*mesh->vert_positions[v_start + 2] = v;
-
-								if(ADD_UVS)
-								{
-									const ::Vec2f initial_uv((float)end_x, (float)end_y);
-									const ::Vec2f uv = upper_tex_matrix * initial_uv;
-									mesh->uv_pairs[v_start + 2] = Indigo::Vec2f(uv.x, uv.y);
-								}*/
 							}
 							{
 								Indigo::Vec3f v; // top left
@@ -1495,97 +1136,30 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								v[dim_a] = (float)start_x;
 								v[dim_b] = (float)end_y;
 
-								const auto insert_res = vertpos_hash.insert(std::make_pair(Vec3f(v[0], v[1], v[2]), (int)vertpos_hash.size()));
+								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 								v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
 								if(insert_res.second) // If inserted new value:
 									mesh->vert_positions.push_back(v);
-
-								/*mesh->vert_positions[v_start + 3] = v;
-
-								if(ADD_UVS)
-								{
-									const ::Vec2f initial_uv((float)start_x, (float)end_y);
-									const ::Vec2f uv = upper_tex_matrix * initial_uv;
-									mesh->uv_pairs[v_start + 3] = Indigo::Vec2f(uv.x, uv.y);
-								}*/
 							}
 							
 							const size_t tri_start = mesh->triangles.size();
 							mesh->triangles.resize(tri_start + 2);
-							{
-								mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
-								mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
-								mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
-								/*if(ADD_UVS)
-								{
-									mesh->triangles[tri_start + 0].uv_indices[0]     = v_start + 0;
-									mesh->triangles[tri_start + 0].uv_indices[1]     = v_start + 1;
-									mesh->triangles[tri_start + 0].uv_indices[2]     = v_start + 2;
-								}
-								else*/
-								{
-									mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-									mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-									mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
-								}
-								mesh->triangles[tri_start + 0].tri_mat_index = (uint32)mat_i;
-							}
-							{
-								mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
-								mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
-								mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
-								/*if(ADD_UVS)
-								{
-									mesh->triangles[tri_start + 1].uv_indices[0]     = v_start + 0;
-									mesh->triangles[tri_start + 1].uv_indices[1]     = v_start + 2;
-									mesh->triangles[tri_start + 1].uv_indices[2]     = v_start + 3;
-								}
-								else*/
-								{
-									mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-									mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-									mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
-								}
-								mesh->triangles[tri_start + 1].tri_mat_index = (uint32)mat_i;
-							}
+							
+							mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
+							mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
+							mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
+							mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
+							mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
+							mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
+							mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
 
-							/*mesh->triangles.resize(tri_start + 2);
-							{
-								mesh->triangles[tri_start + 0].vertex_indices[0] = v_start + 0;
-								mesh->triangles[tri_start + 0].vertex_indices[1] = v_start + 1;
-								mesh->triangles[tri_start + 0].vertex_indices[2] = v_start + 2;
-								if(ADD_UVS)
-								{
-									mesh->triangles[tri_start + 0].uv_indices[0]     = v_start + 0;
-									mesh->triangles[tri_start + 0].uv_indices[1]     = v_start + 1;
-									mesh->triangles[tri_start + 0].uv_indices[2]     = v_start + 2;
-								}
-								else
-								{
-									mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-									mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-									mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
-								}
-								mesh->triangles[tri_start + 0].tri_mat_index = (uint32)mat_i;
-							}
-							{
-								mesh->triangles[tri_start + 1].vertex_indices[0] = v_start + 0;
-								mesh->triangles[tri_start + 1].vertex_indices[1] = v_start + 2;
-								mesh->triangles[tri_start + 1].vertex_indices[2] = v_start + 3;
-								if(ADD_UVS)
-								{
-									mesh->triangles[tri_start + 1].uv_indices[0]     = v_start + 0;
-									mesh->triangles[tri_start + 1].uv_indices[1]     = v_start + 2;
-									mesh->triangles[tri_start + 1].uv_indices[2]     = v_start + 3;
-								}
-								else
-								{
-									mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-									mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-									mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
-								}
-								mesh->triangles[tri_start + 1].tri_mat_index = (uint32)mat_i;
-							}*/
+							mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
+							mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
+							mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
+							mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
+							mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
+							mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
+							mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
 						}
 					}
 				}
@@ -1594,187 +1168,6 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 	}
 
 	mesh->endOfModel();
-
-
-#if 0
-	//js::Vector<uint8, 16>& mesh_indices = mesh->index_data;
-	//mesh_indices.resizeNoCopy(num_faces_upper_bound * 6);
-
-	js::Vector<uint32, 16> mesh_indices;
-	mesh_indices.resizeNoCopy(num_faces_upper_bound * 6);
-
-	js::AABBox aabb_os = js::AABBox::emptyAABBox();
-
-	size_t face = 0; // total face write index
-
-	int prev_mat_i = -1;
-	size_t prev_start_face_i = 0;
-
-	for(int v=0; v<(int)num_voxels; ++v)
-	{
-		const int voxel_mat_i = voxels[v].mat_index;
-
-		if(voxel_mat_i != prev_mat_i)
-		{
-			// Create a new batch
-			if(face > prev_start_face_i)
-			{
-				mesh->batches.push_back(BatchedMesh::IndicesBatch());
-				mesh->batches.back().indices_start = (uint32)(prev_start_face_i * 6);
-				mesh->batches.back().material_index = prev_mat_i;
-				mesh->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
-
-				prev_start_face_i = face;
-			}
-		}
-		prev_mat_i = voxel_mat_i;
-
-		const Vec3<int> v_p = voxels[v].pos;
-		const Vec4f v_pf((float)v_p.x, (float)v_p.y, (float)v_p.z, 0); // voxel_pos_offset
-
-		// We will nudge the vertices outwards along the face normal a little.
-		// This means that vertices from non-coplanar faces that share the same position, and which shouldn't get merged due to differing uvs, won't.
-		// Note that we could also achieve this by using the UV in the hash table key.
-		const float nudge = 1.0e-4f;
-
-		// x = 0 face
-		auto res = voxel_hash.find(Vec3<int>(v_p.x - 1, v_p.y, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(-nudge, 0, 0, 1) + v_pf, Vec2f(1 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(-nudge, 0, w, 1) + v_pf, Vec2f(1 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(-nudge, w, w, 1) + v_pf, Vec2f(0 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(-nudge, w, 0, 1) + v_pf, Vec2f(0 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// x = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x + 1, v_p.y, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(w + nudge, 0, 0, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w + nudge, w, 0, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w + nudge, w, w, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w + nudge, 0, w, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// y = 0 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y - 1, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0 - nudge, 0, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w, 0 - nudge, 0, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, 0 - nudge, w, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(0, 0 - nudge, w, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// y = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y + 1, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, w + nudge, 0, 1) + v_pf, Vec2f(1 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(0, w + nudge, w, 1) + v_pf, Vec2f(1 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w + nudge, w, 1) + v_pf, Vec2f(0 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w, w + nudge, 0, 1) + v_pf, Vec2f(0 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// z = 0 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z - 1));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(0, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// z = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z + 1));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w, 0, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(0, w, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		aabb_os.enlargeToHoldPoint(v_pf);
-	}
-
-	// Add last batch
-	if(face > prev_start_face_i)
-	{
-		mesh->batches.push_back(BatchedMesh::IndicesBatch());
-		mesh->batches.back().indices_start = (uint32)(prev_start_face_i * 6);
-		mesh->batches.back().material_index = prev_mat_i;
-		mesh->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
-	}
-
-	mesh->aabb_os = js::AABBox(aabb_os.min_, aabb_os.max_ + Vec4f(w, w, w, 0)); // Extend AABB to enclose the +xyz bounds of the voxels.
-
-	const size_t num_faces = face;
-	const size_t num_verts = vertpos_hash.size();
-	const size_t num_indices = num_faces * 6;
-
-	// Trim arrays to actual size
-	mesh->vertex_data.resize(num_verts * NUM_COMPONENTS * sizeof(float));
-	
-	
-	
-	// Copy mesh indices
-	//TEMP: just use uint32 indices.
-	mesh->index_type = BatchedMesh::ComponentType_UInt32;
-	mesh->index_data.resize(num_indices * sizeof(uint32));
-	std::memcpy(mesh->index_data.data(), mesh_indices.data(), mesh->index_data.size());
-#endif
 	return mesh;
 }
 
@@ -1815,15 +1208,15 @@ struct ModelLoadingVertKey
 {
 	Indigo::Vec3f pos;
 	Indigo::Vec2f uv0;
-	Indigo::Vec2f uv1;
+	//Indigo::Vec2f uv1;
 
 	inline bool operator == (const ModelLoadingVertKey& b) const
 	{
-		return pos == b.pos && uv0 == b.uv0 && uv1 == b.uv1;
+		return pos == b.pos && uv0 == b.uv0/* && uv1 == b.uv1*/;
 	}
 	inline bool operator != (const ModelLoadingVertKey& b) const
 	{
-		return pos != b.pos || uv0 != b.uv0 || uv1 != b.uv1;
+		return pos != b.pos || uv0 != b.uv0/* || uv1 != b.uv1*/;
 	}
 };
 
@@ -1859,51 +1252,37 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	const Indigo::Mesh* const mesh				= &mesh_;
 	const Indigo::Triangle* const tris			= mesh->triangles.data();
 	const size_t num_tris						= mesh->triangles.size();
-	//const Indigo::Quad* const quads				= mesh->quads.data();
-	//const size_t num_quads						= mesh->quads.size();
 	const Indigo::Vec3f* const vert_positions	= mesh->vert_positions.data();
 	const size_t vert_positions_size			= mesh->vert_positions.size();
 	const Indigo::Vec2f* const uv_pairs			= mesh->uv_pairs.data();
 	const size_t uvs_size						= mesh->uv_pairs.size();
 
 	const bool mesh_has_uvs						= mesh->num_uv_mappings > 0;
-	const bool mesh_has_uv1						= mesh->num_uv_mappings > 1;
+	//const bool mesh_has_uv1						= mesh->num_uv_mappings > 1;
 	const uint32 num_uv_sets					= mesh->num_uv_mappings;
 
-//	assert(mesh->num_uv_mappings > 0);
+	// If we have a UV set, it will be the lightmap UVs.
 
-
-	// TODO: uv extents may differ from pos extents, either need to fix and make the same, or test min and max differently for UVs here.
-	size_t pos_size/*, uv0_size*/;
-	GLenum pos_gl_type/*, uv0_gl_type*/;
+	size_t pos_size;
+	GLenum pos_gl_type;
 	if(min_voxel_coord >= -128 && max_voxel_coord < 128)
 	{
 		pos_size = sizeof(int8) * 3;
-		//uv0_size = sizeof(int8) * 2;
 		pos_gl_type = GL_BYTE;
-		//uv0_gl_type = GL_BYTE;
 	}
 	else if(min_voxel_coord >= -32768 && max_voxel_coord < 32768)
 	{
 		pos_size = sizeof(int16) * 3;
-		//uv0_size = sizeof(int16) * 2;
 		pos_gl_type = GL_SHORT;
-		//uv0_gl_type = GL_SHORT;
 	}
 	else
 	{
 		pos_size = sizeof(float) * 3;
-		//uv0_size = sizeof(half)  * 2;
 		pos_gl_type = GL_FLOAT;
-		//uv0_gl_type = GL_HALF_FLOAT;
 	}
 
-	//TEMP HACK:
-	/*uv0_size = sizeof(half)  * 2;
-	uv0_gl_type = GL_HALF_FLOAT;*/
-
 	const size_t uv0_size = sizeof(half)  * 2;
-	const GLenum uv0_gl_type = GL_HALF_FLOAT;
+	//const GLenum uv0_gl_type = GL_HALF_FLOAT;
 
 
 	Reference<OpenGLMeshRenderData> mesh_data = new OpenGLMeshRenderData();
@@ -1925,7 +1304,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	*/
 	const size_t uv0_offset         = 0          + pos_size;
 	const size_t uv1_offset         = uv0_offset + uv0_size;
-	const size_t num_bytes_per_vert = uv1_offset + (mesh_has_uv1 ? packed_uv1_size : 0);
+	const size_t num_bytes_per_vert = uv1_offset;// +(mesh_has_uv1 ? packed_uv1_size : 0);
 
 	js::Vector<uint8, 16>& vert_data = mesh_data->vert_data;
 	vert_data.reserve(mesh->vert_positions.size() * num_bytes_per_vert);
@@ -1940,7 +1319,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	ModelLoadingVertKey empty_key;
 	empty_key.pos = Indigo::Vec3f(std::numeric_limits<float>::infinity());
 	empty_key.uv0 = Indigo::Vec2f(0.f);
-	empty_key.uv1 = Indigo::Vec2f(0.f);
+	//empty_key.uv1 = Indigo::Vec2f(0.f);
 	HashMapInsertOnly2<ModelLoadingVertKey, uint32, ModelLoadingVertKeyHash> vert_map(empty_key, // Map from vert data to merged index
 		/*expected_num_items=*/mesh->vert_positions.size()); 
 
@@ -1986,21 +1365,18 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 				// Look up merged vertex
 				const Indigo::Vec2f uv0 = mesh_has_uvs ? uv_pairs[uv_i    ] : Indigo::Vec2f(0.f);
-				const Indigo::Vec2f uv1 = mesh_has_uv1 ? uv_pairs[uv_i + 1] : Indigo::Vec2f(0.f);
+				//const Indigo::Vec2f uv1 = mesh_has_uv1 ? uv_pairs[uv_i + 1] : Indigo::Vec2f(0.f);
 
 				ModelLoadingVertKey key;
 				key.pos = vert_positions[pos_i];
 				key.uv0 = uv0;
-				key.uv1 = uv1;
+				//key.uv1 = uv1;
 
-				const auto res = vert_map.find(key);
-				uint32 merged_v_index;
-				if(res == vert_map.end()) // If a vert for this vert data hasn't been created yet:
+				const auto res = vert_map.insert(std::make_pair(key, next_merged_vert_i)); // Insert new (key, value) pair, or return iterator to existing one.
+				const uint32 merged_v_index = res.first->second; // Get existing or new (key, vert_i) pair, then access vert_i.
+				if(res.second) // If was inserted:
 				{
-					merged_v_index = (uint32)next_merged_vert_i++;
-
-					vert_map.insert(std::make_pair(key, merged_v_index));
-
+					next_merged_vert_i++;
 					const size_t cur_size = vert_data.size();
 					vert_data.resize(cur_size + num_bytes_per_vert);
 					if(pos_gl_type == GL_BYTE)
@@ -2022,26 +1398,11 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 					if(mesh_has_uvs)
 					{
 						// Copy uv_0
-						/*if(uv0_gl_type == GL_BYTE)
-						{
-							const int8 uv0_data[2] = { (int8)round(uv0.x), (int8)round(uv0.y) };
-							std::memcpy(&vert_data[cur_size + uv0_offset], uv0_data, sizeof(int8) * 2);
-						}
-						else if(uv0_gl_type == GL_SHORT)
-						{
-							const int16 uv0_data[3] = { (int16)round(uv0.x), (int16)round(uv0.y) };
-							std::memcpy(&vert_data[cur_size + uv0_offset], uv0_data, sizeof(int16) * 2);
-						}
-						else*/
-						{
-							assert(uv0_gl_type == GL_HALF_FLOAT);
-							
-							const half half_uv[2] = { half(uv0.x),  half(uv0.y) };
-							copyUInt32s(&vert_data[cur_size + uv0_offset], half_uv, 4);
-						}
+						const half half_uv[2] = { half(uv0.x),  half(uv0.y) };
+						copyUInt32s(&vert_data[cur_size + uv0_offset], half_uv, 4);
 
 						// Copy uv_1
-						if(mesh_has_uv1)
+						/*if(mesh_has_uv1)
 						{
 							if(use_half_uv1)
 							{
@@ -2050,138 +1411,14 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 							}
 							else
 								copyUInt32s(&vert_data[cur_size + uv1_offset], &uv1.x, sizeof(Indigo::Vec2f));
-						}
+						}*/
 					}
-				}
-				else
-				{
-					merged_v_index = res->second; // Else a vertex with this position and UVs has already been created, use it.
 				}
 
 				uint32_indices[vert_index_buffer_i++] = (uint32)merged_v_index;
 			}
 		}
 	}
-
-#if 0
-	if(mesh->quads.size() > 0)
-	{
-		// Create list of quad references sorted by material index
-		js::Vector<std::pair<uint32, uint32>, 16> unsorted_quad_indices(num_quads);
-		js::Vector<std::pair<uint32, uint32>, 16> quad_indices(num_quads); // Sorted by material
-
-		for(uint32 q = 0; q < num_quads; ++q)
-			unsorted_quad_indices[q] = std::make_pair(quads[q].mat_index, q);
-
-		Sort::serialCountingSort(/*in=*/unsorted_quad_indices.data(), /*out=*/quad_indices.data(), num_quads, BMeshTakeFirstElement());
-
-		for(uint32 q = 0; q < num_quads; ++q)
-		{
-			// If we've switched to a new material then start a new quad range
-			if(quad_indices[q].first != current_mat_index)
-			{
-				if(vert_index_buffer_i > last_pass_start_index) // Don't add zero-length passes.
-				{
-					IndicesBatch batch;
-					batch.material_index = current_mat_index;
-					batch.indices_start = (uint32)(last_pass_start_index);
-					batch.num_indices = (uint32)(vert_index_buffer_i - last_pass_start_index);
-					this->batches.push_back(batch);
-				}
-				last_pass_start_index = vert_index_buffer_i;
-				current_mat_index = quad_indices[q].first;
-			}
-
-			const Indigo::Quad& quad = quads[quad_indices[q].second];
-			uint32 vert_merged_index[4];
-			for(uint32 i = 0; i < 4; ++i) // For each vert in quad:
-			{
-				const uint32 pos_i  = quad.vertex_indices[i];
-				const uint32 uv_i   = quad.uv_indices[i];
-				if(pos_i >= vert_positions_size)
-					throw Indigo::Exception("vert index out of bounds");
-				if(mesh_has_uvs && uv_i >= uvs_size)
-					throw Indigo::Exception("UV index out of bounds");
-
-				// Look up merged vertex
-				const Indigo::Vec2f uv0 = mesh_has_uvs ? uv_pairs[uv_i    ] : Indigo::Vec2f(0.f);
-				const Indigo::Vec2f uv1 = mesh_has_uv1 ? uv_pairs[uv_i + 1] : Indigo::Vec2f(0.f);
-
-				BMeshVertKey key;
-				key.pos = vert_positions[pos_i];
-				key.normal = mesh_has_shading_normals ? vert_normals[pos_i] : Indigo::Vec3f(0);
-				key.uv0 = uv0;
-				key.uv1 = uv1;
-
-				const auto res = vert_map.find(key);
-
-				uint32 merged_v_index;
-				if(res == vert_map.end()) // If a vert for this vert data hasn't been created yet:
-				{
-					merged_v_index = (uint32)next_merged_vert_i++;
-
-					vert_map.insert(std::make_pair(key, merged_v_index));
-
-					const size_t cur_size = vert_data.size();
-					vert_data.resize(cur_size + num_bytes_per_vert);
-					copyUInt32s(&vert_data[cur_size], &vert_positions[pos_i].x, sizeof(Indigo::Vec3f));
-					if(mesh_has_shading_normals)
-					{
-						const uint32 n = BMeshPackNormal(vert_normals[pos_i]); // Pack normal into GL_INT_2_10_10_10_REV format.
-						copyUInt32s(&vert_data[cur_size + normal_offset], &n, 4);
-					}
-
-					if(mesh_has_uvs)
-					{
-						if(use_half_uvs)
-						{
-							half half_uv[2];
-							half_uv[0] = half(uv0.x);
-							half_uv[1] = half(uv0.y);
-							copyUInt32s(&vert_data[cur_size + uv0_offset], half_uv, 4);
-						}
-						else
-							copyUInt32s(&vert_data[cur_size + uv0_offset], &uv_pairs[uv_i].x, sizeof(Indigo::Vec2f));
-
-						// Copy uv_1
-						if(mesh_has_uv1)
-						{
-							if(use_half_uvs)
-							{
-								half half_uv[2];
-								half_uv[0] = half(uv1.x);
-								half_uv[1] = half(uv1.y);
-								copyUInt32s(&vert_data[cur_size + uv1_offset], half_uv, 4);
-							}
-							else
-								copyUInt32s(&vert_data[cur_size + uv1_offset], &uv1.x, sizeof(Indigo::Vec2f));
-						}
-					}
-
-					if(mesh_has_vert_cols)
-						copyUInt32s(&vert_data[cur_size + vert_col_offset], &vert_colours[pos_i].x, sizeof(Indigo::Vec3f));
-				}
-				else
-				{
-					merged_v_index = res->second; // Else a vertex with this position index and UVs has already been created, use it.
-				}
-
-				vert_merged_index[i] = merged_v_index;
-			} // End for each vert in quad:
-
-				// Tri 1 of quad
-			uint32_indices[vert_index_buffer_i + 0] = vert_merged_index[0];
-			uint32_indices[vert_index_buffer_i + 1] = vert_merged_index[1];
-			uint32_indices[vert_index_buffer_i + 2] = vert_merged_index[2];
-			// Tri 2 of quad
-			uint32_indices[vert_index_buffer_i + 3] = vert_merged_index[0];
-			uint32_indices[vert_index_buffer_i + 4] = vert_merged_index[2];
-			uint32_indices[vert_index_buffer_i + 5] = vert_merged_index[3];
-
-			vert_index_buffer_i += 6;
-		}
-	}
-#endif
 
 	// Build last pass data that won't have been built yet.
 	OpenGLBatch batch;
@@ -2258,13 +1495,13 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		VertexAttrib uv_attrib;
 		uv_attrib.enabled = true;
 		uv_attrib.num_comps = 2;
-		uv_attrib.type = uv0_gl_type;
+		uv_attrib.type = GL_HALF_FLOAT;
 		uv_attrib.normalised = false;
 		uv_attrib.stride = (uint32)num_bytes_per_vert;
 		uv_attrib.offset = (uint32)uv0_offset;
 		mesh_data->vertex_spec.attributes.push_back(uv_attrib);
 	}
-	if(num_uv_sets >= 2)
+	/*if(num_uv_sets >= 2)
 	{
 		VertexAttrib uv_attrib;
 		uv_attrib.enabled = true;
@@ -2274,7 +1511,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 		uv_attrib.stride = (uint32)num_bytes_per_vert;
 		uv_attrib.offset = (uint32)uv1_offset;
 		mesh_data->vertex_spec.attributes.push_back(uv_attrib);
-	}
+	}*/
 
 	mesh_data->aabb_os = js::AABBox(
 		Vec4f((float)minpos.x,       (float)minpos.y,       (float)minpos.z,       1.f),
@@ -2299,42 +1536,27 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		maxpos = maxpos.max(voxel_group.voxels[i].pos);
 	}
 
-	//BatchedMeshRef batched_mesh = makeBatchedMeshForVoxelGroup(voxel_group);
 	Indigo::MeshRef indigo_mesh = makeIndigoMeshForVoxelGroup(voxel_group);
-
-	// Convert to Indigo mesh:
-	//Indigo::MeshRef indigo_mesh = new Indigo::Mesh();
-	//batched_mesh->buildIndigoMesh(*indigo_mesh);
 
 	// UV unwrap it:
 	StandardPrintOutput print_output;
 	UVUnwrapper::build(*indigo_mesh, print_output); // Adds UV set to indigo_mesh.
 
 
-
 	//----------------- Convert indigo mesh to voxel data -------------
-
-
-	//BatchedMeshRef new_batched_mesh = new BatchedMesh();
-	//new_batched_mesh->buildFromIndigoMesh(*indigo_mesh);
-
-
-	//Reference<OpenGLMeshRenderData> mesh_data = OpenGLEngine::buildIndigoMesh(indigo_mesh, /*skip_opengl_calls=*/!do_opengl_stuff);
-	//Reference<OpenGLMeshRenderData> mesh_data = OpenGLEngine::buildBatchedMesh(new_batched_mesh, /*skip_opengl_calls=*/!do_opengl_stuff);
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh, minpos, maxpos);
 	//----------------- End Convert indigo mesh to voxel data -------------
 
 
 	// Build RayMesh from our batched mesh (used for physics + picking)
 	raymesh_out = new RayMesh("mesh", /*enable_shading_normals=*/false);
-	//raymesh_out->fromBatchedMesh(*batched_mesh);
 	raymesh_out->fromIndigoMesh(*indigo_mesh);
 
 	Geometry::BuildOptions options;
 	DummyShouldCancelCallback should_cancel_callback;
-	raymesh_out->build(options, should_cancel_callback, print_output, false, task_manager);
+	raymesh_out->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
 
-
+	// Load rendering data into GPU mem if requested.
 	if(do_opengl_stuff)
 	{
 		if(!mesh_data->vert_index_buffer_uint8.empty())
@@ -2364,380 +1586,6 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 	//conPrint("ModelLoading::makeModelForVoxelGroup took " + timer.elapsedString());
 	return mesh_data;
-
-#if 0
-
-
-	const size_t num_voxels = voxel_group.voxels.size();
-	assert(num_voxels > 0);
-	// conPrint("Adding " + toString(num_voxels) + " voxels.");
-
-	// Make hash from voxel indices to voxel material
-	const Vec3<int> empty_key(std::numeric_limits<int>::max());
-	HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/empty_key, /*expected_num_items=*/num_voxels);
-
-	int max_mat_index = 0;
-	for(int v=0; v<(int)num_voxels; ++v)
-	{
-		max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
-		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, voxel_group.voxels[v].mat_index));
-	}
-	const size_t num_mats = (size_t)max_mat_index + 1;
-
-	//-------------- Sort voxels by material --------------------
-	std::vector<Voxel> voxels(num_voxels);
-	Sort::serialCountingSortWithNumBuckets(/*in=*/voxel_group.voxels.data(), /*out=*/voxels.data(), voxel_group.voxels.size(), num_mats, GetMatIndex());
-
-	Reference<OpenGLMeshRenderData> meshdata = makeMeshForVoxelGroup(voxels, num_mats, voxel_hash);
-
-#if 0
-	Reference<OpenGLMeshRenderData> meshdata = new OpenGLMeshRenderData();
-	meshdata->has_uvs = true;
-	meshdata->has_shading_normals = false;
-	meshdata->batches.reserve(num_mats);
-
-	const float w = 1.f; // voxel width
-
-	const Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
-	HashMapInsertOnly2<Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
-
-
-	const size_t num_faces_upper_bound = num_voxels * 6;
-	
-
-	const int NUM_COMPONENTS = 5; // num float components per vertex.
-	meshdata->vert_data.resizeNoCopy(num_faces_upper_bound*4 * NUM_COMPONENTS * sizeof(float)); // num verts = num_faces*4
-	float* combined_data = (float*)meshdata->vert_data.data();
-
-
-	js::Vector<uint32, 16>& mesh_indices = meshdata->vert_index_buffer;
-	mesh_indices.resizeNoCopy(num_faces_upper_bound * 6);
-
-	js::AABBox aabb_os = js::AABBox::emptyAABBox();
-
-	size_t face = 0; // total face write index
-
-	int prev_mat_i = -1;
-	size_t prev_start_face_i = 0;
-
-	for(int v=0; v<(int)num_voxels; ++v)
-	{
-		const int voxel_mat_i = voxels[v].mat_index;
-
-		if(voxel_mat_i != prev_mat_i)
-		{
-			// Create a new batch
-			if(face > prev_start_face_i)
-			{
-				meshdata->batches.push_back(OpenGLBatch());
-				meshdata->batches.back().material_index = prev_mat_i;
-				meshdata->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
-				meshdata->batches.back().prim_start_offset = (uint32)(prev_start_face_i * 6 * sizeof(uint32)); // Offset in bytes
-
-				prev_start_face_i = face;
-			}
-		}
-		prev_mat_i = voxel_mat_i;
-
-		const Vec3<int> v_p = voxels[v].pos;
-		const Vec4f v_pf((float)v_p.x, (float)v_p.y, (float)v_p.z, 0); // voxel_pos_offset
-
-		// We will nudge the vertices outwards along the face normal a little.
-		// This means that vertices from non-coplanar faces that share the same position, and which shouldn't get merged due to differing uvs, won't.
-		// Note that we could also achieve this by using the UV in the hash table key.
-		const float nudge = 1.0e-4f;
-
-		// x = 0 face
-		auto res = voxel_hash.find(Vec3<int>(v_p.x - 1, v_p.y, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(-nudge, 0, 0, 1) + v_pf, Vec2f(1 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(-nudge, 0, w, 1) + v_pf, Vec2f(1 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(-nudge, w, w, 1) + v_pf, Vec2f(0 - v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(-nudge, w, 0, 1) + v_pf, Vec2f(0 - v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// x = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x + 1, v_p.y, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(w + nudge, 0, 0, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w + nudge, w, 0, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w + nudge, w, w, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w + nudge, 0, w, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// y = 0 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y - 1, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0 - nudge, 0, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w, 0 - nudge, 0, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, 0 - nudge, w, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(0, 0 - nudge, w, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// y = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y + 1, v_p.z));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, w + nudge, 0, 1) + v_pf, Vec2f(1 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(0, w + nudge, w, 1) + v_pf, Vec2f(1 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w + nudge, w, 1) + v_pf, Vec2f(0 - v_pf[0], 1 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w, w + nudge, 0, 1) + v_pf, Vec2f(0 - v_pf[0], 0 + v_pf[2]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// z = 0 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z - 1));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(0, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 0 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w, 0 - nudge, 1) + v_pf, Vec2f(1 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(w, 0, 0 - nudge, 1) + v_pf, Vec2f(0 + v_pf[1], 1 + v_pf[0]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		// z = 1 face
-		res = voxel_hash.find(Vec3<int>(v_p.x, v_p.y, v_p.z + 1));
-		if((res == voxel_hash.end()) || (res->second != voxel_mat_i)) // If neighbouring voxel is empty, or has a different material:
-		{
-			const int v0i = addVert(Vec4f(0, 0, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v1i = addVert(Vec4f(w, 0, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 0 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v2i = addVert(Vec4f(w, w, w + nudge, 1) + v_pf, Vec2f(1 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-			const int v3i = addVert(Vec4f(0, w, w + nudge, 1) + v_pf, Vec2f(0 + v_pf[0], 1 + v_pf[1]), vertpos_hash, combined_data, NUM_COMPONENTS);
-
-
-			mesh_indices[face * 6 + 0] = v0i;
-			mesh_indices[face * 6 + 1] = v1i;
-			mesh_indices[face * 6 + 2] = v2i;
-			mesh_indices[face * 6 + 3] = v0i;
-			mesh_indices[face * 6 + 4] = v2i;
-			mesh_indices[face * 6 + 5] = v3i;
-			face++;
-		}
-
-		aabb_os.enlargeToHoldPoint(v_pf);
-	}
-
-	// Add last batch
-	if(face > prev_start_face_i)
-	{
-		meshdata->batches.push_back(OpenGLBatch());
-		meshdata->batches.back().material_index = prev_mat_i;
-		meshdata->batches.back().num_indices = (uint32)(face - prev_start_face_i) * 6;
-		meshdata->batches.back().prim_start_offset = (uint32)(prev_start_face_i * 6 * sizeof(uint32)); // Offset in bytes
-	}
-
-	meshdata->aabb_os = js::AABBox(aabb_os.min_, aabb_os.max_ + Vec4f(w, w, w, 0)); // Extend AABB to enclose the +xyz bounds of the voxels.
-
-	const size_t num_faces = face;
-	const size_t num_verts = vertpos_hash.size();
-
-	// Trim arrays to actual size
-	meshdata->vert_data.resize(num_verts * NUM_COMPONENTS * sizeof(float));
-	meshdata->vert_index_buffer.resize(num_faces * 6);
-#endif
-
-	
-
-
-	//------------------------------------------------------------------------------------
-	Reference<RayMesh> raymesh = new RayMesh("mesh", /*enable shading normals=*/false);
-
-	// Copy over tris to raymesh
-	const size_t num_verts = meshdata->vert_data.size() / (NUM_COMPONENTS * sizeof(float));
-	const size_t num_faces = meshdata->vert_index_buffer.size() / 6;
-	const js::Vector<uint32, 16>& mesh_indices = meshdata->vert_index_buffer;
-	const float* combined_data = (float*)meshdata->vert_data.data();
-	 
-	raymesh->getTriangles().resizeNoCopy(num_faces * 2);
-	RayMeshTriangle* const dest_tris = raymesh->getTriangles().data();
-
-	for(size_t b=0; b<meshdata->batches.size(); ++b) // Iterate over batches to do this so we know the material index for each face.
-	{
-		const int batch_num_faces = meshdata->batches[b].num_indices / 6;
-		const int start_face      = meshdata->batches[b].prim_start_offset / (6 * sizeof(uint32));
-		const int mat_index       = meshdata->batches[b].material_index;
-
-		for(size_t f=start_face; f<start_face + batch_num_faces; ++f)
-		{
-			dest_tris[f*2 + 0].vertex_indices[0] = mesh_indices[f * 6 + 0];
-			dest_tris[f*2 + 0].vertex_indices[1] = mesh_indices[f * 6 + 1];
-			dest_tris[f*2 + 0].vertex_indices[2] = mesh_indices[f * 6 + 2];
-			dest_tris[f*2 + 0].uv_indices[0] = 0;
-			dest_tris[f*2 + 0].uv_indices[1] = 0;
-			dest_tris[f*2 + 0].uv_indices[2] = 0;
-			dest_tris[f*2 + 0].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
-
-			dest_tris[f*2 + 1].vertex_indices[0] =  mesh_indices[f * 6 + 3];
-			dest_tris[f*2 + 1].vertex_indices[1] =  mesh_indices[f * 6 + 4];
-			dest_tris[f*2 + 1].vertex_indices[2] =  mesh_indices[f * 6 + 5];
-			dest_tris[f*2 + 1].uv_indices[0] = 0;
-			dest_tris[f*2 + 1].uv_indices[1] = 0;
-			dest_tris[f*2 + 1].uv_indices[2] = 0;
-			dest_tris[f*2 + 1].setMatIndexAndUseShadingNormals(mat_index, RayMesh_ShadingNormals::RayMesh_NoShadingNormals);
-		}
-	}
-	
-	// Copy verts positions and normals
-	raymesh->getVertices().resizeNoCopy(num_verts);
-	RayMeshVertex* const dest_verts = raymesh->getVertices().data();
-	for(size_t i=0; i<num_verts; ++i)
-	{
-		dest_verts[i].pos.x = combined_data[i * NUM_COMPONENTS + 0];
-		dest_verts[i].pos.y = combined_data[i * NUM_COMPONENTS + 1];
-		dest_verts[i].pos.z = combined_data[i * NUM_COMPONENTS + 2];
-
-		// Skip UV data for now
-
-		dest_verts[i].normal = Vec3f(1, 0, 0);
-	}
-
-	// Set UVs (Note: only needed for dumping RayMesh to disk)
-	raymesh->setMaxNumTexcoordSets(0);
-	//raymesh->getUVs().resize(4);
-	//raymesh->getUVs()[0] = Vec2f(0, 0);
-	//raymesh->getUVs()[1] = Vec2f(0, 1);
-	//raymesh->getUVs()[2] = Vec2f(1, 1);
-	//raymesh->getUVs()[3] = Vec2f(1, 0);
-
-	Geometry::BuildOptions options;
-	DummyShouldCancelCallback should_cancel_callback;
-	//StandardPrintOutput print_output;
-	raymesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
-	raymesh_out = raymesh;
-	//--------------------------------------------------------------------------------------
-
-	const size_t vert_index_buffer_size = meshdata->vert_index_buffer.size();
-	if(num_verts < 256)
-	{
-		js::Vector<uint8, 16>& index_buf = meshdata->vert_index_buffer_uint8;
-		index_buf.resize(vert_index_buffer_size);
-		for(size_t i=0; i<vert_index_buffer_size; ++i)
-		{
-			assert(mesh_indices[i] < 256);
-			index_buf[i] = (uint8)mesh_indices[i];
-		}
-		if(do_opengl_stuff)
-			meshdata->vert_indices_buf = new VBO(index_buf.data(), index_buf.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
-
-		meshdata->index_type = GL_UNSIGNED_BYTE;
-		// Go through the batches and adjust the start offset to take into account we're using uint8s.
-		for(size_t i=0; i<meshdata->batches.size(); ++i)
-			meshdata->batches[i].prim_start_offset /= 4;
-	}
-	else if(num_verts < 65536)
-	{
-		js::Vector<uint16, 16>& index_buf = meshdata->vert_index_buffer_uint16;
-		index_buf.resize(vert_index_buffer_size);
-		for(size_t i=0; i<vert_index_buffer_size; ++i)
-		{
-			assert(mesh_indices[i] < 65536);
-			index_buf[i] = (uint16)mesh_indices[i];
-		}
-		if(do_opengl_stuff)
-			meshdata->vert_indices_buf = new VBO(index_buf.data(), index_buf.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
-
-		meshdata->index_type = GL_UNSIGNED_SHORT;
-		// Go through the batches and adjust the start offset to take into account we're using uint16s.
-		for(size_t i=0; i<meshdata->batches.size(); ++i)
-			meshdata->batches[i].prim_start_offset /= 2;
-	}
-	else
-	{
-		if(do_opengl_stuff)
-			meshdata->vert_indices_buf = new VBO(mesh_indices.data(), mesh_indices.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
-		meshdata->index_type = GL_UNSIGNED_INT;
-	}
-
-
-	if(do_opengl_stuff)
-		meshdata->vert_vbo = new VBO(meshdata->vert_data.data(), meshdata->vert_data.dataSizeBytes());
-
-	VertexSpec& spec = meshdata->vertex_spec;
-	const uint32 vert_stride = (uint32)(sizeof(float) * 3 + sizeof(float) * 2); // also vertex size.
-
-	VertexAttrib pos_attrib;
-	pos_attrib.enabled = true;
-	pos_attrib.num_comps = 3;
-	pos_attrib.type = GL_FLOAT;
-	pos_attrib.normalised = false;
-	pos_attrib.stride = vert_stride;
-	pos_attrib.offset = 0;
-	spec.attributes.push_back(pos_attrib);
-
-	VertexAttrib normal_attrib; // NOTE: We need this attribute, disabled, because it's expected, see OpenGLProgram.cpp
-	normal_attrib.enabled = false;
-	normal_attrib.num_comps = 3;
-	normal_attrib.type = GL_FLOAT;
-	normal_attrib.normalised = false;
-	normal_attrib.stride = vert_stride;
-	normal_attrib.offset = sizeof(float) * 3; // goes after position
-	spec.attributes.push_back(normal_attrib);
-
-	VertexAttrib uv_attrib;
-	uv_attrib.enabled = true;
-	uv_attrib.num_comps = 2;
-	uv_attrib.type = GL_FLOAT;
-	uv_attrib.normalised = false;
-	uv_attrib.stride = vert_stride;
-	uv_attrib.offset = (uint32)(sizeof(float) * 3); // after position
-	spec.attributes.push_back(uv_attrib);
-
-	if(do_opengl_stuff)
-		meshdata->vert_vao = new VAO(meshdata->vert_vbo, spec);
-
-	// If we did the OpenGL calls, then the data has been uploaded to VBOs etc.. so we can free it.
-	if(do_opengl_stuff)
-	{
-		meshdata->vert_data.clearAndFreeMem();
-		meshdata->vert_index_buffer.clearAndFreeMem();
-		meshdata->vert_index_buffer_uint16.clearAndFreeMem();
-		meshdata->vert_index_buffer_uint8.clearAndFreeMem();
-	}
-
-	return meshdata;
-#endif
 }
 
 
@@ -2746,6 +1594,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 #include <simpleraytracer/raymesh.h>
 #include <utils/TaskManager.h>
+#include <maths/PCG32.h>
 #include <indigo/TestUtils.h>
 
 
@@ -2781,7 +1630,9 @@ void ModelLoading::test()
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
 
+		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
+		testAssert(data->getNumTris()             == 6 * 2);
 		testAssert(raymesh->getTriangles().size() == 6 * 2);
 	}
 
@@ -2794,6 +1645,9 @@ void ModelLoading::test()
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
 
+		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
+		testAssert(raymesh->getNumVerts() == 8);
+		testAssert(data->getNumTris()             == 6 * 2);
 		testAssert(raymesh->getTriangles().size() == 6 * 2);
 	}
 
@@ -2806,6 +1660,9 @@ void ModelLoading::test()
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
 
+		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
+		testAssert(raymesh->getNumVerts() == 8);
+		testAssert(data->getNumTris()             == 6 * 2);
 		testAssert(raymesh->getNumVerts() == 8);
 		testAssert(raymesh->getTriangles().size() == 2 * 6);
 	}
@@ -2819,6 +1676,9 @@ void ModelLoading::test()
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
 
+		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
+		testAssert(raymesh->getNumVerts() == 8);
+		testAssert(data->getNumTris()             == 6 * 2);
 		testAssert(raymesh->getTriangles().size() == 2 * 6);
 	}
 
@@ -2831,17 +1691,22 @@ void ModelLoading::test()
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
 
+		testEqual(data->getNumVerts(), (size_t)(2 * 4 + 8 * 4));
+		testAssert(raymesh->getNumVerts() == 4 * 3);
+		testEqual(data->getNumTris(), (size_t)(2 * 6 * 2));
 		testAssert(raymesh->getTriangles().size() == 2 * 6 * 2);
 	}
 
 	// Performance test
 	if(true)
 	{
+		PCG32 rng(1);
 		VoxelGroup group;
 		for(int z=0; z<100; z += 2)
 			for(int y=0; y<100; ++y)
-				for(int x=0; x<10; ++x)
-					group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
+				for(int x=0; x<20; ++x)
+					if(rng.unitRandom() < 0.2f)
+						group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
 
 		for(int i=0; i<500; ++i)
 		{
