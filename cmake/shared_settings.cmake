@@ -413,9 +413,13 @@ ${INDIGO_SRC_DIR}/ThreadContext.cpp
 ${INDIGO_SRC_DIR}/ThreadContext.h
 ${INDIGO_SRC_DIR}/UVUnwrapper.cpp
 ${INDIGO_SRC_DIR}/UVUnwrapper.h
+)
+
+set(indigo_files_in_sdk_lib
 ${INDIGO_SRC_DIR}/TransformPath.cpp
 ${INDIGO_SRC_DIR}/TransformPath.h
 )
+
 
 set(INDIGO_DLL_DIR "${INDIGO_TRUNK_DIR_ENV}/dll")
 

@@ -208,6 +208,7 @@ add_executable(${CURRENT_TARGET} ${EXECUTABLE_TYPE}
 ${MAC_ICON}
 ${graphics}
 ${indigo_src}
+${indigo_files_in_sdk_lib}
 ${client_indigo_files}
 ${indigo_console}
 ${maths}

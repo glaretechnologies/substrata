@@ -26,6 +26,8 @@ SET(gui_client_files
 SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/GroundPatch.cpp
+../shared/GroundPatch.h
 ../shared/Parcel.cpp
 ../shared/Parcel.h
 ../shared/ParcelID.h
@@ -42,6 +44,8 @@ SET(shared_files
 ../shared/WorldObject.h
 ../shared/WorldMaterial.cpp
 ../shared/WorldMaterial.h
+../shared/VoxelMeshBuilding.cpp
+../shared/VoxelMeshBuilding.h
 )
 
 
@@ -90,6 +94,7 @@ ${dll_src}
 ${fft2d}
 ${xxhash}
 ${docs}
+${lang}
 )
 
 
@@ -120,7 +125,10 @@ else()
 endif()
 
 
+# Use $ENV{INDIGO_OUTPUT}?
+
 target_link_libraries(${CURRENT_TARGET}
 #${MYSQL_CONNECTOR_LIB}
-#C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
+debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
+optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
 )
