@@ -45,7 +45,7 @@ public:
 class VoxelGroup
 {
 public:
-	std::vector<Voxel> voxels;
+	js::Vector<Voxel, 16> voxels;
 };
 
 
@@ -72,10 +72,28 @@ public:
 	inline bool isCollidable() const;
 	inline void setCollidable(bool c);
 
+	size_t getTotalMemUsage() const;
+
 	static void compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 16>& compressed_data_out);
 	static void decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, VoxelGroup& group_out);
 	void compressVoxels();
 	void decompressVoxels();
+	void clearDecompressedVoxels();
+
+	//VoxelGroup& getDecompressedVoxelGroup() { return voxel_group; }
+	const VoxelGroup& getDecompressedVoxelGroup() const { return voxel_group; }
+	js::Vector<Voxel, 16>& getDecompressedVoxels() { return voxel_group.voxels; }
+	const js::Vector<Voxel, 16>& getDecompressedVoxels() const { return voxel_group.voxels; }
+	js::Vector<uint8, 16>& getCompressedVoxels() { return compressed_voxels; }
+	const js::Vector<uint8, 16>& getCompressedVoxels() const { return compressed_voxels; }
+	//void getCompressedVoxels() const { return compressed_voxels; }
+
+
+	void writeToStream(OutStream& stream) const;
+	void writeToNetworkStream(OutStream& stream) const; // Write without version
+
+	
+
 
 	enum ObjectType
 	{
@@ -104,9 +122,6 @@ public:
 	static const uint32 COLLIDABLE_FLAG               = 1; // Is this object solid from the point of view of the physics engine?
 	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG = 2; // Does the lightmap for this object need to be built or rebuilt?
 	uint32 flags;
-
-	VoxelGroup voxel_group;
-	js::Vector<uint8, 16> compressed_voxels;
 
 	TimeStamp created_time;
 	UserID creator_id;
@@ -169,6 +184,8 @@ public:
 	//double last_snapshot_time;
 	uint32 next_snapshot_i;
 private:
+	VoxelGroup voxel_group;
+	js::Vector<uint8, 16> compressed_voxels;
 
 };
 
@@ -191,10 +208,7 @@ void WorldObject::setCollidable(bool c)
 }
 
 
-void writeToStream(const WorldObject& world_ob, OutStream& stream);
 void readFromStream(InStream& stream, WorldObject& ob);
-
-void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream); // Write without version
 void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID will have been read already
 
 

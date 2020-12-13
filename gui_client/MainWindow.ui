@@ -67,10 +67,17 @@
     <addaction name="actionGoToPersonalWorld"/>
     <addaction name="actionGo_to_CryptoVoxels_World"/>
    </widget>
+   <widget class="QMenu" name="menuTools">
+    <property name="title">
+     <string>Tools</string>
+    </property>
+    <addaction name="actionExport_view_to_Indigo"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuWindow"/>
    <addaction name="menuMovement"/>
    <addaction name="menuGo"/>
+   <addaction name="menuTools"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
@@ -387,6 +394,11 @@
   <action name="actionGo_to_CryptoVoxels_World">
    <property name="text">
     <string>Go to Cryptovoxels World</string>
+   </property>
+  </action>
+  <action name="actionExport_view_to_Indigo">
+   <property name="text">
+    <string>Export view to Indigo</string>
    </property>
   </action>
  </widget>

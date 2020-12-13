@@ -1,7 +1,7 @@
 /*=====================================================================
 MainWindow.cpp
 --------------
-Copyright Glare Technologies Limited 2018 -
+Copyright Glare Technologies Limited 2020 -
 =====================================================================*/
 #if defined(_WIN32)
 #define NOMINMAX
@@ -1063,7 +1063,7 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		RayTraceResult trace_results;
 		Vec4f start_trace_pos = new_aabb_ws.centroid();
 		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
-		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e30f), 1.0e30f, thread_context, trace_results);
+		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e30f), 1.0e30f, trace_results);
 		const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
@@ -1160,6 +1160,43 @@ void MainWindow::timerEvent(QTimerEvent* event)
 {
 	updateStatusBar();
 
+	if(stats_timer.elapsed() > 2.0)
+	{
+		stats_timer.reset();
+
+		conPrint("\n============================================");
+		
+			conPrint("World objects CPU mem usage:            " + getNiceByteSize(this->world_state->getTotalMemUsage()));
+
+		if(this->physics_world.nonNull())
+			conPrint("physics_world->getTotalMemUsage:        " + getNiceByteSize(this->physics_world->getTotalMemUsage()));
+	
+			conPrint("texture_server->getTotalMemUsage:       " + getNiceByteSize(this->texture_server->getTotalMemUsage()));
+		
+		if(this->ui->glWidget->opengl_engine.nonNull())
+		{
+			conPrint("------ OpenGL Engine ------");
+			const GLMemUsage mem_usage = this->ui->glWidget->opengl_engine->getTotalMemUsage();
+			conPrint("opengl_engine geom  CPU mem usage:            " + getNiceByteSize(mem_usage.geom_cpu_usage));
+			conPrint("opengl_engine tex   CPU mem usage:            " + getNiceByteSize(mem_usage.texture_cpu_usage));
+			conPrint("opengl_engine total CPU mem usage:            " + getNiceByteSize(mem_usage.totalCPUUsage()));
+
+			conPrint("opengl_engine geom  GPU mem usage:            " + getNiceByteSize(mem_usage.geom_gpu_usage));
+			conPrint("opengl_engine tex   GPU mem usage:            " + getNiceByteSize(mem_usage.texture_gpu_usage));
+			conPrint("opengl_engine total GPU mem usage:            " + getNiceByteSize(mem_usage.totalGPUUsage()));
+
+			//conPrint("texture_data_manager TotalMemUsage:     " + getNiceByteSize(this->ui->glWidget->opengl_engine->texture_data_manager->getTotalMemUsage()));
+		}
+
+		
+			conPrint("mesh_manager num meshes:                " + toString(this->mesh_manager.model_URL_to_mesh_map.size()));
+
+			const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
+			conPrint("mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()));
+			conPrint("mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()));
+	}
+
+
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 	const double global_time = this->world_state->getCurrentGlobalTime(); // Used as input into script functions
 
@@ -1233,7 +1270,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// We don't want to do too much at one time or it will cause hitches.
 	// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
 	// We alternate for fairness.
-	const double MAX_LOADING_TIME = 0.010; // 10 ms.
+	const double MAX_LOADING_TIME = 0.050; // 10 ms.
 	Timer loading_timer;
 	while((!model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
 	{
@@ -1252,8 +1289,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				//if(message_ob->using_placeholder_model)
 					removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
 
+				static const bool LOAD_PHYSICS_RAYMESH = true;
+
 				message_ob->opengl_engine_ob = message->opengl_ob;
-				message_ob->physics_object = message->physics_ob;
+				if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
 
 				const std::string loaded_model_url = message_ob->model_url;
 
@@ -1269,8 +1308,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					ui->glWidget->addObject(message_ob->opengl_engine_ob);
 
-					physics_world->addObject(message_ob->physics_object);
-					physics_world->rebuild(task_manager, print_output);
+					if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(message_ob->physics_object);
+					if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
 
 					ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
 
@@ -1302,15 +1341,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									false, // skip opengl calls
 									raymesh);
 
-								ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-								ob->physics_object->geometry = message_ob->physics_object->geometry;
-								ob->physics_object->ob_to_world = ob_to_world_matrix;
-								ob->physics_object->userdata = ob;
-								ob->physics_object->userdata_type = 0;
+								if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
+								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
+								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
+								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
 							}
 							else
 							{
-								assert(ob->physics_object.nonNull());
+								//assert(ob->physics_object.nonNull());
 							}
 
 							if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
@@ -1325,8 +1364,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								ui->glWidget->addObject(ob->opengl_engine_ob);
 
-								physics_world->addObject(ob->physics_object);
-								physics_world->rebuild(task_manager, print_output);
+								if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(ob->physics_object);
+								if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
 
 								ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
@@ -2009,7 +2048,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				else
 				{
 					// Decompress voxel group
-					ob->decompressVoxels();
+					//ob->decompressVoxels();
 
 					bool reload_opengl_model = false; // Do we need to load or reload model?
 					if(ob->opengl_engine_ob.isNull())
@@ -2405,7 +2444,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					// Enqueue ObjectFullUpdate
 					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 					packet.writeUInt32(Protocol::ObjectFullUpdate);
-					writeToNetworkStream(*world_ob, packet);
+					world_ob->writeToNetworkStream(packet);
 
 					this->client_thread->enqueueDataToSend(packet);
 
@@ -2944,9 +2983,9 @@ void MainWindow::on_actionAddObject_triggered()
 			else
 			{
 				// We loaded a voxel model.
-				assert(!d.loaded_object->voxel_group.voxels.empty());
+				assert(!d.loaded_object->getDecompressedVoxelGroup().voxels.empty());
 
-				new_world_object->voxel_group = d.loaded_object->voxel_group;
+				new_world_object->getDecompressedVoxels() = d.loaded_object->getDecompressedVoxels();
 				new_world_object->compressVoxels();
 				new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
 			}
@@ -2982,7 +3021,7 @@ void MainWindow::on_actionAddObject_triggered()
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 				packet.writeUInt32(Protocol::CreateObject);
-				writeToNetworkStream(*new_world_object, packet);
+				new_world_object->writeToNetworkStream(packet);
 
 				this->client_thread->enqueueDataToSend(packet);
 			}
@@ -3051,7 +3090,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 		packet.writeUInt32(Protocol::CreateObject);
-		writeToNetworkStream(*new_world_object, packet);
+		new_world_object->writeToNetworkStream(packet);
 
 		this->client_thread->enqueueDataToSend(packet);
 	}
@@ -3087,7 +3126,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	new_world_object->axis = Vec3f(0, 0, 1);
 	new_world_object->angle = 0;
 	new_world_object->scale = Vec3f(0.5f); // This will be the initial width of the voxels
-	new_world_object->voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0)); // Start with a single voxel.
+	new_world_object->getDecompressedVoxels().push_back(Voxel(Vec3<int>(0, 0, 0), 0)); // Start with a single voxel.
 	new_world_object->compressVoxels();
 
 	// Send CreateObject message to server
@@ -3095,7 +3134,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 		packet.writeUInt32(Protocol::CreateObject);
-		writeToNetworkStream(*new_world_object, packet);
+		new_world_object->writeToNetworkStream(packet);
 
 		this->client_thread->enqueueDataToSend(packet);
 	}
@@ -3145,15 +3184,15 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->angle = selected_ob->angle;
 		new_world_object->scale = selected_ob->scale;
 		new_world_object->flags = selected_ob->flags | WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG; // Lightmaps need to be built for it.
-		new_world_object->voxel_group = selected_ob->voxel_group;
-		new_world_object->compressed_voxels = selected_ob->compressed_voxels;
+		new_world_object->getDecompressedVoxels() = selected_ob->getDecompressedVoxels();
+		new_world_object->getCompressedVoxels() = selected_ob->getCompressedVoxels();
 
 		// Send CreateObject message to server
 		{
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 			packet.writeUInt32(Protocol::CreateObject);
-			writeToNetworkStream(*new_world_object, packet);
+			new_world_object->writeToNetworkStream(packet);
 
 			this->client_thread->enqueueDataToSend(packet);
 		}
@@ -3461,6 +3500,12 @@ void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
 }
 
 
+void MainWindow::on_actionExport_view_to_Indigo_triggered()
+{
+	ui->indigoView->saveSceneToDisk();
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -3651,7 +3696,42 @@ void MainWindow::materialSelectedInBrowser(const std::string& path)
 
 void MainWindow::sendLightmapNeededFlagsSlot()
 {
-	//conPrint("MainWindow::sendLightmapNeededFlagsSlot");
+	conPrint("MainWindow::sendLightmapNeededFlagsSlot");
+
+	// Go over set of objects to lightmap (objs_with_lightmap_rebuild_needed) and add any object within the lightmap effect distance.
+	{
+		const float D = 100.f;
+
+		Lock lock(this->world_state->mutex);
+
+		std::vector<WorldObject*> other_obs_to_lightmap;
+
+		for(auto it = objs_with_lightmap_rebuild_needed.begin(); it != objs_with_lightmap_rebuild_needed.end(); ++it)
+		{
+			WorldObjectRef ob = *it;
+
+			for(auto other_it = this->world_state->objects.begin(); other_it != this->world_state->objects.end(); ++other_it)
+			{
+				WorldObject* other_ob = other_it->second.ptr();
+
+				const float dist = (float)other_ob->pos.getDist(ob->pos);
+				if(dist < D)
+					other_obs_to_lightmap.push_back(other_ob);
+			}
+		}
+
+		// Append other_obs_to_lightmap to objs_with_lightmap_rebuild_needed
+		for(size_t i=0; i<other_obs_to_lightmap.size(); ++i)
+		{
+			objs_with_lightmap_rebuild_needed.insert(other_obs_to_lightmap[i]);
+			conPrint("Adding object with UID " + other_obs_to_lightmap[i]->uid.toString());
+
+			other_obs_to_lightmap[i]->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+		}
+	}
+
+
+	
 	for(auto it = objs_with_lightmap_rebuild_needed.begin(); it != objs_with_lightmap_rebuild_needed.end(); ++it)
 	{
 		WorldObjectRef ob = *it;
@@ -3855,6 +3935,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 			if(selected_ob.nonNull())
 			{
+				selected_ob->decompressVoxels(); // Make sure voxels are decompressed for this object.
+
 				const bool have_edit_permissions = objectModificationAllowedWithMsg(*selected_ob, "edit");
 				if(have_edit_permissions)
 				{
@@ -3874,9 +3956,9 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
 
 						// Add the voxel!
-						this->selected_ob->voxel_group.voxels.push_back(Voxel());
-						this->selected_ob->voxel_group.voxels.back().pos = voxel_indices;
-						this->selected_ob->voxel_group.voxels.back().mat_index = ui->objectEditor->getSelectedMatIndex();
+						this->selected_ob->getDecompressedVoxels().push_back(Voxel());
+						this->selected_ob->getDecompressedVoxels().back().pos = voxel_indices;
+						this->selected_ob->getDecompressedVoxels().back().mat_index = ui->objectEditor->getSelectedMatIndex();
 
 						voxels_changed = true;
 					}
@@ -3889,10 +3971,10 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
 
 						// Remove the voxel, if present
-						for(size_t z=0; z<this->selected_ob->voxel_group.voxels.size(); ++z)
+						for(size_t z=0; z<this->selected_ob->getDecompressedVoxels().size(); ++z)
 						{
-							if(this->selected_ob->voxel_group.voxels[z].pos == voxel_indices)
-								this->selected_ob->voxel_group.voxels.erase(this->selected_ob->voxel_group.voxels.begin() + z);
+							if(this->selected_ob->getDecompressedVoxels()[z].pos == voxel_indices)
+								this->selected_ob->getDecompressedVoxels().erase(this->selected_ob->getDecompressedVoxels().begin() + z);
 						}
 
 						voxels_changed = true;
@@ -3901,6 +3983,10 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 					if(voxels_changed)
 					{
 						this->selected_ob->compressVoxels();
+
+
+						// Clear lightmap URL, since the lightmap will be invalid now the voxels (and hence the UV map) will have changed.
+						this->selected_ob->lightmap_url = "";
 
 						// Remove any existing OpenGL and physics model
 						if(this->selected_ob->opengl_engine_ob.nonNull())
@@ -3912,11 +3998,11 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						// Update in Indigo view
 						ui->indigoView->objectRemoved(*selected_ob);
 
-						if(!this->selected_ob->voxel_group.voxels.empty())
+						if(!this->selected_ob->getDecompressedVoxels().empty())
 						{
 							// Add updated model!
 							Reference<RayMesh> raymesh;
-							Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(this->selected_ob->voxel_group, task_manager, /*do_opengl_stuff=*/true, raymesh);
+							Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(this->selected_ob->getDecompressedVoxelGroup(), task_manager, /*do_opengl_stuff=*/true, raymesh);
 
 							GLObjectRef gl_ob = new GLObject();
 							gl_ob->ob_to_world_matrix = ob_to_world;
@@ -3924,7 +4010,10 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 							gl_ob->materials.resize(this->selected_ob->materials.size());
 							for(uint32 i=0; i<this->selected_ob->materials.size(); ++i)
+							{
 								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], this->selected_ob->lightmap_url, *this->resource_manager, gl_ob->materials[i]);
+								gl_ob->materials[i].gen_planar_uvs = true;
+							}
 
 							Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/this->selected_ob->isCollidable());
 							physics_ob->geometry = raymesh;
@@ -3949,6 +4038,11 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						// Mark as from-local-dirty to send an object updated message to the server
 						this->selected_ob->from_local_other_dirty = true;
 						this->world_state->dirty_from_local_objects.insert(this->selected_ob);
+
+						// Trigger sending update-lightmap update flag message later.
+						this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+						objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+						lightmap_flag_timer->start(/*msec=*/2000); 
 					}
 				}
 			}
@@ -4327,12 +4421,6 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		}
 	}
 
-	//TEMP:
-	if(e->key() == Qt::Key::Key_1)
-	{
-		ui->indigoView->saveSceneToDisk();
-	}
-
 	if(e->key() == Qt::Key::Key_F5)
 	{
 		this->connectToServer(this->server_hostname, this->server_worldname);
@@ -4581,9 +4669,9 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			BatchedMeshTests::test();
+			//BatchedMeshTests::test();
 			//FormatDecoderVox::test();
-			//ModelLoading::test();
+			ModelLoading::test();
 			//HTTPClient::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();

@@ -424,11 +424,12 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		Reference<ServerWorldState> world_state = world_it->second;
 		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
 		{
-			WorldObject* ob = it->second.ptr();
+			/*WorldObject* ob = it->second.ptr();
 			if(!ob->voxel_group.voxels.empty() && ob->compressed_voxels.empty())
 			{
 				WorldObject::compressVoxelGroup(ob->voxel_group, ob->compressed_voxels);
-			}
+			}*/
+			//ob->compressVoxels();
 		}
 	}
 
@@ -521,7 +522,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 					for(auto i=world_state->objects.begin(); i != world_state->objects.end(); ++i)
 					{
 						stream.writeUInt32(WORLD_OBJECT_CHUNK);
-						writeToStream(*i->second, stream);
+						i->second->writeToStream(stream);
 						num_obs++;
 					}
 				}

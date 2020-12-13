@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
 								// Send ObjectFullUpdate packet
 								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 								packet.writeUInt32(Protocol::ObjectFullUpdate);
-								writeToNetworkStream(*ob, packet);
+								ob->writeToNetworkStream(packet);
 
 								enqueuePacketToBroadcast(packet, world_packets);
 
@@ -471,7 +471,7 @@ int main(int argc, char *argv[])
 								// Send ObjectCreated packet
 								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 								packet.writeUInt32(Protocol::ObjectCreated);
-								writeToNetworkStream(*ob, packet);
+								ob->writeToNetworkStream(packet);
 
 								enqueuePacketToBroadcast(packet, world_packets);
 

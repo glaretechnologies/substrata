@@ -38,7 +38,7 @@ void LoadModelTask::run(size_t thread_index)
 		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		{
-			if(ob->voxel_group.voxels.size() == 0)
+			if(ob->getCompressedVoxels().size() == 0) //  ob->getDecompressedVoxelGroup().voxels.size() == 0)
 			{
 				// Add dummy cube marker for zero-voxel case.
 				physics_ob = new PhysicsObject(/*collidable=*/false);
@@ -55,8 +55,12 @@ void LoadModelTask::run(size_t thread_index)
 			}
 			else
 			{
+				ob->decompressVoxels();
+
 				Reference<RayMesh> raymesh;
-				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->voxel_group, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+				ob->clearDecompressedVoxels();
 
 				physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 				physics_ob->geometry = raymesh;
@@ -66,7 +70,11 @@ void LoadModelTask::run(size_t thread_index)
 				opengl_ob->mesh_data = gl_meshdata;
 				opengl_ob->materials.resize(ob->materials.size());
 				for(uint32 i=0; i<ob->materials.size(); ++i)
+				{
 					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+					opengl_ob->materials[i].gen_planar_uvs = true;
+				}
+
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 			}
 		}

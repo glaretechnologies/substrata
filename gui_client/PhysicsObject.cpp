@@ -24,7 +24,7 @@ PhysicsObject::~PhysicsObject()
 }
 
 
-void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const
+void PhysicsObject::traceRay(const Ray& ray, float max_t, RayTraceResult& results_out) const
 {
 	results_out.hitdist_ws = -1;
 
@@ -35,14 +35,12 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_
 		pos_os, // origin
 		dir_os, // direction
 		ray.minT(), // min_t - Use the world space ray min_t.
-		max_t,
-		false // shadow ray
+		max_t
 	);
 
 	HitInfo hitinfo;
 	const float dist = (float)geometry->traceRay(
 		localray,
-		thread_context,
 		hitinfo
 	);
 
@@ -59,7 +57,7 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, ThreadContext& thread_
 }
 
 
-void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f& translation_ws, const js::AABBox& spherepath_aabb_ws, ThreadContext& thread_context, RayTraceResult& results_out) const
+void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f& translation_ws, const js::AABBox& spherepath_aabb_ws, RayTraceResult& results_out) const
 {
 	if(!collidable)
 	{
@@ -84,7 +82,7 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 	);
 
 	Vec4f closest_hit_normal_ws;
-	const float smallest_dist_ws = (float)geometry->traceSphere(ray_ws, world_to_ob, ob_to_world, sphere_ws.getRadius(), thread_context, closest_hit_normal_ws);
+	const float smallest_dist_ws = (float)geometry->traceSphere(ray_ws, world_to_ob, ob_to_world, sphere_ws.getRadius(), closest_hit_normal_ws);
 
 	if(smallest_dist_ws >= 0.f && smallest_dist_ws < std::numeric_limits<float>::infinity())
 	{
@@ -103,7 +101,7 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 }
 
 
-void PhysicsObject::appendCollPoints(const js::BoundingSphere& sphere_ws, const js::AABBox& sphere_aabb_ws, ThreadContext& thread_context, std::vector<Vec4f>& points_ws_in_out) const
+void PhysicsObject::appendCollPoints(const js::BoundingSphere& sphere_ws, const js::AABBox& sphere_aabb_ws, std::vector<Vec4f>& points_ws_in_out) const
 {
 	if(!collidable)
 		return;
@@ -111,6 +109,11 @@ void PhysicsObject::appendCollPoints(const js::BoundingSphere& sphere_ws, const 
 	if(sphere_aabb_ws.disjoint(this->aabb_ws))
 		return;
 
-	geometry->appendCollPoints(sphere_ws.getCenter(), sphere_ws.getRadius(), world_to_ob, ob_to_world, thread_context, points_ws_in_out);
+	geometry->appendCollPoints(sphere_ws.getCenter(), sphere_ws.getRadius(), world_to_ob, ob_to_world, points_ws_in_out);
 }
 
+
+size_t PhysicsObject::getTotalMemUsage() const
+{
+	return sizeof(ob_to_world) + sizeof(world_to_ob) + sizeof(aabb_ws) + geometry->getTotalMemUsage();
+}

@@ -10,6 +10,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/Avatar.h"
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
+#include "../shared/GroundPatch.h"
 #include <ThreadSafeRefCounted.h>
 #include <Mutex.h>
 #include <map>
@@ -27,6 +28,11 @@ public:
 	WorldState();
 	~WorldState();
 
+	// Just used on clients:
+	void updateWithGlobalTimeReceived(double t);
+	double getCurrentGlobalTime() const;
+
+	size_t getTotalMemUsage() const;
 
 	std::map<UID, Reference<Avatar>> avatars;
 
@@ -39,11 +45,11 @@ public:
 	std::map<ParcelID, ParcelRef> parcels;
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_remote_parcels;
 
-	Mutex mutex;
+	std::map<GroundPatchUID, GroundPatchRef> ground_patches;
 
-	// Just used on clients:
-	void updateWithGlobalTimeReceived(double t);
-	double getCurrentGlobalTime() const;
+	mutable Mutex mutex;
+
+	
 
 	double last_global_time_received;
 	double local_time_global_time_received;
