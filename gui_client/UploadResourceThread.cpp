@@ -18,11 +18,11 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <SocketBufferOutStream.h>
 
 
-UploadResourceThread::UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& local_path_, const std::string& model_URL_, 
+UploadResourceThread::UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& local_path_, const std::string& resource_URL_, 
 										   const std::string& hostname_, int port_, const std::string& username_, const std::string& password_)
 :	//out_msg_queue(out_msg_queue_),
 	local_path(local_path_),
-	model_URL(model_URL_),
+	resource_URL(resource_URL_),
 	hostname(hostname_),
 	port(port_),
 	username(username_),
@@ -40,12 +40,12 @@ void UploadResourceThread::doRun()
 
 	try
 	{
-		conPrint("UploadResourceThread: Connecting to " + hostname + ":" + toString(port) + "...");
+		//conPrint("UploadResourceThread: Connecting to " + hostname + ":" + toString(port) + "...");
 
 		MySocketRef socket = new MySocket(hostname, port);
 		socket->setUseNetworkByteOrder(false);
 
-		conPrint("UploadResourceThread: Connected to " + hostname + ":" + toString(port) + "!");
+		//conPrint("UploadResourceThread: Connected to " + hostname + ":" + toString(port) + "!");
 
 		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
 		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
@@ -77,7 +77,7 @@ void UploadResourceThread::doRun()
 		// Load resource from disk
 		MemMappedFile file(local_path);
 
-		socket->writeStringLengthFirst(model_URL); // Write URL
+		socket->writeStringLengthFirst(resource_URL); // Write URL
 
 		socket->writeUInt64(file.fileSize()); // Write file size
 
@@ -86,7 +86,7 @@ void UploadResourceThread::doRun()
 		if(response == Protocol::UploadAllowed)
 		{
 			socket->writeData(file.fileData(), file.fileSize());
-			conPrint("UploadResourceThread: Sent file. (" + toString(file.fileSize()) + " B)");
+			conPrint("UploadResourceThread: Sent file '" + local_path + "', URL '" + resource_URL + "' (" + toString(file.fileSize()) + " B)");
 		}
 		else
 		{
