@@ -66,6 +66,7 @@ endif()
 add_executable(${CURRENT_TARGET}
 ${graphics}
 ${indigo_src}
+${indigo_files_in_sdk_lib}
 ${indigo_console}
 ${maths}
 ${networking}

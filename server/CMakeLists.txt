@@ -58,6 +58,7 @@ add_executable(${CURRENT_TARGET}
 ${graphics}
 ${indigo_src}
 ${indigo_console}
+${indigo_files_in_sdk_lib}
 ${maths}
 ${networking}
 ${physics}
