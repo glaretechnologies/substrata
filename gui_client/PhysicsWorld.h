@@ -50,6 +50,8 @@ public:
 
 	void rebuild(Indigo::TaskManager& task_manager, PrintOutput& print_output);
 
+	size_t getTotalMemUsage() const;
+
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const;
 

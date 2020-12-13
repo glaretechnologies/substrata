@@ -350,3 +350,9 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 	//conPrint("BVHObjectTree::build done  (Elapsed: " + timer.elapsedStringNPlaces(4) + ")");
 	//print_output.print("PhysicsObjectBVH build done. (Time Taken: " + timer.elapsedStringNPlaces(3) + ")");
 }
+
+
+size_t PhysicsObjectBVH::getTotalMemUsage() const
+{
+	return objects.capacitySizeBytes() + nodes.capacitySizeBytes() + leaf_objects.capacitySizeBytes();
+}
