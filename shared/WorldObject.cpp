@@ -261,42 +261,42 @@ Version history:
 static_assert(sizeof(Voxel) == sizeof(int)*4, "sizeof(Voxel) == sizeof(int)*4");
 
 
-void writeToStream(const WorldObject& world_ob, OutStream& stream)
+void WorldObject::writeToStream(OutStream& stream) const
 {
 	// Write version
 	stream.writeUInt32(WORLD_OBJECT_SERIALISATION_VERSION);
 
-	writeToStream(world_ob.uid, stream);
-	stream.writeUInt32((uint32)world_ob.object_type);
-	stream.writeStringLengthFirst(world_ob.model_url);
+	::writeToStream(uid, stream);
+	stream.writeUInt32((uint32)object_type);
+	stream.writeStringLengthFirst(model_url);
 
 	// Write materials
-	stream.writeUInt32((uint32)world_ob.materials.size());
-	for(size_t i=0; i<world_ob.materials.size(); ++i)
-		writeToStream(*world_ob.materials[i], stream);
+	stream.writeUInt32((uint32)materials.size());
+	for(size_t i=0; i<materials.size(); ++i)
+		::writeToStream(*materials[i], stream);
 
-	stream.writeStringLengthFirst(world_ob.lightmap_url); // new in v13
+	stream.writeStringLengthFirst(lightmap_url); // new in v13
 
-	stream.writeStringLengthFirst(world_ob.script);
-	stream.writeStringLengthFirst(world_ob.content);
-	stream.writeStringLengthFirst(world_ob.target_url);
+	stream.writeStringLengthFirst(script);
+	stream.writeStringLengthFirst(content);
+	stream.writeStringLengthFirst(target_url);
 
-	writeToStream(world_ob.pos, stream);
-	writeToStream(world_ob.axis, stream);
-	stream.writeFloat(world_ob.angle);
-	writeToStream(world_ob.scale, stream);
+	::writeToStream(pos, stream);
+	::writeToStream(axis, stream);
+	stream.writeFloat(angle);
+	::writeToStream(scale, stream);
 
-	world_ob.created_time.writeToStream(stream); // new in v5
-	writeToStream(world_ob.creator_id, stream); // new in v5
+	created_time.writeToStream(stream); // new in v5
+	::writeToStream(creator_id, stream); // new in v5
 
-	stream.writeUInt32(world_ob.flags); // new in v11
+	stream.writeUInt32(flags); // new in v11
 
-	if(world_ob.object_type == WorldObject::ObjectType_VoxelGroup)
+	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		// Write compressed voxel data
-		stream.writeUInt32((uint32)world_ob.compressed_voxels.size());
-		if(world_ob.compressed_voxels.size() > 0)
-			stream.writeData(world_ob.compressed_voxels.data(), world_ob.compressed_voxels.dataSizeBytes());
+		stream.writeUInt32((uint32)compressed_voxels.size());
+		if(compressed_voxels.size() > 0)
+			stream.writeData(compressed_voxels.data(), compressed_voxels.dataSizeBytes());
 	}
 }
 
@@ -324,7 +324,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		{
 			if(ob.materials[i].isNull())
 				ob.materials[i] = new WorldMaterial();
-			readFromStream(stream, *ob.materials[i]);
+			::readFromStream(stream, *ob.materials[i]);
 		}
 	}
 
@@ -381,11 +381,11 @@ void readFromStream(InStream& stream, WorldObject& ob)
 			if(num_voxels > 1000000)
 				throw Indigo::Exception("Invalid num voxels: " + toString(num_voxels));
 
-			ob.voxel_group.voxels.resize(num_voxels);
+			ob.getDecompressedVoxels().resize(num_voxels);
 
 			// Read voxel data
 			if(num_voxels > 0)
-				stream.readData(ob.voxel_group.voxels.data(), sizeof(Voxel) * num_voxels);
+				stream.readData(ob.getDecompressedVoxels().data(), sizeof(Voxel) * num_voxels);
 		}
 		else
 		{
@@ -395,9 +395,9 @@ void readFromStream(InStream& stream, WorldObject& ob)
 				throw Indigo::Exception("Invalid voxel_data_size: " + toString(voxel_data_size));
 
 			// Read voxel data
-			ob.compressed_voxels.resize(voxel_data_size);
+			ob.getCompressedVoxels().resize(voxel_data_size);
 			if(voxel_data_size > 0)
-				stream.readData(ob.compressed_voxels.data(), voxel_data_size);
+				stream.readData(ob.getCompressedVoxels().data(), voxel_data_size);
 		}
 	}
 
@@ -407,41 +407,41 @@ void readFromStream(InStream& stream, WorldObject& ob)
 }
 
 
-void writeToNetworkStream(const WorldObject& world_ob, OutStream& stream) // Write without version
+void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without version
 {
-	writeToStream(world_ob.uid, stream);
-	stream.writeUInt32((uint32)world_ob.object_type);
-	stream.writeStringLengthFirst(world_ob.model_url);
+	::writeToStream(uid, stream);
+	stream.writeUInt32((uint32)object_type);
+	stream.writeStringLengthFirst(model_url);
 
 	// Write materials
-	stream.writeUInt32((uint32)world_ob.materials.size());
-	for(size_t i=0; i<world_ob.materials.size(); ++i)
-		writeToStream(*world_ob.materials[i], stream);
+	stream.writeUInt32((uint32)materials.size());
+	for(size_t i=0; i<materials.size(); ++i)
+		::writeToStream(*materials[i], stream);
 
-	stream.writeStringLengthFirst(world_ob.lightmap_url); // new in v13
+	stream.writeStringLengthFirst(lightmap_url); // new in v13
 
-	stream.writeStringLengthFirst(world_ob.script);
-	stream.writeStringLengthFirst(world_ob.content);
-	stream.writeStringLengthFirst(world_ob.target_url);
+	stream.writeStringLengthFirst(script);
+	stream.writeStringLengthFirst(content);
+	stream.writeStringLengthFirst(target_url);
 
-	writeToStream(world_ob.pos, stream);
-	writeToStream(world_ob.axis, stream);
-	stream.writeFloat(world_ob.angle);
-	writeToStream(world_ob.scale, stream);
+	::writeToStream(pos, stream);
+	::writeToStream(axis, stream);
+	stream.writeFloat(angle);
+	::writeToStream(scale, stream);
 
-	world_ob.created_time.writeToStream(stream); // new in v5
-	writeToStream(world_ob.creator_id, stream); // new in v5
+	created_time.writeToStream(stream); // new in v5
+	::writeToStream(creator_id, stream); // new in v5
 
-	stream.writeUInt32(world_ob.flags); // new in v11
+	stream.writeUInt32(flags); // new in v11
 
-	stream.writeStringLengthFirst(world_ob.creator_name);
+	stream.writeStringLengthFirst(creator_name);
 
-	if(world_ob.object_type == WorldObject::ObjectType_VoxelGroup)
+	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		// Write compressed voxel data
-		stream.writeUInt32((uint32)world_ob.compressed_voxels.size());
-		if(world_ob.compressed_voxels.size() > 0)
-			stream.writeData(world_ob.compressed_voxels.data(), world_ob.compressed_voxels.dataSizeBytes());
+		stream.writeUInt32((uint32)compressed_voxels.size());
+		if(compressed_voxels.size() > 0)
+			stream.writeData(compressed_voxels.data(), compressed_voxels.dataSizeBytes());
 	}
 }
 
@@ -490,9 +490,9 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 			throw Indigo::Exception("Invalid voxel_data_size (too large): " + toString(voxel_data_size));
 
 		// Read voxel data
-		ob.compressed_voxels.resize(voxel_data_size);
+		ob.getCompressedVoxels().resize(voxel_data_size);
 		if(voxel_data_size > 0)
-			stream.readData(ob.compressed_voxels.data(), voxel_data_size);
+			stream.readData(ob.getCompressedVoxels().data(), voxel_data_size);
 	}
 
 	// Set ephemeral state
@@ -507,6 +507,13 @@ const Matrix4f obToWorldMatrix(const WorldObject& ob)
 	return Matrix4f::translationMatrix(pos + ob.translation) *
 		Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), ob.angle) *
 		Matrix4f::scaleMatrix(ob.scale.x, ob.scale.y, ob.scale.z);
+}
+
+
+size_t WorldObject::getTotalMemUsage() const
+{
+	return sizeof(WorldObject) + 
+		compressed_voxels.capacitySizeBytes() + (voxel_group.voxels.capacity() * sizeof(Voxel));
 }
 
 
@@ -528,7 +535,7 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 	const size_t num_buckets = max_bucket + 1;
 
 	// Step 1: sort by materials
-	std::vector<Voxel> sorted_voxels(group.voxels.size());
+	js::Vector<Voxel, 16> sorted_voxels(group.voxels.size());
 	Sort::serialCountingSortWithNumBuckets(group.voxels.data(), sorted_voxels.data(), group.voxels.size(), num_buckets, GetMatIndex());
 
 	//std::vector<Voxel> sorted_voxels = group.voxels;
@@ -596,6 +603,8 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 
 void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, VoxelGroup& group_out)
 {
+	group_out.voxels.clear();
+
 	const uint64 decompressed_size = ZSTD_getDecompressedSize(compressed_data, compressed_data_len);
 
 	//js::Vector<int, 16> decompressed_data(compressed_data_len);
@@ -646,8 +655,17 @@ void WorldObject::compressVoxels()
 
 void WorldObject::decompressVoxels()
 { 
-	if(!this->compressed_voxels.empty())
-		decompressVoxelGroup(this->compressed_voxels.data(), this->compressed_voxels.size(), this->voxel_group);
+	if(!this->compressed_voxels.empty()) // If there are compressed voxels:
+		decompressVoxelGroup(this->compressed_voxels.data(), this->compressed_voxels.size(), this->voxel_group); // Decompress to voxel_group.
 	else
-		this->voxel_group.voxels.clear();
+		this->voxel_group.voxels.clear(); // Else there are no compressed voxels, so effectively decompress to zero voxels.
+
+	// conPrint("decompressVoxels: decompressed to " + toString(this->voxel_group.voxels.size()) + " voxels.");
+}
+
+
+void WorldObject::clearDecompressedVoxels()
+{
+	this->voxel_group.voxels.clearAndFreeMem();
+	//this->voxel_group.voxels = std::vector<Voxel>();
 }

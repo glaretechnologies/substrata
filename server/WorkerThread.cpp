@@ -471,7 +471,7 @@ void WorkerThread::doRun()
 					// Send ObjectCreated packet
 					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 					packet.writeUInt32(Protocol::ObjectCreated);
-					writeToNetworkStream(*ob, packet);
+					ob->writeToNetworkStream(packet);
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
 			}

@@ -22,7 +22,9 @@ namespace Indigo { class TaskManager; }
 
 struct MeshData
 {
-	BatchedMeshRef mesh;
+	//BatchedMeshRef mesh;
+	size_t num_materials_referenced;
+
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 
 	Reference<RayMesh> raymesh;
@@ -38,6 +40,8 @@ class MeshManager
 {
 public:
 	bool isMeshDataInserted(const std::string& model_url) const;
+
+	GLMemUsage getTotalMemUsage() const;
 
 	mutable Mutex mutex;
 	std::map<std::string, MeshData> model_URL_to_mesh_map;
@@ -82,6 +86,8 @@ public:
 
 	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);
 
+	//static Reference<BatchedMesh> makeBatchedMeshForVoxelGroup(const VoxelGroup& voxel_group);
+	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group);
 
 	static void test();
 };

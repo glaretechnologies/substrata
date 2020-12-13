@@ -10,6 +10,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <ConPrint.h>
 #include <StringUtils.h>
 #include <Clock.h>
+#include <Lock.h>
 
 
 WorldState::WorldState()
@@ -72,4 +73,19 @@ double WorldState::getCurrentGlobalTime() const
 	const double correction = correction_factor * this->correction_amount;
 
 	return this->last_global_time_received + time_since_last_rcv + correction;
+}
+
+
+size_t WorldState::getTotalMemUsage() const
+{
+	Lock lock(mutex);
+
+	size_t sum = 0;
+
+	for(auto it = objects.begin(); it != objects.end(); ++it)
+	{
+		sum += it->second->getTotalMemUsage();
+	}
+
+	return sum;
 }

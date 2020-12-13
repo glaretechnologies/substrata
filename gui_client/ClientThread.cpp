@@ -356,9 +356,9 @@ void ClientThread::doRun()
 					}
 				case Protocol::ObjectFlagsChanged:
 					{
-						//conPrint("ObjectFlagsChanged");
 						const UID object_uid = readUIDFromStream(*socket);
 						const uint32 flags = socket->readUInt32();
+						//conPrint("ObjectFlagsChanged: read flags " + toString(flags) + " for ob with UID " + object_uid.toString());
 
 						// Look up existing object in world state
 						{
@@ -493,9 +493,9 @@ void ClientThread::doRun()
 					}
 				case Protocol::NewResourceOnServer:
 					{
-						conPrint("Received NewResourceOnServer message from server.");
+						//conPrint("Received NewResourceOnServer message from server.");
 						const std::string url = socket->readStringLengthFirst(MAX_STRING_LEN);
-						conPrint("url: '" + url + "'");
+						//conPrint("url: '" + url + "'");
 
 						out_msg_queue->enqueue(new NewResourceOnServerMessage(url));
 						break;

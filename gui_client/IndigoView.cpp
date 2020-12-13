@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2019 -
 #if INDIGO_SUPPORT
 
 #include <dll/include/IndigoContext.h>
+#include <dll/include/IndigoException.h>
 #include <dll/include/IndigoString.h>
 #include <dll/include/IndigoErrorCodes.h>
 #include <dll/include/IndigoLogMessageInterface.h>
@@ -28,6 +29,9 @@ Copyright Glare Technologies Limited 2019 -
 #endif
 
 #include <utils/ConPrint.h>
+#include <utils/PlatformUtils.h>
+#include <utils/GlareProcess.h>
+#include <utils/FileUtils.h>
 
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QLabel>
@@ -452,12 +456,38 @@ void IndigoView::saveSceneToDisk()
 	{
 		conPrint("Saving scene to disk...");
 
+		const std::string scene_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace") + "/indigo_scenes/scene.igs";
+		FileUtils::createDirsForPath(scene_path);
+
 		Indigo::SceneNodeRoot::WriteToXmlFileOptions options;
-		options.disk_path = "scene.igs";
+		options.disk_path = toIndigoString(scene_path);
 
 		root_node->writeToXMLFileOnDisk2(options);
 
-		conPrint("Done.");
+		conPrint("Done writing to scene on disk.");
+
+		// Try and launch indigo process
+
+#if defined(_WIN32)
+		const std::string indigo_dir = PlatformUtils::getStringRegKey(PlatformUtils::RegHKey_LocalMachine, "SOFTWARE\\Glare Technologies\\Indigo Renderer", "InstallDirectory");
+
+		const std::string indigo_path = indigo_dir + "\\indigo.exe";
+
+		//PlatformUtils::execute("\"" + indigo_path + "\" \"" + toStdString(options.disk_path) + "\"");
+		std::vector<std::string> command_line_args;
+		command_line_args.push_back(indigo_path);
+		command_line_args.push_back(toStdString(options.disk_path));
+		Process process(indigo_path, command_line_args);
+
+#endif
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		conPrint("Error saving scene to disk: " + e.what());
+	}
+	catch(PlatformUtils::PlatformUtilsExcep& e)
+	{
+		conPrint("Error saving scene to disk: " + e.what());
 	}
 	catch(Indigo::IndigoException& e)
 	{

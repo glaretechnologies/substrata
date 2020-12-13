@@ -77,6 +77,7 @@ private slots:;
 	void on_actionGoToMainWorld_triggered();
 	void on_actionGoToPersonalWorld_triggered();
 	void on_actionGo_to_CryptoVoxels_World_triggered();
+	void on_actionExport_view_to_Indigo_triggered();
 
 	void passwordResetRequested();
 
@@ -307,4 +308,6 @@ private:
 	QTimer* lightmap_flag_timer;
 
 	std::set<WorldObjectRef> objs_with_lightmap_rebuild_needed;
+
+	Timer stats_timer;
 };

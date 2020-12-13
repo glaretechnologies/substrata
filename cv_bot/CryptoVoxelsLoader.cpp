@@ -59,30 +59,46 @@ void CryptoVoxelsLoaderThread::kill()
 
 void sendCreateObjectMessageToServer(WorldObjectRef& ob, Reference<ClientThread>& client_thread)
 {
-	conPrint("sendCreateObjectMessageToServer");
+	//conPrint("sendCreateObjectMessageToServer");
 
 	// Send CreateObject message to server
 	{
 		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 		packet.writeUInt32(Protocol::CreateObject);
-		writeToNetworkStream(*ob, packet);
+		ob->writeToNetworkStream(packet);
 
 		client_thread->enqueueDataToSend(packet);
 	}
 }
 
 
+void sendDestroyObjectMessageToServer(WorldObjectRef& ob, Reference<ClientThread>& client_thread)
+{
+	//conPrint("sendDestroyObjectMessageToServer");
+
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		packet.writeUInt32(Protocol::DestroyObject);
+		writeToStream(ob->uid, packet);
+
+		client_thread->enqueueDataToSend(packet);
+	}
+}
+
+
+
 void sendObjectFullUpdateMessageToServer(WorldObjectRef& ob, Reference<ClientThread>& client_thread)
 {
-	conPrint("sendObjectFullUpdateMessageToServer");
+	//conPrint("sendObjectFullUpdateMessageToServer");
 
 	// Send ObjectFullUpdate message to server
 	{
 		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
 		packet.writeUInt32(Protocol::ObjectFullUpdate);
-		writeToNetworkStream(*ob, packet);
+		ob->writeToNetworkStream(packet);
 
 		client_thread->enqueueDataToSend(packet);
 	}
@@ -349,7 +365,9 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 				if(::hasPrefix(it->second->content, parcel_prefix) || ::hasPrefix(it->second->content, feature_prefix)) // If a CV object
 				{
 					auto ob_it = it++;
-					world_state.objects.erase(ob_it);
+					WorldObjectRef ob = ob_it->second;
+					//world_state.objects.erase(ob_it);
+					sendDestroyObjectMessageToServer(ob, client_thread);
 				}
 				else
 					++it;
@@ -391,7 +409,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 		else
 		{
 			conPrint("Loading parcel data..");
-			parser.parseFile("D:\\downloads\\parcels7.json");
+			parser.parseFile("D:\\downloads\\parcels8.json");
 			conPrint("Done.");
 		}
 
@@ -501,6 +519,8 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 			//	id == 2783 // voxel farm
 			//	))
 			//	continue;
+			//if(id > 1000)
+			//	continue;
 
 			x1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "x1", 0.0);
 			y1 = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "y1", 0.0);
@@ -608,7 +628,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 									// Load the image through the CV image proxy, in order to reduce the image size, and for faster loading.
 									const std::string proxy_url = "http://cdn.cryptovoxels.com/node/img?url=" + URLEscape(url) + "&mode=color";
 
-									const size_t MAX_URL_LEN = 4096; // Make sure texture URL is too long - there are some excessively long URLs in the data.
+									const size_t MAX_URL_LEN = 4096; // Make sure texture URL is not too long - there are some excessively long URLs in the data.
 									if((proxy_url != "") && (proxy_url.size() <= MAX_URL_LEN))
 									{
 										const bool color = feature.getChildBoolValueWithDefaultVal(parser, "color", true);
@@ -750,7 +770,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 											try
 											{
 												// Some hosts just don't send anything on the connection (but don't close it)
-												if(StringUtils::containsString(url, "file.io"))
+												/*if(StringUtils::containsString(url, "file.io"))
 													throw Indigo::Exception("Skipping URL with file.io.");
 												if(StringUtils::containsString(url, "filebin.net"))
 													throw Indigo::Exception("Skipping URL with filebin.net.");
@@ -785,7 +805,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 												{
 													conPrint("Error while downloading vox: " + e.what());
 													local_path = "";
-												}
+												}*/
 
 												if(local_path == "")
 												{
@@ -806,6 +826,9 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 														{
 															local_path = resource_manager->computeDefaultLocalPathForURL(url);
 															FileUtils::writeEntireFile(local_path, file_data);
+
+															// Mark resource as present
+															resource_manager->getResourceForURL(url)->setState(Resource::State_Present);
 
 															if(!FormatDecoderVox::isValidVoxFile(local_path))
 																throw Indigo::Exception("invalid vox file.");
@@ -844,11 +867,11 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 
 												// Convert voxels
 												const VoxModel& model = vox_contents.models[0];
-												ob->voxel_group.voxels.resize(model.voxels.size());
+												ob->getDecompressedVoxels().resize(model.voxels.size());
 												for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
 												{
-													ob->voxel_group.voxels[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
-													ob->voxel_group.voxels[i].mat_index = model.voxels[i].mat_index;
+													ob->getDecompressedVoxels()[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
+													ob->getDecompressedVoxels()[i].mat_index = model.voxels[i].mat_index;
 												}
 
 												ob->compressVoxels();
@@ -952,7 +975,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 													Lock lock(world_state.mutex);
 													WorldObjectRef existing_ob = res->second;
 
-													if(existing_ob->voxel_group.voxels != ob->voxel_group.voxels || // If voxels changed:
+													if(existing_ob->getDecompressedVoxels() != ob->getDecompressedVoxels() || // If voxels changed:
 														!epsEqual(existing_ob->pos, ob->pos) || (existing_ob->materials.size() != ob->materials.size()) ||
 														!epsEqual(existing_ob->scale, ob->scale) || FORCE_UPDATE_ALL_CV_OBS)
 													{
@@ -1097,7 +1120,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 				voxels_ob->axis = Vec3f(0, 0, 1);
 				voxels_ob->angle = 0;
 
-				voxels_ob->voxel_group = voxel_group;
+				voxels_ob->getDecompressedVoxels() = voxel_group.voxels;
 				voxels_ob->compressVoxels();
 
 				voxels_ob->created_time = TimeStamp::currentTime();
@@ -1131,7 +1154,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 					Lock lock(world_state.mutex);
 					WorldObjectRef existing_ob = res->second;
 
-					if(existing_ob->voxel_group.voxels != voxels_ob->voxel_group.voxels ||   // If voxels changed:
+					if(existing_ob->getDecompressedVoxels() != voxels_ob->getDecompressedVoxels() ||   // If voxels changed:
 						!epsEqual(existing_ob->pos, voxels_ob->pos) || FORCE_UPDATE_ALL_CV_OBS)
 					{
 						// Use existing uid
