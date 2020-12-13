@@ -50,6 +50,8 @@ public:
 
 	void build(Indigo::TaskManager& task_manager, PrintOutput& print_output, bool verbose);
 
+	size_t getTotalMemUsage() const;
+
 //private:
 	int32 root_node_index;
 	js::Vector<const PhysicsObject*, 16> objects;

@@ -72,6 +72,18 @@ void PhysicsWorld::rebuild(Indigo::TaskManager& task_manager, PrintOutput& print
 }
 
 
+size_t PhysicsWorld::getTotalMemUsage() const
+{
+	size_t sum = 0;
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+		sum += (*it)->getTotalMemUsage();
+
+	sum += object_bvh.getTotalMemUsage();
+	return sum;
+}
+
+
+
 void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
@@ -85,7 +97,7 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext
 		const PhysicsObject* object = it->ptr();
 
 		RayTraceResult ob_results;
-		object->traceRay(ray, 1.0e30f, thread_context, ob_results);
+		object->traceRay(ray, 1.0e30f, ob_results);
 		if(ob_results.hit_object && ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
 		{
 			results_out = ob_results;
@@ -114,7 +126,7 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 		const PhysicsObject* object = it->ptr();
 
 		RayTraceResult ob_results;
-		object->traceSphere(sphere, translation_ws, spherepath_aabb_ws, thread_context, ob_results);
+		object->traceSphere(sphere, translation_ws, spherepath_aabb_ws, ob_results);
 		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist_ws)
 		{
 			results_out = ob_results;
@@ -135,7 +147,7 @@ void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, ThreadContext
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
 	{
 		const PhysicsObject* object = it->ptr();
-		object->appendCollPoints(sphere, sphere_aabb_ws, thread_context, points_out);
+		object->appendCollPoints(sphere, sphere_aabb_ws, points_out);
 	}
 }
 
