@@ -31,7 +31,7 @@ Uploads a single file to the server.
 class UploadResourceThread : public MessageableThread
 {
 public:
-	UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& local_path, const std::string& model_URL, const std::string& hostname, int port,
+	UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& local_path, const std::string& resource_URL, const std::string& hostname, int port,
 		const std::string& username, const std::string& password);
 	virtual ~UploadResourceThread();
 
@@ -39,7 +39,7 @@ public:
 
 private:
 	//ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
-	std::string local_path, model_URL;
+	std::string local_path, resource_URL;
 	std::string hostname;
 	std::string username, password;
 	int port;
