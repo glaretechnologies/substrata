@@ -18,6 +18,8 @@ SET(gui_client_files
 SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/GroundPatch.cpp
+../shared/GroundPatch.h
 ../shared/Parcel.cpp
 ../shared/Parcel.h
 ../shared/ParcelID.h
@@ -83,6 +85,7 @@ ${dll_src}
 ${fft2d}
 ${xxhash}
 ${docs}
+${lang}
 )
 
 
