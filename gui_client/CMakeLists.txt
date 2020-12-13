@@ -125,6 +125,8 @@ SET(qt
 SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/GroundPatch.cpp
+../shared/GroundPatch.h
 ../shared/Parcel.cpp
 ../shared/Parcel.h
 ../shared/ParcelID.h
@@ -228,6 +230,7 @@ ${fft2d}
 ${xxhash}
 ${qt}
 ${doc_files}
+${lang}
 )
 
 add_definitions(-DGUI_CLIENT=1)
@@ -278,4 +281,6 @@ endif()
 target_link_libraries(${CURRENT_TARGET}
 ${QT_WIN32_LIBS}
 ${QT_LINUX_LIBS}
+#debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
+#optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
 )

@@ -75,6 +75,7 @@ ${dll_src}
 ${fft2d}
 ${xxhash}
 ${docs}
+${lang}
 )
 
 

@@ -321,7 +321,6 @@ ${INDIGO_PHYSICS_DIR}/SmallBVH.h
 
 
 set(raytracing 
-"${INDIGO_TRUNK_DIR_ENV}/raytracing/hitinfo.cpp"
 "${INDIGO_TRUNK_DIR_ENV}/raytracing/hitinfo.h"
 )
 
@@ -330,7 +329,6 @@ set(raytracing
 #else()
 #	FILE(GLOB indigo_src "${INDIGO_TRUNK_DIR_ENV}/indigo/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/indigo/*.h" "${INDIGO_TRUNK_DIR_ENV}/indigo/*.txt")
 #endif()
-FILE(GLOB lang "${INDIGO_TRUNK_DIR_ENV}/lang/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/lang/*.h" "${INDIGO_TRUNK_DIR_ENV}/lang/*.txt")
 FILE(GLOB maths "${INDIGO_TRUNK_DIR_ENV}/maths/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/maths/*.h")
 FILE(GLOB networking "${INDIGO_TRUNK_DIR_ENV}/networking/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/networking/*.h")
 FILE(GLOB opencl "${INDIGO_TRUNK_DIR_ENV}/opencl/*.cl" "${INDIGO_TRUNK_DIR_ENV}/opencl/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/opencl/*.h")
@@ -342,6 +340,12 @@ FILE(GLOB hdr "${INDIGO_TRUNK_DIR_ENV}/hdr/*.c" "${INDIGO_TRUNK_DIR_ENV}/hdr/*.h
 FILE(GLOB scripts "../scripts/*.rb")
 FILE(GLOB double_conversion "${INDIGO_TRUNK_DIR_ENV}/double-conversion/*.cc" "${INDIGO_TRUNK_DIR_ENV}/double-conversion/*.h")
 FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
+
+set(lang
+${INDIGO_TRUNK_DIR_ENV}/lang/WinterEnv.cpp
+${INDIGO_TRUNK_DIR_ENV}/lang/WinterEnv.h
+)
+
 
 set(simpleraytracer
 ${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/geometry.cpp 
@@ -409,6 +413,8 @@ ${INDIGO_SRC_DIR}/ThreadContext.cpp
 ${INDIGO_SRC_DIR}/ThreadContext.h
 ${INDIGO_SRC_DIR}/UVUnwrapper.cpp
 ${INDIGO_SRC_DIR}/UVUnwrapper.h
+${INDIGO_SRC_DIR}/TransformPath.cpp
+${INDIGO_SRC_DIR}/TransformPath.h
 )
 
 set(INDIGO_DLL_DIR "${INDIGO_TRUNK_DIR_ENV}/dll")
