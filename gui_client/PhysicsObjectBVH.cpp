@@ -230,6 +230,7 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 	BinningBVHBuilder builder(
 		1, // leaf_num_object_threshold
 		31, // max_num_objects_per_leaf (2^5 - 1)
+		60, // max depth
 		100, // intersection_cost.  Set this quite high, since intersecting objects is probably quite expensive.
 		(int)objects.size()
 	);
