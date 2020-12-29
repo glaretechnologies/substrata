@@ -292,10 +292,6 @@ ${INDIGO_PHYSICS_DIR}/BVHBuilder.cpp
 ${INDIGO_PHYSICS_DIR}/BVHBuilder.h
 ${INDIGO_PHYSICS_DIR}/BVHBuilderTests.cpp
 ${INDIGO_PHYSICS_DIR}/BVHBuilderTests.h
-${INDIGO_PHYSICS_DIR}/BVHImpl.cpp
-${INDIGO_PHYSICS_DIR}/BVHImpl.h
-${INDIGO_PHYSICS_DIR}/BVHNode.cpp
-${INDIGO_PHYSICS_DIR}/BVHNode.h
 ${INDIGO_PHYSICS_DIR}/jscol_aabbox.cpp
 ${INDIGO_PHYSICS_DIR}/jscol_aabbox.h
 ${INDIGO_PHYSICS_DIR}/jscol_boundingsphere.h
@@ -303,8 +299,6 @@ ${INDIGO_PHYSICS_DIR}/jscol_Tree.cpp
 ${INDIGO_PHYSICS_DIR}/jscol_Tree.h
 ${INDIGO_PHYSICS_DIR}/jscol_triangle.cpp
 ${INDIGO_PHYSICS_DIR}/jscol_triangle.h
-${INDIGO_PHYSICS_DIR}/jscol_TriTreePerThreadData.cpp
-${INDIGO_PHYSICS_DIR}/jscol_TriTreePerThreadData.h
 ${INDIGO_PHYSICS_DIR}/MollerTrumboreTri.cpp
 ${INDIGO_PHYSICS_DIR}/MollerTrumboreTri.h
 ${INDIGO_PHYSICS_DIR}/MollerTrumboreTriNotes.txt
