@@ -48,13 +48,13 @@ public:
 	Real traceRay(const Ray& ray, Real ray_length, ThreadContext& thread_context, double time, 
 		const PhysicsObject*& hitob_out, HitInfo& hitinfo_out) const;
 
-	void build(Indigo::TaskManager& task_manager, PrintOutput& print_output, bool verbose);
+	void build(Indigo::TaskManager& task_manager, PrintOutput& print_output);
 
 	size_t getTotalMemUsage() const;
 
 //private:
-	int32 root_node_index;
 	js::Vector<const PhysicsObject*, 16> objects;
 	js::Vector<PhysicsObjectBVHNode, 64> nodes;
 	js::Vector<const PhysicsObject*, 16> leaf_objects;
+	int32 root_node_index;
 };

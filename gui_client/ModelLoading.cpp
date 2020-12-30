@@ -1372,7 +1372,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 				key.uv0 = uv0;
 				//key.uv1 = uv1;
 
-				const auto res = vert_map.insert(std::make_pair(key, next_merged_vert_i)); // Insert new (key, value) pair, or return iterator to existing one.
+				const auto res = vert_map.insert(std::make_pair(key, (uint32)next_merged_vert_i)); // Insert new (key, value) pair, or return iterator to existing one.
 				const uint32 merged_v_index = res.first->second; // Get existing or new (key, vert_i) pair, then access vert_i.
 				if(res.second) // If was inserted:
 				{
