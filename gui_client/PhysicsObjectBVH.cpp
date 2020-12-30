@@ -219,7 +219,7 @@ stack_pop:
 }
 
 
-void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& print_output, bool verbose)
+void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& print_output)
 {
 	// conPrint("BVHObjectTree::build");
 	Timer timer;
@@ -236,7 +236,7 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 	);
 
 	for(size_t i=0; i<objects_size; ++i)
-		builder.setObjectAABB(i, objects[i]->getAABBoxWS());
+		builder.setObjectAABB((int)i, objects[i]->getAABBoxWS());
 
 	js::Vector<ResultNode, 64> result_nodes;
 	DummyShouldCancelCallback should_cancel_callback;
@@ -244,7 +244,6 @@ void PhysicsObjectBVH::build(Indigo::TaskManager& task_manager, PrintOutput& pri
 		task_manager,
 		should_cancel_callback,
 		print_output,
-		verbose,
 		result_nodes
 	);
 	const BVHBuilder::ResultObIndicesVec& result_ob_indices = builder.getResultObjectIndices();
