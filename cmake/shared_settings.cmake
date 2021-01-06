@@ -107,11 +107,8 @@ ${INDIGO_UTILS_DIR}/AESEncryption.cpp
 ${INDIGO_UTILS_DIR}/AESEncryption.h
 ${INDIGO_UTILS_DIR}/ArgumentParser.cpp
 ${INDIGO_UTILS_DIR}/ArgumentParser.h
-${INDIGO_UTILS_DIR}/Array.h
 ${INDIGO_UTILS_DIR}/Array2D.h
 ${INDIGO_UTILS_DIR}/Array3D.h
-#${INDIGO_UTILS_DIR}/Array4D.cpp
-#${INDIGO_UTILS_DIR}/Array4D.h
 ${INDIGO_UTILS_DIR}/Base64.cpp
 ${INDIGO_UTILS_DIR}/Base64.h
 ${INDIGO_UTILS_DIR}/BitField.cpp
