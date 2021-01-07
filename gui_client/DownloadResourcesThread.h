@@ -14,7 +14,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <MyThread.h>
 #include <EventFD.h>
 #include <ThreadManager.h>
-#include <mysocket.h>
+#include <MySocket.h>
 #include <set>
 #include <string>
 class WorkUnit;
