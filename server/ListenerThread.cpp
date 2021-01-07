@@ -10,7 +10,7 @@ Code By Nicholas Chapman.
 #include "Server.h"
 #include "WorkerThread.h"
 #include <ConPrint.h>
-#include <mysocket.h>
+#include <MySocket.h>
 #include <Lock.h>
 #include <StringUtils.h>
 #include <PlatformUtils.h>

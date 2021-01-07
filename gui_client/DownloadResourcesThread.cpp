@@ -8,7 +8,7 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 #include "../shared/Protocol.h"
-#include "mysocket.h"
+#include "MySocket.h"
 #include <ConPrint.h>
 #include <vec3.h>
 #include <Exception.h>
