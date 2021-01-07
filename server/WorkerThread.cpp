@@ -17,8 +17,8 @@ Copyright Glare Technologies Limited 2018 -
 #include <SHA256.h>
 #include <Base64.h>
 #include <Exception.h>
-#include <mysocket.h>
-#include <url.h>
+#include <MySocket.h>
+#include <URL.h>
 #include <Lock.h>
 #include <StringUtils.h>
 #include <SocketBufferOutStream.h>

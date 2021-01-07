@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "WorkerThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
-#include "../networking/networking.h"
+#include "../networking/Networking.h"
 #include <ThreadManager.h>
 #include <PlatformUtils.h>
 #include <Clock.h>

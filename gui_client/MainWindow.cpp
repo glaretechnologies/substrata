@@ -71,11 +71,11 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/Base64.h"
 #include "../utils/OpenSSL.h"
 #include "../utils/ShouldCancelCallback.h"
-#include "../networking/networking.h"
+#include "../networking/Networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
 #include "../networking/HTTPClient.h" // Just for testing
-#include "../networking/url.h" // Just for testing
+#include "../networking/URL.h" // Just for testing
 //#include "../networking/TLSSocketTests.h" // Just for testing
 
 #include "../simpleraytracer/ray.h"
