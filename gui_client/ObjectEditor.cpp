@@ -405,7 +405,7 @@ void ObjectEditor::materialSelectedInBrowser(const std::string& path)
 			emit objectChanged();
 		}
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		QErrorMessage m;
 		m.showMessage("Error while opening material: " + QtUtils::toQString(e.what()));

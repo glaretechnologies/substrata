@@ -58,7 +58,7 @@ Reference<GLObject> GroundPatch::makeOpenGLObject(Reference<OpenGLEngine>& openg
 	{
 		ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		assert(0);
 		conPrint("ERROR: " + e.what());
@@ -106,7 +106,7 @@ void readFromStream(InStream& stream, GroundPatch& ground_patch)
 	// Read version
 	const uint32 version = stream.readUInt32();
 	if(version > GROUNDPATCH_SERIALISATION_VERSION)
-		throw Indigo::Exception("GroundPatch readFromStream: Unsupported version " + toString(version) + ", expected " + toString(GROUNDPATCH_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("GroundPatch readFromStream: Unsupported version " + toString(version) + ", expected " + toString(GROUNDPATCH_SERIALISATION_VERSION) + ".");
 
 	ground_patch.uid = readGroundPatchUIDFromStream(stream);
 	

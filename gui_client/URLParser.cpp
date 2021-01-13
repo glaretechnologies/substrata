@@ -24,9 +24,9 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	string_view protocol;
 	parser.parseAlphaToken(protocol);
 	if(protocol != "sub")
-		throw Indigo::Exception("Unhandled protocol scheme '" + protocol + "'.");
+		throw glare::Exception("Unhandled protocol scheme '" + protocol + "'.");
 	if(!parser.parseString("://"))
-		throw Indigo::Exception("Expected '://' after protocol scheme.");
+		throw glare::Exception("Expected '://' after protocol scheme.");
 
 	// Parse hostname and userpath
 	std::string hostname;
@@ -66,25 +66,25 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 		parser.consume('?');
 
 		if(!parser.parseChar('x'))
-			throw Indigo::Exception("Expected 'x' after '?'.");
+			throw glare::Exception("Expected 'x' after '?'.");
 
 		if(!parser.parseChar('='))
-			throw Indigo::Exception("Expected '=' after 'x'.");
+			throw glare::Exception("Expected '=' after 'x'.");
 
 		if(!parser.parseDouble(x))
-			throw Indigo::Exception("Failed to parse x coord.");
+			throw glare::Exception("Failed to parse x coord.");
 
 		if(!parser.parseChar('&'))
-			throw Indigo::Exception("Expected '&' after x coodinate.");
+			throw glare::Exception("Expected '&' after x coodinate.");
 
 		if(!parser.parseChar('y'))
-			throw Indigo::Exception("Expected 'y' after '?'.");
+			throw glare::Exception("Expected 'y' after '?'.");
 
 		if(!parser.parseChar('='))
-			throw Indigo::Exception("Expected '=' after 'y'.");
+			throw glare::Exception("Expected '=' after 'y'.");
 
 		if(!parser.parseDouble(y))
-			throw Indigo::Exception("Failed to parse y coord.");
+			throw glare::Exception("Failed to parse y coord.");
 
 		if(parser.currentIsChar('&'))
 		{
@@ -92,17 +92,17 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 
 			string_view URL_arg_name;
 			if(!parser.parseToChar('=', URL_arg_name))
-				throw Indigo::Exception("Failed to parse URL argument after &");
+				throw glare::Exception("Failed to parse URL argument after &");
 			if(URL_arg_name == "z")
 			{
 				if(!parser.parseChar('='))
-					throw Indigo::Exception("Expected '=' after 'z'.");
+					throw glare::Exception("Expected '=' after 'z'.");
 
 				if(!parser.parseDouble(z))
-					throw Indigo::Exception("Failed to parse z coord.");
+					throw glare::Exception("Failed to parse z coord.");
 			}
 			else
-				throw Indigo::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
+				throw glare::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
 		}
 
 		conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
@@ -121,7 +121,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 #if BUILD_TESTS
 
 
-#include "../indigo/TestUtils.h"
+#include "../utils/TestUtils.h"
 #include "../maths/PCG32.h"
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
@@ -135,7 +135,7 @@ static void testInvalidURL(const std::string& URL)
 		URLParser::parseURL(URL);
 		failTest("Exception expected.");
 	}
-	catch(Indigo::Exception&)
+	catch(glare::Exception&)
 	{}
 }
 

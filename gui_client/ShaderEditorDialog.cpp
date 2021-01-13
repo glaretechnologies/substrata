@@ -162,7 +162,7 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			this->buildStatusLabel->setPixmap(p);
 		}
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		this->outputTextEdit->setPlainText(QtUtils::toQString(e.what()));
 	}

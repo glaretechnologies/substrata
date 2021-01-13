@@ -213,7 +213,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 		if(FileUtils::fileExists(resources_db_path))
 			resource_manager->loadFromDisk(resources_db_path);
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		conPrint("WARNING: failed to load resources database from '" + resources_db_path + "': " + e.what());
 	}
@@ -293,7 +293,7 @@ MainWindow::~MainWindow()
 		if(resource_manager->hasChanged())
 			resource_manager->saveToDisk(resources_db_path);
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		conPrint("WARNING: failed to save resources database to '" + resources_db_path + "': " + e.what());
 	}
@@ -441,7 +441,7 @@ void MainWindow::startDownloadingResource(const std::string& url)
 		else
 			this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		conPrint("Failed to parse URL '" + url + "': " + e.what());
 	}
@@ -568,33 +568,33 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 }
 
 
-// Throws Indigo::Exception if transform not OK, for example if any components are infinite or NaN. 
+// Throws glare::Exception if transform not OK, for example if any components are infinite or NaN. 
 static void checkTransformOK(const WorldObject* ob)
 {
 	// Sanity check position, axis, angle
 	if(!::isFinite(ob->pos.x) || !::isFinite(ob->pos.y) || !::isFinite(ob->pos.z))
-		throw Indigo::Exception("Position had non-finite component.");
+		throw glare::Exception("Position had non-finite component.");
 	if(!::isFinite(ob->axis.x) || !::isFinite(ob->axis.y) || !::isFinite(ob->axis.z))
-		throw Indigo::Exception("axis had non-finite component.");
+		throw glare::Exception("axis had non-finite component.");
 	if(!::isFinite(ob->angle))
-		throw Indigo::Exception("angle was non-finite.");
+		throw glare::Exception("angle was non-finite.");
 
 	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
 	// Sanity check ob_to_world_matrix matrix
 	for(int i=0; i<16; ++i)
 		if(!::isFinite(ob_to_world_matrix.e[i]))
-			throw Indigo::Exception("ob_to_world_matrix had non-finite component.");
+			throw glare::Exception("ob_to_world_matrix had non-finite component.");
 
 	Matrix4f world_to_ob;
 	const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
 	if(!ob_to_world_invertible)
-		throw Indigo::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
+		throw glare::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
 
 	// Check world_to_ob matrix
 	for(int i=0; i<16; ++i)
 		if(!::isFinite(world_to_ob.e[i]))
-			throw Indigo::Exception("world_to_ob had non-finite component.");
+			throw glare::Exception("world_to_ob had non-finite component.");
 }
 
 
@@ -626,7 +626,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 	try
 	{
-		checkTransformOK(ob); // Throws Indigo::Exception if not ok.
+		checkTransformOK(ob); // Throws glare::Exception if not ok.
 
 		const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
@@ -732,7 +732,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
 	}
@@ -796,7 +796,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 						parser.parseString("#instancing");
 						parser.parseWhiteSpace();
 						if(!parser.parseInt(count))
-							throw Indigo::Exception("Failed to parse count after #instancing.");
+							throw glare::Exception("Failed to parse count after #instancing.");
 					}
 				}
 
@@ -857,7 +857,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 					}
 				}
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				// If this user created this model, show the error message.
 				if(ob->creator_id == this->logged_in_user_id)
@@ -865,11 +865,11 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 					// showErrorNotification("Error while loading script '" + ob->script + "': " + e.what());
 				}
 
-				throw Indigo::Exception("Error while loading script '" + ob->script + "': " + e.what());
+				throw glare::Exception("Error while loading script '" + ob->script + "': " + e.what());
 			}
 		}
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
 	}
@@ -1375,7 +1375,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 				}
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				print("Error while loading model: " + e.what());
 			}
@@ -1394,7 +1394,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// ui->glWidget->makeCurrent();
 				ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key));
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				print("Error while loading texture: " + e.what());
 			}
@@ -1730,7 +1730,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						//	}
 						//}
 					}
-					catch(Indigo::Exception& e)
+					catch(glare::Exception& e)
 					{
 						print("Error while loading object: " + e.what());
 					}
@@ -2005,7 +2005,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			//	++it;
 		} // end for each avatar
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		print("Error while Updating avatar graphics: " + e.what());
 	}
@@ -2152,7 +2152,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		this->world_state->dirty_from_remote_objects.clear();
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		print("Error while Updating object graphics: " + e.what());
 	}
@@ -2229,7 +2229,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		this->world_state->dirty_from_remote_parcels.clear();
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		print("Error while updating parcel graphics: " + e.what());
 	}
@@ -2723,7 +2723,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			// Show error
 			print(e.what());
@@ -3044,7 +3044,7 @@ void MainWindow::on_actionAddObject_triggered()
 			m.showMessage(QtUtils::toQString(e.what()));
 			m.exec();
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			// Show error
 			print(e.what());
@@ -3395,7 +3395,7 @@ void MainWindow::addParcelObjects()
 
 		physics_world->rebuild(task_manager, print_output);
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		print("Error while updating parcel graphics: " + e.what());
 	}
@@ -3427,7 +3427,7 @@ void MainWindow::removeParcelObjects()
 
 		physics_world->rebuild(task_manager, print_output);
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		print("Error while updating parcel graphics: " + e.what());
 	}
@@ -3767,7 +3767,7 @@ void MainWindow::URLChangedSlot()
 
 		this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 	}
-	catch(Indigo::Exception& e) // Handle URL parse failure
+	catch(glare::Exception& e) // Handle URL parse failure
 	{
 		conPrint(e.what());
 		QMessageBox msgBox;
@@ -4565,7 +4565,7 @@ void MainWindow::updateGroundPlane()
 			{
 				gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture("resources/obstacle.png");
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				assert(0);
 				conPrint("ERROR: " + e.what());
@@ -4699,7 +4699,7 @@ int main(int argc, char *argv[])
 			std::string data;
 			HTTPClient::ResponseInfo response_info = client.downloadFile(url, data);
 			if(response_info.response_code != 200)
-				throw Indigo::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
+				throw glare::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
 
 			//conPrint(data);
 			FileUtils::writeEntireFile("image.jpg", data);
@@ -4745,7 +4745,7 @@ int main(int argc, char *argv[])
 				server_hostname = parse_res.hostname;
 				server_userpath = parse_res.userpath;
 			}
-			catch(Indigo::Exception& e) // Handle URL parse failure
+			catch(glare::Exception& e) // Handle URL parse failure
 			{
 				QMessageBox msgBox;
 				msgBox.setText(QtUtils::toQString(e.what()));
@@ -4800,7 +4800,7 @@ int main(int argc, char *argv[])
 			{
 				env_mat.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture(cyberspace_base_dir_path + "/resources/sky_no_sun.exr");
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				assert(0);
 				conPrint("ERROR: " + e.what());
@@ -4884,7 +4884,7 @@ int main(int argc, char *argv[])
 			{
 				ob->material.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture("N:\\indigo\\trunk\\testscenes\\ColorChecker_sRGB_from_Ref.jpg");
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				assert(0);
 				conPrint("ERROR: " + e.what());
@@ -5090,7 +5090,7 @@ int main(int argc, char *argv[])
 				new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", "", GL_VERTEX_SHADER),
 				new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", "", GL_FRAGMENT_SHADER)
 			);
-			// Let any Indigo::Exception thrown fall through to below.
+			// Let any glare::Exception thrown fall through to below.
 		}
 
 		try
@@ -5158,7 +5158,7 @@ int main(int argc, char *argv[])
 				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\monu10.vox";
 				const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
 
-				Indigo::TaskManager task_manager;
+				glare::TaskManager task_manager;
 				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
 					//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
 					mesh,
@@ -5181,7 +5181,7 @@ int main(int argc, char *argv[])
 
 				const std::string path = "C:\\Users\\nick\\Downloads\\cemetery_angel_-_miller\\scene.gltf";
 
-				Indigo::TaskManager task_manager;
+				glare::TaskManager task_manager;
 				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
 					mesh,
 					*world_object
@@ -5199,7 +5199,7 @@ int main(int argc, char *argv[])
 
 				const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";
 
-				Indigo::TaskManager task_manager;
+				glare::TaskManager task_manager;
 				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
 					mesh,
 					*world_object
@@ -5210,7 +5210,7 @@ int main(int argc, char *argv[])
 				//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 			}
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			conPrint(e.what());
 			QMessageBox msgBox;
@@ -5244,7 +5244,7 @@ int main(int argc, char *argv[])
 		m.exec();
 		return 1;
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		// Show error
 		conPrint(e.what());

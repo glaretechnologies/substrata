@@ -215,7 +215,6 @@ ${INDIGO_UTILS_DIR}/GlareProcess.cpp
 ${INDIGO_UTILS_DIR}/GlareProcess.h
 ${INDIGO_UTILS_DIR}/prebuild_repos_info.h
 ${INDIGO_UTILS_DIR}/RefCounted.h
-${INDIGO_UTILS_DIR}/Reference.cpp
 ${INDIGO_UTILS_DIR}/Reference.h
 ${INDIGO_UTILS_DIR}/ReferenceTest.cpp
 ${INDIGO_UTILS_DIR}/ReferenceTest.h
@@ -278,6 +277,8 @@ ${INDIGO_UTILS_DIR}/Vector.h
 ${INDIGO_UTILS_DIR}/VRef.h
 ${INDIGO_UTILS_DIR}/XMLParseUtils.cpp
 ${INDIGO_UTILS_DIR}/XMLParseUtils.h
+${INDIGO_UTILS_DIR}/TestUtils.cpp
+${INDIGO_UTILS_DIR}/TestUtils.h
 )
 
 
@@ -398,8 +399,6 @@ ${INDIGO_SRC_DIR}/DisplacementUtils.cpp
 ${INDIGO_SRC_DIR}/DisplacementUtils.h
 #${INDIGO_SRC_DIR}/object.cpp
 #${INDIGO_SRC_DIR}/object.h
-${INDIGO_SRC_DIR}/TestUtils.cpp
-${INDIGO_SRC_DIR}/TestUtils.h
 ${INDIGO_SRC_DIR}/ThreadContext.cpp
 ${INDIGO_SRC_DIR}/ThreadContext.h
 ${INDIGO_SRC_DIR}/UVUnwrapper.cpp

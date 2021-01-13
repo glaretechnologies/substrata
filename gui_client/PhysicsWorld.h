@@ -48,7 +48,7 @@ public:
 	void updateObjectTransformData(PhysicsObject& object);
 
 
-	void rebuild(Indigo::TaskManager& task_manager, PrintOutput& print_output);
+	void rebuild(glare::TaskManager& task_manager, PrintOutput& print_output);
 
 	size_t getTotalMemUsage() const;
 

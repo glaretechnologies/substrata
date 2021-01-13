@@ -101,7 +101,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		{
 			env_mat.albedo_texture = opengl_engine->getTexture(basedir_path + "/resources/sky_no_sun.exr");
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			assert(0);
 			conPrint("ERROR: " + e.what());
@@ -121,7 +121,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		{
 			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			assert(0);
 			conPrint("ERROR: " + e.what());
@@ -255,7 +255,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 	{
 		conPrint("Error: " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		conPrint("Error: " + e.what());
 	}

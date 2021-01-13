@@ -54,20 +54,20 @@ void UploadResourceThread::doRun()
 		// Read hello response from server
 		const uint32 hello_response = socket->readUInt32();
 		if(hello_response != Protocol::CyberspaceHello)
-			throw Indigo::Exception("Invalid hello from server: " + toString(hello_response));
+			throw glare::Exception("Invalid hello from server: " + toString(hello_response));
 
 		// Read protocol version response from server
 		const uint32 protocol_response = socket->readUInt32();
 		if(protocol_response == Protocol::ClientProtocolTooOld)
 		{
 			const std::string msg = socket->readStringLengthFirst(10000);
-			throw Indigo::Exception(msg);
+			throw glare::Exception(msg);
 		}
 		else if(protocol_response == Protocol::ClientProtocolOK)
 		{
 		}
 		else
-			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
+			throw glare::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
 		// Send login details
 		socket->writeStringLengthFirst(username);
@@ -98,8 +98,8 @@ void UploadResourceThread::doRun()
 	{
 		conPrint("UploadResourceThread Socket error: " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("UploadResourceThread Indigo::Exception: " + e.what());
+		conPrint("UploadResourceThread glare::Exception: " + e.what());
 	}
 }

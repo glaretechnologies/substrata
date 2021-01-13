@@ -335,7 +335,7 @@ void CameraController::setTargetPos(const Vec3d& p)
 #if BUILD_TESTS
 
 #include "../maths/mathstypes.h"
-#include "../indigo/TestUtils.h"
+#include "../utils/TestUtils.h"
 #include "../utils/ConPrint.h"
 
 void CameraController::test()

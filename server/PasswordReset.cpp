@@ -51,7 +51,7 @@ void readFromStream(InStream& stream, PasswordReset& password_reset)
 	// Read version
 	const uint32 v = stream.readUInt32();
 	if(v > PASSWORD_RESET_SERIALISATION_VERSION)
-		throw Indigo::Exception("Unsupported version " + toString(v) + ", expected " + toString(PASSWORD_RESET_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Unsupported version " + toString(v) + ", expected " + toString(PASSWORD_RESET_SERIALISATION_VERSION) + ".");
 
 	password_reset.created_time.readFromStream(stream);
 	password_reset.token = stream.readStringLengthFirst(10000);

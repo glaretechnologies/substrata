@@ -306,7 +306,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 	// Read version
 	const uint32 v = stream.readUInt32();
 	if(v > WORLD_OBJECT_SERIALISATION_VERSION)
-		throw Indigo::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_OBJECT_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_OBJECT_SERIALISATION_VERSION) + ".");
 
 	ob.uid = readUIDFromStream(stream);
 
@@ -379,7 +379,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 			// Read num voxels
 			const uint32 num_voxels = stream.readUInt32();
 			if(num_voxels > 1000000)
-				throw Indigo::Exception("Invalid num voxels: " + toString(num_voxels));
+				throw glare::Exception("Invalid num voxels: " + toString(num_voxels));
 
 			ob.getDecompressedVoxels().resize(num_voxels);
 
@@ -392,7 +392,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 			// Read compressed voxel data
 			const uint32 voxel_data_size = stream.readUInt32();
 			if(voxel_data_size > 1000000)
-				throw Indigo::Exception("Invalid voxel_data_size: " + toString(voxel_data_size));
+				throw glare::Exception("Invalid voxel_data_size: " + toString(voxel_data_size));
 
 			// Read voxel data
 			ob.getCompressedVoxels().resize(voxel_data_size);
@@ -487,7 +487,7 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 		// Read compressed voxel data
 		const uint32 voxel_data_size = stream.readUInt32();
 		if(voxel_data_size > 1000000)
-			throw Indigo::Exception("Invalid voxel_data_size (too large): " + toString(voxel_data_size));
+			throw glare::Exception("Invalid voxel_data_size (too large): " + toString(voxel_data_size));
 
 		// Read voxel data
 		ob.getCompressedVoxels().resize(voxel_data_size);
@@ -638,7 +638,7 @@ void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t comp
 	}
 
 	if(!instream.endOfStream())
-		throw Indigo::Exception("Didn't reach EOF while reading voxels.");
+		throw glare::Exception("Didn't reach EOF while reading voxels.");
 }
 
 

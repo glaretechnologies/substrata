@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../utils/Platform.h"
 #include "../utils/Vector.h"
 #include <vector>
-namespace Indigo { class TaskManager; }
+namespace glare { class TaskManager; }
 class PhysicsObject;
 class PrintOutput;
 class ThreadContext;
@@ -48,7 +48,7 @@ public:
 	Real traceRay(const Ray& ray, Real ray_length, ThreadContext& thread_context, double time, 
 		const PhysicsObject*& hitob_out, HitInfo& hitinfo_out) const;
 
-	void build(Indigo::TaskManager& task_manager, PrintOutput& print_output);
+	void build(glare::TaskManager& task_manager, PrintOutput& print_output);
 
 	size_t getTotalMemUsage() const;
 

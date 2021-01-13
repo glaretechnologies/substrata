@@ -262,10 +262,10 @@ public:
 	Reference<OpenGLProgram> parcel_shader_prog;
 
 	StandardPrintOutput print_output;
-	Indigo::TaskManager task_manager;
-	Indigo::TaskManager model_building_task_manager; // For use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
+	glare::TaskManager task_manager;
+	glare::TaskManager model_building_task_manager; // For use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
 public:
-	Indigo::TaskManager texture_loader_task_manager;
+	glare::TaskManager texture_loader_task_manager;
 private:
 	MeshManager mesh_manager;
 

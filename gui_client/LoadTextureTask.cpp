@@ -65,7 +65,7 @@ void LoadTextureTask::run(size_t thread_index)
 	{
 		//conPrint("Warning: failed to decode texture '" + path + "': " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		conPrint("Warning: failed to load texture '" + path + "': " + e.what());
 	}

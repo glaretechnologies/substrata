@@ -82,18 +82,18 @@ static Colour3f parseColour3fWithDefault(pugi::xml_node elem, const char* elemna
 
 	Colour3f v;
 	if(!parser.parseFloat(v.r))
-		throw Indigo::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 	parser.parseWhiteSpace();
 	if(!parser.parseFloat(v.g))
-		throw Indigo::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 	parser.parseWhiteSpace();
 	if(!parser.parseFloat(v.b))
-		throw Indigo::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 	parser.parseWhiteSpace();
 
 	// We should be at the end of the string now
 	if(parser.notEOF())
-		throw Indigo::Exception("Parse error while parsing Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Parse error while parsing Vec3 from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 
 	return v;
 }
@@ -103,7 +103,7 @@ static Matrix2f parseMatrix2f(pugi::xml_node elem, const char* elemname)
 {
 	pugi::xml_node childnode = elem.child(elemname);
 	if(!childnode)
-		throw Indigo::Exception(std::string("could not find element '") + elemname + "'." + XMLParseUtils::elemContext(elem));
+		throw glare::Exception(std::string("could not find element '") + elemname + "'." + XMLParseUtils::elemContext(elem));
 
 	const char* const child_text = childnode.child_value();
 
@@ -113,21 +113,21 @@ static Matrix2f parseMatrix2f(pugi::xml_node elem, const char* elemname)
 
 	Matrix2f m;
 	if(!parser.parseFloat(m.e[0]))
-		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 	parser.parseWhiteSpace();
 	if(!parser.parseFloat(m.e[1]))
-		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 	parser.parseWhiteSpace();
 	if(!parser.parseFloat(m.e[2]))
-		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 	parser.parseWhiteSpace();
 	if(!parser.parseFloat(m.e[3]))
-		throw Indigo::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Failed to parse Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 	parser.parseWhiteSpace();
 
 	// We should be at the end of the string now
 	if(parser.notEOF())
-		throw Indigo::Exception("Parse error while parsing Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
+		throw glare::Exception("Parse error while parsing Matrix2f from '" + std::string(std::string(child_text)) + "'." + XMLParseUtils::elemContext(childnode));
 
 	return m;
 }
@@ -185,7 +185,7 @@ Reference<WorldMaterial> WorldMaterial::loadFromXMLOnDisk(const std::string& mat
 	}
 	catch(IndigoXMLDocExcep& e)
 	{
-		throw Indigo::Exception(e.what());
+		throw glare::Exception(e.what());
 	}
 }
 
@@ -232,7 +232,7 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 	// Read version
 	const uint32 v = stream.readUInt32();
 	if(v > WORLD_MATERIAL_SERIALISATION_VERSION)
-		throw Indigo::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Unsupported version " + toString(v) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".");
 
 	if(v == 1)
 	{
@@ -252,7 +252,7 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 			break;
 		}
 		default:
-			throw Indigo::Exception("Invalid spectrum material value.");
+			throw glare::Exception("Invalid spectrum material value.");
 		};
 	}
 	else
@@ -262,9 +262,9 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 		{
 			mat.colour_texture_url = stream.readStringLengthFirst(20000);
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
-			throw Indigo::Exception("Error while reading colour_texture_url: " + e.what());
+			throw glare::Exception("Error while reading colour_texture_url: " + e.what());
 		}
 	}
 	
@@ -312,7 +312,7 @@ void readFromStreamOld(InStream& stream, ScalarVal& ob)
 			break;
 		}
 	default:
-		throw Indigo::Exception("Invalid scalar material value.");
+		throw glare::Exception("Invalid scalar material value.");
 	};
 }
 

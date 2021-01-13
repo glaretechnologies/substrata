@@ -26,7 +26,7 @@ This thread runs on the server, and handles communication with a single client.
 class WorkerThread : public MessageableThread
 {
 public:
-	// May throw Indigo::Exception from constructor if EventFD init fails.
+	// May throw glare::Exception from constructor if EventFD init fails.
 	WorkerThread(int thread_id, const Reference<MySocket>& socket, Server* server);
 	virtual ~WorkerThread();
 

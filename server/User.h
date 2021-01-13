@@ -35,7 +35,7 @@ public:
 	bool isPasswordValid(const std::string& password) const;
 
 
-	void sendPasswordResetEmail(); // throws Indigo::Exception on error
+	void sendPasswordResetEmail(); // throws glare::Exception on error
 
 	bool resetPasswordWithToken(const std::string& reset_token, const std::string& new_password);
 

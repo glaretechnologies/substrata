@@ -70,21 +70,21 @@ public:
 	// Set loaded_object_out.materials as well.
 	// May set a scale on loaded_object_out.
 	//
-	// Throws Indigo::Exception on invalid mesh.
-	static GLObjectRef makeGLObjectForModelFile(Indigo::TaskManager& task_manager, const std::string& path,
+	// Throws glare::Exception on invalid mesh.
+	static GLObjectRef makeGLObjectForModelFile(glare::TaskManager& task_manager, const std::string& path,
 		BatchedMeshRef& mesh_out,
 		WorldObject& loaded_object_out);
 
 
 	// For when we have materials:
 	//
-	// Throws Indigo::Exception on invalid mesh.
+	// Throws glare::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
-		ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
+		ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
 		const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out);
 
 
-	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);
+	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);
 
 	//static Reference<BatchedMesh> makeBatchedMeshForVoxelGroup(const VoxelGroup& voxel_group);
 	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group);

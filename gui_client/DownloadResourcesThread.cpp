@@ -85,7 +85,7 @@ void DownloadResourcesThread::doRun()
 		// Read hello response from server
 		const uint32 hello_response = socket->readUInt32();
 		if(hello_response != Protocol::CyberspaceHello)
-			throw Indigo::Exception("Invalid hello from server: " + toString(hello_response));
+			throw glare::Exception("Invalid hello from server: " + toString(hello_response));
 
 		const int MAX_STRING_LEN = 10000;
 
@@ -94,12 +94,12 @@ void DownloadResourcesThread::doRun()
 		if(protocol_response == Protocol::ClientProtocolTooOld)
 		{
 			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
-			throw Indigo::Exception(msg);
+			throw glare::Exception(msg);
 		}
 		else if(protocol_response == Protocol::ClientProtocolOK)
 		{}
 		else
-			throw Indigo::Exception("Invalid protocol version response from server: " + toString(protocol_response));
+			throw glare::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
 		std::set<std::string> URLs_to_get; // Set of URLs that this thread will get from the server.
 
@@ -171,7 +171,7 @@ void DownloadResourcesThread::doRun()
 							{
 								// TODO: cap length in a better way
 								if(file_len > 1000000000)
-									throw Indigo::Exception("downloaded file too large (len=" + toString(file_len) + ").");
+									throw glare::Exception("downloaded file too large (len=" + toString(file_len) + ").");
 
 								std::vector<uint8> buf(file_len);
 								socket->readData(buf.data(), file_len);
@@ -214,8 +214,8 @@ void DownloadResourcesThread::doRun()
 	{
 		conPrint("DownloadResourcesThread Socket error: " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("DownloadResourcesThread Indigo::Exception: " + e.what());
+		conPrint("DownloadResourcesThread glare::Exception: " + e.what());
 	}
 }

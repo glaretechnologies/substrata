@@ -24,7 +24,7 @@ URLParser
 class URLParser
 {
 public:
-	// Throws Indigo::Exception on parse error.
+	// Throws glare::Exception on parse error.
 	static URLParseResults parseURL(const std::string& URL);
 
 	static void test();

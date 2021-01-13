@@ -602,7 +602,7 @@ int main(int argc, char *argv[])
 					server.world_state->clearChangedFlag();
 					save_state_timer.reset();
 				}
-				catch(Indigo::Exception& e)
+				catch(glare::Exception& e)
 				{
 					conPrint("Warning: saving world state to disk failed: " + e.what());
 					save_state_timer.reset(); // Reset timer so we don't try again straight away.
@@ -618,9 +618,9 @@ int main(int argc, char *argv[])
 		conPrint("ArgumentParserExcep: " + e.what());
 		return 1;
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("Indigo::Exception: " + e.what());
+		conPrint("glare::Exception: " + e.what());
 		return 1;
 	}
 	catch(FileUtils::FileUtilsExcep& e)

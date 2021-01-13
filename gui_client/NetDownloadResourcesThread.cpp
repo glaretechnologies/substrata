@@ -114,12 +114,12 @@ void NetDownloadResourcesThread::doRun()
 						if(url_components.scheme == "http" || url_components.scheme == "https")
 						{
 							if(url_components.host == "gateway.ipfs.io")
-								throw Indigo::Exception("Skipping " + url);
+								throw glare::Exception("Skipping " + url);
 
 							// Download with HTTP client
 							HTTPClient::ResponseInfo response_info = client->downloadFile(url, data);
 							if(response_info.response_code != 200)
-								throw Indigo::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
+								throw glare::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
 
 							std::string extension;
 							if(response_info.mime_type == "image/bmp")
@@ -169,9 +169,9 @@ void NetDownloadResourcesThread::doRun()
 							}
 						}
 						else
-							throw Indigo::Exception("Unknown protocol scheme in URL '" + url + "': '" + url_components.scheme + "'");
+							throw glare::Exception("Unknown protocol scheme in URL '" + url + "': '" + url_components.scheme + "'");
 					}
-					catch(Indigo::Exception& e)
+					catch(glare::Exception& e)
 					{
 						resource->setState(Resource::State_NotPresent);
 						resource_manager->markAsChanged();
@@ -181,8 +181,8 @@ void NetDownloadResourcesThread::doRun()
 			}
 		}
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("NetDownloadResourcesThread Indigo::Exception: " + e.what());
+		conPrint("NetDownloadResourcesThread glare::Exception: " + e.what());
 	}
 }
