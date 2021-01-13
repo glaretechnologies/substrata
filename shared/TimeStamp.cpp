@@ -139,7 +139,7 @@ void TimeStamp::readFromStream(InStream& stream)
 {
 	const uint32 v = stream.readUInt32();
 	if(v != TIMESTAMP_SERIALISATION_VERSION)
-		throw Indigo::Exception("Unhandled version " + toString(v) + ", expected " + toString(TIMESTAMP_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Unhandled version " + toString(v) + ", expected " + toString(TIMESTAMP_SERIALISATION_VERSION) + ".");
 
 	time = stream.readUInt64();
 }

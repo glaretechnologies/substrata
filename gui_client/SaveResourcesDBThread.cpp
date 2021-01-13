@@ -38,7 +38,7 @@ void SaveResourcesDBThread::doRun()
 				{
 					resource_manager->saveToDisk(path);
 				}
-				catch(Indigo::Exception& e)
+				catch(glare::Exception& e)
 				{
 					conPrint("WARNING: Failed to save resources db: " + e.what());
 				}

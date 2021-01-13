@@ -156,7 +156,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			objectPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
 		}
 
-		Indigo::TaskManager task_manager;
+		glare::TaskManager task_manager;
 		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(task_manager, local_path,
 			this->loaded_mesh, // mesh out
 			*this->loaded_object
@@ -172,7 +172,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		m.showMessage(QtUtils::toQString(e.what()));
 		m.exec();
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		// Show error
 		conPrint(e.what());
@@ -199,7 +199,7 @@ void AddObjectDialog::urlChanged(const QString& filename)
 			{
 				loadModelIntoPreview(resource_manager->pathForURL(url));
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				conPrint(e.what());
 			}
@@ -249,7 +249,7 @@ void AddObjectDialog::timerEvent(QTimerEvent* event)
 
 				loadModelIntoPreview(resource_manager->pathForURL(m->URL));
 			}
-			catch(Indigo::Exception& e)
+			catch(glare::Exception& e)
 			{
 				conPrint(e.what());
 			}

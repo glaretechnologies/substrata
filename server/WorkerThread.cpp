@@ -5,6 +5,7 @@ Copyright Glare Technologies Limited 2018 -
 =====================================================================*/
 #include "WorkerThread.h"
 
+
 #include "ServerWorldState.h"
 #include "Server.h"
 #include "../shared/Protocol.h"
@@ -50,7 +51,7 @@ WorkerThread::~WorkerThread()
 void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 {
 	if(!ResourceManager::isValidURL(resource_URL))
-		throw Indigo::Exception("Invalid URL: '" + resource_URL + "'");
+		throw glare::Exception("Invalid URL: '" + resource_URL + "'");
 
 	try
 	{
@@ -60,7 +61,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
 			return;
 	}
-	catch(Indigo::Exception&)
+	catch(glare::Exception&)
 	{}
 
 	// See if we have this file on the server already
@@ -158,7 +159,7 @@ void WorkerThread::handleResourceUploadConnection()
 		/*if(!ResourceManager::isValidURL(URL))
 		{
 		conPrint("Invalid URL '" + URL + "'");
-		throw Indigo::Exception("Invalid URL '" + URL + "'");
+		throw glare::Exception("Invalid URL '" + URL + "'");
 		}*/
 
 		// See if we have a resource in the ResourceManager already
@@ -238,9 +239,9 @@ void WorkerThread::handleResourceUploadConnection()
 		else
 			conPrint("Socket error: " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("Indigo::Exception: " + e.what());
+		conPrint("glare::Exception: " + e.what());
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -308,7 +309,7 @@ void WorkerThread::handleResourceDownloadConnection()
 
 								conPrint("\tSent file '" + local_path + "' to client. (" + toString(file.fileSize()) + " B)");
 							}
-							catch(Indigo::Exception& e)
+							catch(glare::Exception& e)
 							{
 								conPrint("\tException while trying to load file for URL: " + e.what());
 
@@ -332,9 +333,9 @@ void WorkerThread::handleResourceDownloadConnection()
 		else
 			conPrint("Socket error: " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("Indigo::Exception: " + e.what());
+		conPrint("glare::Exception: " + e.what());
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -377,7 +378,7 @@ void WorkerThread::doRun()
 		const uint32 hello = socket->readUInt32();
 		printVar(hello);
 		if(hello != Protocol::CyberspaceHello)
-			throw Indigo::Exception("Received invalid hello message (" + toString(hello) + ") from client.");
+			throw glare::Exception("Received invalid hello message (" + toString(hello) + ") from client.");
 		
 		// Write hello response
 		socket->writeUInt32(Protocol::CyberspaceHello);
@@ -1117,7 +1118,7 @@ void WorkerThread::doRun()
 										world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 										conPrint("Sent user password reset email to '" + email + ", username '" + user->name + "'");
 									}
-									catch(Indigo::Exception& e)
+									catch(glare::Exception& e)
 									{
 										conPrint("Sending password reset email failed: " + e.what());
 									}
@@ -1185,9 +1186,9 @@ void WorkerThread::doRun()
 		else
 			conPrint("Socket error: " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("Indigo::Exception: " + e.what());
+		conPrint("glare::Exception: " + e.what());
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

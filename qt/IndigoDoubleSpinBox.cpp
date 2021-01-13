@@ -70,8 +70,8 @@ QString IndigoDoubleSpinBox::textFromValue(double val) const
 #if defined(BUILD_TESTS)
 
 
-#include "../../indigo/TestUtils.h"
-#include "../../indigo/globals.h"
+#include "../../utils/TestUtils.h"
+#include "../../utils/ConPrint.h"
 #include <qt/QtUtils.h>
 
 

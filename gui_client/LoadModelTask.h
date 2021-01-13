@@ -41,7 +41,7 @@ via main_window->msg_queue.
 Note for making the OpenGL Mesh, data isn't actually loaded into OpenGL in this task,
 since that needs to be done on the main thread.
 =====================================================================*/
-class LoadModelTask : public Indigo::Task
+class LoadModelTask : public glare::Task
 {
 public:
 	LoadModelTask();
@@ -54,5 +54,5 @@ public:
 	MainWindow* main_window;
 	MeshManager* mesh_manager;
 	Reference<ResourceManager> resource_manager;
-	Indigo::TaskManager* model_building_task_manager;
+	glare::TaskManager* model_building_task_manager;
 };

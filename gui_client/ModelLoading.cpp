@@ -102,7 +102,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, cons
 void ModelLoading::checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 {
 	if(mesh.num_uv_mappings > 10)
-		throw Indigo::Exception("Too many UV sets: " + toString(mesh.num_uv_mappings) + ", max is " + toString(10));
+		throw glare::Exception("Too many UV sets: " + toString(mesh.num_uv_mappings) + ", max is " + toString(10));
 
 /*	if(mesh.vert_normals.size() == 0)
 	{
@@ -166,13 +166,13 @@ void ModelLoading::checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 		// Check vertex indices are in bounds
 		for(unsigned int v = 0; v < 3; ++v)
 			if(src_tri.vertex_indices[v] >= num_verts)
-				throw Indigo::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(mesh.triangles[i].vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
+				throw glare::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(mesh.triangles[i].vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
 
 		// Check uv indices are in bounds
 		if(mesh.num_uv_mappings > 0)
 			for(unsigned int v = 0; v < 3; ++v)
 				if(src_tri.uv_indices[v] >= num_uv_groups)
-					throw Indigo::Exception("Triangle uv index is out of bounds.  (uv index=" + toString(mesh.triangles[i].uv_indices[v]) + ")");
+					throw glare::Exception("Triangle uv index is out of bounds.  (uv index=" + toString(mesh.triangles[i].uv_indices[v]) + ")");
 	}
 
 	// Quads
@@ -181,13 +181,13 @@ void ModelLoading::checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 		// Check vertex indices are in bounds
 		for(unsigned int v = 0; v < 4; ++v)
 			if(mesh.quads[i].vertex_indices[v] >= num_verts)
-				throw Indigo::Exception("Quad vertex index is out of bounds.  (vertex index=" + toString(mesh.quads[i].vertex_indices[v]) + ")");
+				throw glare::Exception("Quad vertex index is out of bounds.  (vertex index=" + toString(mesh.quads[i].vertex_indices[v]) + ")");
 
 		// Check uv indices are in bounds
 		if(mesh.num_uv_mappings > 0)
 			for(unsigned int v = 0; v < 4; ++v)
 				if(mesh.quads[i].uv_indices[v] >= num_uv_groups)
-					throw Indigo::Exception("Quad uv index is out of bounds.  (uv index=" + toString(mesh.quads[i].uv_indices[v]) + ")");
+					throw glare::Exception("Quad uv index is out of bounds.  (uv index=" + toString(mesh.quads[i].uv_indices[v]) + ")");
 	}
 }
 
@@ -195,7 +195,7 @@ void ModelLoading::checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 void ModelLoading::checkValidAndSanitiseMesh(BatchedMesh& mesh)
 {
 	if(mesh.numMaterialsReferenced() > 10000)
-		throw Indigo::Exception("Too many materials referenced.");
+		throw glare::Exception("Too many materials referenced.");
 
 	/*	if(mesh.vert_normals.size() == 0)
 		{
@@ -271,7 +271,7 @@ void ModelLoading::checkValidAndSanitiseMesh(BatchedMesh& mesh)
 
 		for(unsigned int v = 0; v < 3; ++v)
 			if(vertex_indices[v] >= num_verts)
-				throw Indigo::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
+				throw glare::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
 	}
 }
 
@@ -320,7 +320,7 @@ static void scaleMesh(Indigo::Mesh& mesh)
 
 // We don't have a material file, just the model file:
 GLObjectRef ModelLoading::makeGLObjectForModelFile(
-	Indigo::TaskManager& task_manager, 
+	glare::TaskManager& task_manager, 
 	const std::string& model_path,
 	BatchedMeshRef& mesh_out,
 	WorldObject& loaded_object_out
@@ -479,7 +479,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		conPrint("Build OpenGL mesh for GLTF model in " + timer.elapsedString());
 
 		if(mats.materials.size() < mesh->num_materials_referenced)
-			throw Indigo::Exception("mats.materials had incorrect size.");
+			throw glare::Exception("mats.materials had incorrect size.");
 
 		ob->materials.resize(mesh->num_materials_referenced);
 		loaded_object_out.materials.resize(mesh->num_materials_referenced);
@@ -549,7 +549,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		}
 		catch(Indigo::IndigoException& e)
 		{
-			throw Indigo::Exception(toStdString(e.what()));
+			throw glare::Exception(toStdString(e.what()));
 		}
 	}
 	else if(hasExtension(model_path, "igmesh"))
@@ -590,16 +590,16 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		}
 		catch(Indigo::IndigoException& e)
 		{
-			throw Indigo::Exception(toStdString(e.what()));
+			throw glare::Exception(toStdString(e.what()));
 		}
 	}
 	else
-		throw Indigo::Exception("unhandled format: " + model_path);
+		throw glare::Exception("unhandled format: " + model_path);
 }
 
 
 GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
-												   ResourceManager& resource_manager, MeshManager& mesh_manager, Indigo::TaskManager& task_manager,
+												   ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
 												   const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
@@ -647,7 +647,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			Indigo::MeshRef mesh = new Indigo::Mesh();
 
 			MLTLibMaterials mats;
-			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws Indigo::Exception on failure.
+			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
 
 			batched_mesh->buildFromIndigoMesh(*mesh);
 		}
@@ -678,7 +678,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			}
 			catch(Indigo::IndigoException& e)
 			{
-				throw Indigo::Exception(toStdString(e.what()));
+				throw glare::Exception(toStdString(e.what()));
 			}
 
 			batched_mesh->buildFromIndigoMesh(*mesh);
@@ -688,10 +688,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			BatchedMesh::readFromFile(model_path, *batched_mesh);
 		}
 		else
-			throw Indigo::Exception("unhandled model format: " + model_path);
+			throw glare::Exception("unhandled model format: " + model_path);
 
 
-		checkValidAndSanitiseMesh(*batched_mesh); // Throws Indigo::Exception on invalid mesh.
+		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
 
 		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls);
 
@@ -1359,9 +1359,9 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 				const uint32 base_uv_i	= tri.uv_indices[i];
 				const uint32 uv_i = base_uv_i * num_uv_sets; // Index of UV for UV set 0.
 				if(pos_i >= vert_positions_size)
-					throw Indigo::Exception("vert index out of bounds");
+					throw glare::Exception("vert index out of bounds");
 				if(mesh_has_uvs && uv_i >= uvs_size)
-					throw Indigo::Exception("UV index out of bounds");
+					throw glare::Exception("UV index out of bounds");
 
 				// Look up merged vertex
 				const Indigo::Vec2f uv0 = mesh_has_uvs ? uv_pairs[uv_i    ] : Indigo::Vec2f(0.f);
@@ -1522,7 +1522,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
+Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
 	// TEMP NEW:
 	//Timer timer;
@@ -1595,12 +1595,12 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 #include <simpleraytracer/raymesh.h>
 #include <utils/TaskManager.h>
 #include <maths/PCG32.h>
-#include <indigo/TestUtils.h>
+#include <utils/TestUtils.h>
 
 
 void ModelLoading::test()
 {
-	Indigo::TaskManager task_manager;
+	glare::TaskManager task_manager;
 
 
 	// Test two adjacent voxels with different materials.  All faces should be added.

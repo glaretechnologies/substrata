@@ -76,7 +76,7 @@ const std::string LoginDialog::decryptPassword(const std::string& cyphertext_bas
 			std::memcpy(&plaintext[0], plaintext_v.data(), plaintext_v.size());
 		return plaintext;
 	}
-	catch(Indigo::Exception&)
+	catch(glare::Exception&)
 	{
 		return "";
 	}
@@ -104,7 +104,7 @@ const std::string LoginDialog::encryptPassword(const std::string& password_plain
 
 		return cyphertext_base64;
 	}
-	catch(Indigo::Exception&)
+	catch(glare::Exception&)
 	{
 		return "";
 	}

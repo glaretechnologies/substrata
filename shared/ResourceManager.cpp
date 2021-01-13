@@ -149,7 +149,7 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
-		throw Indigo::Exception(e.what());
+		throw glare::Exception(e.what());
 	}
 }
 
@@ -163,12 +163,12 @@ const std::string ResourceManager::pathForURL(const std::string& URL)
 	return resource->getLocalPath();
 
 	//if(!isValidURL(URL))
-	//	throw Indigo::Exception("Invalid URL '" + URL + "'");
+	//	throw glare::Exception("Invalid URL '" + URL + "'");
 	//return base_resource_dir + "/" + escapeString(URL);
 }
 
 
-bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws Indigo::Exception if URL is invalid.
+bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws glare::Exception if URL is invalid.
 {
 	ResourceRef resource = this->getResourceForURL(URL);
 	return resource->getState() == Resource::State_Present;
@@ -208,12 +208,12 @@ void ResourceManager::loadFromDisk(const std::string& path)
 	// Read magic number
 	const uint32 m = stream.readUInt32();
 	if(m != RESOURCE_MANAGER_MAGIC_NUMBER)
-		throw Indigo::Exception("Invalid magic number " + toString(m) + ", expected " + toString(RESOURCE_MANAGER_MAGIC_NUMBER) + ".");
+		throw glare::Exception("Invalid magic number " + toString(m) + ", expected " + toString(RESOURCE_MANAGER_MAGIC_NUMBER) + ".");
 
 	// Read version
 	const uint32 v = stream.readUInt32();
 	if(v != RESOURCE_MANAGER_SERIALISATION_VERSION)
-		throw Indigo::Exception("Unknown version " + toString(v) + ", expected " + toString(RESOURCE_MANAGER_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Unknown version " + toString(v) + ", expected " + toString(RESOURCE_MANAGER_SERIALISATION_VERSION) + ".");
 	
 	size_t num_resources_present = 0;
 	while(1)
@@ -245,7 +245,7 @@ void ResourceManager::loadFromDisk(const std::string& path)
 		}
 		else
 		{
-			throw Indigo::Exception("Unknown chunk type '" + toString(chunk) + "'");
+			throw glare::Exception("Unknown chunk type '" + toString(chunk) + "'");
 		}
 	}
 
@@ -291,6 +291,6 @@ void ResourceManager::saveToDisk(const std::string& path)
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
-		throw Indigo::Exception(e.what());
+		throw glare::Exception(e.what());
 	}
 }

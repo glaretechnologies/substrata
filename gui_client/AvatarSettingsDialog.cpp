@@ -94,7 +94,7 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 
 		BatchedMeshRef mesh;
 		WorldObjectRef world_object = new WorldObject();
-		Indigo::TaskManager task_manager;
+		glare::TaskManager task_manager;
 		avatar_gl_ob = ModelLoading::makeGLObjectForModelFile(task_manager, path, mesh, *world_object);
 		
 		avatarPreviewGLWidget->addObject(avatar_gl_ob);
@@ -107,7 +107,7 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 		m.showMessage(QtUtils::toQString(e.what()));
 		m.exec();
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		// Show error
 		conPrint(e.what());

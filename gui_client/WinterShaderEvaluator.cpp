@@ -37,7 +37,7 @@ static void checkFunctionBounds(const Winter::FunctionDefinitionRef& func)
 		params.max_bound_computation_steps = MAX_TIME_BOUND;
 		const size_t time_bound = func->getTimeBound(params);
 		if(time_bound > MAX_TIME_BOUND)
-			throw Indigo::Exception(func->sig.name + " time bound was too large: " + toString(time_bound) + 
+			throw glare::Exception(func->sig.name + " time bound was too large: " + toString(time_bound) + 
 				", max acceptable bound is " + toString(MAX_TIME_BOUND));
 	}
 
@@ -48,11 +48,11 @@ static void checkFunctionBounds(const Winter::FunctionDefinitionRef& func)
 		const Winter::GetSpaceBoundResults space_bound = func->getSpaceBound(params);
 				
 		if(space_bound.stack_space > MAX_STACK_SIZE)
-			throw Indigo::Exception(func->sig.name + " stack space bound was too large: " + toString(space_bound.stack_space) + 
+			throw glare::Exception(func->sig.name + " stack space bound was too large: " + toString(space_bound.stack_space) + 
 				" B, max acceptable bound is " + toString(MAX_STACK_SIZE) + " B");
 				
 		if(space_bound.heap_space > MAX_HEAP_SIZE)
-			throw Indigo::Exception(func->sig.name + " heap space bound was too large: " + toString(space_bound.heap_space) + 
+			throw glare::Exception(func->sig.name + " heap space bound was too large: " + toString(space_bound.heap_space) + 
 				" B, max acceptable bound is " + toString(MAX_HEAP_SIZE) + " B");
 	}
 }
@@ -69,7 +69,7 @@ WinterShaderEvaluator::WinterShaderEvaluator(const std::string& base_cyberspace_
 	Winter::BufferPosition error_pos(NULL, 0, 0);
 	build(base_cyberspace_path, shader, this->vm, jitted_evalRotation, jitted_evalTranslation, error_msg, error_pos);
 	if(!error_msg.empty())
-		throw Indigo::Exception(error_msg);
+		throw glare::Exception(error_msg);
 }
 
 
@@ -125,7 +125,7 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 			if(func.nonNull())
 			{
 				if(*func->returnType() != *vec3Type())
-					throw Indigo::Exception(func->sig.toString() + "  must return vec3.");
+					throw glare::Exception(func->sig.toString() + "  must return vec3.");
 
 				jitted_evalRotation_out = (EVAL_ROTATION_TYPE)vm_out->getJittedFunction(evalRotation_sig);
 
@@ -139,7 +139,7 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 			if(func.nonNull())
 			{
 				if(*func->returnType() != *vec3Type())
-					throw Indigo::Exception(func->sig.toString() + "  must return vec3.");
+					throw glare::Exception(func->sig.toString() + "  must return vec3.");
 
 				jitted_evalTranslation_out = (EVAL_ROTATION_TYPE)vm_out->getJittedFunction(evalTranslation_sig);
 

@@ -76,7 +76,7 @@ public:
 
 	Reference<GLObject> makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine, bool write_privileges); // Shader program will be set by calling code later.
 
-	//Reference<PhysicsObject> makePhysicsObject(Reference<RayMesh>& unit_cube_raymesh, Indigo::TaskManager& task_manager);
+	//Reference<PhysicsObject> makePhysicsObject(Reference<RayMesh>& unit_cube_raymesh, glare::TaskManager& task_manager);
 #endif
 
 };

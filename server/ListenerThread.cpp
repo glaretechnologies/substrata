@@ -94,9 +94,9 @@ void ListenerThread::doRun()
 	{
 		conPrint("ListenerThread: " + e.what());
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
-		conPrint("ListenerThread Indigo::Exception: " + e.what());
+		conPrint("ListenerThread glare::Exception: " + e.what());
 	}
 	
 

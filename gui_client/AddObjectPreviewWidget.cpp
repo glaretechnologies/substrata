@@ -101,7 +101,7 @@ void AddObjectPreviewWidget::initializeGL()
 		{
 			env_mat.albedo_texture = opengl_engine->getTexture(base_dir_path + "/resources/sky_no_sun.exr");
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			assert(0);
 			conPrint("ERROR: " + e.what());
@@ -126,7 +126,7 @@ void AddObjectPreviewWidget::initializeGL()
 		{
 			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			assert(0);
 			conPrint("ERROR: " + e.what());

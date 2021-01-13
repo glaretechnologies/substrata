@@ -115,7 +115,7 @@ void LoadModelTask::run(size_t thread_index)
 			main_window->msg_queue.enqueue(msg);
 		}
 	}
-	catch(Indigo::Exception& e)
+	catch(glare::Exception& e)
 	{
 		conPrint(e.what());
 	}

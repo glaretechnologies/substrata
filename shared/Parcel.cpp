@@ -230,7 +230,7 @@ void Parcel::setColourForPerms(bool write_privileges)
 }
 
 
-Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube_raymesh, Indigo::TaskManager& task_manager)
+Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube_raymesh, glare::TaskManager& task_manager)
 {
 	Reference<PhysicsObject> new_physics_object = new PhysicsObject(/*collidable=*/false);
 
@@ -391,7 +391,7 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 	{
 		const uint32 num = stream.readUInt32();
 		if(num > 100000)
-			throw Indigo::Exception("Too many admin_ids: " + toString(num));
+			throw glare::Exception("Too many admin_ids: " + toString(num));
 		parcel.admin_ids.resize(num);
 		for(size_t i=0; i<num; ++i)
 			parcel.admin_ids[i] = readUserIDFromStream(stream);
@@ -401,7 +401,7 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 	{
 		const uint32 num = stream.readUInt32();
 		if(num > 100000)
-			throw Indigo::Exception("Too many writer_ids: " + toString(num));
+			throw glare::Exception("Too many writer_ids: " + toString(num));
 		parcel.writer_ids.resize(num);
 		for(size_t i=0; i<num; ++i)
 			parcel.writer_ids[i] = readUserIDFromStream(stream);
@@ -411,7 +411,7 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 	{
 		const uint32 num = stream.readUInt32();
 		if(num > 100000)
-			throw Indigo::Exception("Too many child_parcel_ids: " + toString(num));
+			throw glare::Exception("Too many child_parcel_ids: " + toString(num));
 		parcel.child_parcel_ids.resize(num);
 		for(size_t i=0; i<num; ++i)
 			parcel.child_parcel_ids[i] = readParcelIDFromStream(stream);
@@ -446,7 +446,7 @@ void readFromStream(InStream& stream, Parcel& parcel)
 	// Read version
 	const uint32 version = stream.readUInt32();
 	if(version > PARCEL_SERIALISATION_VERSION)
-		throw Indigo::Exception("Parcel readFromStream: Unsupported version " + toString(version) + ", expected " + toString(PARCEL_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Parcel readFromStream: Unsupported version " + toString(version) + ", expected " + toString(PARCEL_SERIALISATION_VERSION) + ".");
 
 	parcel.id = readParcelIDFromStream(stream);
 	
@@ -482,7 +482,7 @@ void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel) // UID will 
 	{
 		const uint32 num = stream.readUInt32();
 		if(num > 1000)
-			throw Indigo::Exception("Too many admin_names: " + toString(num));
+			throw glare::Exception("Too many admin_names: " + toString(num));
 		parcel.admin_names.resize(num);
 		for(size_t i=0; i<num; ++i)
 			parcel.admin_names[i] = stream.readStringLengthFirst(/*max length=*/1000);
@@ -492,7 +492,7 @@ void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel) // UID will 
 	{
 		const uint32 num = stream.readUInt32();
 		if(num > 1000)
-			throw Indigo::Exception("Too many writer_names: " + toString(num));
+			throw glare::Exception("Too many writer_names: " + toString(num));
 		parcel.writer_names.resize(num);
 		for(size_t i=0; i<num; ++i)
 			parcel.writer_names[i] = stream.readStringLengthFirst(/*max length=*/1000);

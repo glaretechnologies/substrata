@@ -40,16 +40,16 @@ public:
 	ResourceRef getResourceForURL(const std::string& URL); // Threadsafe
 
 	// Copy a local file with given local path and corresponding URL into the resource dir
-	// Throws Indigo::Exception on failure.
+	// Throws glare::Exception on failure.
 	void copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL); // Threadsafe
 
-	const std::string pathForURL(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
+	const std::string pathForURL(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
 	const std::string computeDefaultLocalPathForURL(const std::string& URL); // Compute default local path for URL.
 
 	const std::string computeLocalPathFromURLHash(const std::string& URL, const std::string& extension);
 
-	bool isFileForURLPresent(const std::string& URL); // Throws Indigo::Exception if URL is invalid.
+	bool isFileForURLPresent(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
 	// Used for deserialising resource objects from serialised server state.
 	void addResource(ResourceRef& res);

@@ -67,7 +67,7 @@ public:
 
 	::Mutex mutex;
 private:
-	INDIGO_DISABLE_COPY(ServerAllWorldsState);
+	GLARE_DISABLE_COPY(ServerAllWorldsState);
 
 	IndigoAtomic changed;
 

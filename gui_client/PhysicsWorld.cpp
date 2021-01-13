@@ -56,7 +56,7 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 	this->objects_set.erase(object);
 }
 
-void PhysicsWorld::rebuild(Indigo::TaskManager& task_manager, PrintOutput& print_output)
+void PhysicsWorld::rebuild(glare::TaskManager& task_manager, PrintOutput& print_output)
 {
 	//conPrint("PhysicsWorld::rebuild()");
 	

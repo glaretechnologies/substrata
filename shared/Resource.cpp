@@ -43,7 +43,7 @@ void readFromStream(InStream& stream, Resource& resource)
 	// Read version
 	const uint32 v = stream.readUInt32();
 	if(v > RESOURCE_SERIALISATION_VERSION)
-		throw Indigo::Exception("Resource readFromStream: Unsupported version " + toString(v) + ", expected " + toString(RESOURCE_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Resource readFromStream: Unsupported version " + toString(v) + ", expected " + toString(RESOURCE_SERIALISATION_VERSION) + ".");
 
 	readFromStreamCommon(stream, v, resource);
 }

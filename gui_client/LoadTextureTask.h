@@ -26,7 +26,7 @@ LoadTextureTask
 ---------------
 
 =====================================================================*/
-class LoadTextureTask : public Indigo::Task
+class LoadTextureTask : public glare::Task
 {
 public:
 	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, const std::string& path_);

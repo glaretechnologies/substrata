@@ -319,7 +319,7 @@ void ServerAllWorldsState::updateFromDatabase()
 	}
 	catch(sql::SQLException& e)
 	{
-		throw Indigo::Exception("MySQL Error: " + std::string(e.what()));
+		throw glare::Exception("MySQL Error: " + std::string(e.what()));
 	}
 #endif // MY_SQL_STUFF
 }
@@ -344,12 +344,12 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	// Read magic number
 	const uint32 m = stream.readUInt32();
 	if(m != WORLD_STATE_MAGIC_NUMBER)
-		throw Indigo::Exception("Invalid magic number " + toString(m) + ", expected " + toString(WORLD_STATE_MAGIC_NUMBER) + ".");
+		throw glare::Exception("Invalid magic number " + toString(m) + ", expected " + toString(WORLD_STATE_MAGIC_NUMBER) + ".");
 
 	// Read version
 	const uint32 v = stream.readUInt32();
 	if(v > WORLD_STATE_SERIALISATION_VERSION)
-		throw Indigo::Exception("Unknown version " + toString(v) + ", expected " + toString(WORLD_STATE_SERIALISATION_VERSION) + ".");
+		throw glare::Exception("Unknown version " + toString(v) + ", expected " + toString(WORLD_STATE_SERIALISATION_VERSION) + ".");
 
 	Reference<ServerWorldState> current_world = new ServerWorldState();
 	world_states[""] = current_world;
@@ -412,7 +412,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		}
 		else
 		{
-			throw Indigo::Exception("Unknown chunk type '" + toString(chunk) + "'");
+			throw glare::Exception("Unknown chunk type '" + toString(chunk) + "'");
 		}
 	}
 
@@ -566,7 +566,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
-		throw Indigo::Exception(e.what());
+		throw glare::Exception(e.what());
 	}
 }
 
