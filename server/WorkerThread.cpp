@@ -25,7 +25,6 @@ Copyright Glare Technologies Limited 2018 -
 #include <SocketBufferOutStream.h>
 #include <PlatformUtils.h>
 #include <KillThreadMessage.h>
-#include <ThreadShouldAbortCallback.h>
 #include <Parser.h>
 #include <FileUtils.h>
 #include <MemMappedFile.h>

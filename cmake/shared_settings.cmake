@@ -204,8 +204,6 @@ ${INDIGO_UTILS_DIR}/ParallelFor.cpp
 ${INDIGO_UTILS_DIR}/ParallelFor.h
 ${INDIGO_UTILS_DIR}/Parser.cpp
 ${INDIGO_UTILS_DIR}/Parser.h
-${INDIGO_UTILS_DIR}/PauseThreadMessage.cpp
-${INDIGO_UTILS_DIR}/PauseThreadMessage.h
 ${INDIGO_UTILS_DIR}/Platform.h
 ${INDIGO_UTILS_DIR}/PlatformUtils.cpp
 ${INDIGO_UTILS_DIR}/PlatformUtils.h
@@ -222,7 +220,6 @@ ${INDIGO_UTILS_DIR}/ReferenceTest.h
 #${INDIGO_UTILS_DIR}/RunningAverage.h
 ${INDIGO_UTILS_DIR}/SHA256.cpp
 ${INDIGO_UTILS_DIR}/SHA256.h
-${INDIGO_UTILS_DIR}/Singleton.cpp
 ${INDIGO_UTILS_DIR}/Singleton.h
 ${INDIGO_UTILS_DIR}/SmallVector.cpp
 ${INDIGO_UTILS_DIR}/SmallVector.h
@@ -234,8 +231,6 @@ ${INDIGO_UTILS_DIR}/Sort.h
 #${INDIGO_UTILS_DIR}/SphereUnitVecPool.h
 ${INDIGO_UTILS_DIR}/StandardPrintOutput.cpp
 ${INDIGO_UTILS_DIR}/StandardPrintOutput.h
-${INDIGO_UTILS_DIR}/StreamShouldAbortCallback.cpp
-${INDIGO_UTILS_DIR}/StreamShouldAbortCallback.h
 ${INDIGO_UTILS_DIR}/StreamUtils.cpp
 ${INDIGO_UTILS_DIR}/StreamUtils.h
 ${INDIGO_UTILS_DIR}/StringUtils.cpp
@@ -260,8 +255,6 @@ ${INDIGO_UTILS_DIR}/ThreadMessageSink.cpp
 ${INDIGO_UTILS_DIR}/ThreadMessageSink.h
 ${INDIGO_UTILS_DIR}/ThreadSafeQueue.h
 ${INDIGO_UTILS_DIR}/ThreadSafeRefCounted.h
-${INDIGO_UTILS_DIR}/ThreadShouldAbortCallback.cpp
-${INDIGO_UTILS_DIR}/ThreadShouldAbortCallback.h
 ${INDIGO_UTILS_DIR}/ThreadTests.cpp
 ${INDIGO_UTILS_DIR}/ThreadTests.h
 ${INDIGO_UTILS_DIR}/Timer.cpp
