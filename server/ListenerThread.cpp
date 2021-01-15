@@ -15,7 +15,6 @@ Code By Nicholas Chapman.
 #include <StringUtils.h>
 #include <PlatformUtils.h>
 #include <KillThreadMessage.h>
-#include <ThreadShouldAbortCallback.h>
 #include <Exception.h>
 
 
