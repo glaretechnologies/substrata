@@ -21,8 +21,7 @@ class WorkUnit;
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
-class IndigoAtomic;
-
+namespace glare { class AtomicInt; }
 
 
 class DownloadResourceMessage : public ThreadMessage
@@ -31,7 +30,7 @@ public:
 	DownloadResourceMessage(const std::string& URL_) : URL(URL_) {}
 	std::string URL;
 
-	IndigoAtomic processed; // zero if not processed (being downloaded) yet.
+	glare::AtomicInt processed; // zero if not processed (being downloaded) yet.
 };
 
 
@@ -62,7 +61,7 @@ class DownloadResourcesThread : public MessageableThread
 {
 public:
 	DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager, const std::string& hostname, int port,
-		IndigoAtomic* num_resources_downloading_);
+		glare::AtomicInt* num_resources_downloading_);
 	virtual ~DownloadResourcesThread();
 
 	virtual void doRun();
@@ -73,5 +72,5 @@ private:
 	std::string hostname;
 	//std::string resources_dir;
 	int port;
-	IndigoAtomic* num_resources_downloading;
+	glare::AtomicInt* num_resources_downloading;
 };

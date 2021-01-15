@@ -186,8 +186,8 @@ public:
 	ThreadManager net_resource_download_thread_manager;
 	ThreadManager save_resources_db_thread_manager;
 
-	IndigoAtomic num_non_net_resources_downloading;
-	IndigoAtomic num_net_resources_downloading;
+	glare::AtomicInt num_non_net_resources_downloading;
+	glare::AtomicInt num_net_resources_downloading;
 
 	Reference<WorldState> world_state;
 
