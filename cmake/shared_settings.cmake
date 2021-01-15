@@ -156,8 +156,8 @@ ${INDIGO_UTILS_DIR}/FileUtils.h
 #${INDIGO_UTILS_DIR}/ImmutableVector.cpp
 #${INDIGO_UTILS_DIR}/ImmutableVector.h
 ${INDIGO_UTILS_DIR}/IncludeWindows.h
-${INDIGO_UTILS_DIR}/IndigoAtomic.cpp
-${INDIGO_UTILS_DIR}/IndigoAtomic.h
+${INDIGO_UTILS_DIR}/AtomicInt.cpp
+${INDIGO_UTILS_DIR}/AtomicInt.h
 ${INDIGO_UTILS_DIR}/IndigoXMLDoc.cpp
 ${INDIGO_UTILS_DIR}/IndigoXMLDoc.h
 ${INDIGO_UTILS_DIR}/InStream.cpp

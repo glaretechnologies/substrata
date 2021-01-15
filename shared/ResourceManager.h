@@ -14,7 +14,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <Reference.h>
 #include <map>
 #include <Mutex.h>
-#include <IndigoAtomic.h>
+#include <AtomicInt.h>
 
 
 /*=====================================================================
@@ -70,7 +70,7 @@ private:
 
 	Mutex mutex;
 	std::map<std::string, ResourceRef> resource_for_url;
-	IndigoAtomic changed;
+	glare::AtomicInt changed;
 };
 
 

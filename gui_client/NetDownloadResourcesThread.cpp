@@ -21,7 +21,7 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 NetDownloadResourcesThread::NetDownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_,
-	IndigoAtomic* num_net_resources_downloading_)
+	glare::AtomicInt* num_net_resources_downloading_)
 :	out_msg_queue(out_msg_queue_),
 	resource_manager(resource_manager_),
 	num_net_resources_downloading(num_net_resources_downloading_)
@@ -47,7 +47,7 @@ void NetDownloadResourcesThread::kill()
 struct NumResourcesDownloadingDecrementor
 {
 	~NumResourcesDownloadingDecrementor() { (*num_net_resources_downloading)--; }
-	IndigoAtomic* num_net_resources_downloading;
+	glare::AtomicInt* num_net_resources_downloading;
 };
 
 

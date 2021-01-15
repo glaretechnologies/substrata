@@ -159,7 +159,7 @@ public:
 	Reference<WorldState> world_state;
 	UID client_avatar_uid;
 private:
-	IndigoAtomic should_die;
+	glare::AtomicInt should_die;
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	ThreadSafeQueue<std::string> data_to_send;
 	EventFD event_fd;

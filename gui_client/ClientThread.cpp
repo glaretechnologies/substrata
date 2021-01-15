@@ -45,7 +45,7 @@ ClientThread::~ClientThread()
 
 void ClientThread::kill()
 {
-	should_die = glare_atomic_int(1);
+	should_die = glare::atomic_int(1);
 }
 
 

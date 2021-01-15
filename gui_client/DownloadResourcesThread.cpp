@@ -20,7 +20,7 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_, const std::string& hostname_, int port_, 
-	IndigoAtomic* num_resources_downloading_)
+	glare::AtomicInt* num_resources_downloading_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	//resources_dir(resources_dir_),
@@ -61,7 +61,7 @@ static bool checkMessageQueue(ThreadSafeQueue<Reference<ThreadMessage> >& queue,
 struct NumNonNetResourcesDownloadingDecrementor
 {
 	~NumNonNetResourcesDownloadingDecrementor() { (*num_resources_downloading)--; }
-	IndigoAtomic* num_resources_downloading;
+	glare::AtomicInt* num_resources_downloading;
 };
 
 

@@ -69,7 +69,7 @@ public:
 private:
 	GLARE_DISABLE_COPY(ServerAllWorldsState);
 
-	IndigoAtomic changed;
+	glare::AtomicInt changed;
 
 	UID next_object_uid;
 	UID next_avatar_uid;
