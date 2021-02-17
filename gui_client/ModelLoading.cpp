@@ -268,6 +268,8 @@ void ModelLoading::checkValidAndSanitiseMesh(BatchedMesh& mesh)
 			vertex_indices[1] = index_data_uint32[t*3 + 1];
 			vertex_indices[2] = index_data_uint32[t*3 + 2];
 		}
+		else
+			throw glare::Exception("Invalid index_type.");
 
 		for(unsigned int v = 0; v < 3; ++v)
 			if(vertex_indices[v] >= num_verts)
@@ -1292,9 +1294,9 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 	// If UVs are somewhat small in magnitude, use GL_HALF_FLOAT instead of GL_FLOAT.
 	// If the magnitude is too high we can get artifacts if we just use half precision.
-	const bool use_half_uv1 = true; // TEMP canUseHalfUVs(mesh); // Just for UV1
+	//const bool use_half_uv1 = true; // TEMP canUseHalfUVs(mesh); // Just for UV1
 
-	const size_t packed_uv1_size = use_half_uv1 ? sizeof(half)*2 : sizeof(float)*2;
+	//const size_t packed_uv1_size = use_half_uv1 ? sizeof(half)*2 : sizeof(float)*2;
 
 	/*
 	Vertex data layout is
