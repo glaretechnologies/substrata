@@ -40,6 +40,7 @@ void renderRootPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
 
 
+	const std::string deployed_version = "0.37";
 
 	page_out +=
 	"	<p>																																																		  \n"
@@ -53,13 +54,13 @@ void renderRootPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_
 	"																																																			  \n"
 	"	<h2>Downloads</h2>																																														  \n"
 	"	<p>																																																		  \n"
-	"	Windows - <a href=\"http://downloads.indigorenderer.com/dist/cyberspace/Substrata_v0.36_Setup.exe\">Substrata_v0.36_Setup.exe</a>																			  \n"
+	"	Windows - <a href=\"http://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + "_Setup.exe\">Substrata_v" + deployed_version + "_Setup.exe</a>																			  \n"
 	"	</p>																																																	  \n"
 	"	<p>																																																		  \n"
-	"	OS X - <a href=\"http://downloads.indigorenderer.com/dist/cyberspace/Substrata_v0.36.pkg\">Substrata_v0.36.pkg</a>																						  \n"
+	"	OS X - <a href=\"http://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".pkg\">Substrata_v" + deployed_version + ".pkg</a>																						  \n"
 	"	</p>																																																	  \n"
 	"	<p>																																																		  \n"
-	"	Linux - <a href=\"http://downloads.indigorenderer.com/dist/cyberspace/Substrata_v0.36.tar.gz\">Substrata_v0.36.tar.gz</a>																					  \n"
+	"	Linux - <a href=\"http://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".tar.gz\">Substrata_v" + deployed_version + ".tar.gz</a>																					  \n"
 	"	</p>																																																	  \n"
 	"																																																			  \n"
 	"	<h2>Community</h2>																																														  \n"
