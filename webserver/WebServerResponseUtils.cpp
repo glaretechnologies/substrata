@@ -11,7 +11,7 @@ Generated at 2013-04-22 21:32:34 +0100
 #include <Clock.h>
 #include <AESEncryption.h>
 #include <Exception.h>
-#include <mysocket.h>
+#include <MySocket.h>
 #include <Lock.h>
 #include <Clock.h>
 #include <StringUtils.h>
