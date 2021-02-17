@@ -8,6 +8,7 @@ include(../cmake/winter.cmake)
 
 
 FILE(GLOB server "./*.cpp" "./*.h")
+FILE(GLOB webserver "../webserver/*.cpp" "../webserver/*.h")
 FILE(GLOB docs "../docs/*.txt")
 SET(shared_files
 ../shared/Avatar.cpp
@@ -30,8 +31,45 @@ SET(shared_files
 ../shared/WorldMaterial.h
 )
 
+set(WEBSITE_CORE_DIR "$ENV{WEBSITE_CORE_TRUNK_DIR}")
+
+########### Website Core ################
+SET(website_core_files
+${WEBSITE_CORE_DIR}/Escaping.cpp
+${WEBSITE_CORE_DIR}/Escaping.h
+${WEBSITE_CORE_DIR}/WebListenerThread.cpp
+${WEBSITE_CORE_DIR}/WebListenerThread.h
+${WEBSITE_CORE_DIR}/RequestInfo.cpp
+${WEBSITE_CORE_DIR}/RequestInfo.h
+${WEBSITE_CORE_DIR}/ResponseUtils.cpp
+${WEBSITE_CORE_DIR}/ResponseUtils.h
+${WEBSITE_CORE_DIR}/Log.cpp
+${WEBSITE_CORE_DIR}/Log.h
+${WEBSITE_CORE_DIR}/StressTest.cpp
+${WEBSITE_CORE_DIR}/StressTest.h
+${WEBSITE_CORE_DIR}/TimeStamp.cpp
+${WEBSITE_CORE_DIR}/TimeStamp.h
+${WEBSITE_CORE_DIR}/WebsiteExcep.h
+${WEBSITE_CORE_DIR}/WorkerThread.cpp
+${WEBSITE_CORE_DIR}/WorkerThread.h
+${WEBSITE_CORE_DIR}/RequestHandler.cpp
+${WEBSITE_CORE_DIR}/RequestHandler.h
+${WEBSITE_CORE_DIR}/UnsafeString.cpp
+${WEBSITE_CORE_DIR}/UnsafeString.h
+${WEBSITE_CORE_DIR}/WorkerThreadTests.cpp
+${WEBSITE_CORE_DIR}/WorkerThreadTests.h
+#${WEBSITE_CORE_DIR}/StaticAssetManager.cpp
+#${WEBSITE_CORE_DIR}/StaticAssetManager.h
+)
+
+
+include_directories(
+${WEBSITE_CORE_DIR}
+)
 
 SOURCE_GROUP(server FILES ${server})
+SOURCE_GROUP(webserver FILES ${webserver})
+SOURCE_GROUP(website_core FILES ${website_core_files})
 SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 
@@ -69,6 +107,8 @@ ${utils}
 ${hdr}
 ${winter}
 ${server}
+${webserver}
+${website_core_files}
 ${shared_files}
 ${scripts}
 ${double_conversion}
