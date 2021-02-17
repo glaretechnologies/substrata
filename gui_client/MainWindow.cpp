@@ -1166,12 +1166,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		conPrint("\n============================================");
 		
-			conPrint("World objects CPU mem usage:            " + getNiceByteSize(this->world_state->getTotalMemUsage()));
+		conPrint("World objects CPU mem usage:            " + getNiceByteSize(this->world_state->getTotalMemUsage()));
 
 		if(this->physics_world.nonNull())
 			conPrint("physics_world->getTotalMemUsage:        " + getNiceByteSize(this->physics_world->getTotalMemUsage()));
 	
-			conPrint("texture_server->getTotalMemUsage:       " + getNiceByteSize(this->texture_server->getTotalMemUsage()));
+		conPrint("texture_server->getTotalMemUsage:       " + getNiceByteSize(this->texture_server->getTotalMemUsage()));
 		
 		if(this->ui->glWidget->opengl_engine.nonNull())
 		{
@@ -1189,11 +1189,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 
 		
-			conPrint("mesh_manager num meshes:                " + toString(this->mesh_manager.model_URL_to_mesh_map.size()));
+		conPrint("mesh_manager num meshes:                " + toString(this->mesh_manager.model_URL_to_mesh_map.size()));
 
-			const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
-			conPrint("mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()));
-			conPrint("mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()));
+		const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
+		conPrint("mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()));
+		conPrint("mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()));
 	}
 
 
