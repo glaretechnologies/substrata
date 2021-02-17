@@ -12,3 +12,9 @@ systemctl status cyberspace-server.service --user
 
 and the log with
 journalctl --unit=cyberspace-server.service --user --since "1 hour ago"
+
+
+NOTE: 
+Had to execute
+	sudo setcap 'cap_net_bind_service=+ep' /home/nick/cyberspace/server
+to allow the program to bind to port 80.
