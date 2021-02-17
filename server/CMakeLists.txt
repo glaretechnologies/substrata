@@ -31,35 +31,33 @@ SET(shared_files
 ../shared/WorldMaterial.h
 )
 
-set(WEBSITE_CORE_DIR "$ENV{WEBSITE_CORE_TRUNK_DIR}")
-
 ########### Website Core ################
 SET(website_core_files
-${WEBSITE_CORE_DIR}/Escaping.cpp
-${WEBSITE_CORE_DIR}/Escaping.h
-${WEBSITE_CORE_DIR}/WebListenerThread.cpp
-${WEBSITE_CORE_DIR}/WebListenerThread.h
-${WEBSITE_CORE_DIR}/RequestInfo.cpp
-${WEBSITE_CORE_DIR}/RequestInfo.h
-${WEBSITE_CORE_DIR}/ResponseUtils.cpp
-${WEBSITE_CORE_DIR}/ResponseUtils.h
-${WEBSITE_CORE_DIR}/Log.cpp
-${WEBSITE_CORE_DIR}/Log.h
-${WEBSITE_CORE_DIR}/StressTest.cpp
-${WEBSITE_CORE_DIR}/StressTest.h
-${WEBSITE_CORE_DIR}/TimeStamp.cpp
-${WEBSITE_CORE_DIR}/TimeStamp.h
-${WEBSITE_CORE_DIR}/WebsiteExcep.h
-${WEBSITE_CORE_DIR}/WorkerThread.cpp
-${WEBSITE_CORE_DIR}/WorkerThread.h
-${WEBSITE_CORE_DIR}/RequestHandler.cpp
-${WEBSITE_CORE_DIR}/RequestHandler.h
-${WEBSITE_CORE_DIR}/UnsafeString.cpp
-${WEBSITE_CORE_DIR}/UnsafeString.h
-${WEBSITE_CORE_DIR}/WorkerThreadTests.cpp
-${WEBSITE_CORE_DIR}/WorkerThreadTests.h
-#${WEBSITE_CORE_DIR}/StaticAssetManager.cpp
-#${WEBSITE_CORE_DIR}/StaticAssetManager.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/WebListenerThread.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/WebListenerThread.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestInfo.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestInfo.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/ResponseUtils.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/ResponseUtils.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/Log.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/Log.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/StressTest.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/StressTest.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/TimeStamp.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/TimeStamp.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/WebsiteExcep.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThread.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThread.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestHandler.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestHandler.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/UnsafeString.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/UnsafeString.h
+${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThreadTests.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThreadTests.h
+#${WEBSITE_CORE_TRUNK_DIR_ENV}/StaticAssetManager.cpp
+#${WEBSITE_CORE_TRUNK_DIR_ENV}/StaticAssetManager.h
 )
 
 
