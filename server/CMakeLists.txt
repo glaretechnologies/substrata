@@ -60,10 +60,8 @@ ${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThreadTests.h
 #${WEBSITE_CORE_TRUNK_DIR_ENV}/StaticAssetManager.h
 )
 
+include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
 
-include_directories(
-${WEBSITE_CORE_DIR}
-)
 
 SOURCE_GROUP(server FILES ${server})
 SOURCE_GROUP(webserver FILES ${webserver})
