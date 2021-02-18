@@ -203,10 +203,10 @@ int main(int argc, char *argv[])
 		// Skip TLS stuff when testing on windows for now.
 #else
 		if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
-			throw WebsiteExcep("tls_config_set_cert_file failed.");
+			throw glare::Exception("tls_config_set_cert_file failed.");
 
 		if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0)
-			throw WebsiteExcep("tls_config_set_key_file failed.");
+			throw glare::Exception("tls_config_set_key_file failed.");
 #endif
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
