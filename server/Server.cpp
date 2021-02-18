@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Matrix4f.h>
 #include <Quat.h>
 #include <OpenSSL.h>
+#include <tls.h>
 #include <networking/HTTPClient.h>//TEMP for testing
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/WebDataStore.h"
@@ -195,6 +196,19 @@ int main(int argc, char *argv[])
 
 		//-------------------------------- Launch webserver ---------------------------------------------------------
 
+		// Create TLS configuration
+		struct tls_config* tls_configuration = tls_config_new();
+
+#ifdef WIN32
+		// Skip TLS stuff when testing on windows for now.
+#else
+		if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+			throw WebsiteExcep("tls_config_set_cert_file failed.");
+
+		if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0)
+			throw WebsiteExcep("tls_config_set_key_file failed.");
+#endif
+
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
 #ifdef WIN32		
@@ -217,9 +231,7 @@ int main(int argc, char *argv[])
 
 		ThreadManager web_thread_manager;
 		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
-#if TLS_SUPPORT
 		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), tls_configuration));
-#endif
 
 
 		//-----------------------------------------------------------------------------------------//-----------------------------------------------------------------
