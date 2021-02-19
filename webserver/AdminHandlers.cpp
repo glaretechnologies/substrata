@@ -54,7 +54,7 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		{
 			const User* user = it->second.ptr();
 			page_out += "<div>\n";
-			page_out += "id: " + user->id.toString() + "       username: " + web::Escaping::HTMLEscape(user->name) + ",       email: " + web::Escaping::HTMLEscape(user->email_address) + ",      joined " + user->created_time.timeAgoDescription();
+			page_out += "id: " + user->id.toString() + ",       username: " + web::Escaping::HTMLEscape(user->name) + ",       email: " + web::Escaping::HTMLEscape(user->email_address) + ",      joined " + user->created_time.timeAgoDescription();
 			page_out += "</div>\n";
 		}
 
@@ -90,7 +90,7 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 
 
 			page_out += "<div>\n";
-			page_out += "id: " + parcel->id.toString() + "       owner: " + web::Escaping::HTMLEscape(owner_username) + ",       description: " + web::Escaping::HTMLEscape(parcel->description) + 
+			page_out += "id: " + parcel->id.toString() + ",       owner: " + web::Escaping::HTMLEscape(owner_username) + ",       description: " + web::Escaping::HTMLEscape(parcel->description) + 
 				",      created " + parcel->created_time.timeAgoDescription();
 			page_out += "</div>\n";
 		}
