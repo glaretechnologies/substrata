@@ -402,7 +402,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			ResourceRef resource = new Resource();
 			readFromStream(stream, *resource);
 
-			conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
+			//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
 			this->resource_manager->addResource(resource);
 		}

@@ -9,12 +9,13 @@ Copyright Glare Technologies Limited 2021 -
 //#include "User.h"
 //#include "Post.h"
 #include "WebDataStore.h"
+#include "AdminHandlers.h"
 #include "MainPageHandlers.h"
 #include "WebsiteExcep.h"
 #include "Escaping.h"
 //#include "PostHandlers.h"
 //#include "RSSHandlers.h"
-//#include "LoginHandlers.h"
+#include "LoginHandlers.h"
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
 //#include "BlogHandlers.h"
@@ -60,14 +61,15 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 	if(request.verb == "POST")
 	{
 		// Route PUT request
-		//if(request.path == "/login_post")
-		//{
-		//	LoginHandlers::handleLoginPost(*data_store, request, reply_info);
-		//}
-		//else if(request.path == "/logout_post")
-		//{
-		//	LoginHandlers::handleLogoutPost(*data_store, request, reply_info);
-		//}
+		if(request.path == "/login_post")
+		{
+			LoginHandlers::handleLoginPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/logout_post")
+		{
+			LoginHandlers::handleLogoutPost(request, reply_info);
+		}
+		else
 		{
 			const std::string page = "Unknown post URL";
 			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
@@ -109,10 +111,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderRootPage(request, reply_info);
 		}
-		/*else if(request.path == "/login")
+		if(request.path == "/admin")
 		{
-			LoginHandlers::renderLoginPage(*data_store, request, reply_info);
-		}*/
+			AdminHandlers::renderMainAdminPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/login")
+		{
+			LoginHandlers::renderLoginPage(request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{
 			const std::string filename = ::eatPrefix(request.path, "/files/");

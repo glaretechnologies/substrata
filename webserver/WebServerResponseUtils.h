@@ -1,8 +1,7 @@
 /*=====================================================================
 WebServerResponseUtils.h
--------------------
-Copyright Glare Technologies Limited 2013 -
-Generated at 2013-04-22 21:32:34 +0100
+------------------------
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #pragma once
 
@@ -11,10 +10,8 @@ Generated at 2013-04-22 21:32:34 +0100
 
 namespace web
 {
-
-	class RequestInfo;
-	class ReplyInfo;
-
+class RequestInfo;
+class ReplyInfo;
 }
 
 
