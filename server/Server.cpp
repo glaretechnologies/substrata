@@ -324,6 +324,7 @@ int main(int argc, char *argv[])
 		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(41), UserID(6)); // Originalplan
 		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(40), UserID(8)); // trislit
 		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(30), UserID(9)); // fused
+		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(50), UserID(23)); // cody2343
 
 		// Make parcel with id 20 a 'sandbox', world-writeable parcel
 		{
