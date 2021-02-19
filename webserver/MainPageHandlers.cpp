@@ -40,7 +40,7 @@ void renderRootPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
 
 
-	const std::string deployed_version = "0.37";
+	const std::string deployed_version = "0.38";
 
 	page_out +=
 	"	<p>																																																		  \n"
