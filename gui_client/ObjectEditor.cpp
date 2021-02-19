@@ -51,8 +51,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->modelFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->scriptTextEdit,			SIGNAL(textChanged()),				this, SLOT(scriptTextEditChanged()));
 	connect(this->contentTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
-	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SIGNAL(objectChanged()));
-	connect(this->targetURLLineEdit,		SIGNAL(textChanged(const QString&)),this, SLOT(targetURLChanged()));
+	connect(this->targetURLLineEdit,		SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
+	connect(this->targetURLLineEdit,		SIGNAL(textChanged()),				this, SLOT(targetURLChanged()));
 
 	connect(this->posXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->posYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -180,9 +180,9 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	}
 
 
-	this->targetURLLabel->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
-	this->targetURLLineEdit->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
-	this->visitURLLabel->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard && !ob.target_url.empty());
+	//this->targetURLLabel->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
+	//this->targetURLLineEdit->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
+	this->visitURLLabel->setVisible(/*ob.object_type == WorldObject::ObjectType_Hypercard && */!ob.target_url.empty());
 }
 
 
@@ -199,7 +199,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
 	ob_out.script     = QtUtils::toIndString(this->scriptTextEdit->toPlainText());
 	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
-	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
+	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->toPlainText());
 
 	ob_out.pos.x = this->posXDoubleSpinBox->value();
 	ob_out.pos.y = this->posYDoubleSpinBox->value();
@@ -287,7 +287,7 @@ void ObjectEditor::setControlsEditable(bool editable)
 
 void ObjectEditor::on_visitURLLabel_linkActivated(const QString&)
 {
-	std::string url = QtUtils::toStdString(this->targetURLLineEdit->text());
+	std::string url = QtUtils::toStdString(this->targetURLLineEdit->toPlainText());
 	if(StringUtils::containsString(url, "://"))
 	{
 		// URL already has protocol prefix
@@ -360,7 +360,7 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 
 void ObjectEditor::targetURLChanged()
 {
-	this->visitURLLabel->setVisible(!this->targetURLLineEdit->text().isEmpty());
+	this->visitURLLabel->setVisible(!this->targetURLLineEdit->toPlainText().isEmpty());
 }
 
 
