@@ -331,7 +331,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 	if(v >= 13)
 	{
 		ob.lightmap_url = stream.readStringLengthFirst(10000);
-		conPrint("readFromStream: read lightmap_url: " + ob.lightmap_url);
+		//conPrint("readFromStream: read lightmap_url: " + ob.lightmap_url);
 	}
 
 	if(v >= 4 && v < 10)

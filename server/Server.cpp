@@ -194,47 +194,7 @@ int main(int argc, char *argv[])
 		//-----------------------------------------------------------------------------------------
 
 
-		//-------------------------------- Launch webserver ---------------------------------------------------------
 
-		// Create TLS configuration
-		struct tls_config* tls_configuration = tls_config_new();
-
-#ifdef WIN32
-		// Skip TLS stuff when testing on windows for now.
-#else
-		if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
-			throw glare::Exception("tls_config_set_cert_file failed.");
-
-		if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0)
-			throw glare::Exception("tls_config_set_key_file failed.");
-#endif
-
-		Reference<WebDataStore> web_data_store = new WebDataStore();
-
-#ifdef WIN32		
-		web_data_store->public_files_dir = "C:\\programming\\new_cyberspace\\webdata\\public_files";
-		//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
-		web_data_store->letsencrypt_webroot = "C:\\programming\\new_cyberspace\\webdata\\letsencrypt_webroot";
-#else
-		web_data_store->public_files_dir = "/var/www/cyberspace/public_html";
-		//web_data_store->resources_dir    = "/var/www/cyberspace/resources";
-		web_data_store->letsencrypt_webroot = "/var/www/cyberspace/letsencrypt_webroot";
-#endif
-
-		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
-		shared_request_handler->data_store = web_data_store.ptr();
-
-		/*if(FileUtils::fileExists(data_store->path))
-			data_store->loadFromDisk();
-		else
-			conPrint(data_store->path + " not found!");*/
-
-		ThreadManager web_thread_manager;
-		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
-		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), tls_configuration));
-
-
-		//-----------------------------------------------------------------------------------------//-----------------------------------------------------------------
 
 		const int listen_port = 7600;
 		conPrint("listen port: " + toString(listen_port));
@@ -381,6 +341,52 @@ int main(int argc, char *argv[])
 
 
 		server.world_state->denormaliseData();
+
+
+
+		//-------------------------------- Launch webserver ---------------------------------------------------------
+
+		// Create TLS configuration
+		struct tls_config* tls_configuration = tls_config_new();
+
+#ifdef WIN32
+		// Skip TLS stuff when testing on windows for now.
+#else
+		if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+			throw glare::Exception("tls_config_set_cert_file failed.");
+
+		if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0)
+			throw glare::Exception("tls_config_set_key_file failed.");
+#endif
+
+		Reference<WebDataStore> web_data_store = new WebDataStore();
+
+#ifdef WIN32		
+		web_data_store->public_files_dir = "C:\\programming\\new_cyberspace\\webdata\\public_files";
+		//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
+		web_data_store->letsencrypt_webroot = "C:\\programming\\new_cyberspace\\webdata\\letsencrypt_webroot";
+#else
+		web_data_store->public_files_dir = "/var/www/cyberspace/public_html";
+		//web_data_store->resources_dir    = "/var/www/cyberspace/resources";
+		web_data_store->letsencrypt_webroot = "/var/www/cyberspace/letsencrypt_webroot";
+#endif
+
+		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
+		shared_request_handler->data_store = web_data_store.ptr();
+		shared_request_handler->world_state = server.world_state.ptr();
+
+		/*if(FileUtils::fileExists(data_store->path))
+		data_store->loadFromDisk();
+		else
+		conPrint(data_store->path + " not found!");*/
+
+		ThreadManager web_thread_manager;
+		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
+		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), tls_configuration));
+
+
+		//-----------------------------------------------------------------------------------------
+
 
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server));
