@@ -28,7 +28,7 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 	
 	web::UnsafeString logged_in_username;
 	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username);
-	if(logged_in_username.str() != "Ono-Sendai")
+	if(!logged_in || (logged_in_username.str() != "Ono-Sendai"))
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
 		return;
