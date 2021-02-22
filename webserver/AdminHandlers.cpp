@@ -6,26 +6,16 @@ Copyright Glare Technologies Limited 2021 -
 #include "AdminHandlers.h"
 
 
-#include <ConPrint.h>
-#include "RequestInfo.h"
-#include <AESEncryption.h>
-#include <Exception.h>
-#include <MySocket.h>
-#include <Lock.h>
-#include <Clock.h>
-#include <StringUtils.h>
-#include <PlatformUtils.h>
-#include <KillThreadMessage.h>
-#include <Parser.h>
-#include <MemMappedFile.h>
 #include "RequestInfo.h"
 #include "Response.h"
-#include "WebsiteExcep.h"
 #include "Escaping.h"
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
 #include "LoginHandlers.h"
 #include "../server/ServerWorldState.h"
+#include <ConPrint.h>
+#include <Exception.h>
+#include <Lock.h>
 
 
 namespace AdminHandlers
@@ -34,10 +24,10 @@ namespace AdminHandlers
 
 void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHeader(request_info, /*page title=*/"Substrata");
+	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
 	
 	web::UnsafeString logged_in_username;
-	const bool logged_in = LoginHandlers::isLoggedIn(request_info, logged_in_username);
+	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username);
 	if(logged_in_username.str() != "Ono-Sendai")
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");

@@ -1,24 +1,17 @@
 /*=====================================================================
 MainPageHandlers.cpp
--------------------
-Copyright Glare Technologies Limited 2013 -
-Generated at 2013-04-23 22:28:10 +0100
+--------------------
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #include "MainPageHandlers.h"
 
 
 #include <ConPrint.h>
 #include "RequestInfo.h"
-#include <AESEncryption.h>
 #include <Exception.h>
-#include <MySocket.h>
 #include <Lock.h>
-#include <Clock.h>
 #include <StringUtils.h>
 #include <PlatformUtils.h>
-#include <KillThreadMessage.h>
-#include <Parser.h>
-#include <MemMappedFile.h>
 #include "RequestInfo.h"
 #include "Response.h"
 #include "WebsiteExcep.h"
@@ -34,9 +27,9 @@ namespace MainPageHandlers
 const std::string CRLF = "\r\n";
 
 
-void renderRootPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHeader(request_info, /*page title=*/"Substrata");
+	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
 
 
@@ -91,9 +84,9 @@ void renderRootPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_
 }
 
 	
-void renderNotFoundPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderNotFoundPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHeader(request_info, "Forward Scattering - The Weblog of Nicholas Chapman");
+	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, "Substrata");
 
 	//---------- Right column -------------
 	page_out += "<div class=\"right\">"; // right div

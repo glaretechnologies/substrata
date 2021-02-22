@@ -11,11 +11,6 @@ class WebDataStore;
 class ServerAllWorldsState;
 
 
-/*=====================================================================
-BlogRequestHandler
--------------------
-
-=====================================================================*/
 class WebServerRequestHandler : public web::RequestHandler
 {
 public:

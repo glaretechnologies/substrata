@@ -6,20 +6,16 @@ Copyright Glare Technologies Limited 2021 -
 #include "WebServerRequestHandler.h"
 
 
-//#include "User.h"
-//#include "Post.h"
 #include "WebDataStore.h"
 #include "AdminHandlers.h"
 #include "MainPageHandlers.h"
 #include "WebsiteExcep.h"
 #include "Escaping.h"
-//#include "PostHandlers.h"
-//#include "RSSHandlers.h"
 #include "LoginHandlers.h"
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
-//#include "BlogHandlers.h"
-//#include "PageHandlers.h"
+#include "PayPalHandlers.h"
+#include "AuctionHandlers.h"
 #include <StringUtils.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
@@ -29,13 +25,11 @@ Copyright Glare Technologies Limited 2021 -
 
 
 WebServerRequestHandler::WebServerRequestHandler()
-{
-}
+{}
 
 
 WebServerRequestHandler::~WebServerRequestHandler()
-{
-}
+{}
 
 
 static bool isLetsEncryptFileQuerySafe(const std::string& s)
@@ -69,6 +63,22 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			LoginHandlers::handleLogoutPost(request, reply_info);
 		}
+		else if(request.path == "/signup_post")
+		{
+			LoginHandlers::handleSignUpPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/ipn_listener")
+		{
+			PayPalHandlers::handleIPNPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/buy_parcel_now")
+		{
+			AuctionHandlers::handleParcelBuyNow(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/buy_parcel_with_paypal_post")
+		{
+			AuctionHandlers::handleParcelWithPayPalPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
@@ -77,47 +87,38 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 	}
 	else if(request.verb == "GET")
 	{
-		// conPrint("path: " + request.path); //TEMP
-
-		// Look up static assets
-		//{
-		//	//TEMP: NO LOCK as static_asset_manager won't be getting updated Lock lock(data_store->mutex);
-		//	const std::map<std::string, StaticAssetRef>::const_iterator res = data_store->static_asset_manager.getStaticAssets().find(request.path);
-		//	if(res != data_store->static_asset_manager.getStaticAssets().end())
-		//	{
-		//		const StaticAsset& asset = *res->second;
-
-		//		// NOTE: this entire string could be precomputed.
-		//		ResponseUtils::writeRawString(reply_info,
-		//			"HTTP/1.1 200 OK\r\n"
-		//			"Content-Type: " + asset.mime_type + "\r\n" +
-		//			"Connection: Keep-Alive\r\n"
-		//			"Content-Length: " + toString(asset.file->fileSize()) + "\r\n"
-		//			"Cache-Control: max-age=3600" + "\r\n"
-		//			//"Expires: Thu, 15 Apr 2020 20:00:00 GMT\r\n"
-		//			//"ETag: \"" + asset.etag + "\"\r\n"
-		//			"\r\n"
-		//		);
-
-		//		// Write out the actual file data.
-		//		reply_info.socket->writeData(asset.file->fileData(), asset.file->fileSize());
-		//	
-		//		return;
-		//	}
-		//}
-
 		// Route GET request
 		if(request.path == "/")
 		{
-			MainPageHandlers::renderRootPage(request, reply_info);
+			MainPageHandlers::renderRootPage(*this->world_state, request, reply_info);
 		}
-		if(request.path == "/admin")
+		else if(request.path == "/pdt_landing")
+		{
+			PayPalHandlers::handlePayPalPDTOrderLanding(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/parcel_auction_list")
+		{
+			AuctionHandlers::renderParcelAuctionListPage(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/parcel_auction/")) // parcel ID follows in URL
+		{
+			AuctionHandlers::renderParcelAuctionPage(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/buy_parcel_with_paypal/")) // parcel ID follows in URL
+		{
+			AuctionHandlers::renderBuyParcelWithPayPalPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin")
 		{
 			AdminHandlers::renderMainAdminPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/login")
 		{
 			LoginHandlers::renderLoginPage(request, reply_info);
+		}
+		else if(request.path == "/signup")
+		{
+			LoginHandlers::renderSignUpPage(request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{

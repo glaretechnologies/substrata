@@ -7,8 +7,6 @@ Copyright Glare Technologies Limited 2021 -
 
 
 class ServerAllWorldsState;
-
-
 namespace web
 {
 class RequestInfo;
@@ -19,7 +17,7 @@ class ReplyInfo;
 /*=====================================================================
 AdminHandlers
 -------------
-
+For rendering admin pages etc..
 =====================================================================*/
 namespace AdminHandlers
 {

@@ -47,7 +47,7 @@ public:
 	std::string email_address;
 
 	std::string hashed_password; // SHA-256 hash, so 256/8 = 32 bytes
-	std::string password_hash_salt; // Base-64 encoded SHA-256 hash
+	std::string password_hash_salt; // Base-64 encoded 256 random bits.
 
 	std::vector<PasswordReset> password_resets; // pending password reset tokens
 };

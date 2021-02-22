@@ -22,7 +22,9 @@ Parcel::Parcel()
 :	state(State_JustCreated),
 	from_remote_dirty(false),
 	from_local_dirty(false),
-	all_writeable(false)
+	all_writeable(false),
+	auction_state(AuctionState_ForSale), // TEMP HACK
+	auction_start_price(100)
 {
 }
 
