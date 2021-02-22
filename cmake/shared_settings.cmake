@@ -128,6 +128,8 @@ ${INDIGO_UTILS_DIR}/Condition.h
 ${INDIGO_UTILS_DIR}/ConPrint.cpp
 ${INDIGO_UTILS_DIR}/ConPrint.h
 ${INDIGO_UTILS_DIR}/ContainerUtils.h
+${INDIGO_UTILS_DIR}/CryptoRNG.cpp
+${INDIGO_UTILS_DIR}/CryptoRNG.h
 ${INDIGO_UTILS_DIR}/CycleTimer.cpp
 ${INDIGO_UTILS_DIR}/CycleTimer.h
 ${INDIGO_UTILS_DIR}/EventFD.cpp

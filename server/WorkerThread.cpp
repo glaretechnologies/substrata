@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <URL.h>
 #include <Lock.h>
 #include <StringUtils.h>
+#include <CryptoRNG.h>
 #include <SocketBufferOutStream.h>
 #include <PlatformUtils.h>
 #include <KillThreadMessage.h>
@@ -1033,63 +1034,83 @@ void WorkerThread::doRun()
 						const std::string email    = socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-						conPrint("username: '" + username + "', email: '" + email + "'");
-
-						bool signed_up = false;
+						try
 						{
-							Lock lock(world_state->mutex);
-							auto res = world_state->name_to_users.find(username);
-							if(res == world_state->name_to_users.end())
+
+							conPrint("username: '" + username + "', email: '" + email + "'");
+
+							bool signed_up = false;
+
+							std::string msg_to_client;
+							if(username.size() < 3)
+								msg_to_client = "Username is too short, must have at least 3 characters";
+							else
 							{
-								Reference<User> new_user = new User();
-								new_user->id = UserID((uint32)world_state->name_to_users.size());
-								new_user->created_time = TimeStamp::currentTime();
-								new_user->name = username;
-								new_user->email_address = email;
+								if(password.size() < 6)
+									msg_to_client = "Password is too short, must have at least 6 characters";
+								else
+								{
+									Lock lock(world_state->mutex);
+									auto res = world_state->name_to_users.find(username);
+									if(res == world_state->name_to_users.end())
+									{
+										Reference<User> new_user = new User();
+										new_user->id = UserID((uint32)world_state->name_to_users.size());
+										new_user->created_time = TimeStamp::currentTime();
+										new_user->name = username;
+										new_user->email_address = email;
 
-								// We need a random salt for the user.
-								// To generate this, we will hash the username, email address, current time in seconds, time since program started, and a hidden constant salt together.
-								const std::string hash_input = username + " " + email + " " +
-									toString((uint64)Clock::getSecsSince1970()) + " " + toString(Clock::getTimeSinceInit()) +
-									"qySNdBWNbLG5mFt6NnRDHwYF345345"; // from random.org
+										// We need a random salt for the user.
+										uint8 random_bytes[32];
+										CryptoRNG::getRandomBytes(random_bytes, 32); // throws glare::Exception
 
-								std::vector<unsigned char> binary_digest;
-								SHA256::hash(hash_input, binary_digest);
-								std::string user_salt;
-								Base64::encode(&binary_digest[0], binary_digest.size(), user_salt);
+										std::string user_salt;
+										Base64::encode(random_bytes, 32, user_salt); // Convert random bytes to base-64.
 
-								new_user->password_hash_salt = user_salt;
-								new_user->hashed_password = User::computePasswordHash(password, user_salt);
+										new_user->password_hash_salt = user_salt;
+										new_user->hashed_password = User::computePasswordHash(password, user_salt);
 
-								// Add new user to world state
-								world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
-								world_state->name_to_users   .insert(std::make_pair(username,     new_user));
-								world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+										// Add new user to world state
+										world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
+										world_state->name_to_users   .insert(std::make_pair(username,     new_user));
+										world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 
-								client_user = new_user; // Log user in as well.
-								signed_up = true;
+										client_user = new_user; // Log user in as well.
+										signed_up = true;
+									}
+								}
+							}
+
+							conPrint("signed_up: " + boolToString(signed_up));
+							if(signed_up)
+							{
+								conPrint("Sign up successful");
+								// Send signed-up message to client
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::SignedUpMessageID);
+								writeToStream(client_user->id, packet);
+								packet.writeStringLengthFirst(username);
+								socket->writeData(packet.buf.data(), packet.buf.size());
+							}
+							else
+							{
+								conPrint("Sign up failed.");
+
+								// signup failed.  Send error message back to client
+								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+								packet.writeUInt32(Protocol::ErrorMessageID);
+								packet.writeStringLengthFirst(msg_to_client);
+								socket->writeData(packet.buf.data(), packet.buf.size());
 							}
 						}
-
-						conPrint("signed_up: " + boolToString(signed_up));
-						if(signed_up)
+						catch(glare::Exception& e)
 						{
-							conPrint("Sign up successful");
-							// Send signed-up message to client
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::SignedUpMessageID);
-							writeToStream(client_user->id, packet);
-							packet.writeStringLengthFirst(username);
-							socket->writeData(packet.buf.data(), packet.buf.size());
-						}
-						else
-						{
-							conPrint("Sign up failed.");
+							conPrint("Sign up failed, internal error: " + e.what());
 
 							// signup failed.  Send error message back to client
 							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 							packet.writeUInt32(Protocol::ErrorMessageID);
-							packet.writeStringLengthFirst("Signup failed: username or password incorrect.");
+							packet.writeStringLengthFirst("Signup failed: internal error.");
 							socket->writeData(packet.buf.data(), packet.buf.size());
 						}
 

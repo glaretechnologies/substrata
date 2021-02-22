@@ -35,6 +35,7 @@ ServerAllWorldsState::ServerAllWorldsState()
 {
 	next_avatar_uid = UID(0);
 	next_object_uid = UID(0);
+	next_order_uid = 0;
 
 	world_states[""] = new ServerWorldState();
 }
@@ -332,6 +333,8 @@ static const uint32 WORLD_OBJECT_CHUNK = 100;
 static const uint32 USER_CHUNK = 101;
 static const uint32 PARCEL_CHUNK = 102;
 static const uint32 RESOURCE_CHUNK = 103;
+static const uint32 ORDER_CHUNK = 104;
+static const uint32 USER_WEB_SESSION_CHUNK = 105;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -356,6 +359,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 	size_t num_obs = 0;
 	size_t num_parcels = 0;
+	size_t num_orders = 0;
+	size_t num_sessions = 0;
 	while(1)
 	{
 		const uint32 chunk = stream.readUInt32();
@@ -406,6 +411,30 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 			this->resource_manager->addResource(resource);
 		}
+		else if(chunk == ORDER_CHUNK)
+		{
+			// Deserialise order
+			OrderRef order = new Order();
+			readFromStream(stream, *order);
+
+			conPrint("Loaded order.");
+
+			orders[order->id] = order; // Add to order map
+
+			next_order_uid = myMax(order->id + 1, next_order_uid);
+			num_orders++;
+		}
+		else if(chunk == USER_WEB_SESSION_CHUNK)
+		{
+			// Deserialise UserWebSession
+			UserWebSessionRef session = new UserWebSession();
+			readFromStream(stream, *session);
+
+			conPrint("Loaded session.");
+
+			user_web_sessions[session->id] = session; // Add to session map
+			num_sessions++;
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -434,7 +463,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	}
 
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
-		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
+		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + toString(num_sessions) + " session(s)");
 }
 
 
@@ -496,6 +525,8 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 	{
 		size_t num_obs = 0;
 		size_t num_parcels = 0;
+		size_t num_orders = 0;
+		size_t num_sessions = 0;
 
 		const std::string temp_path = path + "_temp";
 		{
@@ -556,13 +587,33 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 				}
 			}
 
+			// Write orders
+			{
+				for(auto i=orders.begin(); i != orders.end(); ++i)
+				{
+					stream.writeUInt32(ORDER_CHUNK);
+					writeToStream(*i->second, stream);
+					num_orders++;
+				}
+			}
+			
+			// Write UserWebSessions
+			{
+				for(auto i=user_web_sessions.begin(); i != user_web_sessions.end(); ++i)
+				{
+					stream.writeUInt32(USER_WEB_SESSION_CHUNK);
+					writeToStream(*i->second, stream);
+					num_sessions++;
+				}
+			}
+
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
 
 		FileUtils::moveFile(temp_path, path);
 
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
-			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s).");
+			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + toString(num_sessions) + " session(s).");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -586,4 +637,11 @@ UID ServerAllWorldsState::getNextAvatarUID()
 	const UID next = next_avatar_uid;
 	next_avatar_uid = UID(next_avatar_uid.value() + 1);
 	return next;
+}
+
+
+uint64 ServerAllWorldsState::getNextOrderUID()
+{
+	Lock lock(mutex);
+	return next_order_uid++;
 }

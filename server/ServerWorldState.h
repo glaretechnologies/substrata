@@ -12,6 +12,8 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
 #include "User.h"
+#include "Order.h"
+#include "UserWebSession.h"
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
 #include <Mutex.h>
@@ -51,6 +53,7 @@ public:
 	
 	UID getNextObjectUID(); // Gets and then increments next_object_uid
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.
+	uint64 getNextOrderUID(); // Gets and then increments next_order_uid.  Locks mutex.
 
 	void markAsChanged() { changed = 1; }
 	void clearChangedFlag() { changed = 0; }
@@ -61,7 +64,11 @@ public:
 	std::map<UserID, Reference<User>> user_id_to_users;  // User id to user
 	std::map<std::string, Reference<User>> name_to_users; // Username to user
 
+	std::map<uint64, OrderRef> orders; // Order ID to order
+
 	std::map<std::string, Reference<ServerWorldState> > world_states;
+
+	std::map<std::string, UserWebSessionRef> user_web_sessions; // Map from key to UserWebSession
 
 	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; }
 
@@ -73,4 +80,5 @@ private:
 
 	UID next_object_uid;
 	UID next_avatar_uid;
+	uint64 next_order_uid;
 };

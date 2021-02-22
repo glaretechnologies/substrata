@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Exception.h>
 #include <Parser.h>
 #include <Base64.h>
+#include <CryptoRNG.h>
 #include <ArgumentParser.h>
 #include <SocketBufferOutStream.h>
 #include <TLSSocket.h>
@@ -183,8 +184,9 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			CryptoRNG::test();
 			StringUtils::test();
-			HTTPClient::test();
+			//HTTPClient::test();
 			Base64::test();
 			Parser::doUnitTests();
 			conPrint("----Finished tests----");

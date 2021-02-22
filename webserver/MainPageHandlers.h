@@ -1,33 +1,27 @@
 /*=====================================================================
 MainPageHandlers.h
 -------------------
-Copyright Glare Technologies Limited 2013 -
-Generated at 2013-04-23 22:28:10 +0100
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #pragma once
 
-//
-//class RequestInfo;
-//class DataStore;
-//class ReplyInfo;
 
+class ServerAllWorldsState;
 namespace web
 {
-
 class RequestInfo;
 class ReplyInfo;
-
 }
 
 
 /*=====================================================================
-BlogHandlers
--------------------
+MainPageHandlers
+----------------
 
 =====================================================================*/
 namespace MainPageHandlers
 {
-	void renderRootPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+	void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
-	void renderNotFoundPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+	void renderNotFoundPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 } 

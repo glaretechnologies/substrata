@@ -36,7 +36,7 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"	<!DOCTYPE html>																								\n"
 		"	<html>																									\n"
 		"		<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">		\n"
-		"		<title>Substrata</title>																				\n"
+		"		<title>" + web::Escaping::HTMLEscape(page_title) + "</title>																				\n"
 		"		<style type=\"text/css\">																					\n"
 		"		body																									\n"
 		"		{																											\n"
@@ -64,7 +64,7 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 }
 
 
-const std::string standardHeader(const web::RequestInfo& request_info, const std::string& page_title)
+const std::string standardHeader(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, const std::string& page_title)
 {
 	std::string page_out = standardHTMLHeader(request_info, page_title);
 	page_out +=
@@ -72,14 +72,14 @@ const std::string standardHeader(const web::RequestInfo& request_info, const std
 		"	<div id=\"login\">\n"; // Start login div
 	
 	web::UnsafeString logged_in_username;
-	const bool logged_in = LoginHandlers::isLoggedIn(request_info, logged_in_username);
+	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username);
 
 	if(logged_in)
 	{
 		page_out += "You are logged in as " + logged_in_username.HTMLEscaped();
 
 		// Add logout button
-		page_out += "<form action=\"logout_post\" method=\"post\">\n";
+		page_out += "<form action=\"/logout_post\" method=\"post\">\n";
 		page_out += "<input class=\"link-button\" type=\"submit\" value=\"Log out\">\n";
 		page_out += "</form>\n";
 	}
@@ -90,7 +90,7 @@ const std::string standardHeader(const web::RequestInfo& request_info, const std
 	page_out += 
 	"	</div>																									\n" // End login div
 	"	<header>																								\n"
-	"		<h1>Substrata</h1>																						\n"
+	"		<h1>" + web::Escaping::HTMLEscape(page_title) + "</h1>												\n"
 	"	</header>																								\n";
 		
 	return page_out;
@@ -107,7 +107,7 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 		"	Contact us at contact@glaretechnologies.com														\n"
 		"																								\n"
 		"	</body>																						\n"
-		"	</html>																						\n";
+		"</html>																						\n";
 
 	return page_out;
 }
