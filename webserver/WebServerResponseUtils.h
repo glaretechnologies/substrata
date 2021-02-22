@@ -27,7 +27,3 @@ namespace WebServerResponseUtils
 
 	const std::string standardFooter(const web::RequestInfo& request_info, bool include_email_link);
 }
-
-
-
-
