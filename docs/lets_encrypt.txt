@@ -1,3 +1,9 @@
+Installing Certbot
+=============================
+sudo apt-get install certbot
+
+Getting cert
+=============================
 sudo letsencrypt certonly --webroot --webroot-path=/var/www/cyberspace/letsencrypt_webroot -d substrata.info -d www.substrata.info
 
 
@@ -21,9 +27,17 @@ IMPORTANT NOTES:
    secure backup of this folder now. This configuration directory will
    also contain certificates and private keys obtained by Certbot so
    making regular backups of this folder is ideal.
- - If you like Certbot, please consider supporting our work by:
 
-   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
-   Donating to EFF:                    https://eff.org/donate-le
 
-   
+
+To add to Cron
+=============================
+sudo crontab -e
+
+Add:
+0 5 * * * letsencrypt renew
+
+ --quiet doesn't work,  not an option
+
+Should run every day at 5am.
+NOTE: not tested
