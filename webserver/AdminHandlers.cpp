@@ -143,8 +143,8 @@ void renderCreateParcelAuction(ServerAllWorldsState& world_state, const web::Req
 	page_out += "parcel id: <input type=\"number\" name=\"parcel_id\" value=\"" + parcel_id.toString() + "\"><br>";
 	page_out += "auction start time: <input type=\"number\" name=\"auction_start_time\"   value=\"0\"> hours from now<br>";
 	page_out += "auction end time:   <input type=\"number\" name=\"auction_end_time\"     value=\"72\"> hours from now<br>";
-	page_out += "auction start price: <input type=\"number\" name=\"auction_start_price\" value=\"1000\"> EUR<br/>";
-	page_out += "auction end price: <input type=\"number\" name=\"auction_end_price\"     value=\"50\"> EUR<br/>";
+	page_out += "auction start price: <input type=\"number\" step=\"0.01\" name=\"auction_start_price\" value=\"1000\"> EUR<br/>";
+	page_out += "auction end price: <input type=\"number\" step=\"0.01\" name=\"auction_end_price\"     value=\"50\"> EUR<br/>";
 	page_out += "<input type=\"submit\" value=\"Create auction\">";
 	page_out += "</form>";
 
