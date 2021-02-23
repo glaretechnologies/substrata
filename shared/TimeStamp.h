@@ -37,7 +37,11 @@ public:
 
 	const std::string timeAgoDescription() const; // Returns a string like '1 hour ago'
 
+	const std::string timeDescription() const; // Returns a string like '1 hour ago' or 'in 5 minutes'
+
 	const std::string RFC822FormatedString() const; // http://www.faqs.org/rfcs/rfc822.html
+
+	bool operator <= (const TimeStamp& other) const { return time <= other.time; }
 
 	uint64 time;
 };

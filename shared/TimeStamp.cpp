@@ -171,3 +171,32 @@ const std::string TimeStamp::timeAgoDescription() const // Returns a string like
 		return diff_d == 1 ? "1 day ago" : toString(diff_d) + " days ago";
 	}
 }
+
+
+const std::string TimeStamp::timeDescription() const // Returns a string like '1 hour ago' or 'in 5 minutes'
+{
+	if(currentTime().time >= this->time)
+	{
+		return timeAgoDescription();
+	}
+	else
+	{
+		const int diff_s = (int)(this->time - currentTime().time); // Get secods in future
+
+		if(diff_s < 3600) // If less than 1 hour:
+		{
+			int diff_m = diff_s / 60;
+			return diff_m == 1 ? "in 1 minute" : "in " + toString(diff_m) + " minutes";
+		}
+		else if(diff_s < (3600 * 24)) // Else if less than 1 day ago:
+		{
+			int diff_h = diff_s / 3600;
+			return diff_h == 1 ? "in 1 hour" : "in " + toString(diff_h) + " hours";
+		}
+		else
+		{
+			int diff_d = diff_s / (3600 * 24);
+			return diff_d == 1 ? "in 1 day" : "in " + toString(diff_d) + " days";
+		}
+	}
+}

@@ -78,19 +78,8 @@ public:
 	Vec3d aabb_max;
 
 
-	// Auction data
-	enum AuctionState
-	{
-		AuctionState_NotForSale,
-		AuctionState_ForSale,
-		AuctionState_ForSold
-	};
+	std::vector<uint32> parcel_auction_ids;
 
-	AuctionState auction_state;
-	TimeStamp auction_start_time;
-	TimeStamp auction_end_time;
-	double auction_start_price;
-	double auction_end_price;
 
 
 	// This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.

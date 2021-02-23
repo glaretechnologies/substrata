@@ -55,6 +55,10 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"		{																											\n"
 		"			line-height:1.2																							\n"
 		"		}																											\n"
+		"		.main																									\n"
+		"		{																											\n"
+		"			min-height: 400px																							\n"
+		"		}																											\n"
 		"		#login																										\n"
 		"		{																											\n"
 		"			text-align: right;																											\n"
@@ -102,10 +106,9 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 	std::string page_out;
 	page_out +=
 		"	<hr/>																						\n"
-		"	Substrata is made by <a href=\"http://glaretechnologies.com\">Glare Technologies</a>.		\n"
-		"	<br/>																						\n"
+		"	<div class=\"footer\" style=\"font-size: 0.8em; color: grey\">Substrata is made by <a href=\"http://glaretechnologies.com\">Glare Technologies</a>.		\n"
 		"	Contact us at contact@glaretechnologies.com														\n"
-		"																								\n"
+		"	</div>																							\n"
 		"	</body>																						\n"
 		"</html>																						\n";
 
