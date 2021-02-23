@@ -95,7 +95,7 @@ public:
 			else
 				this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			conPrint("Failed to parse URL '" + url + "': " + e.what());
 		}
@@ -134,7 +134,7 @@ public:
 	void checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 	{
 		if(mesh.num_uv_mappings > 10)
-			throw Indigo::Exception("Too many UV sets: " + toString(mesh.num_uv_mappings) + ", max is " + toString(10));
+			throw glare::Exception("Too many UV sets: " + toString(mesh.num_uv_mappings) + ", max is " + toString(10));
 
 		/*	if(mesh.vert_normals.size() == 0)
 		{
@@ -198,13 +198,13 @@ public:
 			// Check vertex indices are in bounds
 			for(unsigned int v = 0; v < 3; ++v)
 				if(src_tri.vertex_indices[v] >= num_verts)
-					throw Indigo::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(mesh.triangles[i].vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
+					throw glare::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(mesh.triangles[i].vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
 
 			// Check uv indices are in bounds
 			if(mesh.num_uv_mappings > 0)
 				for(unsigned int v = 0; v < 3; ++v)
 					if(src_tri.uv_indices[v] >= num_uv_groups)
-						throw Indigo::Exception("Triangle uv index is out of bounds.  (uv index=" + toString(mesh.triangles[i].uv_indices[v]) + ")");
+						throw glare::Exception("Triangle uv index is out of bounds.  (uv index=" + toString(mesh.triangles[i].uv_indices[v]) + ")");
 		}
 
 		// Quads
@@ -213,13 +213,13 @@ public:
 			// Check vertex indices are in bounds
 			for(unsigned int v = 0; v < 4; ++v)
 				if(mesh.quads[i].vertex_indices[v] >= num_verts)
-					throw Indigo::Exception("Quad vertex index is out of bounds.  (vertex index=" + toString(mesh.quads[i].vertex_indices[v]) + ")");
+					throw glare::Exception("Quad vertex index is out of bounds.  (vertex index=" + toString(mesh.quads[i].vertex_indices[v]) + ")");
 
 			// Check uv indices are in bounds
 			if(mesh.num_uv_mappings > 0)
 				for(unsigned int v = 0; v < 4; ++v)
 					if(mesh.quads[i].uv_indices[v] >= num_uv_groups)
-						throw Indigo::Exception("Quad uv index is out of bounds.  (uv index=" + toString(mesh.quads[i].uv_indices[v]) + ")");
+						throw glare::Exception("Quad uv index is out of bounds.  (uv index=" + toString(mesh.quads[i].uv_indices[v]) + ")");
 		}
 	}
 
@@ -305,7 +305,7 @@ public:
 					PlatformUtils::Sleep(50);
 
 					if(wait_timer.elapsed() > 30)
-						throw Indigo::Exception("Failed to download all resources for objects");// with UID " + ob->uid.toString());
+						throw glare::Exception("Failed to download all resources for objects");// with UID " + ob->uid.toString());
 				}
 
 
@@ -336,7 +336,7 @@ public:
 							}
 							catch(Indigo::IndigoException& e)
 							{
-								throw Indigo::Exception(toStdString(e.what()));
+								throw glare::Exception(toStdString(e.what()));
 							}
 						}
 						else if(hasExtension(model_path, "bmesh"))
@@ -348,7 +348,7 @@ public:
 							batched_mesh->buildIndigoMesh(*ob_to_lightmap_indigo_mesh);
 						}
 						else
-							throw Indigo::Exception("unhandled model format: " + model_path);
+							throw glare::Exception("unhandled model format: " + model_path);
 
 						checkValidAndSanitiseMesh(*ob_to_lightmap_indigo_mesh); // Throws Indigo::Exception on invalid mesh.
 					}
@@ -439,7 +439,7 @@ public:
 								}
 								catch(Indigo::IndigoException& e)
 								{
-									throw Indigo::Exception(toStdString(e.what()));
+									throw glare::Exception(toStdString(e.what()));
 								}
 							}
 							else if(hasExtension(model_path, "bmesh"))
@@ -451,7 +451,7 @@ public:
 								batched_mesh->buildIndigoMesh(*indigo_mesh);
 							}
 							else
-								throw Indigo::Exception("unhandled model format: " + model_path);
+								throw glare::Exception("unhandled model format: " + model_path);
 						}
 					}
 
@@ -568,7 +568,7 @@ public:
 				command_line_args.push_back(lightmap_exr_path);
 				command_line_args.push_back("-halt");
 				command_line_args.push_back("20");
-				Process indigo_process(indigo_exe_path, command_line_args);
+				glare::Process indigo_process(indigo_exe_path, command_line_args);
 
 				Timer timer;
 				while(1)
@@ -621,7 +621,7 @@ public:
 		}
 		catch(PlatformUtils::PlatformUtilsExcep& e)
 		{
-			throw Indigo::Exception(e.what());
+			throw glare::Exception(e.what());
 		}
 	}
 
@@ -642,7 +642,7 @@ public:
 			command_line_args.push_back("1");
 			command_line_args.push_back(lightmap_exr_path); // input path
 			command_line_args.push_back(lightmap_ktx_path); // output path
-			Process compressonator_process(compressonator_path, command_line_args);
+			glare::Process compressonator_process(compressonator_path, command_line_args);
 
 			Timer timer;
 			while(1)
@@ -670,7 +670,7 @@ public:
 				conPrint("COMPRESS error output> " + err_output);
 
 			if(compressonator_process.getExitCode() != 0)
-				throw Indigo::Exception("compressonator execution returned a non-zero code: " + toString(compressonator_process.getExitCode()));
+				throw glare::Exception("compressonator execution returned a non-zero code: " + toString(compressonator_process.getExitCode()));
 
 			//conPrint("Compressonator finished.");
 		}
@@ -763,7 +763,7 @@ public:
 				PlatformUtils::Sleep(100);
 			}
 		}
-		catch(Indigo::Exception& e)
+		catch(glare::Exception& e)
 		{
 			conPrint("Error: " + e.what());
 		}
@@ -773,7 +773,7 @@ public:
 	std::string server_hostname;
 	int server_port;
 
-	Indigo::TaskManager task_manager;
+	glare::TaskManager task_manager;
 
 	ResourceManagerRef& resource_manager;
 
@@ -783,8 +783,8 @@ public:
 
 	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue;
 
-	IndigoAtomic num_non_net_resources_downloading;
-	IndigoAtomic num_net_resources_downloading;
+	glare::AtomicInt num_non_net_resources_downloading;
+	glare::AtomicInt num_net_resources_downloading;
 
 	Reference<ClientThread> client_thread;
 };

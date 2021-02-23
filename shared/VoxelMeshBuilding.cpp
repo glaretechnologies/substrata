@@ -902,12 +902,12 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 #include <simpleraytracer/raymesh.h>
 #include <utils/TaskManager.h>
-#include <indigo/TestUtils.h>
+#include <utils/TestUtils.h>
 
 
 void VoxelMeshBuilding::test()
 {
-	Indigo::TaskManager task_manager;
+	glare::TaskManager task_manager;
 
 #if 0
 	// Test two adjacent voxels with different materials.  All faces should be added.
