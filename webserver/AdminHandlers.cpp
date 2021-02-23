@@ -297,6 +297,8 @@ void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::Requ
 
 				parcel->owner_id = UserID(new_owner_id);
 
+				world_state.denormaliseData(); // Update denormalised data which includes parcel owner name
+
 				world_state.markAsChanged();
 
 				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(parcel_id));

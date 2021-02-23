@@ -485,7 +485,7 @@ void ServerAllWorldsState::denormaliseData()
 	{
 		Reference<ServerWorldState> world_state = world_it->second;
 
-		// Build cached fields like creator_name
+		// Build cached fields like WorldObject::creator_name
 		for(auto i=world_state->objects.begin(); i != world_state->objects.end(); ++i)
 		{
 			auto res = user_id_to_users.find(i->second->creator_id);
@@ -495,14 +495,14 @@ void ServerAllWorldsState::denormaliseData()
 
 		for(auto i=world_state->parcels.begin(); i != world_state->parcels.end(); ++i)
 		{
-			// Denormalise owner_name
+			// Denormalise Parcel::owner_name
 			{
 				auto res = user_id_to_users.find(i->second->owner_id);
 				if(res != user_id_to_users.end())
 					i->second->owner_name = res->second->name;
 			}
 
-			// Denormalise admin_names
+			// Denormalise Parcel::admin_names
 			i->second->admin_names.resize(i->second->admin_ids.size());
 			for(size_t z=0; z<i->second->admin_ids.size(); ++z)
 			{
@@ -514,7 +514,7 @@ void ServerAllWorldsState::denormaliseData()
 				}
 			}
 
-			// Denormalise writer_names
+			// Denormalise Parcel::writer_names
 			i->second->writer_names.resize(i->second->writer_ids.size());
 			for(size_t z=0; z<i->second->writer_ids.size(); ++z)
 			{
