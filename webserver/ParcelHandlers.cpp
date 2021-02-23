@@ -136,7 +136,13 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			}*/
 			page += "</p>";
 
-		} // end lock scope																																																
+			if(LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+			{
+				page += "<h3>Admin tools</h3>  \n";
+				page += "<p><a href=\"/admin_set_parcel_owner/" + parcel->id.toString() + "\">Set parcel owner</a></p>";
+			}
+
+		} // end lock scope
 
 		page += "</div>   \n"; // end main div
 		page += WebServerResponseUtils::standardFooter(request, true);
