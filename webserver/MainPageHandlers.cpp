@@ -6,18 +6,18 @@ Copyright Glare Technologies Limited 2021 -
 #include "MainPageHandlers.h"
 
 
-#include <ConPrint.h>
-#include "RequestInfo.h"
-#include <Exception.h>
-#include <Lock.h>
-#include <StringUtils.h>
-#include <PlatformUtils.h>
 #include "RequestInfo.h"
 #include "Response.h"
 #include "WebsiteExcep.h"
 #include "Escaping.h"
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
+#include "../shared/Version.h"
+#include <ConPrint.h>
+#include <Exception.h>
+#include <Lock.h>
+#include <StringUtils.h>
+#include <PlatformUtils.h>
 
 
 namespace MainPageHandlers
@@ -33,7 +33,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
 
 
-	const std::string deployed_version = "0.38";
+	const std::string deployed_version = ::cyberspace_version;
 
 	page_out +=
 	"	<p>																																																		\n"
