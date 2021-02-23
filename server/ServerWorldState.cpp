@@ -335,6 +335,7 @@ static const uint32 PARCEL_CHUNK = 102;
 static const uint32 RESOURCE_CHUNK = 103;
 static const uint32 ORDER_CHUNK = 104;
 static const uint32 USER_WEB_SESSION_CHUNK = 105;
+static const uint32 PARCEL_AUCTION_CHUNK = 106;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -361,6 +362,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_parcels = 0;
 	size_t num_orders = 0;
 	size_t num_sessions = 0;
+	size_t num_auctions = 0;
 	while(1)
 	{
 		const uint32 chunk = stream.readUInt32();
@@ -435,6 +437,15 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			user_web_sessions[session->id] = session; // Add to session map
 			num_sessions++;
 		}
+		else if(chunk == PARCEL_AUCTION_CHUNK)
+		{
+			// Deserialise ParcelAuction
+			ParcelAuctionRef auction = new ParcelAuction();
+			readFromStream(stream, *auction);
+
+			parcel_auctions[auction->id] = auction;
+			num_auctions++;
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -463,7 +474,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	}
 
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
-		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + toString(num_sessions) + " session(s)");
+		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
+		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s)");
 }
 
 
@@ -527,6 +539,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 		size_t num_parcels = 0;
 		size_t num_orders = 0;
 		size_t num_sessions = 0;
+		size_t num_auctions = 0;
 
 		const std::string temp_path = path + "_temp";
 		{
@@ -606,6 +619,16 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 					num_sessions++;
 				}
 			}
+			
+			// Write ParcelAuctions
+			{
+				for(auto i=parcel_auctions.begin(); i != parcel_auctions.end(); ++i)
+				{
+					stream.writeUInt32(PARCEL_AUCTION_CHUNK);
+					writeToStream(*i->second, stream);
+					num_auctions++;
+				}
+			}
 
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
@@ -613,7 +636,8 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 		FileUtils::moveFile(temp_path, path);
 
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
-			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + toString(num_sessions) + " session(s).");
+			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
+			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s).");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

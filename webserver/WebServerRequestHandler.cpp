@@ -16,6 +16,8 @@ Copyright Glare Technologies Limited 2021 -
 #include "RequestHandler.h"
 #include "PayPalHandlers.h"
 #include "AuctionHandlers.h"
+#include "OrderHandlers.h"
+#include "ParcelHandlers.h"
 #include <StringUtils.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
@@ -79,6 +81,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AuctionHandlers::handleParcelWithPayPalPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_create_parcel_auction_post")
+		{
+			AdminHandlers::createParcelAuctionPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
@@ -100,7 +106,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AuctionHandlers::renderParcelAuctionListPage(*this->world_state, request, reply_info);
 		}
-		else if(::hasPrefix(request.path, "/parcel_auction/")) // parcel ID follows in URL
+		else if(::hasPrefix(request.path, "/parcel_auction/")) // parcel auction ID follows in URL
 		{
 			AuctionHandlers::renderParcelAuctionPage(*this->world_state, request, reply_info);
 		}
@@ -108,9 +114,21 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AuctionHandlers::renderBuyParcelWithPayPalPage(*this->world_state, request, reply_info);
 		}
+		else if(::hasPrefix(request.path, "/order/")) // Order ID follows in URL
+		{
+			OrderHandlers::renderOrderPage(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/parcel/")) // Parcel ID follows in URL
+		{
+			ParcelHandlers::renderParcelPage(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin")
 		{
 			AdminHandlers::renderMainAdminPage(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/admin_create_parcel_auction/")) // parcel ID follows in URL
+		{
+			AdminHandlers::renderCreateParcelAuction(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/login")
 		{

@@ -22,9 +22,7 @@ Parcel::Parcel()
 :	state(State_JustCreated),
 	from_remote_dirty(false),
 	from_local_dirty(false),
-	all_writeable(false),
-	auction_state(AuctionState_ForSale), // TEMP HACK
-	auction_start_price(100)
+	all_writeable(false)
 {
 }
 
@@ -346,9 +344,11 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 #endif // GUI_CLIENT
 
 
-static const uint32 PARCEL_SERIALISATION_VERSION = 3;
+static const uint32 PARCEL_SERIALISATION_VERSION = 5;
 /*
 Version 3: added all_writeable.
+Version 4: Added auction data
+Version 5: Removed auction data, added parcel_auction_ids
 */
 
 
@@ -380,6 +380,11 @@ static void writeToStreamCommon(const Parcel& parcel, OutStream& stream)
 	for(int i=0; i<4; ++i)
 		writeToStream(parcel.verts[i], stream);
 	writeToStream(parcel.zbounds, stream);
+
+	// Write parcel_auction_ids 
+	stream.writeUInt32((uint32)parcel.parcel_auction_ids.size());
+	for(size_t i=0; i<parcel.parcel_auction_ids.size(); ++i)
+		stream.writeUInt32(parcel.parcel_auction_ids[i]);
 }
 
 
@@ -429,6 +434,17 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 	for(int i=0; i<4; ++i)
 		parcel.verts[i] = readVec2FromStream<double>(stream);
 	parcel.zbounds = readVec2FromStream<double>(stream);
+
+	if(version >= 5)
+	{
+		// Read parcel_auction_ids
+		const uint32 num = stream.readUInt32();
+		if(num > 100000)
+			throw glare::Exception("Too many parcel_auction_ids: " + toString(num));
+		parcel.parcel_auction_ids.resize(num);
+		for(size_t i=0; i<num; ++i)
+			parcel.parcel_auction_ids[i] = stream.readUInt32();
+	}
 
 	parcel.build();
 }
