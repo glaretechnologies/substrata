@@ -79,11 +79,15 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(request.path == "/buy_parcel_with_paypal_post")
 		{
-			AuctionHandlers::handleParcelWithPayPalPost(*this->world_state, request, reply_info);
+			AuctionHandlers::handleBuyParcelWithPayPalPost(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/admin_create_parcel_auction_post")
 		{
 			AdminHandlers::createParcelAuctionPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_set_parcel_owner_post")
+		{
+			AdminHandlers::handleSetParcelOwnerPost(*this->world_state, request, reply_info);
 		}
 		else
 		{
@@ -129,6 +133,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/admin_create_parcel_auction/")) // parcel ID follows in URL
 		{
 			AdminHandlers::renderCreateParcelAuction(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/admin_set_parcel_owner/")) // parcel ID follows in URL
+		{
+			AdminHandlers::renderSetParcelOwnerPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/login")
 		{

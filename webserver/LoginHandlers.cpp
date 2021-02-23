@@ -63,6 +63,15 @@ bool isLoggedIn(ServerAllWorldsState& world_state, const web::RequestInfo& reque
 }
 
 
+bool loggedInUserHasAdminPrivs(ServerAllWorldsState& world_state, const web::RequestInfo& request_info)
+{
+	web::UnsafeString logged_in_username;
+	const bool logged_in = isLoggedIn(world_state, request_info, logged_in_username);
+	return logged_in && (logged_in_username.str() == "Ono-Sendai");
+}
+
+
+// ServerAllWorldsState should be locked
 User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info)
 {
 	for(size_t i=0; i<request_info.cookies.size(); ++i)

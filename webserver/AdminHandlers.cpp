@@ -23,19 +23,11 @@ namespace AdminHandlers
 {
 
 
-bool loggedInUserHasAdminPrivs(ServerAllWorldsState& world_state, const web::RequestInfo& request_info)
-{
-	web::UnsafeString logged_in_username;
-	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username);
-	return logged_in && (logged_in_username.str() == "Ono-Sendai");
-}
-
-
 void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Main Admin Page");
 	
-	if(!loggedInUserHasAdminPrivs(world_state, request_info))
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request_info))
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
 		return;
@@ -125,7 +117,7 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 
 void renderCreateParcelAuction(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
-	if(!loggedInUserHasAdminPrivs(world_state, request))
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
 		return;
@@ -162,7 +154,7 @@ void renderCreateParcelAuction(ServerAllWorldsState& world_state, const web::Req
 
 void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
-	if(!loggedInUserHasAdminPrivs(world_state, request))
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
 		return;
@@ -213,8 +205,110 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 		conPrint("handleLoginPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
+	catch(StringUtilsExcep& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
 }
 
+
+void renderSetParcelOwnerPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	// Parse parcel id from request path
+	Parser parser(request.path.c_str(), request.path.size());
+	if(!parser.parseString("/admin_set_parcel_owner/"))
+		throw glare::Exception("Failed to parse /admin_set_parcel_owner/");
+
+	uint32 id;
+	if(!parser.parseUnsignedInt(id))
+		throw glare::Exception("Failed to parse parcel id");
+	const ParcelID parcel_id(id);
+
+
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request, "Sign Up");
+
+	page_out += "<body>";
+	page_out += "</head><h1>Set parcel owner</h1><body>";
+
+	{ // Lock scope
+
+		Lock lock(world_state.mutex);
+
+		// Lookup parcel
+		const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+		if(res != world_state.getRootWorldState()->parcels.end())
+		{
+			// Found user for username
+			Parcel* parcel = res->second.ptr();
+
+			// Look up owner
+			std::string owner_username;
+			auto user_res = world_state.user_id_to_users.find(parcel->owner_id);
+			if(user_res == world_state.user_id_to_users.end())
+				owner_username = "[No user found]";
+			else
+				owner_username = user_res->second->name;
+
+			page_out += "<p>Current owner: " + web::Escaping::HTMLEscape(owner_username) + " (user id: " + parcel->owner_id.toString() + ")</p>   \n";
+
+			page_out += "<form action=\"/admin_set_parcel_owner_post\" method=\"post\">";
+			page_out += "parcel id: <input type=\"number\" name=\"parcel_id\" value=\"" + parcel_id.toString() + "\"><br>";
+			page_out += "new owner id: <input type=\"number\" name=\"new_owner_id\" value=\"" + parcel->owner_id.toString() + "\"><br>";
+			page_out += "<input type=\"submit\" value=\"Change owner\">";
+			page_out += "</form>";
+		}
+	} // End lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		// Try and log in user
+		const int parcel_id    = request.getPostIntField("parcel_id");
+		const int new_owner_id = request.getPostIntField("new_owner_id");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				// Found user for username
+				Parcel* parcel = res->second.ptr();
+
+				parcel->owner_id = UserID(new_owner_id);
+
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(parcel_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
 
 
 } // end namespace AdminHandlers

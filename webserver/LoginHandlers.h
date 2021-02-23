@@ -27,6 +27,9 @@ namespace LoginHandlers
 {
 	bool isLoggedIn(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::UnsafeString& logged_in_username_out); // Locks ServerAllWorldsState
 
+	bool loggedInUserHasAdminPrivs(ServerAllWorldsState& world_state, const web::RequestInfo& request_info);
+
+
 	// ServerAllWorldsState should be locked
 	User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info);
 
