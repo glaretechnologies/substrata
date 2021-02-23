@@ -48,7 +48,7 @@ public:
 
 	void readFromDisk(const std::string& path);
 	void serialiseToDisk(const std::string& path);
-	void denormaliseData(); // Build cached/denormalised fields like creator_name
+	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.  Mutex should be locked already.
 
 	void updateFromDatabase();
 	
