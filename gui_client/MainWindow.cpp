@@ -737,10 +737,6 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 	{
 		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
 	}
-	catch(FileUtils::FileUtilsExcep& e)
-	{
-		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
-	}
 }
 
 
@@ -871,10 +867,6 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 		}
 	}
 	catch(glare::Exception& e)
-	{
-		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
-	}
-	catch(FileUtils::FileUtilsExcep& e)
 	{
 		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
 	}

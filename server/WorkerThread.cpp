@@ -243,10 +243,6 @@ void WorkerThread::handleResourceUploadConnection()
 	{
 		conPrint("glare::Exception: " + e.what());
 	}
-	catch(FileUtils::FileUtilsExcep& e)
-	{
-		conPrint("FileUtils::FileUtilsExcep: " + e.what());
-	}
 	catch(std::bad_alloc&)
 	{
 		conPrint("WorkerThread: Caught std::bad_alloc.");
@@ -336,10 +332,6 @@ void WorkerThread::handleResourceDownloadConnection()
 	catch(glare::Exception& e)
 	{
 		conPrint("glare::Exception: " + e.what());
-	}
-	catch(FileUtils::FileUtilsExcep& e)
-	{
-		conPrint("FileUtils::FileUtilsExcep: " + e.what());
 	}
 	catch(std::bad_alloc&)
 	{
@@ -1209,10 +1201,6 @@ void WorkerThread::doRun()
 	catch(glare::Exception& e)
 	{
 		conPrint("glare::Exception: " + e.what());
-	}
-	catch(FileUtils::FileUtilsExcep& e)
-	{
-		conPrint("FileUtils::FileUtilsExcep: " + e.what());
 	}
 	catch(std::bad_alloc&)
 	{
