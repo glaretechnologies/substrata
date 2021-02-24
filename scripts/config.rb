@@ -18,6 +18,9 @@ arg_parser.options.each do |opt|
 	elsif opt[0] == "--qtdir"
 		puts $indigo_qt_dir
 		exit 0
+	elsif opt[0] == "--version"
+		puts get_substrata_version()
+		exit 0
 	else
 		puts "Unrecognised argument: #{opt[0]}"
 		exit 1

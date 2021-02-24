@@ -153,6 +153,9 @@ set(zstddir		"${INDIGO_TRUNK_DIR_ENV}/zstd-1.4.4")
 getConfigOption("--qtversion" INDIGO_QT_VERSION)
 getConfigOption("--qtdir" INDIGO_QT_DIR)
 
+getConfigOption("--version" SUBSTRATA_VERSION)
+
+message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 
 
 SET(INDIGO_LLVM_VERSION 6.0.0)
