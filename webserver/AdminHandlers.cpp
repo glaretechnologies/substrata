@@ -205,11 +205,6 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 		conPrint("handleLoginPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
-	catch(StringUtilsExcep& e)
-	{
-		conPrint("handleLoginPost error: " + e.what());
-		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
-	}
 }
 
 

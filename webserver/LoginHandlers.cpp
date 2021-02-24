@@ -100,10 +100,6 @@ User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo&
 			{
 				conPrint("Error: " + e.what());
 			}
-			catch(StringUtilsExcep& e)
-			{
-				conPrint("Error: " + e.what());
-			}
 		}
 	}
 

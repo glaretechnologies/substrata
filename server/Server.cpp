@@ -679,16 +679,6 @@ int main(int argc, char *argv[])
 		conPrint("glare::Exception: " + e.what());
 		return 1;
 	}
-	catch(FileUtils::FileUtilsExcep& e)
-	{
-		conPrint("FileUtils::FileUtilsExcep: " + e.what());
-		return 1;
-	}
-	catch(PlatformUtils::PlatformUtilsExcep& e)
-	{
-		conPrint("PlatformUtils::PlatformUtilsExcep: " + e.what());
-		return 1;
-	}
 
 	Networking::destroyInstance();
 	return 0;
