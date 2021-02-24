@@ -4774,19 +4774,18 @@ int main(int argc, char *argv[])
 		// Since we will be inserted textures based on URLs, the textures should be different if they have different paths, so we don't need to do path canonicalisation.
 		TextureServer texture_server(/*use_canonical_path_keys=*/false);
 
-		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args);
+		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args); // Creates GLWidget 
 
 		mw.texture_server = &texture_server;
+		mw.ui->glWidget->texture_server_ptr = &texture_server; // Set texture server pointer before GlWidget::initializeGL() gets called, as it passes texture server pointer to the openglengine.
 
 		mw.initialise();
-
-		mw.ui->glWidget->texture_server_ptr = &texture_server;
 
 		mw.show();
 
 		mw.raise();
 
-		if(mw.ui->glWidget->opengl_engine.nonNull() && !mw.ui->glWidget->opengl_engine->initSucceeded())
+		if(!mw.ui->glWidget->opengl_engine->initSucceeded())
 		{
 			mw.print("opengl_engine init failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg());
 		}
@@ -4809,6 +4808,7 @@ int main(int argc, char *argv[])
 		/*
 		Set env material
 		*/
+		if(mw.ui->glWidget->opengl_engine->initSucceeded())
 		{
 			OpenGLMaterial env_mat;
 			try
