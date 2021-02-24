@@ -4620,7 +4620,7 @@ void MainWindow::updateGroundPlane()
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("MainWindow::updateGroundPlane() Error: " + e.what());
+		conPrint("MainWindow::updateGroundPlane() error: " + e.what());
 	}
 }
 
