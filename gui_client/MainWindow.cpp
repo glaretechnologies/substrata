@@ -4539,81 +4539,88 @@ static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
 
 void MainWindow::updateGroundPlane()
 {
-	// The basic idea is that we want to have a ground-plane quad under the player's feet at all times.
-	// However the quad can't get too large, or you start getting shuddering and other graphical glitches.
-	// So we'll load in 4 quads around the player position, and add new quads or remove old ones as required as the player moves.
-	
-	const Vec3d pos = cam_controller.getPosition();
-
-	// Get integer indices of nearest 4 quads to player position.
-	const int cur_x = Maths::floorToInt(pos.x / ground_quad_w);
-	const int cur_y = Maths::floorToInt(pos.y / ground_quad_w);
-
-	const int adj_x = (Maths::fract(pos.x / ground_quad_w) < 0.5) ? (cur_x - 1) : (cur_x + 1);
-	const int adj_y = (Maths::fract(pos.y / ground_quad_w) < 0.5) ? (cur_y - 1) : (cur_y + 1);
-
-	SmallVector<Vec2i, 4> new_quads(4);
-	new_quads[0] = Vec2i(cur_x, cur_y);
-	new_quads[1] = Vec2i(adj_x, cur_y);
-	new_quads[2] = Vec2i(cur_x, adj_y);
-	new_quads[3] = Vec2i(adj_x, adj_y);
-
-	// Add any new quad not in ground_quads.
-	for(auto it = new_quads.begin(); it != new_quads.end(); ++it)
-		if(ground_quads.count(*it) == 0)
-		{
-			// Make new quad
-			//conPrint("Added ground quad (" + toString(it->x) + ", " + toString(it->y) + ")");
-
-			GLObjectRef gl_ob = new GLObject();
-			gl_ob->materials.resize(1);
-			gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
-			//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
-			try
-			{
-				gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture("resources/obstacle.png");
-			}
-			catch(glare::Exception& e)
-			{
-				assert(0);
-				conPrint("ERROR: " + e.what());
-			}
-			gl_ob->materials[0].roughness = 0.8f;
-			gl_ob->materials[0].fresnel_scale = 0.5f;
-
-			gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * (float)ground_quad_w, it->y * (float)ground_quad_w, 0);
-			gl_ob->mesh_data = ground_quad_mesh_opengl_data;
-
-			ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
-
-			Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
-			phy_ob->geometry = ground_quad_raymesh;
-			phy_ob->ob_to_world = gl_ob->ob_to_world_matrix;
-
-			physics_world->addObject(phy_ob);
-
-			GroundQuad ground_quad;
-			ground_quad.gl_ob = gl_ob;
-			ground_quad.phy_ob = phy_ob;
-
-			ground_quads.insert(std::make_pair(*it, ground_quad));
-		}
-
-	// Remove any stale ground quads.
-	for(auto it = ground_quads.begin(); it != ground_quads.end();)
+	try
 	{
-		if(!contains(new_quads, it->first))
+		// The basic idea is that we want to have a ground-plane quad under the player's feet at all times.
+		// However the quad can't get too large, or you start getting shuddering and other graphical glitches.
+		// So we'll load in 4 quads around the player position, and add new quads or remove old ones as required as the player moves.
+	
+		const Vec3d pos = cam_controller.getPosition();
+
+		// Get integer indices of nearest 4 quads to player position.
+		const int cur_x = Maths::floorToInt(pos.x / ground_quad_w);
+		const int cur_y = Maths::floorToInt(pos.y / ground_quad_w);
+
+		const int adj_x = (Maths::fract(pos.x / ground_quad_w) < 0.5) ? (cur_x - 1) : (cur_x + 1);
+		const int adj_y = (Maths::fract(pos.y / ground_quad_w) < 0.5) ? (cur_y - 1) : (cur_y + 1);
+
+		SmallVector<Vec2i, 4> new_quads(4);
+		new_quads[0] = Vec2i(cur_x, cur_y);
+		new_quads[1] = Vec2i(adj_x, cur_y);
+		new_quads[2] = Vec2i(cur_x, adj_y);
+		new_quads[3] = Vec2i(adj_x, adj_y);
+
+		// Add any new quad not in ground_quads.
+		for(auto it = new_quads.begin(); it != new_quads.end(); ++it)
+			if(ground_quads.count(*it) == 0)
+			{
+				// Make new quad
+				//conPrint("Added ground quad (" + toString(it->x) + ", " + toString(it->y) + ")");
+
+				GLObjectRef gl_ob = new GLObject();
+				gl_ob->materials.resize(1);
+				gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
+				//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
+				try
+				{
+					gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/obstacle.png");
+				}
+				catch(glare::Exception& e)
+				{
+					assert(0);
+					conPrint("ERROR: " + e.what());
+				}
+				gl_ob->materials[0].roughness = 0.8f;
+				gl_ob->materials[0].fresnel_scale = 0.5f;
+
+				gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * (float)ground_quad_w, it->y * (float)ground_quad_w, 0);
+				gl_ob->mesh_data = ground_quad_mesh_opengl_data;
+
+				ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
+
+				Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
+				phy_ob->geometry = ground_quad_raymesh;
+				phy_ob->ob_to_world = gl_ob->ob_to_world_matrix;
+
+				physics_world->addObject(phy_ob);
+
+				GroundQuad ground_quad;
+				ground_quad.gl_ob = gl_ob;
+				ground_quad.phy_ob = phy_ob;
+
+				ground_quads.insert(std::make_pair(*it, ground_quad));
+			}
+
+		// Remove any stale ground quads.
+		for(auto it = ground_quads.begin(); it != ground_quads.end();)
 		{
-			//conPrint("Removed ground quad (" + toString(it->first.x) + ", " + toString(it->first.y) + ")");
+			if(!contains(new_quads, it->first))
+			{
+				//conPrint("Removed ground quad (" + toString(it->first.x) + ", " + toString(it->first.y) + ")");
 
-			// Remove this ground quad as it is not needed any more.
-			ui->glWidget->removeObject(it->second.gl_ob);
-			physics_world->removeObject(it->second.phy_ob);
+				// Remove this ground quad as it is not needed any more.
+				ui->glWidget->removeObject(it->second.gl_ob);
+				physics_world->removeObject(it->second.phy_ob);
 
-			it = ground_quads.erase(it);
+				it = ground_quads.erase(it);
+			}
+			else
+				++it;
 		}
-		else
-			++it;
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("MainWindow::updateGroundPlane() Error: " + e.what());
 	}
 }
 
