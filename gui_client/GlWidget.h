@@ -82,7 +82,7 @@ private:
 
 	int viewport_w, viewport_h;
 
-	bool SHIFT_down, A_down, W_down, S_down, D_down, Space_down, C_down;
+	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down;
 	Timer timer;
 	float current_time;
 public:

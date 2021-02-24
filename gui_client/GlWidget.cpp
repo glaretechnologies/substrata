@@ -64,8 +64,10 @@ GlWidget::GlWidget(QWidget *parent)
 	A_down = false;
 	S_down = false;
 	D_down = false;
-	Space_down = false;
+	space_down = false;
 	C_down = false;
+	left_down = false;
+	right_down = false;
 
 	viewport_w = viewport_h = 100;
 
@@ -207,17 +209,17 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 		if(e->key() == Qt::Key::Key_Space)
 		{
 			this->player_physics->processJump(*this->cam_controller);
-			Space_down = true;
+			space_down = true;
 		}
-		if(e->key() == Qt::Key::Key_W)
+		else if(e->key() == Qt::Key::Key_W)
 		{
 			W_down = true;
 		}
-		if(e->key() == Qt::Key::Key_S)
+		else if(e->key() == Qt::Key::Key_S)
 		{
 			S_down = true;
 		}
-		if(e->key() == Qt::Key::Key_A)
+		else if(e->key() == Qt::Key::Key_A)
 		{
 			A_down = true;
 		}
@@ -225,9 +227,17 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 		{
 			D_down = true;
 		}
-		if(e->key() == Qt::Key::Key_C)
+		else if(e->key() == Qt::Key::Key_C)
 		{
 			C_down = true;
+		}
+		else if(e->key() == Qt::Key::Key_Left)
+		{
+			left_down = true;
+		}
+		else if(e->key() == Qt::Key::Key_Right)
+		{
+			right_down = true;
 		}
 	}
 
@@ -243,27 +253,35 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 
 		if(e->key() == Qt::Key::Key_Space)
 		{
-			Space_down = false;
+			space_down = false;
 		}
-		if(e->key() == Qt::Key::Key_W)
+		else if(e->key() == Qt::Key::Key_W)
 		{
 			W_down = false;
 		}
-		if(e->key() == Qt::Key::Key_S)
+		else if(e->key() == Qt::Key::Key_S)
 		{
 			S_down = false;
 		}
-		if(e->key() == Qt::Key::Key_A)
+		else if(e->key() == Qt::Key::Key_A)
 		{
 			A_down = false;
 		}
-		if(e->key() == Qt::Key::Key_D)
+		else if(e->key() == Qt::Key::Key_D)
 		{
 			D_down = false;
 		}
-		if(e->key() == Qt::Key::Key_C)
+		else if(e->key() == Qt::Key::Key_C)
 		{
 			C_down = false;
+		}
+		else if(e->key() == Qt::Key::Key_Left)
+		{
+			left_down = false;
+		}
+		else if(e->key() == Qt::Key::Key_Right)
+		{
+			right_down = false;
 		}
 	}
 
@@ -319,11 +337,18 @@ void GlWidget::playerPhyicsThink(float dt)
 	if(D_down)
 	{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 
-		// Move vertically up or down in flymode.
-	if(Space_down)
+	// Move vertically up or down in flymode.
+	if(space_down)
 	{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 	if(C_down)
 	{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+
+	// Turn left or right
+	const float base_rotate_speed = 200;
+	if(left_down)
+	{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
+	if(right_down)
+	{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
 #endif
 
 	if(cam_changed)
