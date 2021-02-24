@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <QtOpenGL/QGLWidget>
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
+#include "AboutDialog.h"
 #include "UserDetailsWidget.h"
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
@@ -3503,6 +3504,13 @@ void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
 void MainWindow::on_actionExport_view_to_Indigo_triggered()
 {
 	ui->indigoView->saveSceneToDisk();
+}
+
+
+void MainWindow::on_actionAbout_Substrata_triggered()
+{
+	AboutDialog d(this, appdata_path);
+	d.exec();
 }
 
 
