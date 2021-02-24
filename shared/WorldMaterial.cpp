@@ -157,36 +157,29 @@ static void convertRelPathToAbsolute(const std::string& mat_file_path, std::stri
 
 Reference<WorldMaterial> WorldMaterial::loadFromXMLOnDisk(const std::string& mat_file_path)
 {
-	try
-	{
-		IndigoXMLDoc doc(mat_file_path);
+	IndigoXMLDoc doc(mat_file_path);
 
-		pugi::xml_node root = doc.getRootElement();
+	pugi::xml_node root = doc.getRootElement();
 
-		WorldMaterialRef mat = new WorldMaterial();
-		mat->name = XMLParseUtils::parseString(root, "name");
+	WorldMaterialRef mat = new WorldMaterial();
+	mat->name = XMLParseUtils::parseString(root, "name");
 
-		mat->colour_rgb = parseColour3fWithDefault(root, "colour_rgb", Colour3f(0.85f));
-		mat->colour_texture_url = XMLParseUtils::parseStringWithDefault(root, "colour_texture_url", "");
-		convertRelPathToAbsolute(mat_file_path, mat->colour_texture_url); // Assuming colour_texture_url is a local relative path, make local absolute path from it.
+	mat->colour_rgb = parseColour3fWithDefault(root, "colour_rgb", Colour3f(0.85f));
+	mat->colour_texture_url = XMLParseUtils::parseStringWithDefault(root, "colour_texture_url", "");
+	convertRelPathToAbsolute(mat_file_path, mat->colour_texture_url); // Assuming colour_texture_url is a local relative path, make local absolute path from it.
 
-		mat->roughness = parseScalarVal(root, "roughness", ScalarVal(0.5f));
-		convertRelPathToAbsolute(mat_file_path, mat->roughness.texture_url);
+	mat->roughness = parseScalarVal(root, "roughness", ScalarVal(0.5f));
+	convertRelPathToAbsolute(mat_file_path, mat->roughness.texture_url);
 
-		mat->metallic_fraction = parseScalarVal(root, "metallic_fraction", ScalarVal(0.0f));
-		convertRelPathToAbsolute(mat_file_path, mat->metallic_fraction.texture_url);
+	mat->metallic_fraction = parseScalarVal(root, "metallic_fraction", ScalarVal(0.0f));
+	convertRelPathToAbsolute(mat_file_path, mat->metallic_fraction.texture_url);
 
-		mat->opacity = parseScalarVal(root, "opacity", ScalarVal(1.0f));
-		convertRelPathToAbsolute(mat_file_path, mat->opacity.texture_url);
+	mat->opacity = parseScalarVal(root, "opacity", ScalarVal(1.0f));
+	convertRelPathToAbsolute(mat_file_path, mat->opacity.texture_url);
 
-		if(root.child("tex_matrix"))
-			mat->tex_matrix = parseMatrix2f(root, "tex_matrix");
-		return mat;
-	}
-	catch(IndigoXMLDocExcep& e)
-	{
-		throw glare::Exception(e.what());
-	}
+	if(root.child("tex_matrix"))
+		mat->tex_matrix = parseMatrix2f(root, "tex_matrix");
+	return mat;
 }
 
 
