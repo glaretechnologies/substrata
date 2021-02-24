@@ -30,3 +30,18 @@ if OS.unix?
 else
 	$indigo_qt_dir = "#{indigo_qt_base_dir}/#{$qt_version}-vs#{$vs_version}-64"
 end
+
+
+def get_substrata_version
+	versionfile = IO.readlines("../shared/Version.h").join
+
+	versionmatch = versionfile.match(/cyberspace_version\s+=\s+\"(.*)\"/)
+
+	if versionmatch.nil? || versionmatch[1].nil?
+		puts "Failed to extract version number from Version.h"
+		exit(1)
+	end
+
+	version = versionmatch[1]
+	version
+end
