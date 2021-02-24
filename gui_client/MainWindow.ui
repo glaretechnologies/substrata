@@ -73,11 +73,18 @@
     </property>
     <addaction name="actionExport_view_to_Indigo"/>
    </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout_Substrata"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuWindow"/>
    <addaction name="menuMovement"/>
    <addaction name="menuGo"/>
    <addaction name="menuTools"/>
+   <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QToolBar" name="toolBar">
@@ -399,6 +406,11 @@
   <action name="actionExport_view_to_Indigo">
    <property name="text">
     <string>Export view to Indigo</string>
+   </property>
+  </action>
+  <action name="actionAbout_Substrata">
+   <property name="text">
+    <string>About Substrata</string>
    </property>
   </action>
  </widget>
