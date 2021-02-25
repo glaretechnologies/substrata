@@ -30,7 +30,9 @@ double ParcelAuction::computeCurrentAuctionPrice() const
 }
 
 
-static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 1;
+static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 3;
+// v2: added screenshot_id
+// v3: changed to screenshot_ids
 
 
 void writeToStream(const ParcelAuction& a, OutStream& stream)
@@ -46,6 +48,10 @@ void writeToStream(const ParcelAuction& a, OutStream& stream)
 	a.auction_end_time.writeToStream(stream);
 	stream.writeDouble(a.auction_start_price);
 	stream.writeDouble(a.auction_end_price);
+
+	stream.writeUInt64(a.screenshot_ids.size());
+	for(size_t i=0; i<a.screenshot_ids.size(); ++i)
+		stream.writeUInt64(a.screenshot_ids[i]);
 }
 
 
@@ -68,4 +74,19 @@ void readFromStream(InStream& stream, ParcelAuction& a)
 	a.auction_end_time  .readFromStream(stream);
 	a.auction_start_price = stream.readDouble();
 	a.auction_end_price   = stream.readDouble();
+
+	if(v == 2)
+	{
+		a.screenshot_ids.resize(1);
+		a.screenshot_ids[0] = stream.readUInt64();
+	}
+	else if(v >= 3)
+	{
+		const uint64 num = stream.readUInt64();
+		if(num > 1000)
+			throw glare::Exception("invalid num screenshots");
+		a.screenshot_ids.resize(num);
+		for(size_t i=0; i<num; ++i)
+			a.screenshot_ids[i] = stream.readUInt64();
+	}
 }

@@ -39,6 +39,7 @@ public:
 	void getBasis(Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out) const;
 	Vec3d getAngles() const; // Specified as (heading, pitch, roll).
 	void resetRotation();
+	void setAngles(const Vec3d& newangles);
 
 	Vec3d getForwardsVec() const;
 	Vec3d getRightVec() const;

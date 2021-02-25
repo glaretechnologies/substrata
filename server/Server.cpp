@@ -220,6 +220,14 @@ int main(int argc, char *argv[])
 		Server server;
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
 
+#ifdef WIN32
+		server.screenshot_dir = "C:\\programming\\new_cyberspace\\webdata\\screenshots"; // Dir generated screenshots will be saved to.
+#else
+		server.screenshot_dir = "/var/www/cyberspace/screenshots";
+#endif
+		FileUtils::createDirIfDoesNotExist(server.screenshot_dir);
+
+
 		const std::string server_state_path = server_state_dir + "/server_state.bin";
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path);

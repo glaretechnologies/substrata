@@ -225,6 +225,12 @@ Vec3d CameraController::getAngles() const
 }
 
 
+void CameraController::setAngles(const Vec3d& newangles)
+{
+	rotation = newangles;
+}
+
+
 void CameraController::resetRotation()
 {
 	rotation = initial_rotation;

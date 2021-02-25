@@ -15,6 +15,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "Order.h"
 #include "UserWebSession.h"
 #include "ParcelAuction.h"
+#include "Screenshot.h"
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
 #include <Mutex.h>
@@ -72,6 +73,8 @@ public:
 	std::map<std::string, UserWebSessionRef> user_web_sessions; // Map from key to UserWebSession
 	
 	std::map<uint32, ParcelAuctionRef> parcel_auctions; // ParcelAuction id to ParcelAuction
+
+	std::map<uint64, ScreenshotRef> screenshots;// Screenshot id to ScreenshotRef
 
 	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; }
 

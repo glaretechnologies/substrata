@@ -28,6 +28,7 @@ const uint32 ConnectionTypeUpdates				= 500;
 const uint32 ConnectionTypeUploadResource		= 501;
 const uint32 ConnectionTypeDownloadResources	= 502;
 const uint32 ConnectionTypeWebsite				= 503; // A connection from the webserver.
+const uint32 ConnectionTypeScreenShotBot		= 504; // A connection from the screenshot bot.
 
 
 const uint32 AvatarCreated			= 1000;
@@ -94,5 +95,9 @@ const uint32 RequestPasswordReset	= 8010; // Client wants to reset the password 
 const uint32 ChangePasswordWithResetToken = 8011; // Client is sending the password reset token, email address, and the new password.
 
 const uint32 TimeSyncMessage		= 9000; // Sends the current time
+
+const uint32 ScreenShotRequest		= 11001;
+const uint32 ScreenShotSucceeded	= 11002;
+
 
 } // end namespace Protocol

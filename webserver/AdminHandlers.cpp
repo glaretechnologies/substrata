@@ -191,6 +191,40 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 
 				world_state.parcel_auctions[auction->id] = auction;
 
+				// Make new screenshot (request) for parcel auction
+
+				// Close-in screenshot
+				{
+					ScreenshotRef shot = new Screenshot();
+					shot->id = world_state.screenshots.size();
+					parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+					shot->width_px = 650;
+					shot->highlight_parcel_id = (int)parcel_id;
+					shot->created_time = TimeStamp::currentTime();
+					shot->state = Screenshot::ScreenshotState_notdone;
+
+					world_state.screenshots[shot->id] = shot;
+
+					auction->screenshot_ids.push_back(shot->id);
+				}
+				// Zoomed-out screenshot
+				{
+					ScreenshotRef shot = new Screenshot();
+					shot->id = world_state.screenshots.size();
+					parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+					shot->width_px = 650;
+					shot->highlight_parcel_id = (int)parcel_id;
+					shot->created_time = TimeStamp::currentTime();
+					shot->state = Screenshot::ScreenshotState_notdone;
+
+					world_state.screenshots[shot->id] = shot;
+
+					auction->screenshot_ids.push_back(shot->id);
+				}
+
+				
+				conPrint("Created screenshot for auction");
+				
 				parcel->parcel_auction_ids.push_back(auction->id);
 
 				world_state.markAsChanged();

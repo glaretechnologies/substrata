@@ -159,6 +159,8 @@ public:
 	void startLoadingTexturesForObject(const WorldObject& ob);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
 	void addPlaceholderObjectsForOb(WorldObject& ob);
+	void setUpForScreenshot();
+	void saveScreenshot();
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 private:
@@ -311,4 +313,12 @@ private:
 	std::set<WorldObjectRef> objs_with_lightmap_rebuild_needed;
 
 	Timer stats_timer;
+
+public:
+	Vec3d screenshot_campos;
+	Vec3d screenshot_camangles;
+	int screenshot_width_px;
+	int screenshot_highlight_parcel_id;
+	std::string screenshot_output_path;
+	bool done_screenshot_setup;
 };

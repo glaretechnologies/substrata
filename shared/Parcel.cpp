@@ -76,6 +76,38 @@ bool Parcel::isAxisAlignedBox() const
 }
 
 
+void Parcel::getScreenShotPosAndAngles(Vec3d& pos_out, Vec3d& angles_out) const
+{
+	const Vec3d parcel_centre = (aabb_min + aabb_max) * 0.5;
+
+	pos_out = parcel_centre + Vec3d(-30, -30, 30);
+
+	angles_out = Vec3d(/*heading=*/Maths::pi_4<double>(), /*pitch=*/2.2, /*roll=*/0);
+}
+
+
+void Parcel::getFarScreenShotPosAndAngles(Vec3d& pos_out, Vec3d& angles_out) const
+{
+	const Vec3d parcel_centre = (aabb_min + aabb_max) * 0.5;
+
+	pos_out = parcel_centre + Vec3d(-0.1, -0.1, 500);
+
+	angles_out = Vec3d(/*heading=*/0, /*pitch=*/Maths::pi<double>() - 0.01, /*roll=*/0);
+}
+
+
+Vec3d Parcel::getVisitPosition() const
+{
+	const Vec3d parcel_centre = (aabb_min + aabb_max) * 0.5;
+
+	// Make sure at least 2m off ground
+	Vec3d p = parcel_centre;
+	p.z = myMax(p.z, 2.0);
+
+	return p;
+}
+
+
 bool Parcel::userIsParcelAdmin(const UserID user_id) const
 {
 	return ContainerUtils::contains(admin_ids, user_id);
