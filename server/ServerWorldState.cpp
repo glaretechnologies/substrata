@@ -336,6 +336,7 @@ static const uint32 RESOURCE_CHUNK = 103;
 static const uint32 ORDER_CHUNK = 104;
 static const uint32 USER_WEB_SESSION_CHUNK = 105;
 static const uint32 PARCEL_AUCTION_CHUNK = 106;
+static const uint32 SCREENSHOT_CHUNK = 107;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -363,6 +364,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_orders = 0;
 	size_t num_sessions = 0;
 	size_t num_auctions = 0;
+	size_t num_screenshots = 0;
 	while(1)
 	{
 		const uint32 chunk = stream.readUInt32();
@@ -446,6 +448,15 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			parcel_auctions[auction->id] = auction;
 			num_auctions++;
 		}
+		else if(chunk == SCREENSHOT_CHUNK)
+		{
+			// Deserialise Screenshot
+			ScreenshotRef shot = new Screenshot();
+			readFromStream(stream, *shot);
+
+			screenshots[shot->id] = shot;
+			num_screenshots++;
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -475,7 +486,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
-		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s)");
+		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s)");
 }
 
 
@@ -540,6 +551,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 		size_t num_orders = 0;
 		size_t num_sessions = 0;
 		size_t num_auctions = 0;
+		size_t num_screenshots = 0;
 
 		const std::string temp_path = path + "_temp";
 		{
@@ -629,6 +641,16 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 					num_auctions++;
 				}
 			}
+			
+			// Write Screenshots
+			{
+				for(auto i=screenshots.begin(); i != screenshots.end(); ++i)
+				{
+					stream.writeUInt32(SCREENSHOT_CHUNK);
+					writeToStream(*i->second, stream);
+					num_screenshots++;
+				}
+			}
 
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
@@ -637,7 +659,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
-			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s).");
+			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s)");
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

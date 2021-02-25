@@ -43,6 +43,8 @@ public:
 	TimeStamp auction_end_time;
 	double auction_start_price;
 	double auction_end_price;
+
+	std::vector<uint64> screenshot_ids;
 };
 
 

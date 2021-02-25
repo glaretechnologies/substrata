@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "RequestHandler.h"
 #include "PayPalHandlers.h"
 #include "AuctionHandlers.h"
+#include "ScreenshotHandlers.h"
 #include "OrderHandlers.h"
 #include "ParcelHandlers.h"
 #include <StringUtils.h>
@@ -145,6 +146,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/signup")
 		{
 			LoginHandlers::renderSignUpPage(request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/screenshot/")) // Screenshot ID follows
+		{
+			ScreenshotHandlers::handleScreenshotRequest(*world_state, *data_store, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{

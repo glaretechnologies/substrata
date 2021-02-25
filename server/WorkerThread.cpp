@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2018 -
 
 #include "ServerWorldState.h"
 #include "Server.h"
+#include "Screenshot.h"
 #include "../shared/Protocol.h"
 #include "../shared/UID.h"
 #include "../shared/WorldObject.h"
@@ -340,6 +341,99 @@ void WorkerThread::handleResourceDownloadConnection()
 }
 
 
+void WorkerThread::handleScreenshotBotConnection()
+{
+	conPrint("handleScreenshotBotConnection()");
+
+	// TODO: authentication
+
+	try
+	{
+		while(1)
+		{
+			// Poll server state for a screenshot request
+			ScreenshotRef screenshot;
+
+			{ // lock scope
+				Lock lock(server->world_state->mutex);
+
+				// Find first screenshot in ScreenshotState_notdone state.  NOTE: slow linear scan.
+				for(auto it = server->world_state->screenshots.begin(); it != server->world_state->screenshots.end(); ++it)
+				{
+					if(it->second->state == Screenshot::ScreenshotState_notdone)
+					{
+						screenshot = it->second;
+						break;
+					}
+				}
+			} // End lock scope
+
+			if(screenshot.nonNull()) // If there is a screenshot to take:
+			{
+				socket->writeUInt32(Protocol::ScreenShotRequest);
+
+				socket->writeDouble(screenshot->cam_pos.x);
+				socket->writeDouble(screenshot->cam_pos.y);
+				socket->writeDouble(screenshot->cam_pos.z);
+				socket->writeDouble(screenshot->cam_angles.x);
+				socket->writeDouble(screenshot->cam_angles.y);
+				socket->writeDouble(screenshot->cam_angles.z);
+				socket->writeInt32(screenshot->width_px);
+				socket->writeInt32(screenshot->highlight_parcel_id);
+
+				// Read response
+				const uint32 result = socket->readUInt32();
+				if(result == Protocol::ScreenShotSucceeded)
+				{
+					// Read screenshot data
+					const uint64 data_len = socket->readUInt64();
+					if(data_len > 100000000) // ~100MB
+						throw glare::Exception("data_len was too large");
+
+					conPrint("Receiving screenshot of " + toString(data_len) + " B");
+					std::vector<uint8> data(data_len);
+					socket->readData(data.data(), data_len);
+
+					conPrint("Received screenshot of " + toString(data_len) + " B");
+
+					// Generate random path
+					const int NUM_BYTES = 16;
+					uint8 pathdata[NUM_BYTES];
+					CryptoRNG::getRandomBytes(pathdata, NUM_BYTES);
+					const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(pathdata, NUM_BYTES) + ".jpg";
+					const std::string screenshot_path = server->screenshot_dir + "/" + screenshot_filename;
+
+					// Save screenshot to path
+					FileUtils::writeEntireFile(screenshot_path, data);
+
+					conPrint("Saved to disk at " + screenshot_path);
+
+					screenshot->state = Screenshot::ScreenshotState_done;
+					screenshot->local_path = screenshot_path;
+
+					server->world_state->markAsChanged();
+				}
+				else
+					throw glare::Exception("Client reported screenshot taking failed.");
+			}
+			else
+			{
+				// There is no current screenshot request, sleep for a while
+				PlatformUtils::Sleep(10000);
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleScreenshotBotConnection: glare::Exception: " + e.what());
+	}
+	catch(std::exception& e)
+	{
+		conPrint(std::string("handleScreenshotBotConnection: Caught std::exception: ") + e.what());
+	}
+}
+
+
 static bool userHasObjectWritePermissions(const WorldObject& ob, const User& user, const std::string& connected_world_name)
 {
 	if(user.id.valid())
@@ -405,6 +499,11 @@ void WorkerThread::doRun()
 		else if(connection_type == Protocol::ConnectionTypeDownloadResources)
 		{
 			handleResourceDownloadConnection();
+			return;
+		}
+		else if(connection_type == Protocol::ConnectionTypeScreenShotBot)
+		{
+			handleScreenshotBotConnection();
 			return;
 		}
 		else if(connection_type == Protocol::ConnectionTypeUpdates)

@@ -143,7 +143,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
-	process_model_loaded_next(true)
+	process_model_loaded_next(true),
+	done_screenshot_setup(false)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -282,6 +283,12 @@ void MainWindow::afterGLInitInitialise()
 	}
 
 	//OpenGLEngineTests::doTextureLoadingTests(*ui->glWidget->opengl_engine);
+
+	if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
+	{
+		this->cam_controller.setPosition(screenshot_campos);
+		this->cam_controller.setAngles(screenshot_camangles);
+	}
 }
 
 
@@ -1149,9 +1156,51 @@ static bool hasTextureExtension(const std::string& path)
 }
 
 
+void MainWindow::setUpForScreenshot()
+{
+	// Highlight requested parcel_id
+	if(screenshot_highlight_parcel_id != -1)
+	{
+		addParcelObjects();
+
+		auto res = world_state->parcels.find(ParcelID(screenshot_highlight_parcel_id));
+		if(res != world_state->parcels.end())
+		{
+			this->selected_parcel = res->second;
+			ui->glWidget->opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
+		}
+	}
+
+	done_screenshot_setup = true;
+}
+
+
+void MainWindow::saveScreenshot()
+{
+	conPrint("Taking screenshot");
+
+	QImage framebuffer = ui->glWidget->grabFrameBuffer();
+
+	QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
+
+	const bool res = scaled_img.save(QtUtils::toQString(screenshot_output_path), "jpg", /*qquality=*/95);
+	assert(res);
+
+}
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	updateStatusBar();
+
+	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > 19.0) // TEMP HACK timer
+	{
+		setUpForScreenshot();
+	}
+	if(!screenshot_output_path.empty() && total_timer.elapsed() > 20.0) // TEMP HACK timer
+	{
+		saveScreenshot();
+		close();
+	}
 
 	if(stats_timer.elapsed() > 2.0)
 	{
@@ -4666,7 +4715,18 @@ int main(int argc, char *argv[])
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
-		
+
+		std::vector<ArgumentParser::ArgumentType> takescreenshot_args;
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_x
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_y
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_z
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// angles_0
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// angles_1
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// angles_2
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// screenshot_width_px
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// screenshot_highlight_parcel_id
+		takescreenshot_args.push_back(ArgumentParser::ArgumentType_string); // screenshot_path
+		syntax["--takescreenshot"] = takescreenshot_args;
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it
@@ -4770,6 +4830,24 @@ int main(int argc, char *argv[])
 
 		mw.texture_server = &texture_server;
 		mw.ui->glWidget->texture_server_ptr = &texture_server; // Set texture server pointer before GlWidget::initializeGL() gets called, as it passes texture server pointer to the openglengine.
+
+		if(parsed_args.isArgPresent("--takescreenshot"))
+		{
+			mw.screenshot_campos = Vec3d(
+				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/0),
+				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/1),
+				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/2)
+			);
+			mw.screenshot_camangles = Vec3d(
+				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/3),
+				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/4),
+				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/5)
+			);
+			mw.screenshot_width_px = parsed_args.getArgIntValue("--takescreenshot", /*index=*/6),
+			mw.screenshot_highlight_parcel_id = parsed_args.getArgIntValue("--takescreenshot", /*index=*/7),
+			mw.screenshot_output_path = parsed_args.getArgStringValue("--takescreenshot", /*index=*/8);
+		}
+
 
 		mw.initialise();
 

@@ -26,4 +26,6 @@ public:
 
 	// Connected client worker threads
 	ThreadManager worker_thread_manager;
+
+	std::string screenshot_dir;
 };

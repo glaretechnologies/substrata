@@ -40,5 +40,6 @@ public:
 
 	std::string letsencrypt_webroot;
 	std::string public_files_dir;
+	std::string screenshot_dir;
 	//std::string resources_dir;
 };
