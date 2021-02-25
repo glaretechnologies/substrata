@@ -271,3 +271,6 @@ ADD_SUBDIRECTORY(server server)
 #ADD_SUBDIRECTORY(cv_bot cv_bot)
 
 #ADD_SUBDIRECTORY(lightmapper_bot lightmapper_bot)
+
+#ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
+
