@@ -21,8 +21,9 @@ Copyright Glare Technologies Limited 2021 -
 #include <CryptoRNG.h>
 
 
-static const std::string username = "screenshotbot";
-static const std::string password = "1NzpaaM3qN";
+// TODO: do authentication
+//static const std::string username = "screenshotbot";
+//static const std::string password = "1NzpaaM3qN";
 
 
 int main(int argc, char* argv[])
@@ -39,7 +40,8 @@ int main(int argc, char* argv[])
 		// Connect to substrata server
 		try
 		{
-			const std::string server_hostname = "localhost"; // "substrata.info"
+			//const std::string server_hostname = "localhost";
+			const std::string server_hostname = "substrata.info";
 			const int server_port = 7600;
 
 			conPrint("Connecting to " + server_hostname + ":" + toString(server_port) + "...");
@@ -52,7 +54,7 @@ int main(int argc, char* argv[])
 
 			socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
 			socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
-			socket->writeUInt32(Protocol::ConnectionTypeScreenShotBot); // Write connection type
+			socket->writeUInt32(Protocol::ConnectionTypeScreenshotBot); // Write connection type
 
 			// Read hello response from server
 			const uint32 hello_response = socket->readUInt32();
@@ -105,7 +107,7 @@ int main(int argc, char* argv[])
 					const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
 					const std::string screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
 
-					const std::string gui_client_path = "C:\\programming\\new_cyberspace\\output\\vs2019\\cyberspace_x64\\debug\\gui_client.exe";
+					const std::string gui_client_path = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/gui_client.exe";
 					std::vector<std::string> command_line_args;
 					command_line_args.push_back(gui_client_path);
 					command_line_args.push_back("--takescreenshot");

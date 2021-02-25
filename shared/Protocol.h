@@ -28,7 +28,7 @@ const uint32 ConnectionTypeUpdates				= 500;
 const uint32 ConnectionTypeUploadResource		= 501;
 const uint32 ConnectionTypeDownloadResources	= 502;
 const uint32 ConnectionTypeWebsite				= 503; // A connection from the webserver.
-const uint32 ConnectionTypeScreenShotBot		= 504; // A connection from the screenshot bot.
+const uint32 ConnectionTypeScreenshotBot		= 504; // A connection from the screenshot bot.
 
 
 const uint32 AvatarCreated			= 1000;

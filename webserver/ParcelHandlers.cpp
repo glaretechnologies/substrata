@@ -34,8 +34,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 {
 	try
 	{
-		std::string page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Parcel details");
-		page += "<div class=\"main\">   \n";
+		
 
 		// Parse order id from request path
 		Parser parser(request.path.c_str(), request.path.size());
@@ -45,6 +44,9 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 		uint32 parcel_id;
 		if(!parser.parseUnsignedInt(parcel_id))
 			throw glare::Exception("Failed to parse parcel id");
+
+		std::string page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Parcel #" + toString(parcel_id) + "");
+		page += "<div class=\"main\">   \n";
 
 		{ // lock scope
 			Lock lock(world_state.mutex);
@@ -59,7 +61,11 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			const Parcel* parcel = res->second.ptr();
 
-			page += "<div>Parcel " + parcel->id.toString() + "</div>";
+			//page += "<div>Parcel " + parcel->id.toString() + "</div>";
+
+			const Vec3d pos = parcel->getVisitPosition();
+			page += "<p>Visit in Substrata: <span style=\"color: blue\">sub://substrata.info/?x=" + doubleToStringNSigFigs(pos.x, 2) + "&y=" + doubleToStringNSigFigs(pos.y, 2) + "&z=" + doubleToStringNSigFigs(pos.z, 2) +
+				"</span><br/>(enter URL into location bar in Substrata client)</p>   \n";
 
 			// Look up owner
 			std::string owner_username;
@@ -72,7 +78,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			page += "<p>Owner: " + web::Escaping::HTMLEscape(owner_username) + "</p>   \n";
 			page += "<p>Description: " + web::Escaping::HTMLEscape(parcel->description) + "</p>   \n";
-			page += "<p>Created: " + parcel->created_time.timeAgoDescription() + "</p>   \n";
+			//page += "<p>Created: " + parcel->created_time.timeAgoDescription() + "</p>   \n";
 
 			// Get current auction if any
 			page += "<h2>Current auction</h2>         \n";
