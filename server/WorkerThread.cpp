@@ -501,7 +501,7 @@ void WorkerThread::doRun()
 			handleResourceDownloadConnection();
 			return;
 		}
-		else if(connection_type == Protocol::ConnectionTypeScreenShotBot)
+		else if(connection_type == Protocol::ConnectionTypeScreenshotBot)
 		{
 			handleScreenshotBotConnection();
 			return;
