@@ -24,9 +24,6 @@ namespace MainPageHandlers
 {
 
 
-const std::string CRLF = "\r\n";
-
-
 void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
@@ -105,4 +102,4 @@ void renderNotFoundPage(ServerAllWorldsState& world_state, const web::RequestInf
 }
 
 
-}  // end namespace BlogHandlers
+}  // end namespace MainPageHandlers
