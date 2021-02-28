@@ -184,7 +184,13 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	// Restore main window geometry and state
 	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
-	this->restoreState(settings->value("mainwindow/windowState").toByteArray());
+
+	if(!this->restoreState(settings->value("mainwindow/windowState").toByteArray()))
+	{
+		// State was not restored.  This will be the case for new Substrata installs.
+		// Hide some dock widgets to provide a slightly simpler user experience.
+		this->ui->materialBrowserDockWidget->hide();
+	}
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
