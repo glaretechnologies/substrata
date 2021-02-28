@@ -66,8 +66,6 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		page_out += "<h2>Root world Parcels</h2>\n";
 
 		Reference<ServerWorldState> root_world = world_state.getRootWorldState();
-		if(root_world.isNull())
-			return;
 
 		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
 		{

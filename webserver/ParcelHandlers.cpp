@@ -52,8 +52,6 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			Lock lock(world_state.mutex);
 
 			Reference<ServerWorldState> root_world = world_state.getRootWorldState();
-			if(root_world.isNull())
-				throw glare::Exception("Root world is NULL");
 
 			auto res = root_world->parcels.find(ParcelID(parcel_id));
 			if(res == root_world->parcels.end())

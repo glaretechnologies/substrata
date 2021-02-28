@@ -61,6 +61,8 @@ public:
 	void clearChangedFlag() { changed = 0; }
 	bool hasChanged() const { return changed != 0; }
 
+	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; } // Guaranteed to be return a non-null reference
+
 	Reference<ResourceManager> resource_manager;
 
 	std::map<UserID, Reference<User>> user_id_to_users;  // User id to user
@@ -75,8 +77,6 @@ public:
 	std::map<uint32, ParcelAuctionRef> parcel_auctions; // ParcelAuction id to ParcelAuction
 
 	std::map<uint64, ScreenshotRef> screenshots;// Screenshot id to ScreenshotRef
-
-	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; }
 
 	::Mutex mutex;
 private:
