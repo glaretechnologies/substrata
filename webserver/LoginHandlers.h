@@ -30,6 +30,7 @@ namespace LoginHandlers
 	bool loggedInUserHasAdminPrivs(ServerAllWorldsState& world_state, const web::RequestInfo& request_info);
 
 
+	// Returns NULL if not logged in as a valid user.
 	// ServerAllWorldsState should be locked
 	User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info);
 

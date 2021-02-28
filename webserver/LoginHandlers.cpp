@@ -204,7 +204,8 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 			// Valid credentials.
 			web::ResponseUtils::writeRawString(reply_info, "HTTP/1.1 302 Redirect" + CRLF);
 			web::ResponseUtils::writeRawString(reply_info, "Location: " + return_URL + CRLF);
-			web::ResponseUtils::writeRawString(reply_info, "Set-Cookie: site-b=" + session_id + "; Path=/" + CRLF);
+			web::ResponseUtils::writeRawString(reply_info, "Set-Cookie: site-b=" + session_id + "; Path=/; Max-Age=7776000; HttpOnly" + CRLF); // Max-Age is 90 days.
+			// HttpOnly forbids JavaScript from accessing the cookie (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
 			web::ResponseUtils::writeRawString(reply_info, "Content-Length: 0" + CRLF); // NOTE: not sure if content-length is needed for 302 redirect.
 			web::ResponseUtils::writeRawString(reply_info, CRLF);
 		}
@@ -332,7 +333,8 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			reply += "HTTP/1.1 302 Redirect" + CRLF;
 			reply += "Location: " + return_URL + CRLF;
-			reply += "Set-Cookie: site-b=" + session->id + "; Path=/" + CRLF;
+			reply += "Set-Cookie: site-b=" + session->id + "; Path=/; Max-Age=7776000; HttpOnly" + CRLF; // Max-Age is 90 days.
+			// HttpOnly forbids JavaScript from accessing the cookie (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
 			reply += "Content-Length: 0" + CRLF; // NOTE: not sure if content-length is needed for 302 redirect.
 			reply += CRLF;
 		} // End lock scope
