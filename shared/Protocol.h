@@ -49,6 +49,9 @@ const uint32 ObjectFlagsChanged		= 3011;
 const uint32 CreateObject			= 3004; // Client wants to create an object.
 const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
 
+const uint32 QueryObjects			= 3020; // Client wants to query objects in certain grid cells
+const uint32 ObjectInitialSend		= 3021;
+
 
 const uint32 ParcelCreated			= 3100;
 const uint32 ParcelDestroyed		= 3101;

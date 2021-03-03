@@ -166,6 +166,10 @@ public:
 	Reference<Indigo::SceneNodeModel> indigo_model_node;
 
 	bool is_selected;
+
+	bool loaded; // Used by proximity loader
+
+	Vec3d last_pos; // Used by proximity loader
 #endif
 	Reference<WinterShaderEvaluator> script_evaluator;
 
