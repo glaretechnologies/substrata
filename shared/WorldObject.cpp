@@ -38,6 +38,7 @@ WorldObject::WorldObject()
 	using_placeholder_model = false;
 #if GUI_CLIENT
 	is_selected = false;
+	loaded = false;
 #endif
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
@@ -109,6 +110,9 @@ void WorldObject::setTransformAndHistory(const Vec3d& pos_, const Vec3f& axis_, 
 void WorldObject::setPosAndHistory(const Vec3d& pos_)
 {
 	pos = pos_;
+#if GUI_CLIENT
+	last_pos = pos_;
+#endif
 
 	for(int i=0; i<HISTORY_BUF_SIZE; ++i)
 		pos_snapshots[i] = pos_;

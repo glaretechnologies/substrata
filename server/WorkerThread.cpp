@@ -554,7 +554,7 @@ void WorkerThread::doRun()
 			}
 
 			// Send all current object data to client
-			{
+			/*{
 				Lock lock(world_state->mutex);
 				for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
 				{
@@ -566,7 +566,7 @@ void WorkerThread::doRun()
 					ob->writeToNetworkStream(packet);
 					socket->writeData(packet.buf.data(), packet.buf.size());
 				}
-			}
+			}*/
 
 			// Send all current parcel data to client
 			{
@@ -944,6 +944,68 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
+				case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
+				{
+					conPrint("QueryObjects");
+					const uint32 num_cells = socket->readUInt32();
+					if(num_cells > 1000)
+						throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
+
+					//conPrint("QueryObjects: num_cells " + toString(num_cells));
+					
+					// Read cell coords from network and make AABBs for cells
+					js::Vector<js::AABBox, 16> cell_aabbs(num_cells);
+					for(uint32 i=0; i<num_cells; ++i)
+					{
+						const int x = socket->readInt32();
+						const int y = socket->readInt32();
+						const int z = socket->readInt32();
+
+						//conPrint("cell coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
+
+						const float CELL_WIDTH = 100.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
+
+						cell_aabbs[i] = js::AABBox(
+							Vec4f(0,0,0,1) + Vec4f((float)x,     (float)y,     (float)z,     0)*CELL_WIDTH,
+							Vec4f(0,0,0,1) + Vec4f((float)(x+1), (float)(y+1), (float)(z+1), 0)*CELL_WIDTH
+						);
+					}
+
+
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					int num_obs_written = 0;
+
+					{ // Lock scope
+						Lock lock(world_state->mutex);
+						for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+						{
+							const WorldObject* ob = it->second.ptr();
+
+							// See if the object is in any of the cell AABBs
+							bool in_cell = false;
+							for(uint32 i=0; i<num_cells; ++i)
+								if(cell_aabbs[i].contains(ob->pos.toVec4fPoint()))
+								{
+									in_cell = true;
+									break;
+								}
+
+							if(in_cell)
+							{
+								// Send ObjectInitialSend packet
+								packet.writeUInt32(Protocol::ObjectInitialSend);
+								ob->writeToNetworkStream(packet);
+								num_obs_written++;
+							}
+						}
+					} // End lock scope
+
+					socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+
+					conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
+
+					break;
+				}
 				case Protocol::QueryParcels:
 					{
 						conPrint("QueryParcels");
