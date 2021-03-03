@@ -277,6 +277,8 @@ void ClientThread::doRun()
 								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
 #endif
 								{
+									//conPrint("ObjectTransformUpdate: setting ob pos to " + pos.toString());
+									ob->last_pos = ob->pos;
 									ob->pos = pos;
 									ob->axis = axis;
 									ob->angle = angle;
@@ -378,6 +380,32 @@ void ClientThread::doRun()
 				case Protocol::ObjectCreated:
 					{
 						//conPrint("ObjectCreated");
+						const UID object_uid = readUIDFromStream(*socket);
+
+						// Read from network
+						WorldObjectRef ob = new WorldObject();
+						ob->uid = object_uid;
+						readFromNetworkStreamGivenUID(*socket, *ob);
+
+						ob->state = WorldObject::State_JustCreated;
+						ob->from_remote_other_dirty = true;
+						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+
+						// Insert into world state.
+						{
+							::Lock lock(world_state->mutex);
+
+							// NOTE: will not replace existing object with that UID if it exists in the map.
+							world_state->objects.insert(std::make_pair(object_uid, ob));
+
+							world_state->dirty_from_remote_objects.insert(ob.ptr());
+						}
+						break;
+					}
+				case Protocol::ObjectInitialSend:
+					{
+						// NOTE: currently same code/semantics as ObjectCreated
+						//conPrint("ObjectInitialSend");
 						const UID object_uid = readUIDFromStream(*socket);
 
 						// Read from network
