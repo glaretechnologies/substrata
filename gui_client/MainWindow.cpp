@@ -144,12 +144,16 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
 	process_model_loaded_next(true),
-	done_screenshot_setup(false)
+	done_screenshot_setup(false),
+	proximity_loader(/*load distance=*/200.0)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+
+	proximity_loader.callbacks = this;
+	proximity_loader.opengl_engine = ui->glWidget->opengl_engine.ptr();
 
 	ui->glWidget->setBaseDir(base_dir_path);
 	ui->objectEditor->base_dir_path = base_dir_path;
@@ -1018,9 +1022,12 @@ void MainWindow::evalObjectScript(WorldObject* ob, double global_time)
 	}
 
 	// Update transform in 3d engine
-	ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
+	if(ob->opengl_engine_ob.nonNull())
+	{
+		ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
 
-	ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+		ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+	}
 
 	// Update in physics engine
 	if(ob->physics_object.nonNull())
@@ -1191,8 +1198,38 @@ void MainWindow::saveScreenshot()
 
 	const bool res = scaled_img.save(QtUtils::toQString(screenshot_output_path), "jpg", /*qquality=*/95);
 	assert(res);
-
 }
+
+
+// ObLoadingCallbacks interface
+void MainWindow::loadObject(WorldObjectRef ob)
+{
+	loadModelForObject(ob.ptr());
+}
+
+
+void MainWindow::unloadObject(WorldObjectRef ob)
+{
+	removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+}
+
+
+void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
+{
+	if(this->client_thread.nonNull())
+	{
+		// Make QueryObjects packet and enqueue to send to server
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::QueryObjects);
+		packet.writeUInt32(1); // Num cells to query
+		packet.writeInt32(cell_coords.x);
+		packet.writeInt32(cell_coords.y);
+		packet.writeInt32(cell_coords.z);
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
+}
+
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
@@ -1208,7 +1245,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		close();
 	}
 
-	if(stats_timer.elapsed() > 2.0)
+	if(false)//stats_timer.elapsed() > 2.0)
 	{
 		stats_timer.reset();
 
@@ -1337,87 +1374,90 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				//if(message_ob->using_placeholder_model)
 					removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
 
-				static const bool LOAD_PHYSICS_RAYMESH = true;
-
-				message_ob->opengl_engine_ob = message->opengl_ob;
-				if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
-
-				const std::string loaded_model_url = message_ob->model_url;
-
-				if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-					OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
-
-				// Add this object to the GL engine and physics engine.
-				if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
+				if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
 				{
-					for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
-						if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
-							message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
+					static const bool LOAD_PHYSICS_RAYMESH = true;
 
-					ui->glWidget->addObject(message_ob->opengl_engine_ob);
+					message_ob->opengl_engine_ob = message->opengl_ob;
+					if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
 
-					if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(message_ob->physics_object);
-					if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+					const std::string loaded_model_url = message_ob->model_url;
 
-					ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+					if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
 
-					loadScriptForObject(message_ob.ptr()); // Load any script for the object.
-				}
-
-				// Iterate over objects, and assign the loaded model for any other objects also using this model:
-				if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
-				{
-					Lock lock(this->world_state->mutex);
-					for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+					// Add this object to the GL engine and physics engine.
+					if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 					{
-						WorldObject* ob = it->second.getPointer();
+						for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
+							if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
+								message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
 
-						if(ob->model_url == loaded_model_url)
+						ui->glWidget->addObject(message_ob->opengl_engine_ob);
+
+						if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(message_ob->physics_object);
+						if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+
+						ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+
+						loadScriptForObject(message_ob.ptr()); // Load any script for the object.
+					}
+
+					// Iterate over objects, and assign the loaded model for any other objects also using this model:
+					if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
+					{
+						Lock lock(this->world_state->mutex);
+						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
-							// Remove any existing OpenGL and physics model
-							if(ob->using_placeholder_model)
-								removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+							WorldObject* ob = it->second.getPointer();
 
-							// Create GLObject and PhysicsObjects for this world object if they have not been created already.
-							// They may have been created in the LoadModelTask already.
-							if(ob->opengl_engine_ob.isNull())
+							if(ob->model_url == loaded_model_url)
 							{
-								const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+								// Remove any existing OpenGL and physics model
+								if(ob->using_placeholder_model)
+									removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-								Reference<RayMesh> raymesh;
-								ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
-									false, // skip opengl calls
-									raymesh);
+								// Create GLObject and PhysicsObjects for this world object if they have not been created already.
+								// They may have been created in the LoadModelTask already.
+								if(ob->opengl_engine_ob.isNull())
+								{
+									const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-								if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
-								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
-								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
-								if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
-							}
-							else
-							{
-								//assert(ob->physics_object.nonNull());
-							}
+									Reference<RayMesh> raymesh;
+									ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+										false, // skip opengl calls
+										raymesh);
 
-							if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
-							{
-								// Shouldn't be needed.
-								if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+									if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
+									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
+									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
+									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
+								}
+								else
+								{
+									//assert(ob->physics_object.nonNull());
+								}
 
-								for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-									if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
-										ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+								if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
+								{
+									// Shouldn't be needed.
+									if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+										OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
-								ui->glWidget->addObject(ob->opengl_engine_ob);
+									for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+										if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+											ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
 
-								if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(ob->physics_object);
-								if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+									ui->glWidget->addObject(ob->opengl_engine_ob);
 
-								ui->indigoView->objectAdded(*ob, *this->resource_manager);
+									if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(ob->physics_object);
+									if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
 
-								loadScriptForObject(ob); // Load any script for the object.
+									ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+									loadScriptForObject(ob); // Load any script for the object.
+								}
 							}
 						}
 					}
@@ -1824,6 +1864,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		ui->indigoView->cameraUpdated(this->cam_controller);
 	}
 
+	proximity_loader.updateCamPos(campos);
+
+
 	// Update avatar graphics
 	try
 	{
@@ -2118,7 +2161,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					if(reload_opengl_model)
 					{
-						loadModelForObject(ob);
+						// loadModelForObject(ob);
+						proximity_loader.checkAddObject(ob);
 					}
 					else
 					{
@@ -2187,6 +2231,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						ob->physics_object->ob_to_world = interpolated_to_world_mat;
 						physics_world->updateObjectTransformData(*ob->physics_object);
 					}
+
+					proximity_loader.objectTransformChanged(ob);
 
 					// Update in Indigo view
 					ui->indigoView->objectTransformChanged(*ob);
@@ -2304,16 +2350,22 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				float angle;
 				ob->getInterpolatedTransform(cur_time, pos, axis, angle);
 
-				ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
-					Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
-					Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+				if(ob->opengl_engine_ob.nonNull())
+				{
+					ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+						Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
+						Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
-				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+					ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+				}
 
-				// Update in physics engine
-				ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
-				physics_world->updateObjectTransformData(*ob->physics_object);
-				need_physics_world_rebuild = true;
+				if(ob->physics_object.nonNull())
+				{
+					// Update in physics engine
+					ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
+					physics_world->updateObjectTransformData(*ob->physics_object);
+					need_physics_world_rebuild = true;
+				}
 
 				it++;
 			}
@@ -3896,6 +3948,8 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 		}
 	}
 
+	proximity_loader.clearAllObjects();
+
 
 	// Remove any ground quads.
 	for(auto it = ground_quads.begin(); it != ground_quads.end(); ++it)
@@ -3943,6 +3997,26 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 
 	if(physics_world.isNull())
 		physics_world = new PhysicsWorld();
+
+	proximity_loader.physics_world = physics_world.ptr();
+
+	const std::vector<Vec3<int> > initial_cells = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getPosition().toVec4fPoint());
+
+	// Send QueryObjects for initial cells to server
+	{
+		// Make QueryObjects packet and enqueue to send
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::QueryObjects);
+		packet.writeUInt32((uint32)initial_cells.size()); // Num cells to query
+		for(size_t i=0; i<initial_cells.size(); ++i)
+		{
+			packet.writeInt32(initial_cells[i].x);
+			packet.writeInt32(initial_cells[i].y);
+			packet.writeInt32(initial_cells[i].z);
+		}
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
 
 	updateGroundPlane();
 

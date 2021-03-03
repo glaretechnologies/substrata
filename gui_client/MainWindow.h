@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ClientThread.h"
 #include "WorldState.h"
 #include "CameraController.h"
+#include "ProximityLoader.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
@@ -39,7 +40,7 @@ class ModelLoadedThreadMessage;
 class TextureLoadedThreadMessage;
 
 
-class MainWindow : public QMainWindow
+class MainWindow : public QMainWindow, public ObLoadingCallbacks
 {
 	Q_OBJECT
 public:
@@ -162,6 +163,11 @@ public:
 	void setUpForScreenshot();
 	void saveScreenshot();
 
+	// ObLoadingCallbacks interface
+	virtual void loadObject(WorldObjectRef ob);
+	virtual void unloadObject(WorldObjectRef ob);
+	virtual void newCellInProximity(const Vec3<int>& cell_coords);
+
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 private:
 	std::string base_dir_path;
@@ -245,6 +251,8 @@ public:
 		Reference<PhysicsObject> phy_ob;
 	};
 	std::map<Vec2i, GroundQuad> ground_quads;
+
+	ProximityLoader proximity_loader;
 
 	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
 	Reference<RayMesh> hypercard_quad_raymesh;
