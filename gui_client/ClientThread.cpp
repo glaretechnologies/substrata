@@ -30,7 +30,7 @@ ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_q
 	port(port_),
 	avatar_URL(avatar_URL_),
 	world_name(world_name_),
-	initial_state_received(false)
+	all_objects_received(false)
 {
 	socket = new MySocket();
 	socket->setUseNetworkByteOrder(false);
@@ -148,11 +148,11 @@ void ClientThread::doRun()
 				const uint32 msg_type = socket->readUInt32();
 				switch(msg_type)
 				{
-				case Protocol::InitialStateSent:
+				case Protocol::AllObjectsSent:
 					{
-						conPrint("Initial state finished sending.  " + toString(world_state->objects.size()) + " objects.");
+						conPrint("All objects finished sending.  " + toString(world_state->objects.size()) + " objects.");
 						// This message has no payload.
-						this->initial_state_received = true;
+						this->all_objects_received = true;
 						break;
 					}
 				case Protocol::AvatarTransformUpdate:
@@ -278,7 +278,9 @@ void ClientThread::doRun()
 #endif
 								{
 									//conPrint("ObjectTransformUpdate: setting ob pos to " + pos.toString());
+#if GUI_CLIENT
 									ob->last_pos = ob->pos;
+#endif
 									ob->pos = pos;
 									ob->axis = axis;
 									ob->angle = angle;
@@ -416,6 +418,11 @@ void ClientThread::doRun()
 						ob->state = WorldObject::State_JustCreated;
 						ob->from_remote_other_dirty = true;
 						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+
+						// TEMP HACK: set a smaller max loading distance for CV features
+						const std::string feature_prefix = "CryptoVoxels Feature, uuid: ";
+						if(hasPrefix(ob->content, feature_prefix))
+							ob->max_load_dist2 = Maths::square(100.f);
 
 						// Insert into world state.
 						{

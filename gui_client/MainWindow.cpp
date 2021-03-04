@@ -121,7 +121,9 @@ Copyright Glare Technologies Limited 2020 -
 const int server_port = 7600;
 
 
-static const double ground_quad_w = 1000.f;
+static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
+static const float ob_load_distance = 600.f;
+// See also // TEMP HACK: set a smaller max loading distance for CV features in ClientThread.cpp
 
 AvatarGraphicsRef test_avatar;
 
@@ -145,7 +147,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	selected_ob_picked_up(false),
 	process_model_loaded_next(true),
 	done_screenshot_setup(false),
-	proximity_loader(/*load distance=*/200.0)
+	proximity_loader(/*load distance=*/ob_load_distance)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 

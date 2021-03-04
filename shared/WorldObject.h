@@ -171,6 +171,9 @@ public:
 
 	Vec3d last_pos; // Used by proximity loader
 #endif
+
+	float max_load_dist2;
+
 	Reference<WinterShaderEvaluator> script_evaluator;
 
 	

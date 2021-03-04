@@ -584,11 +584,11 @@ void WorkerThread::doRun()
 			}
 
 			// Send a message saying we have sent all initial state
-			{
+			/*{
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				packet.writeUInt32(Protocol::InitialStateSent);
 				socket->writeData(packet.buf.data(), packet.buf.size());
-			}
+			}*/
 		}
 
 		assert(cur_world_state.nonNull());
@@ -944,11 +944,35 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
+				case Protocol::GetAllObjects: // Client wants to get all objects in world
+				{
+					conPrint("GetAllObjects");
+
+					SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+					{
+						Lock lock(world_state->mutex);
+						for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+						{
+							const WorldObject* ob = it->second.getPointer();
+
+							// Send ObjectInitialSend message
+							temp_buf.writeUInt32(Protocol::ObjectInitialSend);
+							ob->writeToNetworkStream(temp_buf);
+						}
+					}
+
+					temp_buf.writeUInt32(Protocol::AllObjectsSent);
+
+					socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
+
+					break;
+				}
 				case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
 				{
 					conPrint("QueryObjects");
 					const uint32 num_cells = socket->readUInt32();
-					if(num_cells > 1000)
+					if(num_cells > 100000)
 						throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
 
 					//conPrint("QueryObjects: num_cells " + toString(num_cells));
@@ -963,7 +987,7 @@ void WorkerThread::doRun()
 
 						//conPrint("cell coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
 
-						const float CELL_WIDTH = 100.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
+						const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
 
 						cell_aabbs[i] = js::AABBox(
 							Vec4f(0,0,0,1) + Vec4f((float)x,     (float)y,     (float)z,     0)*CELL_WIDTH,

@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <HashMapInsertOnly2.h>
 
 
-static const float CELL_WIDTH = 100.f; // NOTE: has to be the same value as in WorkerThread.cpp
+static const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in WorkerThread.cpp
 
 
 ProximityLoader::ProximityLoader(float load_distance_)
@@ -38,8 +38,10 @@ void ProximityLoader::checkAddObject(WorldObjectRef ob)
 
 	ob_grid.insert(ob);
 
+	const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
+
 	const float dist2 = ob->pos.toVec4fPoint().getDist2(last_cam_pos);
-	if(dist2 <= load_distance2) // If object is inside of loading distance:
+	if(dist2 <= ob_load_dist2) // If object is inside of loading distance:
 	{
 		callbacks->loadObject(ob);
 		ob->loaded = true;
@@ -81,8 +83,9 @@ void ProximityLoader::objectTransformChanged(WorldObject* ob)
 	}
 
 	// Check for moving in/out of load distance.
-	const bool old_in_load_dist = ob->last_pos.toVec4fPoint().getDist2(last_cam_pos) <= load_distance2;
-	const bool new_in_load_dist = ob->pos     .toVec4fPoint().getDist2(last_cam_pos) <= load_distance2;
+	const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
+	const bool old_in_load_dist = ob->last_pos.toVec4fPoint().getDist2(last_cam_pos) <= ob_load_dist2;
+	const bool new_in_load_dist = ob->pos     .toVec4fPoint().getDist2(last_cam_pos) <= ob_load_dist2;
 	if(old_in_load_dist && !new_in_load_dist) // If object has moved out of load distance:
 	{
 		callbacks->unloadObject(ob);
@@ -117,7 +120,8 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 				{
 					WorldObject* ob = it->ptr();
 					const float new_dist2 = ob->pos.toVec4fPoint().getDist2(new_cam_pos);
-					if(new_dist2 > load_distance2) // If object is now outside of loading distance
+					const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
+					if(new_dist2 > ob_load_dist2) // If object is now outside of loading distance
 					{
 						if(ob->loaded)
 						{
@@ -150,7 +154,8 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 				{
 					WorldObject* ob = it->ptr();
 					const float new_dist2 = ob->pos.toVec4fPoint().getDist2(new_cam_pos);
-					if(new_dist2 <= load_distance2) // If object is now inside of loading distance
+					const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
+					if(new_dist2 <= ob_load_dist2) // If object is now inside of loading distance
 					{
 						if(!ob->loaded)
 						{

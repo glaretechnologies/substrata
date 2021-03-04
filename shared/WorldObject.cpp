@@ -46,6 +46,8 @@ WorldObject::WorldObject()
 	instance_index = 0;
 	num_instances = 0;
 	translation = Vec4f(0.f);
+
+	max_load_dist2 = 1000000000;
 }
 
 

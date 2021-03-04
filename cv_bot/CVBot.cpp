@@ -64,11 +64,18 @@ int main(int argc, char* argv[])
 		client_thread->enqueueDataToSend(packet);
 	}
 
-	// Wait until we have received parcel data.  This means we have received all objects
-	conPrint("Waiting for initial data to be received");
-	while(!client_thread->initial_state_received)
+	// Send GetAllObjects msg
 	{
-		PlatformUtils::Sleep(200);
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::GetAllObjects);
+		client_thread->enqueueDataToSend(packet);
+	}
+
+	// Wait until we have received all object data.
+	conPrint("Waiting for initial data to be received");
+	while(!client_thread->all_objects_received)
+	{
+		PlatformUtils::Sleep(20);
 		conPrintStr(".");
 	}
 
