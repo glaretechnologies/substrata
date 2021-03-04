@@ -155,7 +155,7 @@ public:
 
 	void killConnection();
 
-	bool initial_state_received;
+	bool all_objects_received;
 	Reference<WorldState> world_state;
 	UID client_avatar_uid;
 private:

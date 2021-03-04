@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2017 -
 CyberspaceProtocolVersion
 20: Added lightmap_url to WorldObject.
 21: Added parcel auction stuff
+22: Added grid object querying stuff
 
 */
 namespace Protocol
@@ -19,7 +20,7 @@ namespace Protocol
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 21;
+const uint32 CyberspaceProtocolVersion = 22;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -60,7 +61,8 @@ const uint32 ParcelFullUpdate		= 3103;
 const uint32 QueryParcels			= 3150;
 const uint32 ParcelList				= 3160;
 
-const uint32 InitialStateSent		= 3500;
+const uint32 GetAllObjects			= 3600; // Client wants to get all objects from server
+const uint32 AllObjectsSent			= 3601; // Server has sent all objects
 
 
 //TEMP HACK move elsewhere

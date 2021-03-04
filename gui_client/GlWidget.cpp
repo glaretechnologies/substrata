@@ -143,7 +143,7 @@ void GlWidget::paintGL()
 		const float lens_sensor_dist = lensSensorDist();
 		const float render_aspect_ratio = viewport_aspect_ratio;
 		opengl_engine->setViewport(viewport_w, viewport_h);
-		opengl_engine->setMaxDrawDistance(1000.f);
+		opengl_engine->setMaxDrawDistance(2000.f);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 		opengl_engine->setCurrentTime(current_time);
 		opengl_engine->draw();

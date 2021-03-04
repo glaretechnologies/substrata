@@ -75,11 +75,13 @@ public:
 		buckets[bucket_i].objects.erase(ob);
 	}
 
+#if GUI_CLIENT
 	inline void removeAtLastPos(const WorldObjectRef& ob)
 	{
 		unsigned int bucket_i = getBucketIndexForPoint(ob->last_pos.toVec4fPoint());
 		buckets[bucket_i].objects.erase(ob);
 	}
+#endif
 
 
 	inline const HashedObGridBucket& getBucketForIndices(const Vec4i& p) const
@@ -154,7 +156,11 @@ public:
 
 	void clearAllObjects();
 
-	inline bool isObjectInLoadProximity(const WorldObject* ob) { return ob->pos.toVec4fPoint().getDist2(last_cam_pos) <= load_distance2; }
+	inline bool isObjectInLoadProximity(const WorldObject* ob)
+	{
+		const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
+		return ob->pos.toVec4fPoint().getDist2(last_cam_pos) <= ob_load_dist2;
+	}
 
 	// Notify the ProximityLoader that an object has changed position
 	void objectTransformChanged(WorldObject* ob);
