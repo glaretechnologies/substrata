@@ -123,7 +123,7 @@ const int server_port = 7600;
 
 static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
 static const float ob_load_distance = 600.f;
-// See also // TEMP HACK: set a smaller max loading distance for CV features in ClientThread.cpp
+// See also  // TEMP HACK: set a smaller max loading distance for CV features in ClientThread.cpp
 
 AvatarGraphicsRef test_avatar;
 
