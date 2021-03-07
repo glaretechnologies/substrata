@@ -970,10 +970,11 @@ void WorkerThread::doRun()
 				}
 				case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
 				{
-					conPrint("QueryObjects");
 					const uint32 num_cells = socket->readUInt32();
 					if(num_cells > 100000)
 						throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
+
+					conPrint("QueryObjects, num_cells=" + toString(num_cells));
 
 					//conPrint("QueryObjects: num_cells " + toString(num_cells));
 					
@@ -985,7 +986,8 @@ void WorkerThread::doRun()
 						const int y = socket->readInt32();
 						const int z = socket->readInt32();
 
-						//conPrint("cell coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
+						if(i < 10)
+							conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
 
 						const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
 
