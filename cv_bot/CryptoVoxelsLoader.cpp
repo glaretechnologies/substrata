@@ -431,36 +431,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 					conPrint("HTTP Download failed: response code was " + toString(response_info.response_code) + ": " + response_info.response_message);
 				}
 			}
-
-			//// Download latest parcels.json
-			//Timer timer;
-			//conPrint("Downloading https://www.cryptovoxels.com/grid/parcels...");
-			//HTTPClient client;
-			//std::string parcels_json;
-			//HTTPClient::ResponseInfo response_info = client.downloadFile("https://www.cryptovoxels.com/grid/parcels", parcels_json);
-			//conPrint("\tDone.  (Elapsed: " + timer.elapsedStringNSigFigs(3) + ")");
-			//if(response_info.response_code != 200)
-			//	throw glare::Exception("HTTP Download failed: response code was " + toString(response_info.response_code) + ": " + response_info.response_message);
-
-			//try
-			//{
-			//	conPrint("saving to parcels.json");
-			//	FileUtils::writeEntireFile("D:/tempfiles/parcels.json", parcels_json);
-			//}
-			//catch(glare::Exception& e)
-			//{
-			//	conPrint(e.what());
-			//}
-
-			//parser.parseBuffer(parcels_json.data(), parcels_json.size());
 		}
-		else
-		{
-			//conPrint("Loading parcel data..");
-			//parser.parseFile("D:\\downloads\\parcels8.json");
-			//conPrint("Done.");
-		}
-
 
 		//const Vec3d final_offset_ws(600, 0, // Move to side of main parcels.
 		//	-0.9);// parcels seem to have 2 voxels of stuff 'underground', so offset loaded data downwards a bit, in order to embed intro ground plane at z = 0.
@@ -532,7 +503,6 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 		std::vector<unsigned char> data;
 		int total_num_voxels = 0;
 		uint64 next_uid = max_existing_uid + 1;
-		/////conPrint("Num parcels: " + toString(parcels_array.child_indices.size()));
 		for(int pz=0; pz<MAX_PARCEL_ID; ++pz)
 		{
 			conPrint("processing node " + toString(pz));
@@ -553,7 +523,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 
 			std::vector<Colour3f> parcel_cols = default_cols;
 
-			id = (int)parcel_node.getChildDoubleValueWithDefaultVal(parser, "id", 0.0);
+			id = (int)parcel_node.getChildDoubleValue(parser, "id");
 			//if(id != 177) continue; // 2 Cyber Junction (inverted doom skull)
 			//if(id != 863) continue; // 20 Tune Drive (maze)
 			//if(id != 50) continue; // house of pepe
