@@ -136,7 +136,7 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 
 				num_iters++;
 			}
-			printVar(num_iters);
+			//printVar(num_iters);
 		}
 
 		// Iterate over grid cells around new_cam_pos
