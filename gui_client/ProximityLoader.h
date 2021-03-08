@@ -151,6 +151,8 @@ public:
 	ProximityLoader(float load_distance);
 	~ProximityLoader();
 
+	void setLoadDistance(float new_load_distance);
+
 	void checkAddObject(WorldObjectRef ob); // Add object it not already added
 	void removeObject(WorldObjectRef ob);
 
