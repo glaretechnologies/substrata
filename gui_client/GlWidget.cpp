@@ -57,6 +57,7 @@ GlWidget::GlWidget(QWidget *parent)
 	OpenGLEngineSettings settings;
 	settings.shadow_mapping = true;
 	settings.compress_textures = true;
+	settings.depth_fog = true;
 	opengl_engine = new OpenGLEngine(settings);
 
 	SHIFT_down = false;
