@@ -65,7 +65,7 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 			{
 				if(ob->loaded)
 				{
-					conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
+					//conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
 					callbacks->unloadObject(ob);
 					ob->loaded = false;
 				}
@@ -74,7 +74,7 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 			{
 				if(!ob->loaded)
 				{
-					conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
+					//conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
 					callbacks->loadObject(ob);
 					ob->loaded = true;
 				}
@@ -92,7 +92,7 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 			x <= old_end[0]   && y <= old_end[1]   && z <= old_end[2];
 		if(is_in_new_cells && !is_in_old_cells)
 		{
-			conPrint("setLoadDistance(): Loading cell " + cell_coords.toString());
+			//conPrint("setLoadDistance(): Loading cell " + cell_coords.toString());
 			callbacks->newCellInProximity(cell_coords);
 		}
 
