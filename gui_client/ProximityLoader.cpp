@@ -32,6 +32,76 @@ ProximityLoader::~ProximityLoader()
 {}
 
 
+void ProximityLoader::setLoadDistance(float new_load_distance)
+{
+	const Vec4i old_begin = ob_grid.bucketIndicesForPoint(last_cam_pos - Vec4f(load_distance, load_distance, load_distance, 0));
+	const Vec4i old_end   = ob_grid.bucketIndicesForPoint(last_cam_pos + Vec4f(load_distance, load_distance, load_distance, 0));
+
+	const float upper_dist = myMax(load_distance, new_load_distance);
+	this->load_distance = new_load_distance;
+	this->load_distance2 = new_load_distance*new_load_distance;
+	
+
+	const Vec4i new_begin = ob_grid.bucketIndicesForPoint(last_cam_pos - Vec4f(new_load_distance, new_load_distance, new_load_distance, 0));
+	const Vec4i new_end   = ob_grid.bucketIndicesForPoint(last_cam_pos + Vec4f(new_load_distance, new_load_distance, new_load_distance, 0));
+
+	const Vec4i upper_begin = ob_grid.bucketIndicesForPoint(last_cam_pos - Vec4f(upper_dist, upper_dist, upper_dist, 0));
+	const Vec4i upper_end   = ob_grid.bucketIndicesForPoint(last_cam_pos + Vec4f(upper_dist, upper_dist, upper_dist, 0));
+
+
+	int num_iters = 0;
+	for(int z = upper_begin[2]; z <= upper_end[2]; ++z)
+	for(int y = upper_begin[1]; y <= upper_end[1]; ++y)
+	for(int x = upper_begin[0]; x <= upper_end[0]; ++x)
+	{
+		const HashedObGridBucket& bucket = ob_grid.getBucketForIndices(x, y, z);
+		for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
+		{
+			WorldObject* ob = it->ptr();
+			const float dist2 = ob->pos.toVec4fPoint().getDist2(last_cam_pos);
+			const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
+
+			if(dist2 > ob_load_dist2) // If object is (now) outside of loading distance
+			{
+				if(ob->loaded)
+				{
+					conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
+					callbacks->unloadObject(ob);
+					ob->loaded = false;
+				}
+			}
+			else // If object is (now) inside of loading distance
+			{
+				if(!ob->loaded)
+				{
+					conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
+					callbacks->loadObject(ob);
+					ob->loaded = true;
+				}
+			}
+		}
+
+		//old_cells.insert(Vec3<int>(x, y, z));
+
+		const Vec3<int> cell_coords(x, y, z);
+		const bool is_in_new_cells =
+			x >= new_begin[0] && y >= new_begin[1] && z >= new_begin[2] &&
+			x <= new_end[0]   && y <= new_end[1]   && z <= new_end[2];
+		const bool is_in_old_cells =
+			x >= old_begin[0] && y >= old_begin[1] && z >= old_begin[2] &&
+			x <= old_end[0]   && y <= old_end[1]   && z <= old_end[2];
+		if(is_in_new_cells && !is_in_old_cells)
+		{
+			conPrint("setLoadDistance(): Loading cell " + cell_coords.toString());
+			callbacks->newCellInProximity(cell_coords);
+		}
+
+		num_iters++;
+	}
+	//printVar(num_iters);
+}
+
+
 void ProximityLoader::checkAddObject(WorldObjectRef ob)
 {
 	//conPrint("ProximityLoader:checkAddObject(): Adding ob " + ob->uid.toString() + " at " + ob->pos.toString());

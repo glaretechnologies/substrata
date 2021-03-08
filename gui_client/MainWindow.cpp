@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "UserDetailsWidget.h"
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
+#include "MainOptionsDialog.h"
 #include "ModelLoading.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
@@ -187,6 +188,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 
 	settings = new QSettings("Glare Technologies", "Cyberspace");
+
+	proximity_loader.setLoadDistance((float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble());
 
 	// Restore main window geometry and state
 	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
@@ -3612,6 +3615,17 @@ void MainWindow::on_actionAbout_Substrata_triggered()
 {
 	AboutDialog d(this, appdata_path);
 	d.exec();
+}
+
+
+void MainWindow::on_actionOptions_triggered()
+{
+	MainOptionsDialog d(this->settings);
+	const int code = d.exec();
+	if(code == QDialog::Accepted)
+	{
+		this->proximity_loader.setLoadDistance((float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble());
+	}
 }
 
 

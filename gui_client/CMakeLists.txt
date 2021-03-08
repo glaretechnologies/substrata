@@ -30,6 +30,7 @@ addMocFileRule(gui_client MaterialBrowser)
 addMocFileRule(gui_client IndigoView)
 addMocFileRule(gui_client ShaderEditorDialog)
 addMocFileRule(gui_client AboutDialog)
+addMocFileRule(gui_client MainOptionsDialog)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -52,6 +53,7 @@ addUIFileRule(gui_client ChangePasswordDialog)
 addUIFileRule(gui_client MaterialBrowser)
 addUIFileRule(gui_client ShaderEditorDialog)
 addUIFileRule(gui_client AboutDialog)
+addUIFileRule(gui_client MainOptionsDialog)
 
 addUIFileRule(qt FileSelectWidget)
 addUIFileRule(qt RealControl)
@@ -81,6 +83,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_MaterialBrowser.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_IndigoView.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ShaderEditorDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
@@ -97,6 +100,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_ChangePasswordDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MaterialBrowser.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ShaderEditorDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AboutDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_MainOptionsDialog.h
 )
 
 SET(qt
