@@ -16,6 +16,7 @@ Code By Nicholas Chapman.
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
+struct tls_config;
 
 
 /*=====================================================================
@@ -26,7 +27,7 @@ ListenerThread
 class ListenerThread : public MessageableThread
 {
 public:
-	ListenerThread(int listenport, Server* server);
+	ListenerThread(int listenport, Server* server, struct ::tls_config* tls_configuration);
 
 	virtual ~ListenerThread();
 
@@ -40,4 +41,6 @@ private:
 	//ThreadManager thread_manager;
 
 	Server* server;
+
+	struct tls_config* tls_configuration;
 };

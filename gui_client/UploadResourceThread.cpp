@@ -8,7 +8,8 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 #include "../shared/Protocol.h"
-#include "MySocket.h"
+#include <MySocket.h>
+#include <TLSSocket.h>
 #include <ConPrint.h>
 #include <vec3.h>
 #include <Exception.h>
@@ -19,14 +20,15 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 UploadResourceThread::UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& local_path_, const std::string& resource_URL_, 
-										   const std::string& hostname_, int port_, const std::string& username_, const std::string& password_)
+										   const std::string& hostname_, int port_, const std::string& username_, const std::string& password_, struct tls_config* config_)
 :	//out_msg_queue(out_msg_queue_),
 	local_path(local_path_),
 	resource_URL(resource_URL_),
 	hostname(hostname_),
 	port(port_),
 	username(username_),
-	password(password_)
+	password(password_),
+	config(config_)
 {}
 
 
@@ -42,8 +44,10 @@ void UploadResourceThread::doRun()
 	{
 		//conPrint("UploadResourceThread: Connecting to " + hostname + ":" + toString(port) + "...");
 
-		MySocketRef socket = new MySocket(hostname, port);
-		socket->setUseNetworkByteOrder(false);
+		MySocketRef plain_socket = new MySocket(hostname, port);
+		plain_socket->setUseNetworkByteOrder(false);
+
+		TLSSocketRef socket = new TLSSocket(plain_socket, config, hostname);
 
 		//conPrint("UploadResourceThread: Connected to " + hostname + ":" + toString(port) + "!");
 

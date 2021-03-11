@@ -8,7 +8,8 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 #include "../shared/Protocol.h"
-#include "MySocket.h"
+#include <MySocket.h>
+#include <TLSSocket.h>
 #include <ConPrint.h>
 #include <vec3.h>
 #include <Exception.h>
@@ -20,13 +21,14 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_, const std::string& hostname_, int port_, 
-	glare::AtomicInt* num_resources_downloading_)
+	glare::AtomicInt* num_resources_downloading_, struct tls_config* config_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	//resources_dir(resources_dir_),
 	resource_manager(resource_manager_),
 	port(port_),
-	num_resources_downloading(num_resources_downloading_)
+	num_resources_downloading(num_resources_downloading_),
+	config(config_)
 {}
 
 
@@ -73,8 +75,10 @@ void DownloadResourcesThread::doRun()
 	{
 		conPrint("DownloadResourcesThread: Connecting to " + hostname + ":" + toString(port) + "...");
 
-		MySocketRef socket = new MySocket(hostname, port);
-		socket->setUseNetworkByteOrder(false);
+		MySocketRef plain_socket = new MySocket(hostname, port);
+		plain_socket->setUseNetworkByteOrder(false);
+
+		TLSSocketRef socket = new TLSSocket(plain_socket, config, hostname);
 
 		conPrint("DownloadResourcesThread: Connected to " + hostname + ":" + toString(port) + "!");
 

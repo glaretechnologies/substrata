@@ -22,6 +22,7 @@ class PrintOutput;
 class ThreadMessageSink;
 class Server;
 class MainWindow;
+struct tls_config;
 
 
 class ChatMessage : public ThreadMessage
@@ -143,7 +144,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
-		const std::string& avatar_URL, const std::string& world_name);
+		const std::string& avatar_URL, const std::string& world_name, struct tls_config* config);
 	virtual ~ClientThread();
 
 	virtual void doRun();
@@ -165,7 +166,8 @@ private:
 	EventFD event_fd;
 	std::string hostname;
 	int port;
-	MySocketRef socket;
+	SocketInterfaceRef socket;
 	std::string avatar_URL;
 	std::string world_name;
+	struct tls_config* config;
 };

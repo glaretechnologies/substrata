@@ -36,7 +36,7 @@ static const bool VERBOSE = false;
 static const int MAX_STRING_LEN = 10000;
 
 
-WorkerThread::WorkerThread(int thread_id_, const Reference<MySocket>& socket_, Server* server_)
+WorkerThread::WorkerThread(int thread_id_, const Reference<SocketInterface>& socket_, Server* server_)
 :	socket(socket_),
 	server(server_)
 {
@@ -92,7 +92,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 }
 
 
-static void writeErrorMessageToClient(MySocketRef& socket, const std::string& msg)
+static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::string& msg)
 {
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 	packet.writeUInt32(Protocol::ErrorMessageID);
@@ -535,22 +535,25 @@ void WorkerThread::doRun()
 
 			// Send all current avatar state data to client
 			{
-				Lock lock(world_state->mutex);
-				for(auto it = cur_world_state->avatars.begin(); it != cur_world_state->avatars.end(); ++it)
-				{
-					const Avatar* avatar = it->second.getPointer();
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
-					// Send AvatarCreated packet
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::AvatarCreated);
-					writeToStream(avatar->uid, packet);
-					packet.writeStringLengthFirst(avatar->name);
-					packet.writeStringLengthFirst(avatar->model_url);
-					writeToStream(avatar->pos, packet);
-					writeToStream(avatar->rotation, packet);
+				{ // Lock scope
+					Lock lock(world_state->mutex);
+					for(auto it = cur_world_state->avatars.begin(); it != cur_world_state->avatars.end(); ++it)
+					{
+						const Avatar* avatar = it->second.getPointer();
 
-					socket->writeData(packet.buf.data(), packet.buf.size());
-				}
+						// Send AvatarCreated message
+						packet.writeUInt32(Protocol::AvatarCreated);
+						writeToStream(avatar->uid, packet);
+						packet.writeStringLengthFirst(avatar->name);
+						packet.writeStringLengthFirst(avatar->model_url);
+						writeToStream(avatar->pos, packet);
+						writeToStream(avatar->rotation, packet);
+					}
+				} // End lock scope
+
+				socket->writeData(packet.buf.data(), packet.buf.size());
 			}
 
 			// Send all current object data to client
@@ -570,17 +573,21 @@ void WorkerThread::doRun()
 
 			// Send all current parcel data to client
 			{
-				Lock lock(world_state->mutex);
-				for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
-				{
-					const Parcel* parcel = it->second.getPointer();
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 
-					// Send ParcelCreated packet
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::ParcelCreated);
-					writeToNetworkStream(*parcel, packet);
-					socket->writeData(packet.buf.data(), packet.buf.size());
-				}
+				{ // Lock scope
+					Lock lock(world_state->mutex);
+					for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
+					{
+						const Parcel* parcel = it->second.getPointer();
+
+						// Send ParcelCreated message
+						packet.writeUInt32(Protocol::ParcelCreated);
+						writeToNetworkStream(*parcel, packet);
+					}
+				} // End lock scope
+
+				socket->writeData(packet.buf.data(), packet.buf.size());
 			}
 
 			// Send a message saying we have sent all initial state
@@ -660,6 +667,9 @@ void WorkerThread::doRun()
 						conPrint("AvatarFullUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
 
+						Avatar temp_avatar;
+						readFromNetworkStreamGivenUID(*socket, temp_avatar); // Read message data before grabbing lock
+
 						// Look up existing avatar in world state
 						{
 							Lock lock(world_state->mutex);
@@ -667,12 +677,14 @@ void WorkerThread::doRun()
 							if(res != cur_world_state->avatars.end())
 							{
 								Avatar* avatar = res->second.getPointer();
-								readFromNetworkStreamGivenUID(*socket, *avatar);
+								avatar->name = temp_avatar.name;
+								avatar->model_url = temp_avatar.model_url;
+								avatar->pos = temp_avatar.pos;
+								avatar->rotation = temp_avatar.rotation;
 								avatar->other_dirty = true;
 
 								//conPrint("updated avatar transform");
 							}
-							// TODO: read data even if no such avatar inserted.
 						}
 						break;
 					}
@@ -749,6 +761,7 @@ void WorkerThread::doRun()
 						}
 						else
 						{
+							std::string err_msg_to_client;
 							// Look up existing object in world state
 							{
 								Lock lock(world_state->mutex);
@@ -759,7 +772,7 @@ void WorkerThread::doRun()
 
 									// See if the user has permissions to alter this object:
 									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name))
-										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
+										err_msg_to_client = "You must be the owner of this object to change it.";
 									else
 									{
 										ob->pos = pos;
@@ -771,7 +784,10 @@ void WorkerThread::doRun()
 
 									//conPrint("updated object transform");
 								}
-							}
+							} // End lock scope
+
+							if(!err_msg_to_client.empty())
+								writeErrorMessageToClient(socket, err_msg_to_client);
 						}
 
 						break;
@@ -1359,7 +1375,8 @@ void WorkerThread::doRun()
 					}
 				default:			
 					{
-						conPrint("Unknown message id: " + toString(msg_type));
+						//conPrint("Unknown message id: " + toString(msg_type));
+						throw glare::Exception("Unknown message id: " + toString(msg_type));
 					}
 				}
 			}
