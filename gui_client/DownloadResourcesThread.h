@@ -22,6 +22,7 @@ class PrintOutput;
 class ThreadMessageSink;
 class Server;
 namespace glare { class AtomicInt; }
+struct tls_config;
 
 
 class DownloadResourceMessage : public ThreadMessage
@@ -61,7 +62,7 @@ class DownloadResourcesThread : public MessageableThread
 {
 public:
 	DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager, const std::string& hostname, int port,
-		glare::AtomicInt* num_resources_downloading_);
+		glare::AtomicInt* num_resources_downloading_, struct tls_config* config);
 	virtual ~DownloadResourcesThread();
 
 	virtual void doRun();
@@ -73,4 +74,5 @@ private:
 	//std::string resources_dir;
 	int port;
 	glare::AtomicInt* num_resources_downloading;
+	struct tls_config* config;
 };

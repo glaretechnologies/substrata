@@ -93,6 +93,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/imformatdecoder.h"
 #include <clocale>
 #include <zlib.h>
+#include <tls.h>
 
 #include "../physics/TreeTest.h" // Just for testing
 #include "../utils/VectorUnitTests.h" // Just for testing
@@ -148,7 +149,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	selected_ob_picked_up(false),
 	process_model_loaded_next(true),
 	done_screenshot_setup(false),
-	proximity_loader(/*load distance=*/ob_load_distance)
+	proximity_loader(/*load distance=*/ob_load_distance),
+	client_tls_config(NULL)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -280,6 +282,14 @@ void MainWindow::initialise()
 	lightmap_flag_timer = new QTimer(this);
 	lightmap_flag_timer->setSingleShot(true);
 	connect(lightmap_flag_timer, SIGNAL(timeout()), this, SLOT(sendLightmapNeededFlagsSlot()));
+
+
+	// Create and init TLS client config
+	client_tls_config = tls_config_new();
+	if(!client_tls_config)
+		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
+	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
+	tls_config_insecure_noverifyname(client_tls_config);
 }
 
 
@@ -309,6 +319,9 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
+	if(this->client_tls_config)
+		tls_config_free(this->client_tls_config);
+
 	// Save resources DB to disk if it has un-saved changes.
 	const std::string resources_db_path = appdata_path + "/resources_db";
 	try
@@ -1712,7 +1725,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const std::string username = QtUtils::toStdString(settings->value("LoginDialog/username").toString());
 						const std::string password = LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString()));
 
-						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password));
+						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password, this->client_tls_config));
 						print("Received GetFileMessage, Uploading resource with URL '" + m->URL + "' to server.");
 					}
 					else
@@ -4005,11 +4018,11 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 		avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
 	const std::string avatar_URL = resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
 
-	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL, server_worldname);
+	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL, server_worldname, this->client_tls_config);
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
-	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading));
+	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config));
 
 	if(physics_world.isNull())
 		physics_world = new PhysicsWorld();

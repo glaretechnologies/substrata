@@ -16,11 +16,13 @@ Code By Nicholas Chapman.
 #include <PlatformUtils.h>
 #include <KillThreadMessage.h>
 #include <Exception.h>
+#include <Timer.h>
+#include <tls.h>
+#include <TLSSocket.h>
 
 
-
-ListenerThread::ListenerThread(int listenport_, Server* server_)
-:	listenport(listenport_), server(server_)
+ListenerThread::ListenerThread(int listenport_, Server* server_, struct tls_config* tls_configuration_)
+:	listenport(listenport_), server(server_), tls_configuration(tls_configuration_)
 {
 }
 
@@ -32,6 +34,7 @@ ListenerThread::~ListenerThread()
 
 void ListenerThread::doRun()
 {
+	struct tls* tls_context = NULL;
 	try
 	{
 		MySocketRef sock;
@@ -61,17 +64,39 @@ void ListenerThread::doRun()
 		else
 			throw MySocketExcep("Failed to bind and listen.");
 
+		if(tls_configuration)
+		{
+			tls_context = tls_server();
+			if(!tls_context)
+				throw glare::Exception("Failed to create tls_context.");
+			if(tls_configure(tls_context, tls_configuration) == -1)
+				throw glare::Exception("tls_configure failed: " + getTLSErrorString(tls_context));
+		}
+
 		int next_thread_id = 0;
 		while(1)
 		{
-			MySocketRef workersock = sock->acceptConnection(); // Blocks
-			workersock->setUseNetworkByteOrder(false);
+			MySocketRef plain_worker_sock = sock->acceptConnection(); // Blocks
+			plain_worker_sock->setUseNetworkByteOrder(false);
 
-			conPrint("Client connected from " + IPAddress::formatIPAddressAndPort(workersock->getOtherEndIPAddress(), workersock->getOtherEndPort()));
+			conPrint("Client connected from " + IPAddress::formatIPAddressAndPort(plain_worker_sock->getOtherEndIPAddress(), plain_worker_sock->getOtherEndPort()));
 
+			// Create TLSSocket (tls_context) for worker thread/socket if this is configured as a TLS connection.
+			SocketInterfaceRef use_socket = plain_worker_sock;
+			if(tls_context)
+			{
+				struct tls* worker_tls_context = NULL;
+				if(tls_accept_socket(tls_context, &worker_tls_context, (int)plain_worker_sock->getSocketHandle()) != 0)
+					throw glare::Exception("tls_accept_socket failed: " + getTLSErrorString(tls_context));
+
+				TLSSocketRef worker_tls_socket = new TLSSocket(plain_worker_sock, worker_tls_context);
+				use_socket = worker_tls_socket; // use_socket will be a TLS socket after this.
+			}
+			
+			// Handle the connection in a worker thread.
 			Reference<WorkerThread> worker_thread = new WorkerThread(
 				next_thread_id,
-				workersock,
+				use_socket,
 				server
 			);
 
@@ -97,6 +122,10 @@ void ListenerThread::doRun()
 	{
 		conPrint("ListenerThread glare::Exception: " + e.what());
 	}
+
+	if(tls_context != NULL)
+		tls_free(tls_context); // Free TLS context.
+
 	
 
 	// Kill the child WorkerThread threads now

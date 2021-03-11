@@ -38,6 +38,7 @@ class URLWidget;
 class QLabel;
 class ModelLoadedThreadMessage;
 class TextureLoadedThreadMessage;
+struct tls_config;
 
 
 class MainWindow : public QMainWindow, public ObLoadingCallbacks
@@ -330,4 +331,7 @@ public:
 	int screenshot_highlight_parcel_id;
 	std::string screenshot_output_path;
 	bool done_screenshot_setup;
+
+private:
+	struct tls_config* client_tls_config;
 };

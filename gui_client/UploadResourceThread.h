@@ -20,7 +20,7 @@ class WorkUnit;
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
-
+struct tls_config;
 
 
 /*=====================================================================
@@ -32,7 +32,7 @@ class UploadResourceThread : public MessageableThread
 {
 public:
 	UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& local_path, const std::string& resource_URL, const std::string& hostname, int port,
-		const std::string& username, const std::string& password);
+		const std::string& username, const std::string& password, struct tls_config* config);
 	virtual ~UploadResourceThread();
 
 	virtual void doRun();
@@ -43,4 +43,5 @@ private:
 	std::string hostname;
 	std::string username, password;
 	int port;
+	struct tls_config* config;
 };

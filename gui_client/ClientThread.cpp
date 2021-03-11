@@ -8,7 +8,8 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 #include "WorldState.h"
-#include "MySocket.h"
+#include <MySocket.h>
+#include <TLSSocket.h>
 #include "MainWindow.h"
 #include "../shared/Protocol.h"
 #include "../shared/Parcel.h"
@@ -24,23 +25,23 @@ static const bool VERBOSE = false;
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
-						   const std::string& avatar_URL_, const std::string& world_name_)
+						   const std::string& avatar_URL_, const std::string& world_name_, struct tls_config* config_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
 	avatar_URL(avatar_URL_),
 	world_name(world_name_),
-	all_objects_received(false)
+	all_objects_received(false),
+	config(config_)
 {
-	socket = new MySocket();
-	socket->setUseNetworkByteOrder(false);
+	MySocketRef mysocket = new MySocket();
+	mysocket->setUseNetworkByteOrder(false);
+	socket = mysocket;
 }
 
 
 ClientThread::~ClientThread()
-{
-	
-}
+{}
 
 
 void ClientThread::kill()
@@ -66,7 +67,9 @@ void ClientThread::doRun()
 
 		out_msg_queue->enqueue(new ClientConnectingToServerMessage());
 
-		socket->connect(hostname, port);
+		socket.downcast<MySocket>()->connect(hostname, port);
+
+		socket = new TLSSocket(socket.downcast<MySocket>(), config, hostname);
 
 		conPrint("ClientThread Connected to " + hostname + ":" + toString(port) + "!");
 

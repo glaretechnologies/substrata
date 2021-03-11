@@ -358,15 +358,15 @@ int main(int argc, char *argv[])
 		//-------------------------------- Launch webserver ---------------------------------------------------------
 
 		// Create TLS configuration
-		struct tls_config* tls_configuration = tls_config_new();
+		struct tls_config* web_tls_configuration = tls_config_new();
 
 #ifdef WIN32
 		// Skip TLS stuff when testing on windows for now.
 #else
-		if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+		if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
 			throw glare::Exception("tls_config_set_cert_file failed.");
-
-		if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0)
+		 // set private key
+		if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #endif
 
@@ -393,14 +393,35 @@ int main(int argc, char *argv[])
 
 		ThreadManager web_thread_manager;
 		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
-		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), tls_configuration));
+		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), web_tls_configuration));
 
 
 		//-----------------------------------------------------------------------------------------
 
 
+		// Create TLS configuration for substrata protocol server
+		struct tls_config* tls_configuration = tls_config_new();
+
+#ifdef WIN32
+		// NOTE: key generated with 
+		// cd D:\programming\LibreSSL\libressl-2.8.3-x64-vs2019-install\bin
+		// openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key
+		if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
+			throw glare::Exception("tls_config_set_cert_file failed.");
+		
+		if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
+			throw glare::Exception("tls_config_set_key_file failed.");
+#else
+		// For now just use our web Let's Encrypt cert and private key.
+		if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+			throw glare::Exception("tls_config_set_cert_file failed.");
+
+		if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
+			throw glare::Exception("tls_config_set_key_file failed.");
+#endif
+
 		ThreadManager thread_manager;
-		thread_manager.addThread(new ListenerThread(listen_port, &server));
+		thread_manager.addThread(new ListenerThread(listen_port, &server, tls_configuration));
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
 
 		Timer save_state_timer;
