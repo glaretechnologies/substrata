@@ -410,11 +410,15 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
 			emit cameraUpdated();
 
-		// Reset the cursor position to where we started, so we never run out of space to move.
-		// QCursor::setPos() does not work on mac, we so need to read the cursor pos back in order to get the new mouse move origin,
-		// since the cursor pos may or may not have actually been updated.
-		QCursor::setPos(mouse_move_origin);
+
+		// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.
+		// QCursor::setPos() does not work on mac, and also gives a message about Substrata trying to control the computer, which we want to avoid.
+		// So don't use setPos() on Mac.
+#if defined(OSX)
 		mouse_move_origin = QCursor::pos();
+#else
+		QCursor::setPos(mouse_move_origin);
+#endif
 
 		emit mouseMoved(e);
 
