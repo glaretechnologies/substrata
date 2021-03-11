@@ -413,10 +413,10 @@ int main(int argc, char *argv[])
 			throw glare::Exception("tls_config_set_key_file failed.");
 #else
 		// For now just use our web Let's Encrypt cert and private key.
-		if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+		if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
 			throw glare::Exception("tls_config_set_cert_file failed.");
 
-		if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
+		if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #endif
 
