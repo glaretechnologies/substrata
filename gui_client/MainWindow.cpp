@@ -1008,7 +1008,7 @@ void MainWindow::showInfoNotification(const std::string& message)
 }
 
 
-void MainWindow::evalObjectScript(WorldObject* ob, double global_time)
+void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 {
 	CybWinterEnv winter_env;
 	winter_env.instance_index = ob->instance_index;
@@ -1016,7 +1016,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, double global_time)
 
 	if(ob->script_evaluator->jitted_evalRotation)
 	{
-		const Vec4f rot = ob->script_evaluator->evalRotation((float)global_time, winter_env);
+		const Vec4f rot = ob->script_evaluator->evalRotation(use_global_time, winter_env);
 		ob->angle = rot.length();
 		if(isFinite(ob->angle))
 		{
@@ -1036,7 +1036,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, double global_time)
 	{
 		if(ob->prototype_object.nonNull())
 			ob->pos = ob->prototype_object->pos;
-		ob->translation = ob->script_evaluator->evalTranslation((float)global_time, winter_env);
+		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
 	}
 
 	// Update transform in 3d engine
@@ -1849,11 +1849,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		Lock lock(this->world_state->mutex);
 
+		// When float values get too large, the gap between successive values gets greater than the frame period,
+		// resulting in 'jumpy' transformations.  So mod the double value down to a smaller range (that wraps e.g. once per day)
+		// and then cast to float.
+		const float use_global_time = (float)Maths::doubleMod(global_time, 3600 * 24);
+
 		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 		{
 			WorldObject* ob = it->second.getPointer();
 			if(ob->script_evaluator.nonNull())
-				evalObjectScript(ob, global_time);
+				evalObjectScript(ob, use_global_time);
 		}
 
 		// Evaluate scripts on instances
@@ -1861,7 +1866,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			WorldObject* ob = it->getPointer();
 			if(ob->script_evaluator.nonNull())
-				evalObjectScript(ob, global_time);
+				evalObjectScript(ob, use_global_time);
 		}
 	}
 

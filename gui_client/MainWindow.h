@@ -115,7 +115,7 @@ private:
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResourcesForObject(WorldObject* ob);
 	void startDownloadingResource(const std::string& url); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
-	void evalObjectScript(WorldObject* ob, double cur_time);
+	void evalObjectScript(WorldObject* ob, float use_global_time);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
