@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <StringUtils.h>
 #include <GlareProcess.h>
 #include <CryptoRNG.h>
+#include <tls.h>
 
 
 // TODO: do authentication
@@ -35,7 +36,15 @@ int main(int argc, char* argv[])
 	TLSSocket::initTLS();
 
 
-	while(1) // While lightmapper bot should keep running:
+	// Create and init TLS client config
+	struct tls_config* client_tls_config = tls_config_new();
+	if(!client_tls_config)
+		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
+	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
+	tls_config_insecure_noverifyname(client_tls_config);
+
+
+	while(1) // While screenshot bot should keep running:
 	{
 		// Connect to substrata server
 		try
@@ -46,11 +55,13 @@ int main(int argc, char* argv[])
 
 			conPrint("Connecting to " + server_hostname + ":" + toString(server_port) + "...");
 
-			MySocketRef socket = new MySocket();
-			socket->setUseNetworkByteOrder(false);
-			socket->connect(server_hostname, server_port);
+			MySocketRef plain_socket = new MySocket();
+			plain_socket->setUseNetworkByteOrder(false);
+			plain_socket->connect(server_hostname, server_port);
 
 			conPrint("Connected to " + server_hostname + ":" + toString(server_port) + "!");
+
+			SocketInterfaceRef socket = new TLSSocket(plain_socket, client_tls_config, server_hostname);
 
 			socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
 			socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
