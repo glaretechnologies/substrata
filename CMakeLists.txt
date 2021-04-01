@@ -139,8 +139,7 @@ Library versions:")
 
 
 # External library directory (apart from llvm, openssl and Qt)
-set(jpegdir		"${INDIGO_LIBS_ENV}/libjpeg-turbo-master")
-set(tiffdir		"${INDIGO_LIBS_ENV}/tiff-3.8.2/libtiff")
+set(tiffdir		"${INDIGO_TRUNK_DIR_ENV}/tiff-3.8.2/libtiff")
 set(ilmbasedir	"${INDIGO_TRUNK_DIR_ENV}/IlmBase")
 set(openexrdir	"${INDIGO_TRUNK_DIR_ENV}/OpenEXR")
 set(zlibdir		"${INDIGO_TRUNK_DIR_ENV}/zlib-1.2.11")
@@ -161,14 +160,13 @@ message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 SET(INDIGO_LLVM_VERSION 6.0.0)
 SET(INDIGO_LIBRESSL_VERSION 2.8.3)
 SET(INDIGO_OPENSSL_VERSION 1.0.2a)
-SET(LIBJPEG_TURBO_DIR 1.0.2a)
 
 SET(INDIGO_USE_SANITIZER "")
 
 if(WIN32)
-	set(LIBJPEG_TURBO_DIR "${INDIGO_LIBS_ENV}/libjpeg-turbo-builds/vs_${CYBERSPACE_VS_VER}_64")
+	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
-	set(LIBJPEG_TURBO_DIR "${INDIGO_LIBS_ENV}/libjpeg-turbo-builds/build")
+	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-install")
 endif()
 
 
@@ -193,7 +191,7 @@ MESSAGE("LLVM version: ${INDIGO_LLVM_VERSION}")
 MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
 MESSAGE("OpenSSL version: ${INDIGO_OPENSSL_VERSION}")
 MESSAGE("QT dir: ${INDIGO_QT_DIR}")
-MESSAGE("LibJPEG Turbo dir: ${LIBJPEG_TURBO_DIR}")
+MESSAGE("LibJPEG Turbo dir: ${jpegturbodir}")
 MESSAGE("MySQL connector dir: ${MYSQL_CONNECTOR_DIR}")
 
 # LLVM, LibreSSL, OpenSSL
