@@ -860,6 +860,28 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
+				case Protocol::ObjectModelURLChanged:
+					{
+						//conPrint("ObjectModelURLChanged");
+						const UID object_uid = readUIDFromStream(*socket);
+						const std::string new_model_url = socket->readStringLengthFirst(10000);
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = cur_world_state->objects.find(object_uid);
+							if(res != cur_world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+					
+								ob->model_url = new_model_url;
+
+								ob->from_remote_other_dirty = true;
+								cur_world_state->dirty_from_remote_objects.insert(ob);
+							}
+						}
+						break;
+					}
 				case Protocol::ObjectFlagsChanged:
 					{
 						//conPrint("ObjectFlagsChanged");

@@ -49,6 +49,7 @@ protected:
 
 signals:;
 	void objectChanged();
+	void bakeObjectLightmap();
 	
 private slots:
 	void on_visitURLLabel_linkActivated(const QString& link);
@@ -58,6 +59,7 @@ private slots:
 	void scriptTextEditChanged();
 	void scriptChangedFromEditor();
 	void on_editScriptPushButton_clicked(bool checked);
+	void on_bakeLightmapPushButton_clicked(bool checked);
 	void editTimerTimeout();
 
 private:

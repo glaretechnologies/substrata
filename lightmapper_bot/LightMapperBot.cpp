@@ -305,8 +305,14 @@ public:
 
 					PlatformUtils::Sleep(50);
 
-					if(wait_timer.elapsed() > 30)
-						throw glare::Exception("Failed to download all resources for objects");// with UID " + ob->uid.toString());
+					//if(wait_timer.elapsed() > 30)
+					//	throw glare::Exception("Failed to download all resources for objects");// with UID " + ob->uid.toString());
+
+					if(wait_timer.elapsed() > 15)
+					{
+						conPrint("Failed to download all resources for objects, continuing anyway...");
+						break;
+					}
 				}
 
 
@@ -389,10 +395,13 @@ public:
 
 							// Send the updated object, with the new model URL, to the server.
 
-							// Enqueue ObjectFullUpdate
+							conPrint("Sending unwrapped model '" + mesh_URL + "' to server...");
+
+							// Send ObjectModelURLChanged message to server
 							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectFullUpdate);
-							ob_to_lightmap->writeToNetworkStream(packet);
+							packet.writeUInt32(Protocol::ObjectModelURLChanged);
+							writeToStream(ob_uid, packet);
+							packet.writeStringLengthFirst(mesh_URL);
 
 							this->client_thread->enqueueDataToSend(packet);
 
@@ -510,7 +519,7 @@ public:
 				settings_node->light_map_baking_ob_uid.setValue(light_map_baking_ob_uid.value()); // Enable light map baking
 				settings_node->generate_lightmap_uvs.setValue(false);
 				settings_node->capture_direct_sun_illum.setValue(false);
-				settings_node->image_save_period.setValue(2);
+				//settings_node->image_save_period.setValue(2); // Save often for progressive rendering and uploads
 				settings_node->save_png.setValue(false);
 				settings_node->merging.setValue(false); // Needed for now
 				root_node->addChildNode(settings_node);
@@ -582,11 +591,12 @@ public:
 							if(!isAllWhitespace(lines[i]))
 								conPrint("INDIGO> " + lines[i]);
 
-						for(size_t i=0; i<lines.size(); ++i)
-							if(hasPrefix(lines[i], "Saving untone-mapped EXR to"))
-							{
-								compressAndUploadLightmap(lightmap_exr_path, ob_uid, lightmap_index);
-							}
+						// Upload of progressive renders of the lightmap:
+						//for(size_t i=0; i<lines.size(); ++i)
+						//	if(hasPrefix(lines[i], "Saving untone-mapped EXR to"))
+						//	{
+						//		compressAndUploadLightmap(lightmap_exr_path, ob_uid, lightmap_index);
+						//	}
 					}
 
 					// Check to see if the object has been modified, and the lightmap baking needs to be re-started:
@@ -611,6 +621,8 @@ public:
 
 					PlatformUtils::Sleep(10);
 				}
+
+				compressAndUploadLightmap(lightmap_exr_path, ob_uid, lightmap_index);
 
 				std::string output, err_output;
 				indigo_process.readAllRemainingStdOutAndStdErr(output, err_output);
@@ -724,7 +736,16 @@ public:
 
 			// Now that we have released the world_state.mutex lock, build lightmaps
 			for(auto it = obs_to_lightmap.begin(); it != obs_to_lightmap.end(); ++it)
-				buildLightMapForOb(world_state, it->ptr());
+			{
+				try
+				{
+					buildLightMapForOb(world_state, it->ptr());
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Error while building lightmap for object: " + e.what());
+				}
+			}
 			obs_to_lightmap.clear();
 
 
@@ -757,7 +778,16 @@ public:
 
 				// Now that we have released the world_state.mutex lock, build lightmaps
 				for(auto it = obs_to_lightmap.begin(); it != obs_to_lightmap.end(); ++it)
-					buildLightMapForOb(world_state, it->ptr());
+				{
+					try
+					{
+						buildLightMapForOb(world_state, it->ptr());
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("Error while building lightmap for object: " + e.what());
+					}
+				}
 				obs_to_lightmap.clear();
 
 
@@ -845,11 +875,18 @@ int main(int argc, char* argv[])
 		client_thread->enqueueDataToSend(packet);
 	}
 
-	// Wait until we have received parcel data.  This means we have received all objects
+	// Send GetAllObjects msg
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::GetAllObjects);
+		client_thread->enqueueDataToSend(packet);
+	}
+
+	// Wait until we have received all object data.
 	conPrint("Waiting for initial data to be received");
 	while(!client_thread->all_objects_received)
 	{
-		PlatformUtils::Sleep(10);
+		PlatformUtils::Sleep(100);
 		conPrintStr(".");
 	}
 
