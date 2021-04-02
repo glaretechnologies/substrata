@@ -627,12 +627,12 @@ void ClientThread::doRun()
 	}
 	catch(MySocketExcep& e)
 	{
-		conPrint("Socket error: " + e.what());
+		conPrint("ClientThread: Socket error: " + e.what());
 		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what()));
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("glare::Exception: " + e.what());
+		conPrint("ClientThread: glare::Exception: " + e.what());
 		out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage(e.what()));
 	}
 

@@ -213,6 +213,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->glWidget, SIGNAL(cameraUpdated()), this, SLOT(cameraUpdated()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
+	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
@@ -2513,9 +2514,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 				// Trigger sending update-lightmap update flag message later.
-				this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-				objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-				lightmap_flag_timer->start(/*msec=*/2000); 
+				//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+				//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+				//lightmap_flag_timer->start(/*msec=*/2000); 
 
 
 				updateSelectedObjectPlacementBeam();
@@ -3306,7 +3307,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->axis = selected_ob->axis;
 		new_world_object->angle = selected_ob->angle;
 		new_world_object->scale = selected_ob->scale;
-		new_world_object->flags = selected_ob->flags | WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG; // Lightmaps need to be built for it.
+		new_world_object->flags = selected_ob->flags;// | WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG; // Lightmaps need to be built for it.
 		new_world_object->getDecompressedVoxels() = selected_ob->getDecompressedVoxels();
 		new_world_object->getCompressedVoxels() = selected_ob->getCompressedVoxels();
 
@@ -3797,9 +3798,9 @@ void MainWindow::objectEditedSlot()
 				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 
-				this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-				objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-				lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+				//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+				//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+				//lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
 
 
 				if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
@@ -3822,6 +3823,17 @@ void MainWindow::objectEditedSlot()
 }
 
 
+void MainWindow::bakeObjectLightmapSlot()
+{
+	if(this->selected_ob.nonNull())
+	{
+		BitUtils::setBit(this->selected_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+	}
+}
+
+
 void MainWindow::materialSelectedInBrowser(const std::string& path)
 {
 	if(selected_ob.nonNull())
@@ -3840,6 +3852,7 @@ void MainWindow::sendLightmapNeededFlagsSlot()
 	conPrint("MainWindow::sendLightmapNeededFlagsSlot");
 
 	// Go over set of objects to lightmap (objs_with_lightmap_rebuild_needed) and add any object within the lightmap effect distance.
+	if(false)
 	{
 		const float D = 100.f;
 
@@ -4203,9 +4216,9 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 						// Trigger sending update-lightmap update flag message later.
-						this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-						objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-						lightmap_flag_timer->start(/*msec=*/2000); 
+						//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+						//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+						//lightmap_flag_timer->start(/*msec=*/2000); 
 					}
 				}
 			}
@@ -4443,9 +4456,9 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 
 
 		// Trigger sending update-lightmap update flag message later.
-		ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-		objs_with_lightmap_rebuild_needed.insert(ob);
-		lightmap_flag_timer->start(/*msec=*/2000); 
+		//ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+		//objs_with_lightmap_rebuild_needed.insert(ob);
+		//lightmap_flag_timer->start(/*msec=*/2000); 
 	}
 }
 

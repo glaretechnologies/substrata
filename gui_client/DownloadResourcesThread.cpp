@@ -199,12 +199,12 @@ void DownloadResourcesThread::doRun()
 								}
 							}
 
-							conPrint("DownloadResourcesThread: Got file.");
+							conPrint("DownloadResourcesThread: Got file '" + URL + "'.");
 						}
 						else
 						{
 							resource->setState(Resource::State_NotPresent);
-							conPrint("DownloadResourcesThread: Server couldn't send file. (Result=" + toString(result) + ")");
+							conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "' (Result=" + toString(result) + ")");
 						}
 					}
 				}

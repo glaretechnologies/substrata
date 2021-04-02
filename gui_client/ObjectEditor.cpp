@@ -358,6 +358,12 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 }
 
 
+void ObjectEditor::on_bakeLightmapPushButton_clicked(bool checked)
+{
+	emit bakeObjectLightmap();
+}
+
+
 void ObjectEditor::targetURLChanged()
 {
 	this->visitURLLabel->setVisible(!this->targetURLLineEdit->toPlainText().isEmpty());

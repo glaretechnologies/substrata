@@ -382,6 +382,9 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			WorldObjectRef world_ob = new WorldObject();
 			readFromStream(stream, *world_ob);
 
+			//TEMP HACK: clear lightmap needed flag
+			BitUtils::zeroBit(world_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+
 			current_world->objects[world_ob->uid] = world_ob; // Add to object map
 			num_obs++;
 

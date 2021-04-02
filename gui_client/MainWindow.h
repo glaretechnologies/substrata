@@ -97,6 +97,7 @@ private slots:;
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
 	void objectEditedSlot();
+	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap
 	void URLChangedSlot();
 	void materialSelectedInBrowser(const std::string& path);
 	void sendLightmapNeededFlagsSlot();
