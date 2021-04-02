@@ -40,6 +40,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <simpleraytracer/raymesh.h>
 #include <graphics/BatchedMesh.h>
 #include <indigo/UVUnwrapper.h>
+#include <tls.h>
 
 
 static const std::string username = "lightmapperbot";
@@ -61,10 +62,10 @@ class LightMapperBot
 {
 public:
 
-	LightMapperBot(const std::string& server_hostname_, int server_port_, ResourceManagerRef& resource_manager_)
-	:	server_hostname(server_hostname_), server_port(server_port_), resource_manager(resource_manager_)
+	LightMapperBot(const std::string& server_hostname_, int server_port_, ResourceManagerRef& resource_manager_, struct tls_config* client_tls_config_)
+	:	server_hostname(server_hostname_), server_port(server_port_), resource_manager(resource_manager_), client_tls_config(client_tls_config_)
 	{
-		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading));
+		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, client_tls_config));
 
 		for(int i=0; i<4; ++i)
 			net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
@@ -396,7 +397,7 @@ public:
 							this->client_thread->enqueueDataToSend(packet);
 
 							// Spawn an UploadResourceThread to upload the new model
-							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(mesh_URL), mesh_URL, server_hostname, server_port, username, password));
+							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(mesh_URL), mesh_URL, server_hostname, server_port, username, password, client_tls_config));
 						}
 					}
 				}
@@ -690,7 +691,7 @@ public:
 
 		// Spawn an UploadResourceThread to upload the new lightmap
 		//conPrint("Uploading lightmap '" + lightmap_ktx_path + "' to the server with URL '" + lightmap_URL + "'...");
-		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, lightmap_ktx_path, lightmap_URL, server_hostname, server_port, username, password));
+		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, lightmap_ktx_path, lightmap_URL, server_hostname, server_port, username, password, client_tls_config));
 	}
 
 
@@ -787,6 +788,8 @@ public:
 	glare::AtomicInt num_net_resources_downloading;
 
 	Reference<ClientThread> client_thread;
+
+	struct tls_config* client_tls_config;
 };
 
 
@@ -805,12 +808,21 @@ int main(int argc, char* argv[])
 	const std::string server_hostname = "localhost"; // "substrata.info"
 	const int server_port = 7600;
 
+
+	// Create and init TLS client config
+	struct tls_config* client_tls_config = tls_config_new();
+	if(!client_tls_config)
+		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
+	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
+	tls_config_insecure_noverifyname(client_tls_config);
+
 	Reference<ClientThread> client_thread = new ClientThread(
 		&msg_queue,
 		server_hostname,
 		server_port, // port
 		"sdfsdf", // avatar URL
-		"" // world name - default world
+		"", // world name - default world
+		client_tls_config
 	);
 	client_thread->world_state = world_state;
 
@@ -835,7 +847,7 @@ int main(int argc, char* argv[])
 
 	// Wait until we have received parcel data.  This means we have received all objects
 	conPrint("Waiting for initial data to be received");
-	while(!client_thread->initial_state_received)
+	while(!client_thread->all_objects_received)
 	{
 		PlatformUtils::Sleep(10);
 		conPrintStr(".");
@@ -845,7 +857,7 @@ int main(int argc, char* argv[])
 
 	conPrint("===================== Running LightMapperBot =====================");
 
-	LightMapperBot bot(server_hostname, server_port, resource_manager);
+	LightMapperBot bot(server_hostname, server_port, resource_manager, client_tls_config);
 	bot.doLightMapping(*world_state, client_thread);
 
 	conPrint("===================== Done Running LightMapperBot. =====================");
