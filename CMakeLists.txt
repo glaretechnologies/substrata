@@ -167,7 +167,7 @@ if(WIN32)
 	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
 	#set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-install")
-	set(LIBJPEG_TURBO_DIR "${INDIGO_LIBS_ENV}/libjpeg-turbo-builds/build")
+	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo-builds/build")
 endif()
 
 
