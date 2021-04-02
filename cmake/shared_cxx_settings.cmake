@@ -11,8 +11,12 @@ macro(addIncludeDirectory dir_to_include)
 	SET(INDIGO_SHARED_INCLUDE_DIRS "${INDIGO_SHARED_INCLUDE_DIRS} ${INCLUDE_ARG}\"${dir_to_include}\"")
 endmacro(addIncludeDirectory)
 
+
+MESSAGE("jpegturbodir: ${jpegturbodir}")
+
 addIncludeDirectory("${fftssdir}/include")
 addIncludeDirectory(${jpegturbodir}/include)
+addIncludeDirectory(${jpegturbodir}) # This one works on linux/mac
 addIncludeDirectory(${pngdir})
 addIncludeDirectory(${tiffdir})
 addIncludeDirectory(${pugixmldir})
@@ -60,7 +64,7 @@ addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opencl/khronos")
 
 
-addIncludeDirectory("${MYSQL_CONNECTOR_DIR}/include")
+#addIncludeDirectory("${MYSQL_CONNECTOR_DIR}/include")
 
 
 # Append INDIGO_SHARED_INCLUDE_DIRS
