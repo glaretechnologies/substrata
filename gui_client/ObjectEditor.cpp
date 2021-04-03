@@ -281,7 +281,12 @@ void ObjectEditor::setControlsEditable(bool editable)
 	this->rotAxisZDoubleSpinBox->setReadOnly(!editable);
 	this->rotAngleDoubleSpinBox->setReadOnly(!editable);
 
+	this->collidableCheckBox->setEnabled(editable);
+
 	this->matEditor->setControlsEditable(editable);
+
+	this->editScriptPushButton->setEnabled(editable);
+	this->bakeLightmapPushButton->setEnabled(editable);
 }
 
 
