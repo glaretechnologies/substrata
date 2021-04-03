@@ -13,6 +13,7 @@ CyberspaceProtocolVersion
 20: Added lightmap_url to WorldObject.
 21: Added parcel auction stuff
 22: Added grid object querying stuff
+23: Added ObjectModelURLChanged
 
 */
 namespace Protocol
@@ -20,7 +21,7 @@ namespace Protocol
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 22;
+const uint32 CyberspaceProtocolVersion = 23;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
