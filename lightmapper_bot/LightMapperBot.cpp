@@ -39,6 +39,7 @@ Copyright Glare Technologies Limited 2020 -
 #endif
 #include <simpleraytracer/raymesh.h>
 #include <graphics/BatchedMesh.h>
+#include <graphics/KTXDecoder.h>
 #include <indigo/UVUnwrapper.h>
 #include <tls.h>
 
@@ -243,6 +244,104 @@ public:
 
 	}
 
+
+	// Load mesh from disk:
+	// If batched mesh (bmesh), convert to indigo mesh
+	// If indigo mesh, can use directly.
+	// If voxel group, mesh it.
+	Indigo::SceneNodeMeshRef makeSceneNodeMeshForOb(WorldObject* ob)
+	{
+		// Construct Indigo Mesh
+		Indigo::MeshRef indigo_mesh;
+		if(ob->object_type == WorldObject::ObjectType_VoxelGroup) // If voxel object, convert to mesh
+		{
+			ob->decompressVoxels();
+			BatchedMeshRef batched_mesh = VoxelMeshBuilding::makeBatchedMeshForVoxelGroup(ob->getDecompressedVoxelGroup());
+			indigo_mesh = new Indigo::Mesh();
+			batched_mesh->buildIndigoMesh(*indigo_mesh);
+		}
+		else
+		{
+			const std::string model_path = resource_manager->pathForURL(ob->model_url);
+
+			if(hasExtension(model_path, "igmesh"))
+			{
+				try
+				{
+					Indigo::Mesh::readFromFile(toIndigoString(model_path), *indigo_mesh);
+				}
+				catch(Indigo::IndigoException& e)
+				{
+					throw glare::Exception(toStdString(e.what()));
+				}
+			}
+			else if(hasExtension(model_path, "bmesh"))
+			{
+				BatchedMeshRef batched_mesh = new BatchedMesh();
+				BatchedMesh::readFromFile(model_path, *batched_mesh);
+
+				indigo_mesh = new Indigo::Mesh();
+				batched_mesh->buildIndigoMesh(*indigo_mesh);
+			}
+			else
+				throw glare::Exception("unhandled model format: " + model_path);
+		}
+
+		checkValidAndSanitiseMesh(*indigo_mesh); // Throws Indigo::Exception on invalid mesh.
+
+		Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(indigo_mesh);
+		mesh_node->normal_smoothing = true;
+		return mesh_node;
+	}
+
+
+	Indigo::SceneNodeModelRef makeModelNodeForWorldObject(WorldObject* ob)
+	{
+		Indigo::SceneNodeMeshRef mesh_node = makeSceneNodeMeshForOb(ob);
+
+		// Make Indigo materials from loaded parcel mats
+		Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
+		for(size_t i=0; i<ob->materials.size(); ++i)
+		{
+			const WorldMaterialRef parcel_mat = ob->materials[i];
+
+			Reference<Indigo::WavelengthDependentParam> albedo_param;
+			if(!parcel_mat->colour_texture_url.empty())
+			{
+				// TODO: use colour_rgb as tint colour?
+				const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
+
+				Indigo::Texture tex(toIndigoString(path));
+				tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
+					Indigo::Matrix2(parcel_mat->tex_matrix.e),
+					Indigo::Vec2d(0.0)
+				);
+				albedo_param = new Indigo::TextureWavelengthDependentParam(tex, /*tint_colour=*/new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
+			}
+			else
+			{
+				albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
+			}
+
+			Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(albedo_param);
+			indigo_mat->name = toIndigoString(parcel_mat->name);
+
+			indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
+		}
+
+		Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
+		model_node->setMaterials(indigo_mat_nodes);
+		model_node->setGeometry(mesh_node);
+		model_node->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
+			0.0,
+			toIndigoVec3d(ob->pos),
+			Indigo::AxisAngle::identity()
+		));
+		model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(ob).getUpperLeftMatrix().e);
+		return model_node;
+	}
+
+
 	void buildLightMapForOb(WorldState& world_state, WorldObject* ob_to_lightmap)
 	{
 		try
@@ -316,57 +415,58 @@ public:
 				}
 
 
-				// Load mesh from disk:
-				// If batched mesh (bmesh), convert to indigo mesh
-				// If indigo mesh, can use directly
+				Indigo::SceneNodeModelRef model_node_to_lightmap = makeModelNodeForWorldObject(ob_to_lightmap);
 
-				Indigo::MeshRef ob_to_lightmap_indigo_mesh;
+				// Work out the resolution at which we should create the lightmap
+				Indigo::AABB<float> aabb;
+				model_node_to_lightmap->getBoundingBox(aabb);
+
+				// compute surface area of AABB
+				const Indigo::Vec3<float> span = aabb.bound[1] - aabb.bound[0];
+				const float A = 2 * (span.x * span.y) + (span.x * span.z) * (span.y * span.z);
+
+				// We want an object with maximally sized AABB, similar to that of a parcel, to have the max allowable res (e.g. 512*512)
+				// And use a proportionally smaller number of pixels based on a smaller area.
+
+				const float parcel_W = 20;
+				const float parcel_H = 10;
+				const float parcel_A = parcel_W * parcel_W * 2 + parcel_W * parcel_H * 4;
+
+				const float frac = A / parcel_A;
+
+				const float full_num_px = 512 * 512;
+
+				const float use_num_px = frac * full_num_px;
+
+				const float use_side_res = std::sqrt(use_num_px);
+
+				const int use_side_res_rounded = Maths::roundUpToMultipleOfPowerOf2((int)use_side_res, (int)4);
+
+				// Clamp to min and max allowable lightmap resolutions
+				const int clamped_side_res = myClamp(use_side_res_rounded, 64, 512);
+
+				printVar(A);
+				printVar(parcel_A);
+				printVar(frac);
+				printVar(use_side_res);
+				printVar(use_side_res_rounded);
+				printVar(clamped_side_res);
+
+
 				{
-					
-					if(ob_to_lightmap->object_type == WorldObject::ObjectType_VoxelGroup) // If voxel object, convert to mesh
-					{
-						ob_to_lightmap->decompressVoxels();
-
-						BatchedMeshRef batched_mesh = VoxelMeshBuilding::makeBatchedMeshForVoxelGroup(ob_to_lightmap->getDecompressedVoxelGroup());
-						ob_to_lightmap_indigo_mesh = new Indigo::Mesh();
-						batched_mesh->buildIndigoMesh(*ob_to_lightmap_indigo_mesh);
-					}
-					else
-					{
-						const std::string model_path = resource_manager->pathForURL(ob_to_lightmap->model_url);
-
-						if(hasExtension(model_path, "igmesh"))
-						{
-							try
-							{
-								Indigo::Mesh::readFromFile(toIndigoString(model_path), *ob_to_lightmap_indigo_mesh);
-							}
-							catch(Indigo::IndigoException& e)
-							{
-								throw glare::Exception(toStdString(e.what()));
-							}
-						}
-						else if(hasExtension(model_path, "bmesh"))
-						{
-							BatchedMeshRef batched_mesh = new BatchedMesh();
-							BatchedMesh::readFromFile(model_path, *batched_mesh);
-
-							ob_to_lightmap_indigo_mesh = new Indigo::Mesh();
-							batched_mesh->buildIndigoMesh(*ob_to_lightmap_indigo_mesh);
-						}
-						else
-							throw glare::Exception("unhandled model format: " + model_path);
-
-						checkValidAndSanitiseMesh(*ob_to_lightmap_indigo_mesh); // Throws Indigo::Exception on invalid mesh.
-					}
-
+					Indigo::SceneNodeMeshRef mesh_node = makeSceneNodeMeshForOb(ob_to_lightmap);
+					Indigo::MeshRef ob_to_lightmap_indigo_mesh = mesh_node->mesh;
+				
 					// See if this object has a lightmap-suitable UV map already
 					const bool has_lightmap_uvs = ob_to_lightmap_indigo_mesh->num_uv_mappings >= 2; // TEMP
 					if(!has_lightmap_uvs)
 					{
 						// Generate lightmap UVs
 						StandardPrintOutput print_output;
-						UVUnwrapper::build(*ob_to_lightmap_indigo_mesh, print_output); // Adds UV set to indigo_mesh.
+
+						const float normed_margin = 2.f / clamped_side_res;
+
+						UVUnwrapper::build(*ob_to_lightmap_indigo_mesh, print_output, normed_margin); // Adds UV set to indigo_mesh.
 
 						if(ob_to_lightmap->object_type != WorldObject::ObjectType_VoxelGroup) // If voxel object, don't update to an unwrapped mesh, rather keep voxels.
 						{
@@ -414,7 +514,7 @@ public:
 
 
 				//------------------ Make an Indigo scene graph to light the model, then save it to disk ---------------------
-				Indigo::SceneNodeUID light_map_baking_ob_uid;
+				Indigo::SceneNodeModelRef baking_model_node;
 
 				Indigo::SceneNodeRootRef root_node = new Indigo::SceneNodeRoot();
 
@@ -422,106 +522,87 @@ public:
 				{
 					WorldObject* ob = it->ptr();
 
-					
-					Indigo::MeshRef indigo_mesh;
-					if(ob == ob_to_lightmap)
-					{
-						indigo_mesh = ob_to_lightmap_indigo_mesh;
-					}
-					else
-					{
-						if(ob->object_type == WorldObject::ObjectType_VoxelGroup) // If voxel object, convert to mesh
-						{
-							ob->decompressVoxels();
-							BatchedMeshRef batched_mesh = VoxelMeshBuilding::makeBatchedMeshForVoxelGroup(ob->getDecompressedVoxelGroup());
-							indigo_mesh = new Indigo::Mesh();
-							batched_mesh->buildIndigoMesh(*indigo_mesh);
-						}
-						else
-						{
-							const std::string model_path = resource_manager->pathForURL(ob->model_url);
+					if(ob->state == WorldObject::State_Dead)
+						continue;
 
-							if(hasExtension(model_path, "igmesh"))
-							{
-								try
-								{
-									Indigo::Mesh::readFromFile(toIndigoString(model_path), *indigo_mesh);
-								}
-								catch(Indigo::IndigoException& e)
-								{
-									throw glare::Exception(toStdString(e.what()));
-								}
-							}
-							else if(hasExtension(model_path, "bmesh"))
-							{
-								BatchedMeshRef batched_mesh = new BatchedMesh();
-								BatchedMesh::readFromFile(model_path, *batched_mesh);
+					Indigo::SceneNodeModelRef model_node = makeModelNodeForWorldObject(ob);
 
-								indigo_mesh = new Indigo::Mesh();
-								batched_mesh->buildIndigoMesh(*indigo_mesh);
-							}
-							else
-								throw glare::Exception("unhandled model format: " + model_path);
-						}
-					}
-
-					checkValidAndSanitiseMesh(*indigo_mesh); // Throws Indigo::Exception on invalid mesh.
-
-					Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(indigo_mesh);
-
-					// Make Indigo materials from loaded parcel mats
-					Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
-					for(size_t i=0; i<ob->materials.size(); ++i)
-					{
-						const WorldMaterialRef parcel_mat = ob->materials[i];
-
-						Reference<Indigo::WavelengthDependentParam> albedo_param;
-						if(!parcel_mat->colour_texture_url.empty())
-						{
-							const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
-							albedo_param = new Indigo::TextureWavelengthDependentParam(Indigo::Texture(toIndigoString(path)), new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
-						}
-						else
-						{
-							albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
-						}
-
-						Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(
-							albedo_param
-						);
-						indigo_mat->name = toIndigoString(parcel_mat->name);
-
-						indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
-					}
-
-					Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
-					model_node->setMaterials(indigo_mat_nodes);
-					model_node->setGeometry(mesh_node);
-					model_node->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
-							0.0,
-							toIndigoVec3d(ob->pos),
-							Indigo::AxisAngle::identity()
-					));
-					model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(ob).getUpperLeftMatrix().e);
 					root_node->addChildNode(model_node);
 
 					if(ob == ob_to_lightmap)
-						light_map_baking_ob_uid = model_node->getUniqueID();
+						baking_model_node = model_node;
 				}
+
+
+				// Add ground plane as an Indigo scene node model, since it's not an explicit object in Substrata
+				{
+					//==================== Create ground geometry =========================
+					Indigo::MeshRef mesh = new Indigo::Mesh();
+
+					// Make a single quad
+					Indigo::Quad q;
+					q.mat_index = 0;
+					for(int i = 0; i < 4; ++i)
+						q.vertex_indices[i] = q.uv_indices[i] = i;
+					mesh->quads.push_back(q);
+
+					const float w = 100;
+					mesh->vert_positions.push_back(Indigo::Vec3f(-w, -w, 0));
+					mesh->vert_positions.push_back(Indigo::Vec3f(-w,  w, 0));
+					mesh->vert_positions.push_back(Indigo::Vec3f( w,  w, 0));
+					mesh->vert_positions.push_back(Indigo::Vec3f( w, -w, 0));
+
+					mesh->num_uv_mappings = 1;
+					mesh->uv_pairs.push_back(Indigo::Vec2f(-w, -w));
+					mesh->uv_pairs.push_back(Indigo::Vec2f(-w,  w));
+					mesh->uv_pairs.push_back(Indigo::Vec2f( w,  w));
+					mesh->uv_pairs.push_back(Indigo::Vec2f( w, -w));
+
+					Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(mesh);
+					mesh_node->setName("Ground Mesh");
+
+					//==================== Create the ground material. See See MainWindow::updateGroundPlane() =========================
+					Indigo::Texture tex;
+					tex.path = toIndigoString(base_dir_path + "/resources/obstacle.png");
+					tex.tex_coord_generation = new Indigo::UVTexCoordGenerator();
+					tex.b = 0.9f;
+
+					Indigo::DiffuseMaterialRef diffuse = new Indigo::DiffuseMaterial(
+						new Indigo::TextureWavelengthDependentParam(tex) // albedo param
+					);
+
+					Indigo::SceneNodeMaterialRef mat = new Indigo::SceneNodeMaterial(diffuse);
+					mat->setName("Ground diffuse material");
+
+
+					//==================== Create the ground object =========================
+					Indigo::SceneNodeModelRef model = new Indigo::SceneNodeModel();
+					model->setName("Ground Object");
+					model->setGeometry(mesh_node);
+					model->keyframes.push_back(Indigo::KeyFrame());
+					model->rotation = new Indigo::MatrixRotation();
+					model->setMaterials(Indigo::Vector<Indigo::SceneNodeMaterialRef>(1, mat));
+
+					root_node->addChildNode(model); // Add model node to scene graph.  This will add material and geometry nodes used by the model as well.
+				}
+				
+
 
 				Indigo::SceneNodeRenderSettingsRef settings_node = Indigo::SceneNodeRenderSettings::getDefaults();
 				settings_node->untonemapped_scale.setValue(1.0e-9);
-				settings_node->width.setValue(512);
-				settings_node->height.setValue(512);
+				settings_node->width.setValue(clamped_side_res);
+				settings_node->height.setValue(clamped_side_res);
 				settings_node->bidirectional.setValue(false);
 				settings_node->metropolis.setValue(false);
 				settings_node->gpu.setValue(true);
-				settings_node->light_map_baking_ob_uid.setValue(light_map_baking_ob_uid.value()); // Enable light map baking
+				settings_node->light_map_baking_ob_uid.setValue(baking_model_node->getUniqueID().value()); // Enable light map baking
 				settings_node->generate_lightmap_uvs.setValue(false);
 				settings_node->capture_direct_sun_illum.setValue(false);
 				//settings_node->image_save_period.setValue(2); // Save often for progressive rendering and uploads
 				settings_node->save_png.setValue(false);
 				settings_node->merging.setValue(false); // Needed for now
+				settings_node->setWhitePoint(Indigo::SceneNodeRenderSettings::getWhitepointForWhiteBalance("D65"));
+
 				root_node->addChildNode(settings_node);
 
 				Indigo::SceneNodeTonemappingRef tone_mapping = new Indigo::SceneNodeTonemapping();
@@ -574,9 +655,9 @@ public:
 				command_line_args.push_back(indigo_exe_path);
 				command_line_args.push_back(scene_path);
 				command_line_args.push_back("--noninteractive");
-				command_line_args.push_back("-uexro");
+				command_line_args.push_back("-uexro"); // untonemapped EXR output path:
 				command_line_args.push_back(lightmap_exr_path);
-				command_line_args.push_back("-halt");
+				command_line_args.push_back("-halt"); // Half after N secs
 				command_line_args.push_back("20");
 				glare::Process indigo_process(indigo_exe_path, command_line_args);
 
@@ -641,7 +722,8 @@ public:
 
 	void compressAndUploadLightmap(const std::string& lightmap_exr_path, UID ob_uid, int& lightmap_index)
 	{
-		const std::string lightmap_ktx_path = ::removeDotAndExtension(lightmap_exr_path) + "_" + toString(lightmap_index) + ".ktx";
+		const std::string                 lightmap_ktx_path = ::removeDotAndExtension(lightmap_exr_path) + "_" + toString(lightmap_index) + ".ktx2";
+		const std::string supercompressed_lightmap_ktx_path = ::removeDotAndExtension(lightmap_exr_path) + "_" + toString(lightmap_index) + "_su.ktx2";  // supercompressed
 		lightmap_index++;
 
 		//================== Run Compressonator to compress the lightmap EXR with BC6 compression into a KTX file. ========================
@@ -650,7 +732,7 @@ public:
 			std::vector<std::string> command_line_args;
 			command_line_args.push_back(compressonator_path);
 			command_line_args.push_back("-fd"); // Specifies the destination texture format to use
-			command_line_args.push_back("BC6H");
+			command_line_args.push_back("BC6H"); // BC6H = High-Dynamic Range compression format (https://docs.microsoft.com/en-us/windows/win32/direct3d11/bc6h-format)
 			command_line_args.push_back("-mipsize");
 			command_line_args.push_back("1");
 			command_line_args.push_back(lightmap_exr_path); // input path
@@ -688,10 +770,13 @@ public:
 			//conPrint("Compressonator finished.");
 		}
 
-		// Compute hash over lightmap
-		const uint64 lightmap_hash = FileChecksum::fileChecksum(lightmap_ktx_path);
+		// Supercompress ktx file - apply ZStd compression to it.
+		KTXDecoder::supercompressKTX2File(lightmap_ktx_path, supercompressed_lightmap_ktx_path);
 
-		const std::string lightmap_URL = ResourceManager::URLForNameAndExtensionAndHash("lightmap", ::getExtension(lightmap_ktx_path), lightmap_hash);
+		// Compute hash over lightmap
+		const uint64 lightmap_hash = FileChecksum::fileChecksum(supercompressed_lightmap_ktx_path);
+
+		const std::string lightmap_URL = ResourceManager::URLForNameAndExtensionAndHash("lightmap", ::getExtension(supercompressed_lightmap_ktx_path), lightmap_hash);
 
 		// Enqueue ObjectLightmapURLChanged
 		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -702,8 +787,8 @@ public:
 		this->client_thread->enqueueDataToSend(packet);
 
 		// Spawn an UploadResourceThread to upload the new lightmap
-		//conPrint("Uploading lightmap '" + lightmap_ktx_path + "' to the server with URL '" + lightmap_URL + "'...");
-		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, lightmap_ktx_path, lightmap_URL, server_hostname, server_port, username, password, client_tls_config));
+		conPrint("Uploading lightmap '" + lightmap_ktx_path + "' to the server with URL '" + lightmap_URL + "'...");
+		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, supercompressed_lightmap_ktx_path, lightmap_URL, server_hostname, server_port, username, password, client_tls_config));
 	}
 
 
@@ -820,6 +905,8 @@ public:
 	Reference<ClientThread> client_thread;
 
 	struct tls_config* client_tls_config;
+
+	std::string base_dir_path;
 };
 
 
@@ -895,6 +982,7 @@ int main(int argc, char* argv[])
 	conPrint("===================== Running LightMapperBot =====================");
 
 	LightMapperBot bot(server_hostname, server_port, resource_manager, client_tls_config);
+	bot.base_dir_path = PlatformUtils::getResourceDirectoryPath();
 	bot.doLightMapping(*world_state, client_thread);
 
 	conPrint("===================== Done Running LightMapperBot. =====================");

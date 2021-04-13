@@ -139,6 +139,7 @@ public:
 	bool from_remote_transform_dirty; // Transformation has been changed remotely
 	bool from_remote_other_dirty;     // Something else has been changed remotely
 	bool from_remote_lightmap_url_dirty; // Lightmap URL has been changed remotely
+	bool from_remote_model_url_dirty; // Model URL has been changed remotely
 	bool from_remote_flags_dirty;     // Flags have been changed remotely
 
 	bool from_local_transform_dirty;  // Transformation has been changed locally
@@ -155,8 +156,6 @@ public:
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 	Reference<WorldObject> prototype_object; // for instances - this is the object this object is a copy of.
 
-	//Reference<WorldMaterial> material;
-
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
@@ -170,6 +169,8 @@ public:
 	bool loaded; // Used by proximity loader
 
 	Vec3d last_pos; // Used by proximity loader
+
+	bool lightmap_baking; // Is lightmap baking in progress for this object?
 #endif
 
 	float max_load_dist2;

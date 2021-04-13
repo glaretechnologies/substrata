@@ -607,7 +607,7 @@ int main(int argc, char *argv[])
 						}
 						else if(ob->from_remote_lightmap_url_dirty)
 						{
-							// Send ObjectResourceURLChanged packet
+							// Send ObjectLightmapURLChanged packet
 							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 							packet.writeUInt32(Protocol::ObjectLightmapURLChanged);
 							writeToStream(ob->uid, packet);
@@ -616,6 +616,19 @@ int main(int argc, char *argv[])
 							enqueuePacketToBroadcast(packet, world_packets);
 
 							ob->from_remote_lightmap_url_dirty = false;
+							server.world_state->markAsChanged();
+						}
+						else if(ob->from_remote_model_url_dirty)
+						{
+							// Send ObjectModelURLChanged packet
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							packet.writeUInt32(Protocol::ObjectModelURLChanged);
+							writeToStream(ob->uid, packet);
+							packet.writeStringLengthFirst(ob->model_url);
+
+							enqueuePacketToBroadcast(packet, world_packets);
+
+							ob->from_remote_model_url_dirty = false;
 							server.world_state->markAsChanged();
 						}
 						else if(ob->from_remote_flags_dirty)
