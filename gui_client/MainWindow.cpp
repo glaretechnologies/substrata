@@ -105,6 +105,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/PNGDecoder.h" // Just for testing
 #include "../graphics/FormatDecoderVox.h" // Just for testing
 #include "../graphics/BatchedMeshTests.h" // Just for testing
+#include "../graphics/KTXDecoder.h" // Just for testing
 
 
 
@@ -1174,7 +1175,7 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 // Adapted from ImFormatDecoder::decodeImage
 static bool hasTextureExtension(const std::string& path)
 {
-	return 
+	return
 		hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
 		hasExtension(path, "tga") ||
 		hasExtension(path, "bmp") ||
@@ -1184,7 +1185,7 @@ static bool hasTextureExtension(const std::string& path)
 		hasExtension(path, "float") ||
 		hasExtension(path, "gif") ||
 		hasExtension(path, "hdr") ||
-		hasExtension(path, "ktx");
+		hasExtension(path, "ktx") || hasExtension(path, "ktx2");
 }
 
 
@@ -2144,7 +2145,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			// conPrint("Processing dirty object.");
 
-			if(ob->from_remote_other_dirty)
+			if(ob->from_remote_other_dirty || ob->from_remote_model_url_dirty)
 			{
 				if(ob->state == WorldObject::State_Dead)
 				{
@@ -2209,6 +2210,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 
 					ob->from_remote_other_dirty = false;
+					ob->from_remote_model_url_dirty = false;
+
+					if(ob == selected_ob.ptr())
+						ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
 				}
 			}
 			else if(ob->from_remote_lightmap_url_dirty)
@@ -2225,6 +2230,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 					ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 				}
+
+				ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
+
+				if(ob == selected_ob.ptr())
+					ui->objectEditor->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
 
 				ob->from_remote_lightmap_url_dirty = false;
 			}
@@ -3827,6 +3837,8 @@ void MainWindow::bakeObjectLightmapSlot()
 {
 	if(this->selected_ob.nonNull())
 	{
+		this->selected_ob->lightmap_baking = true;
+
 		BitUtils::setBit(this->selected_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
 		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
@@ -4863,9 +4875,10 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			//BatchedMeshTests::test();
+			//KTXDecoder::test();
+			BatchedMeshTests::test();
 			//FormatDecoderVox::test();
-			ModelLoading::test();
+			//ModelLoading::test();
 			//HTTPClient::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();

@@ -1542,7 +1542,9 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 	// UV unwrap it:
 	StandardPrintOutput print_output;
-	UVUnwrapper::build(*indigo_mesh, print_output); // Adds UV set to indigo_mesh.
+	
+	const float normed_margin = 2.f / 1024; // NOTE: we don't know what res lightmap we will be using here.
+	UVUnwrapper::build(*indigo_mesh, print_output, normed_margin); // Adds UV set to indigo_mesh.
 
 
 	//----------------- Convert indigo mesh to voxel data -------------

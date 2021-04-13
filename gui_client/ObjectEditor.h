@@ -33,6 +33,10 @@ public:
 	void updateObjectPos(const WorldObject& ob);
 	void toObject(WorldObject& ob_out);
 
+	// Object details were updated from outside of the editor, for example due to an update message from the server.
+	void objectModelURLUpdated(const WorldObject& ob);
+	void objectLightmapURLUpdated(const WorldObject& ob);
+
 	void objectPickedUp();
 	void objectDropped();
 

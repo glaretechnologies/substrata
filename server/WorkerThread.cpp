@@ -876,7 +876,7 @@ void WorkerThread::doRun()
 					
 								ob->model_url = new_model_url;
 
-								ob->from_remote_other_dirty = true;
+								ob->from_remote_model_url_dirty = true;
 								cur_world_state->dirty_from_remote_objects.insert(ob);
 							}
 						}
@@ -1012,7 +1012,7 @@ void WorkerThread::doRun()
 					if(num_cells > 100000)
 						throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
 
-					conPrint("QueryObjects, num_cells=" + toString(num_cells));
+					//conPrint("QueryObjects, num_cells=" + toString(num_cells));
 
 					//conPrint("QueryObjects: num_cells " + toString(num_cells));
 					
@@ -1024,8 +1024,8 @@ void WorkerThread::doRun()
 						const int y = socket->readInt32();
 						const int z = socket->readInt32();
 
-						if(i < 10)
-							conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
+						//if(i < 10)
+						//	conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
 
 						const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
 
@@ -1066,7 +1066,7 @@ void WorkerThread::doRun()
 
 					socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
 
-					conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
+					//conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
 
 					break;
 				}

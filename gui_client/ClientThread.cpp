@@ -361,6 +361,29 @@ void ClientThread::doRun()
 						}
 						break;
 					}
+				case Protocol::ObjectModelURLChanged:
+					{
+						//conPrint("ObjectModelURLChanged");
+						const UID object_uid = readUIDFromStream(*socket);
+						const std::string new_model_url = socket->readStringLengthFirst(10000);
+						//conPrint("new_model_url: " + new_model_url);
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res->second.getPointer();
+
+								ob->model_url = new_model_url;
+
+								ob->from_remote_model_url_dirty = true;
+								world_state->dirty_from_remote_objects.insert(ob);
+							}
+						}
+						break;
+					}
 				case Protocol::ObjectFlagsChanged:
 					{
 						const UID object_uid = readUIDFromStream(*socket);

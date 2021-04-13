@@ -183,6 +183,15 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	//this->targetURLLabel->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
 	//this->targetURLLineEdit->setVisible(ob.object_type == WorldObject::ObjectType_Hypercard);
 	this->visitURLLabel->setVisible(/*ob.object_type == WorldObject::ObjectType_Hypercard && */!ob.target_url.empty());
+
+	if(ob.lightmap_baking)
+	{
+		lightmapBakeStatusLabel->setText("Lightmap is baking...");
+	}
+	else
+	{
+		lightmapBakeStatusLabel->setText("");
+	}
 }
 
 
@@ -235,7 +244,27 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.materials.resize(cloned_materials.size());
 	for(size_t i=0; i<cloned_materials.size(); ++i)
 		ob_out.materials[i] = cloned_materials[i]->clone();
+}
 
+
+void ObjectEditor::objectModelURLUpdated(const WorldObject& ob)
+{
+	this->modelFileSelectWidget->setFilename(QtUtils::toQString(ob.model_url));
+}
+
+
+void ObjectEditor::objectLightmapURLUpdated(const WorldObject& ob)
+{
+	lightmapURLLabel->setText(QtUtils::toQString(ob.lightmap_url));
+
+	if(ob.lightmap_baking)
+	{
+		lightmapBakeStatusLabel->setText("Lightmap is baking...");
+	}
+	else
+	{
+		lightmapBakeStatusLabel->setText("Lightmap baked.");
+	}
 }
 
 
@@ -365,6 +394,8 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 
 void ObjectEditor::on_bakeLightmapPushButton_clicked(bool checked)
 {
+	lightmapBakeStatusLabel->setText("Lightmap is baking...");
+
 	emit bakeObjectLightmap();
 }
 

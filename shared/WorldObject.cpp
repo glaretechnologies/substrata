@@ -32,6 +32,7 @@ WorldObject::WorldObject()
 	from_remote_transform_dirty = false;
 	from_remote_other_dirty = false;
 	from_remote_lightmap_url_dirty = false;
+	from_remote_model_url_dirty = false;
 	from_remote_flags_dirty = false;
 	from_local_transform_dirty = false;
 	from_local_other_dirty = false;
@@ -39,6 +40,7 @@ WorldObject::WorldObject()
 #if GUI_CLIENT
 	is_selected = false;
 	loaded = false;
+	lightmap_baking = false;
 #endif
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
