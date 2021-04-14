@@ -509,34 +509,36 @@ void ServerAllWorldsState::denormaliseData()
 
 		for(auto i=world_state->parcels.begin(); i != world_state->parcels.end(); ++i)
 		{
+			Parcel* parcel = i->second.ptr();
+
 			// Denormalise Parcel::owner_name
 			{
-				auto res = user_id_to_users.find(i->second->owner_id);
+				auto res = user_id_to_users.find(parcel->owner_id); // Lookup user from owner_id
 				if(res != user_id_to_users.end())
-					i->second->owner_name = res->second->name;
+					parcel->owner_name = res->second->name;
 			}
 
 			// Denormalise Parcel::admin_names
-			i->second->admin_names.resize(i->second->admin_ids.size());
-			for(size_t z=0; z<i->second->admin_ids.size(); ++z)
+			parcel->admin_names.resize(parcel->admin_ids.size());
+			for(size_t z=0; z<parcel->admin_ids.size(); ++z)
 			{
-				auto res = user_id_to_users.find(i->second->owner_id);
+				auto res = user_id_to_users.find(parcel->admin_ids[z]); // Lookup user from admin id
 				if(res != user_id_to_users.end())
 				{
 					//conPrint("admin: " + res->second->name);
-					i->second->admin_names[z] = res->second->name;
+					parcel->admin_names[z] = res->second->name;
 				}
 			}
 
 			// Denormalise Parcel::writer_names
-			i->second->writer_names.resize(i->second->writer_ids.size());
-			for(size_t z=0; z<i->second->writer_ids.size(); ++z)
+			parcel->writer_names.resize(parcel->writer_ids.size());
+			for(size_t z=0; z<parcel->writer_ids.size(); ++z)
 			{
-				auto res = user_id_to_users.find(i->second->owner_id);
+				auto res = user_id_to_users.find(parcel->writer_ids[z]); // Lookup user from writer id
 				if(res != user_id_to_users.end())
 				{
 					//conPrint("writer: " + res->second->name);
-					i->second->writer_names[z] = res->second->name;
+					parcel->writer_names[z] = res->second->name;
 				}
 			}
 		}
