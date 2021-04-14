@@ -82,7 +82,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			int num = 0;
 			for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
 			{
-				const uint32 auction_id = parcel->parcel_auction_ids.back();
+				const uint32 auction_id = parcel->parcel_auction_ids[i];
 				auto auction_res = world_state.parcel_auctions.find(auction_id);
 				if(auction_res != world_state.parcel_auctions.end())
 				{
@@ -101,19 +101,19 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			num = 0;
 			for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
 			{
-				const uint32 auction_id = parcel->parcel_auction_ids.back();
+				const uint32 auction_id = parcel->parcel_auction_ids[i];
 				auto auction_res = world_state.parcel_auctions.find(auction_id);
 				if(auction_res != world_state.parcel_auctions.end())
 				{
 					const ParcelAuction* auction = auction_res->second.ptr();
 					if(auction->auction_state == ParcelAuction::AuctionState_Sold)
 					{
-						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->auction_end_time.timeDescription() + ": Parcel sold.</a>";
+						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->auction_end_time.timeDescription() + ": Parcel sold.</a> <br/>";
 						num++;
 					}
 					else if(auction->auction_state == ParcelAuction::AuctionState_Sold)
 					{
-						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->auction_end_time.timeDescription() + ": Parcel did not sell.</a>";
+						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->auction_end_time.timeDescription() + ": Parcel did not sell.</a> <br/>";
 						num++;
 					}
 				}
