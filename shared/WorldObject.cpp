@@ -250,6 +250,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Generic: return "generic";
 	case ObjectType_Hypercard: return "hypercard";
 	case ObjectType_VoxelGroup: return "voxel group";
+	case ObjectType_Spotlight: return "spotlight";
 	default: return "Unknown";
 	}
 }

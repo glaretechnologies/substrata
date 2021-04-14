@@ -68,6 +68,7 @@ private slots:;
 	void on_actionAddObject_triggered();
 	void on_actionAddHypercard_triggered();
 	void on_actionAdd_Voxels_triggered();
+	void on_actionAdd_Spotlight_triggered();
 	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
 	void on_actionReset_Layout_triggered();
@@ -259,6 +260,11 @@ public:
 
 	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
 	Reference<RayMesh> hypercard_quad_raymesh;
+
+	Reference<Indigo::Mesh> spotlight_mesh;
+	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
+	Reference<RayMesh> spotlight_raymesh;
+
 
 	Reference<RayMesh> unit_cube_raymesh;
 

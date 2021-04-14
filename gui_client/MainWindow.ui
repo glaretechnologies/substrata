@@ -50,6 +50,7 @@
     </property>
     <addaction name="actionAddObject"/>
     <addaction name="actionAddHypercard"/>
+    <addaction name="actionAdd_Spotlight"/>
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
    </widget>
@@ -417,6 +418,11 @@
   <action name="actionOptions">
    <property name="text">
     <string>Options</string>
+   </property>
+  </action>
+  <action name="actionAdd_Spotlight">
+   <property name="text">
+    <string>Add Spotlight</string>
    </property>
   </action>
  </widget>

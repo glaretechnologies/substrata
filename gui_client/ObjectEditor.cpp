@@ -69,6 +69,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
+	connect(this->luminousFluxDoubleSpinBox,SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+
 	this->visitURLLabel->hide();
 
 	// Set up script edit timer.
@@ -92,6 +94,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	case WorldObject::ObjectType_Generic: ob_type = "Generic"; break;
 	case WorldObject::ObjectType_Hypercard: ob_type = "Hypercard"; break;
 	case WorldObject::ObjectType_VoxelGroup: ob_type = "Voxel Group"; break;
+	case WorldObject::ObjectType_Spotlight: ob_type = "Spotlight"; break;
 	}
 
 	this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
@@ -146,27 +149,39 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		selected_mat = ob.materials[selected_mat_index];
 	else
 		selected_mat = new WorldMaterial();
+
+	SignalBlocker::setValue(this->luminousFluxDoubleSpinBox, selected_mat->emission_lum_flux);
 	
 	if(ob.object_type == WorldObject::ObjectType_Hypercard)
 	{
 		this->materialsGroupBox->hide();
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
 	}
 	else if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		this->materialsGroupBox->show();
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_Spotlight)
+	{
+		this->materialsGroupBox->show();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->show();
 	}
 	else
 	{
 		this->materialsGroupBox->show();
 		this->modelLabel->show();
 		this->modelFileSelectWidget->show();
+		this->spotlightGroupBox->hide();
 	}
 
-	if(ob.object_type == WorldObject::ObjectType_VoxelGroup || ob.object_type == WorldObject::ObjectType_Generic)
+	if(ob.object_type == WorldObject::ObjectType_VoxelGroup || ob.object_type == WorldObject::ObjectType_Spotlight || ob.object_type == WorldObject::ObjectType_Generic)
 	{
 		this->matEditor->setFromMaterial(*selected_mat);
 
@@ -244,6 +259,14 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.materials.resize(cloned_materials.size());
 	for(size_t i=0; i<cloned_materials.size(); ++i)
 		ob_out.materials[i] = cloned_materials[i]->clone();
+
+	if(ob_out.object_type == WorldObject::ObjectType_Spotlight) // NOTE: is ob_out.object_type set?
+	{
+		if(ob_out.materials.size() >= 1)
+		{
+			ob_out.materials[0]->emission_lum_flux = (float)this->luminousFluxDoubleSpinBox->value();
+		}
+	}
 }
 
 

@@ -36,6 +36,10 @@ void LoadModelTask::run(size_t thread_index)
 		{
 			return; // Done in main thread for now.
 		}
+		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+		{
+			return; // Done in main thread for now.
+		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		{
 			if(ob->getCompressedVoxels().size() == 0) //  ob->getDecompressedVoxelGroup().voxels.size() == 0)
