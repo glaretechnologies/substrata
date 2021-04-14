@@ -130,7 +130,7 @@ static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::
 }
 
 
-static void assignParcelToUser(const Reference<ServerWorldState>& world_state, const ParcelID& parcel_id, const UserID& user_id)
+/*static void assignParcelToUser(const Reference<ServerWorldState>& world_state, const ParcelID& parcel_id, const UserID& user_id)
 {
 	conPrint("Assigning parcel " + parcel_id.toString() + " to user " + user_id.toString());
 
@@ -148,7 +148,7 @@ static void assignParcelToUser(const Reference<ServerWorldState>& world_state, c
 	{
 		conPrint("\tFailed, parcel not found.");
 	}
-}
+}*/
 
 
 int main(int argc, char *argv[])
@@ -311,6 +311,7 @@ int main(int argc, char *argv[])
 		}
 
 		// TEMP: make all parcels have zmax = 10
+		if(false)
 		{
 			for(auto i = server.world_state->getRootWorldState()->parcels.begin(); i != server.world_state->getRootWorldState()->parcels.end(); ++i)
 			{
@@ -320,7 +321,7 @@ int main(int argc, char *argv[])
 		}
 
 		// TEMP: Print out users
-		for(auto i = server.world_state->user_id_to_users.begin(); i != server.world_state->user_id_to_users.end(); ++i)
+		/*for(auto i = server.world_state->user_id_to_users.begin(); i != server.world_state->user_id_to_users.end(); ++i)
 			conPrint("User with id " + i->second->id.toString() + ": " + i->second->name);
 
 		// TEMP: Assign some parcel permissions
@@ -344,7 +345,7 @@ int main(int argc, char *argv[])
 				res->second->all_writeable = true;
 				conPrint("Made parcel 20 all-writeable.");
 			}
-		}
+		}*/
 
 
 		//server.world_state->objects.clear();
