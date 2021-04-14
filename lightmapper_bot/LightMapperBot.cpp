@@ -260,6 +260,49 @@ public:
 			indigo_mesh = new Indigo::Mesh();
 			batched_mesh->buildIndigoMesh(*indigo_mesh);
 		}
+		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+		{
+			// NOTE: copied from MainWindow.cpp:
+			const float fixture_w = 0.1;
+
+			// Build Indigo::Mesh
+			Indigo::MeshRef spotlight_mesh = new Indigo::Mesh();
+			spotlight_mesh->num_uv_mappings = 1;
+
+			spotlight_mesh->vert_positions.resize(4);
+			spotlight_mesh->vert_normals.resize(4);
+			spotlight_mesh->uv_pairs.resize(4);
+			spotlight_mesh->quads.resize(1);
+
+			spotlight_mesh->vert_positions[0] = Indigo::Vec3f(-fixture_w/2, -fixture_w/2, 0.f);
+			spotlight_mesh->vert_positions[1] = Indigo::Vec3f(-fixture_w/2,  fixture_w/2, 0.f); // + y
+			spotlight_mesh->vert_positions[2] = Indigo::Vec3f( fixture_w/2,  fixture_w/2, 0.f);
+			spotlight_mesh->vert_positions[3] = Indigo::Vec3f( fixture_w/2, -fixture_w/2, 0.f); // + x
+
+			spotlight_mesh->vert_normals[0] = Indigo::Vec3f(0, 0, -1);
+			spotlight_mesh->vert_normals[1] = Indigo::Vec3f(0, 0, -1);
+			spotlight_mesh->vert_normals[2] = Indigo::Vec3f(0, 0, -1);
+			spotlight_mesh->vert_normals[3] = Indigo::Vec3f(0, 0, -1);
+
+			spotlight_mesh->uv_pairs[0] = Indigo::Vec2f(0, 0);
+			spotlight_mesh->uv_pairs[1] = Indigo::Vec2f(0, 1);
+			spotlight_mesh->uv_pairs[2] = Indigo::Vec2f(1, 1);
+			spotlight_mesh->uv_pairs[3] = Indigo::Vec2f(1, 0);
+
+			spotlight_mesh->quads[0].mat_index = 0;
+			spotlight_mesh->quads[0].vertex_indices[0] = 0;
+			spotlight_mesh->quads[0].vertex_indices[1] = 1;
+			spotlight_mesh->quads[0].vertex_indices[2] = 2;
+			spotlight_mesh->quads[0].vertex_indices[3] = 3;
+			spotlight_mesh->quads[0].uv_indices[0] = 0;
+			spotlight_mesh->quads[0].uv_indices[1] = 1;
+			spotlight_mesh->quads[0].uv_indices[2] = 2;
+			spotlight_mesh->quads[0].uv_indices[3] = 3;
+
+			spotlight_mesh->endOfModel();
+
+			indigo_mesh = spotlight_mesh;
+		}
 		else
 		{
 			const std::string model_path = resource_manager->pathForURL(ob->model_url);
@@ -299,46 +342,101 @@ public:
 	{
 		Indigo::SceneNodeMeshRef mesh_node = makeSceneNodeMeshForOb(ob);
 
-		// Make Indigo materials from loaded parcel mats
-		Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
-		for(size_t i=0; i<ob->materials.size(); ++i)
+		if(ob->object_type == WorldObject::ObjectType_Spotlight)
 		{
-			const WorldMaterialRef parcel_mat = ob->materials[i];
+			Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
 
-			Reference<Indigo::WavelengthDependentParam> albedo_param;
-			if(!parcel_mat->colour_texture_url.empty())
-			{
-				// TODO: use colour_rgb as tint colour?
-				const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
+			Reference<Indigo::WavelengthDependentParam> albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(0.7f), /*gamma=*/2.2));
 
-				Indigo::Texture tex(toIndigoString(path));
-				tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
-					Indigo::Matrix2(parcel_mat->tex_matrix.e),
-					Indigo::Vec2d(0.0)
-				);
-				albedo_param = new Indigo::TextureWavelengthDependentParam(tex, /*tint_colour=*/new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
-			}
-			else
-			{
-				albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
-			}
+			float luminous_flux = 10000;
+			if(ob->materials.size() >= 1)
+				luminous_flux = ob->materials[0]->emission_lum_flux;
 
 			Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(albedo_param);
-			indigo_mat->name = toIndigoString(parcel_mat->name);
+			indigo_mat->name = toIndigoString("emitting mat");
 
+			if(luminous_flux > 0)
+			{
+				indigo_mat->base_emission = new Indigo::ConstantWavelengthDependentParam(new Indigo::BlackBodySpectrum(5000, 1.0));//  new Indigo::UniformSpectrum(1.0e10); // TEMP: use D65 or something instead.
+
+				if(ob->materials.size() >= 1)
+				{
+					// Use colour to multiple emission.
+					const WorldMaterialRef world_mat = ob->materials[0];
+					indigo_mat->emission = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(world_mat->colour_rgb.r, world_mat->colour_rgb.g, world_mat->colour_rgb.b), /*gamma=*/2.2));
+				}
+			}
 			indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
-		}
 
-		Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
-		model_node->setMaterials(indigo_mat_nodes);
-		model_node->setGeometry(mesh_node);
-		model_node->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
-			0.0,
-			toIndigoVec3d(ob->pos),
-			Indigo::AxisAngle::identity()
-		));
-		model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(ob).getUpperLeftMatrix().e);
-		return model_node;
+
+			
+			Indigo::Vector<Indigo::EmissionScaleRef> emission_scales(1);
+			emission_scales[0] = new Indigo::EmissionScale(Indigo::EmissionScale::LUMINOUS_FLUX, luminous_flux, indigo_mat_nodes[0]);
+
+			Indigo::Vector<Indigo::IESProfileRef> ies_profiles(1);
+			ies_profiles[0] = new Indigo::IESProfile("zomb_narrow.ies", indigo_mat_nodes[0]);
+
+			Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
+			model_node->setMaterials(indigo_mat_nodes);
+			model_node->setGeometry(mesh_node);
+			model_node->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
+				0.0,
+				toIndigoVec3d(ob->pos),
+				Indigo::AxisAngle::identity()
+			));
+			model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(ob).getUpperLeftMatrix().e);
+
+			if(luminous_flux > 0)
+			{
+				model_node->setEmissionScales(emission_scales);
+				model_node->ies_profiles = ies_profiles;
+			}
+
+			return model_node;
+		}
+		else
+		{
+			// Make Indigo materials from loaded parcel mats
+			Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
+			for(size_t i=0; i<ob->materials.size(); ++i)
+			{
+				const WorldMaterialRef parcel_mat = ob->materials[i];
+
+				Reference<Indigo::WavelengthDependentParam> albedo_param;
+				if(!parcel_mat->colour_texture_url.empty())
+				{
+					// TODO: use colour_rgb as tint colour?
+					const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
+
+					Indigo::Texture tex(toIndigoString(path));
+					tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
+						Indigo::Matrix2(parcel_mat->tex_matrix.e),
+						Indigo::Vec2d(0.0)
+					);
+					albedo_param = new Indigo::TextureWavelengthDependentParam(tex, /*tint_colour=*/new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
+				}
+				else
+				{
+					albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
+				}
+
+				Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(albedo_param);
+				indigo_mat->name = toIndigoString(parcel_mat->name);
+
+				indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
+			}
+
+			Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
+			model_node->setMaterials(indigo_mat_nodes);
+			model_node->setGeometry(mesh_node);
+			model_node->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
+				0.0,
+				toIndigoVec3d(ob->pos),
+				Indigo::AxisAngle::identity()
+			));
+			model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(ob).getUpperLeftMatrix().e);
+			return model_node;
+		}
 	}
 
 
@@ -434,7 +532,7 @@ public:
 
 				const float frac = A / parcel_A;
 
-				const float full_num_px = 512 * 512;
+				const float full_num_px = Maths::square(2048);
 
 				const float use_num_px = frac * full_num_px;
 
@@ -443,7 +541,7 @@ public:
 				const int use_side_res_rounded = Maths::roundUpToMultipleOfPowerOf2((int)use_side_res, (int)4);
 
 				// Clamp to min and max allowable lightmap resolutions
-				const int clamped_side_res = myClamp(use_side_res_rounded, 64, 512);
+				const int clamped_side_res = myClamp(use_side_res_rounded, 64, 2048);
 
 				printVar(A);
 				printVar(parcel_A);

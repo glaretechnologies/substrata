@@ -54,6 +54,8 @@ public:
 
 	Matrix2f tex_matrix;
 
+	float emission_lum_flux;
+
 	Reference<WorldMaterial> clone() const
 	{
 		Reference<WorldMaterial> m = new WorldMaterial();

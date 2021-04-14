@@ -23,6 +23,7 @@ WorldMaterial::WorldMaterial()
 	metallic_fraction = ScalarVal(0.0f);
 	opacity = ScalarVal(1.0f);
 	tex_matrix = Matrix2f::identity();
+	emission_lum_flux = 0;
 }
 
 
@@ -201,7 +202,9 @@ static Colour3f readColour3fFromStram(InStream& stream)
 }
 
 
-static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 4;
+static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 5;
+
+// v5: added emission_lum_flux
 
 
 void writeToStream(const WorldMaterial& mat, OutStream& stream)
@@ -217,6 +220,8 @@ void writeToStream(const WorldMaterial& mat, OutStream& stream)
 	writeToStream(mat.opacity, stream);
 
 	writeToStream(mat.tex_matrix, stream);
+
+	stream.writeFloat(mat.emission_lum_flux);
 }
 
 
@@ -278,6 +283,9 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 		mat.tex_matrix = readMatrix2FromStream<float>(stream);
 	else
 		mat.tex_matrix = Matrix2f(1, 0, 0, -1); // Needed for existing object objects etc..
+
+	if(v >= 5)
+		mat.emission_lum_flux = stream.readFloat();
 }
 
 

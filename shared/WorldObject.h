@@ -99,7 +99,8 @@ public:
 	{
 		ObjectType_Generic,
 		ObjectType_Hypercard,
-		ObjectType_VoxelGroup
+		ObjectType_VoxelGroup,
+		ObjectType_Spotlight
 	};
 
 	static std::string objectTypeString(ObjectType t);

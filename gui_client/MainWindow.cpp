@@ -704,6 +704,31 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 				physics_world->addObject(ob->physics_object);
 				physics_world->rebuild(task_manager, print_output);
 			}
+			else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+			{
+				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob->geometry = this->spotlight_raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+
+				GLObjectRef opengl_ob = new GLObject();
+				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
+				opengl_ob->materials.resize(1);
+				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+				ob->loaded_content = ob->content;
+
+				ui->glWidget->addObject(ob->opengl_engine_ob);
+
+				physics_world->addObject(ob->physics_object);
+				physics_world->rebuild(task_manager, print_output);
+			}
 			else
 			{
 				const bool load_in_task = (ob->object_type == WorldObject::ObjectType_VoxelGroup) || // Always load voxel models in a LoadModelTask
@@ -2183,6 +2208,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						reload_opengl_model = ob->loaded_content != ob->content;
 					}
+					else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+					{
+						// no reload needed
+					}
 
 					if(reload_opengl_model)
 					{
@@ -3230,6 +3259,48 @@ void MainWindow::on_actionAddHypercard_triggered()
 	}
 
 	showInfoNotification("Added hypercard.");
+}
+
+
+void MainWindow::on_actionAdd_Spotlight_triggered()
+{
+	const float quad_w = 0.4f;
+	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+		this->cam_controller.getUpVec() * quad_w * 0.5f -
+		this->cam_controller.getRightVec() * quad_w * 0.5f;
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create spotlights in a parcel that you have write permissions for.");
+		return;
+	}
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_Spotlight;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = 0;
+	new_world_object->scale = Vec3f(1.f);
+
+
+	// Send CreateObject message to server
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		packet.writeUInt32(Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(packet);
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
+
+	showInfoNotification("Added spotlight.");
 }
 
 
@@ -5202,6 +5273,60 @@ int main(int argc, char *argv[])
 		}
 
 		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
+
+		// Make spotlight meshes
+		{
+			const float fixture_w = 0.1;
+			 
+			// Build Indigo::Mesh
+			mw.spotlight_mesh = new Indigo::Mesh();
+			mw.spotlight_mesh->num_uv_mappings = 1;
+
+			mw.spotlight_mesh->vert_positions.resize(4);
+			mw.spotlight_mesh->vert_normals.resize(4);
+			mw.spotlight_mesh->uv_pairs.resize(4);
+			mw.spotlight_mesh->quads.resize(1);
+
+			mw.spotlight_mesh->vert_positions[0] = Indigo::Vec3f(-fixture_w/2, -fixture_w/2, 0.f);
+			mw.spotlight_mesh->vert_positions[1] = Indigo::Vec3f(-fixture_w/2,  fixture_w/2, 0.f); // + y
+			mw.spotlight_mesh->vert_positions[2] = Indigo::Vec3f( fixture_w/2,  fixture_w/2, 0.f);
+			mw.spotlight_mesh->vert_positions[3] = Indigo::Vec3f( fixture_w/2, -fixture_w/2, 0.f); // + x
+
+			mw.spotlight_mesh->vert_normals[0] = Indigo::Vec3f(0, 0, -1);
+			mw.spotlight_mesh->vert_normals[1] = Indigo::Vec3f(0, 0, -1);
+			mw.spotlight_mesh->vert_normals[2] = Indigo::Vec3f(0, 0, -1);
+			mw.spotlight_mesh->vert_normals[3] = Indigo::Vec3f(0, 0, -1);
+
+			mw.spotlight_mesh->uv_pairs[0] = Indigo::Vec2f(0, 0);
+			mw.spotlight_mesh->uv_pairs[1] = Indigo::Vec2f(0, 1);
+			mw.spotlight_mesh->uv_pairs[2] = Indigo::Vec2f(1, 1);
+			mw.spotlight_mesh->uv_pairs[3] = Indigo::Vec2f(1, 0);
+
+			mw.spotlight_mesh->quads[0].mat_index = 0;
+			mw.spotlight_mesh->quads[0].vertex_indices[0] = 0;
+			mw.spotlight_mesh->quads[0].vertex_indices[1] = 1;
+			mw.spotlight_mesh->quads[0].vertex_indices[2] = 2;
+			mw.spotlight_mesh->quads[0].vertex_indices[3] = 3;
+			mw.spotlight_mesh->quads[0].uv_indices[0] = 0;
+			mw.spotlight_mesh->quads[0].uv_indices[1] = 1;
+			mw.spotlight_mesh->quads[0].uv_indices[2] = 2;
+			mw.spotlight_mesh->quads[0].uv_indices[3] = 3;
+
+			mw.spotlight_mesh->endOfModel();
+
+			mw.spotlight_opengl_mesh = OpenGLEngine::buildIndigoMesh(mw.spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+
+			// Build RayMesh (for physics)
+			mw.spotlight_raymesh = new RayMesh("mesh", false);
+			mw.spotlight_raymesh->fromIndigoMesh(*mw.spotlight_mesh);
+
+			mw.spotlight_raymesh->buildTrisFromQuads();
+			Geometry::BuildOptions options;
+			DummyShouldCancelCallback should_cancel_callback;
+			mw.spotlight_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
+		}
+
+
 
 		// Make unit-cube raymesh (used for placeholder model)
 		{
