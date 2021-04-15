@@ -10,10 +10,15 @@ Copyright Glare Technologies Limited 2021 -
 #include <Base64.h>
 #include <CryptoRNG.h>
 #include <mathstypes.h>
+#include <limits.h>
 
 
 ParcelAuction::ParcelAuction()
-{}
+{
+	sold_price = 0;
+	auction_sold_time = TimeStamp(0);
+	order_id = std::numeric_limits<uint64>::max();
+}
 
 
 ParcelAuction::~ParcelAuction()
@@ -30,9 +35,19 @@ double ParcelAuction::computeCurrentAuctionPrice() const
 }
 
 
-static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 3;
+TimeStamp ParcelAuction::getAuctionEndOrSoldTime() const
+{
+	if(auction_state == AuctionState_Sold)
+		return auction_sold_time;
+	else
+		return auction_end_time;
+}
+
+
+static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 4;
 // v2: added screenshot_id
 // v3: changed to screenshot_ids
+// v4: added sold_price, auction_sold_time, order_id
 
 
 void writeToStream(const ParcelAuction& a, OutStream& stream)
@@ -48,6 +63,9 @@ void writeToStream(const ParcelAuction& a, OutStream& stream)
 	a.auction_end_time.writeToStream(stream);
 	stream.writeDouble(a.auction_start_price);
 	stream.writeDouble(a.auction_end_price);
+	stream.writeDouble(a.sold_price);
+	a.auction_sold_time.writeToStream(stream);
+	stream.writeUInt64(a.order_id);
 
 	stream.writeUInt64(a.screenshot_ids.size());
 	for(size_t i=0; i<a.screenshot_ids.size(); ++i)
@@ -74,6 +92,12 @@ void readFromStream(InStream& stream, ParcelAuction& a)
 	a.auction_end_time  .readFromStream(stream);
 	a.auction_start_price = stream.readDouble();
 	a.auction_end_price   = stream.readDouble();
+	if(v >= 4)
+	{
+		a.sold_price   = stream.readDouble();
+		a.auction_sold_time.readFromStream(stream);
+		a.order_id = stream.readUInt64();
+	}
 
 	if(v == 2)
 	{

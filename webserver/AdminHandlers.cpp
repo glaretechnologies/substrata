@@ -62,7 +62,7 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 
 		page_out += "<div><a href=\"/parcel_auction_list\">Parcel auction list</a></div>";
 
-		// Print out parcels
+		//--------------------------------------------- Print out parcels ---------------------------------------------
 		page_out += "<h2>Root world Parcels</h2>\n";
 
 		Reference<ServerWorldState> root_world = world_state.getRootWorldState();
@@ -107,6 +107,27 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 			page_out += "<br/>  \n";
 		}
 
+
+		//--------------------------------------------- Print out parcel auctions ---------------------------------------------
+		page_out += "<h2>Parcel auctions</h2>\n";
+
+		for(auto it = world_state.parcel_auctions.begin(); it != world_state.parcel_auctions.end(); ++it)
+		{
+			const ParcelAuction* auction = it->second.ptr();
+
+			page_out += "<div>\n";
+			page_out += "<a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel Auction " + toString(auction->id) + "</a>, " +
+				"auction_start_time: " + auction->auction_start_time.RFC822FormatedString() + ", state: ";
+
+			if(auction->auction_state == ParcelAuction::AuctionState_ForSale)
+				page_out += "for-sale";
+			else if(auction->auction_state == ParcelAuction::AuctionState_Sold)
+				page_out += "sold";
+			else if(auction->auction_state == ParcelAuction::AuctionState_NotSold)
+				page_out += "not-sold";
+
+			page_out += "</div>    \n";
+		}
 	} // End Lock scope
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
