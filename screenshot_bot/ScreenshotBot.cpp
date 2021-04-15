@@ -95,6 +95,7 @@ int main(int argc, char* argv[])
 				if(request_type == Protocol::ScreenShotRequest)
 				{
 					// Get screenshot request
+					conPrint("Received screenshot request from server.");
 
 					// Read cam position
 					const double cam_x = socket->readDouble();
@@ -168,7 +169,7 @@ int main(int argc, char* argv[])
 				}
 				else
 				{
-					throw glare::Exception("unknown protocol type: " + toString(request_type));
+					throw glare::Exception("unknown request type: " + toString(request_type));
 				}
 			}
 		}

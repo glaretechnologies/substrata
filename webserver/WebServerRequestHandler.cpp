@@ -90,6 +90,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetParcelOwnerPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_regenerate_parcel_auction_screenshots")
+		{
+			AdminHandlers::handleRegenerateParcelAuctionScreenshots(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";

@@ -191,10 +191,15 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 
 				// Make new screenshot (request) for parcel auction
 
+				//TEMP: scan over all screenshots and find highest used ID. (was running into a problem on localhost of id >= num items)
+				uint64 highest_id = 0;
+				for(auto it = world_state.screenshots.begin(); it != world_state.screenshots.end(); ++it)
+					highest_id = myMax(highest_id, it->first);
+
 				// Close-in screenshot
 				{
 					ScreenshotRef shot = new Screenshot();
-					shot->id = world_state.screenshots.size();
+					shot->id = highest_id + 1;
 					parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 					shot->width_px = 650;
 					shot->highlight_parcel_id = (int)parcel_id;
@@ -208,7 +213,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 				// Zoomed-out screenshot
 				{
 					ScreenshotRef shot = new Screenshot();
-					shot->id = world_state.screenshots.size();
+					shot->id = highest_id + 2;
 					parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 					shot->width_px = 650;
 					shot->highlight_parcel_id = (int)parcel_id;
@@ -331,6 +336,54 @@ void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::Requ
 				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(parcel_id));
 			}
 		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int parcel_auction_id = request.getPostIntField("parcel_auction_id");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel auction
+			const auto res = world_state.parcel_auctions.find(parcel_auction_id);
+			if(res != world_state.parcel_auctions.end())
+			{
+				ParcelAuction* auction = res->second.ptr();
+
+				for(size_t z=0; z<auction->screenshot_ids.size(); ++z)
+				{
+					const uint64 screenshot_id = auction->screenshot_ids[z];
+
+					auto shot_res = world_state.screenshots.find(screenshot_id);
+					if(shot_res != world_state.screenshots.end())
+					{
+						Screenshot* shot = shot_res->second.ptr();
+						shot->state = Screenshot::ScreenshotState_notdone;
+					}
+				}
+
+				world_state.markAsChanged();
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_auction/" + toString(parcel_auction_id));
 	}
 	catch(glare::Exception& e)
 	{
