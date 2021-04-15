@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
 #include "../shared/Version.h"
+#include "../server/ServerWorldState.h"
 #include <ConPrint.h>
 #include <Exception.h>
 #include <Lock.h>
@@ -31,6 +32,50 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 
 
 	const std::string deployed_version = ::cyberspace_version;
+
+	std::string auction_html;
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		ServerWorldState* root_world = world_state.getRootWorldState().ptr();
+
+		int num_auctions_shown = 0;
+		const TimeStamp now = TimeStamp::currentTime();
+		auction_html += "<table><tr>\n";
+		for(auto it = root_world->parcels.begin(); (it != root_world->parcels.end()) && (num_auctions_shown < 3); ++it)
+		{
+			Parcel* parcel = it->second.ptr();
+
+			if(!parcel->parcel_auction_ids.empty())
+			{
+				const uint32 auction_id = parcel->parcel_auction_ids.back(); // Get most recent auction
+				auto res = world_state.parcel_auctions.find(auction_id);
+				if(res != world_state.parcel_auctions.end())
+				{
+					const ParcelAuction* auction = res->second.ptr();
+
+					if((auction->auction_state == ParcelAuction::AuctionState_ForSale) && (auction->auction_start_time <= now) && (now <= auction->auction_end_time)) // If auction is valid and running:
+					{
+						if(!auction->screenshot_ids.empty())
+						{
+							const uint64 shot_id = auction->screenshot_ids[0]; // Get id of close-in screenshot
+
+							auction_html += "<td><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
+								"Current price: " + doubleToString(auction->computeCurrentAuctionPrice()) + "&nbsp;EUR</td>";
+						}
+
+						num_auctions_shown++;
+					}
+				}
+			}
+		}
+		auction_html += "</tr></table>\n";
+
+		if(num_auctions_shown == 0)
+			auction_html += "<p>Sorry, there are no parcels for sale right now.  Please check back later!</p>";
+	} // end lock scope
+
+
 
 	page_out +=
 	"	<p>																																																		\n"
@@ -54,8 +99,9 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"	Linux - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".tar.gz\">Substrata_v" + deployed_version + ".tar.gz</a>										\n"
 	"	</p>																																																	\n"
 	"																																																			\n"
-	"	<h2>Buy a parcel</h2>																																													\n"
-	"	<p><a href=\"/parcel_auction_list\">Land parcels for sale</a></p>																																		\n"
+	"	<h2>Buy a land parcel</h2>																																												\n"
+	 + auction_html + 
+	"   <a href=\"/parcel_auction_list\">View all parcels for sale</a>																																			\n"
 	"																																																			\n"
 	"	<h2>Community</h2>																																														\n"
 	"																																																			\n"
