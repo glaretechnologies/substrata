@@ -315,15 +315,16 @@ void MainWindow::afterGLInitInitialise()
 	{
 		this->cam_controller.setPosition(screenshot_campos);
 		this->cam_controller.setAngles(screenshot_camangles);
+		
+		// Enable fly mode so we don't just fall to the ground
+		ui->actionFly_Mode->setChecked(true);
+		this->player_physics.setFlyModeEnabled(true);
 	}
 }
 
 
 MainWindow::~MainWindow()
 {
-	if(this->client_tls_config)
-		tls_config_free(this->client_tls_config);
-
 	// Save resources DB to disk if it has un-saved changes.
 	const std::string resources_db_path = appdata_path + "/resources_db";
 	try
@@ -361,6 +362,9 @@ MainWindow::~MainWindow()
 
 	texture_loader_task_manager.removeQueuedTasks();
 	texture_loader_task_manager.waitForTasksToComplete();
+
+	if(this->client_tls_config)
+		tls_config_free(this->client_tls_config);
 
 	delete ui;
 }
@@ -2354,7 +2358,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						{
 							// Make OpenGL model for parcel:
 							const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
-							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, write_perms);
+
+							bool use_write_perms = write_perms;
+							if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
+								use_write_perms = false;
+
+							assert(!use_write_perms);
+							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
 							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
 							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
@@ -3588,7 +3598,12 @@ void MainWindow::addParcelObjects()
 			{
 				// Make OpenGL model for parcel:
 				const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
-				parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, write_perms);
+
+				bool use_write_perms = write_perms;
+				if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
+					use_write_perms = false;
+
+				parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
 				parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
 				ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
 
@@ -3648,7 +3663,12 @@ void MainWindow::recolourParcelsForLoggedInState()
 		if(parcel->opengl_engine_ob.nonNull())
 		{
 			const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
-			parcel->setColourForPerms(write_perms);
+
+			bool use_write_perms = write_perms;
+			if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
+				use_write_perms = false;
+
+			parcel->setColourForPerms(use_write_perms);
 		}
 	}
 }
@@ -4937,6 +4957,8 @@ int main(int argc, char *argv[])
 		takescreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// screenshot_highlight_parcel_id
 		takescreenshot_args.push_back(ArgumentParser::ArgumentType_string); // screenshot_path
 		syntax["--takescreenshot"] = takescreenshot_args;
+
+		// e.g. --takescreenshot 100 200 300 0 3.1 0 800 15 screenshot1.jpg
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it

@@ -131,7 +131,8 @@ bool Parcel::userHasWritePerms(const UserID user_id) const // Does the user give
 
 static Colour3f colForPrivs(bool write_privileges)
 {
-	return write_privileges ? Colour3f(0.4f, 0.9f, 0.3f) : Colour3f(0.9f, 0.9f, 0.3f);
+	//return write_privileges ? Colour3f(0.4f, 0.9f, 0.3f) : Colour3f(0.9f, 0.9f, 0.3f);
+	return write_privileges ? Colour3f(0.2f, 0.8f, 0.3f) : Colour3f(0.1f, 0.4f, 0.8f);
 }
 
 
