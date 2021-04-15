@@ -79,6 +79,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			// Get current auction if any
 			page += "<h2>Current auction</h2>         \n";
+			const TimeStamp now = TimeStamp::currentTime();
 			int num = 0;
 			for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
 			{
@@ -87,7 +88,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				if(auction_res != world_state.parcel_auctions.end())
 				{
 					const ParcelAuction* auction = auction_res->second.ptr();
-					if(auction->auction_state == ParcelAuction::AuctionState_ForSale)
+					if((auction->auction_state == ParcelAuction::AuctionState_ForSale) && (auction->auction_start_time <= now) && (now <= auction->auction_end_time)) // If auction is valid and running:
 					{
 						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel for sale, auction ends " + auction->auction_end_time.timeDescription() + "</a>";
 						num++;
@@ -108,12 +109,12 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 					const ParcelAuction* auction = auction_res->second.ptr();
 					if(auction->auction_state == ParcelAuction::AuctionState_Sold)
 					{
-						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->auction_end_time.timeDescription() + ": Parcel sold.</a> <br/>";
+						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->getAuctionEndOrSoldTime().timeDescription() + ": Parcel sold.</a> <br/>";
 						num++;
 					}
-					else if(auction->auction_state == ParcelAuction::AuctionState_Sold)
+					else if(auction->auction_state == ParcelAuction::AuctionState_NotSold)
 					{
-						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->auction_end_time.timeDescription() + ": Parcel did not sell.</a> <br/>";
+						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->getAuctionEndOrSoldTime().timeDescription() + ": Parcel did not sell.</a> <br/>";
 						num++;
 					}
 				}

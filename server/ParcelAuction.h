@@ -27,6 +27,9 @@ public:
 
 	double computeCurrentAuctionPrice() const;
 
+	// Get the time the auction ended, or if it was sold, when it was sold.
+	TimeStamp getAuctionEndOrSoldTime() const;
+
 	enum AuctionState
 	{
 		//AuctionState_NotForSale = 0, // Not currently on auction
@@ -43,6 +46,9 @@ public:
 	TimeStamp auction_end_time;
 	double auction_start_price;
 	double auction_end_price;
+	double sold_price; // Set if state = AuctionState_Sold.
+	TimeStamp auction_sold_time; // Set if state = AuctionState_Sold.
+	uint64 order_id; // Order which bought the parcel. Set if state = AuctionState_Sold.
 
 	std::vector<uint64> screenshot_ids;
 };
