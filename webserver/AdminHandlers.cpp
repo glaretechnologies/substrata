@@ -414,4 +414,42 @@ void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state,
 }
 
 
+void handleTerminateParcelAuction(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int parcel_auction_id = request.getPostIntField("parcel_auction_id");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel auction
+			const auto res = world_state.parcel_auctions.find(parcel_auction_id);
+			if(res != world_state.parcel_auctions.end())
+			{
+				ParcelAuction* auction = res->second.ptr();
+
+				auction->auction_end_time = TimeStamp::currentTime(); // Just mark the end time as now
+
+				world_state.markAsChanged();
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_auction/" + toString(parcel_auction_id));
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
 } // end namespace AdminHandlers
