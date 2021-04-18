@@ -94,6 +94,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleRegenerateParcelAuctionScreenshots(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_terminate_parcel_auction")
+		{
+			AdminHandlers::handleTerminateParcelAuction(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
