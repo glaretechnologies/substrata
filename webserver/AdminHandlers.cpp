@@ -463,6 +463,10 @@ void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::Requ
 
 				parcel->owner_id = UserID(new_owner_id);
 
+				// Set parcel admins and writers to the new user as well.
+				parcel->admin_ids  = std::vector<UserID>(1, UserID(new_owner_id));
+				parcel->writer_ids = std::vector<UserID>(1, UserID(new_owner_id));
+
 				world_state.denormaliseData(); // Update denormalised data which includes parcel owner name
 
 				world_state.markAsChanged();
