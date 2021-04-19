@@ -131,6 +131,50 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 }
 
 
+void renderTermsOfUse(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
+
+	page += "<h1>Terms of Service</h1>";
+
+	
+
+	page += "<h2>Overview</h2>";
+
+	page += "These terms of service apply to the Substrata website (at substrata.info) and the Substrata virtual world, which is hosted on the Substrata servers and accessed via the Substrata client software.  "
+		"These together constitute the \"Service\"";
+
+	page += "<h2>General conditions</h2>";
+
+	page += "<p>By accessing or using the Service you agree to be bound by these Terms. If you disagree with any part of the terms then you may not access the Service.</p>";
+
+	page += "<p>We reserve the right to refuse service to any one at any time, for any reason.</p>";
+
+	page += "<h2>Changes to terms of service</h2>";
+
+	page += "We reserve the right to change the terms of service.";
+
+	page += "<h2>Parcel ownership</h2>";
+
+	page += "<p>'Not-safe-for-work' parcel content is not currently allowed.  This includes sexual content and violence.</p>";
+
+	page += "<p>Content that is illegal in Germany, New Zealand, or the USA is not allowed</p>";
+
+	page += "<p>Parcel content must not severely and adversely affect the performance or functioning of the Substrata server(s) or client.  (For example, do not upload models with excessive polygon counts or texture resolution)</p>";
+
+	page += "<p>Do not deliberately attempt to crash or degrade the functioning of the server or other users' clients.</p>";
+
+	page += "<h2>Governing law</h2>";
+
+	page += "These Terms of Service shall be governed by and construed in accordance with the laws of New Zealand.";
+
+
+	page += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 void renderNotFoundPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, "Substrata");
