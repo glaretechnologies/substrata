@@ -111,6 +111,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderRootPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/terms")
+		{
+			MainPageHandlers::renderTermsOfUse(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/pdt_landing")
 		{
 			PayPalHandlers::handlePayPalPDTOrderLanding(*this->world_state, request, reply_info);
