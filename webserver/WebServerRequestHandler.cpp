@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
 #include "PayPalHandlers.h"
+#include "CoinbaseHandlers.h"
 #include "AuctionHandlers.h"
 #include "ScreenshotHandlers.h"
 #include "OrderHandlers.h"
@@ -74,13 +75,25 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			PayPalHandlers::handleIPNPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/coinbase_webhook")
+		{
+			CoinbaseHandlers::handleCoinbaseWebhookPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/buy_parcel_now")
 		{
 			AuctionHandlers::handleParcelBuyNow(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/buy_parcel_now_coinbase")
+		{
+			AuctionHandlers::handleParcelBuyNowWithCoinbase(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/buy_parcel_with_paypal_post")
 		{
 			AuctionHandlers::handleBuyParcelWithPayPalPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/buy_parcel_with_coinbase_post")
+		{
+			AuctionHandlers::handleBuyParcelWithCoinbasePost(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/admin_create_parcel_auction_post")
 		{
@@ -130,6 +143,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/buy_parcel_with_paypal/")) // parcel ID follows in URL
 		{
 			AuctionHandlers::renderBuyParcelWithPayPalPage(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/buy_parcel_with_coinbase/")) // parcel ID follows in URL
+		{
+			AuctionHandlers::renderBuyParcelWithCoinbasePage(*this->world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/order/")) // Order ID follows in URL
 		{

@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Parser.h>
 #include <Base64.h>
 #include <CryptoRNG.h>
+#include <SHA256.h> //TEMP for testing
 #include <ArgumentParser.h>
 #include <SocketBufferOutStream.h>
 #include <TLSSocket.h>
@@ -184,6 +185,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			SHA256::test();
 			CryptoRNG::test();
 			StringUtils::test();
 			//HTTPClient::test();
@@ -362,11 +364,13 @@ int main(int argc, char *argv[])
 		struct tls_config* web_tls_configuration = tls_config_new();
 
 #ifdef WIN32
-		// Skip TLS stuff when testing on windows for now.
+		if(tls_config_set_cert_file(web_tls_configuration, "O:\\new_cyberspace\\trunk\\scripts\\cert.pem") != 0)
+			throw glare::Exception("tls_config_set_cert_file failed.");
+		if(tls_config_set_key_file(web_tls_configuration, "O:\\new_cyberspace\\trunk\\scripts\\key.pem") != 0) // set private key
+			throw glare::Exception("tls_config_set_key_file failed.");
 #else
 		if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
 			throw glare::Exception("tls_config_set_cert_file failed.");
-		 // set private key
 		if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #endif
