@@ -41,6 +41,8 @@ public:
 
 	std::string paypal_data; // All paypal data
 
+	std::string coinbase_charge_code; // Charge code for the Coinbase charnge, if this is a Coinbase order.
+
 	bool confirmed; // Has payment been confirmed?
 };
 
