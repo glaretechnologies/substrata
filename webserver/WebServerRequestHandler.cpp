@@ -139,6 +139,22 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::renderMainAdminPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_users")
+		{
+			AdminHandlers::renderUsersPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_parcels")
+		{
+			AdminHandlers::renderParcelsPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_parcel_auctions")
+		{
+			AdminHandlers::renderParcelAuctionsPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_orders")
+		{
+			AdminHandlers::renderOrdersPage(*this->world_state, request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/admin_create_parcel_auction/")) // parcel ID follows in URL
 		{
 			AdminHandlers::renderCreateParcelAuction(*this->world_state, request, reply_info);

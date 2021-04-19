@@ -17,25 +17,53 @@ Copyright Glare Technologies Limited 2021 -
 #include <Exception.h>
 #include <Lock.h>
 #include <Parser.h>
+#include <Escaping.h>
 
 
 namespace AdminHandlers
 {
 
 
+std::string sharedAdminHeader(ServerAllWorldsState& world_state, const web::RequestInfo& request_info)
+{
+	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Admin");
+
+	page_out += "<p><a href=\"/admin\">Main admin page</a> | <a href=\"/admin_users\">Users</a> | <a href=\"/admin_parcels\">Parcels</a> | ";
+	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a></p>";
+
+	return page_out;
+}
+
+
 void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Main Admin Page");
-	
 	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request_info))
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
 		return;
 	}
 
+	std::string page_out = sharedAdminHeader(world_state, request_info);
+
+	page_out += "Welcome!";
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderUsersPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
 	{ // Lock scope
 		Lock lock(world_state.mutex);
-		
+
 		// Print out users
 		page_out += "<h2>Users</h2>\n";
 
@@ -50,19 +78,31 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		/*page_out += "<table>";
 		for(auto it = world_state.user_id_to_users.begin(); it != world_state.user_id_to_users.end(); ++it)
 		{
-			const User* user = it->second.ptr();
-			page_out += "<tr>\n";
-			page_out += "<td>" + user->id.toString() + "</td><td>" + web::Escaping::HTMLEscape(user->name) + "</td><td>" + web::Escaping::HTMLEscape(user->email_address) + "</td><td>" + user->created_time.timeAgoDescription() + "</td>";
-			page_out += "</tr>\n";
+		const User* user = it->second.ptr();
+		page_out += "<tr>\n";
+		page_out += "<td>" + user->id.toString() + "</td><td>" + web::Escaping::HTMLEscape(user->name) + "</td><td>" + web::Escaping::HTMLEscape(user->email_address) + "</td><td>" + user->created_time.timeAgoDescription() + "</td>";
+		page_out += "</tr>\n";
 		}
 		page_out += "</table>";*/
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
 
 
-		page_out += "<h2>Parcel auctions</h2>\n";
+void renderParcelsPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
 
-		page_out += "<div><a href=\"/parcel_auction_list\">Parcel auction list</a></div>";
+	std::string page_out = sharedAdminHeader(world_state, request);
 
-		//--------------------------------------------- Print out parcels ---------------------------------------------
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
 		page_out += "<h2>Root world Parcels</h2>\n";
 
 		Reference<ServerWorldState> root_world = world_state.getRootWorldState();
@@ -79,45 +119,62 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 			else
 				owner_username = user_res->second->name;
 
+			page_out += "<p>\n";
+			page_out += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a><br/>" +
+				"owner: " + web::Escaping::HTMLEscape(owner_username) + "<br/>" +
+				"description: " + web::Escaping::HTMLEscape(parcel->description) + "<br/>" +
+				"created " + parcel->created_time.timeAgoDescription();
 
-			page_out += "<div>\n";
-			page_out += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a>,       owner: " + web::Escaping::HTMLEscape(owner_username) + ",       description: " + web::Escaping::HTMLEscape(parcel->description) +
-				",      created " + parcel->created_time.timeAgoDescription();
-			
 			// Get any auctions for parcel
 			page_out += "<div>    \n";
-			if(!parcel->parcel_auction_ids.empty())
+			for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
 			{
-				const uint32 auction_id = parcel->parcel_auction_ids.back();
+				const uint32 auction_id = parcel->parcel_auction_ids[i];
 				auto auction_res = world_state.parcel_auctions.find(auction_id);
 				if(auction_res != world_state.parcel_auctions.end())
 				{
 					const ParcelAuction* auction = auction_res->second.ptr();
 					if(auction->auction_state == ParcelAuction::AuctionState_ForSale)
-						page_out += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">For sale at auction</a>";
+						page_out += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">Auction " + toString(auction->id) + ": For sale</a><br/>";
 					else if(auction->auction_state == ParcelAuction::AuctionState_Sold)
-						page_out += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel sold.</a>";
+						page_out += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">Auction " + toString(auction->id) + ": Parcel sold.</a><br/>";
 				}
 			}
 			page_out += "</div>    \n";
 
 			page_out += " <a href=\"/admin_create_parcel_auction/" + parcel->id.toString() + "\">Create auction</a>";
 
-			page_out += "</div>\n";
+			page_out += "</p>\n";
 			page_out += "<br/>  \n";
 		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
 
 
-		//--------------------------------------------- Print out parcel auctions ---------------------------------------------
+void renderParcelAuctionsPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
 		page_out += "<h2>Parcel auctions</h2>\n";
 
 		for(auto it = world_state.parcel_auctions.begin(); it != world_state.parcel_auctions.end(); ++it)
 		{
 			const ParcelAuction* auction = it->second.ptr();
 
-			page_out += "<div>\n";
-			page_out += "<a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel Auction " + toString(auction->id) + "</a>, " +
-				"auction_start_time: " + auction->auction_start_time.RFC822FormatedString() + ", state: ";
+			page_out += "<p>\n";
+			page_out += "<a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel Auction " + toString(auction->id) + "</a><br/>" +
+				"state: ";
 
 			if(auction->auction_state == ParcelAuction::AuctionState_ForSale)
 				page_out += "for-sale";
@@ -125,13 +182,69 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 				page_out += "sold";
 			else if(auction->auction_state == ParcelAuction::AuctionState_NotSold)
 				page_out += "not-sold";
+			page_out += "<br/>";
 
-			page_out += "</div>    \n";
+			page_out += 
+				"start time: " + auction->auction_start_time.RFC822FormatedString() + "(" + auction->auction_start_time.timeDescription() + ")<br/>" + 
+				"end time: " + auction->auction_end_time.RFC822FormatedString() + "(" + auction->auction_end_time.timeDescription() + ")<br/>" +
+				"start price: " + toString(auction->auction_start_price) + ", end price: " + toString(auction->auction_end_price) + "<br/>" +
+				"sold_price: " + toString(auction->sold_price) + "<br/>" +
+				"sold time: " + auction->auction_sold_time.RFC822FormatedString() + "(" + auction->auction_sold_time.timeDescription() + ")<br/>" +
+				"order#: <a href=\"/admin_order/" + toString(auction->order_id) + "\">" + toString(auction->order_id) + "</a>";
+
+			page_out += "</p>\n";
 		}
 	} // End Lock scope
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
+
+
+void renderOrdersPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		page_out += "<h2>Orders</h2>\n";
+
+		for(auto it = world_state.orders.begin(); it != world_state.orders.end(); ++it)
+		{
+			const Order* order = it->second.ptr();
+
+			// Look up user who made the order
+			std::string orderer_username;
+			auto user_res = world_state.user_id_to_users.find(order->user_id);
+			if(user_res == world_state.user_id_to_users.end())
+				orderer_username = "[No user found]";
+			else
+				orderer_username = user_res->second->name;
+
+
+			page_out += "<p>\n";
+			page_out += "<a href=\"/admin_order/" + toString(order->id) + "\">Order " + toString(order->id) + "</a>, " +
+				"orderer: " + web::Escaping::HTMLEscape(orderer_username) + "<br/>" +
+				"parcel: <a href=\"/parcel/" + order->parcel_id.toString() + "\">" + order->parcel_id.toString() + "</a>, " + "<br/>" +
+				"created_time: " + order->created_time.RFC822FormatedString() + "(" + order->created_time.timeAgoDescription() + ")<br/>" +
+				"payer_email: " + web::Escaping::HTMLEscape(order->payer_email) + "<br/>" +
+				"gross_payment: " + ::toString(order->gross_payment) + "<br/>" +
+				"paypal_data: " + web::Escaping::HTMLEscape(order->paypal_data.substr(0, 60)) + "...</br>" +
+				"confirmed: " + boolToString(order->confirmed);
+
+			page_out += "</p>    \n";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
 
 
 void renderCreateParcelAuction(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
