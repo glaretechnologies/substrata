@@ -200,7 +200,7 @@ void renderAboutParcelSales(ServerAllWorldsState& world_state, const web::Reques
 
 	page += "<p>We accept credit-card payments of normal ('fiat') money, via <a href=\"https://www.paypal.com/\">PayPal</a>.  This option is perfect for people without cryptocurrency or who don't want to use cryptocurrency.</p>";
 
-	page += "<p>Prices on subtrata.info are shown in Euros (EUR), but you can pay with your local currency (e.g. USD).  PayPal will convert the payment amount from EUR to your local currency and show it on the PayPal payment page.</p>";
+	page += "<p>Prices on substrata.info are shown in Euros (EUR), but you can pay with your local currency (e.g. USD).  PayPal will convert the payment amount from EUR to your local currency and show it on the PayPal payment page.</p>";
 
 	page += "<h3>Coinbase</h3>";
 
