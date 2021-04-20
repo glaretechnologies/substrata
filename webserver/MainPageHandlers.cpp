@@ -116,13 +116,16 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"	<a href=\"https://twitter.com/SubstrataVr\" ><img width=\"60px\" src=\"/files/twitter.png\" />@SubstrataVr</a>																							\n"
 	"	</p>																																																	\n"
 	"																																																			\n"
+	"	<h2>Scripting</h2>																																														\n"
+	"	<p>Read about <a href=\"/about_scripting\">object scripting in Substrata</a>.</p>																														\n"
+	"																																																			\n"
 	"	<h2>CryptoVoxels</h2>																																													\n"
 	"	<p>																																																		\n"
 	"	We are currently embedding the <a href=\"https://www.cryptovoxels.com\">CryptoVoxels</a> world in Substrata, for testing and fun purposes!																\n"
 	"	</p>																																																	\n"
 	"	<p>																																																		\n"
 	"	To explore the CryptoVoxels world, just install and run Substrata, and then select from the menu bar:																									\n"
-	"<p>																																																		\n"
+	"	<p>																																																		\n"
 	"	<b>Go &gt; Go to CryptoVoxels World</b>																																									\n"
 	"	</p>																																																	\n"
 	"	<h2>Screenshots and Videos</h2>																																											\n"
@@ -172,6 +175,109 @@ void renderTermsOfUse(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 	page += "These Terms of Service shall be governed by and construed in accordance with the laws of New Zealand.";
 
+
+	page += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderAboutParcelSales(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Parcel sales in Substrata");
+
+	page += "<h2>Dutch Auctions</h2>";
+
+	page += "<p>Parcel sales in Substrata are currently done with a <a href=\"https://en.wikipedia.org/wiki/Dutch_auction\">Dutch (reverse) auction</a>.  A Dutch auction starts from a high price, with the price decreasing over time.</p>";
+
+	page += "<p>The auction stops as soon as someone buys the parcel.  If no one buys the parcel before it reaches the low/reserve price, then the auction stops without a sale.</p>";
+
+	page += "<p>The reason for using a reverse auction is that it avoids the problem of people faking bids, e.g. promising to pay, and then not paying.</p>";
+		
+	page += "<h2>Payments and Currencies</h2>";
+
+	page += "<h3>PayPal</h3>";
+
+	page += "<p>We accept credit-card payments of normal ('fiat') money, via <a href=\"https://www.paypal.com/\">PayPal</a>.  This option is perfect for people without cryptocurrency or who don't want to use cryptocurrency.</p>";
+
+	page += "<p>Prices on subtrata.info are shown in Euros (EUR), but you can pay with your local currency (e.g. USD).  PayPal will convert the payment amount from EUR to your local currency and show it on the PayPal payment page.</p>";
+
+	page += "<h3>Coinbase</h3>";
+
+	page += "<p>We also accept cryptocurrencies via <a href=\"https://www.coinbase.com/\">Coinbase</a>.  We accept all cryptocurrencies that Coinbase accepts, which includes Bitcoin, Ethereum and others.</p>";
+
+	page += "<p>Pricing of BTC and ETH shown on substrata.info is based on the current EUR-BTC and EUR-ETH exchange rate, as retrieved from Coinbase every 30 seconds.</p>";
+
+	page += "<p>The actual amount of BTC and ETH required to purchase a parcel might differ slightly from the amount shown on substrata.info, due to rounding the amount displayed and exchange-rate fluctuations</p>";
+
+	page += "<br/><br/>";
+	page += "<a href=\"/\">&lt; Home</a>";
+
+	page += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderAboutScripting(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Scripting in Substrata");
+	
+	page += "<p>Scripting in the Substrata metaverse is currently done with the <a href=\"https://github.com/glaretechnologies/winter\">Winter programming language</a>.</p>";
+
+	page += "<p>Winter is a high-performance functional programming language, made by us at Glare Technologies.  We use it in our other software "
+		"<a href=\"https://www.indigorenderer.com/\">Indigo Renderer</a> and <a href=\"https://www.chaoticafractals.com/\">Chaotica</a>.</p>";
+
+	page += "<h3>Winter Language reference</h3>";
+
+	page += "<p>See the <a href=\"https://github.com/glaretechnologies/winter\">Github Winter page</a> for the language reference documentation.</p>";
+
+	page += "<h3>Client-side execution</h3>";
+
+	page += "<p>Scripts in Substrata are executed in the Substrata client program (e.g. they are executed 'client-side').  Winter programs are restricted in what they can do, so are safe to execute client-side.  "
+		"(Although we can't rule out all bugs in the Winter execution environment)</p>";
+
+	page += "<h3>Scripting an object</h3>";
+
+	page += "<p>To make a script for an object, you edit code in the 'Script' text edit box in the object editor in the Substrata client, after selecting an object.   You can only edit scripts on objects that you own (e.g. that you created).</p>";
+
+	page += "<h3>Scriptable functions</h3>";
+
+	page += "<p>To script the behaviour of an object, you can define either of two functions:</p>";
+
+	page += "<h4>evalRotation</h4>";
+
+	page += "<code>def evalRotation(float time, WinterEnv env) vec3</code>";
+
+	page += "<p>time is the current global time in the Substrata metaverse.</p>";
+
+	page += "<p>This function returns a 3-vector, where the direction of the vector defines the axis of rotation, and the length of the vector defines the counter-clockwise rotation around the axis, in radians.</p>";
+
+	page += "<p>For example, the rotating wind turbine blades use the following script:<p>";
+
+	page += "<code>def evalRotation(float time, WinterEnv env) vec3 : vec3(-0.6, 0.0, 0.0) * time</code>";
+
+	page += "<p>This rotates the blades clockwise (due to the minus sign) around the x axis at a constant rate.</p>";
+
+	page += "<h4>evalTranslation</h4>";
+
+	page += "<code>def evalTranslation(float time, WinterEnv env) vec3</code>";
+
+	page += "<p>This function returns a 3-vector, which defines a spatial translation from the usual position of an object (as placed by a user or entered in the object editor).  The translation can be a function of time "
+		" to allow object movement.</p>";
+
+	page += "<p>For example, this script makes an object move back and forth along the x axis:</p>";
+
+	page += "<code>def evalTranslation(float time, WinterEnv env) vec3 : vec3(sin(time * 1.51) * 0.1, 0, 0)</code>";
+
+	page += "<h2>Future Scripting</h2>";
+
+	page += "<p>We may allow server-side scripting in the future, using a language like Javascript, and with some way of maintaining state.</p>";
+
+	page += "<p>We plan to allow users to run their own server as well, to control their parcels, which will allow arbitrarily complicated code to affect their Substrata parcels.</p>";
+
+	page += "<br/><br/>";
+	page += "<a href=\"/\">&lt; Home</a>";
 
 	page += WebServerResponseUtils::standardFooter(request_info, true);
 

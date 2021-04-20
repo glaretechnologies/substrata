@@ -128,6 +128,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderTermsOfUse(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/about_parcel_sales")
+		{
+			MainPageHandlers::renderAboutParcelSales(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/about_scripting")
+		{
+			MainPageHandlers::renderAboutScripting(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/pdt_landing")
 		{
 			PayPalHandlers::handlePayPalPDTOrderLanding(*this->world_state, request, reply_info);
