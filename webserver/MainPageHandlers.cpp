@@ -41,7 +41,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 
 		int num_auctions_shown = 0;
 		const TimeStamp now = TimeStamp::currentTime();
-		auction_html += "<table><tr>\n";
+		auction_html += "<table style=\"width: 100%;\"><tr>\n";
 		for(auto it = root_world->parcels.begin(); (it != root_world->parcels.end()) && (num_auctions_shown < 3); ++it)
 		{
 			Parcel* parcel = it->second.ptr();
@@ -64,7 +64,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 							const double cur_price_BTC = cur_price_EUR * world_state.BTC_per_EUR;
 							const double cur_price_ETH = cur_price_EUR * world_state.ETH_per_EUR;
 
-							auction_html += "<td><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
+							auction_html += "<td style=\"vertical-align:top\"><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
 								+ doubleToString(auction->computeCurrentAuctionPrice()) + "&nbsp;EUR / " + doubleToStringNSigFigs(cur_price_BTC, 2) + "&nbsp;BTC / " + doubleToStringNSigFigs(cur_price_ETH, 2) + "&nbsp;ETH</td>";
 						}
 
