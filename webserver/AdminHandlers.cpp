@@ -236,6 +236,72 @@ void renderOrdersPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				"payer_email: " + web::Escaping::HTMLEscape(order->payer_email) + "<br/>" +
 				"gross_payment: " + ::toString(order->gross_payment) + "<br/>" +
 				"paypal_data: " + web::Escaping::HTMLEscape(order->paypal_data.substr(0, 60)) + "...</br>" +
+				"coinbase charge code: " + order->coinbase_charge_code + "</br>" +
+				"coinbase charge status: " + order->coinbase_status + "</br>" +
+				"confirmed: " + boolToString(order->confirmed);
+
+			page_out += "</p>    \n";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminOrderPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	// Parse order id from request path
+	Parser parser(request.path.c_str(), request.path.size());
+	if(!parser.parseString("/admin_order/"))
+		throw glare::Exception("Failed to parse /admin_order/");
+
+	uint32 order_id;
+	if(!parser.parseUnsignedInt(order_id))
+		throw glare::Exception("Failed to parse order id");
+
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		page_out += "<h2>Order " + toString(order_id) + "</h2>\n";
+
+		auto res = world_state.orders.find(order_id);
+		if(res == world_state.orders.end())
+		{
+			page_out += "No order with that id found.";
+		}
+		else
+		{
+			const Order* order = res->second.ptr();
+
+			// Look up user who made the order
+			std::string orderer_username;
+			auto user_res = world_state.user_id_to_users.find(order->user_id);
+			if(user_res == world_state.user_id_to_users.end())
+				orderer_username = "[No user found]";
+			else
+				orderer_username = user_res->second->name;
+
+
+			page_out += "<p>\n";
+			page_out += "<a href=\"/admin_order/" + toString(order->id) + "\">Order " + toString(order->id) + "</a>, " +
+				"orderer: " + web::Escaping::HTMLEscape(orderer_username) + "<br/>" +
+				"parcel: <a href=\"/parcel/" + order->parcel_id.toString() + "\">" + order->parcel_id.toString() + "</a>, " + "<br/>" +
+				"created_time: " + order->created_time.RFC822FormatedString() + "(" + order->created_time.timeAgoDescription() + ")<br/>" +
+				"payer_email: " + web::Escaping::HTMLEscape(order->payer_email) + "<br/>" +
+				"gross_payment: " + ::toString(order->gross_payment) + "<br/>" +
+				"currency: " + web::Escaping::HTMLEscape(order->currency) + "<br/>" +
+				"paypal/coinbase data: " + web::Escaping::HTMLEscape(order->paypal_data) + "</br>" +
+				"coinbase charge code: " + order->coinbase_charge_code + "</br>" +
+				"coinbase charge status: " + order->coinbase_status + "</br>" +
 				"confirmed: " + boolToString(order->confirmed);
 
 			page_out += "</p>    \n";

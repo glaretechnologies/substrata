@@ -78,6 +78,10 @@ public:
 
 	std::map<uint64, ScreenshotRef> screenshots;// Screenshot id to ScreenshotRef
 
+	// Ephemeral state that is not serialised to disk.  Set by CoinbasePollerThread.
+	double BTC_per_EUR;
+	double ETH_per_EUR;
+
 	::Mutex mutex;
 private:
 	GLARE_DISABLE_COPY(ServerAllWorldsState);

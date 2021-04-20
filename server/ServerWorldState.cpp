@@ -38,6 +38,9 @@ ServerAllWorldsState::ServerAllWorldsState()
 	next_order_uid = 0;
 
 	world_states[""] = new ServerWorldState();
+
+	BTC_per_EUR = 0;
+	ETH_per_EUR = 0;
 }
 
 

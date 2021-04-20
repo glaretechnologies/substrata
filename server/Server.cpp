@@ -34,6 +34,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/WebDataStore.h"
 #include <WebListenerThread.h>
+#include "../webserver/CoinbasePollerThread.h"
 
 
 static const int parcel_coords[10][4][2] ={
@@ -185,8 +186,8 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
-			SHA256::test();
-			CryptoRNG::test();
+			//SHA256::test();
+			//CryptoRNG::test();
 			StringUtils::test();
 			//HTTPClient::test();
 			Base64::test();
@@ -399,6 +400,9 @@ int main(int argc, char *argv[])
 		ThreadManager web_thread_manager;
 		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
 		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), web_tls_configuration));
+
+		// While Coinbase webhooks are not working, add a Coinbase polling thread.
+		web_thread_manager.addThread(new CoinbasePollerThread(server.world_state.ptr()));
 
 
 		//-----------------------------------------------------------------------------------------
