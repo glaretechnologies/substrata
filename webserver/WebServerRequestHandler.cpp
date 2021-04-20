@@ -184,6 +184,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::renderSetParcelOwnerPage(*this->world_state, request, reply_info);
 		}
+		else if(::hasPrefix(request.path, "/admin_order/")) // order ID follows in URL
+		{
+			AdminHandlers::renderAdminOrderPage(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/login")
 		{
 			LoginHandlers::renderLoginPage(request, reply_info);

@@ -60,8 +60,12 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 						{
 							const uint64 shot_id = auction->screenshot_ids[0]; // Get id of close-in screenshot
 
+							const double cur_price_EUR = auction->computeCurrentAuctionPrice();
+							const double cur_price_BTC = cur_price_EUR * world_state.BTC_per_EUR;
+							const double cur_price_ETH = cur_price_EUR * world_state.ETH_per_EUR;
+
 							auction_html += "<td><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
-								"Current price: " + doubleToString(auction->computeCurrentAuctionPrice()) + "&nbsp;EUR</td>";
+								+ doubleToString(auction->computeCurrentAuctionPrice()) + "&nbsp;EUR / " + doubleToStringNSigFigs(cur_price_BTC, 2) + "&nbsp;BTC / " + doubleToStringNSigFigs(cur_price_ETH, 2) + "&nbsp;ETH</td>";
 						}
 
 						num_auctions_shown++;

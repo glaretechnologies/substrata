@@ -18,9 +18,10 @@ Order::~Order()
 {}
 
 
-static const uint32 ORDER_SERIALISATION_VERSION = 2;
+static const uint32 ORDER_SERIALISATION_VERSION = 3;
 
 // v2: Added coinbase_charge_code
+// v3: Added coinbase_status
 
 
 void writeToStream(const Order& order, OutStream& stream)
@@ -43,6 +44,8 @@ void writeToStream(const Order& order, OutStream& stream)
 	stream.writeStringLengthFirst(order.paypal_data);
 	
 	stream.writeStringLengthFirst(order.coinbase_charge_code);
+	
+	stream.writeStringLengthFirst(order.coinbase_status);
 
 	stream.writeInt32(order.confirmed ? 1 : 0);
 }
@@ -71,6 +74,9 @@ void readFromStream(InStream& stream, Order& order)
 
 	if(v >= 2)
 		order.coinbase_charge_code = stream.readStringLengthFirst(10000);
+	
+	if(v >= 3)
+		order.coinbase_status = stream.readStringLengthFirst(10000);
 
 	order.confirmed = stream.readInt32() != 0;
 }

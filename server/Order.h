@@ -43,6 +43,8 @@ public:
 
 	std::string coinbase_charge_code; // Charge code for the Coinbase charnge, if this is a Coinbase order.
 
+	std::string coinbase_status; // One of NEW, PENDING, COMPLETED etc.., or empty string if this is not a Coinbase order.
+
 	bool confirmed; // Has payment been confirmed?
 };
 
