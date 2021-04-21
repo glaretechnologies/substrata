@@ -73,6 +73,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/Base64.h"
 #include "../utils/OpenSSL.h"
 #include "../utils/ShouldCancelCallback.h"
+#include "../utils/CryptoRNG.h"
 #include "../networking/Networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -242,6 +243,17 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	save_resources_db_thread_manager.addThread(new SaveResourcesDBThread(resource_manager, resources_db_path));
 
 	cam_controller.setMouseSensitivity(-1.0);
+
+	try
+	{
+		uint64 rnd_buf;
+		CryptoRNG::getRandomBytes((uint8*)&rnd_buf, sizeof(uint64));
+		this->rng = PCG32(1, rnd_buf);
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint(e.what());
+	}
 }
 
 
@@ -4122,13 +4134,16 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 	
 	world_state = NULL;
 
-	// Move player position back to origin
-	this->cam_controller.setPosition(Vec3d(0, 0, 2));
-	this->cam_controller.resetRotation();
 	//-------------------------------- End disconnect process --------------------------------
 
 
 	//-------------------------------- Do connect process --------------------------------
+
+	// Move player position back to near origin.
+	// Randomly vary the position a bit so players don't spawn inside other players.
+	const double spawn_r = 4.0;
+	this->cam_controller.setPosition(Vec3d(-spawn_r + 2*spawn_r*rng.unitRandom(), -spawn_r + 2*spawn_r*rng.unitRandom(), 2));
+	this->cam_controller.resetRotation();
 
 	world_state = new WorldState();
 
