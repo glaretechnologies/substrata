@@ -198,7 +198,7 @@ void renderAboutParcelSales(ServerAllWorldsState& world_state, const web::Reques
 
 	page += "<h3>PayPal</h3>";
 
-	page += "<p>We accept credit-card payments of normal ('fiat') money, via <a href=\"https://www.paypal.com/\">PayPal</a>.  This option is perfect for people without cryptocurrency or who don't want to use cryptocurrency.</p>";
+	page += "<p>We accept credit card payments of normal (&lsquo;fiat&rsquo;) money, via <a href=\"https://www.paypal.com/\">PayPal</a>.  This option is perfect for people without cryptocurrency or who don't want to use cryptocurrency.</p>";
 
 	page += "<p>Prices on substrata.info are shown in Euros (EUR), but you can pay with your local currency (e.g. USD).  PayPal will convert the payment amount from EUR to your local currency and show it on the PayPal payment page.</p>";
 
@@ -208,11 +208,11 @@ void renderAboutParcelSales(ServerAllWorldsState& world_state, const web::Reques
 
 	page += "<p>Pricing of BTC and ETH shown on substrata.info is based on the current EUR-BTC and EUR-ETH exchange rate, as retrieved from Coinbase every 30 seconds.</p>";
 
-	page += "<p>The actual amount of BTC and ETH required to purchase a parcel might differ slightly from the amount shown on substrata.info, due to rounding the amount displayed and exchange-rate fluctuations</p>";
+	page += "<p>The actual amount of BTC and ETH required to purchase a parcel might differ slightly from the amount shown on substrata.info, due to rounding the amount displayed and exchange-rate fluctuations.</p>";
 
 	page += "<h2>Building on your recently purchased Parcel</h2>";
 
-	page += "<p>Did you just win a parcel auction? congratulations!  Please restart your Substrata client, so that ownership changes of your Parcel are picked up.</p>";
+	page += "<p>Did you just win a parcel auction? Congratulations!  Please restart your Substrata client, so that ownership changes of your Parcel are picked up.</p>";
 
 	page += "<p>To view your parcel, click the 'Show parcels' toolbar button in the Substrata client, then double-click on your parcel.  The parcel should show you as the owner in the object editor.";
 	page += " If the owner still says 'MrAdmin', then the ownership change has not gone through yet.</p>";
