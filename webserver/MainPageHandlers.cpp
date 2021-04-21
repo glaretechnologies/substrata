@@ -210,6 +210,13 @@ void renderAboutParcelSales(ServerAllWorldsState& world_state, const web::Reques
 
 	page += "<p>The actual amount of BTC and ETH required to purchase a parcel might differ slightly from the amount shown on substrata.info, due to rounding the amount displayed and exchange-rate fluctuations</p>";
 
+	page += "<h2>Building on your recently purchased Parcel</h2>";
+
+	page += "<p>Did you just win a parcel auction? congratulations!  Please restart your Substrata client, so that ownership changes of your Parcel are picked up.</p>";
+
+	page += "<p>To view your parcel, click the 'Show parcels' toolbar button in the Substrata client, then double-click on your parcel.  The parcel should show you as the owner in the object editor.";
+	page += "If the owner still says 'MrAdmin', then the ownership change has not gone through yet.</p>";
+
 	page += "<br/><br/>";
 	page += "<a href=\"/\">&lt; Home</a>";
 
