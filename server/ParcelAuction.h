@@ -30,6 +30,14 @@ public:
 	// Get the time the auction ended, or if it was sold, when it was sold.
 	TimeStamp getAuctionEndOrSoldTime() const;
 
+	void lockForPayPalBid();
+	void lockForCoinbaseBid();
+
+	bool isLocked() const;
+
+	TimeStamp lockExpiryTime() const;
+
+
 	enum AuctionState
 	{
 		//AuctionState_NotForSale = 0, // Not currently on auction
@@ -49,6 +57,9 @@ public:
 	double sold_price; // Set if state = AuctionState_Sold.
 	TimeStamp auction_sold_time; // Set if state = AuctionState_Sold.
 	uint64 order_id; // Order which bought the parcel. Set if state = AuctionState_Sold.
+
+	TimeStamp last_locked_time; // Most recent time when the auction was locked (due to a bid in progress), or 0 if never locked.
+	uint64 lock_duration;
 
 	std::vector<uint64> screenshot_ids;
 };

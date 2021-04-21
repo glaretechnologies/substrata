@@ -18,6 +18,8 @@ ParcelAuction::ParcelAuction()
 	sold_price = 0;
 	auction_sold_time = TimeStamp(0);
 	order_id = std::numeric_limits<uint64>::max();
+	last_locked_time = TimeStamp(0);
+	lock_duration = 0;
 }
 
 
@@ -44,10 +46,48 @@ TimeStamp ParcelAuction::getAuctionEndOrSoldTime() const
 }
 
 
-static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 4;
+static const uint64 PAYPAL_LOCK_TIME_S   = 60 * 5; // 5 mins
+static const uint64 COINBASE_LOCK_TIME_S = 60 * 8; // 8 mins
+
+
+void ParcelAuction::lockForPayPalBid()
+{
+	last_locked_time = TimeStamp::currentTime();
+	lock_duration = PAYPAL_LOCK_TIME_S;
+}
+
+
+void ParcelAuction::lockForCoinbaseBid()
+{
+	last_locked_time = TimeStamp::currentTime();
+	lock_duration = COINBASE_LOCK_TIME_S;
+}
+
+
+bool ParcelAuction::isLocked() const
+{
+	if(last_locked_time.time == 0)
+		return false;
+	else
+	{
+		const int64 secs_since_last_locked = (int64)TimeStamp::currentTime().time - (int64)last_locked_time.time;
+
+		return secs_since_last_locked <= (int64)lock_duration;
+	}
+}
+
+
+TimeStamp ParcelAuction::lockExpiryTime() const
+{
+	return TimeStamp(last_locked_time.time + lock_duration);
+}
+
+
+static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 5;
 // v2: added screenshot_id
 // v3: changed to screenshot_ids
 // v4: added sold_price, auction_sold_time, order_id
+// v5: added last_locked_time and lock_duration.
 
 
 void writeToStream(const ParcelAuction& a, OutStream& stream)
@@ -66,6 +106,9 @@ void writeToStream(const ParcelAuction& a, OutStream& stream)
 	stream.writeDouble(a.sold_price);
 	a.auction_sold_time.writeToStream(stream);
 	stream.writeUInt64(a.order_id);
+
+	a.last_locked_time.writeToStream(stream);
+	stream.writeUInt64(a.lock_duration);
 
 	stream.writeUInt64(a.screenshot_ids.size());
 	for(size_t i=0; i<a.screenshot_ids.size(); ++i)
@@ -97,6 +140,12 @@ void readFromStream(InStream& stream, ParcelAuction& a)
 		a.sold_price   = stream.readDouble();
 		a.auction_sold_time.readFromStream(stream);
 		a.order_id = stream.readUInt64();
+	}
+
+	if(v >= 5)
+	{
+		a.last_locked_time.readFromStream(stream);
+		a.lock_duration = stream.readUInt64();
 	}
 
 	if(v == 2)
