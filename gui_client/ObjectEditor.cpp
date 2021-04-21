@@ -366,7 +366,6 @@ void ObjectEditor::on_visitURLLabel_linkActivated(const QString&)
 		url = "http://" + url;
 		QDesktopServices::openUrl(QtUtils::toQString(url));
 	}
-	
 }
 
 
