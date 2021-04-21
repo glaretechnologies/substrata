@@ -3,6 +3,7 @@
 
 #include "../qt/SignalBlocker.h"
 #include "../qt/QtUtils.h"
+#include <QtGui/QDesktopServices>
 
 
 ParcelEditor::ParcelEditor(QWidget *parent)
@@ -45,4 +46,10 @@ void ParcelEditor::setFromParcel(const Parcel& parcel)
 
 	this->minLabel->setText(QtUtils::toQString(parcel.aabb_min.toString()));
 	this->maxLabel->setText(QtUtils::toQString(parcel.aabb_max.toString()));
+}
+
+
+void ParcelEditor::on_showOnWebLabel_linkActivated(const QString&)
+{
+	QDesktopServices::openUrl("https://substrata.info/parcel/" + this->IDLabel->text());
 }

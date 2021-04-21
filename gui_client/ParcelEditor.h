@@ -15,5 +15,8 @@ public:
 
 	void setFromParcel(const Parcel& parcel);
 
+private slots:
+	void on_showOnWebLabel_linkActivated(const QString& link);
+
 protected:
 };

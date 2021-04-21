@@ -77,6 +77,14 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			page += "<p>Description: " + web::Escaping::HTMLEscape(parcel->description) + "</p>   \n";
 			//page += "<p>Created: " + parcel->created_time.timeAgoDescription() + "</p>   \n";
 
+			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
+			page += "<p>Dimensions: " + toString(span.x) + " m x " + toString(span.y) + " m x " + toString(span.z) + " m.</p>   \n";
+
+			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
+			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
+
+			page += "<p>Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin)</p>  \n";
+
 			// Get current auction if any
 			page += "<h2>Current auction</h2>         \n";
 			const TimeStamp now = TimeStamp::currentTime();
