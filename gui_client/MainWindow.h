@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/Timer.h"
 #include "../utils/TaskManager.h"
 #include "../utils/StandardPrintOutput.h"
+#include "../maths/PCG32.h"
 #include <QtCore/QEvent>
 #include <QtCore/QObject>
 #include <QtCore/QString>
@@ -341,4 +342,6 @@ public:
 
 private:
 	struct tls_config* client_tls_config;
+
+	PCG32 rng;
 };
