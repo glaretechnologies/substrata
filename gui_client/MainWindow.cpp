@@ -2222,7 +2222,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 					else if(ob->object_type == WorldObject::ObjectType_Hypercard)
 					{
-						reload_opengl_model = ob->loaded_content != ob->content;
+						if(ob->loaded_content != ob->content)
+							reload_opengl_model = true;
 					}
 					else if(ob->object_type == WorldObject::ObjectType_Spotlight)
 					{
