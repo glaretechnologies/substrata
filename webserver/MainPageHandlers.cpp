@@ -215,7 +215,16 @@ void renderAboutParcelSales(ServerAllWorldsState& world_state, const web::Reques
 	page += "<p>Did you just win a parcel auction? congratulations!  Please restart your Substrata client, so that ownership changes of your Parcel are picked up.</p>";
 
 	page += "<p>To view your parcel, click the 'Show parcels' toolbar button in the Substrata client, then double-click on your parcel.  The parcel should show you as the owner in the object editor.";
-	page += "If the owner still says 'MrAdmin', then the ownership change has not gone through yet.</p>";
+	page += " If the owner still says 'MrAdmin', then the ownership change has not gone through yet.</p>";
+
+	page += "<h2>Reselling Parcels</h2>";
+
+	page += "<p>Please note that Substrata parcels are not NFTs, e.g. ownership of them is not recorded on a blockchain, rather it is stored on our server. (We are considering storing parcel ownership on a blockchain, but currently feel that the benefits do not outweigh the drawbacks.  This is a matter of ongoing investigation however.)  "
+		"However there will be a number of ways of reselling your parcel.</p>";
+
+	page += "<p>Parcel owners will be able to directly assign parcel ownership to another Substrata user.</p>";
+
+	page += "<p>We plan to allow parcels to be auctioned using the same auction system as currently used.</p>";
 
 	page += "<br/><br/>";
 	page += "<a href=\"/\">&lt; Home</a>";
