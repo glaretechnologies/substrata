@@ -65,7 +65,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 							const double cur_price_ETH = cur_price_EUR * world_state.ETH_per_EUR;
 
 							auction_html += "<td style=\"vertical-align:top\"><a href=\"/parcel_auction/" + toString(auction_id) + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
-								+ doubleToString(auction->computeCurrentAuctionPrice()) + "&nbsp;EUR / " + doubleToStringNSigFigs(cur_price_BTC, 2) + "&nbsp;BTC / " + doubleToStringNSigFigs(cur_price_ETH, 2) + "&nbsp;ETH</td>";
+								"&euro;" + doubleToStringNDecimalPlaces(cur_price_EUR, 2) + " / " + doubleToStringNSigFigs(cur_price_BTC, 2) + "&nbsp;BTC / " + doubleToStringNSigFigs(cur_price_ETH, 2) + "&nbsp;ETH</td>";
 						}
 
 						num_auctions_shown++;
