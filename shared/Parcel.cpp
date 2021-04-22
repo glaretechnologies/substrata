@@ -129,10 +129,11 @@ bool Parcel::userHasWritePerms(const UserID user_id) const // Does the user give
 #if GUI_CLIENT
 
 
-static Colour3f colForPrivs(bool write_privileges)
+static Colour3f colForPrivs(bool write_privileges, bool is_admin_owned)
 {
 	//return write_privileges ? Colour3f(0.4f, 0.9f, 0.3f) : Colour3f(0.9f, 0.9f, 0.3f);
-	return write_privileges ? Colour3f(0.2f, 0.8f, 0.3f) : Colour3f(0.1f, 0.4f, 0.8f);
+	return write_privileges ? Colour3f(0.2f, 0.8f, 0.3f) : 
+		(is_admin_owned ? Colour3f(15/255.f, 156/255.f, 170/255.f) : Colour3f(0.1f, 0.4f, 0.8f)); // Colour slightly differently if owner is super-admin
 }
 
 
@@ -141,7 +142,7 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 	const Vec4f aabb_min_v4((float)aabb_min.x, (float)aabb_min.y, (float)aabb_min.z, 1.0f);
 	const Vec4f aabb_max_v4((float)aabb_max.x, (float)aabb_max.y, (float)aabb_max.z, 1.0f);
 
-	const Colour3f col = colForPrivs(write_privileges);
+	const Colour3f col = colForPrivs(write_privileges, /*is_admin_owned=*/owner_id == UserID(0));
 
 	if(isAxisAlignedBox())
 	{
@@ -259,7 +260,7 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 void Parcel::setColourForPerms(bool write_privileges)
 {
 	if(opengl_engine_ob.nonNull() && !opengl_engine_ob->materials.empty())
-		opengl_engine_ob->materials[0].albedo_rgb = colForPrivs(write_privileges);
+		opengl_engine_ob->materials[0].albedo_rgb = colForPrivs(write_privileges, /*is_admin_owned=*/owner_id == UserID(0));
 }
 
 
