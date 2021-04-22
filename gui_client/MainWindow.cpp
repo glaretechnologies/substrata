@@ -1296,11 +1296,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 {
 	updateStatusBar();
 
-	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > 19.0) // TEMP HACK timer
+	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > 9.0) // TEMP HACK timer
 	{
 		setUpForScreenshot();
 	}
-	if(!screenshot_output_path.empty() && total_timer.elapsed() > 20.0) // TEMP HACK timer
+	if(!screenshot_output_path.empty() && total_timer.elapsed() > 10.0) // TEMP HACK timer
 	{
 		saveScreenshot();
 		close();
@@ -1587,8 +1587,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->connection_state = ServerConnectionState_Connected;
 				updateStatusBar();
 
-				// Try and log in automatically if we have saved credentials.
-				if(!settings->value("LoginDialog/username").toString().isEmpty() && !settings->value("LoginDialog/password").toString().isEmpty())
+				// Try and log in automatically if we have saved credentials, and auto_login is true.
+				if(!settings->value("LoginDialog/username").toString().isEmpty() && !settings->value("LoginDialog/password").toString().isEmpty() && settings->value("LoginDialog/auto_login", /*default=*/true).toBool())
 				{
 					// Make LogInMessage packet and enqueue to send
 					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -3559,6 +3559,8 @@ void MainWindow::on_actionLogOut_triggered()
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 	packet.writeUInt32(Protocol::LogOutMessage);
 	this->client_thread->enqueueDataToSend(packet);
+
+	settings->setValue("LoginDialog/auto_login", false); // Don't log in automatically next start.
 }
 
 
