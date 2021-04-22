@@ -132,8 +132,9 @@ static const float ob_load_distance = 600.f;
 static AvatarGraphicsRef test_avatar;
 
 
-const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
-const Colour4f PICKED_UP_OUTLINE_COLOUR = Colour4f::fromHTMLHexString("69fa2d"); // light green
+static const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
+static const Colour4f PICKED_UP_OUTLINE_COLOUR = Colour4f::fromHTMLHexString("69fa2d"); // light green
+static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f09a13"); // orange
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -1244,6 +1245,7 @@ void MainWindow::setUpForScreenshot()
 		{
 			this->selected_parcel = res->second;
 			ui->glWidget->opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
+			ui->glWidget->opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
 		}
 	}
 
@@ -4460,7 +4462,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			this->selected_parcel = static_cast<Parcel*>(results.hit_object->userdata);
 
 			ui->glWidget->opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
-
+			ui->glWidget->opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
 
 			// Show parcel editor, hide object editor.
 			ui->parcelEditor->setFromParcel(*selected_parcel);

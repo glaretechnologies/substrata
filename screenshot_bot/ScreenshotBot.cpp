@@ -124,6 +124,8 @@ int main(int argc, char* argv[])
 					const std::string gui_client_path = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/gui_client.exe";
 					std::vector<std::string> command_line_args;
 					command_line_args.push_back(gui_client_path);
+					command_line_args.push_back("-h");
+					command_line_args.push_back(server_hostname);
 					command_line_args.push_back("--takescreenshot");
 					command_line_args.push_back(toString(cam_x));
 					command_line_args.push_back(toString(cam_y));
