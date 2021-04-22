@@ -394,6 +394,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		// Automatically scale object down until it is < x m across
 		scaleMesh(*mesh);
 
+		// Now that vertices have been modified, recompute AABB
+		mesh->endOfModel();
+
 		// Get smallest z coord
 		float min_z = std::numeric_limits<float>::max();
 		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
@@ -474,6 +477,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		// Automatically scale object down until it is < x m across
 		scaleMesh(*mesh);
 
+		// Now that vertices have been modified, recompute AABB
+		mesh->endOfModel();
+
 		GLObjectRef ob = new GLObject();
 		ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
 		timer.reset();
@@ -521,6 +527,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 			// Automatically scale object down until it is < x m across
 			scaleMesh(*mesh);
+
+			// Now that vertices have been modified, recompute AABB
+			mesh->endOfModel();
 
 			// Get smallest z coord
 			float min_z = std::numeric_limits<float>::max();
