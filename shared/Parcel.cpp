@@ -377,11 +377,12 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 #endif // GUI_CLIENT
 
 
-static const uint32 PARCEL_SERIALISATION_VERSION = 5;
+static const uint32 PARCEL_SERIALISATION_VERSION = 6;
 /*
 Version 3: added all_writeable.
 Version 4: Added auction data
 Version 5: Removed auction data, added parcel_auction_ids
+Version 6: Added screenshot_ids (serialised to disk only, not over network)
 */
 
 
@@ -489,6 +490,11 @@ void writeToStream(const Parcel& parcel, OutStream& stream)
 	stream.writeUInt32(PARCEL_SERIALISATION_VERSION);
 
 	writeToStreamCommon(parcel, stream);
+
+	// Write screenshot_ids (serialised to disk only)
+	stream.writeUInt32((uint32)parcel.screenshot_ids.size());
+	for(size_t i=0; i<parcel.screenshot_ids.size(); ++i)
+		stream.writeUInt64(parcel.screenshot_ids[i]);
 }
 
 
@@ -502,6 +508,17 @@ void readFromStream(InStream& stream, Parcel& parcel)
 	parcel.id = readParcelIDFromStream(stream);
 	
 	readFromStreamCommon(stream, version, parcel);
+
+	if(version >= 6)
+	{
+		// Read screenshot_ids (serialised to disk only)
+		const uint32 num = stream.readUInt32();
+		if(num > 10000)
+			throw glare::Exception("Too many screenshot_ids: " + toString(num));
+		parcel.screenshot_ids.resize(num);
+		for(size_t i=0; i<num; ++i)
+			parcel.screenshot_ids[i] = stream.readUInt64();
+	}
 }
 
 

@@ -83,7 +83,7 @@ public:
 
 	std::vector<uint32> parcel_auction_ids;
 
-
+	std::vector<uint64> screenshot_ids;
 
 	// This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
 	std::string owner_name;

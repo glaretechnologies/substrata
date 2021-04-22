@@ -1300,6 +1300,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > 9.0) // TEMP HACK timer
 	{
+		// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
+		ui->editorDockWidget->setFloating(false);
+		this->addDockWidget(Qt::LeftDockWidgetArea, ui->editorDockWidget);
+		ui->editorDockWidget->show();
+
+		ui->chatDockWidget->setFloating(false);
+		this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
+		ui->chatDockWidget->show();
+
+		setGeometry(
+			QRect(100, 100, 2000, 1000)
+		);
 		setUpForScreenshot();
 	}
 	if(!screenshot_output_path.empty() && total_timer.elapsed() > 10.0) // TEMP HACK timer

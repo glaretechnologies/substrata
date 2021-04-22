@@ -33,9 +33,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 {
 	try
 	{
-		
-
-		// Parse order id from request path
+		// Parse parcel id from request path
 		Parser parser(request.path.c_str(), request.path.size());
 		if(!parser.parseString("/parcel/"))
 			throw glare::Exception("Failed to parse /parcel/");
@@ -59,6 +57,22 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			const Parcel* parcel = res->second.ptr();
 
 			//page += "<div>Parcel " + parcel->id.toString() + "</div>";
+
+			// Lookup screenshot object for auction
+			for(size_t z=0; z<parcel->screenshot_ids.size(); ++z)
+			{
+				const uint64 screenshot_id = parcel->screenshot_ids[z];
+
+				auto shot_res = world_state.screenshots.find(screenshot_id);
+				if(shot_res != world_state.screenshots.end())
+				{
+					Screenshot* shot = shot_res->second.ptr();
+					if(shot->state == Screenshot::ScreenshotState_notdone)
+						page += "<div style=\"display: inline-block;\">Screenshot processing...</div>     \n";
+					else
+						page += "<div style=\"display: inline-block;\"><a href=\"/screenshot/" + toString(screenshot_id) + "\"><img src=\"/screenshot/" + toString(screenshot_id) + "\" width=\"320px\" alt=\"screenshot\" /></a></div>   \n";
+				}
+			}
 
 			const Vec3d pos = parcel->getVisitPosition();
 			page += "<p>Visit in Substrata: <span style=\"color: blue\">sub://substrata.info/?x=" + doubleToStringNSigFigs(pos.x, 2) + "&y=" + doubleToStringNSigFigs(pos.y, 2) + "&z=" + doubleToStringNSigFigs(pos.z, 2) +
