@@ -110,6 +110,8 @@ int main(int argc, char* argv[])
 					const int32 screenshot_width_px = socket->readInt32();
 					const int32 highlight_parcel_id = socket->readInt32();
 
+					conPrint("highlight_parcel_id: " + toString(highlight_parcel_id));
+
 					// Command a gui_client process to take the screenshot
 
 					const int NUM_BYTES = 16;

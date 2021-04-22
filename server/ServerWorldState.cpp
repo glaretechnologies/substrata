@@ -346,6 +346,7 @@ static const uint32 EOS_CHUNK = 1000;
 void ServerAllWorldsState::readFromDisk(const std::string& path)
 {
 	conPrint("Reading world state from '" + path + "'...");
+	Timer timer;
 
 	FileInStream stream(path);
 
@@ -427,8 +428,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			OrderRef order = new Order();
 			readFromStream(stream, *order);
 
-			conPrint("Loaded order.");
-
 			orders[order->id] = order; // Add to order map
 
 			next_order_uid = myMax(order->id + 1, next_order_uid);
@@ -439,8 +438,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			// Deserialise UserWebSession
 			UserWebSessionRef session = new UserWebSession();
 			readFromStream(stream, *session);
-
-			conPrint("Loaded session.");
 
 			user_web_sessions[session->id] = session; // Add to session map
 			num_sessions++;
@@ -490,9 +487,61 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		}
 	}
 
+	//TEMP: create screenshots for parcels if not already done.
+	{
+		//TEMP: scan over all screenshots and find highest used ID. 
+		uint64 highest_shot_id = 0;
+		for(auto it = screenshots.begin(); it != screenshots.end(); ++it)
+			highest_shot_id = myMax(highest_shot_id, it->first);
+
+		uint64 next_shot_id = highest_shot_id + 1;
+		for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
+		{
+			Reference<ServerWorldState> world_state = world_it->second;
+			for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+			{
+				Parcel* parcel = it->second.ptr();
+
+				if(parcel->screenshot_ids.size() < 2)
+				{
+					// Create close-in screenshot
+					{
+						ScreenshotRef shot = new Screenshot();
+						shot->id = next_shot_id++;
+						parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+						shot->width_px = 650;
+						shot->highlight_parcel_id = (int)parcel->id.value();
+						shot->created_time = TimeStamp::currentTime();
+						shot->state = Screenshot::ScreenshotState_notdone;
+
+						screenshots[shot->id] = shot;
+
+						parcel->screenshot_ids.push_back(shot->id);
+					}
+					// Zoomed-out screenshot
+					{
+						ScreenshotRef shot = new Screenshot();
+						shot->id = next_shot_id++;
+						parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+						shot->width_px = 650;
+						shot->highlight_parcel_id = (int)parcel->id.value();
+						shot->created_time = TimeStamp::currentTime();
+						shot->state = Screenshot::ScreenshotState_notdone;
+
+						screenshots[shot->id] = shot;
+
+						parcel->screenshot_ids.push_back(shot->id);
+					}
+				}
+			}
+		}
+	}
+
+
+
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
-		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s)");
+		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -552,6 +601,8 @@ void ServerAllWorldsState::denormaliseData()
 void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 {
 	conPrint("Saving world state to disk...");
+	Timer timer;
+
 	try
 	{
 		size_t num_obs = 0;
@@ -667,7 +718,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
-			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s)");
+			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s) in " + timer.elapsedStringNSigFigs(4));
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
