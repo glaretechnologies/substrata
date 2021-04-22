@@ -129,7 +129,7 @@ static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV ren
 static const float ob_load_distance = 600.f;
 // See also  // TEMP HACK: set a smaller max loading distance for CV features in ClientThread.cpp
 
-AvatarGraphicsRef test_avatar;
+static AvatarGraphicsRef test_avatar;
 
 
 const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
@@ -1103,6 +1103,8 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 
 void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 {
+	conPrint("updateOnlineUsersList");
+
 	std::vector<std::string> names;
 	{
 		Lock lock(world_state->mutex);
@@ -1941,225 +1943,161 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
 		{
 			Avatar* avatar = it->second.getPointer();
-			if(avatar->uid == this->client_thread->client_avatar_uid) // If this is our avatar:
-			{
-				it++;
-				continue; // Don't render our own Avatar
-			}
+			const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
 
-
-			//if(avatar->other_dirty || avatar->transform_dirty)
+			if(avatar->state == Avatar::State_Dead)
 			{
-				if(avatar->state == Avatar::State_Dead)
+				print("Removing avatar.");
+
+				ui->chatMessagesTextEdit->append("<i>" + QtUtils::toQString(avatar->name).toHtmlEscaped() + " left.</i>");
+
+				// Remove any OpenGL object for it
+				if(avatar->graphics.nonNull())
 				{
-					print("Removing avatar.");
+					avatar->graphics->destroy(*ui->glWidget->opengl_engine);
+					avatar->graphics = NULL;
+				}
 
-					ui->chatMessagesTextEdit->append("<i>" + QtUtils::toQString(avatar->name).toHtmlEscaped() + " left.</i>");
+				// Remove nametag OpenGL object
+				if(avatar->opengl_engine_nametag_ob.nonNull())
+					ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
 
-					// Remove any OpenGL object for it
-					//if(avatar->opengl_engine_ob.nonNull())
-					//	ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+				// Remove avatar from avatar map
+				auto old_avatar_iterator = it;
+				it++;
+				this->world_state->avatars.erase(old_avatar_iterator);
+
+				updateOnlineUsersList();
+			}
+			else
+			{
+				bool reload_opengl_model = false; // load or reload model?
+
+				if(avatar->graphics.isNull()) // If this is a new avatar that doesn't have an OpenGL model yet:
+					reload_opengl_model = true;
+
+				if(avatar->other_dirty)
+				{
+					reload_opengl_model = true;
+
+					updateOnlineUsersList();
+				}
+
+				if(!our_avatar && reload_opengl_model) // Don't load graphics for our avatar
+				{
+					print("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
+
+					// Remove any existing model and nametag
 					if(avatar->graphics.nonNull())
 					{
 						avatar->graphics->destroy(*ui->glWidget->opengl_engine);
 						avatar->graphics = NULL;
 					}
+					if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
+						ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
 
-					// Remove nametag OpenGL object
-					if(avatar->opengl_engine_nametag_ob.nonNull())
-						ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+					{
+						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
 
-					// Remove avatar from avatar map
-					auto old_avatar_iterator = it;
-					it++;
-					this->world_state->avatars.erase(old_avatar_iterator);
+						avatar->graphics = new AvatarGraphics();
+						avatar->graphics->create(*ui->glWidget->opengl_engine);
 
-					updateOnlineUsersList();
+						// No physics object for avatars.
+					}
+
+					// Add nametag object for avatar
+					{
+						avatar->opengl_engine_nametag_ob = makeNameTagGLObject(avatar->name);
+
+						// Set transform to be above avatar.  This transform will be updated later.
+						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
+
+						ui->glWidget->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
+					}
+				} // End if reload_opengl_model
+
+
+				// Update transform if we have an avatar or placeholder OpenGL model.
+				Vec3d pos;
+				Vec3f rotation;
+				avatar->getInterpolatedTransform(cur_time, pos, rotation);
+
+				if(avatar->graphics.nonNull())
+				{
+					avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time);
+				}
+
+				// Update nametag transform also
+				if(avatar->opengl_engine_nametag_ob.nonNull())
+				{
+					// We want to rotate the nametag towards the camera.
+					Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
+					if(!isFinite(to_cam[0]))
+						to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
+
+					const Vec4f axis_k = Vec4f(0, 0, 1, 0);
+					if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
+						to_cam[0] += 0.1;
+
+					const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
+					const Vec4f axis_i = crossProduct(axis_j, axis_k);
+					const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
+
+					// Tex width and height from makeNameTagGLObject():
+					const int W = 256;
+					const int H = 80;
+					const float ws_width = 0.4f;
+					const float ws_height = ws_width * H / W;
+
+					// Rotate around z-axis, then translate to just above the avatar's head.
+					avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) *
+						rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
+
+					assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
+					ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
+				}
+
+				// Update selected object beam for the avatar, if it has an object selected
+				if(avatar->selected_object_uid.valid())
+				{
+					if(avatar->graphics.nonNull())
+					{
+						auto selected_it = world_state->objects.find(avatar->selected_object_uid);
+						if(selected_it != world_state->objects.end())
+						{
+							WorldObject* their_selected_ob = selected_it->second.getPointer();
+							Vec3d selected_pos;
+							Vec3f axis;
+							float angle;
+							their_selected_ob->getInterpolatedTransform(cur_time, selected_pos, axis, angle);
+
+							// Replace pos with the centre of the AABB (instead of the object space origin)
+							if(their_selected_ob->opengl_engine_ob.nonNull())
+							{
+								their_selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)selected_pos.x, (float)selected_pos.y, (float)selected_pos.z) *
+									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
+									Matrix4f::scaleMatrix(their_selected_ob->scale.x, their_selected_ob->scale.y, their_selected_ob->scale.z);
+
+								ui->glWidget->opengl_engine->updateObjectTransformData(*their_selected_ob->opengl_engine_ob);
+
+								selected_pos = toVec3d(their_selected_ob->opengl_engine_ob->aabb_ws.centroid());
+							}
+
+							avatar->graphics->setSelectedObBeam(*ui->glWidget->opengl_engine, selected_pos);
+						}
+					}
 				}
 				else
 				{
-					bool reload_opengl_model = false; // load or reload model?
-					if(avatar->graphics.isNull())
-						reload_opengl_model = true;
-
-					if(avatar->other_dirty)
-						reload_opengl_model = true;
-
-					if(reload_opengl_model) // If this is a new avatar that doesn't have an OpenGL model yet:
-					{
-						print("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
-
-						updateOnlineUsersList();
-
-						// Remove any existing model and nametag
-						//if(avatar->opengl_engine_ob.nonNull())
-						//	ui->glWidget->removeObject(avatar->opengl_engine_ob);
-						if(avatar->graphics.nonNull())
-						{
-							avatar->graphics->destroy(*ui->glWidget->opengl_engine);
-							avatar->graphics = NULL;
-						}
-						if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
-							ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
-
-						//Vec3d pos;
-						//Vec3f rotation;
-						//avatar->getInterpolatedTransform(cur_time, pos, rotation);
-
-						//const Matrix4f ob_to_world_matrix = rotateThenTranslateMatrix(pos, rotation);
-
-						//std::vector<std::string> dependency_URLs;
-						//avatar->appendDependencyURLs(dependency_URLs);
-
-						//std::map<std::string, std::string> paths_for_URLs;
-
-						// Do we have all the objects downloaded?
-						//bool all_downloaded = true;
-						//for(size_t i=0; i<dependency_URLs.size(); ++i)
-						//{
-						//	const std::string path = this->resource_manager->pathForURL(dependency_URLs[i]);
-						//	if(!FileUtils::fileExists(path))
-						//	{
-						//		all_downloaded = false;
-						//		// Enqueue download of resource.  TODO: check for dups
-						//		this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(dependency_URLs[i]));
-						//	}
-						//
-						//	paths_for_URLs[dependency_URLs[i]] = path;
-						//}
-
-						// See if we have the file downloaded
-						//if(!all_downloaded)
-						//{
-						//	conPrint("Don't have avatar model '" + avatar->model_url + "' on disk, using placeholder.");
-						//
-						//	// Use a temporary placeholder model.
-						//	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-						//	cube_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix;
-						//	avatar->opengl_engine_ob = cube_gl_ob;
-						//	ui->glWidget->addObject(cube_gl_ob);
-						//
-						//	avatar->using_placeholder_model = true;
-						//}
-						//else
-						{
-							print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
-
-							// Make GL object, add to OpenGL engine
-							//Indigo::MeshRef mesh;
-							//GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(paths_for_URLs[avatar->model_url], ob_to_world_matrix, mesh);
-							//avatar->opengl_engine_ob = gl_ob;
-							//ui->glWidget->addObject(gl_ob);
-
-							//avatar->using_placeholder_model = false;
-
-							avatar->graphics = new AvatarGraphics();
-							avatar->graphics->create(*ui->glWidget->opengl_engine);
-
-							// No physics object for avatars.
-						}
-
-						// Add nametag object for avatar
-						{
-							avatar->opengl_engine_nametag_ob = makeNameTagGLObject(avatar->name);
-
-							// Set transform to be above avatar.  This transform will be updated later.
-							avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
-
-							ui->glWidget->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
-						}
-					} // End if reload_opengl_model
-
-
-					// Update transform if we have an avatar or placeholder OpenGL model.
-					Vec3d pos;
-					Vec3f rotation;
-					avatar->getInterpolatedTransform(cur_time, pos, rotation);
-
-					/*if(avatar->opengl_engine_ob.nonNull())
-					{
-						avatar->opengl_engine_ob->ob_to_world_matrix = rotateThenTranslateMatrix(pos, axis, angle);
-						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_ob);
-					}*/
 					if(avatar->graphics.nonNull())
-					{
-						avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time);
-					}
-
-					// Update nametag transform also
-					if(avatar->opengl_engine_nametag_ob.nonNull())
-					{
-						// We want to rotate the nametag towards the camera.
-						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
-						if(!isFinite(to_cam[0]))
-							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
-
-						const Vec4f axis_k = Vec4f(0, 0, 1, 0);
-						if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
-							to_cam[0] += 0.1;
-
-						const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
-						const Vec4f axis_i = crossProduct(axis_j, axis_k);
-						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
-
-						// Tex width and height from makeNameTagGLObject():
-						const int W = 256;
-						const int H = 80;
-						const float ws_width = 0.4f;
-						const float ws_height = ws_width * H / W;
-
-						// Rotate around z-axis, then translate to just above the avatar's head.
-						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) *
-							rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
-
-						assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
-						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
-					}
-
-					// Update selected object beam for the avatar, if it has an object selected
-					if(avatar->selected_object_uid.valid())
-					{
-						if(avatar->graphics.nonNull())
-						{
-							auto selected_it = world_state->objects.find(avatar->selected_object_uid);
-							if(selected_it != world_state->objects.end())
-							{
-								WorldObject* their_selected_ob = selected_it->second.getPointer();
-								Vec3d selected_pos;
-								Vec3f axis;
-								float angle;
-								their_selected_ob->getInterpolatedTransform(cur_time, selected_pos, axis, angle);
-
-								// Replace pos with the centre of the AABB (instead of the object space origin)
-								if(their_selected_ob->opengl_engine_ob.nonNull())
-								{
-									their_selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)selected_pos.x, (float)selected_pos.y, (float)selected_pos.z) *
-										Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
-										Matrix4f::scaleMatrix(their_selected_ob->scale.x, their_selected_ob->scale.y, their_selected_ob->scale.z);
-
-									ui->glWidget->opengl_engine->updateObjectTransformData(*their_selected_ob->opengl_engine_ob);
-
-									selected_pos = toVec3d(their_selected_ob->opengl_engine_ob->aabb_ws.centroid());
-								}
-
-								avatar->graphics->setSelectedObBeam(*ui->glWidget->opengl_engine, selected_pos);
-							}
-						}
-					}
-					else
-					{
-						if(avatar->graphics.nonNull())
-							avatar->graphics->hideSelectedObBeam(*ui->glWidget->opengl_engine);
-					}
-
-					avatar->other_dirty = false;
-					avatar->transform_dirty = false;
-
-					++it;
+						avatar->graphics->hideSelectedObBeam(*ui->glWidget->opengl_engine);
 				}
-			} // end if avatar is dirty
-			//else
-			//	++it;
+
+				avatar->other_dirty = false;
+				avatar->transform_dirty = false;
+
+				++it;
+			}
 		} // end for each avatar
 	}
 	catch(glare::Exception& e)
@@ -2376,7 +2314,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
 								use_write_perms = false;
 
-							assert(!use_write_perms);
 							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
 							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
 							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
@@ -3539,8 +3476,8 @@ void MainWindow::on_actionLogIn_triggered()
 		const std::string username = QtUtils::toStdString(dialog.usernameLineEdit->text());
 		const std::string password = QtUtils::toStdString(dialog.passwordLineEdit->text());
 
-		conPrint("username: " + username);
-		conPrint("password: " + password);
+		//conPrint("username: " + username);
+		//conPrint("password: " + password);
 		//this->last_login_username = username;
 
 		// Make LogInMessage packet and enqueue to send

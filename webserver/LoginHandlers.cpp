@@ -157,9 +157,9 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		const web::UnsafeString password = request_info.getPostField("password");
 		const web::UnsafeString raw_return_URL = request_info.getPostField("return");
 
-		conPrint("username: '" + username.str() + "'");
-		conPrint("password: '" + password.str() + "'");
-		conPrint("raw_return_URL: '" + raw_return_URL.str() + "'");
+		//conPrint("username: '" + username.str() + "'");
+		//conPrint("password: '" + password.str() + "'");
+		//conPrint("raw_return_URL: '" + raw_return_URL.str() + "'");
 
 		std::string return_URL = raw_return_URL.str();
 		if(return_URL.empty())
