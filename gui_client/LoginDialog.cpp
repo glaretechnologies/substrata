@@ -53,6 +53,7 @@ void LoginDialog::accepted()
 {
 	settings->setValue("LoginDialog/username", this->usernameLineEdit->text());
 	settings->setValue("LoginDialog/password", QtUtils::toQString(encryptPassword(QtUtils::toStdString(this->passwordLineEdit->text()))));
+	settings->setValue("LoginDialog/auto_login", true);
 }
 
 
