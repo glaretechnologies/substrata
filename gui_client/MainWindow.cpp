@@ -1300,7 +1300,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 {
 	updateStatusBar();
 
-	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > 9.0) // TEMP HACK timer
+	const double screenshot_load_time = 15;
+	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > (screenshot_load_time - 1)) // TEMP HACK timer
 	{
 		// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
 		ui->editorDockWidget->setFloating(false);
@@ -1316,7 +1317,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		);
 		setUpForScreenshot();
 	}
-	if(!screenshot_output_path.empty() && total_timer.elapsed() > 10.0) // TEMP HACK timer
+	if(!screenshot_output_path.empty() && total_timer.elapsed() > screenshot_load_time) // TEMP HACK timer
 	{
 		saveScreenshot();
 		close();
