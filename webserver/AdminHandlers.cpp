@@ -174,14 +174,19 @@ void renderParcelAuctionsPage(ServerAllWorldsState& world_state, const web::Requ
 
 			page_out += "<p>\n";
 			page_out += "<a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel Auction " + toString(auction->id) + "</a><br/>" +
+				"parcel: <a href=\"/parcel/" + auction->parcel_id.toString() + "\">" + auction->parcel_id.toString() + "</a><br/>" + 
 				"state: ";
 
 			if(auction->auction_state == ParcelAuction::AuctionState_ForSale)
+			{
 				page_out += "for-sale";
+				if(!auction->currentlyForSale())
+					page_out += " [Expired]";
+			}
 			else if(auction->auction_state == ParcelAuction::AuctionState_Sold)
 				page_out += "sold";
-			else if(auction->auction_state == ParcelAuction::AuctionState_NotSold)
-				page_out += "not-sold";
+			//else if(auction->auction_state == ParcelAuction::AuctionState_NotSold)
+			//	page_out += "not-sold";
 			page_out += "<br/>";
 
 			page_out += 

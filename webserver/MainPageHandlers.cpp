@@ -54,7 +54,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 				{
 					const ParcelAuction* auction = res->second.ptr();
 
-					if((auction->auction_state == ParcelAuction::AuctionState_ForSale) && (auction->auction_start_time <= now) && (now <= auction->auction_end_time)) // If auction is valid and running:
+					if(auction->currentlyForSale(now)) // If auction is valid and running:
 					{
 						if(!auction->screenshot_ids.empty())
 						{

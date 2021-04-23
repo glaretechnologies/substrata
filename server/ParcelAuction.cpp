@@ -83,6 +83,12 @@ TimeStamp ParcelAuction::lockExpiryTime() const
 }
 
 
+bool ParcelAuction::currentlyForSale(TimeStamp now) const
+{
+	return (auction_state == AuctionState_ForSale) && (auction_start_time <= now) && (now <= auction_end_time);
+}
+
+
 static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 5;
 // v2: added screenshot_id
 // v3: changed to screenshot_ids
@@ -127,7 +133,7 @@ void readFromStream(InStream& stream, ParcelAuction& a)
 	a.parcel_id = readParcelIDFromStream(stream);
 
 	const uint32 auction_state = stream.readUInt32();
-	if(auction_state > (uint32)ParcelAuction::AuctionState_NotSold)
+	if(auction_state > (uint32)ParcelAuction::AuctionState_Sold)
 		throw glare::Exception("invalid auction_state");
 	a.auction_state = (ParcelAuction::AuctionState)auction_state;
 
