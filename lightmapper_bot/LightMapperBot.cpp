@@ -256,6 +256,8 @@ public:
 		if(ob->object_type == WorldObject::ObjectType_VoxelGroup) // If voxel object, convert to mesh
 		{
 			ob->decompressVoxels();
+			if(ob->getDecompressedVoxelGroup().voxels.size() == 0)
+				throw glare::Exception("No voxels in voxel group");
 			BatchedMeshRef batched_mesh = VoxelMeshBuilding::makeBatchedMeshForVoxelGroup(ob->getDecompressedVoxelGroup());
 			indigo_mesh = new Indigo::Mesh();
 			batched_mesh->buildIndigoMesh(*indigo_mesh);
@@ -311,6 +313,7 @@ public:
 			{
 				try
 				{
+					indigo_mesh = new Indigo::Mesh();
 					Indigo::Mesh::readFromFile(toIndigoString(model_path), *indigo_mesh);
 				}
 				catch(Indigo::IndigoException& e)
@@ -532,7 +535,7 @@ public:
 
 				const float frac = A / parcel_A;
 
-				const float full_num_px = Maths::square(2048);
+				const float full_num_px = Maths::square(2048.f);
 
 				const float use_num_px = frac * full_num_px;
 
@@ -623,12 +626,19 @@ public:
 					if(ob->state == WorldObject::State_Dead)
 						continue;
 
-					Indigo::SceneNodeModelRef model_node = makeModelNodeForWorldObject(ob);
+					try
+					{
+						Indigo::SceneNodeModelRef model_node = makeModelNodeForWorldObject(ob);
 
-					root_node->addChildNode(model_node);
+						root_node->addChildNode(model_node);
 
-					if(ob == ob_to_lightmap)
-						baking_model_node = model_node;
+						if(ob == ob_to_lightmap)
+							baking_model_node = model_node;
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("Warning: Error while building indigo model for object: " + e.what());
+					}
 				}
 
 
@@ -756,7 +766,7 @@ public:
 				command_line_args.push_back("-uexro"); // untonemapped EXR output path:
 				command_line_args.push_back(lightmap_exr_path);
 				command_line_args.push_back("-halt"); // Half after N secs
-				command_line_args.push_back("20");
+				command_line_args.push_back("160");
 				glare::Process indigo_process(indigo_exe_path, command_line_args);
 
 				Timer timer;
@@ -1020,7 +1030,8 @@ int main(int argc, char* argv[])
 
 	Reference<WorldState> world_state = new WorldState();
 
-	const std::string server_hostname = "localhost"; // "substrata.info"
+	//const std::string server_hostname = "localhost";
+	const std::string server_hostname = "substrata.info";
 	const int server_port = 7600;
 
 
@@ -1035,7 +1046,7 @@ int main(int argc, char* argv[])
 		&msg_queue,
 		server_hostname,
 		server_port, // port
-		"sdfsdf", // avatar URL
+		"", // avatar URL
 		"", // world name - default world
 		client_tls_config
 	);
