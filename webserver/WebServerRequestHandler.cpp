@@ -79,9 +79,9 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			CoinbaseHandlers::handleCoinbaseWebhookPost(*this->world_state, request, reply_info);
 		}
-		else if(request.path == "/buy_parcel_now")
+		else if(request.path == "/buy_parcel_now_paypal")
 		{
-			AuctionHandlers::handleParcelBuyNow(*this->world_state, request, reply_info);
+			AuctionHandlers::handleParcelBuyNowWithPayPal(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/buy_parcel_now_coinbase")
 		{

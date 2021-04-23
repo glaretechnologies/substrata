@@ -110,7 +110,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				if(auction_res != world_state.parcel_auctions.end())
 				{
 					const ParcelAuction* auction = auction_res->second.ptr();
-					if((auction->auction_state == ParcelAuction::AuctionState_ForSale) && (auction->auction_start_time <= now) && (now <= auction->auction_end_time)) // If auction is valid and running:
+					if(auction->currentlyForSale(now)) // If auction is valid and running:
 					{
 						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel for sale, auction ends " + auction->auction_end_time.timeDescription() + "</a>";
 						num++;
@@ -134,7 +134,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->getAuctionEndOrSoldTime().timeDescription() + ": Parcel sold.</a> <br/>";
 						num++;
 					}
-					else if(auction->auction_state == ParcelAuction::AuctionState_NotSold)
+					else if(auction->auction_end_time <= now)
 					{
 						page += " <a href=\"/parcel_auction/" + toString(auction->id) + "\">" + auction->getAuctionEndOrSoldTime().timeDescription() + ": Parcel did not sell.</a> <br/>";
 						num++;

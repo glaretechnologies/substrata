@@ -37,13 +37,16 @@ public:
 
 	TimeStamp lockExpiryTime() const;
 
+	bool currentlyForSale(TimeStamp now = TimeStamp::currentTime()) const;
 
+	// An auction is for sale if it has state AuctionState_ForSale and current time is <= auction_end_time.
+	// If current time is > auction_end_time then it didn't meet reserve price and is not for sale.
 	enum AuctionState
 	{
 		//AuctionState_NotForSale = 0, // Not currently on auction
 		AuctionState_ForSale = 0, // on auction
-		AuctionState_Sold = 1, // sold at the auction
-		AuctionState_NotSold = 2 // didn't meet reserve price
+		AuctionState_Sold = 1 // sold at the auction
+		//AuctionState_NotSold = 2 // didn't meet reserve price
 	};
 
 	uint32 id;
