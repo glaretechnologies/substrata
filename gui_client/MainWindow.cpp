@@ -783,8 +783,13 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
 						for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+						{
 							if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
 								ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+
+							if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+								ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+						}
 
 						ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 						ob->physics_object->geometry = raymesh;
@@ -1468,8 +1473,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 					{
 						for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
+						{
 							if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
 								message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
+
+							if(!message_ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+								message_ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].lightmap_path));
+						}
 
 						ui->glWidget->addObject(message_ob->opengl_engine_ob);
 
@@ -1524,8 +1534,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
 									for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+									{
 										if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
 											ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+
+										if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+											ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+									}
 
 									ui->glWidget->addObject(ob->opengl_engine_ob);
 
@@ -1549,10 +1564,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
 		{
-			//conPrint("Got loaded texture message.");
 			// Process any loaded textures
 			const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
 			texture_loaded_messages_to_process.pop_front();
+
+			// conPrint("Handling texture loaded message " + message->tex_path);
 
 			//Timer timer;
 			try
