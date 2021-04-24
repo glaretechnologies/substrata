@@ -605,7 +605,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		}
 	}
 	else
-		throw glare::Exception("unhandled format: " + model_path);
+		throw glare::Exception("Format not supported: " + getExtension(model_path));
 }
 
 
@@ -699,7 +699,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			BatchedMesh::readFromFile(model_path, *batched_mesh);
 		}
 		else
-			throw glare::Exception("unhandled model format: " + model_path);
+			throw glare::Exception("Format not supported: " + getExtension(model_path));
 
 
 		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
