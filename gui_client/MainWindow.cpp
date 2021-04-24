@@ -1221,23 +1221,6 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 }
 
 
-// Adapted from ImFormatDecoder::decodeImage
-static bool hasTextureExtension(const std::string& path)
-{
-	return
-		hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
-		hasExtension(path, "tga") ||
-		hasExtension(path, "bmp") ||
-		hasExtension(path, "png") ||
-		hasExtension(path, "tif") || hasExtension(path, "tiff") ||
-		hasExtension(path, "exr") ||
-		hasExtension(path, "float") ||
-		hasExtension(path, "gif") ||
-		hasExtension(path, "hdr") ||
-		hasExtension(path, "ktx") || hasExtension(path, "ktx2");
-}
-
-
 void MainWindow::setUpForScreenshot()
 {
 	// Highlight requested parcel_id
@@ -1860,7 +1843,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				// If we just downloaded a texture, start loading it.
 				// NOTE: Do we want to check this texture is actually used by an object?
-				if(hasTextureExtension(URL))
+				if(ImFormatDecoder::hasImageExtension(URL))
 				{
 					//conPrint("Downloaded texture resource, loading it...");
 
@@ -3094,7 +3077,7 @@ void MainWindow::on_actionAddObject_triggered()
 	}
 
 	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
-	if(d.exec() == QDialog::Accepted)
+	if((d.exec() == QDialog::Accepted) && d.loaded_object.nonNull())
 	{
 		// Try and load model
 		try
@@ -3146,9 +3129,9 @@ void MainWindow::on_actionAddObject_triggered()
 
 			new_world_object->uid = UID(0); // Will be set by server
 			new_world_object->materials = d.loaded_object->materials;//d.loaded_materials;
-			new_world_object->pos = ob_pos;
+			new_world_object->pos = ob_pos + cam_controller.getRightVec() * d.ob_cam_right_translation + cam_controller.getUpVec() * d.ob_cam_up_translation;
 			new_world_object->axis = Vec3f(0, 0, 1);
-			new_world_object->angle = 0;
+			new_world_object->angle = (float)this->cam_controller.getAngles().x - Maths::pi_2<float>();
 			new_world_object->scale = d.loaded_object->scale;
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.

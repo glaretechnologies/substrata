@@ -325,7 +325,7 @@
   </action>
   <action name="actionAddObject">
    <property name="text">
-    <string>Add Object</string>
+    <string>Add Model or Image</string>
    </property>
   </action>
   <action name="actionDeleteObject">
