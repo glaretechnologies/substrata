@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "CameraController.h"
 #include "ProximityLoader.h"
 #include "../opengl/OpenGLEngine.h"
+#include "../opengl/TextureLoading.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
 #include "../indigo/ThreadContext.h"
@@ -29,6 +30,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <string>
 #include <fstream>
 #include <unordered_set>
+#include <unordered_map>
 #include <deque>
 class ArgumentParser;
 namespace Ui { class MainWindow; }
@@ -40,6 +42,19 @@ class QLabel;
 class ModelLoadedThreadMessage;
 class TextureLoadedThreadMessage;
 struct tls_config;
+
+
+struct AnimatedTexData
+{ 
+	AnimatedTexData() : cur_frame_i(0) {}
+	Reference<TextureData> texdata;
+	int cur_frame_i;
+};
+
+struct AnimatedTexObData : public RefCounted
+{
+	std::vector<AnimatedTexData> animtexdata; // size() == ob.material.size()
+};
 
 
 class MainWindow : public QMainWindow, public ObLoadingCallbacks
@@ -224,7 +239,8 @@ public:
 	std::string resources_dir;
 	Reference<ResourceManager> resource_manager;
 
-	std::set<WorldObjectRef> active_objects; // Objects that have moved recently and so need interpolation done on them.
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> active_objects; // Objects that have moved recently and so need interpolation done on them.
+	std::unordered_map<WorldObjectRef, Reference<AnimatedTexObData>, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs)
 
 	ThreadContext thread_context;
 
