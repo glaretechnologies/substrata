@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <indigo/TextureServer.h>
 #include <graphics/imformatdecoder.h>
 #include <graphics/ImageMapSequence.h>
-#include <graphics/GIFDecoder.h>
+#include <graphics/GifDecoder.h>
 #include <opengl/OpenGLEngine.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
