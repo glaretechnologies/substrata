@@ -298,12 +298,12 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			preview_gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 			preview_gl_ob->materials.resize(2);
 
-			preview_gl_ob->materials[0].albedo_rgb = Colour3f(1.f);
+			preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
 			preview_gl_ob->materials[0].tex_path = local_path;
 			preview_gl_ob->materials[0].roughness = 0.5f;
 			preview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
 
-			preview_gl_ob->materials[1].albedo_rgb = Colour3f(1.f);
+			preview_gl_ob->materials[1].albedo_rgb = Colour3f(0.7f);
 			preview_gl_ob->materials[1].roughness = 0.5f;
 			preview_gl_ob->materials[1].tex_matrix = Matrix2f(1, 0, 0, -1);
 
@@ -313,7 +313,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			loaded_object->materials.resize(2);
 
 			loaded_object->materials[0] = new WorldMaterial();
-			loaded_object->materials[0]->colour_rgb = Colour3f(0.7f);
+			loaded_object->materials[0]->colour_rgb = Colour3f(0.9f);
 			loaded_object->materials[0]->opacity = ScalarVal(1.f);
 			loaded_object->materials[0]->roughness = ScalarVal(0.5f);
 			loaded_object->materials[0]->colour_texture_url = local_path;
