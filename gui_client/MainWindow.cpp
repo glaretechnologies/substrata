@@ -107,6 +107,8 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/FormatDecoderVox.h" // Just for testing
 #include "../graphics/BatchedMeshTests.h" // Just for testing
 #include "../graphics/KTXDecoder.h" // Just for testing
+#include "../graphics/ImageMapSequence.h" // Just for testing
+#include "../opengl/TextureLoadingTests.h" // Just for testing
 
 
 
@@ -690,6 +692,15 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 		startLoadingTexturesForObject(*ob);
 
+		// Add any objects with gif textures to the set of animated objects.
+		for(size_t i=0; i<ob->materials.size(); ++i)
+			if(::hasExtension(ob->materials[i]->colour_texture_url, "gif"))
+			{
+				Reference<AnimatedTexObData> anim_data = new AnimatedTexObData();
+				this->obs_with_animated_tex.insert(std::make_pair(ob, anim_data));
+			}
+
+
 		if(ob->model_url.empty() || resource_manager->isFileForURLPresent(ob->model_url)) // If this object doesn't use a model resource, or we have downloaded the model resource:
 		{
 			if(ob->object_type == WorldObject::ObjectType_Hypercard)
@@ -881,7 +892,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 					}
 				}
 
-				const int MAX_COUNT = 100;
+				const int MAX_COUNT = 1000;
 				count = myMin(count, MAX_COUNT);
 
 				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
@@ -1287,6 +1298,68 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	updateStatusBar();
+
+
+	// Set current animation frame for objects with animated textures
+	{
+		// Timer timer;
+
+		const double anim_time = total_timer.elapsed();
+
+		Lock lock(this->world_state->mutex); // NOTE: This lock needed?
+
+		for(auto it = this->obs_with_animated_tex.begin(); it != this->obs_with_animated_tex.end(); ++it)
+		{
+			WorldObject* ob = it->first.ptr();
+			AnimatedTexObData* animation_data = it->second.ptr();
+
+			if(ob->opengl_engine_ob.nonNull())
+			{
+				animation_data->animtexdata.resize(ob->opengl_engine_ob->materials.size());
+
+				for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
+				{
+					OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
+					if(mat.albedo_texture.nonNull())
+					{
+						// Fetch the texdata for this texture if we haven't already
+						AnimatedTexData& animtexdata = animation_data->animtexdata[m];
+						if(animtexdata.texdata.isNull())
+							animtexdata.texdata = ui->glWidget->opengl_engine->texture_data_manager->getTextureData(mat.tex_path);
+
+						TextureData* texdata = animtexdata.texdata.ptr();
+						
+						if(texdata && !texdata->frames.empty()) // Check !frames.empty() for back() calls below.
+						{
+							const double total_anim_time = texdata->frame_start_times.back() + texdata->frame_durations.back();
+
+							const double in_anim_time = Maths::doubleMod(anim_time, total_anim_time);
+
+							/*
+							          frame 0                     frame 1                        frame 2                      frame 3
+							|----------------------------|-----------------------------|-----------------------------|--------------------------------|----------> time
+							                             ^                                         ^
+							                          cur_frame_i                             in anim_time
+							*/
+
+							// Advance current frame as needed, until frame_start_times[cur_frame_i + 1] >= in_anim_time, or cur_frame_i is the last frame
+							while(((animtexdata.cur_frame_i + 1) < (int)texdata->frame_start_times.size()) && (texdata->frame_start_times[animtexdata.cur_frame_i + 1] < in_anim_time))
+								animtexdata.cur_frame_i++;
+
+							if(in_anim_time <= texdata->frame_durations[0]) // If the in-anim time has looped back so that it's in frame 0:
+								animtexdata.cur_frame_i = 0;
+
+							if(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < (int)texdata->frames.size()) // Make sure in bounds
+								TextureLoading::loadIntoExistingOpenGLTexture(mat.albedo_texture, *texdata, animtexdata.cur_frame_i, ui->glWidget->opengl_engine);
+						}
+					}
+				}
+			}
+		}
+
+		// conPrint("processing gifs took " + timer.elapsedString());
+	}
+	
 
 	const double screenshot_load_time = 15;
 	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > (screenshot_load_time - 1)) // TEMP HACK timer
@@ -2153,6 +2226,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					this->world_state->objects.erase(ob->uid);
 					//this->objects_to_remove.push_back(it->second); // Mark as to-be-removed
+
+					active_objects.erase(ob);
+					obs_with_animated_tex.erase(ob);
 				}
 				else
 				{
@@ -4064,6 +4140,9 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 		}
 	}
 
+	active_objects.clear();
+	obs_with_animated_tex.clear();
+
 	proximity_loader.clearAllObjects();
 
 
@@ -4937,11 +5016,13 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			//TextureLoadingTests::test();
 			//KTXDecoder::test();
-			BatchedMeshTests::test();
+			//BatchedMeshTests::test();
 			//FormatDecoderVox::test();
 			//ModelLoading::test();
 			//HTTPClient::test();
+			GIFDecoder::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
 			//StringUtils::test();

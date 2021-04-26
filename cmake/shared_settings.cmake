@@ -331,6 +331,8 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
 )
 
 set(opengl_shaders
