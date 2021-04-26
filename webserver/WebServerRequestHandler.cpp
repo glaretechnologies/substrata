@@ -56,6 +56,26 @@ static bool isFileNameSafe(const std::string& s)
 
 void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
+	if(!request.tls_connection)
+	{
+		// Redirect to https
+
+		// Find the hostname the request was sent to - look through the headers for 'host'.
+		std::string hostname;
+		for(size_t i=0; i<request.headers.size(); ++i)
+			if(StringUtils::equalCaseInsensitive(request.headers[i].key, "host"))
+				hostname = request.headers[i].value.to_string();
+		
+		const std::string response = 
+			"HTTP/1.1 301 Redirect\r\n" // 301 = Moved Permanently
+			"Location: https://" + hostname + request.path + "\r\n"
+			"Content-Length: 0\r\n"
+			"\r\n";
+		reply_info.socket->writeData(response.c_str(), response.size());
+		return;
+	}
+
+
 	if(request.verb == "POST")
 	{
 		// Route PUT request
