@@ -95,6 +95,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, cons
 
 	opengl_mat.fresnel_scale = 0.3f;
 
+	// glTexImage2D expects the start of the texture data to be the lower left of the image, whereas it is actually the upper left.  So flip y coord to compensate.
 	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
 }
 
@@ -388,8 +389,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
 			mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
 
+		// Also normalise normals to avoid problems encoding into GL_INT_2_10_10_10_REV format.
 		for(size_t i=0; i<mesh->vert_normals.size(); ++i)
-			mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
+			mesh->vert_normals[i] = normalise(Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y));
 
 		// Automatically scale object down until it is < x m across
 		scaleMesh(*mesh);
@@ -470,9 +472,12 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		// Convert model coordinates to z up
 		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
 			mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
-		//
+		
+		// Convert normals.
+		// Also normalise normals.  Although they are supposed to be unit length ("Normalized XYZ vertex normals" in spec, https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#meshes)
+		// In some models such as the duck model, they are not.  And normals with too large magnitude components get screwed up when converting to GL_INT_2_10_10_10_REV format.
 		for(size_t i=0; i<mesh->vert_normals.size(); ++i)
-			mesh->vert_normals[i] = Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y);
+			mesh->vert_normals[i] = normalise(Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y));
 
 		// Automatically scale object down until it is < x m across
 		scaleMesh(*mesh);
@@ -480,16 +485,16 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		// Now that vertices have been modified, recompute AABB
 		mesh->endOfModel();
 
-		GLObjectRef ob = new GLObject();
-		ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
+		GLObjectRef gl_ob = new GLObject();
+		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
 		timer.reset();
-		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+		gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
 		conPrint("Build OpenGL mesh for GLTF model in " + timer.elapsedString());
 
 		if(mats.materials.size() < mesh->num_materials_referenced)
 			throw glare::Exception("mats.materials had incorrect size.");
 
-		ob->materials.resize(mesh->num_materials_referenced);
+		gl_ob->materials.resize(mesh->num_materials_referenced);
 		loaded_object_out.materials.resize(mesh->num_materials_referenced);
 		for(uint32 i=0; i<mesh->num_materials_referenced; ++i)
 		{
@@ -497,17 +502,21 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 			const std::string tex_path = mats.materials[i].diffuse_map.path;
 
-			ob->materials[i].albedo_rgb = mats.materials[i].diffuse;
-			ob->materials[i].tex_path = tex_path;
-			ob->materials[i].roughness = mats.materials[i].roughness;
-			ob->materials[i].alpha = mats.materials[i].alpha;
-			ob->materials[i].transparent = mats.materials[i].alpha < 1.0f;
-			ob->materials[i].metallic_frac = mats.materials[i].metallic;
-			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+			// NOTE: gltf has (0,0) at the upper left of the image, as opposed to the Indigo/substrata/opengl convention of (0,0) being at the lower left
+			// (See https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#images)
+			// Therefore we need to negate the y coord.
+			// For the gl_ob, there would usually be another negation, so the two cancel out.
+
+			gl_ob->materials[i].albedo_rgb = mats.materials[i].diffuse;
+			gl_ob->materials[i].tex_path = tex_path;
+			gl_ob->materials[i].roughness = mats.materials[i].roughness;
+			gl_ob->materials[i].alpha = mats.materials[i].alpha;
+			gl_ob->materials[i].transparent = mats.materials[i].alpha < 1.0f;
+			gl_ob->materials[i].metallic_frac = mats.materials[i].metallic;
 
 			loaded_object_out.materials[i]->colour_rgb = mats.materials[i].diffuse;
 			loaded_object_out.materials[i]->colour_texture_url = tex_path;
-			loaded_object_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
+			loaded_object_out.materials[i]->opacity = ScalarVal(gl_ob->materials[i].alpha);
 			loaded_object_out.materials[i]->roughness = mats.materials[i].roughness;
 			loaded_object_out.materials[i]->opacity = mats.materials[i].alpha;
 			loaded_object_out.materials[i]->metallic_fraction = mats.materials[i].metallic;
@@ -515,7 +524,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		}
 		mesh_out = new BatchedMesh();
 		mesh_out->buildFromIndigoMesh(*mesh);
-		return ob;
+		return gl_ob;
 	}
 	else if(hasExtension(model_path, "stl"))
 	{
