@@ -82,11 +82,26 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 }
 
 
+static const std::string toLocalPath(const std::string& URL, ResourceManager& resource_manager)
+{
+	if(URL.empty())
+		return "";
+	else
+	{
+		const bool streamable = ::hasExtensionStringView(URL, "mp4");
+		if(streamable)
+			return URL; // Just leave streamable URLs as-is.
+		else
+			return resource_manager.pathForURL(URL);
+	}
+}
+
+
 void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;
-	opengl_mat.tex_path = (mat.colour_texture_url.empty() ? "" : resource_manager.pathForURL(mat.colour_texture_url));
-	opengl_mat.lightmap_path = (lightmap_url.empty() ? "" : resource_manager.pathForURL(lightmap_url));
+	opengl_mat.tex_path = toLocalPath(mat.colour_texture_url, resource_manager);// (mat.colour_texture_url.empty() ? "" : resource_manager.pathForURL(mat.colour_texture_url));
+	opengl_mat.lightmap_path = toLocalPath(lightmap_url, resource_manager);// (lightmap_url.empty() ? "" : resource_manager.pathForURL(lightmap_url));
 
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
@@ -612,6 +627,40 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		{
 			throw glare::Exception(toStdString(e.what()));
 		}
+	}
+	else if(hasExtension(model_path, "bmesh"))
+	{
+		BatchedMeshRef bmesh = new BatchedMesh();
+		BatchedMesh::readFromFile(model_path, *bmesh);
+
+		checkValidAndSanitiseMesh(*bmesh);
+
+		// Automatically scale object down until it is < x m across
+		//scaleMesh(*bmesh);
+
+		GLObjectRef gl_ob = new GLObject();
+		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
+		gl_ob->mesh_data = OpenGLEngine::buildBatchedMesh(bmesh, /*skip_opengl_calls=*/false);
+
+		const size_t num_mats = bmesh->numMaterialsReferenced();
+		gl_ob->materials.resize(num_mats);
+		loaded_object_out.materials.resize(num_mats);
+		for(uint32 i=0; i<gl_ob->materials.size(); ++i)
+		{
+			// Assign dummy mat
+			gl_ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+			gl_ob->materials[i].tex_path = "resources/obstacle.png";
+			gl_ob->materials[i].roughness = 0.5f;
+			gl_ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
+
+			loaded_object_out.materials[i] = new WorldMaterial();
+			//loaded_object_out.materials[i]->colour_texture_url = "resources/obstacle.png";
+			loaded_object_out.materials[i]->opacity = ScalarVal(1.f);
+			loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
+		}
+
+		mesh_out = bmesh;
+		return gl_ob;
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));

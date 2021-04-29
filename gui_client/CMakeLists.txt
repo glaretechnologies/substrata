@@ -172,6 +172,7 @@ SOURCE_GROUP(qt FILES ${qt})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(client_indigo_files FILES ${client_indigo_files})
 SOURCE_GROUP(docs FILES ${doc_files})
+SOURCE_GROUP(video FILES ${video})
 
 
 if(WIN32)
@@ -240,6 +241,7 @@ ${xxhash}
 ${qt}
 ${doc_files}
 ${lang}
+${video}
 )
 
 add_definitions(-DGUI_CLIENT=1)
@@ -262,6 +264,13 @@ if(WIN32)
 		debug Qt5Widgetsd
 #		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
 #		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
+
+		# Media foundation video reading:
+		mfplat.lib 
+		mfreadwrite.lib 
+		mfuuid.lib
+		Mf.lib
+		d3d11.lib
 		)
 
 	# Disable ASLR (/DYNAMICBASE)

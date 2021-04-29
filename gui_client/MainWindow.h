@@ -22,7 +22,9 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/Timer.h"
 #include "../utils/TaskManager.h"
 #include "../utils/StandardPrintOutput.h"
+#include "../utils/CircularBuffer.h"
 #include "../maths/PCG32.h"
+#include "../video/VideoReader.h"
 #include <QtCore/QEvent>
 #include <QtCore/QObject>
 #include <QtCore/QString>
@@ -42,18 +44,35 @@ class QLabel;
 class ModelLoadedThreadMessage;
 class TextureLoadedThreadMessage;
 struct tls_config;
+class SubstrataVideoReaderCallback;
 
 
-struct AnimatedTexData
+struct AnimatedTexData : public RefCounted
 { 
-	AnimatedTexData() : cur_frame_i(0) {}
+	AnimatedTexData() : cur_frame_i(0), latest_tex_index(0), last_frame_time(0), vid_start_time(0) {}
+	~AnimatedTexData() { video_reader = NULL; } // Make sure to destroy video reader before frameinfos as it has a pointer to frameinfos.
+
+	Reference<VideoReader> video_reader;
+	int latest_tex_index;
+	double vid_start_time;
+	double last_frame_time;
+
+	//CircularBuffer<FrameInfo>* frameinfos;
+	ThreadSafeQueue<FrameInfo> frameinfos;
+
+	SubstrataVideoReaderCallback* callback;
+
+	//std::vector<OpenGLTextureRef> textures;
+	OpenGLTextureRef textures[2];
+
+
 	Reference<TextureData> texdata;
 	int cur_frame_i;
 };
 
-struct AnimatedTexObData : public RefCounted
+struct AnimatedTexObData// : public RefCounted
 {
-	std::vector<AnimatedTexData> animtexdata; // size() == ob.material.size()
+	std::vector<Reference<AnimatedTexData>> animtexdata; // size() == ob.material.size()
 };
 
 
@@ -240,7 +259,7 @@ public:
 	Reference<ResourceManager> resource_manager;
 
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> active_objects; // Objects that have moved recently and so need interpolation done on them.
-	std::unordered_map<WorldObjectRef, Reference<AnimatedTexObData>, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs)
+	std::unordered_map<WorldObjectRef, AnimatedTexObData, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs)
 
 	ThreadContext thread_context;
 
