@@ -335,6 +335,21 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp
 ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
 )
 
+set(video 
+${INDIGO_TRUNK_DIR_ENV}/video/VideoReader.cpp
+${INDIGO_TRUNK_DIR_ENV}/video/VideoReader.h
+)
+if(WIN32)
+set(video 
+${video}
+${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReader.cpp
+${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReader.h
+${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.h
+)
+endif()
+
+
+
 set(opengl_shaders
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_vert_shader.glsl

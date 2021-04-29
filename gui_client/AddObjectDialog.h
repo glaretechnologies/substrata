@@ -62,6 +62,8 @@ public:
 	float ob_cam_up_translation;
 
 private:
+	void makeMeshForWidthAndHeight(const std::string& local_path, int w, int h);
+
 	std::string base_dir_path;
 	std::vector<std::string> models;
 

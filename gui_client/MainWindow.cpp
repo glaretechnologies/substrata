@@ -92,6 +92,9 @@ Copyright Glare Technologies Limited 2020 -
 #include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
 #include "../graphics/imformatdecoder.h"
+#if defined(_WIN32)
+#include "../video/WMFVideoReader.h"
+#endif
 #include <clocale>
 #include <zlib.h>
 #include <tls.h>
@@ -109,6 +112,8 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/KTXDecoder.h" // Just for testing
 #include "../graphics/ImageMapSequence.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
+
+//#include "../indigo/UVUnwrapper.h" // Just for testing
 
 
 
@@ -663,7 +668,11 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob)
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 	{
 		const std::string& url = *it;
-		if(!resource_manager->isFileForURLPresent(url))
+		
+		// If resources are streamable, don't download them.
+		const bool streamable = ::hasExtensionStringView(url, "mp4");
+
+		if(!resource_manager->isFileForURLPresent(url) && !streamable)
 			startDownloadingResource(url);
 	}
 }
@@ -692,12 +701,12 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 		startLoadingTexturesForObject(*ob);
 
-		// Add any objects with gif textures to the set of animated objects.
+		// Add any objects with gif or mp4 textures to the set of animated objects.
 		for(size_t i=0; i<ob->materials.size(); ++i)
-			if(::hasExtension(ob->materials[i]->colour_texture_url, "gif"))
+			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "gif") || ::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
 			{
-				Reference<AnimatedTexObData> anim_data = new AnimatedTexObData();
-				this->obs_with_animated_tex.insert(std::make_pair(ob, anim_data));
+				//Reference<AnimatedTexObData> anim_data = new AnimatedTexObData();
+				this->obs_with_animated_tex.insert(std::make_pair(ob, AnimatedTexObData()));
 			}
 
 
@@ -1295,6 +1304,30 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 }
 
 
+class SubstrataVideoReaderCallback : public VideoReaderCallback
+{
+public:
+	virtual void frameDecoded(VideoReader* vid_reader, const FrameInfo& frameinfo)
+	{
+		//conPrint("frameDecoded, time " + toString(frameinfo.frame_time));
+
+		frameinfos->enqueue(frameinfo);
+	}
+
+
+	virtual void endOfStream(VideoReader* vid_reader)
+	{
+		//conPrint("endOfStream()");
+
+		// insert an empty FrameInfo to signify EOS
+		FrameInfo frameinfo;
+		frameinfos->enqueue(frameinfo);
+	}
+
+	ThreadSafeQueue<FrameInfo>* frameinfos;
+};
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	updateStatusBar();
@@ -1302,7 +1335,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Set current animation frame for objects with animated textures
 	{
-		// Timer timer;
+		Timer timer;
+		Timer tex_upload_timer;
+		tex_upload_timer.pause();
 
 		const double anim_time = total_timer.elapsed();
 
@@ -1311,19 +1346,23 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		for(auto it = this->obs_with_animated_tex.begin(); it != this->obs_with_animated_tex.end(); ++it)
 		{
 			WorldObject* ob = it->first.ptr();
-			AnimatedTexObData* animation_data = it->second.ptr();
+			AnimatedTexObData& animation_data = it->second;
 
 			if(ob->opengl_engine_ob.nonNull())
 			{
-				animation_data->animtexdata.resize(ob->opengl_engine_ob->materials.size());
+				animation_data.animtexdata.resize(ob->opengl_engine_ob->materials.size());
 
 				for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
 				{
 					OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
-					if(mat.albedo_texture.nonNull())
+					if(animation_data.animtexdata[m].isNull())
+						animation_data.animtexdata[m] = new AnimatedTexData(); // TODO: not needed for all mats
+					AnimatedTexData& animtexdata = *animation_data.animtexdata[m];
+
+					if(mat.albedo_texture.nonNull() && hasExtensionStringView(mat.tex_path, "gif"))
 					{
 						// Fetch the texdata for this texture if we haven't already
-						AnimatedTexData& animtexdata = animation_data->animtexdata[m];
+						
 						if(animtexdata.texdata.isNull())
 							animtexdata.texdata = ui->glWidget->opengl_engine->texture_data_manager->getTextureData(mat.tex_path);
 
@@ -1353,11 +1392,127 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								TextureLoading::loadIntoExistingOpenGLTexture(mat.albedo_texture, *texdata, animtexdata.cur_frame_i, ui->glWidget->opengl_engine);
 						}
 					}
+					else if(hasExtensionStringView(mat.tex_path, "mp4"))
+					{
+						if(animtexdata.video_reader.isNull())
+						{
+							animtexdata.callback = new SubstrataVideoReaderCallback();
+							animtexdata.callback->frameinfos = &animtexdata.frameinfos;
+
+							conPrint("Creating video reader with URL '" + mat.tex_path + "'...");
+							animtexdata.video_reader = new WMFVideoReader(/*read from vid device=*/false, mat.tex_path, animtexdata.callback); // TODO: catch excep
+							animtexdata.vid_start_time = anim_time;
+
+							for(int i=0; i<5; ++i)
+								animtexdata.video_reader->startReadingNextFrame();
+
+							//animtexdata.frameinfos = new CircularBuffer<FrameInfo>();
+						}
+
+						if(animtexdata.video_reader.nonNull())
+						{
+							WMFVideoReader* vid_reader = animtexdata.video_reader.downcastToPtr<WMFVideoReader>(); // TEMP HACK
+
+							const double in_anim_time = anim_time - animtexdata.vid_start_time; // Time since vid started playing
+
+							if(in_anim_time >= animtexdata.last_frame_time)
+							{
+								// Check if there is a new frame to consume
+								FrameInfo front_frame;
+								size_t queue_size;
+								bool dequeued_item = false;
+								{
+									Lock lock2(animtexdata.frameinfos.getMutex());
+									if(animtexdata.frameinfos.unlockedNonEmpty())
+									{
+										animtexdata.frameinfos.unlockedDequeue(front_frame);
+										dequeued_item = true;
+									}
+									queue_size = animtexdata.frameinfos.size();
+								}
+								if(dequeued_item)
+								{
+									if(front_frame.frame_buffer)
+									{
+										animtexdata.last_frame_time = front_frame.frame_time;
+										//conPrint("Processing frame, time " + toString(front_frame.frame_time) + ", queue_size: " + toString(queue_size));
+
+										//conPrint("vid with path " + mat.tex_path + " received frame with stride " + toString(front_frame.stride_B));
+									
+
+										//const FormatInfo& format = vid_reader->getCurrentFormat(); // NOTE: make threadsafe
+										//animtexdata.latest_tex_index =  (animtexdata.latest_tex_index + 1) % 2;
+										// Load into texture cur_tex_index
+										const int using_tex_i   = (animtexdata.cur_frame_i    ) % 2;
+										const int loading_tex_i = (animtexdata.cur_frame_i + 1) % 2;
+
+										ArrayRef<uint8> tex_data_arrayref(front_frame.frame_buffer, front_frame.height * front_frame.stride_B);
+
+										if(animtexdata.textures[0].isNull())
+										{
+											animtexdata.textures[0] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
+												OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
+												GL_SRGB8_ALPHA8, // GL internal format
+												GL_BGRA, // GL format.  Video frames are BGRA.
+												OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
+												OpenGLTexture::Wrapping_Repeat);
+
+											animtexdata.textures[1] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
+												OpenGLTexture::Format_SRGB_Uint8,
+												GL_SRGB8_ALPHA8, // GL internal format
+												GL_BGRA, // GL format.  Video frames are BGRA.
+												OpenGLTexture::Filtering_Bilinear, 
+												OpenGLTexture::Wrapping_Repeat);
+										}
+
+										// Load texture data into OpenGL
+										tex_upload_timer.unpause();
+
+										// Set row stride if needed (not tightly packed)
+										if(front_frame.stride_B != front_frame.width*4) // If not tightly packed:
+											glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)(front_frame.stride_B / 4)); // If greater than 0, GL_UNPACK_ROW_LENGTH defines the number of pixels in a row
+
+										animtexdata.textures[loading_tex_i]->load(front_frame.width, front_frame.height, tex_data_arrayref);
+
+										if(front_frame.stride_B != front_frame.width*4)
+											glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); // Restore
+
+										tex_upload_timer.pause();
+
+										// Use the other texture to render
+										mat.albedo_texture = animtexdata.textures[using_tex_i];
+
+										vid_reader->unlockAndReleaseFrame(front_frame);
+										vid_reader->startReadingNextFrame();
+
+										animtexdata.cur_frame_i++;
+									}
+									else // This was not an actual frame we received, but an end of stream sentinel value:
+									{
+										if(animtexdata.last_frame_time == 0) // We are already at start of vid:
+										{}
+										else
+										{
+											animtexdata.cur_frame_i = 0;
+											animtexdata.last_frame_time = 0;
+											animtexdata.vid_start_time  = anim_time;
+
+											//conPrint("Seeking");
+											vid_reader->seek(0.0);
+											//
+											for(int i=0; i<5; ++i)
+												animtexdata.video_reader->startReadingNextFrame();
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
 
-		// conPrint("processing gifs took " + timer.elapsedString());
+		//conPrint("processing animated textures took " + timer.elapsedString() + " (tex_upload_time: " + tex_upload_timer.elapsedString() + ")");
 	}
 	
 
@@ -4946,49 +5101,41 @@ void MainWindow::updateGroundPlane()
 
 int main(int argc, char *argv[])
 {
-	GuiClientApplication app(argc, argv);
-
-	// Set the C standard lib locale back to c, so e.g. printf works as normal, and uses '.' as the decimal separator.
-	std::setlocale(LC_ALL, "C");
-
-	Clock::init();
-	Networking::createInstance();
-	Winter::VirtualMachine::init();
-	OpenSSL::init();
-	TLSSocket::initTLS();
-
-	PlatformUtils::ignoreUnixSignals();
-
-	std::string cyberspace_base_dir_path;
-	std::string appdata_path;
 	try
 	{
-		cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
+		GuiClientApplication app(argc, argv);
 
-		appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
-	}
-	catch(PlatformUtils::PlatformUtilsExcep& e)
-	{
-		conPrint(e.what());
-		QErrorMessage m;
-		m.showMessage(QtUtils::toQString(e.what()));
-		m.exec();
-		return 1;
-	}
+		const bool com_init_success = WMFVideoReader::initialiseCOM();
 
-	QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
+		// Set the C standard lib locale back to c, so e.g. printf works as normal, and uses '.' as the decimal separator.
+		std::setlocale(LC_ALL, "C");
+
+		Clock::init();
+		Networking::createInstance();
+		Winter::VirtualMachine::init();
+		OpenSSL::init();
+		TLSSocket::initTLS();
+
+		PlatformUtils::ignoreUnixSignals();
+
+		// Initialize the Media Foundation platform.
+		WMFVideoReader::initialiseWMF();
+
+		std::string cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
+		std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
+
+		QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
 	
-	conPrint("cyberspace_base_dir_path: " + cyberspace_base_dir_path);
+		conPrint("cyberspace_base_dir_path: " + cyberspace_base_dir_path);
 
 
-	// Get a vector of the args.  Note that we will use app.arguments(), because it's the only way to get the args in Unicode in Qt.
-	const QStringList arg_list = app.arguments();
-	std::vector<std::string> args;
-	for(int i = 0; i < arg_list.size(); ++i)
-		args.push_back(QtUtils::toIndString(arg_list.at((int)i)));
+		// Get a vector of the args.  Note that we will use app.arguments(), because it's the only way to get the args in Unicode in Qt.
+		const QStringList arg_list = app.arguments();
+		std::vector<std::string> args;
+		for(int i = 0; i < arg_list.size(); ++i)
+			args.push_back(QtUtils::toIndString(arg_list.at((int)i)));
 
-	try
-	{
+
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
@@ -5016,16 +5163,17 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			WMFVideoReader::test();
 			//TextureLoadingTests::test();
 			//KTXDecoder::test();
 			//BatchedMeshTests::test();
 			//FormatDecoderVox::test();
 			//ModelLoading::test();
 			//HTTPClient::test();
-			GIFDecoder::test();
+			//GIFDecoder::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
-			//StringUtils::test();
+			StringUtils::test();
 			//HTTPClient::test();
 			//return 0;
 			//GIFDecoder::test();
@@ -5104,549 +5252,559 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		
+		int app_exec_res;
+		{ // Scope of MainWindow mw and textureserver.
 
-		// Since we will be inserted textures based on URLs, the textures should be different if they have different paths, so we don't need to do path canonicalisation.
-		TextureServer texture_server(/*use_canonical_path_keys=*/false);
+			// Since we will be inserted textures based on URLs, the textures should be different if they have different paths, so we don't need to do path canonicalisation.
+			TextureServer texture_server(/*use_canonical_path_keys=*/false);
 
-		MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args); // Creates GLWidget 
+			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args); // Creates GLWidget 
 
-		mw.texture_server = &texture_server;
-		mw.ui->glWidget->texture_server_ptr = &texture_server; // Set texture server pointer before GlWidget::initializeGL() gets called, as it passes texture server pointer to the openglengine.
+			mw.texture_server = &texture_server;
+			mw.ui->glWidget->texture_server_ptr = &texture_server; // Set texture server pointer before GlWidget::initializeGL() gets called, as it passes texture server pointer to the openglengine.
 
-		if(parsed_args.isArgPresent("--takescreenshot"))
-		{
-			mw.screenshot_campos = Vec3d(
-				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/0),
-				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/1),
-				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/2)
-			);
-			mw.screenshot_camangles = Vec3d(
-				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/3),
-				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/4),
-				parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/5)
-			);
-			mw.screenshot_width_px = parsed_args.getArgIntValue("--takescreenshot", /*index=*/6),
-			mw.screenshot_highlight_parcel_id = parsed_args.getArgIntValue("--takescreenshot", /*index=*/7),
-			mw.screenshot_output_path = parsed_args.getArgStringValue("--takescreenshot", /*index=*/8);
-		}
-
-
-		mw.initialise();
-
-		mw.show();
-
-		mw.raise();
-
-		if(!mw.ui->glWidget->opengl_engine->initSucceeded())
-		{
-			mw.print("opengl_engine init failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg());
-		}
-
-		for(int i=0; i<8; ++i)
-			mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager, &mw.num_net_resources_downloading));
-
-		mw.cam_controller.setPosition(Vec3d(0,0,4.7));
-		mw.ui->glWidget->setCameraController(&mw.cam_controller);
-		mw.ui->glWidget->setPlayerPhysics(&mw.player_physics);
-		mw.cam_controller.setMoveScale(0.3f);
-
-		const float sun_phi = 1.f;
-		const float sun_theta = Maths::pi<float>() / 4;
-		mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
-		// printVar(mw.ui->glWidget->opengl_engine->getSunDir());
-
-		mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
-
-		/*
-		Set env material
-		*/
-		if(mw.ui->glWidget->opengl_engine->initSucceeded())
-		{
-			OpenGLMaterial env_mat;
-			try
+			if(parsed_args.isArgPresent("--takescreenshot"))
 			{
-				env_mat.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture(cyberspace_base_dir_path + "/resources/sky_no_sun.exr");
+				mw.screenshot_campos = Vec3d(
+					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/0),
+					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/1),
+					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/2)
+				);
+				mw.screenshot_camangles = Vec3d(
+					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/3),
+					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/4),
+					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/5)
+				);
+				mw.screenshot_width_px = parsed_args.getArgIntValue("--takescreenshot", /*index=*/6),
+				mw.screenshot_highlight_parcel_id = parsed_args.getArgIntValue("--takescreenshot", /*index=*/7),
+				mw.screenshot_output_path = parsed_args.getArgStringValue("--takescreenshot", /*index=*/8);
 			}
-			catch(glare::Exception& e)
+
+
+			mw.initialise();
+
+			mw.show();
+
+			mw.raise();
+
+			if(!mw.ui->glWidget->opengl_engine->initSucceeded())
 			{
-				assert(0);
-				conPrint("ERROR: " + e.what());
+				mw.print("opengl_engine init failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg());
 			}
-			env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
-			mw.ui->glWidget->setEnvMat(env_mat);
-		}
+			for(int i=0; i<8; ++i)
+				mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager, &mw.num_net_resources_downloading));
 
+			mw.cam_controller.setPosition(Vec3d(0,0,4.7));
+			mw.ui->glWidget->setCameraController(&mw.cam_controller);
+			mw.ui->glWidget->setPlayerPhysics(&mw.player_physics);
+			mw.cam_controller.setMoveScale(0.3f);
 
-		// Make an arrow marking the axes at the origin
-		const Vec4f arrow_origin(0, 0, 0.05f, 1);
-		{
-			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
-			mw.ui->glWidget->opengl_engine->addObject(arrow);
-		}
-		{
-			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
-			mw.ui->glWidget->opengl_engine->addObject(arrow);
-		}
-		{
-			GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
-			mw.ui->glWidget->opengl_engine->addObject(arrow);
-		}
+			const float sun_phi = 1.f;
+			const float sun_theta = Maths::pi<float>() / 4;
+			mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
+			// printVar(mw.ui->glWidget->opengl_engine->getSunDir());
 
+			mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
 
-		// drawField(mw.ui->glWidget->opengl_engine.ptr());
-
-		// Load a test voxel
-		/*{
-			VoxelGroup voxel_group;
-			//voxel_group.voxel_width = 0.5;
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
-			voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 1), 0));
-			//voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
-			//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 0));
-			//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2), 2));
-			//
-			//
-			//const int N = 10;
-			//for(int i=0; i<N; ++i)
-			//	voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2 + i), 2));
-
-			Timer timer;
-
-			Reference<RayMesh> raymesh;
-			Reference<OpenGLMeshRenderData> gl_meshdata;
-			//for(int z=0; z<10000; ++z)
-				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
-
-			conPrint("Voxel meshing took " + timer.elapsedString());
-
-			GLObjectRef gl_ob = new GLObject();
-			gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(3, 3, 1);
-			gl_ob->mesh_data = gl_meshdata;
-
-			gl_ob->materials.resize(3);
-			gl_ob->materials[0].albedo_rgb = Colour3f(0.9f, 0.1f, 0.1f);
-			gl_ob->materials[0].albedo_tex_path = "resources/obstacle.png";
-
-			gl_ob->materials[1].albedo_rgb = Colour3f(0.1f, 0.9f, 0.1f);
-
-			gl_ob->materials[2].albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
-
-			mw.ui->glWidget->addObject(gl_ob);
-		}*/
-		//mw.ui->glWidget->opengl_engine->setDrawWireFrames(true);
-
-
-		// Load a test overlay quad
-		if(false)
-		{
-			OverlayObjectRef ob = new OverlayObject();
-
-			ob->ob_to_world_matrix.setToUniformScaleMatrix(0.95f);
-
-			ob->material.albedo_rgb = Colour3f(0.7f, 0.2f, 0.2f);
-			ob->material.alpha = 1.f;
-			try
+			/*
+			Set env material
+			*/
+			if(mw.ui->glWidget->opengl_engine->initSucceeded())
 			{
-				ob->material.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture("N:\\indigo\\trunk\\testscenes\\ColorChecker_sRGB_from_Ref.jpg");
-			}
-			catch(glare::Exception& e)
-			{
-				assert(0);
-				conPrint("ERROR: " + e.what());
-			}
-			ob->material.tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-
-			ob->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
-
-			mw.ui->glWidget->addOverlayObject(ob);
-		}
-
-
-		/*
-		Load a ground plane into the GL engine
-		*/
-		{
-			// Build Indigo::Mesh
-			mw.ground_quad_mesh = new Indigo::Mesh();
-			mw.ground_quad_mesh->num_uv_mappings = 1;
-
-			// Tessalate ground mesh, to avoid texture shimmer due to large quads.
-			const int N = 10;
-			mw.ground_quad_mesh->vert_positions.reserve(N * N);
-			mw.ground_quad_mesh->vert_normals.reserve(N * N);
-			mw.ground_quad_mesh->uv_pairs.reserve(N * N);
-			mw.ground_quad_mesh->quads.reserve(N * N);
-
-			for(int y=0; y<N; ++y)
-			{
-				const float v = (float)y/((float)N - 1);
-				for(int x=0; x<N; ++x)
+				OpenGLMaterial env_mat;
+				try
 				{
-					const float u = (float)x/((float)N - 1);
-					mw.ground_quad_mesh->vert_positions.push_back(Indigo::Vec3f(u * (float)ground_quad_w, v * (float)ground_quad_w, 0.f));
-					mw.ground_quad_mesh->vert_normals.push_back(Indigo::Vec3f(0, 0, 1));
-					mw.ground_quad_mesh->uv_pairs.push_back(Indigo::Vec2f(u * (float)ground_quad_w, v * (float)ground_quad_w));
+					env_mat.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture(cyberspace_base_dir_path + "/resources/sky_no_sun.exr");
+				}
+				catch(glare::Exception& e)
+				{
+					assert(0);
+					conPrint("ERROR: " + e.what());
+				}
+				env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
-					if(x < N-1 && y < N-1)
+				mw.ui->glWidget->setEnvMat(env_mat);
+			}
+
+
+			// Make an arrow marking the axes at the origin
+			const Vec4f arrow_origin(0, 0, 0.05f, 1);
+			{
+				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
+				mw.ui->glWidget->opengl_engine->addObject(arrow);
+			}
+			{
+				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
+				mw.ui->glWidget->opengl_engine->addObject(arrow);
+			}
+			{
+				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
+				mw.ui->glWidget->opengl_engine->addObject(arrow);
+			}
+
+
+			// drawField(mw.ui->glWidget->opengl_engine.ptr());
+
+			// Load a test voxel
+			/*{
+				VoxelGroup voxel_group;
+				//voxel_group.voxel_width = 0.5;
+				voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+				voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
+				voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 1), 0));
+				//voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
+				//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 0));
+				//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2), 2));
+				//
+				//
+				//const int N = 10;
+				//for(int i=0; i<N; ++i)
+				//	voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2 + i), 2));
+
+				Timer timer;
+
+				Reference<RayMesh> raymesh;
+				Reference<OpenGLMeshRenderData> gl_meshdata;
+				//for(int z=0; z<10000; ++z)
+					gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
+
+				conPrint("Voxel meshing took " + timer.elapsedString());
+
+				GLObjectRef gl_ob = new GLObject();
+				gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(3, 3, 1);
+				gl_ob->mesh_data = gl_meshdata;
+
+				gl_ob->materials.resize(3);
+				gl_ob->materials[0].albedo_rgb = Colour3f(0.9f, 0.1f, 0.1f);
+				gl_ob->materials[0].albedo_tex_path = "resources/obstacle.png";
+
+				gl_ob->materials[1].albedo_rgb = Colour3f(0.1f, 0.9f, 0.1f);
+
+				gl_ob->materials[2].albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
+
+				mw.ui->glWidget->addObject(gl_ob);
+			}*/
+			//mw.ui->glWidget->opengl_engine->setDrawWireFrames(true);
+
+
+			// Load a test overlay quad
+			if(false)
+			{
+				OverlayObjectRef ob = new OverlayObject();
+
+				ob->ob_to_world_matrix.setToUniformScaleMatrix(0.95f);
+
+				ob->material.albedo_rgb = Colour3f(0.7f, 0.2f, 0.2f);
+				ob->material.alpha = 1.f;
+				try
+				{
+					ob->material.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture("N:\\indigo\\trunk\\testscenes\\ColorChecker_sRGB_from_Ref.jpg");
+				}
+				catch(glare::Exception& e)
+				{
+					assert(0);
+					conPrint("ERROR: " + e.what());
+				}
+				ob->material.tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+
+				ob->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
+
+				mw.ui->glWidget->addOverlayObject(ob);
+			}
+
+
+			/*
+			Load a ground plane into the GL engine
+			*/
+			{
+				// Build Indigo::Mesh
+				mw.ground_quad_mesh = new Indigo::Mesh();
+				mw.ground_quad_mesh->num_uv_mappings = 1;
+
+				// Tessalate ground mesh, to avoid texture shimmer due to large quads.
+				const int N = 10;
+				mw.ground_quad_mesh->vert_positions.reserve(N * N);
+				mw.ground_quad_mesh->vert_normals.reserve(N * N);
+				mw.ground_quad_mesh->uv_pairs.reserve(N * N);
+				mw.ground_quad_mesh->quads.reserve(N * N);
+
+				for(int y=0; y<N; ++y)
+				{
+					const float v = (float)y/((float)N - 1);
+					for(int x=0; x<N; ++x)
 					{
-						mw.ground_quad_mesh->quads.push_back(Indigo::Quad());
-						mw.ground_quad_mesh->quads.back().mat_index = 0;
-						mw.ground_quad_mesh->quads.back().vertex_indices[0] = mw.ground_quad_mesh->quads.back().uv_indices[0] = y    *N + x;
-						mw.ground_quad_mesh->quads.back().vertex_indices[1] = mw.ground_quad_mesh->quads.back().uv_indices[1] = y    *N + x+1;
-						mw.ground_quad_mesh->quads.back().vertex_indices[2] = mw.ground_quad_mesh->quads.back().uv_indices[2] = (y+1)*N + x+1;
-						mw.ground_quad_mesh->quads.back().vertex_indices[3] = mw.ground_quad_mesh->quads.back().uv_indices[3] = (y+1)*N + x;
+						const float u = (float)x/((float)N - 1);
+						mw.ground_quad_mesh->vert_positions.push_back(Indigo::Vec3f(u * (float)ground_quad_w, v * (float)ground_quad_w, 0.f));
+						mw.ground_quad_mesh->vert_normals.push_back(Indigo::Vec3f(0, 0, 1));
+						mw.ground_quad_mesh->uv_pairs.push_back(Indigo::Vec2f(u * (float)ground_quad_w, v * (float)ground_quad_w));
+
+						if(x < N-1 && y < N-1)
+						{
+							mw.ground_quad_mesh->quads.push_back(Indigo::Quad());
+							mw.ground_quad_mesh->quads.back().mat_index = 0;
+							mw.ground_quad_mesh->quads.back().vertex_indices[0] = mw.ground_quad_mesh->quads.back().uv_indices[0] = y    *N + x;
+							mw.ground_quad_mesh->quads.back().vertex_indices[1] = mw.ground_quad_mesh->quads.back().uv_indices[1] = y    *N + x+1;
+							mw.ground_quad_mesh->quads.back().vertex_indices[2] = mw.ground_quad_mesh->quads.back().uv_indices[2] = (y+1)*N + x+1;
+							mw.ground_quad_mesh->quads.back().vertex_indices[3] = mw.ground_quad_mesh->quads.back().uv_indices[3] = (y+1)*N + x;
+						}
 					}
 				}
+
+				mw.ground_quad_mesh->endOfModel();
+
+				// Build OpenGLMeshRenderData
+				mw.ground_quad_mesh_opengl_data = OpenGLEngine::buildIndigoMesh(mw.ground_quad_mesh, false);
+
+				// Build RayMesh (for physics)
+				mw.ground_quad_raymesh = new RayMesh("mesh", false);
+				mw.ground_quad_raymesh->fromIndigoMesh(*mw.ground_quad_mesh);
+
+				mw.ground_quad_raymesh->buildTrisFromQuads();
+				Geometry::BuildOptions options;
+				DummyShouldCancelCallback should_cancel_callback;
+				mw.ground_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
 			}
 
-			mw.ground_quad_mesh->endOfModel();
 
-			// Build OpenGLMeshRenderData
-			mw.ground_quad_mesh_opengl_data = OpenGLEngine::buildIndigoMesh(mw.ground_quad_mesh, false);
-
-			// Build RayMesh (for physics)
-			mw.ground_quad_raymesh = new RayMesh("mesh", false);
-			mw.ground_quad_raymesh->fromIndigoMesh(*mw.ground_quad_mesh);
-
-			mw.ground_quad_raymesh->buildTrisFromQuads();
-			Geometry::BuildOptions options;
-			DummyShouldCancelCallback should_cancel_callback;
-			mw.ground_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
-		}
+			mw.connectToServer(server_hostname, server_userpath);
 
 
-		mw.connectToServer(server_hostname, server_userpath);
+			// Make hypercard physics mesh
+			{
+				mw.hypercard_quad_raymesh = new RayMesh("quad", false);
+				mw.hypercard_quad_raymesh->setMaxNumTexcoordSets(1);
+				mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 0));
+				mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 0));
+				mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 1));
+				mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 1));
 
+				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 0)));
+				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 0)));
+				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 1)));
+				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 1)));
 
-		// Make hypercard physics mesh
-		{
-			mw.hypercard_quad_raymesh = new RayMesh("quad", false);
-			mw.hypercard_quad_raymesh->setMaxNumTexcoordSets(1);
-			mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 0));
-			mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 0));
-			mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 1));
-			mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 1));
+				unsigned int v_i[] = { 0, 3, 2, 1 };
+				mw.hypercard_quad_raymesh->addQuad(v_i, v_i, 0);
 
-			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 0)));
-			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 0)));
-			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 1)));
-			mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 1)));
+				mw.hypercard_quad_raymesh->buildTrisFromQuads();
+				Geometry::BuildOptions options;
+				DummyShouldCancelCallback should_cancel_callback;
+				mw.hypercard_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
+			}
 
-			unsigned int v_i[] = { 0, 3, 2, 1 };
-			mw.hypercard_quad_raymesh->addQuad(v_i, v_i, 0);
+			mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
 
-			mw.hypercard_quad_raymesh->buildTrisFromQuads();
-			Geometry::BuildOptions options;
-			DummyShouldCancelCallback should_cancel_callback;
-			mw.hypercard_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
-		}
-
-		mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
-
-		// Make spotlight meshes
-		{
-			const float fixture_w = 0.1;
+			// Make spotlight meshes
+			{
+				const float fixture_w = 0.1;
 			 
-			// Build Indigo::Mesh
-			mw.spotlight_mesh = new Indigo::Mesh();
-			mw.spotlight_mesh->num_uv_mappings = 1;
+				// Build Indigo::Mesh
+				mw.spotlight_mesh = new Indigo::Mesh();
+				mw.spotlight_mesh->num_uv_mappings = 1;
 
-			mw.spotlight_mesh->vert_positions.resize(4);
-			mw.spotlight_mesh->vert_normals.resize(4);
-			mw.spotlight_mesh->uv_pairs.resize(4);
-			mw.spotlight_mesh->quads.resize(1);
+				mw.spotlight_mesh->vert_positions.resize(4);
+				mw.spotlight_mesh->vert_normals.resize(4);
+				mw.spotlight_mesh->uv_pairs.resize(4);
+				mw.spotlight_mesh->quads.resize(1);
 
-			mw.spotlight_mesh->vert_positions[0] = Indigo::Vec3f(-fixture_w/2, -fixture_w/2, 0.f);
-			mw.spotlight_mesh->vert_positions[1] = Indigo::Vec3f(-fixture_w/2,  fixture_w/2, 0.f); // + y
-			mw.spotlight_mesh->vert_positions[2] = Indigo::Vec3f( fixture_w/2,  fixture_w/2, 0.f);
-			mw.spotlight_mesh->vert_positions[3] = Indigo::Vec3f( fixture_w/2, -fixture_w/2, 0.f); // + x
+				mw.spotlight_mesh->vert_positions[0] = Indigo::Vec3f(-fixture_w/2, -fixture_w/2, 0.f);
+				mw.spotlight_mesh->vert_positions[1] = Indigo::Vec3f(-fixture_w/2,  fixture_w/2, 0.f); // + y
+				mw.spotlight_mesh->vert_positions[2] = Indigo::Vec3f( fixture_w/2,  fixture_w/2, 0.f);
+				mw.spotlight_mesh->vert_positions[3] = Indigo::Vec3f( fixture_w/2, -fixture_w/2, 0.f); // + x
 
-			mw.spotlight_mesh->vert_normals[0] = Indigo::Vec3f(0, 0, -1);
-			mw.spotlight_mesh->vert_normals[1] = Indigo::Vec3f(0, 0, -1);
-			mw.spotlight_mesh->vert_normals[2] = Indigo::Vec3f(0, 0, -1);
-			mw.spotlight_mesh->vert_normals[3] = Indigo::Vec3f(0, 0, -1);
+				mw.spotlight_mesh->vert_normals[0] = Indigo::Vec3f(0, 0, -1);
+				mw.spotlight_mesh->vert_normals[1] = Indigo::Vec3f(0, 0, -1);
+				mw.spotlight_mesh->vert_normals[2] = Indigo::Vec3f(0, 0, -1);
+				mw.spotlight_mesh->vert_normals[3] = Indigo::Vec3f(0, 0, -1);
 
-			mw.spotlight_mesh->uv_pairs[0] = Indigo::Vec2f(0, 0);
-			mw.spotlight_mesh->uv_pairs[1] = Indigo::Vec2f(0, 1);
-			mw.spotlight_mesh->uv_pairs[2] = Indigo::Vec2f(1, 1);
-			mw.spotlight_mesh->uv_pairs[3] = Indigo::Vec2f(1, 0);
+				mw.spotlight_mesh->uv_pairs[0] = Indigo::Vec2f(0, 0);
+				mw.spotlight_mesh->uv_pairs[1] = Indigo::Vec2f(0, 1);
+				mw.spotlight_mesh->uv_pairs[2] = Indigo::Vec2f(1, 1);
+				mw.spotlight_mesh->uv_pairs[3] = Indigo::Vec2f(1, 0);
 
-			mw.spotlight_mesh->quads[0].mat_index = 0;
-			mw.spotlight_mesh->quads[0].vertex_indices[0] = 0;
-			mw.spotlight_mesh->quads[0].vertex_indices[1] = 1;
-			mw.spotlight_mesh->quads[0].vertex_indices[2] = 2;
-			mw.spotlight_mesh->quads[0].vertex_indices[3] = 3;
-			mw.spotlight_mesh->quads[0].uv_indices[0] = 0;
-			mw.spotlight_mesh->quads[0].uv_indices[1] = 1;
-			mw.spotlight_mesh->quads[0].uv_indices[2] = 2;
-			mw.spotlight_mesh->quads[0].uv_indices[3] = 3;
+				mw.spotlight_mesh->quads[0].mat_index = 0;
+				mw.spotlight_mesh->quads[0].vertex_indices[0] = 0;
+				mw.spotlight_mesh->quads[0].vertex_indices[1] = 1;
+				mw.spotlight_mesh->quads[0].vertex_indices[2] = 2;
+				mw.spotlight_mesh->quads[0].vertex_indices[3] = 3;
+				mw.spotlight_mesh->quads[0].uv_indices[0] = 0;
+				mw.spotlight_mesh->quads[0].uv_indices[1] = 1;
+				mw.spotlight_mesh->quads[0].uv_indices[2] = 2;
+				mw.spotlight_mesh->quads[0].uv_indices[3] = 3;
 
-			mw.spotlight_mesh->endOfModel();
+				mw.spotlight_mesh->endOfModel();
 
-			mw.spotlight_opengl_mesh = OpenGLEngine::buildIndigoMesh(mw.spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+				mw.spotlight_opengl_mesh = OpenGLEngine::buildIndigoMesh(mw.spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
 
-			// Build RayMesh (for physics)
-			mw.spotlight_raymesh = new RayMesh("mesh", false);
-			mw.spotlight_raymesh->fromIndigoMesh(*mw.spotlight_mesh);
+				// Build RayMesh (for physics)
+				mw.spotlight_raymesh = new RayMesh("mesh", false);
+				mw.spotlight_raymesh->fromIndigoMesh(*mw.spotlight_mesh);
 
-			mw.spotlight_raymesh->buildTrisFromQuads();
-			Geometry::BuildOptions options;
-			DummyShouldCancelCallback should_cancel_callback;
-			mw.spotlight_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
-		}
-
-
-
-		// Make unit-cube raymesh (used for placeholder model)
-		{
-			mw.unit_cube_raymesh = new RayMesh("mesh", false);
-			mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 0));
-			mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 0));
-			mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 0));
-			mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 0));
-			mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 1));
-			mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 1));
-			mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 1));
-			mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 1));
-
-			unsigned int uv_i[] ={ 0, 0, 0, 0 };
-			{
-				unsigned int v_i[] ={ 0, 3, 2, 1 };
-				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 0 quad
-			}
-			{
-				unsigned int v_i[] ={ 4, 5, 6, 7 };
-				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 1 quad
-			}
-			{
-				unsigned int v_i[] ={ 0, 1, 5, 4 };
-				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 0 quad
-			}
-			{
-				unsigned int v_i[] ={ 2, 3, 7, 6 };
-				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 1 quad
-			}
-			{
-				unsigned int v_i[] ={ 0, 4, 7, 3 };
-				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 0 quad
-			}
-			{
-				unsigned int v_i[] ={ 1, 2, 6, 5 };
-				mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 1 quad
-			}
-
-			mw.unit_cube_raymesh->buildTrisFromQuads();
-			Geometry::BuildOptions options;
-			DummyShouldCancelCallback should_cancel_callback;
-			mw.unit_cube_raymesh->build(options, should_cancel_callback, mw.print_output, /*verbose=*/false, mw.task_manager);
-		}
-
-		// Make object-placement beam model
-		{
-			mw.ob_placement_beam = new GLObject();
-			mw.ob_placement_beam->ob_to_world_matrix = Matrix4f::identity();
-			mw.ob_placement_beam->mesh_data = mw.ui->glWidget->opengl_engine->getCylinderMesh();
-
-			OpenGLMaterial material;
-			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
-			material.transparent = true;
-			material.alpha = 0.9f;
-
-			mw.ob_placement_beam->materials = std::vector<OpenGLMaterial>(1, material);
-
-			// Make object-placement beam hit marker out of a sphere.
-			mw.ob_placement_marker = new GLObject();
-			mw.ob_placement_marker->ob_to_world_matrix = Matrix4f::identity();
-			mw.ob_placement_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
-
-			mw.ob_placement_marker->materials = std::vector<OpenGLMaterial>(1, material);
-		}
-
-		{
-			// Make ob_denied_move_marker
-			mw.ob_denied_move_marker = new GLObject();
-			mw.ob_denied_move_marker->ob_to_world_matrix = Matrix4f::identity();
-			mw.ob_denied_move_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
-
-			OpenGLMaterial material;
-			material.albedo_rgb = Colour3f(0.8f, 0.2f, 0.2f);
-			material.transparent = true;
-			material.alpha = 0.9f;
-
-			mw.ob_denied_move_marker->materials = std::vector<OpenGLMaterial>(1, material);
-		}
-
-		// Make voxel_edit_marker model
-		{
-			mw.voxel_edit_marker = new GLObject();
-			mw.voxel_edit_marker->ob_to_world_matrix = Matrix4f::identity();
-			mw.voxel_edit_marker->mesh_data = mw.ui->glWidget->opengl_engine->getCubeMeshData();
-
-			OpenGLMaterial material;
-			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
-			material.transparent = true;
-			material.alpha = 0.3f;
-
-			mw.voxel_edit_marker->materials = std::vector<OpenGLMaterial>(1, material);
-		}
-
-		// Make voxel_edit_face_marker model
-		{
-			mw.voxel_edit_face_marker = new GLObject();
-			mw.voxel_edit_face_marker->ob_to_world_matrix = Matrix4f::identity();
-			mw.voxel_edit_face_marker->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
-
-			OpenGLMaterial material;
-			material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
-			mw.voxel_edit_face_marker->materials = std::vector<OpenGLMaterial>(1, material);
-		}
-
-		// Make shader for parcels
-		{
-			const std::string use_shader_dir = cyberspace_base_dir_path + "/data/shaders";
-			mw.parcel_shader_prog = new OpenGLProgram(
-				"parcel hologram prog",
-				new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", "", GL_VERTEX_SHADER),
-				new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", "", GL_FRAGMENT_SHADER)
-			);
-			// Let any glare::Exception thrown fall through to below.
-		}
-
-		try
-		{
-			// TEMP: make a parcel
-			if(false)
-			{
-				ParcelRef parcel = new Parcel();
-				parcel->id = ParcelID(0);
-				parcel->owner_id = UserID(0);
-				parcel->admin_ids.push_back(UserID(0));
-				parcel->created_time = TimeStamp::currentTime();
-				parcel->description = " a parcel";
-				parcel->owner_name = "the owner";
-				parcel->verts[0] = Vec2d(10, 10);
-				parcel->verts[1] = Vec2d(20, 12);
-				parcel->verts[2] = Vec2d(18, 20);
-				parcel->verts[3] = Vec2d(11, 18);
-				parcel->zbounds = Vec2d(-0.1, 30);
-				parcel->build();
-
-				mw.world_state->parcels[parcel->id] = parcel;
-			}
-
-			// TEMP: make an avatar
-			if(false)
-			{
-				test_avatar = new AvatarGraphics();
-				test_avatar->create(*mw.ui->glWidget->opengl_engine);
-				test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), 0.0);
-			}
-
-			// Load a wedge
-			if(false)
-			{
-				Indigo::MeshRef mesh = new Indigo::Mesh();
-				Indigo::Mesh::readFromFile("resources/wedge.igmesh", *mesh);
-
-				GLObjectRef ob = new GLObject();
-				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
-				ob->materials[0].fresnel_scale = 1;
-				ob->materials[0].roughness = 0.3f;
-
-				ob->ob_to_world_matrix = Matrix4f::translationMatrix(10, 10, 0) * Matrix4f::uniformScaleMatrix(100.f);
-				ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-
-				mw.ui->glWidget->addObject(ob);
-
-				// mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				mw.spotlight_raymesh->buildTrisFromQuads();
+				Geometry::BuildOptions options;
+				DummyShouldCancelCallback should_cancel_callback;
+				mw.spotlight_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
 			}
 
 
 
-			// Test loading a vox file
-			if(false)
+			// Make unit-cube raymesh (used for placeholder model)
 			{
-				BatchedMeshRef mesh;
-				WorldObjectRef world_object = new WorldObject();
+				mw.unit_cube_raymesh = new RayMesh("mesh", false);
+				mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 0));
+				mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 0));
+				mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 0));
+				mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 0));
+				mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 1));
+				mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 1));
+				mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 1));
+				mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 1));
 
-				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\teapot.vox";
-				//const std::string path = "D:\\downloads\\monu1.vox";
-				//const std::string path = "D:\\downloads\\chr_knight.vox";
-				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\test.vox";
-				//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\monu10.vox";
-				const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
+				unsigned int uv_i[] ={ 0, 0, 0, 0 };
+				{
+					unsigned int v_i[] ={ 0, 3, 2, 1 };
+					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 0 quad
+				}
+				{
+					unsigned int v_i[] ={ 4, 5, 6, 7 };
+					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 1 quad
+				}
+				{
+					unsigned int v_i[] ={ 0, 1, 5, 4 };
+					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 0 quad
+				}
+				{
+					unsigned int v_i[] ={ 2, 3, 7, 6 };
+					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 1 quad
+				}
+				{
+					unsigned int v_i[] ={ 0, 4, 7, 3 };
+					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 0 quad
+				}
+				{
+					unsigned int v_i[] ={ 1, 2, 6, 5 };
+					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 1 quad
+				}
 
-				glare::TaskManager task_manager;
-				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
-					//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
-					mesh,
-					*world_object
+				mw.unit_cube_raymesh->buildTrisFromQuads();
+				Geometry::BuildOptions options;
+				DummyShouldCancelCallback should_cancel_callback;
+				mw.unit_cube_raymesh->build(options, should_cancel_callback, mw.print_output, /*verbose=*/false, mw.task_manager);
+			}
+
+			// Make object-placement beam model
+			{
+				mw.ob_placement_beam = new GLObject();
+				mw.ob_placement_beam->ob_to_world_matrix = Matrix4f::identity();
+				mw.ob_placement_beam->mesh_data = mw.ui->glWidget->opengl_engine->getCylinderMesh();
+
+				OpenGLMaterial material;
+				material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+				material.transparent = true;
+				material.alpha = 0.9f;
+
+				mw.ob_placement_beam->materials = std::vector<OpenGLMaterial>(1, material);
+
+				// Make object-placement beam hit marker out of a sphere.
+				mw.ob_placement_marker = new GLObject();
+				mw.ob_placement_marker->ob_to_world_matrix = Matrix4f::identity();
+				mw.ob_placement_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
+
+				mw.ob_placement_marker->materials = std::vector<OpenGLMaterial>(1, material);
+			}
+
+			{
+				// Make ob_denied_move_marker
+				mw.ob_denied_move_marker = new GLObject();
+				mw.ob_denied_move_marker->ob_to_world_matrix = Matrix4f::identity();
+				mw.ob_denied_move_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
+
+				OpenGLMaterial material;
+				material.albedo_rgb = Colour3f(0.8f, 0.2f, 0.2f);
+				material.transparent = true;
+				material.alpha = 0.9f;
+
+				mw.ob_denied_move_marker->materials = std::vector<OpenGLMaterial>(1, material);
+			}
+
+			// Make voxel_edit_marker model
+			{
+				mw.voxel_edit_marker = new GLObject();
+				mw.voxel_edit_marker->ob_to_world_matrix = Matrix4f::identity();
+				mw.voxel_edit_marker->mesh_data = mw.ui->glWidget->opengl_engine->getCubeMeshData();
+
+				OpenGLMaterial material;
+				material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+				material.transparent = true;
+				material.alpha = 0.3f;
+
+				mw.voxel_edit_marker->materials = std::vector<OpenGLMaterial>(1, material);
+			}
+
+			// Make voxel_edit_face_marker model
+			{
+				mw.voxel_edit_face_marker = new GLObject();
+				mw.voxel_edit_face_marker->ob_to_world_matrix = Matrix4f::identity();
+				mw.voxel_edit_face_marker->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
+
+				OpenGLMaterial material;
+				material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+				mw.voxel_edit_face_marker->materials = std::vector<OpenGLMaterial>(1, material);
+			}
+
+			// Make shader for parcels
+			{
+				const std::string use_shader_dir = cyberspace_base_dir_path + "/data/shaders";
+				mw.parcel_shader_prog = new OpenGLProgram(
+					"parcel hologram prog",
+					new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", "", GL_VERTEX_SHADER),
+					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", "", GL_FRAGMENT_SHADER)
 				);
-
-				ob->ob_to_world_matrix = Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f);
-
-				mw.ui->glWidget->addObject(ob);
-
-				//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				// Let any glare::Exception thrown fall through to below.
 			}
 
-
-
-			if(false)
+			try
 			{
-				BatchedMeshRef mesh;
-				WorldObjectRef world_object = new WorldObject();
+				// TEMP: make a parcel
+				if(false)
+				{
+					ParcelRef parcel = new Parcel();
+					parcel->id = ParcelID(0);
+					parcel->owner_id = UserID(0);
+					parcel->admin_ids.push_back(UserID(0));
+					parcel->created_time = TimeStamp::currentTime();
+					parcel->description = " a parcel";
+					parcel->owner_name = "the owner";
+					parcel->verts[0] = Vec2d(10, 10);
+					parcel->verts[1] = Vec2d(20, 12);
+					parcel->verts[2] = Vec2d(18, 20);
+					parcel->verts[3] = Vec2d(11, 18);
+					parcel->zbounds = Vec2d(-0.1, 30);
+					parcel->build();
 
-				const std::string path = "C:\\Users\\nick\\Downloads\\cemetery_angel_-_miller\\scene.gltf";
+					mw.world_state->parcels[parcel->id] = parcel;
+				}
 
-				glare::TaskManager task_manager;
-				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
-					mesh,
-					*world_object
-				);
+				// TEMP: make an avatar
+				if(false)
+				{
+					test_avatar = new AvatarGraphics();
+					test_avatar->create(*mw.ui->glWidget->opengl_engine);
+					test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), 0.0);
+				}
 
-				mw.ui->glWidget->addObject(ob);
+				// Load a wedge
+				if(false)
+				{
+					Indigo::MeshRef mesh = new Indigo::Mesh();
+					Indigo::Mesh::readFromFile("resources/wedge.igmesh", *mesh);
 
-				//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+					GLObjectRef ob = new GLObject();
+					ob->materials.resize(1);
+					ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
+					ob->materials[0].fresnel_scale = 1;
+					ob->materials[0].roughness = 0.3f;
+
+					ob->ob_to_world_matrix = Matrix4f::translationMatrix(10, 10, 0) * Matrix4f::uniformScaleMatrix(100.f);
+					ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+
+					mw.ui->glWidget->addObject(ob);
+
+					// mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				}
+
+
+
+				// Test loading a vox file
+				if(false)
+				{
+					BatchedMeshRef mesh;
+					WorldObjectRef world_object = new WorldObject();
+
+					//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\teapot.vox";
+					//const std::string path = "D:\\downloads\\monu1.vox";
+					//const std::string path = "D:\\downloads\\chr_knight.vox";
+					//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\test.vox";
+					//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\monu10.vox";
+					const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
+
+					glare::TaskManager task_manager;
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
+						//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
+						mesh,
+						*world_object
+					);
+
+					ob->ob_to_world_matrix = Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f);
+
+					mw.ui->glWidget->addObject(ob);
+
+					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				}
+
+
+
+				if(false)
+				{
+					BatchedMeshRef mesh;
+					WorldObjectRef world_object = new WorldObject();
+
+					const std::string path = "C:\\Users\\nick\\Downloads\\cemetery_angel_-_miller\\scene.gltf";
+
+					glare::TaskManager task_manager;
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
+						mesh,
+						*world_object
+					);
+
+					mw.ui->glWidget->addObject(ob);
+
+					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				}
+
+				if(false)
+				{
+					BatchedMeshRef mesh;
+					WorldObjectRef world_object = new WorldObject();
+
+					const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";
+
+					glare::TaskManager task_manager;
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
+						mesh,
+						*world_object
+					);
+
+					mw.ui->glWidget->addObject(ob);
+
+					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				}
 			}
-
-			if(false)
+			catch(glare::Exception& e)
 			{
-				BatchedMeshRef mesh;
-				WorldObjectRef world_object = new WorldObject();
-
-				const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";
-
-				glare::TaskManager task_manager;
-				GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
-					mesh,
-					*world_object
-				);
-
-				mw.ui->glWidget->addObject(ob);
-
-				//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+				conPrint(e.what());
+				QMessageBox msgBox;
+				msgBox.setText(QtUtils::toQString(e.what()));
+				msgBox.exec();
+				return 1;
 			}
-		}
-		catch(glare::Exception& e)
-		{
-			conPrint(e.what());
-			QMessageBox msgBox;
-			msgBox.setText(QtUtils::toQString(e.what()));
-			msgBox.exec();
-			return 1;
-		}
 
-		mw.afterGLInitInitialise();
+			mw.afterGLInitInitialise();
 
 
-		mw.physics_world->rebuild(mw.task_manager, mw.print_output);
+			mw.physics_world->rebuild(mw.task_manager, mw.print_output);
 
-		return app.exec();
+			app_exec_res = app.exec();
+		} // End scope of MainWindow mw and textureserver.
+
+		WMFVideoReader::shutdownWMF();
+		OpenSSL::shutdown();
+		Winter::VirtualMachine::shutdown();
+		Networking::destroyInstance();
+		if(com_init_success) WMFVideoReader::shutdownCOM();
+
+		return app_exec_res;
 	}
 	catch(ArgumentParserExcep& e)
 	{

@@ -26,6 +26,9 @@ Code By Nicholas Chapman.
 #include <QtWidgets/QListWidget>
 #include <QtCore/QSettings>
 #include <QtCore/QTimer>
+#if defined(_WIN32)
+#include "../video/WMFVideoReader.h"
+#endif
 
 
 AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* settings_, TextureServer* texture_server_ptr, Reference<ResourceManager> resource_manager_)
@@ -141,6 +144,167 @@ void AddObjectDialog::filenameChanged(QString& filename)
 }
 
 
+void AddObjectDialog::makeMeshForWidthAndHeight(const std::string& local_path, int w, int h)
+{
+	float use_w, use_h;
+	if(w > h)
+	{
+		use_w = 1;
+		use_h = (float)h / (float)w;
+	}
+	else
+	{
+		use_h = 1;
+		use_w = (float)w / (float)h;
+	}
+
+
+	Indigo::MeshRef mesh = new Indigo::Mesh();
+	mesh->num_uv_mappings = 1;
+
+	// The y=0 and y=1 faces are the ones the image is actually applied to.
+
+	// x=0 face
+	unsigned int v_start = 0;
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(0,0,1));
+		mesh->addVertex(Indigo::Vec3f(0,1,1));
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 1);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
+		v_start += 4;
+	}
+	// x=1 face
+	{
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,1));
+		mesh->addVertex(Indigo::Vec3f(1,0,1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 1);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
+		v_start += 4;
+	}
+	// y=0 face
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,1));
+		mesh->addVertex(Indigo::Vec3f(0,0,1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// y=1 face
+	{
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->addVertex(Indigo::Vec3f(0,1,1));
+		mesh->addVertex(Indigo::Vec3f(1,1,1));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
+	}
+	// z=0 face
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 1);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
+		v_start += 4;
+	}
+	// z=1 face
+	{
+		mesh->addVertex(Indigo::Vec3f(0,0,1));
+		mesh->addVertex(Indigo::Vec3f(1,0,1));
+		mesh->addVertex(Indigo::Vec3f(1,1,1));
+		mesh->addVertex(Indigo::Vec3f(0,1,1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
+		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 1);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
+		v_start += 4;
+	}
+
+	mesh->endOfModel();
+
+	const float depth = 0.02f;
+	const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
+
+	this->ob_cam_right_translation = -use_w/2;
+	this->ob_cam_up_translation   = -use_h/2;
+
+	this->preview_gl_ob = new GLObject();
+	preview_gl_ob->ob_to_world_matrix = use_matrix;
+	preview_gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+	preview_gl_ob->materials.resize(2);
+
+	preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
+	preview_gl_ob->materials[0].tex_path = local_path;
+	preview_gl_ob->materials[0].roughness = 0.5f;
+	preview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
+
+	preview_gl_ob->materials[1].albedo_rgb = Colour3f(0.7f);
+	preview_gl_ob->materials[1].roughness = 0.5f;
+	preview_gl_ob->materials[1].tex_matrix = Matrix2f(1, 0, 0, -1);
+
+
+
+	this->loaded_object->scale = Vec3f(use_w, depth, use_h);
+	loaded_object->materials.resize(2);
+
+	loaded_object->materials[0] = new WorldMaterial();
+	loaded_object->materials[0]->colour_rgb = Colour3f(0.9f);
+	loaded_object->materials[0]->opacity = ScalarVal(1.f);
+	loaded_object->materials[0]->roughness = ScalarVal(0.5f);
+	loaded_object->materials[0]->colour_texture_url = local_path;
+
+	loaded_object->materials[1] = new WorldMaterial();
+	loaded_object->materials[1]->colour_rgb = Colour3f(0.7f);
+	loaded_object->materials[1]->opacity = ScalarVal(1.f);
+	loaded_object->materials[1]->roughness = ScalarVal(0.5f);
+
+	this->loaded_mesh = new BatchedMesh();
+	loaded_mesh->buildFromIndigoMesh(*mesh);
+}
+
+
 void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 {
 	this->objectPreviewGLWidget->makeCurrent();
@@ -163,7 +327,16 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 		glare::TaskManager task_manager;
 
-		if(ImFormatDecoder::hasImageExtension(local_path))
+		if(hasExtension(local_path, "mp4"))
+		{
+			Reference<WMFVideoReader> reader = new WMFVideoReader(false, local_path, NULL);
+
+			const int w = reader->getCurrentFormat().im_width;
+			const int h = reader->getCurrentFormat().im_height;
+
+			makeMeshForWidthAndHeight(local_path, w, h);
+		}
+		else if(ImFormatDecoder::hasImageExtension(local_path))
 		{
 			// Load image to get aspect ratio of image.
 			// We will scale our model so it has the same aspect ratio.
@@ -337,7 +510,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		// Try and load textures
 		for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
 		{
-			if(!preview_gl_ob->materials[i].tex_path.empty())
+			if(!preview_gl_ob->materials[i].tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].tex_path, "mp4"))
 			{
 				preview_gl_ob->materials[i].albedo_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].tex_path);
 			}
