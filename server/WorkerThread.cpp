@@ -164,7 +164,7 @@ void WorkerThread::handleResourceUploadConnection()
 		}*/
 
 		// See if we have a resource in the ResourceManager already
-		ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL); // Will create a new Resource ob if not already inserted.
+		ResourceRef resource = server->world_state->resource_manager->getOrCreateResourceForURL(URL); // Will create a new Resource ob if not already inserted.
 		if(resource->owner_id == UserID::invalidUserID())
 		{
 			// No such resource existed before, client may create this resource.
@@ -283,8 +283,8 @@ void WorkerThread::handleResourceDownloadConnection()
 					{
 						conPrint("\tRequested URL was valid.");
 
-						const ResourceRef resource = server->world_state->resource_manager->getResourceForURL(URL);
-						if(resource->getState() != Resource::State_Present)
+						const ResourceRef resource = server->world_state->resource_manager->getExistingResourceForURL(URL);
+						if(resource.isNull() || (resource->getState() != Resource::State_Present))
 						{
 							conPrint("\tRequested URL was not present on disk.");
 							socket->writeUInt32(1); // write error msg to client

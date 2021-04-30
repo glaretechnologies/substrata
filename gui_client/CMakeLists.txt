@@ -159,6 +159,13 @@ ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.cpp
 ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.h
 )
 
+SET(website_core_files
+${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.cpp
+${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.h
+)
+
+include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
+
 SET(doc_files
 ../docs/notes.txt
 ../docs/todo.txt
@@ -173,6 +180,7 @@ SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(client_indigo_files FILES ${client_indigo_files})
 SOURCE_GROUP(docs FILES ${doc_files})
 SOURCE_GROUP(video FILES ${video})
+SOURCE_GROUP(website_core_files FILES ${website_core_files})
 
 
 if(WIN32)
@@ -242,6 +250,7 @@ ${qt}
 ${doc_files}
 ${lang}
 ${video}
+${website_core_files}
 )
 
 add_definitions(-DGUI_CLIENT=1)

@@ -49,7 +49,7 @@ class SubstrataVideoReaderCallback;
 
 struct AnimatedTexData : public RefCounted
 { 
-	AnimatedTexData() : cur_frame_i(0), latest_tex_index(0), last_frame_time(0), vid_start_time(0) {}
+	AnimatedTexData() : cur_frame_i(0), latest_tex_index(0), last_frame_time(0), vid_start_time(0), encounted_error(false) {}
 	~AnimatedTexData() { video_reader = NULL; } // Make sure to destroy video reader before frameinfos as it has a pointer to frameinfos.
 
 	Reference<VideoReader> video_reader;
@@ -68,6 +68,8 @@ struct AnimatedTexData : public RefCounted
 
 	Reference<TextureData> texdata;
 	int cur_frame_i;
+
+	bool encounted_error;
 };
 
 struct AnimatedTexObData// : public RefCounted
