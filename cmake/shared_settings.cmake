@@ -344,6 +344,7 @@ set(video
 ${video}
 ${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReader.cpp
 ${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReader.h
+${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.cpp
 ${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.h
 )
 endif()

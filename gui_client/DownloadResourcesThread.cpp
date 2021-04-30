@@ -128,7 +128,7 @@ void DownloadResourcesThread::doRun()
 			{
 				for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); )
 				{
-					ResourceRef resource = resource_manager->getResourceForURL(*it);
+					ResourceRef resource = resource_manager->getOrCreateResourceForURL(*it);
 					if(resource->getState() != Resource::State_NotPresent)
 					{
 						//conPrint("Already have file or downloading file '" + *it + "', not downloading.");
@@ -164,7 +164,7 @@ void DownloadResourcesThread::doRun()
 						d.num_resources_downloading = this->num_resources_downloading;
 
 						const std::string URL = *it;
-						ResourceRef resource = resource_manager->getResourceForURL(URL);
+						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
 						const uint32 result = socket->readUInt32();
 						if(result == 0) // If OK:

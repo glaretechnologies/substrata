@@ -20,12 +20,14 @@ Copyright Glare Technologies Limited 2021 -
 #include "ScreenshotHandlers.h"
 #include "OrderHandlers.h"
 #include "ParcelHandlers.h"
+#include "ResourceHandlers.h"
 #include <StringUtils.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
 #include <ConPrint.h>
 #include <FileUtils.h>
 #include <Exception.h>
+#include <Lock.h>
 
 
 WebServerRequestHandler::WebServerRequestHandler()
@@ -238,15 +240,8 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				try
 				{
 					MemMappedFile file(data_store->public_files_dir + "/" + filename);
-					std::string content_type;
-					if(::hasExtension(filename, "png"))
-						content_type = "image/png";
-					else if(::hasExtension(filename, "jpg"))
-						content_type = "image/jpeg";
-					else if(::hasExtension(filename, "pdf"))
-						content_type = "application/pdf";
-					else
-						content_type = "bleh";
+					
+					const std::string content_type = web::ResponseUtils::getContentTypeForPath(filename);
 
 					web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, file.fileData(), file.fileSize(), content_type.c_str());
 				}
@@ -282,10 +277,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load file '" + filename + "': " + e.what());
 			}
 		}
+		else if(::hasPrefix(request.path, "/resource/"))
+		{
+			ResourceHandlers::handleResourceRequest(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			std::string page = "Unknown page";
-			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+			web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, page);
 		}
 	}
 }

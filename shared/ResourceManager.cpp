@@ -109,7 +109,7 @@ const std::string ResourceManager::computeLocalPathFromURLHash(const std::string
 }
 
 
-ResourceRef ResourceManager::getResourceForURL(const std::string& URL) // Threadsafe
+ResourceRef ResourceManager::getOrCreateResourceForURL(const std::string& URL) // Threadsafe
 {
 	Lock lock(mutex);
 
@@ -135,6 +135,19 @@ ResourceRef ResourceManager::getResourceForURL(const std::string& URL) // Thread
 }
 
 
+// Returns null reference if no resource object for URL inserted.
+ResourceRef ResourceManager::getExistingResourceForURL(const std::string& URL) // Threadsafe
+{
+	Lock lock(mutex);
+
+	auto res = resource_for_url.find(URL);
+	if(res == resource_for_url.end())
+		return ResourceRef();
+	else
+		return res->second;
+}
+
+
 void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL) // Threadsafe
 {
 	try
@@ -142,7 +155,7 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 		FileUtils::copyFile(local_path, this->pathForURL(URL));
 
 		Lock lock(mutex);
-		ResourceRef res = getResourceForURL(URL);
+		ResourceRef res = getOrCreateResourceForURL(URL);
 		res->setState(Resource::State_Present);
 
 		this->changed = 1;
@@ -158,7 +171,7 @@ const std::string ResourceManager::pathForURL(const std::string& URL)
 {
 	Lock lock(mutex);
 
-	ResourceRef resource = this->getResourceForURL(URL);
+	ResourceRef resource = this->getOrCreateResourceForURL(URL);
 
 	return resource->getLocalPath();
 
@@ -170,8 +183,8 @@ const std::string ResourceManager::pathForURL(const std::string& URL)
 
 bool ResourceManager::isFileForURLPresent(const std::string& URL) // Throws glare::Exception if URL is invalid.
 {
-	ResourceRef resource = this->getResourceForURL(URL);
-	return resource->getState() == Resource::State_Present;
+	ResourceRef resource = this->getExistingResourceForURL(URL);
+	return resource.nonNull() && (resource->getState() == Resource::State_Present);
 }
 
 

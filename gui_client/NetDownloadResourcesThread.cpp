@@ -92,7 +92,7 @@ void NetDownloadResourcesThread::doRun()
 				std::string url = *URLs_to_get.begin();
 				URLs_to_get.erase(URLs_to_get.begin());
 
-				ResourceRef resource = resource_manager->getResourceForURL(url);
+				ResourceRef resource = resource_manager->getOrCreateResourceForURL(url);
 
 				// Check to see if we have the resource now, we may have downloaded it recently.
 				if(resource->getState() != Resource::State_NotPresent)

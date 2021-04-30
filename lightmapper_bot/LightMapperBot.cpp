@@ -78,7 +78,7 @@ public:
 	{
 		//conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
 
-		ResourceRef resource = resource_manager->getResourceForURL(url);
+		ResourceRef resource = resource_manager->getOrCreateResourceForURL(url);
 		if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
 		{
 			conPrint("Already present or being downloaded, skipping...");
