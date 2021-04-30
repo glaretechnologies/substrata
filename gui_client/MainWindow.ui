@@ -325,7 +325,10 @@
   </action>
   <action name="actionAddObject">
    <property name="text">
-    <string>Add Model or Image</string>
+    <string>Add Model / Image / Video</string>
+   </property>
+   <property name="toolTip">
+    <string>Add Model/Image/Video</string>
    </property>
   </action>
   <action name="actionDeleteObject">
