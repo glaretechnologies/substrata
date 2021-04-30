@@ -330,12 +330,25 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		if(hasExtension(local_path, "mp4"))
 		{
 #if defined(_WIN32)
-			Reference<WMFVideoReader> reader = new WMFVideoReader(false, local_path, NULL);
+			Reference<WMFVideoReader> reader = new WMFVideoReader(false, local_path, /*reader callback=*/NULL);
 
-			const int w = reader->getCurrentFormat().im_width;
-			const int h = reader->getCurrentFormat().im_height;
+			// Load first frame
+			const FrameInfo frameinfo = reader->getAndLockNextFrame();
 
-			makeMeshForWidthAndHeight(local_path, w, h);
+			makeMeshForWidthAndHeight(local_path, (int)frameinfo.width, (int)frameinfo.height);
+
+			// Load frame 0 into opengl texture
+			preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(frameinfo.width, frameinfo.height, objectPreviewGLWidget->opengl_engine.ptr(), 
+				OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
+				GL_SRGB8_ALPHA8, // GL internal format
+				GL_BGRA, // GL format.  Video frames are BGRA.
+				OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
+				OpenGLTexture::Wrapping_Repeat);
+
+			ArrayRef<uint8> tex_data_arrayref(frameinfo.frame_buffer, frameinfo.height * frameinfo.stride_B);
+			preview_gl_ob->materials[0].albedo_texture->load(frameinfo.width, frameinfo.height, frameinfo.stride_B, tex_data_arrayref);
+
+			reader->unlockAndReleaseFrame(frameinfo);
 #else
 			throw glare::Exception("Adding mp4s only supported on windows currently, sorry!");
 #endif

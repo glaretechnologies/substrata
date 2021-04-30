@@ -1475,8 +1475,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												const int using_tex_i   = (animtexdata.cur_frame_i    ) % 2;
 												const int loading_tex_i = (animtexdata.cur_frame_i + 1) % 2;
 
-												ArrayRef<uint8> tex_data_arrayref(front_frame.frame_buffer, front_frame.height * front_frame.stride_B);
-
 												if(animtexdata.textures[0].isNull())
 												{
 													animtexdata.textures[0] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
@@ -1496,6 +1494,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 												// Load texture data into OpenGL
 												tex_upload_timer.unpause();
+												ArrayRef<uint8> tex_data_arrayref(front_frame.frame_buffer, front_frame.height * front_frame.stride_B);
 												animtexdata.textures[loading_tex_i]->load(front_frame.width, front_frame.height, front_frame.stride_B, tex_data_arrayref);
 												tex_upload_timer.pause();
 

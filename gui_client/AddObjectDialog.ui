@@ -11,13 +11,13 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Add Model or Image</string>
+   <string>Add Model, Image or Video</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="tab">
       <attribute name="title">
@@ -47,7 +47,7 @@
        <item>
         <widget class="QLabel" name="label_3">
          <property name="text">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Supported model formats: OBJ, GLTF, GLB, VOX, STL and IGMESH&lt;/p&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;p&gt;Supported image formats: JPG, TGA, BMP, PNG, TIF, EXR, GIF, KTX, KTX2&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Supported model formats: OBJ, GLTF, GLB, VOX, STL and IGMESH&lt;/p&gt;&lt;p&gt;Supported image formats: JPG, TGA, BMP, PNG, TIF, EXR, GIF, KTX, KTX2&lt;/p&gt;&lt;p&gt;Supported video formats: MP4&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
          <property name="wordWrap">
           <bool>false</bool>
