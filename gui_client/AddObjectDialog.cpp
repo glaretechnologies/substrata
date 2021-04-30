@@ -329,12 +329,16 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 		if(hasExtension(local_path, "mp4"))
 		{
+#if defined(_WIN32)
 			Reference<WMFVideoReader> reader = new WMFVideoReader(false, local_path, NULL);
 
 			const int w = reader->getCurrentFormat().im_width;
 			const int h = reader->getCurrentFormat().im_height;
 
 			makeMeshForWidthAndHeight(local_path, w, h);
+#else
+			throw glare::Exception("Adding mp4s only supported on windows currently, sorry!");
+#endif
 		}
 		else if(ImFormatDecoder::hasImageExtension(local_path))
 		{
