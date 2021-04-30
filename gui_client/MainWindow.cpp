@@ -1405,6 +1405,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 					else if(hasExtensionStringView(mat.tex_path, "mp4"))
 					{
+#if defined(_WIN32)
 						try
 						{
 							if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error)
@@ -1527,6 +1528,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							animtexdata.encounted_error = true;
 							conPrint(e.what());
 						}
+#endif // #if defined(_WIN32)
 					} // end if(hasExtensionStringView(mat.tex_path, "mp4"))
 				}
 			}
@@ -5125,7 +5127,9 @@ int main(int argc, char *argv[])
 	{
 		GuiClientApplication app(argc, argv);
 
+#if defined(_WIN32)
 		const bool com_init_success = WMFVideoReader::initialiseCOM();
+#endif
 
 		// Set the C standard lib locale back to c, so e.g. printf works as normal, and uses '.' as the decimal separator.
 		std::setlocale(LC_ALL, "C");
@@ -5138,8 +5142,10 @@ int main(int argc, char *argv[])
 
 		PlatformUtils::ignoreUnixSignals();
 
+#if defined(_WIN32)
 		// Initialize the Media Foundation platform.
 		WMFVideoReader::initialiseWMF();
+#endif
 
 		std::string cyberspace_base_dir_path = PlatformUtils::getResourceDirectoryPath();
 		std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
@@ -5183,7 +5189,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			WMFVideoReader::test();
+			//WMFVideoReader::test();
 			//TextureLoadingTests::test();
 			//KTXDecoder::test();
 			//BatchedMeshTests::test();
@@ -5818,11 +5824,15 @@ int main(int argc, char *argv[])
 			app_exec_res = app.exec();
 		} // End scope of MainWindow mw and textureserver.
 
+#if defined(_WIN32)
 		WMFVideoReader::shutdownWMF();
+#endif
 		OpenSSL::shutdown();
 		Winter::VirtualMachine::shutdown();
 		Networking::destroyInstance();
+#if defined(_WIN32)
 		if(com_init_success) WMFVideoReader::shutdownCOM();
+#endif
 
 		return app_exec_res;
 	}
