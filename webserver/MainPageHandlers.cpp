@@ -31,7 +31,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
 
 
-	const std::string deployed_version = "0.52"; // TEMP HACK ::cyberspace_version;
+	const std::string deployed_version = ::cyberspace_version;
 
 	std::string auction_html;
 	{ // lock scope

@@ -49,12 +49,12 @@ class SubstrataVideoReaderCallback;
 
 struct AnimatedTexData : public RefCounted
 { 
-	AnimatedTexData() : cur_frame_i(0), latest_tex_index(0), last_frame_time(0), vid_start_time(0), encounted_error(false) {}
+	AnimatedTexData() : cur_frame_i(0), latest_tex_index(0), last_frame_time(0), in_anim_time(0), encounted_error(false) {}
 	~AnimatedTexData() { video_reader = NULL; } // Make sure to destroy video reader before frameinfos as it has a pointer to frameinfos.
 
 	Reference<VideoReader> video_reader;
 	int latest_tex_index;
-	double vid_start_time;
+	double in_anim_time; // Current time along timeline of video.  Doesn't change if video is paused.
 	double last_frame_time;
 
 	//CircularBuffer<FrameInfo>* frameinfos;

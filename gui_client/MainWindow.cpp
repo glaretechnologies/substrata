@@ -1341,6 +1341,9 @@ public:
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
+	const double dt = time_since_last_timer_ev.elapsed();
+	time_since_last_timer_ev.reset();
+
 	updateStatusBar();
 
 
@@ -1405,130 +1408,134 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 					else if(hasExtensionStringView(mat.tex_path, "mp4"))
 					{
-#if defined(_WIN32)
-						try
+						const double ob_dist_from_cam = ob->pos.getDist(this->cam_controller.getPosition());
+						const bool process = ob_dist_from_cam < 20.0; // Only play videos within X metres for now.
+						if(process)
 						{
-							if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error)
+#if defined(_WIN32)
+							try
 							{
-								animtexdata.callback = new SubstrataVideoReaderCallback();
-								animtexdata.callback->frameinfos = &animtexdata.frameinfos;
-
-								
-
-								std::string use_URL = mat.tex_path;
-								// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL
-								if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
+								if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error)
 								{
-									use_URL = "http://" + this->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
+									animtexdata.callback = new SubstrataVideoReaderCallback();
+									animtexdata.callback->frameinfos = &animtexdata.frameinfos;
+
+									std::string use_URL = mat.tex_path;
+									// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL
+									if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
+									{
+										use_URL = "http://" + this->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
+									}
+
+									conPrint("Creating video reader with URL '" + use_URL + "'...");
+
+									animtexdata.video_reader = new WMFVideoReader(/*read from vid device=*/false, use_URL, animtexdata.callback);
+									animtexdata.in_anim_time = 0;
+
+									for(int i=0; i<5; ++i)
+										animtexdata.video_reader->startReadingNextFrame();
 								}
 
-								conPrint("Creating video reader with URL '" + use_URL + "'...");
-
-								animtexdata.video_reader = new WMFVideoReader(/*read from vid device=*/false, use_URL, animtexdata.callback);
-								animtexdata.vid_start_time = anim_time;
-
-								for(int i=0; i<5; ++i)
-									animtexdata.video_reader->startReadingNextFrame();
-
-								//animtexdata.frameinfos = new CircularBuffer<FrameInfo>();
-							}
-
-							if(animtexdata.video_reader.nonNull())
-							{
-								WMFVideoReader* vid_reader = animtexdata.video_reader.downcastToPtr<WMFVideoReader>(); // TEMP HACK
-
-								const double in_anim_time = anim_time - animtexdata.vid_start_time; // Time since vid started playing
-
-								if(in_anim_time >= animtexdata.last_frame_time)
+								if(animtexdata.video_reader.nonNull())
 								{
-									// Check if there is a new frame to consume
-									FrameInfo front_frame;
-									size_t queue_size;
-									bool dequeued_item = false;
-									{
-										Lock lock2(animtexdata.frameinfos.getMutex());
-										if(animtexdata.frameinfos.unlockedNonEmpty())
-										{
-											animtexdata.frameinfos.unlockedDequeue(front_frame);
-											dequeued_item = true;
-										}
-										queue_size = animtexdata.frameinfos.size();
-									}
-									if(dequeued_item)
-									{
-										if(front_frame.frame_buffer)
-										{
-											animtexdata.last_frame_time = front_frame.frame_time;
-											//conPrint("Processing frame, time " + toString(front_frame.frame_time) + ", queue_size: " + toString(queue_size));
+									WMFVideoReader* vid_reader = animtexdata.video_reader.downcastToPtr<WMFVideoReader>(); // TEMP HACK
 
-											//conPrint("vid with path " + mat.tex_path + " received frame with stride " + toString(front_frame.stride_B));
+									animtexdata.in_anim_time += dt;
+									const double in_anim_time = animtexdata.in_anim_time;
 									
 
-											//const FormatInfo& format = vid_reader->getCurrentFormat(); // NOTE: make threadsafe
-											//animtexdata.latest_tex_index =  (animtexdata.latest_tex_index + 1) % 2;
-											// Load into texture cur_tex_index
-											const int using_tex_i   = (animtexdata.cur_frame_i    ) % 2;
-											const int loading_tex_i = (animtexdata.cur_frame_i + 1) % 2;
-
-											ArrayRef<uint8> tex_data_arrayref(front_frame.frame_buffer, front_frame.height * front_frame.stride_B);
-
-											if(animtexdata.textures[0].isNull())
-											{
-												animtexdata.textures[0] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
-													OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
-													GL_SRGB8_ALPHA8, // GL internal format
-													GL_BGRA, // GL format.  Video frames are BGRA.
-													OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
-													OpenGLTexture::Wrapping_Repeat);
-
-												animtexdata.textures[1] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
-													OpenGLTexture::Format_SRGB_Uint8,
-													GL_SRGB8_ALPHA8, // GL internal format
-													GL_BGRA, // GL format.  Video frames are BGRA.
-													OpenGLTexture::Filtering_Bilinear, 
-													OpenGLTexture::Wrapping_Repeat);
-											}
-
-											// Load texture data into OpenGL
-											tex_upload_timer.unpause();
-											animtexdata.textures[loading_tex_i]->load(front_frame.width, front_frame.height, front_frame.stride_B, tex_data_arrayref);
-											tex_upload_timer.pause();
-
-											// Use the other texture to render
-											mat.albedo_texture = animtexdata.textures[using_tex_i];
-
-											vid_reader->unlockAndReleaseFrame(front_frame);
-											vid_reader->startReadingNextFrame();
-
-											animtexdata.cur_frame_i++;
-										}
-										else // This was not an actual frame we received, but an end of stream sentinel value:
+									if(in_anim_time >= animtexdata.last_frame_time)
+									{
+										// Check if there is a new frame to consume
+										FrameInfo front_frame;
+										size_t queue_size;
+										bool dequeued_item = false;
 										{
-											if(animtexdata.last_frame_time == 0) // We are already at start of vid:
-											{}
-											else
+											Lock lock2(animtexdata.frameinfos.getMutex());
+											if(animtexdata.frameinfos.unlockedNonEmpty())
 											{
-												animtexdata.cur_frame_i = 0;
-												animtexdata.last_frame_time = 0;
-												animtexdata.vid_start_time  = anim_time;
+												animtexdata.frameinfos.unlockedDequeue(front_frame);
+												dequeued_item = true;
+											}
+											queue_size = animtexdata.frameinfos.size();
+										}
+										if(dequeued_item)
+										{
+											if(front_frame.frame_buffer)
+											{
+												animtexdata.last_frame_time = front_frame.frame_time;
+												//conPrint("Processing frame, time " + toString(front_frame.frame_time) + ", queue_size: " + toString(queue_size));
 
-												//conPrint("Seeking");
-												vid_reader->seek(0.0);
-												//
-												for(int i=0; i<5; ++i)
-													animtexdata.video_reader->startReadingNextFrame();
+												//conPrint("vid with path " + mat.tex_path + " received frame with stride " + toString(front_frame.stride_B));
+									
+
+												//const FormatInfo& format = vid_reader->getCurrentFormat(); // NOTE: make threadsafe
+												//animtexdata.latest_tex_index =  (animtexdata.latest_tex_index + 1) % 2;
+												// Load into texture cur_tex_index
+												const int using_tex_i   = (animtexdata.cur_frame_i    ) % 2;
+												const int loading_tex_i = (animtexdata.cur_frame_i + 1) % 2;
+
+												ArrayRef<uint8> tex_data_arrayref(front_frame.frame_buffer, front_frame.height * front_frame.stride_B);
+
+												if(animtexdata.textures[0].isNull())
+												{
+													animtexdata.textures[0] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
+														OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
+														GL_SRGB8_ALPHA8, // GL internal format
+														GL_BGRA, // GL format.  Video frames are BGRA.
+														OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
+														OpenGLTexture::Wrapping_Repeat);
+
+													animtexdata.textures[1] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
+														OpenGLTexture::Format_SRGB_Uint8,
+														GL_SRGB8_ALPHA8, // GL internal format
+														GL_BGRA, // GL format.  Video frames are BGRA.
+														OpenGLTexture::Filtering_Bilinear, 
+														OpenGLTexture::Wrapping_Repeat);
+												}
+
+												// Load texture data into OpenGL
+												tex_upload_timer.unpause();
+												animtexdata.textures[loading_tex_i]->load(front_frame.width, front_frame.height, front_frame.stride_B, tex_data_arrayref);
+												tex_upload_timer.pause();
+
+												// Use the other texture to render
+												mat.albedo_texture = animtexdata.textures[using_tex_i];
+
+												vid_reader->unlockAndReleaseFrame(front_frame);
+												vid_reader->startReadingNextFrame();
+
+												animtexdata.cur_frame_i++;
+											}
+											else // This was not an actual frame we received, but an end of stream sentinel value:
+											{
+												if(animtexdata.last_frame_time == 0) // We are already at start of vid:
+												{}
+												else
+												{
+													animtexdata.cur_frame_i = 0;
+													animtexdata.last_frame_time = 0;
+													animtexdata.in_anim_time = 0;
+
+													//conPrint("Seeking");
+													vid_reader->seek(0.0);
+													//
+													for(int i=0; i<5; ++i)
+														animtexdata.video_reader->startReadingNextFrame();
+												}
 											}
 										}
 									}
 								}
 							}
-						}
-						catch(glare::Exception& e)
-						{
-							animtexdata.encounted_error = true;
-							conPrint(e.what());
-						}
+							catch(glare::Exception& e)
+							{
+								animtexdata.encounted_error = true;
+								conPrint(e.what());
+								showErrorNotification(e.what());
+							}
 #endif // #if defined(_WIN32)
+						} // end if(process)
 					} // end if(hasExtensionStringView(mat.tex_path, "mp4"))
 				}
 			}
@@ -1653,9 +1660,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		need_help_info_dock_widget_position = false;
 	}
 
-
-	const float dt = (float)time_since_last_timer_ev.elapsed();
-	time_since_last_timer_ev.reset();
 
 	num_frames++;
 	if(fps_display_timer.elapsed() > 1.0)
@@ -2183,12 +2187,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	ui->glWidget->setCurrentTime((float)cur_time);
-	ui->glWidget->playerPhyicsThink(dt);
+	ui->glWidget->playerPhyicsThink((float)dt);
 
 	// Process player physics
 	Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
 	const Vec4f last_campos = campos;
-	player_physics.update(*this->physics_world, dt, this->thread_context, /*campos_out=*/campos);
+	player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
 	this->cam_controller.setPosition(toVec3d(campos));
 
 	if(campos.getDist(last_campos) > 0.01)
