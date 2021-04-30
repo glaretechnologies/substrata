@@ -243,7 +243,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 					
 					const std::string content_type = web::ResponseUtils::getContentTypeForPath(filename);
 
-					web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, file.fileData(), file.fileSize(), content_type.c_str());
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14);
 				}
 				catch(glare::Exception&)
 				{

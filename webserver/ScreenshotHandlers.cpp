@@ -65,7 +65,7 @@ void handleScreenshotRequest(ServerAllWorldsState& world_state, WebDataStore& da
 				content_type = "bleh";
 
 			// Send it to client
-			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, file.fileData(), file.fileSize(), content_type.c_str());
+			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14); // cache max age = 2 weeks
 		}
 		catch(glare::Exception&)
 		{
