@@ -1356,7 +1356,9 @@ struct CreateVidReaderTask : public glare::Task
 	{
 		try
 		{
+#if defined(_WIN32)
 			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, callback);
+#endif
 			
 			Lock lock(mutex);
 			this->vid_reader = vid_reader_;
@@ -1372,7 +1374,7 @@ struct CreateVidReaderTask : public glare::Task
 	SubstrataVideoReaderCallback* callback;
 	
 	Mutex mutex; // protects vid_reader and error_msg
-	Reference<WMFVideoReader> vid_reader;
+	Reference<VideoReader> vid_reader;
 	std::string error_msg; // Set to a non-empty string on failure.
 };
 
