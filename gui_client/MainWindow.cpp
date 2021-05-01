@@ -1358,10 +1358,10 @@ struct CreateVidReaderTask : public glare::Task
 		{
 #if defined(_WIN32)
 			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, callback);
-#endif
-			
+
 			Lock lock(mutex);
 			this->vid_reader = vid_reader_;
+#endif
 		}
 		catch(glare::Exception& e)
 		{
