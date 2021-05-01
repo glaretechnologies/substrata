@@ -146,6 +146,16 @@ static const Colour4f PICKED_UP_OUTLINE_COLOUR = Colour4f::fromHTMLHexString("69
 static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f09a13"); // orange
 
 
+AnimatedTexData::AnimatedTexData()
+:	cur_frame_i(0), latest_tex_index(0), last_frame_time(0), in_anim_time(0), encounted_error(false)
+{}
+
+AnimatedTexData::~AnimatedTexData()
+{ 
+	video_reader = NULL; // Make sure to destroy video reader before frameinfos queue as it has a pointer to frameinfos.
+} 
+
+
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
 :	base_dir_path(base_dir_path_),
 	appdata_path(appdata_path_),
@@ -1339,6 +1349,34 @@ public:
 };
 
 
+// For constructing WMFVideoReader not in a main thread, since the constructor takes a while.
+struct CreateVidReaderTask : public glare::Task
+{
+	virtual void run(size_t thread_index)
+	{
+		try
+		{
+			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, callback);
+			
+			Lock lock(mutex);
+			this->vid_reader = vid_reader_;
+		}
+		catch(glare::Exception& e)
+		{
+			Lock lock(mutex);
+			error_msg = e.what();
+		}
+	}
+
+	std::string URL;
+	SubstrataVideoReaderCallback* callback;
+	
+	Mutex mutex; // protects vid_reader and error_msg
+	Reference<WMFVideoReader> vid_reader;
+	std::string error_msg; // Set to a non-empty string on failure.
+};
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	const double dt = time_since_last_timer_ev.elapsed();
@@ -1417,23 +1455,51 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error)
 								{
-									animtexdata.callback = new SubstrataVideoReaderCallback();
-									animtexdata.callback->frameinfos = &animtexdata.frameinfos;
-
-									std::string use_URL = mat.tex_path;
-									// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL
-									if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
+									if(animtexdata.create_vid_reader_task.isNull()) // If we have not created a CreateVidReaderTask yet:
 									{
-										use_URL = "http://" + this->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
+										animtexdata.callback = new SubstrataVideoReaderCallback();
+										animtexdata.callback->frameinfos = &animtexdata.frameinfos;
+
+										std::string use_URL = mat.tex_path;
+										// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL
+										if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
+										{
+											use_URL = "http://" + this->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
+										}
+
+										// conPrint("Creating video reader with URL '" + use_URL + "'...");
+
+										// Create and launch a CreateVidReaderTask to create the video reader off the main thread.
+										Reference<CreateVidReaderTask> create_vid_reader_task = new CreateVidReaderTask();
+										create_vid_reader_task->callback = animtexdata.callback;
+										create_vid_reader_task->URL = use_URL;
+
+										animtexdata.create_vid_reader_task = create_vid_reader_task;
+
+										task_manager.addTask(create_vid_reader_task);
 									}
+									else // Else CreateVidReaderTask has been created already as is executing or has executed:
+									{
+										Reference<VideoReader> vid_reader;
+										{
+											Lock lock2(animtexdata.create_vid_reader_task->mutex);
+											if(!animtexdata.create_vid_reader_task->error_msg.empty())
+												throw glare::Exception(animtexdata.create_vid_reader_task->error_msg);
+											vid_reader = animtexdata.create_vid_reader_task->vid_reader;
+										}
 
-									conPrint("Creating video reader with URL '" + use_URL + "'...");
+										if(vid_reader.nonNull()) // If vid reader has been created by the CreateVidReaderTask:
+										{
+											animtexdata.create_vid_reader_task = Reference<CreateVidReaderTask>(); // Free CreateVidReaderTask.
 
-									animtexdata.video_reader = new WMFVideoReader(/*read from vid device=*/false, use_URL, animtexdata.callback);
-									animtexdata.in_anim_time = 0;
+											animtexdata.video_reader = vid_reader;
 
-									for(int i=0; i<5; ++i)
-										animtexdata.video_reader->startReadingNextFrame();
+											animtexdata.in_anim_time = 0;
+
+											for(int i=0; i<5; ++i)
+												animtexdata.video_reader->startReadingNextFrame();
+										}
+									}
 								}
 
 								if(animtexdata.video_reader.nonNull())
