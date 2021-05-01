@@ -60,6 +60,23 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 			// Resource is present, send it
 			try
 			{
+				// Since resources have content hashes in URLs, they content for a given resource doesn't change.
+				// Therefore we can always return HTTP 304 not modified responses.
+				for(size_t i=0; i<request.headers.size(); ++i)
+					if(StringUtils::equalCaseInsensitive(request.headers[i].key, "if-modified-since"))
+					{
+						conPrint("returning 304 Not Modified...");
+						
+						const std::string response = 
+							"HTTP/1.1 304 Not Modified\r\n"
+							"Connection: Keep-Alive\r\n"
+							"\r\n";
+				
+						reply_info.socket->writeData(response.c_str(), response.size());
+						return;
+					}
+
+
 				const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path); // Guess content type
 
 				MemMappedFile file(local_path);
@@ -93,6 +110,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 							"HTTP/1.1 206 Partial Content\r\n"
 							"Content-Type: " + content_type + "\r\n"
 							"Content-Range: bytes " + toString(range.start) + "-" + toString(use_range_end - 1) + "/" + toString(file.fileSize()) + "\r\n" // Note that ranges are inclusive, hence the - 1.
+							"Cache-Control: max-age=100000000\r\n"
 							"Connection: Keep-Alive\r\n"
 							"Content-Length: " + toString(range_size) + "\r\n"
 							"\r\n";
