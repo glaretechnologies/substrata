@@ -87,7 +87,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 					for(size_t i=0; i<request.ranges.size(); ++i)
 					{
 						const web::Range range = request.ranges[i];
-						if(range.start < 0 || range.start >= file.fileSize())
+						if(range.start < 0 || range.start >= (int64)file.fileSize())
 							throw glare::Exception("invalid range");
 						
 						int64 range_size;
@@ -101,7 +101,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 						}
 
 						const int64 use_range_end = range.start + range_size;
-						if(use_range_end > file.fileSize())
+						if(use_range_end > (int64)file.fileSize())
 							throw glare::Exception("invalid range");
 
 						conPrint("\thandleResourceRequest: serving data range (start: " + toString(range.start) + ", range_size: " + toString(range_size) + ")");
@@ -118,8 +118,8 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 						reply_info.socket->writeData(response.c_str(), response.size());
 
 						// Sanity check range.start and range_size.  Should be valid by here.
-						assert((range.start >= 0) && (range.start <= file.fileSize()) && (range.start + range_size <= file.fileSize()));
-						if(!(range.start >= 0) && (range.start <= file.fileSize()) && (range.start + range_size <= file.fileSize()))
+						assert((range.start >= 0) && (range.start <= (int64)file.fileSize()) && (range.start + range_size <= (int64)file.fileSize()));
+						if(!(range.start >= 0) && (range.start <= (int64)file.fileSize()) && (range.start + range_size <= (int64)file.fileSize()))
 							throw glare::Exception("internal error computing ranges");
 
 						reply_info.socket->writeData((const uint8*)file.fileData() + range.start, range_size);
