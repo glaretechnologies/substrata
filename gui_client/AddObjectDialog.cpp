@@ -92,10 +92,14 @@ AddObjectDialog::~AddObjectDialog()
 	settings->setValue("AddObjectDialog/geometry", saveGeometry());
 
 	settings->setValue("AddObjectDialog/tabIndex", this->tabWidget->currentIndex());
+}
 
+
+void AddObjectDialog::shutdownGL()
+{
 	// Make sure we have set the gl context to current as we destroy objectPreviewGLWidget.
-	objectPreviewGLWidget->makeCurrent();
-	objectPreviewGLWidget = NULL;
+	preview_gl_ob = NULL;
+	objectPreviewGLWidget->shutdown();
 }
 
 

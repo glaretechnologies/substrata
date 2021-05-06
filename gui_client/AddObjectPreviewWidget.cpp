@@ -61,9 +61,18 @@ AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget *parent)
 
 AddObjectPreviewWidget::~AddObjectPreviewWidget()
 {
-	// Make context current as we destroy the opengl enegine.
-	this->makeCurrent();
-	opengl_engine = NULL;
+	shutdown();
+}
+
+
+void AddObjectPreviewWidget::shutdown()
+{
+	if(opengl_engine.nonNull())
+	{
+		// Make context current as we destroy the opengl enegine.
+		this->makeCurrent();
+		opengl_engine = NULL;
+	}
 }
 
 

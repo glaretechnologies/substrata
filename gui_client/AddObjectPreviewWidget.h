@@ -26,6 +26,8 @@ public:
 	AddObjectPreviewWidget(QWidget *parent = 0);
 	~AddObjectPreviewWidget();
 
+	void shutdown();
+
 	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
 
 	void addObject(const Reference<GLObject>& object);

@@ -3487,14 +3487,15 @@ void MainWindow::on_actionAddObject_triggered()
 		NULL
 #endif
 	);
-	if((d.exec() == QDialog::Accepted) && d.loaded_object.nonNull())
+	const int res = d.exec();
+	d.shutdownGL();
+	ui->glWidget->makeCurrent();
+
+	if((res == QDialog::Accepted) && d.loaded_object.nonNull())
 	{
 		// Try and load model
 		try
 		{
-			ui->glWidget->makeCurrent();
-
-
 			WorldObjectRef new_world_object = new WorldObject();
 
 			// If the user selected an obj, convert it to an indigo mesh file
