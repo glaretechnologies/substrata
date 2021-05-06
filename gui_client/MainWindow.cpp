@@ -152,7 +152,10 @@ static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f0
 
 
 AnimatedTexData::AnimatedTexData()
-:	cur_frame_i(0), latest_tex_index(0), in_anim_time(0), encounted_error(false), locked_interop_tex_ob(0)
+:	cur_frame_i(0), latest_tex_index(0), in_anim_time(0), encounted_error(false)
+#ifdef _WIN32
+	, locked_interop_tex_ob(0)
+#endif
 {}
 
 AnimatedTexData::~AnimatedTexData()
