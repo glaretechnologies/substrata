@@ -89,8 +89,9 @@ struct AnimatedTexData : public RefCounted
 	int cur_frame_i;
 
 	bool encounted_error;
-
+#ifdef _WIN32
 	HANDLE locked_interop_tex_ob;
+#endif
 };
 
 struct AnimatedTexObData// : public RefCounted
