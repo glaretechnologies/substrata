@@ -116,8 +116,10 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/ImageMapSequence.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
 
+#ifdef _WIN32
 #include <d3d11.h>
 #include <d3d11_4.h>
+#endif
 
 
 //#include "../indigo/UVUnwrapper.h" // Just for testing
