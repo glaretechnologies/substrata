@@ -31,6 +31,7 @@ public:
 		Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager);
 	~AddObjectDialog();
 
+	void shutdownGL();
 private slots:;
 	void accepted();
 
