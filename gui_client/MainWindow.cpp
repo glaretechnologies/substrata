@@ -378,9 +378,11 @@ void MainWindow::afterGLInitInitialise()
 		this->player_physics.setFlyModeEnabled(true);
 	}
 
+	
+#ifdef _WIN32
 	// Prepare for D3D interoperability with opengl
 	wgl_funcs.init();
-#ifdef _WIN32
+
 	interop_device_handle = wgl_funcs.wglDXOpenDeviceNV(d3d_device.ptr); // prepare for interoperability with opengl
 	if(interop_device_handle == 0)
 		throw glare::Exception("wglDXOpenDeviceNV failed.");
