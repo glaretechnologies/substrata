@@ -164,6 +164,11 @@ ${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.cpp
 ${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.h
 )
 
+SET(direct3d
+${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.cpp
+${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.h
+)
+
 include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
 
 SET(doc_files
@@ -180,6 +185,7 @@ SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(client_indigo_files FILES ${client_indigo_files})
 SOURCE_GROUP(docs FILES ${doc_files})
 SOURCE_GROUP(video FILES ${video})
+SOURCE_GROUP(direct3d FILES ${direct3d})
 SOURCE_GROUP(website_core_files FILES ${website_core_files})
 
 
@@ -243,6 +249,7 @@ ${scripts}
 ${double_conversion}
 ${opengl}
 ${opengl_shaders}
+${direct3d}
 ${dll_src}
 ${fft2d}
 ${xxhash}

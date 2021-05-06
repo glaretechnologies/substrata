@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <QtCore/QString>
 class QSettings;
 struct GLObject;
+struct IMFDXGIDeviceManager;
 
 
 /*=====================================================================
@@ -27,7 +28,7 @@ class AddObjectDialog : public QDialog, private Ui_AddObjectDialog
 	Q_OBJECT
 public:
 	AddObjectDialog(const std::string& base_dir_path_, QSettings* settings, TextureServer* texture_server_ptr, 
-		Reference<ResourceManager> resource_manager);
+		Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager);
 	~AddObjectDialog();
 
 private slots:;
@@ -74,4 +75,6 @@ private:
 	glare::AtomicInt num_net_resources_downloading;
 
 	Reference<ResourceManager> resource_manager;
+
+	IMFDXGIDeviceManager* dev_manager;
 };

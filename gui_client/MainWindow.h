@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ProximityLoader.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
+#include "../opengl/WGL.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
 #include "../indigo/ThreadContext.h"
@@ -23,6 +24,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/TaskManager.h"
 #include "../utils/StandardPrintOutput.h"
 #include "../utils/CircularBuffer.h"
+#include "../utils/ComObHandle.h"
 #include "../maths/PCG32.h"
 #include "../video/VideoReader.h"
 #include <QtCore/QEvent>
@@ -47,18 +49,34 @@ struct tls_config;
 class SubstrataVideoReaderCallback;
 struct CreateVidReaderTask;
 
+struct ID3D11Device;
+struct IMFDXGIDeviceManager;
+
+
+struct OpenGLAndD3DTex
+{
+	OpenGLTextureRef opengl_tex;
+#ifdef _WIN32
+	HANDLE interop_handle;
+#endif
+};
+
 
 struct AnimatedTexData : public RefCounted
 { 
 	AnimatedTexData();
 	~AnimatedTexData();
 
+	std::map<void*, OpenGLAndD3DTex> opengl_tex_for_d3d_tex;
+
 	Reference<VideoReader> video_reader;
 	int latest_tex_index;
 	double in_anim_time; // Current time along timeline of video.  Doesn't change if video is paused.
-	double last_frame_time;
 
-	ThreadSafeQueue<FrameInfo> frameinfos;
+	ThreadSafeQueue<FrameInfoRef> frameinfos;
+
+	FrameInfoRef current_frame;
+	FrameInfoRef next_frame;
 
 	Reference<CreateVidReaderTask> create_vid_reader_task;
 
@@ -71,6 +89,8 @@ struct AnimatedTexData : public RefCounted
 	int cur_frame_i;
 
 	bool encounted_error;
+
+	HANDLE locked_interop_tex_ob;
 };
 
 struct AnimatedTexObData// : public RefCounted
@@ -239,6 +259,7 @@ public:
 
 	glare::AtomicInt num_non_net_resources_downloading;
 	glare::AtomicInt num_net_resources_downloading;
+	glare::AtomicInt num_resources_uploading;
 
 	Reference<WorldState> world_state;
 
@@ -382,4 +403,11 @@ private:
 	struct tls_config* client_tls_config;
 
 	PCG32 rng;
+#if defined(_WIN32)
+	ComObHandle<ID3D11Device> d3d_device;
+	ComObHandle<IMFDXGIDeviceManager> device_manager;
+	HANDLE interop_device_handle;
+
+	WGL wgl_funcs;
+#endif
 };

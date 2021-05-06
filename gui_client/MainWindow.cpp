@@ -95,6 +95,7 @@ Copyright Glare Technologies Limited 2020 -
 #if defined(_WIN32)
 #include "../video/WMFVideoReader.h"
 #endif
+#include "../direct3d/Direct3DUtils.h"
 #include <Escaping.h>
 #include <clocale>
 #include <zlib.h>
@@ -104,6 +105,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/VectorUnitTests.h" // Just for testing
 #include "../utils/ReferenceTest.h" // Just for testing
 #include "../utils/JSONParser.h" // Just for testing
+#include "../utils/PoolAllocator.h" // Just for testing
 #include "../opengl/OpenGLEngineTests.h" // Just for testing
 #include "../graphics/FormatDecoderGLTF.h" // Just for testing
 #include "../graphics/GifDecoder.h" // Just for testing
@@ -113,6 +115,9 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/KTXDecoder.h" // Just for testing
 #include "../graphics/ImageMapSequence.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
+
+#include <d3d11.h>
+#include <d3d11_4.h>
 
 
 //#include "../indigo/UVUnwrapper.h" // Just for testing
@@ -147,7 +152,7 @@ static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f0
 
 
 AnimatedTexData::AnimatedTexData()
-:	cur_frame_i(0), latest_tex_index(0), last_frame_time(0), in_anim_time(0), encounted_error(false)
+:	cur_frame_i(0), latest_tex_index(0), in_anim_time(0), encounted_error(false), locked_interop_tex_ob(0)
 {}
 
 AnimatedTexData::~AnimatedTexData()
@@ -277,6 +282,15 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 }
 
 
+#if defined(_WIN32)
+static inline void throwOnError(HRESULT hres)
+{
+	if(FAILED(hres))
+		throw glare::Exception("Error: " + PlatformUtils::COMErrorString(hres));
+}
+#endif
+
+
 void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString("Substrata v" + ::cyberspace_version));
@@ -324,6 +338,12 @@ void MainWindow::initialise()
 		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
 	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
 	tls_config_insecure_noverifyname(client_tls_config);
+
+
+#ifdef _WIN32
+	// Create a GPU device.  Needed to get hardware accelerated video decoding.
+	Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
+#endif //_WIN32
 }
 
 
@@ -352,6 +372,14 @@ void MainWindow::afterGLInitInitialise()
 		ui->actionFly_Mode->setChecked(true);
 		this->player_physics.setFlyModeEnabled(true);
 	}
+
+	// Prepare for D3D interoperability with opengl
+	wgl_funcs.init();
+#ifdef _WIN32
+	interop_device_handle = wgl_funcs.wglDXOpenDeviceNV(d3d_device.ptr); // prepare for interoperability with opengl
+	if(interop_device_handle == 0)
+		throw glare::Exception("wglDXOpenDeviceNV failed.");
+#endif
 }
 
 
@@ -398,6 +426,21 @@ MainWindow::~MainWindow()
 	if(this->client_tls_config)
 		tls_config_free(this->client_tls_config);
 
+
+#ifdef _WIN32
+	if(this->interop_device_handle)
+	{
+		const BOOL res = wgl_funcs.wglDXCloseDeviceNV(this->interop_device_handle); // close interoperability with opengl
+		assert(res);
+	}
+#endif
+
+	// Free direct3d device and device manager
+#ifdef _WIN32
+	device_manager.release();
+	d3d_device.release();
+#endif
+
 	delete ui;
 }
 
@@ -421,6 +464,10 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	texture_loader_task_manager.waitForTasksToComplete();
 
 	texture_loaded_messages_to_process.clear();
+
+
+	// Clear obs_with_animated_tex - will close video readers
+	obs_with_animated_tex.clear();
 
 	QMainWindow::closeEvent(event);
 }
@@ -1328,7 +1375,7 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 class SubstrataVideoReaderCallback : public VideoReaderCallback
 {
 public:
-	virtual void frameDecoded(VideoReader* vid_reader, const FrameInfo& frameinfo)
+	virtual void frameDecoded(VideoReader* vid_reader, const FrameInfoRef& frameinfo)
 	{
 		//conPrint("frameDecoded, time " + toString(frameinfo.frame_time));
 
@@ -1341,11 +1388,10 @@ public:
 		//conPrint("endOfStream()");
 
 		// insert an empty FrameInfo to signify EOS
-		FrameInfo frameinfo;
-		frameinfos->enqueue(frameinfo);
+		frameinfos->enqueue(NULL);
 	}
 
-	ThreadSafeQueue<FrameInfo>* frameinfos;
+	ThreadSafeQueue<FrameInfoRef>* frameinfos;
 };
 
 
@@ -1357,7 +1403,7 @@ struct CreateVidReaderTask : public glare::Task
 		try
 		{
 #if defined(_WIN32)
-			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, callback);
+			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, callback, dev_manager, /*decode_to_d3d_tex=*/true);
 
 			Lock lock(mutex);
 			this->vid_reader = vid_reader_;
@@ -1372,6 +1418,7 @@ struct CreateVidReaderTask : public glare::Task
 
 	std::string URL;
 	SubstrataVideoReaderCallback* callback;
+	IMFDXGIDeviceManager* dev_manager;
 	
 	Mutex mutex; // protects vid_reader and error_msg
 	Reference<VideoReader> vid_reader;
@@ -1404,6 +1451,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			if(ob->opengl_engine_ob.nonNull())
 			{
+				ui->glWidget->makeCurrent();
+
 				animation_data.animtexdata.resize(ob->opengl_engine_ob->materials.size());
 
 				for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
@@ -1455,7 +1504,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 #if defined(_WIN32)
 							try
 							{
-								if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error)
+								if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error) // If vid reader has not been created yet (and we haven't failed trying to create it):
 								{
 									if(animtexdata.create_vid_reader_task.isNull()) // If we have not created a CreateVidReaderTask yet:
 									{
@@ -1463,7 +1512,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										animtexdata.callback->frameinfos = &animtexdata.frameinfos;
 
 										std::string use_URL = mat.tex_path;
-										// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL
+										// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
 										if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
 										{
 											use_URL = "http://" + this->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
@@ -1475,6 +1524,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										Reference<CreateVidReaderTask> create_vid_reader_task = new CreateVidReaderTask();
 										create_vid_reader_task->callback = animtexdata.callback;
 										create_vid_reader_task->URL = use_URL;
+										create_vid_reader_task->dev_manager = device_manager.ptr;
 
 										animtexdata.create_vid_reader_task = create_vid_reader_task;
 
@@ -1482,6 +1532,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									}
 									else // Else CreateVidReaderTask has been created already as is executing or has executed:
 									{
+										// See if the CreateVidReaderTask has completed:
 										Reference<VideoReader> vid_reader;
 										{
 											Lock lock2(animtexdata.create_vid_reader_task->mutex);
@@ -1493,9 +1544,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										if(vid_reader.nonNull()) // If vid reader has been created by the CreateVidReaderTask:
 										{
 											animtexdata.create_vid_reader_task = Reference<CreateVidReaderTask>(); // Free CreateVidReaderTask.
-
 											animtexdata.video_reader = vid_reader;
-
 											animtexdata.in_anim_time = 0;
 
 											for(int i=0; i<5; ++i)
@@ -1506,91 +1555,110 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								if(animtexdata.video_reader.nonNull())
 								{
-									WMFVideoReader* vid_reader = animtexdata.video_reader.downcastToPtr<WMFVideoReader>(); // TEMP HACK
+									WMFVideoReader* vid_reader = animtexdata.video_reader.downcastToPtr<WMFVideoReader>();
 
 									animtexdata.in_anim_time += dt;
 									const double in_anim_time = animtexdata.in_anim_time;
-									
 
-									if(in_anim_time >= animtexdata.last_frame_time)
+
+									// If we do not have a next_frame, try and get one from the frame queue.
+									// We may get a null frame ref, which signifies end of stream.
+									bool EOS = false;
+									if(animtexdata.next_frame.isNull())
 									{
-										// Check if there is a new frame to consume
-										FrameInfo front_frame;
 										size_t queue_size;
-										bool dequeued_item = false;
 										{
 											Lock lock2(animtexdata.frameinfos.getMutex());
 											if(animtexdata.frameinfos.unlockedNonEmpty())
 											{
-												animtexdata.frameinfos.unlockedDequeue(front_frame);
-												dequeued_item = true;
+												animtexdata.frameinfos.unlockedDequeue(animtexdata.next_frame);
+												EOS = animtexdata.next_frame.isNull();
 											}
 											queue_size = animtexdata.frameinfos.size();
 										}
-										if(dequeued_item)
+									}
+
+									if(animtexdata.next_frame.nonNull() && in_anim_time >= animtexdata.next_frame->frame_time) // If it's time to start displaying next_frame, and we have one:
+									{
+										animtexdata.cur_frame_i++;
+										animtexdata.video_reader->startReadingNextFrame(); // We are consuming a frame, so queue up a frame read.
+
+										// Unlock previous OpenGL/d3d texture via locked_interop_tex_ob
+										if(animtexdata.locked_interop_tex_ob)
 										{
-											if(front_frame.frame_buffer)
+											BOOL res = wgl_funcs.wglDXUnlockObjectsNV(this->interop_device_handle, 1, &animtexdata.locked_interop_tex_ob);
+											if(!res)
+												conPrint("Warning: wglDXUnlockObjectsNV failed.");
+											animtexdata.locked_interop_tex_ob = NULL;
+											mat.albedo_texture = NULL;
+										}
+
+										animtexdata.current_frame = NULL; // Free current frame
+
+										// Update current frame to be next_frame
+										animtexdata.current_frame = animtexdata.next_frame;
+										animtexdata.next_frame = NULL;
+
+										// Convert it to an OpenGL texture and apply to the current material
+										WMFFrameInfo* wmf_cur_frame = animtexdata.current_frame.downcastToPtr<WMFFrameInfo>();
+
+										OpenGLAndD3DTex info;
+										auto tex_res = animtexdata.opengl_tex_for_d3d_tex.find(wmf_cur_frame->d3d_tex.ptr);
+										if(tex_res == animtexdata.opengl_tex_for_d3d_tex.end())
+										{
+											// Create an OpenGL texture that will correspond to the d3d texture
+											OpenGLTextureRef opengl_tex = new OpenGLTexture();
+											glGenTextures(1, &opengl_tex->texture_handle);
+
+											conPrint("making new OpenGL for d3d tex " + toHexString((uint64)wmf_cur_frame->d3d_tex.ptr) + ", texture_handle: " + toString(opengl_tex->texture_handle));
+
+											// Unforuntately this doesn't work: (not supported by driver?)
+											// const int GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT = 0x8FBF;
+											// glTexParameteri(opengl_tex->texture_handle, GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT, GL_SRGB);
+
+											const GLenum WGL_ACCESS_READ_ONLY_NV = 0x0;
+											HANDLE interop_tex_ob = wgl_funcs.wglDXRegisterObjectNV(this->interop_device_handle, wmf_cur_frame->d3d_tex.ptr,
+												opengl_tex->texture_handle, GL_TEXTURE_2D, WGL_ACCESS_READ_ONLY_NV);
+
+											info.opengl_tex = opengl_tex;
+											info.interop_handle = interop_tex_ob;
+											animtexdata.opengl_tex_for_d3d_tex[wmf_cur_frame->d3d_tex.ptr] = info;
+										}
+										else
+											info = tex_res->second;
+
+										if(info.interop_handle)
+										{
+											//conPrint("Locking interop_handle " + toString((uint64)info.interop_handle));
+											const BOOL res = wgl_funcs.wglDXLockObjectsNV(this->interop_device_handle, 1, &info.interop_handle);
+											if(res)
 											{
-												animtexdata.last_frame_time = front_frame.frame_time;
-												//conPrint("Processing frame, time " + toString(front_frame.frame_time) + ", queue_size: " + toString(queue_size));
-
-												//conPrint("vid with path " + mat.tex_path + " received frame with stride " + toString(front_frame.stride_B));
-									
-
-												//const FormatInfo& format = vid_reader->getCurrentFormat(); // NOTE: make threadsafe
-												//animtexdata.latest_tex_index =  (animtexdata.latest_tex_index + 1) % 2;
-												// Load into texture cur_tex_index
-												const int using_tex_i   = (animtexdata.cur_frame_i    ) % 2;
-												const int loading_tex_i = (animtexdata.cur_frame_i + 1) % 2;
-
-												if(animtexdata.textures[0].isNull())
-												{
-													animtexdata.textures[0] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
-														OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
-														GL_SRGB8_ALPHA8, // GL internal format
-														GL_BGRA, // GL format.  Video frames are BGRA.
-														OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
-														OpenGLTexture::Wrapping_Repeat);
-
-													animtexdata.textures[1] = new OpenGLTexture(front_frame.width, front_frame.height, ui->glWidget->opengl_engine.ptr(), 
-														OpenGLTexture::Format_SRGB_Uint8,
-														GL_SRGB8_ALPHA8, // GL internal format
-														GL_BGRA, // GL format.  Video frames are BGRA.
-														OpenGLTexture::Filtering_Bilinear, 
-														OpenGLTexture::Wrapping_Repeat);
-												}
-
-												// Load texture data into OpenGL
-												tex_upload_timer.unpause();
-												ArrayRef<uint8> tex_data_arrayref(front_frame.frame_buffer, front_frame.height * front_frame.stride_B);
-												animtexdata.textures[loading_tex_i]->load(front_frame.width, front_frame.height, front_frame.stride_B, tex_data_arrayref);
-												tex_upload_timer.pause();
-
-												// Use the other texture to render
-												mat.albedo_texture = animtexdata.textures[using_tex_i];
-
-												vid_reader->unlockAndReleaseFrame(front_frame);
-												vid_reader->startReadingNextFrame();
-
-												animtexdata.cur_frame_i++;
+												animtexdata.locked_interop_tex_ob = info.interop_handle;
+												mat.albedo_texture = info.opengl_tex; // Apply to material
 											}
-											else // This was not an actual frame we received, but an end of stream sentinel value:
+											else
 											{
-												if(animtexdata.last_frame_time == 0) // We are already at start of vid:
-												{}
-												else
-												{
-													animtexdata.cur_frame_i = 0;
-													animtexdata.last_frame_time = 0;
-													animtexdata.in_anim_time = 0;
-
-													//conPrint("Seeking");
-													vid_reader->seek(0.0);
-													//
-													for(int i=0; i<5; ++i)
-														animtexdata.video_reader->startReadingNextFrame();
-												}
+												conPrint("warning: failed to lock object");
 											}
+										}
+									}
+
+									if(EOS)
+									{
+										// This was not an actual frame we received, but an end-of-stream sentinel value.
+										// Note that we can get a few of these in a row, but we need to call seek just once, or we will get MF errors.
+										// So we will seek iff cur_frame_i is != 0.
+										if(animtexdata.cur_frame_i != 0)
+										{
+											// Seek to start of vid.
+											animtexdata.cur_frame_i = 0;
+											animtexdata.in_anim_time = 0;
+
+											conPrint("Seeking to 0.0");
+											vid_reader->seek(0.0);
+											
+											for(int i=0; i<5; ++i)
+												animtexdata.video_reader->startReadingNextFrame();
 										}
 									}
 								}
@@ -2105,7 +2173,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const std::string username = QtUtils::toStdString(settings->value("LoginDialog/username").toString());
 						const std::string password = LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString()));
 
-						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password, this->client_tls_config));
+						this->num_resources_uploading++;
+						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password, this->client_tls_config, 
+							&this->num_resources_uploading));
 						print("Received GetFileMessage, Uploading resource with URL '" + m->URL + "' to server.");
 					}
 					else
@@ -3133,6 +3203,9 @@ void MainWindow::updateStatusBar()
 	if(num_net_resources_downloading > 0)
 		status += " | Downloading " + toString(num_net_resources_downloading) + ((num_net_resources_downloading == 1) ? " web resource..." : " web resources...");
 
+	if(num_resources_uploading > 0)
+		status += " | Uploading " + toString(num_resources_uploading) + ((num_resources_uploading == 1) ? " resource..." : " resources...");
+
 	const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks();
 	if(num_tex_tasks > 0)
 		status += " | Loading " + toString(num_tex_tasks) + ((num_tex_tasks == 1) ? " texture..." : " textures...");
@@ -3400,7 +3473,7 @@ void MainWindow::on_actionAddObject_triggered()
 		return;
 	}
 
-	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
+	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager, this->device_manager.ptr);
 	if((d.exec() == QDialog::Accepted) && d.loaded_object.nonNull())
 	{
 		// Try and load model
@@ -5260,6 +5333,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			glare::testPoolAllocator();
 			//WMFVideoReader::test();
 			//TextureLoadingTests::test();
 			//KTXDecoder::test();

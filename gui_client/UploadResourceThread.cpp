@@ -20,7 +20,8 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 UploadResourceThread::UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& local_path_, const std::string& resource_URL_, 
-										   const std::string& hostname_, int port_, const std::string& username_, const std::string& password_, struct tls_config* config_)
+										const std::string& hostname_, int port_, const std::string& username_, const std::string& password_, struct tls_config* config_,
+										glare::AtomicInt* num_resources_uploading_)
 :	//out_msg_queue(out_msg_queue_),
 	local_path(local_path_),
 	resource_URL(resource_URL_),
@@ -28,7 +29,8 @@ UploadResourceThread::UploadResourceThread(ThreadSafeQueue<Reference<ThreadMessa
 	port(port_),
 	username(username_),
 	password(password_),
-	config(config_)
+	config(config_),
+	num_resources_uploading(num_resources_uploading_)
 {}
 
 
@@ -106,4 +108,6 @@ void UploadResourceThread::doRun()
 	{
 		conPrint("UploadResourceThread glare::Exception: " + e.what());
 	}
+
+	(*num_resources_uploading)--;
 }

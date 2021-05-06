@@ -112,6 +112,9 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, cons
 
 	// glTexImage2D expects the start of the texture data to be the lower left of the image, whereas it is actually the upper left.  So flip y coord to compensate.
 	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
+
+	if(::hasExtensionStringView(opengl_mat.tex_path, "mp4"))
+		opengl_mat.convert_albedo_from_srgb = true;
 }
 
 
