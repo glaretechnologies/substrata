@@ -3480,7 +3480,13 @@ void MainWindow::on_actionAddObject_triggered()
 		return;
 	}
 
-	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager, this->device_manager.ptr);
+	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager, 
+#ifdef _WIN32
+		this->device_manager.ptr
+#else
+		NULL
+#endif
+	);
 	if((d.exec() == QDialog::Accepted) && d.loaded_object.nonNull())
 	{
 		// Try and load model
