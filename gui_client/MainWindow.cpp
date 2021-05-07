@@ -161,9 +161,38 @@ AnimatedTexData::AnimatedTexData()
 {}
 
 AnimatedTexData::~AnimatedTexData()
-{ 
+{}
+
+
+void AnimatedTexData::shutdown(
+#ifdef _WIN32
+	WGL& wgl_funcs, HANDLE interop_device_handle
+#endif
+)
+{
 	video_reader = NULL; // Make sure to destroy video reader before frameinfos queue as it has a pointer to frameinfos.
-} 
+
+#ifdef _WIN32
+	// Unlock the currently locked interop handle, if we have a locked one.
+	if(locked_interop_tex_ob != NULL)
+	{
+		const BOOL res = wgl_funcs.wglDXUnlockObjectsNV(interop_device_handle, /*count=*/1, &locked_interop_tex_ob);
+		if(!res)
+			conPrint("Warning: wglDXUnlockObjectsNV failed.");
+		locked_interop_tex_ob = NULL;
+	}
+
+	// Free interop handles
+	for(auto entry : opengl_tex_for_d3d_tex)
+	{
+		const BOOL res = wgl_funcs.wglDXUnregisterObjectNV(interop_device_handle, entry.second.interop_handle);
+		if(!res)
+			conPrint("Warning: wglDXUnregisterObjectNV failed.");
+	}
+
+	opengl_tex_for_d3d_tex.clear();
+#endif
+}
 
 
 MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
@@ -474,6 +503,18 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 
 	// Clear obs_with_animated_tex - will close video readers
+	for(auto entry : obs_with_animated_tex)
+	{
+		for(size_t i=0; i<entry.second.animtexdata.size(); ++i)
+		{
+			if(entry.second.animtexdata[i].nonNull())
+				entry.second.animtexdata[i]->shutdown(
+#ifdef _WIN32
+					wgl_funcs, this->interop_device_handle
+#endif
+				);
+		}
+	}
 	obs_with_animated_tex.clear();
 
 	QMainWindow::closeEvent(event);
