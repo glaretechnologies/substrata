@@ -67,6 +67,12 @@ struct AnimatedTexData : public RefCounted
 	AnimatedTexData();
 	~AnimatedTexData();
 
+	void shutdown(
+#ifdef _WIN32
+		WGL& wgl_funcs, HANDLE interop_device_handle
+#endif
+	);
+
 	std::map<void*, OpenGLAndD3DTex> opengl_tex_for_d3d_tex;
 
 	Reference<VideoReader> video_reader;
