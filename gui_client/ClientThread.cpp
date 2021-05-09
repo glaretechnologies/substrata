@@ -200,12 +200,46 @@ void ClientThread::doRun()
 							{
 								Avatar* avatar = res->second.getPointer();
 								readFromNetworkStreamGivenUID(*socket, *avatar);
+								avatar->generatePseudoRandomNameColour();
 								avatar->other_dirty = true;
 							}
 							else
 							{
 								Avatar dummy;
 								readFromNetworkStreamGivenUID(*socket, dummy);
+							}
+						}
+						break;
+					}
+				case Protocol::AvatarIsHere:
+					{
+						const UID avatar_uid = readUIDFromStream(*socket);
+						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const Vec3d pos = readVec3FromStream<double>(*socket);
+						const Vec3f rotation = readVec3FromStream<float>(*socket);
+
+						// Look up existing avatar in world state
+						{
+							::Lock lock(world_state->mutex);
+							auto res = world_state->avatars.find(avatar_uid);
+							if(res == world_state->avatars.end())
+							{
+								// Avatar for UID not already created, create it now.
+								AvatarRef avatar = new Avatar();
+								avatar->uid = avatar_uid;
+								avatar->name = name;
+								avatar->model_url = model_url;
+								avatar->pos = pos;
+								avatar->rotation = rotation;
+								avatar->state = Avatar::State_JustCreated;
+								avatar->other_dirty = true;
+								avatar->generatePseudoRandomNameColour();
+								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
+
+								avatar->setTransformAndHistory(pos, rotation);
+
+								out_msg_queue->enqueue(new AvatarIsHereMessage(avatar_uid)); // Inform MainWindow
 							}
 						}
 						break;
@@ -233,6 +267,7 @@ void ClientThread::doRun()
 								avatar->rotation = rotation;
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
+								avatar->generatePseudoRandomNameColour();
 								world_state->avatars.insert(std::make_pair(avatar_uid, avatar));
 
 								avatar->setTransformAndHistory(pos, rotation);

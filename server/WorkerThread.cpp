@@ -543,8 +543,8 @@ void WorkerThread::doRun()
 					{
 						const Avatar* avatar = it->second.getPointer();
 
-						// Send AvatarCreated message
-						packet.writeUInt32(Protocol::AvatarCreated);
+						// Send AvatarIsHere message
+						packet.writeUInt32(Protocol::AvatarIsHere);
 						writeToStream(avatar->uid, packet);
 						packet.writeStringLengthFirst(avatar->name);
 						packet.writeStringLengthFirst(avatar->model_url);

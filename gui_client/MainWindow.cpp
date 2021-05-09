@@ -1201,15 +1201,29 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 }
 
 
+struct AvatarNameInfo
+{
+	std::string name;
+	Colour3f colour;
+
+	inline bool operator < (const AvatarNameInfo& other) const { return name < other.name; }
+};
+
+
 void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 {
 	conPrint("updateOnlineUsersList");
 
-	std::vector<std::string> names;
+	std::vector<AvatarNameInfo> names;
 	{
 		Lock lock(world_state->mutex);
-		for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
-			names.push_back(it->second->name);
+		for(auto entry : world_state->avatars)
+		{
+			AvatarNameInfo info;
+			info.name   = entry.second->name;
+			info.colour = entry.second->name_colour;
+			names.push_back(info);
+		}
 	}
 
 	std::sort(names.begin(), names.end());
@@ -1217,7 +1231,10 @@ void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 	// Combine names into a single string, while escaping any HTML chars.
 	QString s;
 	for(size_t i=0; i<names.size(); ++i)
-		s += QtUtils::toQString(names[i]).toHtmlEscaped() + ((i + 1 < names.size()) ? "<br/>" : "");
+	{
+		s += QtUtils::toQString("<span style=\"color:rgb(" + toString(names[i].colour.r * 255) + ", " + toString(names[i].colour.g * 255) + ", " + toString(names[i].colour.b * 255) + ")\">");
+		s += QtUtils::toQString(names[i].name).toHtmlEscaped() + "</span>" + ((i + 1 < names.size()) ? "<br/>" : "");
+	}
 
 	ui->onlineUsersTextEdit->setHtml(s);
 }
@@ -1763,6 +1780,23 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->connection_state = ServerConnectionState_NotConnected;
 				updateStatusBar();
 			}
+			else if(dynamic_cast<const AvatarIsHereMessage*>(msg.getPointer()))
+			{
+				const AvatarIsHereMessage* m = static_cast<const AvatarIsHereMessage*>(msg.getPointer());
+
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->avatars.find(m->avatar_uid);
+				if(res != this->world_state->avatars.end())
+				{
+					Avatar* avatar = res->second.getPointer();
+
+					ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
+						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
+						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> is here.</i>"));
+					updateOnlineUsersList();
+				}
+			}
 			else if(dynamic_cast<const AvatarCreatedMessage*>(msg.getPointer()))
 			{
 				const AvatarCreatedMessage* m = static_cast<const AvatarCreatedMessage*>(msg.getPointer());
@@ -1773,14 +1807,33 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(res != this->world_state->avatars.end())
 				{
 					const Avatar* avatar = res->second.getPointer();
-					ui->chatMessagesTextEdit->append("<i>" + QtUtils::toQString(avatar->name).toHtmlEscaped() + " joined.</i>");
+					ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
+						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
+						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>"));
 					updateOnlineUsersList();
 				}
 			}
 			else if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
 			{
 				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
-				ui->chatMessagesTextEdit->append(QtUtils::toQString(m->name + ": " + m->msg).toHtmlEscaped());
+
+				// Look up sending avatar name colour.  TODO: could do this with sending avatar UID, would be faster + simpler.
+				Colour3f col;
+				{
+					Lock lock(this->world_state->mutex);
+
+					for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+					{
+						const Avatar* avatar = it->second.getPointer();
+						if(avatar->name == m->name)
+							col = avatar->name_colour;
+					}
+				}
+
+				ui->chatMessagesTextEdit->append(QtUtils::toQString(
+					"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(m->name) + "</span>: " +
+					web::Escaping::HTMLEscape(m->msg) + "</p>"));
+
 			}
 			else if(dynamic_cast<const InfoMessage*>(msg.getPointer()))
 			{
@@ -2087,7 +2140,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				print("Removing avatar.");
 
-				ui->chatMessagesTextEdit->append("<i>" + QtUtils::toQString(avatar->name).toHtmlEscaped() + " left.</i>");
+				ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
+					toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
+					web::Escaping::HTMLEscape(avatar->name) + "</span> left.</i>"));
 
 				// Remove any OpenGL object for it
 				if(avatar->graphics.nonNull())
