@@ -13,6 +13,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #endif
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
+#include <utils/IncludeXXHash.h>
 
 
 Avatar::Avatar()
@@ -26,12 +27,31 @@ Avatar::Avatar()
 //	last_snapshot_time = 0;
 
 	selected_object_uid = UID::invalidUID();
+
+#if GUI_CLIENT
+	name_colour = Colour3f(0.8f);
+#endif
 }
 
 
 Avatar::~Avatar()
-{
+{}
 
+
+void Avatar::generatePseudoRandomNameColour()
+{
+#if GUI_CLIENT
+	// Assign a pseudo-random name colour to the avatar
+	const uint64 hash_r = XXH64(name.c_str(), name.size(), /*seed=*/1);
+	const uint64 hash_g = XXH64(name.c_str(), name.size(), /*seed=*/2);
+	const uint64 hash_b = XXH64(name.c_str(), name.size(), /*seed=*/3);
+
+	name_colour.r = (float)((double)hash_r / (double)std::numeric_limits<uint64>::max()) * 0.7f;
+	name_colour.g = (float)((double)hash_g / (double)std::numeric_limits<uint64>::max()) * 0.7f;
+	name_colour.b = (float)((double)hash_b / (double)std::numeric_limits<uint64>::max()) * 0.7f;
+
+	// conPrint("Generated name_colour=" + name_colour.toVec3().toString() + " for avatar " + name);
+#endif
 }
 
 

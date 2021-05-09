@@ -15,6 +15,7 @@ CyberspaceProtocolVersion
 22: Added grid object querying stuff
 23: Added ObjectModelURLChanged
 24: Added material emission_lum_flux
+25: Added AvatarIsHere message
 
 */
 namespace Protocol
@@ -22,7 +23,7 @@ namespace Protocol
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 24;
+const uint32 CyberspaceProtocolVersion = 25;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -39,6 +40,7 @@ const uint32 AvatarDestroyed		= 1001;
 const uint32 AvatarTransformUpdate	= 1002;
 const uint32 AvatarFullUpdate		= 1003;
 const uint32 CreateAvatar			= 1004;
+const uint32 AvatarIsHere			= 1005;
 
 const uint32 ChatMessageID			= 2000;
 

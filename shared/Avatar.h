@@ -10,6 +10,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include "../shared/UID.h"
+#include "graphics/colour3.h"
 #include "vec3.h"
 #include "Matrix4f.h"
 #include <string>
@@ -36,6 +37,8 @@ public:
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& rotation_out) const;
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& rotation);
 
+	void generatePseudoRandomNameColour();
+
 	UID uid;
 	std::string name;
 	std::string model_url;
@@ -59,6 +62,9 @@ public:
 
 	//Reference<GLObject> opengl_engine_ob;
 #if GUI_CLIENT
+
+	Colour3f name_colour;
+
 	Reference<GLObject> opengl_engine_nametag_ob;
 
 	Reference<AvatarGraphics> graphics;
