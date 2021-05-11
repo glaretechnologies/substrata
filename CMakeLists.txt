@@ -146,6 +146,7 @@ set(zlibdir		"${INDIGO_TRUNK_DIR_ENV}/zlib-1.2.11")
 set(pugixmldir	"${INDIGO_TRUNK_DIR_ENV}/pugixml-1.9/src")
 set(pngdir		"${INDIGO_TRUNK_DIR_ENV}/libpng-1.6.37")
 set(zstddir		"${INDIGO_TRUNK_DIR_ENV}/zstd-1.4.4")
+set(resonance_audio_dir "${INDIGO_LIBS_ENV}/resonance-audio/trunk/install/resonance_audio")
 
 # The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
 # So get via getConfigOption()
@@ -267,9 +268,9 @@ ADD_SUBDIRECTORY(gui_client gui_client)
 ADD_SUBDIRECTORY(server server)
 
 # Disabled for now as require INDIGO SDK:
-#ADD_SUBDIRECTORY(cv_bot cv_bot)
+ADD_SUBDIRECTORY(cv_bot cv_bot)
 
-#ADD_SUBDIRECTORY(lightmapper_bot lightmapper_bot)
+ADD_SUBDIRECTORY(lightmapper_bot lightmapper_bot)
 
-#ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
+ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
 

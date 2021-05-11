@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/ComObHandle.h"
 #include "../maths/PCG32.h"
 #include "../video/VideoReader.h"
+#include "../audio/AudioEngine.h"
 #include <QtCore/QEvent>
 #include <QtCore/QObject>
 #include <QtCore/QString>
@@ -52,7 +53,6 @@ struct CreateVidReaderTask;
 
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
-
 
 
 class MainWindow : public QMainWindow, public ObLoadingCallbacks
@@ -368,4 +368,9 @@ private:
 
 	WGL wgl_funcs;
 #endif
+
+	AudioEngine audio_engine;
+public:
+	std::vector<GLObjectRef> test_obs;
+	std::vector<AudioSourceRef> test_srcs;
 };

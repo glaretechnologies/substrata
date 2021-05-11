@@ -37,6 +37,7 @@ public:
 	void setMoveScale(double move_scale); // Adjust camera movement speed based on world scale
 
 	void getBasis(Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out) const;
+
 	Vec3d getAngles() const; // Specified as (heading, pitch, roll).
 	void resetRotation();
 	void setAngles(const Vec3d& newangles);
@@ -63,6 +64,7 @@ private:
 
 	Vec3d position;
 	Vec3d rotation; // Specified as (heading, pitch, roll).
+					// heading is phi: rotation angle in x-y plane, from x-axis towards y-axis.
 					// pitch is theta. 0 = looking straight up, pi = looking straight down.
 
 	Vec3d initialised_up;

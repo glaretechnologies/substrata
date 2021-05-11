@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <set>
 struct GLObject;
 class PhysicsObject;
+class AudioSource;
 class ResourceManager;
 class WinterShaderEvaluator;
 class Matrix4f;
@@ -160,6 +161,7 @@ public:
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
+	Reference<AudioSource> audio_source;
 
 	ImageMapUInt8Ref hypercard_map;
 
@@ -172,12 +174,11 @@ public:
 	Vec3d last_pos; // Used by proximity loader
 
 	bool lightmap_baking; // Is lightmap baking in progress for this object?
+
+	Reference<WinterShaderEvaluator> script_evaluator;
 #endif
 
 	float max_load_dist2;
-
-	Reference<WinterShaderEvaluator> script_evaluator;
-
 	
 	/*
 		Snapshots for client-side interpolation purposes.

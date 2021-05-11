@@ -119,6 +119,8 @@ ${INDIGO_UTILS_DIR}/BufferInStream.cpp
 ${INDIGO_UTILS_DIR}/BufferInStream.h
 ${INDIGO_UTILS_DIR}/BufferOutStream.cpp
 ${INDIGO_UTILS_DIR}/BufferOutStream.h
+${INDIGO_UTILS_DIR}/CircularBuffer.cpp
+${INDIGO_UTILS_DIR}/CircularBuffer.h
 ${INDIGO_UTILS_DIR}/Checksum.cpp
 ${INDIGO_UTILS_DIR}/Checksum.h
 ${INDIGO_UTILS_DIR}/Clock.cpp
@@ -185,6 +187,8 @@ ${INDIGO_UTILS_DIR}/PlatformUtils.cpp
 ${INDIGO_UTILS_DIR}/PlatformUtils.h
 ${INDIGO_UTILS_DIR}/Plotter.cpp
 ${INDIGO_UTILS_DIR}/Plotter.h
+${INDIGO_UTILS_DIR}/PoolAllocator.cpp
+${INDIGO_UTILS_DIR}/PoolAllocator.h
 ${INDIGO_UTILS_DIR}/GlareProcess.cpp
 ${INDIGO_UTILS_DIR}/GlareProcess.h
 ${INDIGO_UTILS_DIR}/prebuild_repos_info.h

@@ -169,6 +169,16 @@ ${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.cpp
 ${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.h
 )
 
+SET(rtaudio
+../rtaudio/RtAudio.cpp
+../rtaudio/RtAudio.h
+)
+
+SET(audio
+../audio/AudioEngine.cpp
+../audio/AudioEngine.h
+)
+
 include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
 
 SET(doc_files
@@ -187,6 +197,8 @@ SOURCE_GROUP(docs FILES ${doc_files})
 SOURCE_GROUP(video FILES ${video})
 SOURCE_GROUP(direct3d FILES ${direct3d})
 SOURCE_GROUP(website_core_files FILES ${website_core_files})
+SOURCE_GROUP(rtaudio FILES ${rtaudio})
+SOURCE_GROUP(audio FILES ${audio})
 
 
 if(WIN32)
@@ -258,6 +270,8 @@ ${doc_files}
 ${lang}
 ${video}
 ${website_core_files}
+${rtaudio}
+${audio}
 )
 
 add_definitions(-DGUI_CLIENT=1)
@@ -265,7 +279,13 @@ add_definitions(-DGUI_CLIENT=1)
 include(../cmake/shared_target_settings.cmake)
 
 
+include_directories(${resonance_audio_dir}/include)
+
+
 if(WIN32)
+
+	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
+
 	SET(QT_WIN32_LIBS
 		OpenGL32
 		optimized qtmain
@@ -273,11 +293,13 @@ if(WIN32)
 		optimized Qt5Core
 		optimized Qt5OpenGL
 		optimized Qt5Widgets
+#		optimized Qt5Multimedia
 		debug qtmaind
 		debug Qt5Guid
 		debug Qt5Cored
 		debug Qt5OpenGLd
 		debug Qt5Widgetsd
+#		debug Qt5Multimediad
 #		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
 #		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
 
@@ -287,6 +309,16 @@ if(WIN32)
 		mfuuid.lib
 		Mf.lib
 		d3d11.lib
+		
+		# RtAudio:
+		ole32
+		winmm 
+		dsound
+		
+		# Resonance audio
+		#debug     ${resonance_audio_dir}/lib/ResonanceAudioStatic_debug.lib
+		debug ${INDIGO_LIBS_ENV}/resonance-audio/trunk/build/resonance_audio/Debug/ResonanceAudioStatic.lib
+		optimized ${resonance_audio_dir}/lib/ResonanceAudioStatic_relwithdebinfo.lib
 		)
 
 	# Disable ASLR (/DYNAMICBASE)

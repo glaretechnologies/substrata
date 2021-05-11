@@ -15,6 +15,8 @@ Copyright Glare Technologies Limited 2021 -
 class SubstrataVideoReaderCallback;
 class MainWindow;
 class WorldObject;
+class QMediaPlayer;
+class SubVideoSurface;
 struct CreateVidReaderTask;
 
 struct ID3D11Device;
@@ -47,10 +49,16 @@ struct AnimatedTexData : public RefCounted
 	int latest_tex_index;
 	double in_anim_time; // Current time along timeline of video.  Doesn't change if video is paused.
 
+	SubVideoSurface* video_surface;
+	QMediaPlayer* media_player; // TEMP
+
 	ThreadSafeQueue<FrameInfoRef> frameinfos;
 
-	FrameInfoRef current_frame;
-	FrameInfoRef next_frame;
+	CircularBuffer<FrameInfoRef> vid_frame_queue;
+
+	FrameInfoRef current_video_frame;
+	FrameInfoRef current_audio_frame;
+	//FrameInfoRef next_frame;
 
 	Reference<CreateVidReaderTask> create_vid_reader_task;
 
@@ -60,7 +68,7 @@ struct AnimatedTexData : public RefCounted
 
 
 	Reference<TextureData> texdata;
-	int cur_frame_i;
+	int cur_frame_i; // -1 = reached EOS
 
 	bool encounted_error;
 #ifdef _WIN32
@@ -73,6 +81,8 @@ struct AnimatedTexObData // : public RefCounted
 	std::vector<Reference<AnimatedTexData>> mat_animtexdata; // size() == ob.material.size()
 
 	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
+
+	std::vector<float> temp_buf;//TEMP
 };
 
 
