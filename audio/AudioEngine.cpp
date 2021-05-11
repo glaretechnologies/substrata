@@ -155,31 +155,54 @@ public:
 					{
 						AudioSource* source = it->ptr();
 
-						if(source->cur_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
+						if(source->type == AudioSource::SourceType_Looping)
 						{
-							const float* bufptr = source->buffer.data() + source->cur_i;
-							resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-
-							source->cur_i += frames_per_buffer;
-							if(source->cur_i == source->buffer.size()) // If reach end of buf:
-								source->cur_i = 0; // wrap
-						}
-						else
-						{
-							// Copy data to a temporary contiguous buffer
-							size_t cur_i = source->cur_i;
-
-							for(size_t i=0; i<frames_per_buffer; ++i)
+							if(source->cur_read_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
 							{
-								buf[i] = source->buffer[cur_i++];
-								if(cur_i == source->buffer.size()) // If reach end of buf:
-									cur_i = 0; // TODO: optimise
+								const float* bufptr = &source->buffer[0]/*source->buffer.data()*/ + source->cur_read_i; // NOTE: bit of a hack here, assuming layout of circular buffer
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+
+								source->cur_read_i += frames_per_buffer;
+								if(source->cur_read_i == source->buffer.size()) // If reach end of buf:
+									source->cur_read_i = 0; // wrap
 							}
+							else
+							{
+								// Copy data to a temporary contiguous buffer
+								size_t cur_i = source->cur_read_i;
 
-							source->cur_i = cur_i;
+								for(size_t i=0; i<frames_per_buffer; ++i)
+								{
+									buf[i] = source->buffer[cur_i++];
+									if(cur_i == source->buffer.size()) // If reach end of buf:
+										cur_i = 0; // TODO: optimise
+								}
 
-							const float* bufptr = buf;
-							resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								source->cur_read_i = cur_i;
+
+								const float* bufptr = buf;
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+							}
+						}
+						else if(source->type == AudioSource::SourceType_Streaming)
+						{
+							if(source->buffer.size() >= frames_per_buffer)
+							{
+								source->buffer.popFrontNItems(temp_buf.data(), frames_per_buffer);
+
+								const float* bufptr = temp_buf.data();
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+							}
+							else
+							{
+								//conPrint("Ran out of data for streaming audio src!");
+
+								for(size_t i=0; i<frames_per_buffer; ++i)
+									temp_buf[i] = 0.f;
+
+								const float* bufptr = temp_buf.data();
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+							}
 						}
 
 						//for(size_t i=0; i<frames_per_buffer; ++i)
@@ -263,7 +286,7 @@ void AudioEngine::init()
 	conPrint("default_output_dev: " + toString(default_output_dev));
 
 	info = audio->getDeviceInfo(default_output_dev);
-	unsigned int use_sample_rate = info.preferredSampleRate;
+	unsigned int use_sample_rate = 44100;// info.preferredSampleRate;
 
 	RtAudio::StreamParameters parameters;
 	parameters.deviceId = audio->getDefaultOutputDevice();
@@ -339,6 +362,12 @@ void AudioEngine::addSource(AudioSourceRef source)
 
 	Lock lock(mutex);
 	audio_sources.insert(source);
+}
+
+
+void AudioEngine::setSourcePosition(AudioSourceRef source, const Vec4f& pos)
+{
+	resonance->SetSourcePosition(source->resonance_handle, pos[0], pos[1], pos[2]);
 }
 
 

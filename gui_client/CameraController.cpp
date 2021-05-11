@@ -287,7 +287,8 @@ Vec3d CameraController::getUpForForwards(const Vec3d& forwards, const Vec3d& sin
 void CameraController::getBasisForAngles(const Vec3d& angles_in, const Vec3d& singular_up, Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out)
 {
 	// Get un-rolled basis
-	forward_out = Vec3d(sin(angles_in.y) * cos(angles_in.x),
+	forward_out = Vec3d(
+		sin(angles_in.y) * cos(angles_in.x),
 		sin(angles_in.y) * sin(angles_in.x),
 		cos(angles_in.y));
 	up_out = getUpForForwards(forward_out, singular_up);

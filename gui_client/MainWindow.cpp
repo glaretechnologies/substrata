@@ -115,16 +115,12 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/KTXDecoder.h" // Just for testing
 #include "../graphics/ImageMapSequence.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
+//#include "../indigo/UVUnwrapper.h" // Just for testing
 
 #ifdef _WIN32
 #include <d3d11.h>
 #include <d3d11_4.h>
 #endif
-
-
-//#include "../indigo/UVUnwrapper.h" // Just for testing
-
-
 
 #if defined(_WIN32) || defined(_WIN64)
 #else
@@ -336,6 +332,30 @@ void MainWindow::initialise()
 	// Create a GPU device.  Needed to get hardware accelerated video decoding.
 	Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
 #endif //_WIN32
+
+
+	audio_engine.init();
+
+	//test_obs.resize(5);
+	test_srcs.resize(test_obs.size());
+	for(int i=0; i<test_srcs.size(); ++i)
+	{
+		test_srcs[i] = new AudioSource();
+		std::vector<float> buf(48000);
+		for(size_t s=0; s<48000; ++s)
+		{
+			const double phase = s * (Maths::get2Pi<double>() / 48000);
+			double val = sin(phase * 100) * 0.5 + sin(phase * 200 * i) * 0.2 + sin(phase * 400 * i) * 0.01 + sin(phase * 800 * i) * 0.002 + rng.unitRandom() * 0.04;
+			const double t = phase * 4;
+			const double window = (t >= 0 && t < 1) ? sin(t * Maths::recipPi<double>()) : 0;
+			val += sin(phase * 320 * i) * window * 0.4;
+
+			buf[s] = (float)val;
+		}
+		test_srcs[i]->buffer.pushBackNItems(buf.data(), buf.size());
+
+		audio_engine.addSource(test_srcs[i]);
+	}
 }
 
 
@@ -777,11 +797,25 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 		// Add any objects with gif or mp4 textures to the set of animated objects.
 		for(size_t i=0; i<ob->materials.size(); ++i)
+		{
 			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "gif") || ::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
 			{
 				//Reference<AnimatedTexObData> anim_data = new AnimatedTexObData();
 				this->obs_with_animated_tex.insert(std::make_pair(ob, AnimatedTexObData()));
 			}
+
+			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
+			{
+				AudioSourceRef audio_source = new AudioSource();
+				audio_source->type = AudioSource::SourceType_Streaming;
+
+				//std::vector<float> buf(48000.0 * 0.5, 0.f);
+				//audio_source->buffer.pushBackNItems(buf.data(), buf.size());
+				ob->audio_source = audio_source;
+				this->audio_engine.addSource(audio_source);
+				this->audio_engine.setSourcePosition(audio_source, ob->pos.toVec4fPoint());
+			}
+		}
 
 
 		if(ob->model_url.empty() || resource_manager->isFileForURLPresent(ob->model_url)) // If this object doesn't use a model resource, or we have downloaded the model resource:
@@ -1395,16 +1429,37 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 }
 
 
-
-
-
-
-
-
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+
+	
+	//TEMP: move test audio source objects
+	if(!test_obs.empty())
+	{
+		Lock audio_engine_lock(audio_engine.mutex);
+
+		for(int i=0; i<test_obs.size(); ++i)
+		{
+			const double phase = (double)i / test_obs.size() * Maths::get2Pi<double>();
+			const double t = total_timer.elapsed() * 0.1;
+			const double r = 7 + sin(phase + 1.23432 * t) * 6;
+			Vec4f pos(
+				(float)(cos(phase + t) * r), 
+				(float)(sin(phase + t) * r), 
+				(float)(4 + sin(t * 1.234234) * 1), 
+				1);
+			//Vec4f pos = Vec4f(0, 0, 3, 1);
+
+			audio_engine.setSourcePosition(test_srcs[i], pos);
+		
+			test_obs[i]->ob_to_world_matrix = Matrix4f::translationMatrix(pos) * Matrix4f::uniformScaleMatrix(0.1f) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+			ui->glWidget->opengl_engine->updateObjectTransformData(*test_obs[i]);
+		}
+	}
+
+
 
 	updateStatusBar();
 
@@ -2125,6 +2180,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	proximity_loader.updateCamPos(campos);
 
+	const Vec3d cam_angles = this->cam_controller.getAngles();
+
+	// Resonance seems to want a to-world transformation
+	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
+
+	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)cam_angles.x - Maths::pi_2<float>());
+	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
+	const Quatf q = z_axis_rot_q * x_axis_rot_q;
+	audio_engine.setHeadTransform(campos, q);
+
 
 	// Update avatar graphics
 	try
@@ -2739,7 +2804,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			conPrint("axis: " + axis.toString());
 			conPrint("angle: " + toString(angle));*/
 
-			const Vec3d cam_angles = this->cam_controller.getAngles();
 			const double angle = cam_angles.x;
 
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -5128,7 +5192,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			glare::testPoolAllocator();
+			//circularBufferTest();
+			//glare::testPoolAllocator();
 			//WMFVideoReader::test();
 			//TextureLoadingTests::test();
 			//KTXDecoder::test();
@@ -5307,6 +5372,12 @@ int main(int argc, char *argv[])
 			{
 				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 				mw.ui->glWidget->opengl_engine->addObject(arrow);
+			}
+
+			for(int i=0; i<mw.test_obs.size(); ++i)
+			{
+				mw.test_obs[i] = mw.ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(0.9, 0.2, 0.5, 1.f));
+				mw.ui->glWidget->opengl_engine->addObject(mw.test_obs[i]);
 			}
 
 

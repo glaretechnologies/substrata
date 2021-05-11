@@ -15,10 +15,11 @@ Copyright Glare Technologies Limited 2016 -
 #include <BufferInStream.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
+#include "../audio/AudioEngine.h"
 #include <SceneNodeModel.h>
+#include "../gui_client/WinterShaderEvaluator.h"
 #endif
 #include "../gui_client/PhysicsObject.h"
-#include "../gui_client/WinterShaderEvaluator.h"
 #include "../shared/ResourceManager.h"
 #include <zstd.h>
 

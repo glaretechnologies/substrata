@@ -25,10 +25,20 @@ namespace vraudio { class ResonanceAudioApi; }
 class AudioSource : public ThreadSafeRefCounted
 {
 public:
-	AudioSource() : cur_i(0) {}
+	enum SourceType
+	{
+		SourceType_Looping,
+		SourceType_OneShot,
+		SourceType_Streaming
+	};
+
+	AudioSource() : cur_read_i(0), type(SourceType_Looping) {}
 	int resonance_handle;
-	std::vector<float> buffer;
-	size_t cur_i;
+	//std::vector<float> buffer;
+	size_t cur_read_i;
+	CircularBuffer<float> buffer; // Read from front, enqueue to back.
+
+	SourceType type;
 };
 typedef Reference<AudioSource> AudioSourceRef;
 
@@ -66,6 +76,8 @@ public:
 	void shutdown();
 
 	void addSource(AudioSourceRef source);
+
+	void setSourcePosition(AudioSourceRef source, const Vec4f& pos);
 
 	void setHeadTransform(const Vec4f& head_pos, const Quatf& head_rot);
 
