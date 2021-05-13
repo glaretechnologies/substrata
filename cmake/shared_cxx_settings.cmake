@@ -115,6 +115,11 @@ if(WIN32)
 
 	# 'nonstandard extension used : nameless struct/union'
 	add_definitions(/wd4201)
+	
+	# warning C5240: 'nodiscard': attribute is ignored in this syntactic position (compiling source file O:\new_cyberspace\trunk\qt
+	# Getting in 5.13.2 Qt headers.
+	add_definitions(/wd5240)
+	
 	################################
 	
 	add_definitions(/GS- /fp:fast)

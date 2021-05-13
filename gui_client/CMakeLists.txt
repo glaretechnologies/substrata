@@ -561,12 +561,7 @@ if(WIN32)
 		ole32
 		winmm 
 		dsound
-		
-		# Resonance audio
-		#debug     ${resonance_audio_dir}/lib/ResonanceAudioStatic_debug.lib
-#		debug ${INDIGO_LIBS_ENV}/resonance-audio/trunk/build/resonance_audio/Debug/ResonanceAudioStatic.lib
-#		optimized ${resonance_audio_dir}/lib/ResonanceAudioStatic_relwithdebinfo.lib
-		)
+	)
 
 	# Disable ASLR (/DYNAMICBASE)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)

@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "../shared/Protocol.h"
 #include "../shared/ResourceManager.h"
 #include "../gui_client/ClientThread.h"
-#include <networking/networking.h>
+#include <networking/Networking.h>
 #include <networking/TLSSocket.h>
 #include <PlatformUtils.h>
 #include <Clock.h>
