@@ -31,6 +31,7 @@ Avatar::Avatar()
 #if GUI_CLIENT
 	name_colour = Colour3f(0.8f);
 #endif
+	anim_state = 0;
 }
 
 

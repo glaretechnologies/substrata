@@ -645,6 +645,7 @@ void WorkerThread::doRun()
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f rotation = readVec3FromStream<float>(*socket);
+						const uint32 anim_state = socket->readUInt32();
 
 						// Look up existing avatar in world state
 						{
@@ -655,6 +656,7 @@ void WorkerThread::doRun()
 								Avatar* avatar = res->second.getPointer();
 								avatar->pos = pos;
 								avatar->rotation = rotation;
+								avatar->anim_state = anim_state;
 								avatar->transform_dirty = true;
 
 								//conPrint("updated avatar transform");

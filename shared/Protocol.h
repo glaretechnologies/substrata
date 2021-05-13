@@ -15,8 +15,7 @@ CyberspaceProtocolVersion
 22: Added grid object querying stuff
 23: Added ObjectModelURLChanged
 24: Added material emission_lum_flux
-25: Added AvatarIsHere message
-
+25: Added AvatarIsHere message, Added anim_state to avatar
 */
 namespace Protocol
 {

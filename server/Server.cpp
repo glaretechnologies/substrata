@@ -33,6 +33,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <networking/HTTPClient.h>//TEMP for testing
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/WebDataStore.h"
+#include <WorkerThreadTests.h>//TEMP for testing
 #include <WebListenerThread.h>
 #include "../webserver/CoinbasePollerThread.h"
 
@@ -186,6 +187,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			web::WorkerThreadTests::test();
 			//SHA256::test();
 			//CryptoRNG::test();
 			StringUtils::test();
@@ -525,6 +527,7 @@ int main(int argc, char *argv[])
 								writeToStream(avatar->uid, packet);
 								writeToStream(avatar->pos, packet);
 								writeToStream(avatar->rotation, packet);
+								packet.writeUInt32(avatar->anim_state);
 
 								enqueuePacketToBroadcast(packet, world_packets);
 
