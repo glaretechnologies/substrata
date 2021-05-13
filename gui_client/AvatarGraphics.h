@@ -45,6 +45,7 @@ public:
 	void setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target_pos); // create or update beam
 	void hideSelectedObBeam(OpenGLEngine& engine);
 
+	static float walkCyclePeriod() { return 7.f / Maths::get2Pi<float>(); }
 
 	struct BodyPart
 	{

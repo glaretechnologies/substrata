@@ -1,7 +1,7 @@
 /*=====================================================================
 PlayerPhysics.cpp
 -----------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2021 -
 File created by ClassTemplate on Mon Sep 23 15:14:04 2002
 =====================================================================*/
 #include "PlayerPhysics.h"
@@ -20,7 +20,7 @@ static const float jumpspeed = 4.5;
 static const float maxairspeed = 8;
 
 
-static const float JUMP_PERIOD = 0.1f;
+static const float JUMP_PERIOD = 0.1f; // Allow a jump command to be executed even if the player is not quite on the ground yet.
 
 
 PlayerPhysics::PlayerPhysics()
@@ -30,7 +30,8 @@ PlayerPhysics::PlayerPhysics()
 	lastvel(0,0,0),
 	jumptimeremaining(0),
 	onground(false),
-	flymode(false)
+	flymode(false),
+	last_runpressed(false)
 {
 }
 
@@ -38,12 +39,6 @@ PlayerPhysics::PlayerPhysics()
 PlayerPhysics::~PlayerPhysics()
 {
 }
-
-
-//void PlayerPhysics::preDestroy()
-//{
-//	lastgroundagent = NULL;
-//}
 
 
 inline float doRunFactor(bool runpressed)
@@ -57,12 +52,14 @@ inline float doRunFactor(bool runpressed)
 
 void PlayerPhysics::processMoveForwards(float factor, bool runpressed, CameraController& cam)
 {
+	last_runpressed = runpressed;
 	moveimpulse += ::toVec3f(cam.getForwardsVec()) * factor * movespeed * doRunFactor(runpressed);
 }
 
 
 void PlayerPhysics::processStrafeRight(float factor, bool runpressed, CameraController& cam)
 {
+	last_runpressed = runpressed;
 	moveimpulse += ::toVec3f(cam.getRightVec()) * factor * movespeed * doRunFactor(runpressed);
 
 }
@@ -70,6 +67,7 @@ void PlayerPhysics::processStrafeRight(float factor, bool runpressed, CameraCont
 
 void PlayerPhysics::processMoveUp(float factor, bool runpressed, CameraController& cam)
 {
+	last_runpressed = runpressed;
 	if(flymode)
 		moveimpulse += Vec3f(0,0,1) * factor * movespeed * doRunFactor(runpressed);
 }
@@ -87,14 +85,17 @@ void PlayerPhysics::setFlyModeEnabled(bool enabled)
 }
 
 
-const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,
+static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,
 										bool constrain_to_vertical);
 
 
-void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_out)
+UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_in_out)
 {
 	//printVar(onground);
 	//conPrint("lastgroundnormal: " + lastgroundnormal.toString());
+
+	UpdateEvents events;
+	
 
 	//-----------------------------------------------------------------
 	//apply any jump impulse
@@ -105,6 +106,7 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadConte
 		{
 			onground = false;
 			vel += Vec3f(0,0,1) * jumpspeed;
+			events.jumped = true;
 		}
 	}
 
@@ -113,11 +115,10 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadConte
 	//-----------------------------------------------------------------
 	//apply movement forces
 	//-----------------------------------------------------------------
-	if(!flymode)//if not flying
+	if(!flymode) // if not flying
 	{
 		if(onground)
 		{
-	
 			//-----------------------------------------------------------------
 			//restrict movement to parallel to plane standing on,
 			//otherwise will 'take off' from downwards sloping surfaces when walking.
@@ -140,10 +141,8 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadConte
 		//-----------------------------------------------------------------
 		//apply grav
 		//-----------------------------------------------------------------
-		Vec3f dvel(0,0,0);
+		Vec3f dvel(0, 0, -9.81f);
 
-		dvel.z -= 9.81f;
-			
 		if(!onground)
 		{
 			//-----------------------------------------------------------------
@@ -167,12 +166,12 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadConte
 
 		vel += dvel * dtime;
 
-		if(vel.z < -100)//cap falling speed at 100 m/s
+		if(vel.z < -100) // cap falling speed at 100 m/s
 			vel.z = -100;
 	}
 	else
 	{
-		//else if flymode, no inertia so just set vel to the desired move direction
+		// else if flymode, no inertia so just set vel to the desired move direction
 		vel = moveimpulse;
 	}
 
@@ -187,7 +186,7 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadConte
 	//-----------------------------------------------------------------
 	Vec3f dpos = vel*dtime;
 
-	Vec3f campos = toVec3f(campos_out);//.toVec3();
+	Vec3f campos = toVec3f(campos_in_out);
 
 	for(int i=0; i<5; ++i)
 	{	
@@ -290,13 +289,13 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadConte
 					lastgroundnormal = hit_normal;
 
 					//-----------------------------------------------------------------
-					//kill remaing dpos to prevent sliding down slopes
+					//kill remaining dpos to prevent sliding down slopes
 					//-----------------------------------------------------------------
 					if(was_just_falling)
 						dpos.set(0,0,0);
 				}
 
-				//debugPrint("hit something."); 
+				// conPrint("Sphere trace hit something.   hit_normal: " + hit_normal.toString() + ", onground: " + boolToString(onground)); 
 			}
 			else
 			{
@@ -327,27 +326,34 @@ void PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadConte
 				
 			}
 
-			campos += doSpringRelaxation(springspheresets, onground);
+			const Vec3f displacement = doSpringRelaxation(springspheresets, onground);
+			campos += displacement;
+
+			// If we were repelled from an upwards facing surface, consider us to be on the ground.
+			if(displacement != Vec3f(0, 0, 0) && normalise(displacement).z > 0.5f)
+				onground = true;
 		}
 	}
 		
-	campos_out = campos.toVec4fPoint();
+	campos_in_out = campos.toVec4fPoint();
 
 	moveimpulse.set(0,0,0);
+
+	return events;
 }
 
 
-const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,
+static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,
 										bool constrain_to_vertical)
 {
-	Vec3f displacement(0,0,0);//total displacement so far of spheres
+	Vec3f displacement(0,0,0); // total displacement so far of spheres
 
 	int num_iters_done = 0;
 	for(int i=0; i<100; ++i)
 	{	
 		num_iters_done++;
-		Vec3f force(0,0,0);//sum of forces acting on spheres from all springs
-		int numforces = 0;//num forces acting on spheres
+		Vec3f force(0,0,0); // sum of forces acting on spheres from all springs
+		int numforces = 0; // num forces acting on spheres
 
 		for(int s=0; s<springspheresets.size(); ++s)
 		{
@@ -384,7 +390,7 @@ const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheres
 		if(numforces != 0)
 			force /= (float)numforces;
 
-		//NEWCODE: do constrain to veritcal movement
+		//NEWCODE: do constrain to vertical movement
 		if(constrain_to_vertical)
 		{
 			force.x = force.y = 0;

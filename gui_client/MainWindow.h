@@ -375,4 +375,7 @@ public:
 	std::vector<AudioSourceRef> test_srcs;
 
 	//std::vector<AudioSourceRef> footstep_sources;
+
+	Timer last_footstep_timer;
+	int last_foostep_side;
 };

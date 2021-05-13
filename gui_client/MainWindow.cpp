@@ -164,7 +164,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	process_model_loaded_next(true),
 	done_screenshot_setup(false),
 	proximity_loader(/*load distance=*/ob_load_distance),
-	client_tls_config(NULL)
+	client_tls_config(NULL),
+	last_foostep_side(0)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -1820,6 +1821,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					this->client_thread->enqueueDataToSend(packet);
 				}
+
+				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
+					(this->cam_controller.getPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 			}
 			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
 			{
@@ -2171,12 +2175,39 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Process player physics
 	Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
 	const Vec4f last_campos = campos;
-	player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
+	const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
 	this->cam_controller.setPosition(toVec3d(campos));
 
 	if(campos.getDist(last_campos) > 0.01)
 	{
 		ui->indigoView->cameraUpdated(this->cam_controller);
+
+		const float walk_cycle_period = AvatarGraphics::walkCyclePeriod() * 0.5f;
+		const float walk_run_cycle_period = player_physics.isRunPressed() ? (walk_cycle_period * 0.5f) : walk_cycle_period;
+		if(player_physics.onGround() && (last_footstep_timer.elapsed() > walk_run_cycle_period))
+		{
+			last_foostep_side = (last_foostep_side + 1) % 2;
+
+			// 4cm left/right, 40cm forwards.
+			const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) + 
+				cam_controller.getForwardsVec().toVec4fVector() * 0.4f + 
+				cam_controller.getRightVec().toVec4fVector() * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
+			//conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3));
+
+			const int rnd_src_i = rng.nextUInt(4);
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
+
+			last_footstep_timer.reset();
+		}
+
+		if(physics_events.jumped)
+		{
+			const Vec4f jump_sound_pos = campos - Vec4f(0, 0, 0.1f, 0) +
+				cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
+
+			const int rnd_src_i = rng.nextUInt(4);
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
+		}
 	}
 
 	proximity_loader.updateCamPos(campos);
@@ -2290,7 +2321,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					AnimEvents anim_events;
 					avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time, anim_events);
 					
-					if(anim_events.footstrike)
+					if((avatar->anim_state == 0) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
 					{
 						//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
 						//footstep_sources[rnd_src_i]->cur_read_i = 0;
@@ -2837,12 +2868,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			conPrint("angle: " + toString(angle));*/
 
 			const double angle = cam_angles.x;
+			const uint32 anim_state = player_physics.onGround() ? 0 : 1;
 
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, packet);
 			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
 			writeToStream(Vec3f(0, 0, (float)angle), packet);
+			packet.writeUInt32(anim_state);
 
 			this->client_thread->enqueueDataToSend(packet);
 		}

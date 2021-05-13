@@ -44,6 +44,7 @@ public:
 	std::string model_url;
 	Vec3d pos;
 	Vec3f rotation;
+	uint32 anim_state; // 0 on ground, 1 = flying
 
 	UID selected_object_uid; // Will be set to invalidUID if no object selected.
 
