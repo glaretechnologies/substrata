@@ -611,25 +611,32 @@ SoundFileRef AudioEngine::loadSoundFile(const std::string& sound_file_path)
 
 void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec4f& pos)
 {
-	SoundFileRef sound;
-	auto res = sound_files.find(sound_file_path);
-	if(res == sound_files.end())
+	try
 	{
-		// Load the sound
-		sound = loadSoundFile(sound_file_path);
-		sound_files.insert(std::make_pair(sound_file_path, sound));
+		SoundFileRef sound;
+		auto res = sound_files.find(sound_file_path);
+		if(res == sound_files.end())
+		{
+			// Load the sound
+			sound = loadSoundFile(sound_file_path);
+			sound_files.insert(std::make_pair(sound_file_path, sound));
+		}
+		else
+			sound = res->second;
+
+		// Make a new audio source
+		AudioSourceRef source = new AudioSource();
+		source->type = AudioSource::SourceType_OneShot;
+		source->buffer.pushBackNItems(sound->buf.data(), sound->buf.size());
+		source->remove_on_finish = true;
+
+		addSource(source);
+		resonance->SetSourcePosition(source->resonance_handle, pos[0], pos[1], pos[2]);
 	}
-	else
-		sound = res->second;
-
-	// Make a new audio source
-	AudioSourceRef source = new AudioSource();
-	source->type = AudioSource::SourceType_OneShot;
-	source->buffer.pushBackNItems(sound->buf.data(), sound->buf.size());
-	source->remove_on_finish = true;
-
-	addSource(source);
-	resonance->SetSourcePosition(source->resonance_handle, pos[0], pos[1], pos[2]);
+	catch(glare::Exception& e)
+	{
+		conPrint("Warning: Error while trying to play sound: " + e.what());
+	}
 }
 
 

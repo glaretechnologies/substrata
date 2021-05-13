@@ -4,7 +4,6 @@ MainWindow.cpp
 Copyright Glare Technologies Limited 2020 -
 =====================================================================*/
 #if defined(_WIN32)
-#define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #endif
 
@@ -335,6 +334,8 @@ void MainWindow::initialise()
 
 
 	audio_engine.init();
+	//for(int i=0; i<4; ++i)
+	//	this->footstep_sources.push_back(audio_engine.addSourceFromSoundFile("D:\\audio\\sound_effects\\footstep_mono" + toString(i) + ".wav"));
 
 	//test_obs.resize(5);
 	test_srcs.resize(test_obs.size());
@@ -2272,6 +2273,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						ui->glWidget->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
 					}
+
+					// Play entry teleport sound
+					audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
+
 				} // End if reload_opengl_model
 
 
@@ -2282,7 +2287,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(avatar->graphics.nonNull())
 				{
-					avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time);
+					AnimEvents anim_events;
+					avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time, anim_events);
+					
+					if(anim_events.footstrike)
+					{
+						//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
+						//footstep_sources[rnd_src_i]->cur_read_i = 0;
+						//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
+						const int rnd_src_i = rng.nextUInt(4);
+						audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
+					}
 				}
 
 				// Update nametag transform also
@@ -2366,7 +2381,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	//TEMP
 	if(test_avatar.nonNull())
-		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, Vec3d(0, 3, 1.67), Vec3f(0, 0, 0), cur_time);
+	{
+		AnimEvents anim_events;
+		const double phase_speed = 0.5;
+		const double phase = phase_speed*cur_time;
+		Vec3d pos(cos(phase) * 3, sin(phase) * 3, 1.67);
+		test_avatar->setOverallTransform(*ui->glWidget->opengl_engine, pos, Vec3f(0, 0, (float)phase + Maths::pi_2<float>()), cur_time, anim_events);
+		if(anim_events.footstrike)
+		{
+			//conPrint("footstrike");
+			//footstep_source->cur_read_i = 0;
+			//audio_engine.setSourcePosition(footstep_source, anim_events.footstrike_pos.toVec4fPoint());
+			const int rnd_src_i = rng.nextUInt(4);// (uint32)footstep_sources.size());
+			//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
+			//footstep_sources[rnd_src_i]->cur_read_i = 0;
+
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
+		}
+	}
 
 
 	bool need_physics_world_rebuild = false;
@@ -4590,6 +4622,11 @@ void MainWindow::pickUpSelectedObject()
 			ui->objectEditor->objectPickedUp();
 
 			selected_ob_picked_up = true;
+
+
+			// Play pick up sound, in the direction of the selection point
+			const Vec4f to_pickup_point = normalise(selection_point_ws - origin);
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/select_mono.wav", origin + to_pickup_point * 0.4f);
 		}
 	}
 }
@@ -4612,6 +4649,13 @@ void MainWindow::dropSelectedObject()
 		ui->objectEditor->objectDropped();
 
 		selected_ob_picked_up = false;
+
+		// Play drop item sound, in the direction of the selection point.
+		const Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f selection_point_ws = obToWorldMatrix(*this->selected_ob) * this->selection_point_os;
+		const Vec4f to_pickup_point = normalise(selection_point_ws - campos);
+
+		audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/deselect_mono.wav", campos + to_pickup_point * 0.4f);
 	}
 }
 
@@ -5192,6 +5236,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			AudioEngine::test();
 			//circularBufferTest();
 			//glare::testPoolAllocator();
 			//WMFVideoReader::test();
@@ -5728,7 +5773,8 @@ int main(int argc, char *argv[])
 				{
 					test_avatar = new AvatarGraphics();
 					test_avatar->create(*mw.ui->glWidget->opengl_engine);
-					test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), 0.0);
+					AnimEvents anim_events;
+					test_avatar->setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), 0.0, anim_events);
 				}
 
 				// Load a wedge
