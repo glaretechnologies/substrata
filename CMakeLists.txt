@@ -268,9 +268,9 @@ ADD_SUBDIRECTORY(gui_client gui_client)
 ADD_SUBDIRECTORY(server server)
 
 # Disabled for now as require INDIGO SDK:
-ADD_SUBDIRECTORY(cv_bot cv_bot)
+#ADD_SUBDIRECTORY(cv_bot cv_bot)
 
-ADD_SUBDIRECTORY(lightmapper_bot lightmapper_bot)
+#ADD_SUBDIRECTORY(lightmapper_bot lightmapper_bot)
 
-ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
+#ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
 
