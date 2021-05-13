@@ -57,7 +57,7 @@ frame
 130			9.2	15			<- max extension
 132			9, 15
 134			8.8, 15.2
-136			8.7		15.15
+136			8.7		15.15		<-- right foot strikes ground
 138			8.7	15.5
 140			8.5	15.5
 142			8.4	15.5
@@ -83,7 +83,7 @@ frame
 182			3.7		15.3
 184			3.6		15.2
 186			3.4		15.1
-188			3.1		15.0
+188			3.1		15.0     <-- left foot strikes ground
 190			2.9		14.8
 192			2.8		14.8
 194			2.8		14.6
@@ -108,7 +108,7 @@ frame
 232			8.7		15.3
 234			8.8		15.3		<-- max extension
 236			8.8		15.3
-238			8.6		15.4
+238			8.6		15.4     <-- right foot strikes ground
 240			8.5		15.5
 
 
@@ -118,7 +118,7 @@ static const float ankle_data[] = {
 /*130*/	8.85,		15.275,		 10, //Frame 130, max right ankle extension
 /*132*/	8.9	,		15.3,		 5,
 /*134*/	8.8	,		15.35,		 5,
-/*136*/	8.7	,		15.4,		 4,
+/*136*/	8.7	,		15.4,		 4, // right foot strikes ground
 /*138*/	8.6	,		15.5,		 2,
 /*140*/	8.5	,		15.5,		 0,
 /*142*/	8.4	,		15.5,		 0,
@@ -144,7 +144,7 @@ static const float ankle_data[] = {
 /*182*/	3.7	,		15.4,		 -8,
 /*184*/	3.6	,		15.3,		 -10,
 /*186*/	3.4	,		15.2,		 -15,
-/*188*/	3.1	,		15.1,		-25,
+/*188*/	3.1	,		15.1,		-25, // left foot strikes ground
 /*190*/	2.9	,		14.9,		 -30,
 /*192*/	2.8	,		14.75,		 -40,
 /*194*/	2.87,		14.57,		 -50,
@@ -214,11 +214,11 @@ static const float lower_leg_radius = 0.04f;
 //}
 
 
-void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time)
+void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time, AnimEvents& anim_events_out)
 {
 	if(pos.getDist(last_pos) > 0.002)
 	{
-		setWalkAnimation(engine, pos, rotation, cur_time);
+		setWalkAnimation(engine, pos, rotation, cur_time, anim_events_out);
 	}
 	else
 	{
@@ -326,7 +326,7 @@ void AvatarGraphics::setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, c
 }
 
 
-void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time)
+void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time, AnimEvents& anim_events_out)
 {
 	const Matrix4f overall = rotateThenTranslateMatrix(pos, rotation);
 
@@ -369,6 +369,14 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 		const float ypos = anim_y * -0.1f - 0.02f;
 		foot_rot_angle_0 = degreeToRad(anim_z);
 		ankle_pos_0 = Vec4f(xpos, -foot_pos_half_width, ypos, 1.f);
+
+		if(index == 29)
+		{
+			// Left foot hits ground
+			const Vec4f strike_pos_ws = overall * ankle_pos_0;
+			anim_events_out.footstrike = true;
+			anim_events_out.footstrike_pos = Vec3d(strike_pos_ws[0], strike_pos_ws[1], strike_pos_ws[2]); // Just use ankle position for sound pos.
+		}
 	}
 
 	Vec4f ankle_pos_1;
@@ -386,6 +394,14 @@ void AvatarGraphics::setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, co
 		const float ypos = anim_y * -0.1f - 0.02f;
 		foot_rot_angle_1 = degreeToRad(anim_z);
 		ankle_pos_1 = Vec4f(xpos, foot_pos_half_width, ypos, 1.f);
+
+		if(index == 29) // Note frames are offset here due to 0.5f in phase.
+		{
+			// Right foot hits ground
+			const Vec4f strike_pos_ws = overall * ankle_pos_1;
+			anim_events_out.footstrike = true;
+			anim_events_out.footstrike_pos = Vec3d(strike_pos_ws[0], strike_pos_ws[1], strike_pos_ws[2]); // Just use ankle position for sound pos.
+		}
 	}
 
 	const float phase_1 = Maths::pi<float>();

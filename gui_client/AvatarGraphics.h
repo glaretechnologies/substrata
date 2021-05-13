@@ -18,6 +18,13 @@ struct GLObject;
 class OpenGLEngine;
 
 
+struct AnimEvents
+{
+	AnimEvents() : footstrike(false) {}
+	bool footstrike;
+	Vec3d footstrike_pos;
+};
+
 /*=====================================================================
 AvatarGraphics
 --------------
@@ -29,7 +36,7 @@ public:
 	AvatarGraphics();
 	~AvatarGraphics();
 
-	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
+	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time, AnimEvents& anim_events_out);
 
 	void create(OpenGLEngine& engine);
 
@@ -64,7 +71,7 @@ public:
 	
 
 private:
-	void setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
+	void setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time, AnimEvents& anim_events_out);
 	void setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
 
 	Vec3d last_pos;
