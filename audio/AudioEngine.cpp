@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "../rtaudio/RtAudio.h"
-#include <resonance_audio_api.h>
+#include <resonance_audio/api/resonance_audio_api.h>
 #include <utils/MessageableThread.h>
 #include <utils/CircularBuffer.h>
 #include <utils/ConPrint.h>
