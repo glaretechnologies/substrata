@@ -1,0 +1,7 @@
+The code was checked out from https://github.com/resonance-audio/resonance-audio early may 2021.
+third_party/clone_core_deps.sh was run
+
+renamed "D:\programming\resonance-audio\trunk\platforms\common\utils.cc" -> "D:\programming\resonance-audio\trunk\platforms\common\common_utils.cc"
+as .obj filenames were clashing
+
+Including most files in cmake, apart from test files. (ones with _test.cc suffix)
