@@ -162,7 +162,7 @@ size_t BinauralSurroundRendererImpl::GetExpectedNumChannelsFromSurroundFormat(
       return false;
       break;
   }
-  return 0;
+  //TEMP NICK GLARE NEWCODE  return 0;
 }
 
 void BinauralSurroundRendererImpl::InitializeBinauralMono() {
