@@ -12,7 +12,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../gui_client/DownloadResourcesThread.h"
 #include "../gui_client/NetDownloadResourcesThread.h"
 #include "../gui_client/UploadResourceThread.h"
-#include <networking/networking.h>
+#include <networking/Networking.h>
 #include <networking/TLSSocket.h>
 #include <PlatformUtils.h>
 #include <Clock.h>
@@ -26,7 +26,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <FileChecksum.h>
 #include <FileUtils.h>
 #include <GlareProcess.h>
-#include <networking/url.h>
+#include <networking/URL.h>
 #define USE_INDIGO_SDK 1
 // Indigo SDK headers:
 #if USE_INDIGO_SDK
