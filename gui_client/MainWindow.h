@@ -373,4 +373,6 @@ private:
 public:
 	std::vector<GLObjectRef> test_obs;
 	std::vector<AudioSourceRef> test_srcs;
+
+	//std::vector<AudioSourceRef> footstep_sources;
 };
