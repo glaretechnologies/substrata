@@ -369,10 +369,10 @@ private:
 	WGL wgl_funcs;
 #endif
 
-	AudioEngine audio_engine;
+	glare::AudioEngine audio_engine;
 public:
 	std::vector<GLObjectRef> test_obs;
-	std::vector<AudioSourceRef> test_srcs;
+	std::vector<glare::AudioSourceRef> test_srcs;
 
 	//std::vector<AudioSourceRef> footstep_sources;
 

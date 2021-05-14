@@ -19,8 +19,14 @@ Copyright Glare Technologies Limited 2021 -
 
 
 class RtAudio;
-class AudioEngine;
 namespace vraudio { class ResonanceAudioApi; }
+
+
+namespace glare
+{
+
+
+class AudioEngine;
 
 
 class AudioSource : public ThreadSafeRefCounted
@@ -119,3 +125,6 @@ public:
 
 	std::map<std::string, SoundFileRef> sound_files;
 };
+
+
+} // end namespace glare

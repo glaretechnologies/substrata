@@ -342,7 +342,7 @@ void MainWindow::initialise()
 	test_srcs.resize(test_obs.size());
 	for(int i=0; i<test_srcs.size(); ++i)
 	{
-		test_srcs[i] = new AudioSource();
+		test_srcs[i] = new glare::AudioSource();
 		std::vector<float> buf(48000);
 		for(size_t s=0; s<48000; ++s)
 		{
@@ -808,8 +808,8 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
 			{
-				AudioSourceRef audio_source = new AudioSource();
-				audio_source->type = AudioSource::SourceType_Streaming;
+				glare::AudioSourceRef audio_source = new glare::AudioSource();
+				audio_source->type = glare::AudioSource::SourceType_Streaming;
 
 				//std::vector<float> buf(48000.0 * 0.5, 0.f);
 				//audio_source->buffer.pushBackNItems(buf.data(), buf.size());
@@ -5269,7 +5269,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			AudioEngine::test();
+			glare::AudioEngine::test();
 			//circularBufferTest();
 			//glare::testPoolAllocator();
 			//WMFVideoReader::test();

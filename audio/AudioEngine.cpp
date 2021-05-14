@@ -17,6 +17,8 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/FileInStream.h>
 
 
+namespace glare
+{
 
 float SoundFile::maxVal() const
 {
@@ -322,7 +324,10 @@ void AudioEngine::init()
 	audio = new RtAudio();
 	
 	// Determine the number of devices available
-	unsigned int devices = audio->getDeviceCount();
+	const unsigned int devices = audio->getDeviceCount();
+	if(devices == 0)
+		throw glare::Exception("No audio devices found");
+
 	// Scan through devices for various capabilities
 	RtAudio::DeviceInfo info;
 	for ( unsigned int i=0; i<devices; i++ ) {
@@ -341,10 +346,13 @@ void AudioEngine::init()
 	}
 
 
-	unsigned int default_output_dev = audio->getDefaultOutputDevice();
+	const unsigned int default_output_dev = audio->getDefaultOutputDevice();
 	conPrint("default_output_dev: " + toString(default_output_dev));
 
 	info = audio->getDeviceInfo(default_output_dev);
+	if(!info.isDefaultOutput)
+		throw glare::Exception("Failed to find output audio device");
+
 	unsigned int use_sample_rate = 44100;// info.preferredSampleRate;
 
 	RtAudio::StreamParameters parameters;
@@ -666,6 +674,9 @@ AudioSourceRef AudioEngine::addSourceFromSoundFile(const std::string& sound_file
 }
 
 
+} // end namespace glare
+
+
 #if BUILD_TESTS
 
 
@@ -676,7 +687,7 @@ AudioSourceRef AudioEngine::addSourceFromSoundFile(const std::string& sound_file
 #include "../utils/TestUtils.h"
 
 
-void AudioEngine::test()
+void glare::AudioEngine::test()
 {
 	try
 	{
