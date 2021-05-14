@@ -416,7 +416,8 @@ MainWindow::~MainWindow()
 
 	// Kill ClientThread
 	print("killing ClientThread");
-	this->client_thread->killConnection();
+	if(this->client_thread.nonNull())
+		this->client_thread->killConnection();
 	this->client_thread = NULL;
 	this->client_thread_manager.killThreadsBlocking();
 	print("killed ClientThread");
@@ -5428,8 +5429,8 @@ int main(int argc, char *argv[])
 				}
 				catch(glare::Exception& e)
 				{
-					assert(0);
 					conPrint("ERROR: " + e.what());
+					assert(0);
 				}
 				env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
