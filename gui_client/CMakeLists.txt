@@ -567,11 +567,16 @@ if(WIN32)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} /DYNAMICBASE:NO")
 elseif(APPLE)
+	
+	add_definitions(-D__MACOSX_CORE__) # Add CoreAudio config choice define for RTAudio
+	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtSql -framework OpenGL -framework Security")
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui
+		-framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtSql -framework OpenGL -framework Security
+		-framework CoreAudio -framework CoreFoundation")
 else() # linux
 	SET(QT_LINUX_LIBS GL
 		Qt5Gui
