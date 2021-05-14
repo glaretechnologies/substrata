@@ -22,7 +22,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <set>
 struct GLObject;
 class PhysicsObject;
-class AudioSource;
+namespace glare { class AudioSource; }
 class ResourceManager;
 class WinterShaderEvaluator;
 class Matrix4f;
@@ -161,7 +161,7 @@ public:
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
-	Reference<AudioSource> audio_source;
+	Reference<glare::AudioSource> audio_source;
 
 	ImageMapUInt8Ref hypercard_map;
 
