@@ -578,12 +578,16 @@ elseif(APPLE)
 		-framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtSql -framework OpenGL -framework Security
 		-framework CoreAudio -framework CoreFoundation")
 else() # linux
+
+	add_definitions(-D__LINUX_ALSA__) # Add ALSA config choice define for RTAudio
+
 	SET(QT_LINUX_LIBS GL
 		Qt5Gui
 		Qt5Core
 		Qt5OpenGL
 		Qt5Widgets
 		dl
+		asound # ALSA lib required by RTAudio
 	)
 
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
