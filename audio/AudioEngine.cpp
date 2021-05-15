@@ -302,7 +302,7 @@ public:
 		}
 	}
 
-	virtual void kill()
+	virtual void kill() override
 	{
 		die = 1;
 	}
@@ -474,20 +474,20 @@ SoundFileRef AudioEngine::loadWavFile(const std::string& sound_file_path)
 		if(riff_chunk_id != 0x46464952) // big endian: 0x52494646
 			throw glare::Exception("invalid header, expected RIFF");
 
-		const uint32 riff_chunk_size = file.readUInt32();
-		const uint32 riff_chunk_format = file.readUInt32();
+		/*const uint32 riff_chunk_size =*/ file.readUInt32();
+		/*const uint32 riff_chunk_format =*/ file.readUInt32();
 
 		const uint32 fmt_chunk_id = file.readUInt32();
 		if(fmt_chunk_id != 0x20746d66) // big endian: 0x666d7420
 			throw glare::Exception("invalid fmt chunk id, expected fmt");
-		const uint32 fmt_chunk_size = file.readUInt32();
+		/*const uint32 fmt_chunk_size =*/ file.readUInt32();
 		const uint16 audio_format = file.readUInt16();
 		if(audio_format != 1)
 			throw glare::Exception("Unhandled audio format, only 1 (PCM) handled.");
 		const uint16 wav_num_channels = file.readUInt16();
 		const uint32 sample_rate = file.readUInt32();
-		const uint32 byte_rate = file.readUInt32();
-		const uint16 block_align = file.readUInt16();
+		const uint32 byte_rate = file.readUInt32(); // TODO: handle this by resampling to target rate.
+		/*const uint16 block_align =*/ file.readUInt16(); // TODO: handle this?
 		const uint16 bits_per_sample = file.readUInt16();
 
 		sound->num_channels = 1; // mix down to mono
@@ -514,7 +514,6 @@ SoundFileRef AudioEngine::loadWavFile(const std::string& sound_file_path)
 
 				sound->buf.resize(num_samples / wav_num_channels); // TEMP: mix down to mono
 
-				const size_t file_bytes_remaining = file.fileSize() - file.getReadIndex();
 				const size_t expected_remaining = bytes_per_sample * num_samples;
 				if(file.getReadIndex() + expected_remaining > file.fileSize())
 					throw glare::Exception("not enough data in file.");
