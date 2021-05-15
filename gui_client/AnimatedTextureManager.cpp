@@ -18,7 +18,7 @@ Copyright Glare Technologies Limited 2021-
 
 
 AnimatedTexData::AnimatedTexData()
-:	media_player(NULL), cur_frame_i(0), latest_tex_index(0), in_anim_time(0), encounted_error(false)
+:	media_player(NULL), cur_frame_i(0), in_anim_time(0), encounted_error(false), at_vidreader_EOS(false), num_samples_pending(0)
 #ifdef _WIN32
 	, locked_interop_tex_ob(0)
 #endif
@@ -62,11 +62,11 @@ void AnimatedTexData::shutdown(
 class SubstrataVideoReaderCallback : public VideoReaderCallback
 {
 public:
-	virtual void frameDecoded(VideoReader* vid_reader, const FrameInfoRef& frameinfo)
+	virtual void frameDecoded(VideoReader* vid_reader, const SampleInfoRef& frameinfo)
 	{
 		//conPrint("frameDecoded, time " + toString(frameinfo.frame_time));
 
-		frameinfos->enqueue(frameinfo);
+		sample_queue->enqueue(frameinfo);
 	}
 
 
@@ -75,10 +75,10 @@ public:
 		//conPrint("endOfStream()");
 
 		// insert an empty FrameInfo to signify EOS
-		frameinfos->enqueue(NULL);
+		sample_queue->enqueue(NULL);
 	}
 
-	ThreadSafeQueue<FrameInfoRef>* frameinfos;
+	ThreadSafeQueue<SampleInfoRef>* sample_queue;
 };
 
 
@@ -364,7 +364,7 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 							if(animtexdata.create_vid_reader_task.isNull()) // If we have not created a CreateVidReaderTask yet:
 							{
 								animtexdata.callback = new SubstrataVideoReaderCallback();
-								animtexdata.callback->frameinfos = &animtexdata.frameinfos;
+								animtexdata.callback->sample_queue = &animtexdata.sample_queue;
 							
 								std::string use_URL = mat.tex_path;
 								// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
@@ -401,12 +401,6 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 									animtexdata.create_vid_reader_task = Reference<CreateVidReaderTask>(); // Free CreateVidReaderTask.
 									animtexdata.video_reader = vid_reader;
 									animtexdata.in_anim_time = 0;
-
-									//for(int i=0; i<5; ++i)
-									//	animtexdata.video_reader->startReadingNextFrame();
-
-									//for(int i=0; i<100; ++i)
-									//	animtexdata.video_reader->startReadingNextFrame();
 								}
 							}
 						}
@@ -417,205 +411,191 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 
 							animtexdata.in_anim_time += dt;
 							const double in_anim_time = animtexdata.in_anim_time;
+							
+							/*
+							Read frames from animtexdata.sample_queue queue. 
+							If they are audio frames, copy audio data to audio source buffer.
+							If they are vid frames, enqueue onto vid_frame_queue.
+							We read ahead like this a bit so that we can get audio samples to the audio_source buffer ahead of time,
+							to avoid stutters.
+							
 
-							// Read frames from animtexdata.frameinfos queue. 
-							// If they are audio frames, copy audio data to audio source.
-							// If they are vid frames, enqueue onto vid_frame_queue.
+							Vid Reader ----------------------->   this code (AnimatedTextureManger) -------------------------> AudioEngine
+							          animtexdata.sample_queue                    |                  ob->audio_source->buffer
+							                                                      |
+							                                                      |
+							                                                       \
+							                                                         ----------------------------------------->this code (AnimatedTextureManger) 
+							                                                                 animtexdata.vid_frame_queue
+							*/
 
-							Lock lock2(animtexdata.frameinfos.getMutex());
-							while(animtexdata.frameinfos.unlockedNonEmpty())
+							Lock lock2(animtexdata.sample_queue.getMutex());
+							while(animtexdata.sample_queue.unlockedNonEmpty())
 							{
-								FrameInfoRef frame;
-								animtexdata.frameinfos.unlockedDequeue(frame);
+								SampleInfoRef sample;
+								animtexdata.sample_queue.unlockedDequeue(sample);
 
+								animtexdata.num_samples_pending--;
+								//conPrint("Dequeued sample, num_samples_pending: " + toString(animtexdata.num_samples_pending));
 								//if(frame.nonNull()) animtexdata.video_reader->startReadingNextFrame(); // We dequeued an actual frame, start reading a new frame.
 
-								if(frame.nonNull() && frame->is_audio)
+								if(sample.nonNull())
 								{
-									// Copy to our audio source
-									if(ob->audio_source.nonNull())
+									if(sample->is_audio)
 									{
-										// Convert to float data
-										const uint32 bytes_per_sample  = frame->bits_per_sample / 8;
-										const size_t num_sample_frames = frame->buffer_len_B / bytes_per_sample;
-										const size_t num_samples = num_sample_frames / frame->num_channels;
-
-										temp_buf.resize(num_samples);
-
-										for(size_t z=0; z<num_samples; ++z)
+										// Copy to our audio source
+										if(ob->audio_source.nonNull())
 										{
-											const float left =  ((const int16*)frame->frame_buffer)[z*2 + 0] * (1.f / 32768.f);
-											const float right = ((const int16*)frame->frame_buffer)[z*2 + 1] * (1.f / 32768.f);
-											temp_buf[z] = (left + right) * 0.5f;
-										}
+											// Convert to float data
+											const uint32 bytes_per_sample  = sample->bits_per_sample / 8;
+											const size_t num_sample_frames = sample->buffer_len_B / bytes_per_sample;
+											const size_t num_samples = num_sample_frames / sample->num_channels;
 
-										{
-											Lock mutex(main_window->audio_engine.mutex);
-											ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+											temp_buf.resize(num_samples);
+
+											for(size_t z=0; z<num_samples; ++z)
+											{
+												const float left =  ((const int16*)sample->frame_buffer)[z*2 + 0] * (1.f / 32768.f);
+												const float right = ((const int16*)sample->frame_buffer)[z*2 + 1] * (1.f / 32768.f);
+												temp_buf[z] = (left + right) * 0.5f;
+											}
+
+											{
+												Lock mutex(main_window->audio_engine.mutex);
+												ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+											}
 										}
 									}
+									else
+									{
+										animtexdata.vid_frame_queue.push_back(sample);
+									}
 								}
-								else
+								else // Frame is null: we have reached EOS
 								{
-									animtexdata.vid_frame_queue.push_back(frame);
+									animtexdata.at_vidreader_EOS = true;
 								}
 							}
 
-							const bool reached_EOS = animtexdata.cur_frame_i == -1;
-							if(!(reached_EOS && vid_reader->num_pending_reads != 0)) // If we reached EOS, don't try and read any more frames.
+							// Queue up some sample reads, so that the video decoder has decoded a few frames ahead of what we are showing currently.
+							if(!animtexdata.at_vidreader_EOS) // If we reached EOS, don't queue up any more sample reads
 							{
 								const int target_num_vid_frames = 10;
 								const int decoded_and_reading_vid_frames = (int)animtexdata.vid_frame_queue.size() + (int)vid_reader->num_pending_reads;
 							
-								printVar(animtexdata.vid_frame_queue.size());
-								printVar(vid_reader->num_pending_reads);
-								printVar(decoded_and_reading_vid_frames);
+								//printVar(animtexdata.vid_frame_queue.size());
+								//printVar(vid_reader->num_pending_reads);
+								//printVar(decoded_and_reading_vid_frames);
 
 								const int num_extra_reads = target_num_vid_frames - decoded_and_reading_vid_frames;
 								for(int i=0; i<num_extra_reads; ++i)
+								{
 									vid_reader->startReadingNextSample();
+									animtexdata.num_samples_pending++;
+								}
 							}
 
 
 							// Is it time to display the next frame?
-							// NOTE: checking cur_frame_i == -1 to handle seeking back to beginning.
+							// NOTE: cur_frame_i == -1 means we have seeked back to the beginning of the file (note we will still be displaying the last frame as current_video_frame)
 							const bool need_new_vid_frame = (animtexdata.cur_frame_i == -1) || animtexdata.current_video_frame.isNull() || (in_anim_time >= (animtexdata.current_video_frame->frame_time + animtexdata.current_video_frame->frame_duration));
 
-							//printVar(in_anim_time);
-							//if(animtexdata.current_frame.nonNull())
+							//printVar(animtexdata.cur_frame_i);
+							//printVar(animtexdata.in_anim_time);
+							//if(animtexdata.current_video_frame.nonNull())
 							//{
-							//	printVar(animtexdata.current_frame->frame_time);
-							//	printVar(animtexdata.current_frame->frame_duration);
+							//	printVar(animtexdata.current_video_frame->frame_time);
+							//	printVar(animtexdata.current_video_frame->frame_duration);
 							//}
-							//printVar(need_new_frame);
+							//printVar(need_new_vid_frame);
 
-							//FrameInfoRef old_cur_frame = animtexdata.current_frame;
-
-							bool got_new_frame = false; // Did we get a new non-null frame?
-							bool EOS = false; // Did we reach end of stream?
-							if(need_new_vid_frame)
+							bool got_new_vid_frame = false; // Did we get a video frame from vid_frame_queue?
+							if(need_new_vid_frame && animtexdata.vid_frame_queue.nonEmpty())
 							{
-								if(animtexdata.vid_frame_queue.nonEmpty())
-								{
-									animtexdata.current_video_frame = animtexdata.vid_frame_queue.front();
-									animtexdata.vid_frame_queue.pop_front();
+								animtexdata.current_video_frame = animtexdata.vid_frame_queue.front();
+								animtexdata.vid_frame_queue.pop_front();
 
-									got_new_frame = animtexdata.current_video_frame.nonNull();
-									EOS = animtexdata.current_video_frame.isNull();
-								}
+								assert(animtexdata.current_video_frame.nonNull()); // We only push non-null frames into queue.
+								got_new_vid_frame = true;
 							}
+
 							
-							if(got_new_frame)
+							if(got_new_vid_frame)
 							{
 								animtexdata.cur_frame_i++;
-								printVar(animtexdata.current_video_frame->frame_time);
-
-								//animtexdata.current_frame = NULL; // Free current frame
-								//old_cur_frame = NULL; // Free current frame
-
-								// Update current frame to be next_frame
-								//animtexdata.current_frame = animtexdata.next_frame;
-								//animtexdata.next_frame = NULL;
+								//printVar(animtexdata.current_video_frame->frame_time);
 
 								// Convert it to an OpenGL texture and apply to the current material
-								WMFFrameInfo* wmf_cur_frame = animtexdata.current_video_frame.downcastToPtr<WMFFrameInfo>();
+								WMFSampleInfo* wmf_cur_frame = animtexdata.current_video_frame.downcastToPtr<WMFSampleInfo>();
 
-								if(wmf_cur_frame->is_audio)
+								assert(!wmf_cur_frame->is_audio);
+								
+								// Unlock previous OpenGL/d3d texture via locked_interop_tex_ob
+								if(animtexdata.locked_interop_tex_ob)
 								{
-									// Copy to our audio source
-									if(ob->audio_source.nonNull())
-									{
-										// Convert to float data
-										const uint32 bytes_per_sample = wmf_cur_frame->bits_per_sample / 8;
-										const size_t num_sample_frames = wmf_cur_frame->buffer_len_B / bytes_per_sample;
-										const size_t num_samples = num_sample_frames / wmf_cur_frame->num_channels;
-										
-										//std::vector<float> buf(num_samples);//TEMP
-										temp_buf.resize(num_samples);
-
-										for(size_t z=0; z<num_samples; ++z)
-										{
-											const float left =  ((const int16*)wmf_cur_frame->frame_buffer)[z*2 + 0] * (1.f / 32768.f);
-											const float right = ((const int16*)wmf_cur_frame->frame_buffer)[z*2 + 1] * (1.f / 32768.f);
-											temp_buf[z] = (left + right) * 0.5f;
-										}
-
-										ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
-									}
+									BOOL res = main_window->wgl_funcs.wglDXUnlockObjectsNV(main_window->interop_device_handle, 1, &animtexdata.locked_interop_tex_ob);
+									if(!res)
+										conPrint("Warning: wglDXUnlockObjectsNV failed.");
+									animtexdata.locked_interop_tex_ob = NULL;
+									mat.albedo_texture = NULL;
 								}
-								else // Else if video frame:
+
+								// Direct3DUtils::saveTextureToBmp("frames/frame_" + toString(animtexdata.cur_frame_i) + ".bmp", wmf_cur_frame->d3d_tex.ptr);
+
+								OpenGLAndD3DTex info;
+								auto tex_res = animtexdata.opengl_tex_for_d3d_tex.find(wmf_cur_frame->d3d_tex.ptr);
+								if(tex_res == animtexdata.opengl_tex_for_d3d_tex.end())
 								{
-									// Unlock previous OpenGL/d3d texture via locked_interop_tex_ob
-									if(animtexdata.locked_interop_tex_ob)
-									{
-										BOOL res = main_window->wgl_funcs.wglDXUnlockObjectsNV(main_window->interop_device_handle, 1, &animtexdata.locked_interop_tex_ob);
-										if(!res)
-											conPrint("Warning: wglDXUnlockObjectsNV failed.");
-										animtexdata.locked_interop_tex_ob = NULL;
-										mat.albedo_texture = NULL;
-									}
+									// Create an OpenGL texture that will correspond to the d3d texture
+									OpenGLTextureRef opengl_tex = new OpenGLTexture();
+									glGenTextures(1, &opengl_tex->texture_handle);
+									
+									//conPrint("making new OpenGL for d3d tex " + toHexString((uint64)wmf_cur_frame->d3d_tex.ptr) + ", texture_handle: " + toString(opengl_tex->texture_handle));
+									
+									// Unforuntately this doesn't work: (not supported by driver?)
+									// const int GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT = 0x8FBF;
+									// glTexParameteri(opengl_tex->texture_handle, GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT, GL_SRGB);
+									
+									const GLenum WGL_ACCESS_READ_ONLY_NV = 0x0;
+									HANDLE interop_tex_ob = main_window->wgl_funcs.wglDXRegisterObjectNV(main_window->interop_device_handle, wmf_cur_frame->d3d_tex.ptr,
+										opengl_tex->texture_handle, GL_TEXTURE_2D, WGL_ACCESS_READ_ONLY_NV);
+									
+									info.opengl_tex = opengl_tex;
+									info.interop_handle = interop_tex_ob;
+									animtexdata.opengl_tex_for_d3d_tex[wmf_cur_frame->d3d_tex.ptr] = info;
+								}
+								else
+									info = tex_res->second;
 
-									// Direct3DUtils::saveTextureToBmp("frames/frame_" + toString(animtexdata.cur_frame_i) + ".bmp", wmf_cur_frame->d3d_tex.ptr);
-
-									OpenGLAndD3DTex info;
-									auto tex_res = animtexdata.opengl_tex_for_d3d_tex.find(wmf_cur_frame->d3d_tex.ptr);
-									if(tex_res == animtexdata.opengl_tex_for_d3d_tex.end())
+								if(info.interop_handle)
+								{
+									//conPrint("Locking interop_handle " + toString((uint64)info.interop_handle));
+									const BOOL res = main_window->wgl_funcs.wglDXLockObjectsNV(main_window->interop_device_handle, 1, &info.interop_handle);
+									if(res)
 									{
-										// Create an OpenGL texture that will correspond to the d3d texture
-										OpenGLTextureRef opengl_tex = new OpenGLTexture();
-										glGenTextures(1, &opengl_tex->texture_handle);
-									
-										conPrint("making new OpenGL for d3d tex " + toHexString((uint64)wmf_cur_frame->d3d_tex.ptr) + ", texture_handle: " + toString(opengl_tex->texture_handle));
-									
-										// Unforuntately this doesn't work: (not supported by driver?)
-										// const int GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT = 0x8FBF;
-										// glTexParameteri(opengl_tex->texture_handle, GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT, GL_SRGB);
-									
-										const GLenum WGL_ACCESS_READ_ONLY_NV = 0x0;
-										HANDLE interop_tex_ob = main_window->wgl_funcs.wglDXRegisterObjectNV(main_window->interop_device_handle, wmf_cur_frame->d3d_tex.ptr,
-											opengl_tex->texture_handle, GL_TEXTURE_2D, WGL_ACCESS_READ_ONLY_NV);
-									
-										info.opengl_tex = opengl_tex;
-										info.interop_handle = interop_tex_ob;
-										animtexdata.opengl_tex_for_d3d_tex[wmf_cur_frame->d3d_tex.ptr] = info;
+										animtexdata.locked_interop_tex_ob = info.interop_handle;
+										mat.albedo_texture = info.opengl_tex; // Apply to material
 									}
 									else
-										info = tex_res->second;
-
-									if(info.interop_handle)
 									{
-										//conPrint("Locking interop_handle " + toString((uint64)info.interop_handle));
-										const BOOL res = main_window->wgl_funcs.wglDXLockObjectsNV(main_window->interop_device_handle, 1, &info.interop_handle);
-										if(res)
-										{
-											animtexdata.locked_interop_tex_ob = info.interop_handle;
-											mat.albedo_texture = info.opengl_tex; // Apply to material
-										}
-										else
-										{
-											conPrint("warning: failed to lock object");
-										}
+										conPrint("warning: failed to lock object");
 									}
 								}
 							}
 
-							if(EOS)
+							// If the video reader has read all video frames, and signalled EOS, and there are no queued sample reads,
+							// and we have no outstanding video frames to display, 
+							// then we can seek back to the start.
+							// Note that IMFSourceReader will return an error if we try to seek while there are sample reads queued.
+							if(animtexdata.at_vidreader_EOS && (animtexdata.num_samples_pending == 0) && 
+								animtexdata.vid_frame_queue.empty())
 							{
-								// This was not an actual frame we received, but an end-of-stream sentinel value.
-								// Note that we can get a few of these in a row, but we need to call seek just once, or we will get MF errors.
-								// So we will seek iff cur_frame_i is != 0.
-								if(animtexdata.cur_frame_i != -1)
-								{
-									// Seek to start of vid.
-									animtexdata.cur_frame_i = -1;
-									animtexdata.in_anim_time = 0;
-
-									conPrint("Seeking to 0.0");
-									vid_reader->seek(0.0);
-
-									//for(int i=0; i<2; ++i)
-									//	animtexdata.video_reader->startReadingNextFrame();
-								}
+								animtexdata.cur_frame_i = -1;
+								animtexdata.in_anim_time = 0;
+									
+								//conPrint("Seeking to 0.0");
+								vid_reader->seek(0.0);
+								animtexdata.at_vidreader_EOS = false;
 							}
 						}
 					}

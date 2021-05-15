@@ -338,7 +338,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			Reference<WMFVideoReader> reader = new WMFVideoReader(false, local_path, /*reader callback=*/NULL, dev_manager, /*decode_to_d3d_tex=*/false);
 
 			// Load first frame
-			const FrameInfoRef frameinfo = reader->getAndLockNextFrame();
+			const SampleInfoRef frameinfo = reader->getAndLockNextSample(/*just_get_vid_sample=*/true);
 
 			if(frameinfo.isNull())
 				throw glare::Exception("frame was null. (EOS?)");
