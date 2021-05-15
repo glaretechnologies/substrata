@@ -46,19 +46,16 @@ struct AnimatedTexData : public RefCounted
 	std::map<void*, OpenGLAndD3DTex> opengl_tex_for_d3d_tex;
 
 	Reference<VideoReader> video_reader;
-	int latest_tex_index;
 	double in_anim_time; // Current time along timeline of video.  Doesn't change if video is paused.
 
 	SubVideoSurface* video_surface;
 	QMediaPlayer* media_player; // TEMP
 
-	ThreadSafeQueue<FrameInfoRef> frameinfos;
+	ThreadSafeQueue<SampleInfoRef> sample_queue; // Queue of samples from VidReader to this class.
 
-	CircularBuffer<FrameInfoRef> vid_frame_queue;
+	CircularBuffer<SampleInfoRef> vid_frame_queue;
 
-	FrameInfoRef current_video_frame;
-	FrameInfoRef current_audio_frame;
-	//FrameInfoRef next_frame;
+	SampleInfoRef current_video_frame;
 
 	Reference<CreateVidReaderTask> create_vid_reader_task;
 
@@ -69,6 +66,8 @@ struct AnimatedTexData : public RefCounted
 
 	Reference<TextureData> texdata;
 	int cur_frame_i; // -1 = reached EOS
+	bool at_vidreader_EOS; // Has the vid reader sent us a NULL sample (signifying EOS)?
+	int num_samples_pending; // Number of samples we have started reading, that we have not read back from the sample_queue yet.
 
 	bool encounted_error;
 #ifdef _WIN32
