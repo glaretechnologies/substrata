@@ -22,6 +22,7 @@
 #include "../utils/TaskManager.h"
 #include "../qt/SignalBlocker.h"
 #include "../qt/QtUtils.h"
+#include <QtWidgets/QColorDialog>
 
 
 MaterialEditor::MaterialEditor(QWidget *parent)
@@ -29,9 +30,6 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 {
 	setupUi(this);	
 
-	connect(this->colourRDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
-	connect(this->colourGDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
-	connect(this->colourBDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 	connect(this->textureFileSelectWidget,			SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
 
 	connect(this->textureXScaleDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
@@ -49,12 +47,29 @@ MaterialEditor::~MaterialEditor()
 }
 
 
+void MaterialEditor::updateColourButton()
+{
+	const int COLOUR_BUTTON_W = 30;
+	QImage image(COLOUR_BUTTON_W, COLOUR_BUTTON_W, QImage::Format_RGB32);
+	image.fill(QColor(qRgba(
+		(int)(this->col.r * 255),
+		(int)(this->col.g * 255),
+		(int)(this->col.b * 255),
+		255
+	)));
+	QIcon icon;
+	QPixmap pixmap = QPixmap::fromImage(image);
+	icon.addPixmap(pixmap);
+	this->colourPushButton->setIcon(icon);
+	this->colourPushButton->setIconSize(QSize(COLOUR_BUTTON_W, COLOUR_BUTTON_W));
+	//this->colourPushButton->setStyleSheet("QPushButton { margin: 0px; padding: 0px; border: none;}");
+}
+
+
 void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 {
 	// Set colour controls
-	SignalBlocker::setValue(this->colourRDoubleSpinBox, mat.colour_rgb.r);
-	SignalBlocker::setValue(this->colourGDoubleSpinBox, mat.colour_rgb.g);
-	SignalBlocker::setValue(this->colourBDoubleSpinBox, mat.colour_rgb.b);
+	col = mat.colour_rgb;
 	this->textureFileSelectWidget->setFilename(QtUtils::toQString(mat.colour_texture_url));
 
 	SignalBlocker::setValue(this->textureXScaleDoubleSpinBox, mat.tex_matrix.elem(0, 0));
@@ -63,16 +78,14 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 	SignalBlocker::setValue(this->roughnessDoubleSpinBox, mat.roughness.val);
 	SignalBlocker::setValue(this->opacityDoubleSpinBox, mat.opacity.val);
 	SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, mat.metallic_fraction.val);
+
+	updateColourButton();
 }
 
 
 void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 {
-	mat_out.colour_rgb = Colour3f(
-		(float)this->colourRDoubleSpinBox->value(),
-		(float)this->colourGDoubleSpinBox->value(),
-		(float)this->colourBDoubleSpinBox->value()
-	);
+	mat_out.colour_rgb = col;
 	mat_out.colour_texture_url = QtUtils::toIndString(this->textureFileSelectWidget->filename());
 
 	mat_out.tex_matrix = Matrix2f(
@@ -94,10 +107,6 @@ void MaterialEditor::setControlsEnabled(bool enabled)
 
 void MaterialEditor::setControlsEditable(bool editable)
 {
-	this->colourRDoubleSpinBox->setReadOnly(!editable);
-	this->colourGDoubleSpinBox->setReadOnly(!editable);
-	this->colourBDoubleSpinBox->setReadOnly(!editable);
-
 	this->textureFileSelectWidget->setReadOnly(!editable);
 
 	this->textureXScaleDoubleSpinBox->setReadOnly(!editable);
@@ -108,3 +117,28 @@ void MaterialEditor::setControlsEditable(bool editable)
 	this->opacityDoubleSpinBox->setReadOnly(!editable);
 }
 
+
+void MaterialEditor::on_colourPushButton_clicked(bool checked)
+{
+	const QColor initial_col(qRgba(
+		(int)(col.r * 255),
+		(int)(col.g * 255),
+		(int)(col.b * 255),
+		255
+	));
+
+	QColorDialog d(initial_col, this);
+	const int res = d.exec();
+	if(res == QDialog::Accepted)
+	{
+		const QColor new_col = d.currentColor();
+
+		this->col.r = new_col.red()   / 255.f;
+		this->col.g = new_col.green() / 255.f;
+		this->col.b = new_col.blue()  / 255.f;
+
+		updateColourButton();
+
+		emit materialChanged();
+	}
+}

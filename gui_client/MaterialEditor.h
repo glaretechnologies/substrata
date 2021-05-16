@@ -9,6 +9,7 @@
 #include "../utils/Timer.h"
 #include "../utils/Reference.h"
 #include "../utils/RefCounted.h"
+#include "../graphics/colour3.h"
 #include "ui_MaterialEditor.h"
 #include <QtCore/QEvent>
 #include <QtOpenGL/QGLWidget>
@@ -36,10 +37,14 @@ public:
 	void setControlsEditable(bool editable);
 
 protected:
+	void updateColourButton();
 
 signals:;
 	void materialChanged();
+
+protected slots:
+	void on_colourPushButton_clicked(bool checked);
 	
 private:
-	
+	Colour3f col;
 };
