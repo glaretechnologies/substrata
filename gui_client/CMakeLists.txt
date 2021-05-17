@@ -540,13 +540,13 @@ if(WIN32)
 		optimized Qt5Core
 		optimized Qt5OpenGL
 		optimized Qt5Widgets
-#		optimized Qt5Multimedia
+		optimized Qt5Multimedia
 		debug qtmaind
 		debug Qt5Guid
 		debug Qt5Cored
 		debug Qt5OpenGLd
 		debug Qt5Widgetsd
-#		debug Qt5Multimediad
+		debug Qt5Multimediad
 #		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
 #		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
 
