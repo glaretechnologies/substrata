@@ -11,7 +11,7 @@ you can see the status with (doesnt need sudo)
 systemctl status cyberspace-server.service --user
 
 and the log with
-journalctl --unit=cyberspace-server.service --user --since "1 hour ago"
+journalctl --unit=cyberspace-server.service --user --since "1 hour ago" -f
 
 
 NOTE: 

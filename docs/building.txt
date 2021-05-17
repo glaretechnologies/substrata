@@ -7,24 +7,3 @@ ruby .\build_llvm.rb --vsversion 2015 --release 6.0.0 --config Release
 ruby .\build_llvm.rb --vsversion 2015 --release 6.0.0 --config Debug
 
 rename dir to llvm_6_0_0_install_vs2015_64
-
-
-
-Building MySQL connector
-===================================
-
-Download mysql-connector-c++-8.0.16-src.zip or similar, unzip
-
-	mkdir C:\programming\mysql_connector_build
-
-	PS C:\programming\mysql_connector_build> cmake -G "Visual Studio 14 2015 Win64" ..\mysql-connector-c++-8.0.16-src\ -DCMAKE_INSTALL_PREFIX=D:/programming/mysql_connector_install
-
-Open solution and build, also build INSTALL project
-
-Now put the lib in RelWithDebInfo so it's easy to make Cmake use the right one for the config:
-	
-	mkdir D:\programming\mysql_connector_install\lib64\vs14\RelWithDebInfo
-	cp "D:\programming\mysql_connector_install\lib64\vs14\mysqlcppconn8.lib" D:\programming\mysql_connector_install\lib64\vs14\RelWithDebInfo
-
-
-Running locally will require copying mysqlcppconn8-2-vs14.dll into the exe dir.
