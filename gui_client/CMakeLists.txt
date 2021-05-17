@@ -574,7 +574,7 @@ elseif(APPLE)
 
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtSql -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation")
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtSql -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation")
 else() # linux
 
 	add_definitions(-D__LINUX_ALSA__) # Add ALSA config choice define for RTAudio
@@ -584,6 +584,7 @@ else() # linux
 		Qt5Core
 		Qt5OpenGL
 		Qt5Widgets
+		Qt5Multimedia
 		dl
 		asound # ALSA lib required by RTAudio
 	)
