@@ -585,6 +585,7 @@ else() # linux
 		Qt5OpenGL
 		Qt5Widgets
 		Qt5Multimedia
+		Qt5Network
 		dl
 		asound # ALSA lib required by RTAudio
 	)
