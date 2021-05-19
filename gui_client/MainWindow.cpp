@@ -4552,20 +4552,27 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 					}
 					else if(e->modifiers() & Qt::AltModifier)
 					{
-						const Vec4f point_under_surface = hitpos_ws - results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
-
-						const Vec4f point_os = world_to_ob * point_under_surface;
-						const Vec4f point_os_voxel_space = point_os / current_voxel_w;
-						Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
-
-						// Remove the voxel, if present
-						for(size_t z=0; z<this->selected_ob->getDecompressedVoxels().size(); ++z)
+						if(this->selected_ob->getDecompressedVoxels().size() > 1)
 						{
-							if(this->selected_ob->getDecompressedVoxels()[z].pos == voxel_indices)
-								this->selected_ob->getDecompressedVoxels().erase(this->selected_ob->getDecompressedVoxels().begin() + z);
-						}
+							const Vec4f point_under_surface = hitpos_ws - results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
 
-						voxels_changed = true;
+							const Vec4f point_os = world_to_ob * point_under_surface;
+							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+
+							// Remove the voxel, if present
+							for(size_t z=0; z<this->selected_ob->getDecompressedVoxels().size(); ++z)
+							{
+								if(this->selected_ob->getDecompressedVoxels()[z].pos == voxel_indices)
+									this->selected_ob->getDecompressedVoxels().erase(this->selected_ob->getDecompressedVoxels().begin() + z);
+							}
+
+							voxels_changed = true;
+						}
+						else
+						{
+							showErrorNotification("Can't delete last voxel in voxel group.  Delete entire voxel object ('delete' key) to remove it.");
+						}
 					}
 
 					if(voxels_changed)
@@ -4601,6 +4608,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 							{
 								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], this->selected_ob->lightmap_url, *this->resource_manager, gl_ob->materials[i]);
 								gl_ob->materials[i].gen_planar_uvs = true;
+								gl_ob->materials[i].draw_planar_uv_grid = true;
 							}
 
 							Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/this->selected_ob->isCollidable());
@@ -4763,6 +4771,15 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			// Mark the materials on the hit object as selected
 			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
 			ui->glWidget->opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
+
+			// Turn on voxel grid drawing if this is a voxel object
+			if((this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && this->selected_ob->opengl_engine_ob.nonNull())
+			{
+				for(size_t z=0; z<this->selected_ob->opengl_engine_ob->materials.size(); ++z)
+					this->selected_ob->opengl_engine_ob->materials[z].draw_planar_uv_grid = true;
+				
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
+			}
 
 
 			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
@@ -4932,6 +4949,15 @@ void MainWindow::deselectObject()
 
 		// Deselect any currently selected object
 		ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);
+
+		// Turn off voxel grid drawing if this is a voxel object
+		if((this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && this->selected_ob->opengl_engine_ob.nonNull())
+		{
+			for(size_t z=0; z<this->selected_ob->opengl_engine_ob->materials.size(); ++z)
+				this->selected_ob->opengl_engine_ob->materials[z].draw_planar_uv_grid = false;
+
+			ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
+		}
 
 		ui->objectEditor->setEnabled(false);
 
