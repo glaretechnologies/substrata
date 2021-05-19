@@ -4529,16 +4529,26 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 					{
 						const Vec4f point_off_surface = hitpos_ws + results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
 
-						const Vec4f point_os = world_to_ob * point_off_surface;
-						const Vec4f point_os_voxel_space = point_os / current_voxel_w;
-						Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+						// Don't allow voxel creation if it is too far from existing voxels.
+						// This is to prevent misclicks where the mouse pointer is just off an existing object, which may sometimes create a voxel very far away (after the ray intersects the ground plane for example)
+						const float dist_from_aabb = selected_ob->opengl_engine_ob.nonNull() ? selected_ob->opengl_engine_ob->aabb_ws.distanceToPoint(point_off_surface) : 0.f;
+						if(dist_from_aabb < 2.f)
+						{
+							const Vec4f point_os = world_to_ob * point_off_surface;
+							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
 
-						// Add the voxel!
-						this->selected_ob->getDecompressedVoxels().push_back(Voxel());
-						this->selected_ob->getDecompressedVoxels().back().pos = voxel_indices;
-						this->selected_ob->getDecompressedVoxels().back().mat_index = ui->objectEditor->getSelectedMatIndex();
+							// Add the voxel!
+							this->selected_ob->getDecompressedVoxels().push_back(Voxel());
+							this->selected_ob->getDecompressedVoxels().back().pos = voxel_indices;
+							this->selected_ob->getDecompressedVoxels().back().mat_index = ui->objectEditor->getSelectedMatIndex();
 
-						voxels_changed = true;
+							voxels_changed = true;
+						}
+						else
+						{
+							showErrorNotification("Can't create voxel that far away from rest of voxels.");
+						}
 					}
 					else if(e->modifiers() & Qt::AltModifier)
 					{
