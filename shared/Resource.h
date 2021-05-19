@@ -10,6 +10,16 @@ Copyright Glare Technologies Limited 2018 -
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <string>
+#include <utils/Vector.h>
+#include <utils/Mutex.h>
+#include <set>
+
+
+struct ResourceDownloadListener : public ThreadSafeRefCounted
+{
+	virtual ~ResourceDownloadListener() {}
+	virtual void dataReceived() = 0;
+};
 
 
 /*=====================================================================
@@ -31,8 +41,8 @@ public:
 		//State_ResourceDownloadFailed
 	};
 
-	Resource(const std::string& URL_, const std::string& local_path_, State s, const UserID& owner_id_) : URL(URL_), local_path(local_path_), state(s), owner_id(owner_id_) {}
-	Resource() : state(State_NotPresent) {}
+	Resource(const std::string& URL_, const std::string& local_path_, State s, const UserID& owner_id_) : URL(URL_), local_path(local_path_), state(s), owner_id(owner_id_), num_buffer_readers(0) {}
+	Resource() : state(State_NotPresent), num_buffer_readers(0) {}
 	
 	const std::string getLocalPath() const { return local_path; }
 	void setLocalPath(const std::string& p) { local_path = p; }
@@ -42,6 +52,15 @@ public:
 	
 	std::string URL;
 	UserID owner_id;
+
+	//void addDownloadListener(const Reference<ResourceDownloadListener>& listener);
+	//void removeDownloadListener(const Reference<ResourceDownloadListener>& listener);
+
+	Mutex buffer_mutex; // protects buffer.  Lock should be held by threads other than the DownloadResourcesThread when reading from buffer,
+	// and will be held by DownloadResourcesThread when writing to buffer.
+	js::Vector<uint8, 16> buffer; // Streamed files will be downloaded to this buffer first, then saved to disk.
+	int64 num_buffer_readers; // If num_buffer_readers > 0, then the buffer won't be cleared when the resource has been fully downloaded.
+	//std::set<Reference<ResourceDownloadListener>> listeners;
 private:
 	State state; // May be protected by mutex soon.
 	std::string local_path; // path on local disk.

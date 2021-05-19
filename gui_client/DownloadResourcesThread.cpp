@@ -66,6 +66,12 @@ struct NumNonNetResourcesDownloadingDecrementor
 	glare::AtomicInt* num_resources_downloading;
 };
 
+// Some resources, such as MP4 videos, shouldn't be downloaded fully before displaying, but instead can be streamed and displayed when only part of the stream is downloaded.
+static bool shouldStreamResource(const std::string& url)
+{
+	return ::hasExtensionStringView(url, "mp4");
+}
+
 
 void DownloadResourcesThread::doRun()
 {
@@ -166,6 +172,8 @@ void DownloadResourcesThread::doRun()
 						const std::string URL = *it;
 						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
+						const bool stream = shouldStreamResource(URL);
+
 						const uint32 result = socket->readUInt32();
 						if(result == 0) // If OK:
 						{
@@ -177,14 +185,57 @@ void DownloadResourcesThread::doRun()
 								if(file_len > 1000000000)
 									throw glare::Exception("downloaded file too large (len=" + toString(file_len) + ").");
 
-								std::vector<uint8> buf(file_len);
-								socket->readData(buf.data(), file_len);
+								{
+									Lock lock(resource->buffer_mutex);
+									resource->buffer.reserve(file_len);
+								}
+
+								// If 'streaming' the file, download in chunks, while locking the buffer mutex.
+								// This is so the main thread can read from the resource buffer.
+								if(stream)
+								{
+									js::Vector<uint8, 16> temp_buf(1024 * 16);
+
+									size_t buf_i = 0;
+									size_t readlen = file_len;
+									while(readlen > 0) // While still bytes to read
+									{
+										const size_t num_bytes_to_read = myMin<size_t>(temp_buf.size(), readlen);
+										assert(num_bytes_to_read > 0);
+
+										socket->readData(temp_buf.data(), num_bytes_to_read);
+
+										{
+											Lock lock(resource->buffer_mutex);
+											resource->buffer.resize(buf_i + num_bytes_to_read);
+											std::memcpy(&resource->buffer[buf_i], temp_buf.data(), num_bytes_to_read);
+
+											//for(auto list_it = resource->listeners.begin(); list_it != resource->listeners.end(); ++list_it)
+											//	(*list_it)->dataReceived();
+										}
+
+										readlen -= num_bytes_to_read;
+										buf_i += num_bytes_to_read;
+									}
+								}
+								else
+								{
+									socket->readData(resource->buffer.data(), file_len); // Just read entire file.
+								}
+
 
 								// Save to disk
 								const std::string path = resource_manager->pathForURL(URL);
 								try
 								{
-									FileUtils::writeEntireFile(path, (const char*)buf.data(), buf.size());
+									// Write downloaded file to disk, clear in-mem buffer.
+									FileUtils::writeEntireFile(path, (const char*)resource->buffer.data(), resource->buffer.size());
+
+									{
+										Lock lock(resource->buffer_mutex);
+										if(resource->num_buffer_readers == 0) // Only clear if no other threads reading buffer.
+											resource->buffer.clearAndFreeMem(); // TODO: clear resource buffer later when num readers drops to zero.
+									}
 
 									conPrint("DownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(file_len) + ") ");
 

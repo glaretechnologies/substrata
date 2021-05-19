@@ -569,17 +569,22 @@ static const Matrix4f worldToObMatrix(const WorldObject& ob)
 
 
 // Some resources, such as MP4 videos, shouldn't be downloaded fully before displaying, but instead can be streamed and displayed when only part of the stream is downloaded.
-static bool shouldStreamResource(const std::string& url)
+/*static bool shouldStreamResourceViaHTTP(const std::string& url)
 {
+	// On Windows, use WMF's http reading to stream videos (until we get the custom byte stream working)
+#ifdef _WIN32
 	return ::hasExtensionStringView(url, "mp4");
-}
+#else
+	return false; // On Mac/linux, we'll use the ResourceIODeviceWrapper for QMediaPlayer, so we don't need to use http.
+#endif
+}*/
 
 
 void MainWindow::startDownloadingResource(const std::string& url)
 {
 	//conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
-	if(shouldStreamResource(url))
-		return;
+	//if(shouldStreamResourceViaHTTP(url))
+	//	return;
 
 	ResourceRef resource = resource_manager->getOrCreateResourceForURL(url);
 	if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
@@ -767,9 +772,9 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob)
 		const std::string& url = *it;
 		
 		// If resources are streamable, don't download them.
-		const bool stream = shouldStreamResource(url);
+		//const bool stream = shouldStreamResourceViaHTTP(url);
 
-		if(!resource_manager->isFileForURLPresent(url) && !stream)
+		if(!resource_manager->isFileForURLPresent(url))// && !stream)
 			startDownloadingResource(url);
 	}
 }
@@ -2059,7 +2064,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						conPrint("need_resource: " + boolToString(need_resource));
 
-						if(need_resource && !shouldStreamResource(m->URL))
+						if(need_resource)// && !shouldStreamResourceViaHTTP(m->URL))
 						{
 							conPrint("Need resource, downloading: " + m->URL);
 							this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(m->URL));
@@ -5270,7 +5275,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			glare::AudioEngine::test();
+			//glare::AudioEngine::test();
 			//circularBufferTest();
 			//glare::testPoolAllocator();
 			//WMFVideoReader::test();
