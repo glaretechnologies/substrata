@@ -313,7 +313,7 @@ public:
 		const int64 available = (int64)resource->buffer.size() - cur_pos;
 		if(available > 0)
 		{
-			const int64 read_amount = myMin(maxSize, available);
+			const int64 read_amount = myMin<int64>(maxSize, available);
 			std::memcpy(data, &resource->buffer[cur_pos], read_amount);
 			return read_amount;
 		}
