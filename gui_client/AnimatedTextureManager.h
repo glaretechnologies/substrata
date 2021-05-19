@@ -17,6 +17,8 @@ class MainWindow;
 class WorldObject;
 class QMediaPlayer;
 class SubVideoSurface;
+class ResourceIODeviceWrapper;
+class QBuffer;
 struct CreateVidReaderTask;
 
 struct ID3D11Device;
@@ -49,7 +51,10 @@ struct AnimatedTexData : public RefCounted
 	double in_anim_time; // Current time along timeline of video.  Doesn't change if video is paused.
 
 	SubVideoSurface* video_surface;
-	QMediaPlayer* media_player; // TEMP
+	QMediaPlayer* media_player;
+
+	Reference<ResourceIODeviceWrapper> resource_io_wrapper;
+	//QBuffer* resource_qbuffer;
 
 	ThreadSafeQueue<SampleInfoRef> sample_queue; // Queue of samples from VidReader to this class.
 

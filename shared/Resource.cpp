@@ -49,6 +49,18 @@ void readFromStream(InStream& stream, Resource& resource)
 }
 
 
+/*void Resource::addDownloadListener(const Reference<ResourceDownloadListener>& listener)
+{
+	listeners.insert(listener);
+}
+
+
+void Resource::removeDownloadListener(const Reference<ResourceDownloadListener>& listener)
+{
+	listeners.erase(listener);
+}*/
+
+
 //void writeToNetworkStream(const Resource& resource, OutStream& stream)
 //{
 //	writeToStreamCommon(resource, stream);

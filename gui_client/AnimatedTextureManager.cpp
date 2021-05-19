@@ -15,10 +15,170 @@ Copyright Glare Technologies Limited 2021-
 #include <QtMultimedia/QAbstractVideoSurface>
 #include <QtMultimedia/QVideoSurfaceFormat>
 #include <QtMultimedia/QMediaPlayer>
+#include "FileInStream.h"
+
+
+class ResourceVidReaderByteStream;
+
+
+class SubVideoSurface : public QAbstractVideoSurface
+{
+public:
+	SubVideoSurface(QObject *parent)
+		:	QAbstractVideoSurface(parent)
+	{
+	}
+
+	virtual bool present(const QVideoFrame& frame_) override
+	{
+		//conPrint("SubVideoSurface: present()");
+
+		QVideoFrame frame = frame_; // Get non-const QVideoFrame. Just copies a pointer.
+		const bool res = frame.map(QAbstractVideoBuffer::ReadOnly);
+
+		const uchar* bits = frame.bits();
+
+		//printVar(frame.width());
+		//printVar(frame.height());
+		//printVar(frame.bytesPerLine());
+		//printVar(frame.isMapped());
+		//printVar(frame.isReadable());
+
+		if(res && bits && frame.width() > 0 && frame.height() > 0)
+		{
+			opengl_tex->load(frame.width(), frame.height(), frame.bytesPerLine(),
+				ArrayRef<uint8>(bits, frame.height() * frame.bytesPerLine()));
+
+			/*if(frame.handleType() == QAbstractVideoBuffer::GLTextureHandle)
+			{
+			this->opengl_tex->texture_handle = frame.handle().toUInt();
+			}*/
+		}
+
+		frame.unmap();
+
+		return true;
+	}
+
+	virtual bool start(const QVideoSurfaceFormat& format) override
+	{
+		//conPrint("SubVideoSurface: start()");
+
+		//printVar(format.frameWidth());
+		//printVar(format.frameHeight());
+		//printVar(format.handleType());
+		//printVar(format.pixelFormat());
+
+		switch(format.pixelFormat())
+		{
+		case QVideoFrame::Format_ARGB32:
+			//conPrint("Format_ARGB32");
+			break;
+		case QVideoFrame::Format_RGB32:
+			//conPrint("Format_RGB32");
+			break;
+		}
+
+		//OpenGLTextureRef opengl_tex = new OpenGLTexture();
+		//opengl_tex->loadWithFormats(format.frameWidth(), format.frameHeight(), tex_data_arrayref,
+		//	ui->glWidget->opengl_engine.ptr(), OpenGLTexture::Format_SRGB_Uint8, // Format_RGB_Linear_Uint8, 
+		//	GL_RGB, // GL internal format (num channels)
+		//	GL_BGRA, // GL format.  Video frames are BGRA.
+		//	OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Repeat);
+
+		opengl_tex = new OpenGLTexture(
+			format.frameWidth(), format.frameHeight(),
+			NULL, // opengl engine
+			OpenGLTexture::Format_SRGB_Uint8,
+			GL_RGB, // GL internal format (num channels)
+			GL_BGRA, // GL pixel format.  Video frames are BGRA.
+			OpenGLTexture::Filtering_Bilinear,
+			OpenGLTexture::Wrapping_Repeat
+		);
+
+		//this->opengl_tex = new OpenGLTexture();
+
+		//image_format = QVideoFrame::imageFormatFromPixelFormat(format.pixelFormat());
+
+		return QAbstractVideoSurface::start(format); // "Note: You must call the base class implementation of start() at the end of your implementation."
+	}
+
+	virtual void stop() override
+	{
+		//conPrint("SubVideoSurface: stop()");
+
+
+		QAbstractVideoSurface::stop(); // "Note: You must call the base class implementation of stop() at the start of your implementation."
+	}
+
+	virtual QList<QVideoFrame::PixelFormat>	supportedPixelFormats(QAbstractVideoBuffer::HandleType handle_type) const override
+	{
+		// NOTE: opengl texture rendering not supported on windows currently, see D3DPresentEngine::supportsTextureRendering()
+		// in D:\programming\qt\qt-everywhere-src-5.13.2\qtmultimedia\src\plugins\common\evr\evrd3dpresentengine.cpp
+
+		/*QList<QVideoFrame::PixelFormat> formats;
+		formats.push_back(QVideoFrame::Format_RGB24);
+		formats.push_back(QVideoFrame::Format_ARGB32);
+		formats.push_back(QVideoFrame::Format_RGB32);
+		formats.push_back(QVideoFrame::Format_BGRA32);
+		formats.push_back(QVideoFrame::Format_ABGR32);
+		formats.push_back(QVideoFrame::Format_BGR32);
+		formats.push_back(QVideoFrame::Format_BGR24);
+		return formats;*/
+		if (handle_type == QAbstractVideoBuffer::GLTextureHandle) {
+			/*return QList<QVideoFrame::PixelFormat>()
+			<< QVideoFrame::Format_RGB32
+			<< QVideoFrame::Format_ARGB32
+			<< QVideoFrame::Format_ARGB32_Premultiplied
+			<< QVideoFrame::Format_RGB565
+			<< QVideoFrame::Format_RGB555;*/
+			QList<QVideoFrame::PixelFormat> formats;
+			formats.push_back(QVideoFrame::Format_RGB24);
+			formats.push_back(QVideoFrame::Format_ARGB32);
+			formats.push_back(QVideoFrame::Format_RGB32);
+			formats.push_back(QVideoFrame::Format_BGRA32);
+			formats.push_back(QVideoFrame::Format_ABGR32);
+			formats.push_back(QVideoFrame::Format_BGR32);
+			formats.push_back(QVideoFrame::Format_BGR24);
+			return formats;
+		} 
+		else if (handle_type == QAbstractVideoBuffer::NoHandle) {
+			/*return QList<QVideoFrame::PixelFormat>()
+			<< QVideoFrame::Format_RGB32
+			<< QVideoFrame::Format_ARGB32
+			<< QVideoFrame::Format_ARGB32_Premultiplied
+			<< QVideoFrame::Format_RGB565
+			<< QVideoFrame::Format_RGB555;*/
+			QList<QVideoFrame::PixelFormat> formats;
+			formats.push_back(QVideoFrame::Format_RGB24);
+			formats.push_back(QVideoFrame::Format_ARGB32);
+			formats.push_back(QVideoFrame::Format_RGB32);
+			formats.push_back(QVideoFrame::Format_BGRA32);
+			formats.push_back(QVideoFrame::Format_ABGR32);
+			formats.push_back(QVideoFrame::Format_BGR32);
+			formats.push_back(QVideoFrame::Format_BGR24);
+			return formats;
+		} else {
+			return QList<QVideoFrame::PixelFormat>();
+		}
+	}
+
+	virtual bool isFormatSupported(const QVideoSurfaceFormat &format) const override
+	{
+		const QImage::Format imageFormat = QVideoFrame::imageFormatFromPixelFormat(format.pixelFormat());
+		const QSize size = format.frameSize();
+
+		return imageFormat != QImage::Format_Invalid
+			&& !size.isEmpty()
+			&& format.handleType() == QAbstractVideoBuffer::NoHandle;
+	}
+
+	OpenGLTextureRef opengl_tex;
+};
 
 
 AnimatedTexData::AnimatedTexData()
-:	media_player(NULL), cur_frame_i(0), in_anim_time(0), encounted_error(false), at_vidreader_EOS(false), num_samples_pending(0)
+:	media_player(NULL), video_surface(NULL), cur_frame_i(0), in_anim_time(0), encounted_error(false), at_vidreader_EOS(false), num_samples_pending(0)
 #ifdef _WIN32
 	, locked_interop_tex_ob(0)
 #endif
@@ -34,6 +194,15 @@ void AnimatedTexData::shutdown(
 #endif
 )
 {
+	delete media_player;
+	media_player = NULL;
+
+	delete video_surface;
+	video_surface = NULL;
+
+	resource_io_wrapper = NULL;
+
+
 	video_reader = NULL; // Make sure to destroy video reader before frameinfos queue as it has a pointer to frameinfos.
 
 #ifdef _WIN32
@@ -90,7 +259,7 @@ struct CreateVidReaderTask : public glare::Task
 		try
 		{
 #if defined(_WIN32)
-			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, callback, dev_manager, /*decode_to_d3d_tex=*/true);
+			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, /*vid_reader_byte_stream, */callback, dev_manager, /*decode_to_d3d_tex=*/true);
 
 			Lock lock(mutex);
 			this->vid_reader = vid_reader_;
@@ -103,6 +272,7 @@ struct CreateVidReaderTask : public glare::Task
 		}
 	}
 
+	//Reference<VidReaderByteStream> vid_reader_byte_stream;
 	std::string URL;
 	SubstrataVideoReaderCallback* callback;
 	IMFDXGIDeviceManager* dev_manager;
@@ -113,161 +283,229 @@ struct CreateVidReaderTask : public glare::Task
 };
 
 
-
-#if 1
-class SubVideoSurface : public QAbstractVideoSurface
+// A wrapper around a resource in-mem buffer that implements the QIODevice interface, which is used by QMediaPlayer.
+// See D:\programming\qt\qt-everywhere-src-5.15.2\qtbase\src\corelib\io\qbuffer.cpp for similar example implementation.
+class ResourceIODeviceWrapper : public QIODevice, public ThreadSafeRefCounted
 {
 public:
-	SubVideoSurface(QObject *parent)
-	:	QAbstractVideoSurface(parent)
+	ResourceIODeviceWrapper(ResourceRef resource_) : resource(resource_)
 	{
+		open(QIODevice::ReadOnly);
+
+		Lock lock(resource->buffer_mutex);
+		resource->num_buffer_readers++; // Increase reader count, so buffer is not cleared while we are reading from it.
 	}
 
-	virtual bool present(const QVideoFrame& frame_) override
+	virtual ~ResourceIODeviceWrapper()
 	{
-		//conPrint("SubVideoSurface: present()");
+		Lock lock(resource->buffer_mutex);
+		resource->num_buffer_readers--;
+	}
 
-		QVideoFrame frame = frame_; // Get non-const QVideoFrame. Just copies a pointer.
-		const bool res = frame.map(QAbstractVideoBuffer::ReadOnly);
-		
-		const uchar* bits = frame.bits();
-		
-		//printVar(frame.width());
-		//printVar(frame.height());
-		//printVar(frame.bytesPerLine());
-		//printVar(frame.isMapped());
-		//printVar(frame.isReadable());
-		
-		if(res && bits && frame.width() > 0 && frame.height() > 0)
+	// "Subclasses of QIODevice are only required to implement the protected readData() and writeData() functions"
+	// It seems we needd to implement size() as well however.
+
+	virtual qint64 readData(char* data, qint64 maxSize) override
+	{
+		const int64 cur_pos = pos();
+
+		Lock lock(resource->buffer_mutex);
+		const int64 available = (int64)resource->buffer.size() - cur_pos;
+		if(available > 0)
 		{
-			opengl_tex->load(frame.width(), frame.height(), frame.bytesPerLine(),
-				ArrayRef<uint8>(bits, frame.height() * frame.bytesPerLine()));
-
-			/*if(frame.handleType() == QAbstractVideoBuffer::GLTextureHandle)
-			{
-				this->opengl_tex->texture_handle = frame.handle().toUInt();
-			}*/
+			const int64 read_amount = myMin(maxSize, available);
+			std::memcpy(data, &resource->buffer[cur_pos], read_amount);
+			return read_amount;
 		}
-		
-		frame.unmap();
-
-		return true;
-	}
-
-	virtual bool start(const QVideoSurfaceFormat& format) override
-	{
-		//conPrint("SubVideoSurface: start()");
-
-		printVar(format.frameWidth());
-		printVar(format.frameHeight());
-		printVar(format.handleType());
-		printVar(format.pixelFormat());
-
-		switch(format.pixelFormat())
+		else // else no bytes available currently:
 		{
-		case QVideoFrame::Format_ARGB32:
-			//conPrint("Format_ARGB32");
-			break;
-		case QVideoFrame::Format_RGB32:
-			//conPrint("Format_RGB32");
-			break;
-		}
-
-		//OpenGLTextureRef opengl_tex = new OpenGLTexture();
-		//opengl_tex->loadWithFormats(format.frameWidth(), format.frameHeight(), tex_data_arrayref,
-		//	ui->glWidget->opengl_engine.ptr(), OpenGLTexture::Format_SRGB_Uint8, // Format_RGB_Linear_Uint8, 
-		//	GL_RGB, // GL internal format (num channels)
-		//	GL_BGRA, // GL format.  Video frames are BGRA.
-		//	OpenGLTexture::Filtering_Bilinear, OpenGLTexture::Wrapping_Repeat);
-
-		opengl_tex = new OpenGLTexture(
-			format.frameWidth(), format.frameHeight(),
-			NULL, // opengl engine
-			OpenGLTexture::Format_SRGB_Uint8,
-			GL_RGB, // GL internal format (num channels)
-			GL_BGRA, // GL pixel format.  Video frames are BGRA.
-			OpenGLTexture::Filtering_Bilinear,
-			OpenGLTexture::Wrapping_Repeat
-		);
-
-		//this->opengl_tex = new OpenGLTexture();
-	
-		//image_format = QVideoFrame::imageFormatFromPixelFormat(format.pixelFormat());
-
-		return QAbstractVideoSurface::start(format); // "Note: You must call the base class implementation of start() at the end of your implementation."
-	}
-
-	virtual void stop() override
-	{
-		//conPrint("SubVideoSurface: stop()");
-
-
-		QAbstractVideoSurface::stop(); // "Note: You must call the base class implementation of stop() at the start of your implementation."
-	}
-
-	virtual QList<QVideoFrame::PixelFormat>	supportedPixelFormats(QAbstractVideoBuffer::HandleType handle_type) const override
-	{
-		// NOTE: opengl texture rendering not supported on windows currently, see D3DPresentEngine::supportsTextureRendering()
-		// in D:\programming\qt\qt-everywhere-src-5.13.2\qtmultimedia\src\plugins\common\evr\evrd3dpresentengine.cpp
-
-		/*QList<QVideoFrame::PixelFormat> formats;
-		formats.push_back(QVideoFrame::Format_RGB24);
-		formats.push_back(QVideoFrame::Format_ARGB32);
-		formats.push_back(QVideoFrame::Format_RGB32);
-		formats.push_back(QVideoFrame::Format_BGRA32);
-		formats.push_back(QVideoFrame::Format_ABGR32);
-		formats.push_back(QVideoFrame::Format_BGR32);
-		formats.push_back(QVideoFrame::Format_BGR24);
-		return formats;*/
-		if (handle_type == QAbstractVideoBuffer::GLTextureHandle) {
-			/*return QList<QVideoFrame::PixelFormat>()
-			<< QVideoFrame::Format_RGB32
-			<< QVideoFrame::Format_ARGB32
-			<< QVideoFrame::Format_ARGB32_Premultiplied
-			<< QVideoFrame::Format_RGB565
-			<< QVideoFrame::Format_RGB555;*/
-			QList<QVideoFrame::PixelFormat> formats;
-			formats.push_back(QVideoFrame::Format_RGB24);
-			formats.push_back(QVideoFrame::Format_ARGB32);
-			formats.push_back(QVideoFrame::Format_RGB32);
-			formats.push_back(QVideoFrame::Format_BGRA32);
-			formats.push_back(QVideoFrame::Format_ABGR32);
-			formats.push_back(QVideoFrame::Format_BGR32);
-			formats.push_back(QVideoFrame::Format_BGR24);
-			return formats;
-		} 
-		else if (handle_type == QAbstractVideoBuffer::NoHandle) {
-			/*return QList<QVideoFrame::PixelFormat>()
-				<< QVideoFrame::Format_RGB32
-				<< QVideoFrame::Format_ARGB32
-				<< QVideoFrame::Format_ARGB32_Premultiplied
-				<< QVideoFrame::Format_RGB565
-				<< QVideoFrame::Format_RGB555;*/
-			QList<QVideoFrame::PixelFormat> formats;
-			formats.push_back(QVideoFrame::Format_RGB24);
-			formats.push_back(QVideoFrame::Format_ARGB32);
-			formats.push_back(QVideoFrame::Format_RGB32);
-			formats.push_back(QVideoFrame::Format_BGRA32);
-			formats.push_back(QVideoFrame::Format_ABGR32);
-			formats.push_back(QVideoFrame::Format_BGR32);
-			formats.push_back(QVideoFrame::Format_BGR24);
-			return formats;
-		} else {
-			return QList<QVideoFrame::PixelFormat>();
+			if(resource->buffer.size() == resource->buffer.capacity()) // If the resource is already completely downloaded to buffer:
+				return -1;
+			else
+				return 0; // else still downloading, might be readable data later.
 		}
 	}
 
-	virtual bool isFormatSupported(const QVideoSurfaceFormat &format) const override
+	virtual qint64 writeData(const char *data, qint64 maxSize) override
 	{
-		const QImage::Format imageFormat = QVideoFrame::imageFormatFromPixelFormat(format.pixelFormat());
-		const QSize size = format.frameSize();
-
-		return imageFormat != QImage::Format_Invalid
-			&& !size.isEmpty()
-			&& format.handleType() == QAbstractVideoBuffer::NoHandle;
+		return -1;
 	}
 
-	OpenGLTextureRef opengl_tex;
+	virtual qint64 size() const override
+	{
+		Lock lock(resource->buffer_mutex);
+		return resource->buffer.capacity();
+	}
+
+	virtual bool isSequential() const override
+	{
+		return false;
+	}
+
+	ResourceRef resource;
+};
+
+
+#if 0
+class ResourceVidReaderByteStream : public VidReaderByteStream, public ResourceDownloadListener
+{
+public:
+	ResourceVidReaderByteStream(ResourceRef resource_) : resource(resource_), cur_i(0)
+	{
+		Lock lock(resource->buffer_mutex);
+		resource->num_buffer_readers++; // Increase reader count, so buffer is not cleared while we are reading from it.
+
+		resource->addDownloadListener(this);
+	}
+
+	virtual ~ResourceVidReaderByteStream()
+	{
+		resource->removeDownloadListener(this);
+
+		Lock lock(resource->buffer_mutex);
+		resource->num_buffer_readers--;
+	}
+
+	virtual bool isNetworkSource() const override { return true; }
+
+	virtual uint64 currentPos() const override
+	{
+		return cur_i;
+	}
+
+	virtual uint64 length() const override
+	{
+		Lock lock(resource->buffer_mutex);
+		return resource->buffer.capacity();
+	}
+
+	virtual uint64 readableLength() const override
+	{
+		Lock lock(resource->buffer_mutex);
+		return resource->buffer.size();
+	}
+
+	virtual bool readable() const override
+	{
+		Lock lock(resource->buffer_mutex);
+		return cur_i < resource->buffer.size();
+	}
+
+	virtual uint64 read(uint8* buffer, uint64 buffer_len) override // Returns amount of data read.
+	{
+		conPrint("ResourceVidReaderByteStream: reading up to " + toString(buffer_len) + " B at offset " + toString(cur_i) + "... (cur buf size: " + toString(resource->buffer.size()) + ")");
+		Lock lock(resource->buffer_mutex);
+		const int64 available = (int64)resource->buffer.size() - cur_i;
+		if(available > 0)
+		{
+			const int64 read_amount = myMin((int64)buffer_len, available);
+			std::memcpy(buffer, &resource->buffer[cur_i], read_amount);
+			conPrint("	read " + toString(read_amount) + " B");
+			cur_i += read_amount;
+			return read_amount;
+		}
+		else // else no bytes available currently:
+		{
+			conPrint("	read 0 B");
+			//if(resource->buffer.size() == resource->buffer.capacity()) // If the resource is already completely downloaded to buffer:
+			//	return -1;
+			//else
+				return 0; // else still downloading, might be readable data later.
+		}
+	}
+
+	virtual uint64 readAtPos(size_t pos, uint8* buffer, uint64 buffer_len) // Returns amount of data read. don't advance read position
+	{
+		conPrint("ResourceVidReaderByteStream: readAtPos(): reading up to " + toString(buffer_len) + " B at offset " + toString(pos) + "... (cur buf size: " + toString(resource->buffer.size()) + ")");
+		Lock lock(resource->buffer_mutex);
+		const int64 available = (int64)resource->buffer.size() - pos;
+		if(available > 0)
+		{
+			const int64 read_amount = myMin((int64)buffer_len, available);
+			conPrint("Copying " + toString(read_amount) + " B to buffer " + toHexString((uint64)buffer));
+			std::memcpy(buffer, &resource->buffer[pos], read_amount);
+			conPrint("	read " + toString(read_amount) + " B");
+			return read_amount;
+		}
+		else // else no bytes available currently:
+		{
+			conPrint("	read 0 B");
+			//if(resource->buffer.size() == resource->buffer.capacity()) // If the resource is already completely downloaded to buffer:
+			//	return -1;
+			//else
+			return 0; // else still downloading, might be readable data later.
+		}
+	}
+
+
+	virtual void setCurrentPos(uint64 p) override
+	{
+		conPrint("Seeking to " + toString(p));
+		cur_i = p;
+	}
+
+
+	virtual void addListener(VidReaderByteStreamListener* listener) override
+	{
+		listeners.insert(listener);
+	}
+	virtual void removeListener(VidReaderByteStreamListener* listener) override
+	{
+		listeners.erase(listener);
+	}
+
+	//-------------------------- ResourceDownloadListener interface --------------------------
+	virtual void dataReceived()
+	{
+		for(auto it : listeners)
+			it->dataReceived();
+		//this->doDataReceived();
+	}
+
+
+	std::set<VidReaderByteStreamListener*> listeners;
+	ResourceRef resource;
+	uint64 cur_i;
+};
+#endif
+
+#if 0
+class FileInStreamByteStream : public VidReaderByteStream
+{
+public:
+	FileInStreamByteStream(const std::string& path) : file(path) {}
+
+	virtual bool isNetworkSource() const override { return false; }
+
+	virtual uint64 currentPos() const override
+	{
+		return file.getReadIndex();
+	}
+
+	virtual uint64 length() const override
+	{
+		return file.fileSize();
+	}
+
+	virtual uint64 read(uint8* buffer, uint64 buffer_len) override // Returns amount of data read.
+	{
+		const int64 read_size = myMin((int64)buffer_len, (int64)file.fileSize() - (int64)file.getReadIndex());
+
+		if(read_size > 0)
+		{
+			file.readData(buffer, read_size);
+			return read_size;
+		}
+		else
+			return 0;
+	}
+
+	virtual void setCurrentPos(uint64 p) override
+	{
+		file.setReadIndex(p);
+	}
+
+	FileInStream file;
 };
 #endif
 
@@ -360,22 +598,33 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 						{
 							if(animtexdata.media_player == NULL)
 							{
-								std::string use_URL = mat.tex_path;
-								// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
-								if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
+								ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(mat.tex_path);
+								if(resource.nonNull())
 								{
-									use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
-								}
+									if(resource->getState() == Resource::State_Transferring)
+									{
+										animtexdata.resource_io_wrapper = new ResourceIODeviceWrapper(resource);
 
-								animtexdata.video_surface = new SubVideoSurface(NULL);
+										animtexdata.video_surface = new SubVideoSurface(NULL);
 							
-								animtexdata.media_player = new QMediaPlayer(NULL, QMediaPlayer::VideoSurface);
-								animtexdata.media_player->setVideoOutput(animtexdata.video_surface);
-								animtexdata.media_player->setMedia(QUrl(QtUtils::toQString(use_URL)));
-								animtexdata.media_player->play();
+										animtexdata.media_player = new QMediaPlayer(NULL, QMediaPlayer::VideoSurface);
+										animtexdata.media_player->setVideoOutput(animtexdata.video_surface);
+										animtexdata.media_player->setMedia(QUrl(QtUtils::toQString(mat.tex_path)), animtexdata.resource_io_wrapper.getPointer());
+										animtexdata.media_player->play();
+									}
+									else if(resource->getState() == Resource::State_Present)
+									{
+										// Read off disk
+										const std::string disk_path = resource->getLocalPath();
 
-								//VideoPlayer* player = new VideoPlayer();
-								//player->show();
+										animtexdata.video_surface = new SubVideoSurface(NULL);
+
+										animtexdata.media_player = new QMediaPlayer(NULL, QMediaPlayer::VideoSurface);
+										animtexdata.media_player->setVideoOutput(animtexdata.video_surface);
+										animtexdata.media_player->setMedia(QUrl::fromLocalFile(QtUtils::toQString(disk_path)));
+										animtexdata.media_player->play();
+									}
+								}
 							}
 							else // else if animtexdata.media_player != NULL
 							{
@@ -409,26 +658,37 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 							{
 								if(animtexdata.create_vid_reader_task.isNull()) // If we have not created a CreateVidReaderTask yet:
 								{
+									ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(mat.tex_path);
+									
+									// if the resource is downloaded already, read video off disk:
+									std::string use_URL;
+									if(resource.nonNull() && resource->getState() == Resource::State_Present)
+									{
+										use_URL = resource->getLocalPath();
+									}
+									else // Otherwise use streaming via HTTP
+									{
+										// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
+										if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
+										{
+											use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
+										}
+										else
+											use_URL = mat.tex_path;
+									}
+
+
 									animtexdata.callback = new SubstrataVideoReaderCallback();
 									animtexdata.callback->sample_queue = &animtexdata.sample_queue;
-							
-									std::string use_URL = mat.tex_path;
-									// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
-									if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
-									{
-										use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
-									}
-							
-									// conPrint("Creating video reader with URL '" + use_URL + "'...");
-							
+
 									// Create and launch a CreateVidReaderTask to create the video reader off the main thread.
 									Reference<CreateVidReaderTask> create_vid_reader_task = new CreateVidReaderTask();
 									create_vid_reader_task->callback = animtexdata.callback;
 									create_vid_reader_task->URL = use_URL;
 									create_vid_reader_task->dev_manager = main_window->device_manager.ptr;
-							
+
 									animtexdata.create_vid_reader_task = create_vid_reader_task;
-							
+
 									main_window->task_manager.addTask(create_vid_reader_task);
 								}
 								else // Else CreateVidReaderTask has been created already as is executing or has executed:
