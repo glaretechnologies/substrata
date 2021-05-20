@@ -1254,8 +1254,6 @@ struct AvatarNameInfo
 
 void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 {
-	conPrint("updateOnlineUsersList");
-
 	std::vector<AvatarNameInfo> names;
 	{
 		Lock lock(world_state->mutex);
