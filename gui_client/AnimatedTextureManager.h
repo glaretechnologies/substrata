@@ -16,7 +16,7 @@ class SubstrataVideoReaderCallback;
 class MainWindow;
 class WorldObject;
 class QMediaPlayer;
-class SubVideoSurface;
+class SubstrataVideoSurface;
 class ResourceIODeviceWrapper;
 class QBuffer;
 struct CreateVidReaderTask;
@@ -50,7 +50,7 @@ struct AnimatedTexData : public RefCounted
 	Reference<VideoReader> video_reader;
 	double in_anim_time; // Current time along timeline of video.  Doesn't change if video is paused.
 
-	SubVideoSurface* video_surface;
+	SubstrataVideoSurface* video_surface;
 	QMediaPlayer* media_player;
 
 	Reference<ResourceIODeviceWrapper> resource_io_wrapper;
