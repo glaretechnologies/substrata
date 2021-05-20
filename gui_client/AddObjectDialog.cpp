@@ -9,6 +9,7 @@ Code By Nicholas Chapman.
 
 #include "ModelLoading.h"
 #include "NetDownloadResourcesThread.h"
+#include "SubstrataVideoSurface.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
 #include "../graphics/formatdecoderobj.h"
@@ -357,7 +358,58 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			preview_gl_ob->materials[0].albedo_texture->load(frameinfo->width, frameinfo->height, frameinfo->stride_B, tex_data_arrayref);
 
 #else
-			throw glare::Exception("Adding mp4s only supported on windows currently, sorry!");
+			SubstrataVideoSurface* video_surface = new SubstrataVideoSurface(NULL);
+			video_surface->load_into_opengl_tex = false; // Just copy into mem buffer.  OpenGL texture stuff gets tricky with multiple GL contexts.
+
+			QMediaPlayer* media_player = new QMediaPlayer(NULL, QMediaPlayer::VideoSurface);
+			media_player->setVideoOutput(video_surface);
+			media_player->setMedia(QUrl(QtUtils::toQString(local_path)));
+			media_player->play();
+
+			// Wait until we have a valid video frame.
+			Timer timer;
+			while(timer.elapsed() < 10.0)
+			{
+				if(media_player->error() != QMediaPlayer::NoError)
+					break;
+
+				if(!video_surface->frame_copy.empty()) // We have a frame:
+					break;
+
+				QCoreApplication::processEvents();
+				PlatformUtils::Sleep(1);
+			}
+
+			media_player->stop();
+
+			this->objectPreviewGLWidget->makeCurrent(); // Gl context may have been made non-current in QCoreApplication::processEvents() above.
+
+			if(!video_surface->frame_copy.empty())
+			{
+				const int W = video_surface->current_format.frameWidth();
+				const int H = video_surface->current_format.frameHeight();
+				makeMeshForWidthAndHeight(local_path, W, H);
+
+				// Load frame 0 into opengl texture
+				preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, objectPreviewGLWidget->opengl_engine.ptr(), 
+					OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
+					GL_SRGB8_ALPHA8, // GL internal format
+					GL_BGRA, // GL format.  Video frames are BGRA.  NOTE: FIXME for what qt returns
+					OpenGLTexture::Filtering_Bilinear, // Use bilinear so the OpenGL driver doesn't have to compute mipmaps.
+					OpenGLTexture::Wrapping_Repeat);
+				
+				ArrayRef<uint8> tex_data_arrayref(video_surface->frame_copy);
+
+				const int stride_B = video_surface->frame_copy.size() / H;
+				preview_gl_ob->materials[0].albedo_texture->load(W, H, stride_B, tex_data_arrayref);
+			}
+			else
+			{
+				makeMeshForWidthAndHeight(local_path, 1024, 1024);
+			}
+
+			delete media_player;
+			delete video_surface;
 #endif
 		}
 		else if(ImFormatDecoder::hasImageExtension(local_path))

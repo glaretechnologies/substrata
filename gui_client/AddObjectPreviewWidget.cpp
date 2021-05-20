@@ -154,6 +154,9 @@ void AddObjectPreviewWidget::initializeGL()
 
 void AddObjectPreviewWidget::paintGL()
 {
+	if(opengl_engine.isNull())
+		return;
+
 	const Matrix4f T = Matrix4f::translationMatrix(0.f, cam_dist, 0.f);
 	const Matrix4f z_rot = Matrix4f::rotationMatrix(Vec4f(0,0,1,0), cam_phi);
 	const Matrix4f x_rot = Matrix4f::rotationMatrix(Vec4f(1,0,0,0), -(cam_theta - Maths::pi_2<float>()));
