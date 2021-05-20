@@ -185,15 +185,15 @@ void DownloadResourcesThread::doRun()
 								if(file_len > 1000000000)
 									throw glare::Exception("downloaded file too large (len=" + toString(file_len) + ").");
 
-								{
-									Lock lock(resource->buffer_mutex);
-									resource->buffer.reserve(file_len);
-								}
-
 								// If 'streaming' the file, download in chunks, while locking the buffer mutex.
 								// This is so the main thread can read from the resource buffer.
 								if(stream)
 								{
+									{
+										Lock lock(resource->buffer_mutex);
+										resource->buffer.reserve(file_len);
+									}
+
 									js::Vector<uint8, 16> temp_buf(1024 * 16);
 
 									size_t buf_i = 0;
@@ -220,6 +220,8 @@ void DownloadResourcesThread::doRun()
 								}
 								else
 								{
+									Lock lock(resource->buffer_mutex);
+									resource->buffer.resize(file_len);
 									socket->readData(resource->buffer.data(), file_len); // Just read entire file.
 								}
 
