@@ -456,8 +456,40 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 }
 
 
+void WorldObject::copyNetworkStateFrom(const WorldObject& other)
+{
+	// NOTE: The data in here needs to match that in readFromNetworkStreamGivenUID()
+	object_type = other.object_type;
+	model_url = other.model_url;
+	materials = other.materials;
+
+	lightmap_url = other.lightmap_url;
+
+	script = other.script;
+	content = other.content;
+	target_url = other.target_url;
+
+	pos = other.pos;
+	axis = other.axis;
+	angle = other.angle;
+
+	scale = other.scale;
+
+	created_time = other.created_time;
+	creator_id = other.creator_id;
+
+	flags = other.flags;
+
+	creator_name = other.creator_name;
+
+	compressed_voxels = other.compressed_voxels;
+}
+
+
 void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID will have been read already
 {
+	// NOTE: The data in here needs to match that in copyNetworkStateFrom()
+
 	ob.object_type = (WorldObject::ObjectType)stream.readUInt32(); // TODO: handle invalid values?
 	ob.model_url = stream.readStringLengthFirst(10000);
 	//if(v >= 2)
