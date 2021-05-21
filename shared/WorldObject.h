@@ -93,7 +93,7 @@ public:
 	void writeToStream(OutStream& stream) const;
 	void writeToNetworkStream(OutStream& stream) const; // Write without version
 
-	
+	void copyNetworkStateFrom(const WorldObject& other);
 
 
 	enum ObjectType

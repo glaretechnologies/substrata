@@ -621,7 +621,7 @@ void WorkerThread::doRun()
 						// Write the data to the socket
 						if(!data.empty())
 						{
-							if(VERBOSE) conPrint("WorkerThread: calling writeWebsocketTextMessage() with data '" + data + "'...");
+							if(VERBOSE) conPrint("WorkerThread: calling writeData() with data '" + data + "'...");
 							socket->writeData(data.data(), data.size());
 						}
 					}
@@ -799,16 +799,18 @@ void WorkerThread::doRun()
 						//conPrint("ObjectFullUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
 
+						WorldObject temp_ob;
+						readFromNetworkStreamGivenUID(*socket, temp_ob); // Read rest of ObjectFullUpdate message.
+
 						// If client is not logged in, refuse object modification.
 						if(client_user.isNull())
 						{
 							writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
-							WorldObject dummy_ob;
-							readFromNetworkStreamGivenUID(*socket, dummy_ob); // Read rest of ObjectFullUpdate message.
 						}
 						else
 						{
 							// Look up existing object in world state
+							bool send_must_be_owner_msg = true;
 							{
 								Lock lock(world_state->mutex);
 								auto res = cur_world_state->objects.find(object_uid);
@@ -819,13 +821,12 @@ void WorkerThread::doRun()
 									// See if the user has permissions to alter this object:
 									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name))
 									{
-										writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
-										WorldObject dummy_ob;
-										readFromNetworkStreamGivenUID(*socket, dummy_ob); // Read rest of ObjectFullUpdate message.
+										send_must_be_owner_msg = true;
 									}
 									else
 									{
-										readFromNetworkStreamGivenUID(*socket, *ob);
+										ob->copyNetworkStateFrom(temp_ob);
+
 										ob->from_remote_other_dirty = true;
 										cur_world_state->dirty_from_remote_objects.insert(ob);
 
@@ -836,7 +837,10 @@ void WorkerThread::doRun()
 											sendGetFileMessageIfNeeded(*it);
 									}
 								}
-							}
+							} // End lock scope
+
+							if(send_must_be_owner_msg)
+								writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
 						}
 						break;
 					}
