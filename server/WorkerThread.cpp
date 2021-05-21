@@ -967,24 +967,30 @@ void WorkerThread::doRun()
 						}
 						else
 						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->objects.find(object_uid);
-							if(res != cur_world_state->objects.end())
+							bool send_must_be_owner_msg = false;
 							{
-								WorldObject* ob = res->second.getPointer();
-
-								// See if the user has permissions to alter this object:
-								const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name);
-								if(!have_delete_perms)
-									writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
-								else
+								Lock lock(world_state->mutex);
+								auto res = cur_world_state->objects.find(object_uid);
+								if(res != cur_world_state->objects.end())
 								{
-									// Mark object as dead
-									ob->state = WorldObject::State_Dead;
-									ob->from_remote_other_dirty = true;
-									cur_world_state->dirty_from_remote_objects.insert(ob);
+									WorldObject* ob = res->second.getPointer();
+
+									// See if the user has permissions to alter this object:
+									const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name);
+									if(!have_delete_perms)
+										send_must_be_owner_msg = true;
+									else
+									{
+										// Mark object as dead
+										ob->state = WorldObject::State_Dead;
+										ob->from_remote_other_dirty = true;
+										cur_world_state->dirty_from_remote_objects.insert(ob);
+									}
 								}
-							}
+							} // End lock scope
+
+							if(send_must_be_owner_msg)
+								writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
 						}
 						break;
 					}
