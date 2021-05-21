@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "WinterShaderEvaluator.h"
 #include "LoginDialog.h"
 #include "SignUpDialog.h"
+#include "GoToParcelDialog.h"
 #include "ResetPasswordDialog.h"
 #include "ChangePasswordDialog.h"
 #include "URLWidget.h"
@@ -4013,6 +4014,42 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
 {
 	connectToServer(this->server_hostname, "cryptovoxels");
+}
+
+
+void MainWindow::on_actionGo_to_Parcel_triggered()
+{
+	GoToParcelDialog d(this->settings);
+	const int code = d.exec();
+	if(code == QDialog::Accepted)
+	{
+		try
+		{
+			const int parcel_num = stringToInt(QtUtils::toStdString(d.parcelNumberLineEdit->text()));
+
+			auto res = world_state->parcels.find(ParcelID(parcel_num));
+			if(res != world_state->parcels.end())
+			{
+				const Parcel* parcel = res->second.ptr();
+
+				cam_controller.setPosition(parcel->getVisitPosition()); 
+			}
+			else
+			{
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Invalid parcel number");
+				msgBox.setText("There is no parcel with that number.");
+				msgBox.exec();
+			}
+		}
+		catch(glare::Exception&)
+		{
+			QMessageBox msgBox;
+			msgBox.setWindowTitle("Invalid parcel number");
+			msgBox.setText("Please enter just a number.");
+			msgBox.exec();
+		}
+	}
 }
 
 
