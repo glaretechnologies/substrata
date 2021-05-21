@@ -810,7 +810,7 @@ void WorkerThread::doRun()
 						else
 						{
 							// Look up existing object in world state
-							bool send_must_be_owner_msg = true;
+							bool send_must_be_owner_msg = false;
 							{
 								Lock lock(world_state->mutex);
 								auto res = cur_world_state->objects.find(object_uid);
