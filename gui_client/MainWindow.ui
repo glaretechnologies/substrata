@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1075</width>
-    <height>787</height>
+    <height>763</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -64,6 +64,7 @@
     <property name="title">
      <string>Go</string>
     </property>
+    <addaction name="actionGo_to_Parcel"/>
     <addaction name="actionGoToMainWorld"/>
     <addaction name="actionGoToPersonalWorld"/>
     <addaction name="actionGo_to_CryptoVoxels_World"/>
@@ -197,7 +198,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>267</height>
+          <height>261</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -294,7 +295,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>267</height>
+          <height>249</height>
          </rect>
         </property>
        </widget>
@@ -426,6 +427,11 @@
   <action name="actionAdd_Spotlight">
    <property name="text">
     <string>Add Spotlight</string>
+   </property>
+  </action>
+  <action name="actionGo_to_Parcel">
+   <property name="text">
+    <string>Go to Parcel</string>
    </property>
   </action>
  </widget>

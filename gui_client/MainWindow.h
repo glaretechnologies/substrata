@@ -96,6 +96,7 @@ private slots:;
 	void on_actionGoToMainWorld_triggered();
 	void on_actionGoToPersonalWorld_triggered();
 	void on_actionGo_to_CryptoVoxels_World_triggered();
+	void on_actionGo_to_Parcel_triggered();
 	void on_actionExport_view_to_Indigo_triggered();
 	void on_actionAbout_Substrata_triggered();
 	void on_actionOptions_triggered();
