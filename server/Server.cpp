@@ -367,9 +367,9 @@ int main(int argc, char *argv[])
 		struct tls_config* web_tls_configuration = tls_config_new();
 
 #ifdef WIN32
-		if(tls_config_set_cert_file(web_tls_configuration, "O:\\new_cyberspace\\trunk\\scripts\\cert.pem") != 0)
+		if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()/*"O:\\new_cyberspace\\trunk\\scripts\\cert.pem"*/) != 0)
 			throw glare::Exception("tls_config_set_cert_file failed.");
-		if(tls_config_set_key_file(web_tls_configuration, "O:\\new_cyberspace\\trunk\\scripts\\key.pem") != 0) // set private key
+		if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str() /*"O:\\new_cyberspace\\trunk\\scripts\\key.pem"*/) != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #else
 		if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
