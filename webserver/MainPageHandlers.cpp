@@ -312,7 +312,7 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 	page += "<div class=\"caption\">Substrata as of 24th May 2021</div>";
 
 	page += " We are aiming for Substrata to become one of the most important, and maybe the dominant 3D metaverse on the internet - "
-		" just like the Web is the doiminant '2D metaverse' today.";
+		" just like the Web is the dominant '2D metaverse' today.";
 
 	page += " Read on for how we plan to achieve this!";
 
@@ -343,7 +343,7 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 
 	page += "<h2>Free-form content creation by users</h2>";
 
-	page += "<p>Our philosphy is that users should be free to create whatever they want on their parcels or in their personal worlds, with as few limits as possible.";
+	page += "<p>Our philosophy is that users should be free to create whatever they want on their parcels or in their personal worlds, with as few limits as possible.";
 	page += " Technical limits such as 3D model and texture resolution are things we will be trying to reduce as much as possible by improving our 3D engine and trying to make it as scalable as possible.";
 	page += " We expect this to be a major area of ongoing development - basically trying to make the engine keep up with what users are throwing at it.</p>";
 
@@ -376,7 +376,7 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 	page += " We sell land on Substrata (as opposed to just giving it away for free) for various reasons:";
 	page += "<ul><li>Revenue from sales helps fund code development and server costs</li>";
 	page += "<li>Steady land sales results in a manageable influx of new builders (users who can edit objects in their parcels), allowing us to fix bugs and tweak features steadily"
-		" without having to deal with thousands of simulateneous new builders</li>";
+		" without having to deal with thousands of simultaneous new builders</li>";
 	page += "<li>Owning land incentivises users to improve it by building cool stuff on it (in theory at least!).</li>";
 	page += "</ul>";
 
@@ -400,7 +400,7 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 	page += "</li></ul>";
 	page += "<h2>Running a server to serve your own world</h2>";
 
-	page += "You will also be able to run the substrata server sofware on your server, to run an entire world, with parcels, users etc..";
+	page += "You will also be able to run the substrata server software on your server, to run an entire world, with parcels, users etc..";
 	page += " We intend for substrata.info to remain the main world however!";
 
 
