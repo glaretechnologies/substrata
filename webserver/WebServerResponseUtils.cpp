@@ -59,12 +59,18 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"		{																											\n"
 		"			min-height: 400px																							\n"
 		"		}																											\n"
+		"		.caption																									\n"
+		"		{																											\n"
+		"			font-size:0.8em;																						\n"
+		"			color: grey;																							\n"
+		"			margin-bottom: 20px;																					\n"
+		"		}																											\n"
 		"		#login																										\n"
 		"		{																											\n"
-		"			text-align: right;																											\n"
+		"			text-align: right;																						\n"
 		"		}																											\n"
-		"		</style>																								\n"
-		"		</head>																									\n";
+		"		</style>																									\n"
+		"		</head>																										\n";
 }
 
 
