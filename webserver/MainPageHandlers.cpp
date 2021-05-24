@@ -89,7 +89,8 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"	</p>																																																	\n"
 	"	<p>																																																		\n"
 	"	Substrata is early in development, please expect rough edges!																																			\n"
-	"	</p>																																																	\n"
+	"	</p>																																														\n"
+	"	<a href=\"/about_substrata\">Read about our goals and plans for Substrata</a>				\n"
 	"																																																			\n"
 	"	<h2>Downloads</h2>																																														\n"
 	"	<p>To explore Substrata you will need to install the free client software for your platform:</p>																										\n"
@@ -291,6 +292,90 @@ void renderAboutScripting(ServerAllWorldsState& world_state, const web::RequestI
 	page += "<p>We may allow server-side scripting in the future, using a language like Javascript, and with some way of maintaining state.</p>";
 
 	page += "<p>We plan to allow users to run their own server as well, to control their parcels, which will allow arbitrarily complicated code to affect their Substrata parcels.</p>";
+
+	page += "<br/><br/>";
+	page += "<a href=\"/\">&lt; Home</a>";
+
+	page += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Our vision for Substrata");
+
+	page += "<p>Substrata is a free, online 3D metaverse, where users can explore, chat, play and build.</p>";
+
+	page += " We are aiming for Substrata to become one of the most important, and maybe the dominant 3D metaverse on the internet - "
+		" just like the Web is the doiminant '2D metaverse' today.";
+
+	page += " Read on for how we plan to achieve this!";
+
+	page += "<h2>A main shared world</h2>";
+
+	page += "The main world on substrata.info is where new users will join the world.  The centre of this world will be like a "
+		" town square or forum.";
+
+
+	page += "<h2>Land Sales</h2>";
+	page += " Users can purchase land parcels in this main shared world - "
+		"<a href=\"/parcel_auction_list\">see the parcels currently for sale</a>.  In general, the closer"
+		" the parcel is to the centre of the world, the more expensive it will be, as it will get more exposure to foot traffic.  "
+		"Think owning a property on Times Square in New York.";
+
+	page += " We sell land on Substrata (as opposed to just giving it away for free) for various reasons:";
+	page += "<ul><li>Revenue from sales helps fund code development and server costs</li>";
+	page += "<li>Steady land sales results in a manageable influx of new builders (users who can edit objects in their parcels), allowing us to fix bugs and tweak features steadily"
+		" without having to deal with thousands of simulateneous new builders</li>";
+	page += "<li>Owning land incentivises users to improve it by building cool stuff on it (in theory at least!).</li>";
+	page += "</ul>";
+
+	page += "<h2>Personal worlds</h2>";
+	page += "<p>Each user also has their own personal world, which anyone can visit, at sub://substrata.info/username in the Substrata client software. "
+		"Users can upload and build whatever they want in there (with some disk usage limits etc..)";
+
+	
+	page += "<h2>Running a server to serve your parcel</h2>";
+
+	page += "Imagine if the entire Web ran on Google's computers - that wouldn't be very democratic and decentralised.";
+	page += " Instead, today anyone can run a webserver, and serve a website from it, if you have the right software installed on it.";
+
+	page += " In a similar vein, you will be able to run some server software on your own server, to serve data for your substrata.info parcel.";
+	page += " This has a few advantages:";
+	page += "<ul><li>No file size or disk usage restrictions - you can serve 3d models, textures, and movies with as high resolution as you wish.";
+	page += " Just bear in mind that user clients may display lower resolutions of your assets.";
+
+	page += "</li><li>Full control over objects in your parcel - If you are a programmer, you can script / program the objects in your parcel to do"
+		" anything you wish.  Since the code is running on your server, there are no sandboxing issues or restrictions on what the code can do.";
+	page += "</li></ul>";
+	page += "<h2>Running a server to serve your own world</h2>";
+
+	page += "You will also be able to run the substrata server sofware on your server, to run an entire world, with parcels, users etc..";
+	page += " We intend for substrata.info to remain the main world however!";
+
+
+	page += "<h2>Open Source</h2>";
+
+	page += "We plan to open-source Substrata at some point, probably once the world on substrata.info has reached critical mass.";
+	page += " I think open source is essential for Substrata to really become widely used and the bedrock of the metaverse.";
+
+	page += "<h2>Open Protocol</h2>";
+	page += "We will publish documentation on the Substrata network protocol, and all other documentation required for interoperability,"
+		" such as the 3d mesh format specification.  This will allow other programmers to implement Substrata clients, servers, bots, "
+		"agents etc..";
+
+	page += "<h2>Other goals</h2>";
+
+	page += "<h3>Voice chat with other users with spatial audio</h3>"
+		"You will be able to chat using a headset with other users nearby in virtual space to you.";
+
+	page += "<h3>VR headset support via OpenXR</h3>"
+		"This will allow Substrata to be viewable in VR headsets that work with desktop computers.";
+
+
+
 
 	page += "<br/><br/>";
 	page += "<a href=\"/\">&lt; Home</a>";
