@@ -380,6 +380,8 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 	page += "<li>Owning land incentivises users to improve it by building cool stuff on it (in theory at least!).</li>";
 	page += "</ul>";
 
+	page += "We want to support a secondary market in land sales, see <a href=\"/about_parcel_sales\">about parcel sales</a> for more info.";
+
 	page += "<h2>Personal worlds</h2>";
 	page += "<p>Each user also has their own personal world, which anyone can visit, at sub://substrata.info/username in the Substrata client software. "
 		"Users can upload and build whatever they want in there (with some disk usage limits etc..)";
@@ -421,6 +423,19 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 
 	page += "<h3>VR headset support via OpenXR</h3>"
 		"This will allow Substrata to be viewable in VR headsets that work with desktop computers.";
+
+	page += "<h3>Customisable Avatars</h3>";
+
+	page += "<h2>About us</h2>";
+	page += "<p>As mentioned above, We at Glare Technologies are the developers of <a href=\"https://www.indigorenderer.com/\">Indigo Renderer</a> and"
+		" <a href=\"https://www.chaoticafractals.com/\">Chaotica Fractals</a></p>";
+
+	page += "<p>Personally speaking, I have been developing Metaverses for around 20 years now (with some gaps), the first one dating from around 2001!</p>";
+
+	page += "<p>I was inspired by books like Snow Crash and Neuromancer.  More recently, with the return of VR headsets and the rise in virtual worlds linked with NFT sales, and "
+		" the speed of modern computers and internet connections, the time looks right to have another crack at a metaverse.</p>";
+
+	page += " - Nicholas Chapman, founder, Glare Technologies Ltd.";
 
 
 	page += "<p>Thoughts on this doc? Come discuss on our <a href=\"https://discord.com/invite/R6tfYn3\">Discord</a> or <a href=\"https://twitter.com/SubstrataVr\">Twitter</a></p>";
