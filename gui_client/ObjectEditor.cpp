@@ -65,7 +65,6 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->rotAxisXDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAxisYDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAxisZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	connect(this->rotAngleDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
@@ -134,11 +133,15 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
 	SignalBlocker::setValue(this->scaleYDoubleSpinBox, ob.scale.y);
 	SignalBlocker::setValue(this->scaleZDoubleSpinBox, ob.scale.z);
+
+
+	const Matrix3f rot_mat = Matrix3f::rotationMatrix(normalise(ob.axis), ob.angle);
+
+	const Vec3f angles = rot_mat.getAngles();
 	
-	SignalBlocker::setValue(this->rotAxisXDoubleSpinBox, ob.axis.x);
-	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, ob.axis.y);
-	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, ob.axis.z);
-	SignalBlocker::setValue(this->rotAngleDoubleSpinBox, ob.angle);
+	SignalBlocker::setValue(this->rotAxisXDoubleSpinBox, angles.x * 360 / Maths::get2Pi<float>());
+	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, angles.y * 360 / Maths::get2Pi<float>());
+	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, angles.z * 360 / Maths::get2Pi<float>());
 
 	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
 	
@@ -233,10 +236,17 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.scale.y = (float)this->scaleYDoubleSpinBox->value();
 	ob_out.scale.z = (float)this->scaleZDoubleSpinBox->value();
 
-	ob_out.axis.x = (float)this->rotAxisXDoubleSpinBox->value();
-	ob_out.axis.y = (float)this->rotAxisYDoubleSpinBox->value();
-	ob_out.axis.z = (float)this->rotAxisZDoubleSpinBox->value();
-	ob_out.angle  = (float)this->rotAngleDoubleSpinBox->value();
+	const Vec3f angles(
+		(float)(this->rotAxisXDoubleSpinBox->value() / 360 * Maths::get2Pi<double>()),
+		(float)(this->rotAxisYDoubleSpinBox->value() / 360 * Maths::get2Pi<double>()),
+		(float)(this->rotAxisZDoubleSpinBox->value() / 360 * Maths::get2Pi<double>())
+	);
+
+	// Convert angles to rotation matrix, then the rotation matrix to axis-angle.
+
+	const Matrix3f rot_matrix = Matrix3f::fromAngles(angles);
+
+	rot_matrix.rotationMatrixToAxisAngle(/*unit axis out=*/ob_out.axis, /*angle out=*/ob_out.angle);
 
 	if(ob_out.axis.length() < 1.0e-5f)
 	{
@@ -331,7 +341,6 @@ void ObjectEditor::setControlsEditable(bool editable)
 	this->rotAxisXDoubleSpinBox->setReadOnly(!editable);
 	this->rotAxisYDoubleSpinBox->setReadOnly(!editable);
 	this->rotAxisZDoubleSpinBox->setReadOnly(!editable);
-	this->rotAngleDoubleSpinBox->setReadOnly(!editable);
 
 	this->collidableCheckBox->setEnabled(editable);
 
