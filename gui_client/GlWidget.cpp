@@ -74,6 +74,8 @@ GlWidget::GlWidget(QWidget *parent)
 
 	// Needed to get keyboard events.
 	setFocusPolicy(Qt::StrongFocus);
+
+	setMouseTracking(true); // Set this so we get mouse move events even when a mouse button is not down.
 }
 
 
@@ -365,6 +367,8 @@ void GlWidget::mousePressEvent(QMouseEvent* e)
 
 	// Hide cursor when moving view.
 	this->setCursor(QCursor(Qt::BlankCursor));
+
+	emit mousePressed(e);
 }
 
 

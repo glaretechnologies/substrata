@@ -65,6 +65,7 @@ protected:
 signals:;
 	void cameraUpdated();
 	void widgetShowSignal();
+	void mousePressed(QMouseEvent* e);
 	void mouseClicked(QMouseEvent* e);
 	void mouseMoved(QMouseEvent* e);
 	void keyPressed(QKeyEvent* e);
