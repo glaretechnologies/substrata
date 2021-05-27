@@ -106,6 +106,7 @@ private slots:;
 	void sendChatMessageSlot();
 
 	void glWidgetMouseClicked(QMouseEvent* e);
+	void glWidgetMousePressed(QMouseEvent* e);
 	void glWidgetMouseDoubleClicked(QMouseEvent* e);
 	void glWidgetMouseMoved(QMouseEvent* e);
 	void glWidgetKeyPressed(QKeyEvent* e);
@@ -152,10 +153,15 @@ private:
 	void updateOnlineUsersList(); // Works off world state avatars.
 	bool areEditingVoxels();
 	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y);
+
+	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out); // Returns true if point is visible from camera.
+
 	void updateVoxelEditMarkers();
 	void pickUpSelectedObject();
 	void dropSelectedObject();
 	void setUIForSelectedObject(); // Enable/disable delete object action etc..
+
+	int mouseOverAxisArrow(const Vec2f& pixel_coords); // Returns closest axis arrow or -1 if no close.
 
 	struct EdgeMarker
 	{
@@ -297,6 +303,15 @@ public:
 
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
+
+	GLObjectRef x_axis_arrow; // For ob placement
+	GLObjectRef y_axis_arrow;
+	GLObjectRef z_axis_arrow;
+
+	Vec4f axis_arrows_start[3];
+	Vec4f axis_arrows_end[3];
+
+	bool x_axis_grabbed;
 
 	Reference<OpenGLProgram> parcel_shader_prog;
 

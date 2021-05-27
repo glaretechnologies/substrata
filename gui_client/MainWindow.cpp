@@ -237,6 +237,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->glWidget, SIGNAL(mouseClicked(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
+	connect(ui->glWidget, SIGNAL(mousePressed(QMouseEvent*)), this, SLOT(glWidgetMousePressed(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(glWidgetMouseDoubleClicked(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseMoved(QMouseEvent*)), this, SLOT(glWidgetMouseMoved(QMouseEvent*)));
 	connect(ui->glWidget, SIGNAL(keyPressed(QKeyEvent*)), this, SLOT(glWidgetKeyPressed(QKeyEvent*)));
@@ -1334,6 +1335,19 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		ob_placement_marker->ob_to_world_matrix = Matrix4f::translationMatrix(down_beam_hitpos) *
 			orientation * marker_scale_matrix;
 		ui->glWidget->opengl_engine->updateObjectTransformData(*ob_placement_marker);
+
+		// Place x, y, z axis arrows.
+		const Vec4f arrow_origin = new_aabb_ws.centroid();
+		x_axis_arrow->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), 1.f);
+		y_axis_arrow->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(arrow_origin, arrow_origin + Vec4f(0, 1, 0, 0), 1.f);
+		z_axis_arrow->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), 1.f);
+
+		axis_arrows_start[0] = arrow_origin;
+		axis_arrows_end[0] = arrow_origin + Vec4f(1, 0, 0, 0);
+
+		ui->glWidget->opengl_engine->updateObjectTransformData(*x_axis_arrow);
+		ui->glWidget->opengl_engine->updateObjectTransformData(*y_axis_arrow);
+		ui->glWidget->opengl_engine->updateObjectTransformData(*z_axis_arrow);
 	}
 }
 
@@ -4560,8 +4574,11 @@ Vec4f MainWindow::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y)
 	const float sensor_height = sensor_width / ui->glWidget->viewport_aspect_ratio;
 	const float lens_sensor_dist = GlWidget::lensSensorDist();
 
-	const float s_x = sensor_width *  (float)(pixel_pos_x - ui->glWidget->geometry().width() /2) / ui->glWidget->geometry().width(); // dist right on sensor from centre of sensor
-	const float s_y = sensor_height * (float)(pixel_pos_y - ui->glWidget->geometry().height()/2) / ui->glWidget->geometry().height(); // dist down on sensor from centre of sensor
+	const float gl_w = (float)ui->glWidget->geometry().width();
+	const float gl_h = (float)ui->glWidget->geometry().height();
+
+	const float s_x = sensor_width  * (float)(pixel_pos_x - gl_w/2) / gl_w;  // dist right on sensor from centre of sensor
+	const float s_y = sensor_height * (float)(pixel_pos_y - gl_h/2) / gl_h; // dist down on sensor from centre of sensor
 
 	const float r_x = s_x / lens_sensor_dist;
 	const float r_y = s_y / lens_sensor_dist;
@@ -4571,8 +4588,119 @@ Vec4f MainWindow::getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y)
 }
 
 
+/*
+s_x = sensor_width * (pixel_x - gl_w/2) / gl_w
+r_x = s_x / lens_sensor_dist
+
+so
+r_x = sensor_width * (pixel_x - gl_w/2) / (gl_w * lens_sensor_dist)
+
+(gl_w * lens_sensor_dist) * r_x = sensor_width * (pixel_x - gl_w/2)
+gl_w * lens_sensor_dist * r_x = sensor_width * pixel_x - sensor_width * gl_w/2
+gl_w * lens_sensor_dist * r_x + sensor_width * gl_w/2 = sensor_width * pixel_x
+
+pixel_x = (gl_w * lens_sensor_dist * r_x + sensor_width * gl_w/2) / sensor_width
+*/
+
+
+bool MainWindow::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) // Returns true if point is visible from camera.
+{
+	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+
+	const float sensor_width = GlWidget::sensorWidth();
+	const float sensor_height = sensor_width / ui->glWidget->viewport_aspect_ratio;
+	const float lens_sensor_dist = GlWidget::lensSensorDist();
+
+	const float gl_w = (float)ui->glWidget->geometry().width();
+	const float gl_h = (float)ui->glWidget->geometry().height();
+
+	Vec4f cam_to_point = point_ws - this->cam_controller.getPosition().toVec4fPoint();
+	if(dot(cam_to_point, forwards) < 0.001)
+		return false; // point behind camera.
+
+	cam_to_point = cam_to_point / dot(cam_to_point, forwards);
+
+	const float r_x =  dot(cam_to_point, right);
+	const float r_y = -dot(cam_to_point, up);
+
+	const float pixel_x = (gl_w * lens_sensor_dist * r_x + sensor_width  * gl_w/2) / sensor_width;
+	const float pixel_y = (gl_h * lens_sensor_dist * r_y + sensor_height * gl_h/2) / sensor_height;
+
+	pixel_coords_out = Vec2f(pixel_x, pixel_y);
+	return true;
+}
+
+
+int MainWindow::mouseOverAxisArrow(const Vec2f& pixel_coords) // Returns closest axis arrow or -1 if no close.
+{
+	float closest_dist = 10000;
+	int closest_axis = -1;
+	const float max_selection_dist = 20;
+	for(int i=0; i<1; ++i)
+	{
+		Vec2f x_start, x_end;
+		bool start_visible = getPixelForPoint(axis_arrows_start[0], x_start);
+		bool end_visible   = getPixelForPoint(axis_arrows_end  [0], x_end);
+
+		const Vec2f clickpos = pixel_coords;
+		if(start_visible && end_visible)
+		{
+			const float d = pointLineSegmentDist(clickpos, x_start, x_end);
+			printVar(d);
+
+			if(d <= closest_dist && d < max_selection_dist)
+			{
+				closest_dist = d;
+				closest_axis = i;
+			}
+		}
+	}
+
+	return closest_axis;
+}
+
+
+void MainWindow::glWidgetMousePressed(QMouseEvent* e)
+{
+	conPrint("glWidgetMousePressed");
+}
+
+
 void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 {
+	conPrint("glWidgetMouseClicked");
+
+	if(selected_ob.nonNull())
+	{
+		selected_ob->decompressVoxels(); // Make sure voxels are decompressed for this object.
+
+		//const bool have_edit_permissions = objectModificationAllowed(*selected_ob);
+		//if(have_edit_permissions)
+		//{
+		//	Vec2f x_start, x_end;
+		//	bool start_visible = getPixelForPoint(axis_arrows_start[0], x_start);
+		//	bool end_visible   = getPixelForPoint(axis_arrows_end  [0], x_end);
+
+		//	x_axis_grabbed = false;
+		//	const Vec2f clickpos((float)e->pos().x(), (float)e->pos().y());
+		//	if(start_visible && end_visible)
+		//	{
+		//		const float d = pointLineSegmentDist(clickpos, x_start, x_end);
+		//		printVar(d);
+
+		//		if(d <= 20)
+		//			x_axis_grabbed = true;
+		//	}
+
+		//	if(x_axis_grabbed)
+		//		ui->glWidget->opengl_engine->selectObject(x_axis_arrow);
+		//	else
+		//		ui->glWidget->opengl_engine->deselectObject(x_axis_arrow);
+		//}
+	}
+
 	if(areEditingVoxels())
 	{
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
@@ -4582,6 +4710,10 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		if(results.hit_object)
 		{
 			const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
+
+			Vec2f pixel_coords;
+			const bool visible = getPixelForPoint(hitpos_ws, pixel_coords);
+			printVar(pixel_coords);
 
 			if(selected_ob.nonNull())
 			{
@@ -4862,6 +4994,10 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 				ui->glWidget->opengl_engine->addObject(ob_placement_beam);
 				ui->glWidget->opengl_engine->addObject(ob_placement_marker);
 
+				ui->glWidget->opengl_engine->addObject(x_axis_arrow);
+				ui->glWidget->opengl_engine->addObject(y_axis_arrow);
+				ui->glWidget->opengl_engine->addObject(z_axis_arrow);
+
 				updateSelectedObjectPlacementBeam();
 			}
 
@@ -4928,6 +5064,13 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 {
+	conPrint("glWidgetMouseMoved()");
+
+	const int axis = mouseOverAxisArrow(Vec2f(e->pos().x(), e->pos().y()));
+	if(axis >= 0)
+	{
+
+	}
 }
 
 
@@ -5011,6 +5154,11 @@ void MainWindow::deselectObject()
 		// Remove placement beam from 3d engine
 		ui->glWidget->opengl_engine->removeObject(this->ob_placement_beam);
 		ui->glWidget->opengl_engine->removeObject(this->ob_placement_marker);
+
+		ui->glWidget->opengl_engine->removeObject(this->x_axis_arrow);
+		ui->glWidget->opengl_engine->removeObject(this->y_axis_arrow);
+		ui->glWidget->opengl_engine->removeObject(this->z_axis_arrow);
+
 
 		// Remove any edge markers
 		while(ob_denied_move_markers.size() > 0)
@@ -5566,6 +5714,11 @@ int main(int argc, char *argv[])
 				GLObjectRef arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 				mw.ui->glWidget->opengl_engine->addObject(arrow);
 			}
+
+			// For ob placement:
+			mw.x_axis_arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
+			mw.y_axis_arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
+			mw.z_axis_arrow = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 
 			for(int i=0; i<mw.test_obs.size(); ++i)
 			{
