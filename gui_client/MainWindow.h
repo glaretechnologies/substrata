@@ -324,6 +324,7 @@ private:
 
 	Timer fps_display_timer;
 	int num_frames;
+	double last_fps;
 
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
 	std::deque<Reference<ModelLoadedThreadMessage> > model_loaded_messages_to_process;
@@ -379,4 +380,6 @@ public:
 
 	Timer last_footstep_timer;
 	int last_foostep_side;
+
+	double last_timerEvent_elapsed;
 };
