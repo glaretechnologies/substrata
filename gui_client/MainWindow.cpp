@@ -159,6 +159,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	shown_object_modification_error_msg(false),
 	need_help_info_dock_widget_position(false),
 	num_frames(0),
+	last_fps(0),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
 	selected_ob_picked_up(false),
@@ -166,12 +167,24 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	done_screenshot_setup(false),
 	proximity_loader(/*load distance=*/ob_load_distance),
 	client_tls_config(NULL),
-	last_foostep_side(0)
+	last_foostep_side(0),
+	last_timerEvent_elapsed(0)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+
+
+	// Add dock widgets to Window menu
+	ui->menuWindow->addSeparator();
+	ui->menuWindow->addAction(ui->editorDockWidget->toggleViewAction());
+	ui->menuWindow->addAction(ui->materialBrowserDockWidget->toggleViewAction());
+	ui->menuWindow->addAction(ui->chatDockWidget->toggleViewAction());
+	ui->menuWindow->addAction(ui->helpInfoDockWidget->toggleViewAction());
+	//ui->menuWindow->addAction(ui->indigoViewDockWidget->toggleViewAction());
+	ui->menuWindow->addAction(ui->diagnosticsDockWidget->toggleViewAction());
+
 
 	proximity_loader.callbacks = this;
 	proximity_loader.opengl_engine = ui->glWidget->opengl_engine.ptr();
@@ -217,6 +230,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 		// State was not restored.  This will be the case for new Substrata installs.
 		// Hide some dock widgets to provide a slightly simpler user experience.
 		this->ui->materialBrowserDockWidget->hide();
+
+		this->ui->diagnosticsDockWidget->hide();
 	}
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
@@ -1441,6 +1456,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
+
+	if(ui->diagnosticsDockWidget->isVisible())
+	{
+		//const double fps = num_frames / (double)fps_display_timer.elapsed();
+		
+		std::string msg;
+		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
+		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_elapsed * 1000, 3) + " ms\n";
+
+		if(ui->glWidget->opengl_engine.nonNull())
+			msg += ui->glWidget->opengl_engine->getDiagnostics();
+
+		ui->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
+	}
+
 	
 	//TEMP: move test audio source objects
 	if(!test_obs.empty())
@@ -1611,7 +1641,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	num_frames++;
 	if(fps_display_timer.elapsed() > 1.0)
 	{
-		//const float fps = num_frames / (float)fps_display_timer.elapsed();
+		last_fps = num_frames / fps_display_timer.elapsed();
 		//conPrint("FPS: " + doubleToStringNSigFigs(fps, 4));
 		num_frames = 0;
 		fps_display_timer.reset();
@@ -2936,6 +2966,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		physics_world->rebuild(task_manager, print_output);
 		//conPrint("Physics world rebuild took " + timer.elapsedStringNSigFigs(5));
 	}
+
+	last_timerEvent_elapsed = time_since_last_timer_ev.elapsed();
 }
 
 
@@ -3752,6 +3784,11 @@ void MainWindow::on_actionReset_Layout_triggered()
 
 	//this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
 	//ui->chatDockWidget->show();
+
+	ui->diagnosticsDockWidget->setFloating(false);
+	this->addDockWidget(Qt::TopDockWidgetArea, ui->diagnosticsDockWidget, Qt::Horizontal);
+	ui->diagnosticsDockWidget->show();
+
 
 	// Enable tool bar
 	ui->toolBar->setVisible(true);
@@ -5346,6 +5383,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
 			//glare::testPoolAllocator();
