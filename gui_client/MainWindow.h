@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/CircularBuffer.h"
 #include "../utils/ComObHandle.h"
 #include "../maths/PCG32.h"
+#include "../maths/LineSegment4f.h"
 #include "../video/VideoReader.h"
 #include "../audio/AudioEngine.h"
 #include <QtCore/QEvent>
@@ -155,13 +156,14 @@ private:
 	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y);
 
 	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out); // Returns true if point is visible from camera.
+	Vec4f pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords);
 
 	void updateVoxelEditMarkers();
 	void pickUpSelectedObject();
 	void dropSelectedObject();
 	void setUIForSelectedObject(); // Enable/disable delete object action etc..
 
-	int mouseOverAxisArrow(const Vec2f& pixel_coords); // Returns closest axis arrow or -1 if no close.
+	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
 
 	struct EdgeMarker
 	{
@@ -194,6 +196,8 @@ public:
 	virtual void loadObject(WorldObjectRef ob);
 	virtual void unloadObject(WorldObjectRef ob);
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
+
+	void tryToMoveObject(const Matrix4f& tentative_new_to_world/*const Vec4f& desired_new_ob_pos*/);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 private:
@@ -304,14 +308,19 @@ public:
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
 
-	GLObjectRef x_axis_arrow; // For ob placement
-	GLObjectRef y_axis_arrow;
-	GLObjectRef z_axis_arrow;
+	LineSegment4f axis_arrow_segments[3];
+	GLObjectRef axis_arrow_objects[3]; // For ob placement
 
-	Vec4f axis_arrows_start[3];
-	Vec4f axis_arrows_end[3];
+	std::vector<LineSegment4f> rot_handle_lines[3];
+	GLObjectRef rot_handle_arc_objects[3];
 
-	bool x_axis_grabbed;
+	int grabbed_axis; // -1 if no axis grabbed, [0, 3) if grabbed a translation arrow, [3, 6) if grabbed a rotation arc.
+	Vec4f grabbed_point_ws; // Approximate point on arrow line we grabbed, in world space.
+	Vec4f ob_origin_at_grab;
+
+	float grabbed_angle;
+	float original_grabbed_angle;
+	float grabbed_arc_angle_offset;
 
 	Reference<OpenGLProgram> parcel_shader_prog;
 
