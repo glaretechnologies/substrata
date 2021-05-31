@@ -44,6 +44,9 @@ public:
 	void setCurrentTime(float time) { current_time = time; }
 	void playerPhyicsThink(float dt); // Process keys held down.
 
+	void setCamRotationOnMouseMoveEnabled(float enabled) { cam_rot_on_mouse_move_enabled = enabled; }
+	void hideCursor();
+
 	static float sensorWidth() { return 0.035f; }
 	static float lensSensorDist() { return 0.025f; }
 protected:
@@ -86,6 +89,7 @@ private:
 	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down;
 	Timer timer;
 	float current_time;
+	bool cam_rot_on_mouse_move_enabled;
 public:
 	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;

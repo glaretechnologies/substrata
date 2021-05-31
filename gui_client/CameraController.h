@@ -38,6 +38,8 @@ public:
 
 	void getBasis(Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out) const;
 
+	Vec4f vectorToCamSpace(const Vec4f& v) const;
+
 	Vec3d getAngles() const; // Specified as (heading, pitch, roll).
 	void resetRotation();
 	void setAngles(const Vec3d& newangles);

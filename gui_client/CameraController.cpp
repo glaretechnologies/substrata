@@ -219,6 +219,16 @@ void CameraController::getBasis(Vec3d& right_out, Vec3d& up_out, Vec3d& forward_
 }
 
 
+Vec4f CameraController::vectorToCamSpace(const Vec4f& v) const
+{
+	const Vec4f forwards = getForwardsVec().toVec4fVector();
+	const Vec4f right    = getRightVec().toVec4fVector();
+	const Vec4f up       = getUpVec().toVec4fVector();
+
+	return Vec4f(dot(v, right), dot(v, forwards), dot(v, up), 0.f);
+}
+
+
 Vec3d CameraController::getAngles() const
 {
 	return rotation;

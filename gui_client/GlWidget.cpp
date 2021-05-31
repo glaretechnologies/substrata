@@ -50,7 +50,8 @@ static QGLFormat makeFormat()
 GlWidget::GlWidget(QWidget *parent)
 :	QGLWidget(makeFormat(), parent),
 	cam_controller(NULL),
-	current_time(0.f)
+	current_time(0.f),
+	cam_rot_on_mouse_move_enabled(true)
 {
 	viewport_aspect_ratio = 1;
 
@@ -359,6 +360,13 @@ void GlWidget::playerPhyicsThink(float dt)
 }
 
 
+void GlWidget::hideCursor()
+{
+	// Hide cursor when moving view.
+	this->setCursor(QCursor(Qt::BlankCursor));
+}
+
+
 void GlWidget::mousePressEvent(QMouseEvent* e)
 {
 	//conPrint("mousePressEvent at " + toString(QCursor::pos().x()) + ", " + toString(QCursor::pos().y()));
@@ -366,7 +374,7 @@ void GlWidget::mousePressEvent(QMouseEvent* e)
 	last_mouse_press_pos = QCursor::pos();
 
 	// Hide cursor when moving view.
-	this->setCursor(QCursor(Qt::BlankCursor));
+	//this->setCursor(QCursor(Qt::BlankCursor));
 
 	emit mousePressed(e);
 }
@@ -397,9 +405,9 @@ void GlWidget::showEvent(QShowEvent* e)
 
 void GlWidget::mouseMoveEvent(QMouseEvent* e)
 {
-	if(cam_controller != NULL)// && (e->modifiers() & Qt::AltModifier))
+	Qt::MouseButtons mb = e->buttons();
+	if(cam_rot_on_mouse_move_enabled && (cam_controller != NULL) && (mb & Qt::LeftButton))// && (e->modifiers() & Qt::AltModifier))
 	{
-		Qt::MouseButtons mb = e->buttons();
 		//double shift_scale = ((e->modifiers() & Qt::ShiftModifier) == 0) ? 1.0 : 0.35; // If shift is held, movement speed is roughly 1/3
 
 		// Get new mouse position, movement vector and set previous mouse position to new.
@@ -424,13 +432,13 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		QCursor::setPos(mouse_move_origin);
 #endif
 
-		emit mouseMoved(e);
-
 		//conPrint("mouseMoveEvent FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
 		//timer.reset();
 	}
 
 	QGLWidget::mouseMoveEvent(e);
+
+	emit mouseMoved(e);
 
 	//conPrint("mouseMoveEvent time since last event: " + doubleToStringNSigFigs(timer.elapsed(), 5));
 	//timer.reset();
