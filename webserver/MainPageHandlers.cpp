@@ -320,8 +320,8 @@ void renderAboutSubstrataPage(ServerAllWorldsState& world_state, const web::Requ
 
 	page += "We are using the code and knowledge from the development of <a href=\"https://www.indigorenderer.com/\">Indigo Renderer</a>, a photorealistic ray tracer, "
 		" <a href=\"https://www.chaoticafractals.com/\">Chaotica Fractals</a>, "
-		"and more than 10 years of work in the high-end graphics area, in the development of Substrata.";
-	" For example, we use Indigo to bake lightmaps for Substrata, which allows highly accurate lighting with global illumination, while still running on normal computers.";
+		"and more than 10 years of work in the high-end graphics area, in the development of Substrata."
+		" For example, we use Indigo to bake lightmaps for Substrata, which allows highly accurate lighting with global illumination, while still running on normal computers.";
 
 	page += "<a href=\"/files/indigo_ref2.jpg\"><img src=\"/files/indigo_ref2_small.jpg\" /></a>";
 	page += "<div class=\"caption\">A gallery in Substrata visualised in Indigo.  Art by <a href=\"https://codyellingham.com/\">Cody Ellingham</a></div>";
