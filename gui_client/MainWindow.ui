@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1075</width>
+    <width>1099</width>
     <height>763</height>
    </rect>
   </property>
@@ -34,7 +34,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1075</width>
+     <width>1099</width>
      <height>21</height>
     </rect>
    </property>
@@ -48,6 +48,9 @@
     <property name="title">
      <string>Edit</string>
     </property>
+    <addaction name="actionUndo"/>
+    <addaction name="actionRedo"/>
+    <addaction name="separator"/>
     <addaction name="actionAddObject"/>
     <addaction name="actionAddHypercard"/>
     <addaction name="actionAdd_Spotlight"/>
@@ -454,6 +457,22 @@
   <action name="actionGo_to_Parcel">
    <property name="text">
     <string>Go to Parcel</string>
+   </property>
+  </action>
+  <action name="actionUndo">
+   <property name="text">
+    <string>Undo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Z</string>
+   </property>
+  </action>
+  <action name="actionRedo">
+   <property name="text">
+    <string>Redo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Y</string>
    </property>
   </action>
  </widget>

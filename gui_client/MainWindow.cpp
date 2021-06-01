@@ -172,7 +172,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	last_foostep_side(0),
 	last_timerEvent_elapsed(0),
 	grabbed_axis(-1),
-	grabbed_angle(0)
+	grabbed_angle(0),
+	force_new_undo_edit(false)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -1306,6 +1307,18 @@ static const Vec4f basis_vectors[6] = { Vec4f(0,1,0,0), Vec4f(0,0,1,0), Vec4f(0,
 
 static const float arc_handle_half_angle = 1.5f;
 
+
+// Avoids NaNs
+static float safeATan2(float y, float x)
+{
+	const float a = std::atan2(y, x);
+	if(!isFinite(a))
+		return 0.f;
+	else
+		return a;
+}
+
+
 // Update object placement beam - a beam that goes from the object to what's below it.
 void MainWindow::updateSelectedObjectPlacementBeam()
 {
@@ -1396,7 +1409,7 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 			const Vec4f basis_b = basis_vectors[i*2 + 1];
 
 			const Vec4f to_cam = cam_controller.getPosition().toVec4fPoint() - arc_centre;
-			const float to_cam_angle = std::atan2(dot(basis_b, to_cam), dot(basis_a, to_cam)); // angle in basis_a-basis_b plane
+			const float to_cam_angle = safeATan2(dot(basis_b, to_cam), dot(basis_a, to_cam)); // angle in basis_a-basis_b plane
 
 			// Position the rotation arc so its oriented towards the camera, unless the user is currently holding and dragging the arc.
 			float angle = to_cam_angle;
@@ -2774,6 +2787,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					if(ob == selected_ob.ptr())
 						ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
+
+					if(ob->state == WorldObject::State_JustCreated)
+					{
+						// Got just created object
+
+						if(last_restored_ob_uid_in_edit.valid())
+						{
+							//conPrint("Adding mapping from " + last_restored_ob_uid_in_edit.toString() + " to " + ob->uid.toString());
+							recreated_ob_uid[last_restored_ob_uid_in_edit] = ob->uid;
+							last_restored_ob_uid_in_edit = UID::invalidUID();
+						}
+					}
 				}
 			}
 			else if(ob->from_remote_lightmap_url_dirty)
@@ -4230,6 +4255,132 @@ void MainWindow::on_actionOptions_triggered()
 }
 
 
+void MainWindow::applyUndoOrRedoObject(const Reference<WorldObject>& restored_ob)
+{
+	if(restored_ob.nonNull())
+	{
+		{
+			Lock lock(this->world_state->mutex);
+
+			Reference<WorldObject> in_world_ob;
+			bool voxels_different = false;
+
+			UID use_uid;
+			if(recreated_ob_uid.find(restored_ob->uid) == recreated_ob_uid.end())
+				use_uid = restored_ob->uid;
+			else
+			{
+				use_uid = recreated_ob_uid[restored_ob->uid];
+				//conPrint("Using recreated UID of " + use_uid.toString());
+			}
+
+
+			auto res = this->world_state->objects.find(use_uid);
+			if(res != this->world_state->objects.end())
+			{
+				in_world_ob = res->second;
+
+				voxels_different = in_world_ob->getCompressedVoxels() != restored_ob->getCompressedVoxels();
+
+				in_world_ob->copyNetworkStateFrom(*restored_ob);
+
+				in_world_ob->decompressVoxels();
+			}
+
+			if(in_world_ob.nonNull())
+			{
+				if(voxels_different)
+					updateObjectModelForChangedDecompressedVoxels(in_world_ob);
+				else
+				{
+					GLObjectRef opengl_ob = in_world_ob->opengl_engine_ob;
+					if(opengl_ob.nonNull())
+					{
+						// Update transform of OpenGL object
+						opengl_ob->ob_to_world_matrix = obToWorldMatrix(*in_world_ob);
+						ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+						// Update materials in opengl engine.
+						for(size_t i=0; i<in_world_ob->materials.size(); ++i)
+							if(i < opengl_ob->materials.size())
+								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], in_world_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+
+						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+					}
+
+					// Update physics object transform
+					if(in_world_ob->physics_object.nonNull())
+					{
+						in_world_ob->physics_object->ob_to_world = obToWorldMatrix(*in_world_ob);
+						this->physics_world->updateObjectTransformData(*in_world_ob->physics_object);
+					}
+
+					// Update in Indigo view
+					ui->indigoView->objectTransformChanged(*in_world_ob);
+
+					// Update object values in editor
+					ui->objectEditor->setFromObject(*in_world_ob, ui->objectEditor->getSelectedMatIndex());
+
+					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
+
+					// updateInstancedCopiesOfObject(ob); // TODO: enable + test this
+
+					// Mark as from-local-dirty to send an object updated message to the server
+					in_world_ob->from_local_other_dirty = true;
+					this->world_state->dirty_from_local_objects.insert(in_world_ob);
+				}
+			}
+			else
+			{
+				// Object had been deleted.  Re-create it, by sending CreateObject message to server
+				// Note that the recreated object will have a different ID.
+				// To apply more undo edits to the recreated object, use recreated_ob_uid to map from edit UID to recreated object UID.
+				{
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+					packet.writeUInt32(Protocol::CreateObject);
+					restored_ob->writeToNetworkStream(packet);
+
+					this->last_restored_ob_uid_in_edit = restored_ob->uid; // Store edit UID, will be used when receiving new object to add entry to recreated_ob_uid map.
+
+					this->client_thread->enqueueDataToSend(packet);
+				}
+			}
+		}
+	}
+
+	force_new_undo_edit = true;
+}
+
+
+void MainWindow::on_actionUndo_triggered()
+{
+	try
+	{
+		Reference<WorldObject> ob = undo_buffer.getUndoWorldObject();
+		applyUndoOrRedoObject(ob);
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("ERROR: Exception while trying to undo change: " + e.what());
+	}
+}
+
+
+void MainWindow::on_actionRedo_triggered()
+{
+	try
+	{
+		Reference<WorldObject> ob = undo_buffer.getRedoWorldObject();
+		applyUndoOrRedoObject(ob);
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("ERROR: Exception while trying to redo change: " + e.what());
+	}
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -4253,7 +4404,22 @@ void MainWindow::objectEditedSlot()
 	// Update object material(s) with values from editor.
 	if(this->selected_ob.nonNull())
 	{
+		// Multiple edits using the object editor, in a short timespan, will be merged together,
+		// unless force_new_undo_edit is true (is set when undo or redo is issued).
+		const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
+
+		if(start_new_edit)
+			undo_buffer.startWorldObjectEdit(*this->selected_ob);
+
 		ui->objectEditor->toObject(*this->selected_ob);
+
+		if(start_new_edit)
+			undo_buffer.finishWorldObjectEdit(*this->selected_ob);
+		else
+			undo_buffer.replaceFinishWorldObjectEdit(*this->selected_ob);
+		
+		time_since_object_edited.reset();
+		force_new_undo_edit = false;
 
 		// Copy all dependencies into resource directory if they are not there already.
 		// URLs will actually be paths from editing for now.
@@ -4909,41 +5075,58 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 {
 	if(this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull())
 	{
-		grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), this->grabbed_point_ws);
-
-		if(grabbed_axis >= 0) // If we grabbed an arrow or rotation arc:
+		// Don't try and grab an axis etc.. when we are clicking on a voxel group to add/remove voxels.
+		bool mouse_trace_hit_selected_ob = false;
+		if(areEditingVoxels())
 		{
-			this->ob_origin_at_grab = this->selected_ob->pos.toVec4fPoint();
-
-			ui->glWidget->setCamRotationOnMouseMoveEnabled(false);
+			RayTraceResult results;
+			this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), thread_context, results);
+			
+			mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
+				static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
 		}
 
-		if(grabbed_axis >= 3) // If we grabbed a rotation arc:
+		if(!mouse_trace_hit_selected_ob)
 		{
-			const Vec4f arc_centre = this->selected_ob->opengl_engine_ob->ob_to_world_matrix.getColumn(3);
+			grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), this->grabbed_point_ws);
 
-			const int rot_axis = grabbed_axis - 3;
-			const Vec4f basis_a = basis_vectors[rot_axis*2];
-			const Vec4f basis_b = basis_vectors[rot_axis*2 + 1];
+			if(grabbed_axis >= 0) // If we grabbed an arrow or rotation arc:
+			{
+				this->ob_origin_at_grab = this->selected_ob->pos.toVec4fPoint();
 
-			// Intersect ray from current mouse position with plane formed by rotation basis vectors
-			const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
-			const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
+				ui->glWidget->setCamRotationOnMouseMoveEnabled(false);
 
-			Planef plane(arc_centre, crossProduct(basis_a, basis_b));
 
-			const float t = plane.rayIntersect(origin, dir);
-			const Vec4f plane_p = origin + dir * t;
+				undo_buffer.startWorldObjectEdit(*this->selected_ob);
+			}
 
-			const float angle = std::atan2(dot(plane_p - arc_centre, basis_b), dot(plane_p - arc_centre, basis_a));
+			if(grabbed_axis >= 3) // If we grabbed a rotation arc:
+			{
+				const Vec4f arc_centre = this->selected_ob->opengl_engine_ob->ob_to_world_matrix.getColumn(3);
 
-			const Vec4f to_cam = cam_controller.getPosition().toVec4fPoint() - arc_centre;
-			const float to_cam_angle = std::atan2(dot(basis_b, to_cam), dot(basis_a, to_cam)); // angle in basis_a-basis_b plane
+				const int rot_axis = grabbed_axis - 3;
+				const Vec4f basis_a = basis_vectors[rot_axis*2];
+				const Vec4f basis_b = basis_vectors[rot_axis*2 + 1];
 
-			this->grabbed_angle = this->original_grabbed_angle = angle;
-			this->grabbed_arc_angle_offset = to_cam_angle - this->original_grabbed_angle;
+				// Intersect ray from current mouse position with plane formed by rotation basis vectors
+				const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
+				const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
-			//ui->glWidget->opengl_engine->addObject(ui->glWidget->opengl_engine->makeAABBObject(plane_p, plane_p + Vec4f(0.05f, 0.05f, 0.05f, 0), Colour4f(1, 0, 1, 1)));
+				Planef plane(arc_centre, crossProduct(basis_a, basis_b));
+
+				const float t = plane.rayIntersect(origin, dir);
+				const Vec4f plane_p = origin + dir * t;
+
+				const float angle = safeATan2(dot(plane_p - arc_centre, basis_b), dot(plane_p - arc_centre, basis_a));
+
+				const Vec4f to_cam = cam_controller.getPosition().toVec4fPoint() - arc_centre;
+				const float to_cam_angle = safeATan2(dot(basis_b, to_cam), dot(basis_a, to_cam)); // angle in basis_a-basis_b plane
+
+				this->grabbed_angle = this->original_grabbed_angle = angle;
+				this->grabbed_arc_angle_offset = to_cam_angle - this->original_grabbed_angle;
+
+				//ui->glWidget->opengl_engine->addObject(ui->glWidget->opengl_engine->makeAABBObject(plane_p, plane_p + Vec4f(0.05f, 0.05f, 0.05f, 0), Colour4f(1, 0, 1, 1)));
+			}
 		}
 	}
 
@@ -4956,7 +5139,11 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 // This is emitted from GlWidget::mouseReleaseEvent().
 void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 {
-	grabbed_axis = -1;
+	if(grabbed_axis != -1)
+	{
+		undo_buffer.finishWorldObjectEdit(*selected_ob);
+		grabbed_axis = -1;
+	}
 	ui->glWidget->setCamRotationOnMouseMoveEnabled(true);
 
 	updateSelectedObjectPlacementBeam(); // Update so that rot arc handles snap back oriented to camera.
@@ -5003,6 +5190,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 						const float dist_from_aabb = selected_ob->opengl_engine_ob.nonNull() ? selected_ob->opengl_engine_ob->aabb_ws.distanceToPoint(point_off_surface) : 0.f;
 						if(dist_from_aabb < 2.f)
 						{
+							undo_buffer.startWorldObjectEdit(*selected_ob);
+
 							const Vec4f point_os = world_to_ob * point_off_surface;
 							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
 							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
@@ -5013,6 +5202,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 							this->selected_ob->getDecompressedVoxels().back().mat_index = ui->objectEditor->getSelectedMatIndex();
 
 							voxels_changed = true;
+
+							undo_buffer.finishWorldObjectEdit(*selected_ob);
 						}
 						else
 						{
@@ -5023,6 +5214,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 					{
 						if(this->selected_ob->getDecompressedVoxels().size() > 1)
 						{
+							undo_buffer.startWorldObjectEdit(*selected_ob);
+
 							const Vec4f point_under_surface = hitpos_ws - results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
 
 							const Vec4f point_os = world_to_ob * point_under_surface;
@@ -5037,6 +5230,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 							}
 
 							voxels_changed = true;
+
+							undo_buffer.finishWorldObjectEdit(*selected_ob);
 						}
 						else
 						{
@@ -5046,74 +5241,77 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 					if(voxels_changed)
 					{
-						this->selected_ob->compressVoxels();
-
-
-						// Clear lightmap URL, since the lightmap will be invalid now the voxels (and hence the UV map) will have changed.
-						this->selected_ob->lightmap_url = "";
-
-						// Remove any existing OpenGL and physics model
-						if(this->selected_ob->opengl_engine_ob.nonNull())
-							ui->glWidget->removeObject(this->selected_ob->opengl_engine_ob);
-
-						if(this->selected_ob->physics_object.nonNull())
-							physics_world->removeObject(this->selected_ob->physics_object);
-
-						// Update in Indigo view
-						ui->indigoView->objectRemoved(*selected_ob);
-
-						if(!this->selected_ob->getDecompressedVoxels().empty())
-						{
-							// Add updated model!
-							Reference<RayMesh> raymesh;
-							Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(this->selected_ob->getDecompressedVoxelGroup(), task_manager, /*do_opengl_stuff=*/true, raymesh);
-
-							GLObjectRef gl_ob = new GLObject();
-							gl_ob->ob_to_world_matrix = ob_to_world;
-							gl_ob->mesh_data = gl_meshdata;
-
-							gl_ob->materials.resize(this->selected_ob->materials.size());
-							for(uint32 i=0; i<this->selected_ob->materials.size(); ++i)
-							{
-								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], this->selected_ob->lightmap_url, *this->resource_manager, gl_ob->materials[i]);
-								gl_ob->materials[i].gen_planar_uvs = true;
-								gl_ob->materials[i].draw_planar_uv_grid = true;
-							}
-
-							Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/this->selected_ob->isCollidable());
-							physics_ob->geometry = raymesh;
-							physics_ob->ob_to_world = ob_to_world;
-
-
-							this->selected_ob->opengl_engine_ob = gl_ob;
-							ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
-
-							// Update in Indigo view
-							ui->indigoView->objectAdded(*selected_ob, *this->resource_manager);
-
-							ui->glWidget->opengl_engine->selectObject(gl_ob);
-
-							this->selected_ob->physics_object = physics_ob;
-							physics_ob->userdata = (void*)(this->selected_ob.ptr());
-							physics_ob->userdata_type = 0;
-							physics_world->addObject(physics_ob);
-							physics_world->rebuild(task_manager, print_output);
-						}
-
-						// Mark as from-local-dirty to send an object updated message to the server
-						this->selected_ob->from_local_other_dirty = true;
-						this->world_state->dirty_from_local_objects.insert(this->selected_ob);
-
-						// Trigger sending update-lightmap update flag message later.
-						//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-						//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-						//lightmap_flag_timer->start(/*msec=*/2000); 
+						updateObjectModelForChangedDecompressedVoxels(this->selected_ob);
 					}
 				}
 			}
 		}
 		
 	}
+}
+
+
+void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob)
+{
+	ob->compressVoxels();
+
+
+	// Clear lightmap URL, since the lightmap will be invalid now the voxels (and hence the UV map) will have changed.
+	ob->lightmap_url = "";
+
+	// Remove any existing OpenGL and physics model
+	if(ob->opengl_engine_ob.nonNull())
+		ui->glWidget->removeObject(ob->opengl_engine_ob);
+
+	if(ob->physics_object.nonNull())
+		physics_world->removeObject(ob->physics_object);
+
+	// Update in Indigo view
+	ui->indigoView->objectRemoved(*ob);
+
+	if(!ob->getDecompressedVoxels().empty())
+	{
+		// Add updated model!
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), task_manager, /*do_opengl_stuff=*/true, raymesh);
+
+		const Matrix4f ob_to_world = obToWorldMatrix(*ob);
+
+		GLObjectRef gl_ob = new GLObject();
+		gl_ob->ob_to_world_matrix = ob_to_world;
+		gl_ob->mesh_data = gl_meshdata;
+
+		gl_ob->materials.resize(ob->materials.size());
+		for(uint32 i=0; i<ob->materials.size(); ++i)
+		{
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, gl_ob->materials[i]);
+			gl_ob->materials[i].gen_planar_uvs = true;
+			gl_ob->materials[i].draw_planar_uv_grid = true;
+		}
+
+		Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+		physics_ob->geometry = raymesh;
+		physics_ob->ob_to_world = ob_to_world;
+
+
+		ob->opengl_engine_ob = gl_ob;
+		ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
+
+		// Update in Indigo view
+		ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+		ui->glWidget->opengl_engine->selectObject(gl_ob);
+
+		ob->physics_object = physics_ob;
+		physics_ob->userdata = (void*)(ob.ptr());
+		physics_ob->userdata_type = 0;
+		physics_world->addObject(physics_ob);
+		physics_world->rebuild(task_manager, print_output);
+	}
+
+	// Mark as from-local-dirty to send an object updated message to the server
+	ob->from_local_other_dirty = true;
+	this->world_state->dirty_from_local_objects.insert(ob);
 }
 
 
@@ -5149,6 +5347,8 @@ void MainWindow::pickUpSelectedObject()
 
 			selected_ob_picked_up = true;
 
+			undo_buffer.startWorldObjectEdit(*selected_ob);
+
 			// Play pick up sound, in the direction of the selection point
 			const Vec4f to_pickup_point = normalise(selection_point_ws - origin);
 			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/select_mono.wav", origin + to_pickup_point * 0.4f);
@@ -5174,6 +5374,8 @@ void MainWindow::dropSelectedObject()
 		ui->objectEditor->objectDropped();
 
 		selected_ob_picked_up = false;
+
+		undo_buffer.finishWorldObjectEdit(*selected_ob);
 
 		// Play drop item sound, in the direction of the selection point.
 		const Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
@@ -5440,7 +5642,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 		//ui->glWidget->opengl_engine->addObject(ui->glWidget->opengl_engine->makeAABBObject(plane_p, plane_p + Vec4f(0.05f, 0.05f, 0.05f, 0), Colour4f(1, 0, 1, 1)));
 
-		const float angle = std::atan2(dot(plane_p - arc_centre, basis_b), dot(plane_p - arc_centre, basis_a));
+		const float angle = safeATan2(dot(plane_p - arc_centre, basis_b), dot(plane_p - arc_centre, basis_a));
 
 		const float delta = angle - grabbed_angle;
 
@@ -5457,26 +5659,41 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 	}
 	else
 	{
+		// Don't try and grab an axis etc.. when we are clicking on a voxel group to add/remove voxels.
+		bool mouse_trace_hit_selected_ob = false;
+		if(areEditingVoxels())
+		{
+			RayTraceResult results;
+			this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), thread_context, results);
+
+			mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
+				static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
+		}
+
 		// Set mouseover colour if we have moused over a grabbable axis.
 		const Colour3f default_cols[]   = { Colour3f(0.6f,0.2f,0.2f), Colour3f(0.2f,0.6f,0.2f), Colour3f(0.2f,0.2f,0.6f) };
 		const Colour3f mouseover_cols[] = { Colour3f(1,0.45f,0.3f),   Colour3f(0.3f,1,0.3f),    Colour3f(0.3f,0.45f,1) };
 
+		// Set grab controls to default colours
 		for(int i=0; i<3; ++i)
 		{
 			axis_arrow_objects[i]->materials[0].albedo_rgb = default_cols[i];
 			rot_handle_arc_objects[i]->materials[0].albedo_rgb = default_cols[i];
 		}
 
-		Vec4f dummy_grabbed_point_ws;
-		const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), dummy_grabbed_point_ws);
-		
-		if(axis >= 0 && axis < 3)
-			axis_arrow_objects[axis]->materials[0].albedo_rgb = mouseover_cols[axis];
-
-		if(axis >= 3 && axis < 6)
+		if(!mouse_trace_hit_selected_ob)
 		{
-			const int grabbed_rot_axis = axis - 3;
-			rot_handle_arc_objects[grabbed_rot_axis]->materials[0].albedo_rgb = mouseover_cols[grabbed_rot_axis];
+			Vec4f dummy_grabbed_point_ws;
+			const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), dummy_grabbed_point_ws);
+		
+			if(axis >= 0 && axis < 3)
+				axis_arrow_objects[axis]->materials[0].albedo_rgb = mouseover_cols[axis];
+
+			if(axis >= 3 && axis < 6)
+			{
+				const int grabbed_rot_axis = axis - 3;
+				rot_handle_arc_objects[grabbed_rot_axis]->materials[0].albedo_rgb = mouseover_cols[grabbed_rot_axis];
+			}
 		}
 	}
 }
@@ -5533,20 +5750,19 @@ void MainWindow::deleteSelectedObject()
 	{
 		if(objectModificationAllowedWithMsg(*this->selected_ob, "delete"))
 		{
-			QMessageBox::StandardButton reply = QMessageBox::question(this, "Delete object", "Are you sure you want to delete this object?", QMessageBox::Yes|QMessageBox::No);
-			if(reply == QMessageBox::Yes)
-			{
-				// Send DestroyObject packet
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				packet.writeUInt32(Protocol::DestroyObject);
-				writeToStream(selected_ob->uid, packet);
+			undo_buffer.startWorldObjectEdit(*selected_ob);
+			undo_buffer.finishWorldObjectEdit(*selected_ob);
 
-				this->client_thread->enqueueDataToSend(packet);
+			// Send DestroyObject packet
+			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+			packet.writeUInt32(Protocol::DestroyObject);
+			writeToStream(selected_ob->uid, packet);
 
-				deselectObject();
+			this->client_thread->enqueueDataToSend(packet);
 
-				showInfoNotification("Object deleted.");
-			}
+			deselectObject();
+
+			showInfoNotification("Object deleted.");
 		}
 	}
 }
@@ -5898,7 +6114,6 @@ static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(float arc_e
 
 	for(int z=0; z<arc_res; ++z)
 	{
-		
 		const float arc_angle_0 = z       * (arc_end_angle - arc_start_angle) / arc_res;
 		const float arc_angle_1 = (z + 1) * (arc_end_angle - arc_start_angle) / arc_res;
 

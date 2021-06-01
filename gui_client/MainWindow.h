@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "CameraController.h"
 #include "ProximityLoader.h"
 #include "AnimatedTextureManager.h"
+#include "UndoBuffer.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/WGL.h"
@@ -101,7 +102,10 @@ private slots:;
 	void on_actionExport_view_to_Indigo_triggered();
 	void on_actionAbout_Substrata_triggered();
 	void on_actionOptions_triggered();
+	void on_actionUndo_triggered();
+	void on_actionRedo_triggered();
 
+	void applyUndoOrRedoObject(const Reference<WorldObject>& ob);
 	void passwordResetRequested();
 
 	void sendChatMessageSlot();
@@ -198,6 +202,8 @@ public:
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
 
 	void tryToMoveObject(const Matrix4f& tentative_new_to_world/*const Vec4f& desired_new_ob_pos*/);
+
+	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 private:
@@ -396,6 +402,8 @@ private:
 #endif
 
 	glare::AudioEngine audio_engine;
+
+	UndoBuffer undo_buffer;
 public:
 	std::vector<GLObjectRef> test_obs;
 	std::vector<glare::AudioSourceRef> test_srcs;
@@ -406,4 +414,10 @@ public:
 	int last_foostep_side;
 
 	double last_timerEvent_elapsed;
+
+	Timer time_since_object_edited; // For undo edit merging.
+	bool force_new_undo_edit; // // Multiple edits using the object editor, in a short timespan, will be merged together, unless force_new_undo_edit is true (is set when undo or redo is issued).
+	std::map<UID, UID> recreated_ob_uid; // Map from old object UID to recreated object UID when an object deletion is undone.
+
+	UID last_restored_ob_uid_in_edit;
 };
