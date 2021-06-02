@@ -607,7 +607,8 @@ public:
 							this->client_thread->enqueueDataToSend(packet);
 
 							// Spawn an UploadResourceThread to upload the new model
-							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(mesh_URL), mesh_URL, server_hostname, server_port, username, password, client_tls_config));
+							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(mesh_URL), mesh_URL, server_hostname, server_port, 
+								username, password, client_tls_config, &num_resources_uploading));
 						}
 					}
 				}
@@ -896,7 +897,8 @@ public:
 
 		// Spawn an UploadResourceThread to upload the new lightmap
 		conPrint("Uploading lightmap '" + lightmap_ktx_path + "' to the server with URL '" + lightmap_URL + "'...");
-		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, supercompressed_lightmap_ktx_path, lightmap_URL, server_hostname, server_port, username, password, client_tls_config));
+		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, supercompressed_lightmap_ktx_path, lightmap_URL, server_hostname, server_port, 
+			username, password, client_tls_config, &num_resources_uploading));
 	}
 
 
@@ -1009,6 +1011,7 @@ public:
 
 	glare::AtomicInt num_non_net_resources_downloading;
 	glare::AtomicInt num_net_resources_downloading;
+	glare::AtomicInt num_resources_uploading;
 
 	Reference<ClientThread> client_thread;
 
