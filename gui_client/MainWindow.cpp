@@ -4503,8 +4503,12 @@ void MainWindow::objectEditedSlot()
 								);
 
 							for(size_t z=0; z<opengl_ob->materials.size(); ++z)
+							{
 								if(!opengl_ob->materials[z].tex_path.empty())
 									opengl_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(opengl_ob->materials[z].tex_path));
+								else
+									opengl_ob->materials[z].albedo_texture = NULL;
+							}
 						}
 					}
 
@@ -6336,7 +6340,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			Matrix3f::test();
+			//FormatDecoderGLTF::test();
+			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
 			//glare::testPoolAllocator();
