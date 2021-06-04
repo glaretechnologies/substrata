@@ -98,6 +98,8 @@ void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 void WorldObject::setTransformAndHistory(const Vec3d& pos_, const Vec3f& axis_, float angle_)
 {
+	assert(isFinite(angle_));
+
 	pos = pos_;
 	axis = axis_;
 	angle = angle_;

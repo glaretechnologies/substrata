@@ -201,7 +201,7 @@ public:
 	virtual void unloadObject(WorldObjectRef ob);
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
 
-	void tryToMoveObject(const Matrix4f& tentative_new_to_world/*const Vec4f& desired_new_ob_pos*/);
+	void tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
