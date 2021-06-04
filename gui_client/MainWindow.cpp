@@ -173,6 +173,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	last_timerEvent_elapsed(0),
 	grabbed_axis(-1),
 	grabbed_angle(0),
+#if defined(_WIN32)
+	interop_device_handle(NULL),
+#endif
 	force_new_undo_edit(false)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
