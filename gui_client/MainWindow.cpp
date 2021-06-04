@@ -5172,7 +5172,6 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 			Vec2f pixel_coords;
 			const bool visible = getPixelForPoint(hitpos_ws, pixel_coords);
-			printVar(pixel_coords);
 
 			if(selected_ob.nonNull())
 			{
