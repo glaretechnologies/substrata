@@ -1563,12 +1563,12 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 }
 
 
-void MainWindow::tryToMoveObject(const Matrix4f& tentative_new_to_world/*const Vec4f& desired_new_ob_pos*/)
+void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos)
 {
 	GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
 
-	//Matrix4f tentative_new_to_world = opengl_ob->ob_to_world_matrix;
-	//tentative_new_to_world.setColumn(3, desired_new_ob_pos);
+	Matrix4f tentative_new_to_world = opengl_ob->ob_to_world_matrix;
+	tentative_new_to_world.setColumn(3, desired_new_ob_pos);
 
 	const js::AABBox tentative_new_aabb_ws = ui->glWidget->opengl_engine->getAABBWSForObjectWithTransform(*opengl_ob, tentative_new_to_world);
 
@@ -1632,25 +1632,16 @@ void MainWindow::tryToMoveObject(const Matrix4f& tentative_new_to_world/*const V
 
 
 		// Set world object pos
-		//this->selected_ob->setPosAndHistory(new_ob_pos);
-		//tentative_new_to_world.
-
-		Quatf quat = Quatf::fromMatrix(tentative_new_to_world);
-		Vec4f new_axis;
-		float angle;
-		quat.toAxisAndAngle(new_axis, angle);
-		Vec3f axis = toVec3f(new_axis);
-		this->selected_ob->setTransformAndHistory(new_ob_pos, axis, angle);
-
+		this->selected_ob->setPosAndHistory(new_ob_pos);
+		
 		// Set graphics object pos and update in opengl engine.
-		Matrix4f new_to_world = tentative_new_to_world;// opengl_ob->ob_to_world_matrix;
+		Matrix4f new_to_world = tentative_new_to_world;
 		new_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
 
 		opengl_ob->ob_to_world_matrix = new_to_world;
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		//this->selected_ob->physics_object->ob_to_world.setColumn(3, new_ob_pos.toVec4fPoint());
 		this->selected_ob->physics_object->ob_to_world = new_to_world;
 		this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
 		//need_physics_world_rebuild = true;
@@ -3024,9 +3015,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			const Vec4f desired_new_ob_pos = this->selected_ob->pos.toVec4fPoint() + (new_sel_point_ws - selection_point_ws);
 
-			Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
-			tentative_new_to_world.setColumn(3, desired_new_ob_pos);
-			tryToMoveObject(tentative_new_to_world);
+			assert(desired_new_ob_pos.isFinite());
+
+			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
+			//tentative_new_to_world.setColumn(3, desired_new_ob_pos);
+			//tryToMoveObject(tentative_new_to_world);
+			tryToMoveObject(desired_new_ob_pos);
 		}
 	}
 
@@ -5614,10 +5608,10 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 			assert(tentative_new_ob_p.isFinite());
 
-			Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
-			tentative_new_to_world.setColumn(3, tentative_new_ob_p);
-			 
-			tryToMoveObject(tentative_new_to_world);
+			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
+			//tentative_new_to_world.setColumn(3, tentative_new_ob_p);
+			//tryToMoveObject(tentative_new_to_world);
+			tryToMoveObject(tentative_new_ob_p);
 
 			if(this->selected_ob_picked_up)
 			{
@@ -5654,10 +5648,9 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 		//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
 		//tentative_new_to_world = Matrix4f::rotationMatrix(crossProduct(basis_a, basis_b), delta) * tentative_new_to_world;
+		//tryToMoveObject(tentative_new_to_world);
 
 		rotateObject(this->selected_ob, crossProduct(basis_a, basis_b), delta);
-
-		//tryToMoveObject(tentative_new_to_world);
 
 		grabbed_angle = angle;
 
@@ -6342,6 +6335,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			quaternionTests();
 			//FormatDecoderGLTF::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
