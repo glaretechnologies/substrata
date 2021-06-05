@@ -39,11 +39,13 @@ public:
 
 	bool pointInParcel(const Vec3d& p) const;
 	bool AABBInParcel(const js::AABBox& aabb) const;
+	bool AABBIntersectsParcel(const js::AABBox& aabb) const;
 	static bool AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb_min, const Vec3d& parcel_aabb_max);
 	bool isAxisAlignedBox() const;
 	void getScreenShotPosAndAngles(Vec3d& pos_out, Vec3d& angles_out) const;
 	void getFarScreenShotPosAndAngles(Vec3d& pos_out, Vec3d& angles_out) const;
 	Vec3d getVisitPosition() const;
+	bool isAdjacentTo(const Parcel& other) const;
 
 	bool userIsParcelAdmin(const UserID user_id) const;
 	bool userIsParcelWriter(const UserID user_id) const;

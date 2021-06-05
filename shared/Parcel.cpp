@@ -58,6 +58,17 @@ bool Parcel::AABBInParcel(const js::AABBox& aabb) const
 }
 
 
+bool Parcel::AABBIntersectsParcel(const js::AABBox& other_aabb) const
+{
+	const js::AABBox this_aabb(
+		Vec4f((float)aabb_min.x, (float)aabb_min.y, (float)aabb_min.z, 1.0f),
+		Vec4f((float)aabb_max.x, (float)aabb_max.y, (float)aabb_max.z, 1.0f)
+	);
+
+	return this_aabb.intersectsAABB(other_aabb);
+}
+
+
 bool Parcel::AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb_min, const Vec3d& parcel_aabb_max)
 {
 	return
@@ -105,6 +116,54 @@ Vec3d Parcel::getVisitPosition() const
 	p.z = myMax(p.z, 2.0);
 
 	return p;
+}
+
+
+bool Parcel::isAdjacentTo(const Parcel& other) const
+{
+	// Test along four edges and see if the minbounds = maxbounds of the other parcel.
+	/*
+	y
+	^
+	|    
+	|    |   other    |
+	|    |            |
+	|    --------------
+	|    |            |
+	|    |   this     |
+	|    
+	-------------------> x
+	*/
+
+	// Test top edge
+	if(aabb_min.x == other.aabb_min.x && aabb_max.y == other.aabb_min.y)
+	{
+		assert(aabb_max.x == other.aabb_max.x);
+		return true;
+	}
+
+	// Test bottom edge
+	if(aabb_min.x == other.aabb_min.x && aabb_min.y == other.aabb_max.y)
+	{
+		assert(aabb_max.x == other.aabb_max.x);
+		return true;
+	}
+
+	// Test left edge
+	if(aabb_min.y == other.aabb_min.y && aabb_min.x == other.aabb_max.x)
+	{
+		assert(aabb_max.y == other.aabb_max.y);
+		return true;
+	}
+
+	// Test right edge
+	if(aabb_min.y == other.aabb_min.y && aabb_max.x == other.aabb_min.x)
+	{
+		assert(aabb_max.y == other.aabb_max.y);
+		return true;
+	}
+
+	return false;
 }
 
 
