@@ -3430,35 +3430,25 @@ bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool&
 		return true;
 	}
 
-	// See if the user is in a parcel that they have write permissions for.
-	// For now just do a linear scan over parcels
-	bool have_creation_perms = false;
+	// We have write permissions for the current transform iff we have write permissions
+	// for every parcel the AABB of the object intersects.
+	bool have_creation_perms = true;
 	{
 		Lock lock(world_state->mutex);
 		for(auto& it : world_state->parcels)
 		{
 			const Parcel* parcel = it.second.ptr();
 
-			if(parcel->AABBInParcel(new_aabb_ws))
+			if(parcel->AABBIntersectsParcel(new_aabb_ws))
 			{
 				ob_pos_in_parcel_out = true;
 
 				// Is this user one of the writers or admins for this parcel?
-				if(parcel->userHasWritePerms(this->logged_in_user_id))
-				{
-					have_creation_perms = true;
-					break;
-				}
-				else
-				{
-					//showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
-				}
+				if(!parcel->userHasWritePerms(this->logged_in_user_id))
+					have_creation_perms = false;
 			}
 		}
 	}
-
-	//if(!in_parcel)
-	//	showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
 
 	return have_creation_perms;
 }
@@ -3486,6 +3476,7 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 
 	// Work out what parcel the object is in currently (e.g. what parcel old_ob_pos is in)
 	{
+		const Parcel* ob_parcel = NULL;
 		Lock lock(world_state->mutex);
 		for(auto& it : world_state->parcels)
 		{
@@ -3498,13 +3489,29 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 				if(parcel->userHasWritePerms(this->logged_in_user_id))
 				{
 					have_creation_perms = true;
+					ob_parcel = parcel;
 					parcel_aabb_min = parcel->aabb_min;
 					parcel_aabb_max = parcel->aabb_max;
 					break;
 				}
 			}
 		}
-	}
+
+		// Work out if there are any adjacent parcels to ob_parcel.
+		if(ob_parcel)
+		{
+			for(auto& it : world_state->parcels)
+			{
+				const Parcel* parcel = it.second.ptr();
+				if(parcel->isAdjacentTo(*ob_parcel) && parcel->userHasWritePerms(this->logged_in_user_id))
+				{
+					// Enlarge AABB to include parcel AABB
+					parcel_aabb_min = min(parcel_aabb_min, parcel->aabb_min);
+					parcel_aabb_max = max(parcel_aabb_max, parcel->aabb_max);
+				}
+			}
+		}
+	} // End lock scope
 
 	if(have_creation_perms)
 	{
