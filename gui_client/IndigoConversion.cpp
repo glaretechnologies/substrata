@@ -134,20 +134,56 @@ Indigo::SceneNodeMaterialRef IndigoConversion::convertMaterialToIndigoMat(const 
 	}
 	else
 	{
+		/*
+		lets say we have col_target_sRGB.r. (sRGB col)
+
+		col_T = transmittance
+		also
+		col_T.r = exp(-d * absorb_rgb.r)
+
+		col_target_sRGB.r = linearToSRGB(col_target_linear.r) = linearToSRGB(col_T) = linearToSRGB(exp(-d * absorb_rgb.r))
+
+		srgbToLinear(col_target_sRGB.r) = exp(-d * absorb_rgb.r)
+
+		srgbToLinear(col_target_sRGB.r) = exp(-d * absorb_rgb.r)
+
+		srgbToLinear(col_target_sRGB.r) = exp(-d * absorb_rgb.r)
+
+		ln(srgbToLinear(col_target_sRGB.r)) = -d * absorb_rgb.r
+
+		absorb_rgb.r = ln(srgbToLinear(col_target_sRGB.r)) / -d
+
+		[approximate srgbToLinear(x) as x ^ 2.2:}
+
+		absorb_rgb.r = ln(col_target_sRGB.r ^ 2.2) / -d
+		*/
+
+
+		// Note that we actually use the sRGB colour directly as a linear colour in transparent_frag_shader.glsl, so we don't need to do the
+		// sRGB -> linear conversion.
+		Colour3f linear_target_col = mat.colour_rgb;// (std::pow(mat.colour_rgb.r, 2.2f), std::pow(mat.colour_rgb.g, 2.2f), std::pow(mat.colour_rgb.b, 2.2f));
+
+		linear_target_col.lowerClampInPlace(0.001f); // Avoid log(0) giving -inf.
+
+		const float d = 0.2;
+		const Colour3f absorb_rgb(std::log(linear_target_col.r) / -d, std::log(linear_target_col.g) / -d, std::log(linear_target_col.b) / -d);
+
 		Indigo::SceneNodeMediumRef medium = new Indigo::SceneNodeMedium(new Indigo::BasicMedium(
 			1.5, // IOR
 			0.0, // cauchy b
-			new Indigo::ConstantVolumeParam(new Indigo::RGBSpectrum(toIndigoVec3d(mat.colour_rgb), 2.2)) // TODO: use inverse thing
+			new Indigo::ConstantVolumeParam(new Indigo::RGBSpectrum(toIndigoVec3d(absorb_rgb), 1.0))
 		));
 
 		// Convert to specular
 		Indigo::SpecularMaterialRef specular = new Indigo::SpecularMaterial(medium);
+		specular->is_arch_glass = true;
 
 		return new Indigo::SceneNodeMaterial("specular mat", specular);
 	}
 }
 
 
+#if GUI_CLIENT
 Indigo::SceneNodeMeshRef IndigoConversion::convertMesh(const WorldObject& object)
 {
 	Indigo::SceneNodeMeshRef mesh = new Indigo::SceneNodeMesh();
@@ -216,6 +252,7 @@ Indigo::SceneNodeModelRef IndigoConversion::convertObject(const WorldObject& obj
 
 	return model;
 }
+#endif
 
 
 #endif

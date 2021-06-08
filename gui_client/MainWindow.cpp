@@ -117,7 +117,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/KTXDecoder.h" // Just for testing
 #include "../graphics/ImageMapSequence.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
-//#include "../indigo/UVUnwrapper.h" // Just for testing
+#include "../indigo/UVUnwrapper.h" // Just for testing
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -254,6 +254,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(cameraUpdated()), this, SLOT(cameraUpdated()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
+	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
@@ -732,7 +733,7 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 
 	
 	// Scale up the cube for voxel groups since there are likely a few voxels.
-	const float extra_scale = (ob->object_type == WorldObject::ObjectType_VoxelGroup) ? 10.0f : 1.0f;
+	const float extra_scale = 1.f;// (ob->object_type == WorldObject::ObjectType_VoxelGroup) ? 10.0f : 1.0f;
 
 	const Matrix4f cube_ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix * Matrix4f::uniformScaleMatrix(extra_scale);
 
@@ -4592,6 +4593,19 @@ void MainWindow::bakeObjectLightmapSlot()
 }
 
 
+void MainWindow::bakeObjectLightmapHighQualSlot()
+{
+	if(this->selected_ob.nonNull())
+	{
+		this->selected_ob->lightmap_baking = true;
+
+		BitUtils::setBit(this->selected_ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
+		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+	}
+}
+
+
 void MainWindow::materialSelectedInBrowser(const std::string& path)
 {
 	if(selected_ob.nonNull())
@@ -5278,11 +5292,11 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 	if(!ob->getDecompressedVoxels().empty())
 	{
+		const Matrix4f ob_to_world = obToWorldMatrix(*ob);
+
 		// Add updated model!
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), task_manager, /*do_opengl_stuff=*/true, raymesh);
-
-		const Matrix4f ob_to_world = obToWorldMatrix(*ob);
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), ob_to_world, task_manager, /*do_opengl_stuff=*/true, raymesh);
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;
@@ -6342,7 +6356,9 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			quaternionTests();
+			BatchedMeshTests::test();
+			UVUnwrapper::test();
+			//quaternionTests();
 			//FormatDecoderGLTF::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
@@ -6358,7 +6374,7 @@ int main(int argc, char *argv[])
 			//GIFDecoder::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
-			StringUtils::test();
+			//StringUtils::test();
 			//HTTPClient::test();
 			//return 0;
 			//GIFDecoder::test();

@@ -514,25 +514,26 @@
          </property>
          <item>
           <widget class="QPushButton" name="bakeLightmapPushButton">
-           <property name="maximumSize">
-            <size>
-             <width>80</width>
-             <height>16777215</height>
-            </size>
-           </property>
            <property name="text">
-            <string>Bake lightmap</string>
+            <string>Bake lightmap (fast)</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QLabel" name="lightmapBakeStatusLabel">
+          <widget class="QPushButton" name="bakeLightmapHighQualPushButton">
            <property name="text">
-            <string/>
+            <string>Bake lightmap (high qual)</string>
            </property>
           </widget>
          </item>
         </layout>
+       </widget>
+      </item>
+      <item row="20" column="1">
+       <widget class="QLabel" name="lightmapBakeStatusLabel">
+        <property name="text">
+         <string/>
+        </property>
        </widget>
       </item>
      </layout>

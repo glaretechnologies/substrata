@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../gui_client/DownloadResourcesThread.h"
 #include "../gui_client/NetDownloadResourcesThread.h"
 #include "../gui_client/UploadResourceThread.h"
+#include "../gui_client/ModelLoading.h"
 #include <networking/Networking.h>
 #include <networking/TLSSocket.h>
 #include <PlatformUtils.h>
@@ -42,6 +43,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <graphics/KTXDecoder.h>
 #include <indigo/UVUnwrapper.h>
 #include <tls.h>
+#include "../gui_client/IndigoConversion.h"
 
 
 static const std::string username = "lightmapperbot";
@@ -253,14 +255,29 @@ public:
 	{
 		// Construct Indigo Mesh
 		Indigo::MeshRef indigo_mesh;
+		bool use_shading_normals = true;
 		if(ob->object_type == WorldObject::ObjectType_VoxelGroup) // If voxel object, convert to mesh
 		{
 			ob->decompressVoxels();
 			if(ob->getDecompressedVoxelGroup().voxels.size() == 0)
 				throw glare::Exception("No voxels in voxel group");
-			BatchedMeshRef batched_mesh = VoxelMeshBuilding::makeBatchedMeshForVoxelGroup(ob->getDecompressedVoxelGroup());
-			indigo_mesh = new Indigo::Mesh();
-			batched_mesh->buildIndigoMesh(*indigo_mesh);
+			//BatchedMeshRef batched_mesh = VoxelMeshBuilding::makeBatchedMeshForVoxelGroup(ob->getDecompressedVoxelGroup());
+			//indigo_mesh = new Indigo::Mesh();
+			//batched_mesh->buildIndigoMesh(*indigo_mesh);
+
+			const VoxelGroup& voxel_group = ob->getDecompressedVoxelGroup();
+
+			// Iterate over voxels and get voxel position bounds
+			Vec3<int> minpos(1000000000);
+			Vec3<int> maxpos(-1000000000);
+			for(size_t i = 0; i < voxel_group.voxels.size(); ++i)
+			{
+				minpos = minpos.min(voxel_group.voxels[i].pos);
+				maxpos = maxpos.max(voxel_group.voxels[i].pos);
+			}
+
+			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group);
+			use_shading_normals = false;
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
 		{
@@ -304,6 +321,7 @@ public:
 			spotlight_mesh->endOfModel();
 
 			indigo_mesh = spotlight_mesh;
+			use_shading_normals = false;
 		}
 		else
 		{
@@ -336,7 +354,7 @@ public:
 		checkValidAndSanitiseMesh(*indigo_mesh); // Throws Indigo::Exception on invalid mesh.
 
 		Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(indigo_mesh);
-		mesh_node->normal_smoothing = true;
+		mesh_node->normal_smoothing = use_shading_normals;
 		return mesh_node;
 	}
 
@@ -403,31 +421,40 @@ public:
 			Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
 			for(size_t i=0; i<ob->materials.size(); ++i)
 			{
-				const WorldMaterialRef parcel_mat = ob->materials[i];
+				const WorldMaterialRef ob_mat = ob->materials[i];
 
-				Reference<Indigo::WavelengthDependentParam> albedo_param;
-				if(!parcel_mat->colour_texture_url.empty())
-				{
-					// TODO: use colour_rgb as tint colour?
-					const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
+				Indigo::SceneNodeMaterialRef indigo_mat_node = IndigoConversion::convertMaterialToIndigoMat(*ob_mat, *resource_manager);
 
-					Indigo::Texture tex(toIndigoString(path));
-					tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
-						Indigo::Matrix2(parcel_mat->tex_matrix.e),
-						Indigo::Vec2d(0.0)
-					);
-					albedo_param = new Indigo::TextureWavelengthDependentParam(tex, /*tint_colour=*/new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
-				}
-				else
-				{
-					albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
-				}
+				//Reference<Indigo::WavelengthDependentParam> albedo_param;
+				//if(!parcel_mat->colour_texture_url.empty())
+				//{
+				//	// TODO: use colour_rgb as tint colour?
+				//	const std::string path = resource_manager->pathForURL(parcel_mat->colour_texture_url);
 
-				Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(albedo_param);
-				indigo_mat->name = toIndigoString(parcel_mat->name);
+				//	Indigo::Texture tex(toIndigoString(path));
+				//	tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
+				//		Indigo::Matrix2(parcel_mat->tex_matrix.e),
+				//		Indigo::Vec2d(0.0)
+				//	);
+				//	albedo_param = new Indigo::TextureWavelengthDependentParam(tex, /*tint_colour=*/new Indigo::RGBSpectrum(Indigo::Vec3d(1.0), /*gamma=*/2.2));
+				//}
+				//else
+				//{
+				//	albedo_param = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(parcel_mat->colour_rgb.r, parcel_mat->colour_rgb.g, parcel_mat->colour_rgb.b), /*gamma=*/2.2));
+				//}
 
-				indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
+				//Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(albedo_param);
+				//indigo_mat->name = toIndigoString(parcel_mat->name);
+
+				//indigo_mat_nodes.push_back(new Indigo::SceneNodeMaterial(indigo_mat));
+				indigo_mat_nodes.push_back(indigo_mat_node);
 			}
+
+			if(!ob->pos.isFinite())
+				throw glare::Exception("Pos was not finite");
+			if(!ob->axis.isFinite())
+				throw glare::Exception("axis was not finite");
+
 
 			Indigo::SceneNodeModelRef model_node = new Indigo::SceneNodeModel();
 			model_node->setMaterials(indigo_mat_nodes);
@@ -455,16 +482,20 @@ public:
 			// Hold the world state lock while we process the object and build the indigo scene from it.
 			UID ob_uid;
 			std::string scene_path;
+			bool do_high_qual_bake;
 			{
 				Lock lock(world_state.mutex);
 
 				ob_uid = ob_to_lightmap->uid;
 				
+				do_high_qual_bake = BitUtils::isBitSet(ob_to_lightmap->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
+
 				// Clear LIGHTMAP_NEEDS_COMPUTING_FLAG.
 				// We do this here, so other clients can re-set the LIGHTMAP_NEEDS_COMPUTING_FLAG while we are baking the lightmap, which means that the
 				// lightmap will re-bake when done.
 				{
 					BitUtils::zeroBit(ob_to_lightmap->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+					BitUtils::zeroBit(ob_to_lightmap->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
 
 					// Enqueue ObjectFlagsChanged
 					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -480,8 +511,14 @@ public:
 				std::set<WorldObjectRef> obs_to_render;
 				for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
 				{
+					const WorldObject* ob = it->second.ptr();
+					const double dist = ob_to_lightmap->pos.getDist(ob->pos);
+
+					if(dist < 100)
+						obs_to_render.insert(it->second);
+
 					// TEMP: add all objects
-					obs_to_render.insert(it->second);
+					//obs_to_render.insert(it->second);
 				}
 
 				// Start downloading any resources we don't have that the object uses.
@@ -508,7 +545,7 @@ public:
 					//if(wait_timer.elapsed() > 30)
 					//	throw glare::Exception("Failed to download all resources for objects");// with UID " + ob->uid.toString());
 
-					if(wait_timer.elapsed() > 15)
+					if(wait_timer.elapsed() > 5)//15)
 					{
 						conPrint("Failed to download all resources for objects, continuing anyway...");
 						break;
@@ -518,13 +555,31 @@ public:
 
 				Indigo::SceneNodeModelRef model_node_to_lightmap = makeModelNodeForWorldObject(ob_to_lightmap);
 
+				const Matrix4f to_world = obToWorldMatrix(ob_to_lightmap);
+
+				Indigo::SceneNodeMeshRef mesh_node_to_lightmap = model_node_to_lightmap->getGeometry().downcast<Indigo::SceneNodeMesh>();
+
+				Indigo::AABB<float> mesh_aabb_os;
+				mesh_node_to_lightmap->mesh->getBoundingBox(mesh_aabb_os);
+
+				const js::AABBox aabb_os(
+					Vec4f(mesh_aabb_os.bound[0].x, mesh_aabb_os.bound[0].y, mesh_aabb_os.bound[0].z, 1),
+					Vec4f(mesh_aabb_os.bound[1].x, mesh_aabb_os.bound[1].y, mesh_aabb_os.bound[1].z, 1)
+				);
+
+				const js::AABBox aabb_ws = aabb_os.transformedAABB(to_world);
+
+
+
 				// Work out the resolution at which we should create the lightmap
-				Indigo::AABB<float> aabb;
-				model_node_to_lightmap->getBoundingBox(aabb);
+				//Indigo::AABB<float> aabb;
+				//model_node_to_lightmap->getBoundingBox(aabb);
 
 				// compute surface area of AABB
-				const Indigo::Vec3<float> span = aabb.bound[1] - aabb.bound[0];
-				const float A = 2 * (span.x * span.y) + (span.x * span.z) * (span.y * span.z);
+				//const Indigo::Vec3<float> span = aabb_ws.max_ - min_;// aabb.bound[1] - aabb.bound[0];
+				//const Vec4f span = aabb_ws.max_ - aabb_ws.min_;// aabb.bound[1] - aabb.bound[0];
+				//const float A = 2 * (span.x * span.y) + (span.x * span.z) * (span.y * span.z);c
+				/*const float A = aabb_ws.getSurfaceArea();
 
 				// We want an object with maximally sized AABB, similar to that of a parcel, to have the max allowable res (e.g. 512*512)
 				// And use a proportionally smaller number of pixels based on a smaller area.
@@ -545,18 +600,20 @@ public:
 
 				// Clamp to min and max allowable lightmap resolutions
 				const int clamped_side_res = myClamp(use_side_res_rounded, 64, 2048);
+				*/
 
-				printVar(A);
-				printVar(parcel_A);
-				printVar(frac);
-				printVar(use_side_res);
-				printVar(use_side_res_rounded);
+				const int clamped_side_res = WorldObject::getLightMapSideResForAABBWS(aabb_ws);
+				//printVar(A);
+				//printVar(parcel_A);
+				//printVar(frac);
+				//printVar(use_side_res);
+				//printVar(use_side_res_rounded);
 				printVar(clamped_side_res);
 
 
+				Indigo::SceneNodeMeshRef ob_to_lightmap_mesh_node = makeSceneNodeMeshForOb(ob_to_lightmap);
 				{
-					Indigo::SceneNodeMeshRef mesh_node = makeSceneNodeMeshForOb(ob_to_lightmap);
-					Indigo::MeshRef ob_to_lightmap_indigo_mesh = mesh_node->mesh;
+					Indigo::MeshRef ob_to_lightmap_indigo_mesh = ob_to_lightmap_mesh_node->mesh;
 				
 					// See if this object has a lightmap-suitable UV map already
 					const bool has_lightmap_uvs = ob_to_lightmap_indigo_mesh->num_uv_mappings >= 2; // TEMP
@@ -567,7 +624,9 @@ public:
 
 						const float normed_margin = 2.f / clamped_side_res;
 
-						UVUnwrapper::build(*ob_to_lightmap_indigo_mesh, print_output, normed_margin); // Adds UV set to indigo_mesh.
+						//const Matrix4f to_world = obToWorldMatrix(ob_to_lightmap);
+
+						UVUnwrapper::build(*ob_to_lightmap_indigo_mesh, to_world, print_output, normed_margin); // Adds UV set to indigo_mesh.
 
 						if(ob_to_lightmap->object_type != WorldObject::ObjectType_VoxelGroup) // If voxel object, don't update to an unwrapped mesh, rather keep voxels.
 						{
@@ -631,6 +690,9 @@ public:
 					{
 						Indigo::SceneNodeModelRef model_node = makeModelNodeForWorldObject(ob);
 
+						if(ob == ob_to_lightmap)
+							model_node->setGeometry(ob_to_lightmap_mesh_node);
+
 						root_node->addChildNode(model_node);
 
 						if(ob == ob_to_lightmap)
@@ -655,7 +717,7 @@ public:
 						q.vertex_indices[i] = q.uv_indices[i] = i;
 					mesh->quads.push_back(q);
 
-					const float w = 100;
+					const float w = 300;
 					mesh->vert_positions.push_back(Indigo::Vec3f(-w, -w, 0));
 					mesh->vert_positions.push_back(Indigo::Vec3f(-w,  w, 0));
 					mesh->vert_positions.push_back(Indigo::Vec3f( w,  w, 0));
@@ -710,6 +772,10 @@ public:
 				//settings_node->image_save_period.setValue(2); // Save often for progressive rendering and uploads
 				settings_node->save_png.setValue(false);
 				settings_node->merging.setValue(false); // Needed for now
+
+				settings_node->optimise_for_denoising.setValue(true);
+				settings_node->denoise.setValue(true);
+
 				settings_node->setWhitePoint(Indigo::SceneNodeRenderSettings::getWhitepointForWhiteBalance("D65"));
 
 				root_node->addChildNode(settings_node);
@@ -759,6 +825,15 @@ public:
 			int lightmap_index = 0;
 			if(true)
 			{
+				//const double halt_time = do_high_qual_bake ? 300.0 : 10;
+				//conPrint("Using halt time of " + toString(halt_time) + " s");
+
+				const double halt_spp = do_high_qual_bake ? 2048 : 256;
+
+				conPrint("Using halt samples/px of " + toString(halt_spp));
+
+				Timer indigo_exec_timer;
+
 				const std::string indigo_exe_path = "C:\\programming\\indigo\\output\\vs2019\\indigo_x64\\RelWithDebInfo\\indigo_gui.exe";
 				std::vector<std::string> command_line_args;
 				command_line_args.push_back(indigo_exe_path);
@@ -766,8 +841,10 @@ public:
 				command_line_args.push_back("--noninteractive");
 				command_line_args.push_back("-uexro"); // untonemapped EXR output path:
 				command_line_args.push_back(lightmap_exr_path);
-				command_line_args.push_back("-halt"); // Half after N secs
-				command_line_args.push_back("160");
+				//command_line_args.push_back("-halt"); // Half after N secs
+				//command_line_args.push_back(toString(halt_time));
+				command_line_args.push_back("-haltspp"); // Half after N samples/pixel
+				command_line_args.push_back(toString(halt_spp));
 				glare::Process indigo_process(indigo_exe_path, command_line_args);
 
 				Timer timer;
@@ -797,7 +874,7 @@ public:
 						if(res != world_state.objects.end())
 						{
 							WorldObjectRef ob2 = res->second;
-							if(BitUtils::isBitSet(ob2->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG))
+							if(BitUtils::isBitSet(ob2->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG) || BitUtils::isBitSet(ob2->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG))
 							{
 								conPrint("Object has been modified since bake started, aborting bake...");
 								indigo_process.terminateProcess();
@@ -811,6 +888,8 @@ public:
 
 					PlatformUtils::Sleep(10);
 				}
+
+				conPrint("Indigo exection took " + indigo_exec_timer.elapsedStringNSigFigs(3) + " for " + toString(halt_spp) + " spp");
 
 				compressAndUploadLightmap(lightmap_exr_path, ob_uid, lightmap_index);
 
@@ -919,7 +998,7 @@ public:
 				{
 					WorldObject* ob = it->second.ptr();
 					conPrint("Checking object with UID " + ob->uid.toString());
-					if(/*!ob->model_url.empty() && */BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG))
+					if(/*!ob->model_url.empty() && */BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG) || BitUtils::isBitSet(ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG))
 					{
 						// Decompress voxel group
 						ob->decompressVoxels();
@@ -959,7 +1038,7 @@ public:
 						//conPrint("Found object with UID " + ob->uid.toString() + " in dirty set.");
 						//conPrint("LIGHTMAP_NEEDS_COMPUTING_FLAG: " + boolToString(BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG)));
 
-						if(/*!ob->model_url.empty() && */BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG))
+						if(/*!ob->model_url.empty() && */BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG) || BitUtils::isBitSet(ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG))
 						{
 							// Decompress voxel group
 							ob->decompressVoxels();
@@ -984,6 +1063,14 @@ public:
 					}
 				}
 				obs_to_lightmap.clear();
+
+
+				//TEMP HACK: just lightmap an object
+			/*	{
+					auto res = world_state.objects.find(UID(147435));
+					assert(res != world_state.objects.end());
+					buildLightMapForOb(world_state, res->second.ptr());
+				}*/
 
 
 				PlatformUtils::Sleep(100);
@@ -1033,8 +1120,8 @@ int main(int argc, char* argv[])
 
 	Reference<WorldState> world_state = new WorldState();
 
-	//const std::string server_hostname = "localhost";
-	const std::string server_hostname = "substrata.info";
+	const std::string server_hostname = "localhost";
+	//const std::string server_hostname = "substrata.info";
 	const int server_port = 7600;
 
 

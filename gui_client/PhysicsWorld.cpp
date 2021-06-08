@@ -26,7 +26,10 @@ void PhysicsWorld::updateObjectTransformData(PhysicsObject& object)
 {
 	const Matrix4f& to_world = object.ob_to_world;
 
-	to_world.getInverseForAffine3Matrix(object.world_to_ob); // Compute world-to-ob matrix.
+	const bool invertible = to_world.getInverseForAffine3Matrix(/*inverse out=*/object.world_to_ob); // Compute world-to-ob matrix.
+	//assert(invertible);
+	if(!invertible)
+		object.world_to_ob = Matrix4f::identity(); // If not invertible, just use to-world matrix.  TEMP HACK
 
 	object.aabb_ws = object.geometry->getAABBox().transformedAABBFast(to_world);
 }

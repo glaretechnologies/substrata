@@ -27,6 +27,7 @@ class ResourceManager;
 class WinterShaderEvaluator;
 class Matrix4f;
 namespace Indigo { class SceneNodeModel; }
+namespace js { class AABBox; }
 
 
 class Voxel
@@ -75,6 +76,8 @@ public:
 
 	size_t getTotalMemUsage() const;
 
+	static int getLightMapSideResForAABBWS(const js::AABBox& aabb_ws);
+
 	static void compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 16>& compressed_data_out);
 	static void decompressVoxelGroup(const uint8* compressed_data, size_t compressed_data_len, VoxelGroup& group_out);
 	void compressVoxels();
@@ -121,8 +124,9 @@ public:
 	float angle;
 	Vec3f scale;
 
-	static const uint32 COLLIDABLE_FLAG               = 1; // Is this object solid from the point of view of the physics engine?
-	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG = 2; // Does the lightmap for this object need to be built or rebuilt?
+	static const uint32 COLLIDABLE_FLAG                         = 1; // Is this object solid from the point of view of the physics engine?
+	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG           = 2; // Does the lightmap for this object need to be built or rebuilt?
+	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 4; // Does a hiqh-quality lightmap for this object need to be built or rebuilt?
 	uint32 flags;
 
 	TimeStamp created_time;
