@@ -348,6 +348,7 @@ void ObjectEditor::setControlsEditable(bool editable)
 
 	this->editScriptPushButton->setEnabled(editable);
 	this->bakeLightmapPushButton->setEnabled(editable);
+	this->bakeLightmapHighQualPushButton->setEnabled(editable);
 }
 
 
@@ -428,6 +429,14 @@ void ObjectEditor::on_bakeLightmapPushButton_clicked(bool checked)
 	lightmapBakeStatusLabel->setText("Lightmap is baking...");
 
 	emit bakeObjectLightmap();
+}
+
+
+void ObjectEditor::on_bakeLightmapHighQualPushButton_clicked(bool checked)
+{
+	lightmapBakeStatusLabel->setText("Lightmap is baking...");
+
+	emit bakeObjectLightmapHighQual();
 }
 
 

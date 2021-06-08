@@ -62,7 +62,7 @@ void LoadModelTask::run(size_t thread_index)
 				ob->decompressVoxels();
 
 				Reference<RayMesh> raymesh;
-				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), ob_to_world_matrix, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 				ob->clearDecompressedVoxels();
 

@@ -478,6 +478,9 @@ void ClientThread::doRun()
 						ob->uid = object_uid;
 						readFromNetworkStreamGivenUID(*socket, *ob);
 
+						if(!isFinite(ob->angle))
+							ob->angle = 0;
+
 						ob->state = WorldObject::State_JustCreated;
 						ob->from_remote_other_dirty = true;
 						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);

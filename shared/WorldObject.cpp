@@ -561,6 +561,34 @@ size_t WorldObject::getTotalMemUsage() const
 }
 
 
+int WorldObject::getLightMapSideResForAABBWS(const js::AABBox& aabb_ws)
+{
+	const float A = aabb_ws.getSurfaceArea();
+
+	// We want an object with maximally sized AABB, similar to that of a parcel, to have the max allowable res (e.g. 512*512)
+	// And use a proportionally smaller number of pixels based on a smaller area.
+
+	const float parcel_W = 20;
+	const float parcel_H = 10;
+	const float parcel_A = parcel_W * parcel_W * 2 + parcel_W * parcel_H * 4;
+
+	const float frac = A / parcel_A;
+
+	const float full_num_px = Maths::square(2048.f);
+
+	const float use_num_px = frac * full_num_px;
+
+	const float use_side_res = std::sqrt(use_num_px);
+
+	const int use_side_res_rounded = Maths::roundUpToMultipleOfPowerOf2((int)use_side_res, (int)4);
+
+	// Clamp to min and max allowable lightmap resolutions
+	const int clamped_side_res = myClamp(use_side_res_rounded, 64, 2048);
+
+	return clamped_side_res;
+}
+
+
 struct GetMatIndex
 {
 	size_t operator() (const Voxel& v)

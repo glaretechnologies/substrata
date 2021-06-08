@@ -6,31 +6,22 @@ Copyright Glare Technologies Limited 2020 -
 #pragma once
 
 
-//#include "../shared/WorldMaterial.h"
-//#include "../shared/WorldObject.h"
-//#include <opengl/OpenGLEngine.h>
-//#include <dll/include/IndigoMesh.h>
-#include <graphics/BatchedMesh.h>
+#include <dll/include/IndigoMesh.h>
 
-//struct GLObject;
-//class Matrix4f;
-//class ResourceManager;
-//class RayMesh;
 class VoxelGroup;
-namespace Indigo { class TaskManager; }
+//namespace Indigo { class TaskManager; }
 
 
 /*=====================================================================
 VoxelMeshBuilding
 -----------------
-NOTE: some duplicated code from ModelLoading!
+This code is all the stuff for voxel meshing that doesn't involve OpenGL,
+so it can be used in LightMapperBot as well as gui_client.
 =====================================================================*/
 class VoxelMeshBuilding
 {
 public:
-	//static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, Indigo::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);
-
-	static Reference<BatchedMesh> makeBatchedMeshForVoxelGroup(const VoxelGroup& voxel_group);
+	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group);
 
 	static void test();
 };

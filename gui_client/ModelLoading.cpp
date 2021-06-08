@@ -9,6 +9,7 @@ Code By Nicholas Chapman.
 
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
+#include "../shared/VoxelMeshBuilding.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
 #include "../graphics/formatdecoderobj.h"
@@ -382,7 +383,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
 		Reference<RayMesh> raymesh;
-		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), task_manager, /*do opengl stuff=*/true, raymesh);
+		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), ob->ob_to_world_matrix, task_manager, /*do opengl stuff=*/true, raymesh);
 
 		ob->materials.resize(loaded_object_out.materials.size());
 		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
@@ -815,461 +816,6 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 }
 
 
-class VoxelHashFunc
-{
-public:
-	size_t operator() (const Vec3<int>& v) const
-	{
-		return hashBytes((const uint8*)&v.x, sizeof(int)*3); // TODO: use better hash func.
-	}
-};
-
-
-class Vec3fHashFunc
-{
-public:
-	size_t operator() (const Indigo::Vec3f& v) const
-	{
-		return hashBytes((const uint8*)&v.x, sizeof(Indigo::Vec3f)); // TODO: use better hash func.
-	}
-};
-
-
-struct VoxelBuildInfo
-{
-	int face_offset; // number of faces added before this voxel.
-	int num_faces; // num faces added for this voxel.
-};
-
-
-struct GetMatIndex
-{
-	size_t operator() (const Voxel& v)
-	{
-		return (size_t)v.mat_index;
-	}
-};
-
-
-struct VoxelBounds
-{
-	Vec3<int> min;
-	Vec3<int> max;
-};
-
-
-// Does greedy meshing
-static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<Voxel>& voxels, const size_t num_mats, const HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc>& voxel_hash)
-{
-	const size_t num_voxels = voxels.size();
-
-	Reference<Indigo::Mesh> mesh = new Indigo::Mesh();
-
-	const Indigo::Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
-	HashMapInsertOnly2<Indigo::Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
-
-	mesh->vert_positions.reserve(voxels.size());
-	mesh->triangles.reserve(voxels.size());
-
-	mesh->setMaxNumTexcoordSets(0);
-
-	VoxelBounds b;
-	b.min = Vec3<int>( 1000000000);
-	b.max = Vec3<int>(-1000000000);
-	std::vector<VoxelBounds> mat_vox_bounds(num_mats, b);
-	for(size_t i=0; i<voxels.size(); ++i) // For each mat
-	{
-		const int mat_index = voxels[i].mat_index;
-		mat_vox_bounds[mat_index].min = mat_vox_bounds[mat_index].min.min(voxels[i].pos);
-		mat_vox_bounds[mat_index].max = mat_vox_bounds[mat_index].max.max(voxels[i].pos);
-	}
-
-	for(size_t mat_i=0; mat_i<num_mats; ++mat_i) // For each mat
-	{
-		if(mat_vox_bounds[mat_i].min == Vec3<int>(1000000000))
-			continue; // No voxels for this mat.
-
-		// For each dimension (x, y, z)
-		for(int dim=0; dim<3; ++dim)
-		{
-			// Want the a_axis x b_axis = dim_axis
-			int dim_a, dim_b;
-			if(dim == 0)
-			{
-				dim_a = 1;
-				dim_b = 2;
-			}
-			else if(dim == 1)
-			{
-				dim_a = 2;
-				dim_b = 0;
-			}
-			else // dim == 2:
-			{
-				dim_a = 0;
-				dim_b = 1;
-			}
-
-			// Get the extents along dim_a, dim_b
-			const int a_min = mat_vox_bounds[mat_i].min[dim_a];
-			const int a_end = mat_vox_bounds[mat_i].max[dim_a] + 1;
-
-			const int b_min = mat_vox_bounds[mat_i].min[dim_b];
-			const int b_end = mat_vox_bounds[mat_i].max[dim_b] + 1;
-
-			// Walk from lower to greater coords, look for downwards facing faces
-			const int dim_min = mat_vox_bounds[mat_i].min[dim];
-			const int dim_end = mat_vox_bounds[mat_i].max[dim] + 1;
-
-			// Make a map to indicate processed voxel faces.  Processed = included in a greedy quad already.
-			Array2D<bool> face_needed(a_end - a_min, b_end - b_min);
-
-			for(int dim_coord = dim_min; dim_coord < dim_end; ++dim_coord)
-			{
-				// Build face_needed data for this slice
-				for(int y=b_min; y<b_end; ++y)
-				for(int x=a_min; x<a_end; ++x)
-				{
-					Vec3<int> vox;
-					vox[dim] = dim_coord;
-					vox[dim_a] = x;
-					vox[dim_b] = y;
-
-					bool this_face_needed = false;
-					auto res = voxel_hash.find(vox);
-					if((res != voxel_hash.end()) && (res->second == mat_i)) // If there is a voxel here with mat_i
-					{
-						Vec3<int> adjacent_vox_pos = vox;
-						adjacent_vox_pos[dim]--;
-						auto adjacent_res = voxel_hash.find(adjacent_vox_pos);
-						if((adjacent_res == voxel_hash.end()) || (adjacent_res->second != mat_i)) // If there is no adjacent voxel, or the adjacent voxel has a different material:
-							this_face_needed = true;
-					}
-					face_needed.elem(x - a_min, y - b_min) = this_face_needed;
-				}
-
-				// For each voxel face:
-				for(int start_y=b_min; start_y<b_end; ++start_y)
-				for(int start_x=a_min; start_x<a_end; ++start_x)
-				{
-					if(face_needed.elem(start_x - a_min, start_y - b_min)) // If we need a face here:
-					{
-						// Start a quad here (start corner at (start_x, start_y))
-						// The quad will range from (start_x, start_y) to (end_x, end_y)
-						int end_x = start_x + 1;
-						int end_y = start_y + 1;
-
-						bool x_increase_ok = true;
-						bool y_increase_ok = true;
-						while(x_increase_ok || y_increase_ok)
-						{
-							// Try and increase in x direction
-							if(x_increase_ok)
-							{
-								if(end_x < a_end) // If there is still room to increase in x direction:
-								{
-									// Check y values for new x = end_x
-									for(int y = start_y; y < end_y; ++y)
-										if(!face_needed.elem(end_x - a_min, y - b_min))
-										{
-											x_increase_ok = false;
-											break;
-										}
-
-									if(x_increase_ok)
-										end_x++;
-								}
-								else
-									x_increase_ok = false;
-							}
-
-							// Try and increase in y direction
-							if(y_increase_ok)
-							{
-								if(end_y < b_end)
-								{
-									// Check x values for new y = end_y
-									for(int x = start_x; x < end_x; ++x)
-										if(!face_needed.elem(x - a_min, end_y - b_min))
-										{
-											y_increase_ok = false;
-											break;
-										}
-
-									if(y_increase_ok)
-										end_y++;
-								}
-								else
-									y_increase_ok = false;
-							}
-						}
-
-						// We have worked out the greedy quad.  Mark elements in it as processed
-						for(int y=start_y; y < end_y; ++y)
-						for(int x=start_x; x < end_x; ++x)
-							face_needed.elem(x - a_min, y - b_min) = false;
-
-						// Add the greedy quad
-						unsigned int v_i[4];
-						{
-							Indigo::Vec3f v; // bot left
-							v[dim] = (float)dim_coord;
-							v[dim_a] = (float)start_x;
-							v[dim_b] = (float)start_y;
-
-							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-							v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-							if(insert_res.second) // If inserted new value:
-								mesh->vert_positions.push_back(v);
-						}
-						{
-							Indigo::Vec3f v; // top left
-							v[dim] = (float)dim_coord;
-							v[dim_a] = (float)start_x;
-							v[dim_b] = (float)end_y;
-
-							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-							v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-							if(insert_res.second) // If inserted new value:
-								mesh->vert_positions.push_back(v);
-						}
-						{
-							Indigo::Vec3f v; // top right
-							v[dim] = (float)dim_coord;
-							v[dim_a] = (float)end_x;
-							v[dim_b] = (float)end_y;
-
-							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-							v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-							if(insert_res.second) // If inserted new value:
-								mesh->vert_positions.push_back(v);
-						}
-						{
-							Indigo::Vec3f v; // bot right
-							v[dim] = (float)dim_coord;
-							v[dim_a] = (float)end_x;
-							v[dim_b] = (float)start_y;
-
-							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-							v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-							if(insert_res.second) // If inserted new value:
-								mesh->vert_positions.push_back(v);
-						}
-
-						assert(mesh->vert_positions.size() == vertpos_hash.size());
-
-						const size_t tri_start = mesh->triangles.size();
-						mesh->triangles.resize(tri_start + 2);
-						
-						mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
-						mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
-						mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
-						mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-						mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-						mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
-						mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
-						
-						mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
-						mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
-						mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
-						mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-						mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-						mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
-						mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
-					}
-				}
-
-				//================= Do upper faces along dim ==========================
-				// Build face_needed data for this slice
-				for(int y=b_min; y<b_end; ++y)
-				for(int x=a_min; x<a_end; ++x)
-				{
-					Vec3<int> vox;
-					vox[dim] = dim_coord;
-					vox[dim_a] = x;
-					vox[dim_b] = y;
-
-					bool this_face_needed = false;
-					auto res = voxel_hash.find(vox);
-					if((res != voxel_hash.end()) && (res->second == mat_i)) // If there is a voxel here with mat_i
-					{
-						Vec3<int> adjacent_vox_pos = vox;
-						adjacent_vox_pos[dim]++;
-						auto adjacent_res = voxel_hash.find(adjacent_vox_pos);
-						if((adjacent_res == voxel_hash.end()) || (adjacent_res->second != mat_i)) // If there is no adjacent voxel, or the adjacent voxel has a different material:
-							this_face_needed = true;
-					}
-					face_needed.elem(x - a_min, y - b_min) = this_face_needed;
-				}
-
-				// For each voxel face:
-				for(int start_y=b_min; start_y<b_end; ++start_y)
-				for(int start_x=a_min; start_x<a_end; ++start_x)
-				{
-					if(face_needed.elem(start_x - a_min, start_y - b_min))
-					{
-						// Start a quad here (start corner at (start_x, start_y))
-						// The quad will range from (start_x, start_y) to (end_x, end_y)
-						int end_x = start_x + 1;
-						int end_y = start_y + 1;
-
-						bool x_increase_ok = true;
-						bool y_increase_ok = true;
-						while(x_increase_ok || y_increase_ok)
-						{
-							// Try and increase in x direction
-							if(x_increase_ok)
-							{
-								if(end_x < a_end) // If there is still room to increase in x direction:
-								{
-									// Check y values for new x = end_x
-									for(int y = start_y; y < end_y; ++y)
-										if(!face_needed.elem(end_x - a_min, y - b_min))
-										{
-											x_increase_ok = false;
-											break;
-										}
-
-									if(x_increase_ok)
-										end_x++;
-								}
-								else
-									x_increase_ok = false;
-							}
-
-							// Try and increase in y direction
-							if(y_increase_ok)
-							{
-								if(end_y < b_end)
-								{
-									// Check x values for new y = end_y
-									for(int x = start_x; x < end_x; ++x)
-										if(!face_needed.elem(x - a_min, end_y - b_min))
-										{
-											y_increase_ok = false;
-											break;
-										}
-
-									if(y_increase_ok)
-										end_y++;
-								}
-								else
-									y_increase_ok = false;
-							}
-						}
-
-						// We have worked out the greedy quad.  Mark elements in it as processed
-						for(int y=start_y; y < end_y; ++y)
-							for(int x=start_x; x < end_x; ++x)
-								face_needed.elem(x - a_min, y - b_min) = false;
-
-						if(end_x > start_x && end_y > start_y)
-						{
-							const float quad_dim_coord = (float)(dim_coord + 1);
-
-							// Add the greedy quad
-							unsigned int v_i[4];
-							{
-								Indigo::Vec3f v; // bot left
-								v[dim] = (float)quad_dim_coord;
-								v[dim_a] = (float)start_x;
-								v[dim_b] = (float)start_y;
-								
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							{
-								Indigo::Vec3f v; // bot right
-								v[dim] = (float)quad_dim_coord;
-								v[dim_a] = (float)end_x;
-								v[dim_b] = (float)start_y;
-
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							{
-								Indigo::Vec3f v; // top right
-								v[dim] = (float)quad_dim_coord;
-								v[dim_a] = (float)end_x;
-								v[dim_b] = (float)end_y;
-
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							{
-								Indigo::Vec3f v; // top left
-								v[dim] = (float)quad_dim_coord;
-								v[dim_a] = (float)start_x;
-								v[dim_b] = (float)end_y;
-
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							
-							const size_t tri_start = mesh->triangles.size();
-							mesh->triangles.resize(tri_start + 2);
-							
-							mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
-							mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
-							mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
-							mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-							mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-							mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
-							mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
-
-							mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
-							mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
-							mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
-							mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-							mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-							mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
-							mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	mesh->endOfModel();
-	return mesh;
-}
-
-
-Reference<Indigo::Mesh> ModelLoading::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group)
-{
-	const size_t num_voxels = voxel_group.voxels.size();
-	assert(num_voxels > 0);
-	// conPrint("Adding " + toString(num_voxels) + " voxels.");
-
-	// Make hash from voxel indices to voxel material
-	const Vec3<int> empty_key(std::numeric_limits<int>::max());
-	HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/empty_key, /*expected_num_items=*/num_voxels);
-
-	int max_mat_index = 0;
-	for(int v=0; v<(int)num_voxels; ++v)
-	{
-		max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
-		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, voxel_group.voxels[v].mat_index));
-	}
-	const size_t num_mats = (size_t)max_mat_index + 1;
-
-	//-------------- Sort voxels by material --------------------
-	std::vector<Voxel> voxels(num_voxels);
-	Sort::serialCountingSortWithNumBuckets(/*in=*/voxel_group.voxels.data(), /*out=*/voxels.data(), voxel_group.voxels.size(), num_mats, GetMatIndex());
-
-	return doMakeIndigoMeshForVoxelGroup(voxels, num_mats, voxel_hash);
-}
-
-
 struct ModelLoadingTakeFirstElement
 {
 	inline uint32 operator() (const std::pair<uint32, uint32>& pair) const { return pair.first; }
@@ -1561,17 +1107,34 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	normal_attrib.offset = 0;
 	mesh_data->vertex_spec.attributes.push_back(normal_attrib);
 
+	VertexAttrib uv_attrib;
+	uv_attrib.enabled = false;
+	uv_attrib.num_comps = 2;
+	uv_attrib.type = GL_FLOAT;
+	uv_attrib.normalised = false;
+	uv_attrib.stride = (uint32)num_bytes_per_vert;
+	uv_attrib.offset = 0;
+	mesh_data->vertex_spec.attributes.push_back(uv_attrib);
+
+	VertexAttrib colour_attrib;
+	colour_attrib.enabled = false;
+	colour_attrib.num_comps = 3;
+	colour_attrib.type = GL_FLOAT;
+	colour_attrib.normalised = false;
+	colour_attrib.stride = (uint32)num_bytes_per_vert;
+	colour_attrib.offset = 0;
+	mesh_data->vertex_spec.attributes.push_back(colour_attrib);
 
 	if(num_uv_sets >= 1)
 	{
-		VertexAttrib uv_attrib;
-		uv_attrib.enabled = true;
-		uv_attrib.num_comps = 2;
-		uv_attrib.type = GL_HALF_FLOAT;
-		uv_attrib.normalised = false;
-		uv_attrib.stride = (uint32)num_bytes_per_vert;
-		uv_attrib.offset = (uint32)uv0_offset;
-		mesh_data->vertex_spec.attributes.push_back(uv_attrib);
+		VertexAttrib lightmap_uv_attrib;
+		lightmap_uv_attrib.enabled = true;
+		lightmap_uv_attrib.num_comps = 2;
+		lightmap_uv_attrib.type = GL_HALF_FLOAT;
+		lightmap_uv_attrib.normalised = false;
+		lightmap_uv_attrib.stride = (uint32)num_bytes_per_vert;
+		lightmap_uv_attrib.offset = (uint32)uv0_offset;
+		mesh_data->vertex_spec.attributes.push_back(lightmap_uv_attrib);
 	}
 	/*if(num_uv_sets >= 2)
 	{
@@ -1594,7 +1157,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
+Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, const Matrix4f& ob_to_world, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
 	// TEMP NEW:
 	//Timer timer;
@@ -1608,13 +1171,25 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		maxpos = maxpos.max(voxel_group.voxels[i].pos);
 	}
 
-	Indigo::MeshRef indigo_mesh = makeIndigoMeshForVoxelGroup(voxel_group);
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group);
 
 	// UV unwrap it:
 	StandardPrintOutput print_output;
 	
-	const float normed_margin = 2.f / 1024; // NOTE: we don't know what res lightmap we will be using here.
-	UVUnwrapper::build(*indigo_mesh, print_output, normed_margin); // Adds UV set to indigo_mesh.
+	Indigo::AABB<float> mesh_aabb_os;
+	indigo_mesh->getBoundingBox(mesh_aabb_os);
+
+	const js::AABBox aabb_os(
+		Vec4f(mesh_aabb_os.bound[0].x, mesh_aabb_os.bound[0].y, mesh_aabb_os.bound[0].z, 1),
+		Vec4f(mesh_aabb_os.bound[1].x, mesh_aabb_os.bound[1].y, mesh_aabb_os.bound[1].z, 1)
+	);
+
+	const js::AABBox aabb_ws = aabb_os.transformedAABB(ob_to_world);
+
+	const int clamped_side_res = WorldObject::getLightMapSideResForAABBWS(aabb_ws);
+
+	const float normed_margin = 2.f / clamped_side_res;
+	UVUnwrapper::build(*indigo_mesh, ob_to_world, print_output, normed_margin); // Adds UV set to indigo_mesh.
 
 
 	//----------------- Convert indigo mesh to voxel data -------------
@@ -1702,7 +1277,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1717,7 +1292,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1732,7 +1307,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1748,7 +1323,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1763,7 +1338,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testEqual(data->getNumVerts(), (size_t)(2 * 4 + 8 * 4));
 		testAssert(raymesh->getNumVerts() == 4 * 3);
@@ -1787,7 +1362,7 @@ void ModelLoading::test()
 			Timer timer;
 
 			Reference<RayMesh> raymesh;
-			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 			conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 			conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));

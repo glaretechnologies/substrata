@@ -19,6 +19,8 @@ SET(gui_client_files
 ../gui_client/NetDownloadResourcesThread.h
 ../gui_client/UploadResourceThread.cpp
 ../gui_client/UploadResourceThread.h
+../gui_client/IndigoConversion.cpp
+../gui_client/IndigoConversion.h
 #../gui_client/ModelLoading.cpp
 #../gui_client/ModelLoading.h
 )
@@ -99,6 +101,10 @@ ${lang}
 
 
 include(../cmake/shared_target_settings.cmake)
+
+
+
+add_definitions(-DINDIGO_SUPPORT) 
 
 
 if(WIN32)

@@ -156,6 +156,8 @@ SET(shared_files
 ../shared/WorldObject.h
 ../shared/WorldMaterial.cpp
 ../shared/WorldMaterial.h
+../shared/VoxelMeshBuilding.cpp
+../shared/VoxelMeshBuilding.h
 )
 
 SET(client_indigo_files
