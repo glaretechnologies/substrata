@@ -4545,6 +4545,7 @@ void MainWindow::objectEditedSlot()
 
 				// Update physics object transform
 				selected_ob->physics_object->ob_to_world = new_ob_to_world_matrix;
+				selected_ob->physics_object->collidable = selected_ob->isCollidable();
 				this->physics_world->updateObjectTransformData(*selected_ob->physics_object);
 
 				// Update in Indigo view
