@@ -1690,7 +1690,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		if(ui->glWidget->opengl_engine.nonNull())
 			msg += ui->glWidget->opengl_engine->getDiagnostics();
 
-		ui->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
+		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
+		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())
+			ui->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
 	}
 
 	
