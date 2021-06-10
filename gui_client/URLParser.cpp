@@ -58,6 +58,11 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 		parser.advance();
 	}
 
+	URLParseResults res;
+	res.parsed_x = false;
+	res.parsed_y = false;
+	res.parsed_z = false;
+
 	double x = DEFAULT_X;
 	double y = DEFAULT_Y;
 	double z = DEFAULT_Z;
@@ -73,6 +78,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 
 		if(!parser.parseDouble(x))
 			throw glare::Exception("Failed to parse x coord.");
+		res.parsed_x = true;
 
 		if(!parser.parseChar('&'))
 			throw glare::Exception("Expected '&' after x coodinate.");
@@ -85,6 +91,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 
 		if(!parser.parseDouble(y))
 			throw glare::Exception("Failed to parse y coord.");
+		res.parsed_y = true;
 
 		if(parser.currentIsChar('&'))
 		{
@@ -100,6 +107,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 
 				if(!parser.parseDouble(z))
 					throw glare::Exception("Failed to parse z coord.");
+				res.parsed_z = true;
 			}
 			else
 				throw glare::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
@@ -107,8 +115,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 
 		conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
 	}
-
-	URLParseResults res;
+	
 	res.hostname = hostname;
 	res.userpath = userpath;
 	res.x = x;
