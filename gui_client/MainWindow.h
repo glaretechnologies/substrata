@@ -69,7 +69,7 @@ public:
 
 	void initialise();
 
-	void connectToServer(const std::string& hostname, const std::string& worldname); // Disconnect from any current server, connect to new server
+	void connectToServer(const std::string& URL/*const std::string& hostname, const std::string& worldname*/); // Disconnect from any current server, connect to new server
 
 	void afterGLInitInitialise();
 

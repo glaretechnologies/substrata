@@ -4176,7 +4176,7 @@ void MainWindow::on_actionFly_Mode_triggered()
 
 void MainWindow::on_actionGoToMainWorld_triggered()
 {
-	connectToServer(this->server_hostname, "");
+	connectToServer("sub://" + this->server_hostname);// this->server_hostname, "");
 }
 
 
@@ -4184,7 +4184,7 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 {
 	if(this->logged_in_user_name != "")
 	{
-		connectToServer(this->server_hostname, this->logged_in_user_name);
+		connectToServer("sub://" + this->server_hostname + "/" + this->logged_in_user_name); //  this->server_hostname, this->logged_in_user_name);
 	}
 	else
 	{
@@ -4198,7 +4198,7 @@ void MainWindow::on_actionGoToPersonalWorld_triggered()
 
 void MainWindow::on_actionGo_to_CryptoVoxels_World_triggered()
 {
-	connectToServer(this->server_hostname, "cryptovoxels");
+	connectToServer("sub://" + this->server_hostname + "/cryptovoxels");//  this->server_hostname, "cryptovoxels");
 }
 
 
@@ -4691,7 +4691,7 @@ void MainWindow::URLChangedSlot()
 		if(hostname != this->server_hostname || worldname != this->server_worldname)
 		{
 			// Connect to a different server!
-			connectToServer(hostname, worldname);
+			connectToServer(URL/*hostname, worldname*/);
 		}
 
 		this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
@@ -4706,10 +4706,33 @@ void MainWindow::URLChangedSlot()
 }
 
 
-void MainWindow::connectToServer(const std::string& hostname, const std::string& worldname)
+void MainWindow::connectToServer(const std::string& URL/*const std::string& hostname, const std::string& worldname*/)
 {
-	this->server_hostname  = hostname;
-	this->server_worldname = worldname;
+	const double spawn_r = 4.0;
+	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), 2);
+
+	try
+	{
+		URLParseResults parse_res = URLParser::parseURL(URL);
+
+		this->server_hostname = parse_res.hostname;
+		this->server_worldname = parse_res.userpath;
+
+		if(parse_res.parsed_x)
+			spawn_pos.x = parse_res.x;
+		if(parse_res.parsed_y)
+			spawn_pos.y = parse_res.y;
+		if(parse_res.parsed_z)
+			spawn_pos.z = parse_res.z;
+	}
+	catch(glare::Exception& e) // Handle URL parse failure
+	{
+		conPrint(e.what());
+		QMessageBox msgBox;
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
+		return;
+	}
 
 	//-------------------------------- Do disconnect process --------------------------------
 	// Kill any existing threads connected to the server
@@ -4804,8 +4827,9 @@ void MainWindow::connectToServer(const std::string& hostname, const std::string&
 
 	// Move player position back to near origin.
 	// Randomly vary the position a bit so players don't spawn inside other players.
-	const double spawn_r = 4.0;
-	this->cam_controller.setPosition(Vec3d(-spawn_r + 2*spawn_r*rng.unitRandom(), -spawn_r + 2*spawn_r*rng.unitRandom(), 2));
+	//const double spawn_r = 4.0;
+	//this->cam_controller.setPosition(Vec3d(-spawn_r + 2*spawn_r*rng.unitRandom(), -spawn_r + 2*spawn_r*rng.unitRandom(), 2));
+	this->cam_controller.setPosition(spawn_pos);
 	this->cam_controller.resetRotation();
 
 	world_state = new WorldState();
@@ -5917,7 +5941,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 
 	if(e->key() == Qt::Key::Key_F5)
 	{
-		this->connectToServer(this->server_hostname, this->server_worldname);
+		this->connectToServer("sub://" + this->server_hostname + "/" + this->server_worldname);
 	}
 }
 
@@ -6359,10 +6383,10 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			BatchedMeshTests::test();
-			UVUnwrapper::test();
+			//BatchedMeshTests::test();
+			//UVUnwrapper::test();
 			//quaternionTests();
-			//FormatDecoderGLTF::test();
+			FormatDecoderGLTF::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
@@ -6432,28 +6456,31 @@ int main(int argc, char *argv[])
 		}
 #endif
 
-		std::string server_hostname = "substrata.info";
-		std::string server_userpath = "";
+		//std::string server_hostname = "substrata.info";
+		//std::string server_userpath = "";
+		std::string server_URL = "sub://substrata.info";
 		
 		if(parsed_args.isArgPresent("-h"))
-			server_hostname = parsed_args.getArgStringValue("-h");
+			server_URL = "sub://" + parsed_args.getArgStringValue("-h");
+			//server_hostname = parsed_args.getArgStringValue("-h");
 		if(parsed_args.isArgPresent("-u"))
 		{
-			const std::string URL = parsed_args.getArgStringValue("-u");
-			try
-			{
-				URLParseResults parse_res = URLParser::parseURL(URL);
+			server_URL = parsed_args.getArgStringValue("-u");
+			//const std::string URL = parsed_args.getArgStringValue("-u");
+			//try
+			//{
+			//	URLParseResults parse_res = URLParser::parseURL(URL);
 
-				server_hostname = parse_res.hostname;
-				server_userpath = parse_res.userpath;
-			}
-			catch(glare::Exception& e) // Handle URL parse failure
-			{
-				QMessageBox msgBox;
-				msgBox.setText(QtUtils::toQString(e.what()));
-				msgBox.exec();
-				return 1;
-			}
+			//	server_hostname = parse_res.hostname;
+			//	server_userpath = parse_res.userpath;
+			//}
+			//catch(glare::Exception& e) // Handle URL parse failure
+			//{
+			//	QMessageBox msgBox;
+			//	msgBox.setText(QtUtils::toQString(e.what()));
+			//	msgBox.exec();
+			//	return 1;
+			//}
 		}
 
 		int app_exec_res;
@@ -6695,7 +6722,7 @@ int main(int argc, char *argv[])
 			}
 
 
-			mw.connectToServer(server_hostname, server_userpath);
+			mw.connectToServer(server_URL/*server_hostname, server_userpath*/);
 
 
 			// Make hypercard physics mesh
