@@ -150,7 +150,7 @@ private:
 	void recolourParcelsForLoggedInState();
 	void updateSelectedObjectPlacementBeam();
 	void updateInstancedCopiesOfObject(WorldObject* ob);
-	void removeInstancesOfObject(const WorldObject* ob);
+	void removeInstancesOfObject(WorldObject* ob);
 	
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
@@ -354,7 +354,7 @@ private:
 	std::string server_worldname; // e.g. "" or "ono-sendai"
 
 	Timer fps_display_timer;
-	int num_frames;
+	int num_frames_since_fps_timer_reset;
 	double last_fps;
 
 	// ModelLoadedThreadMessages that have been sent to this thread, but are still to be processed.
@@ -414,7 +414,7 @@ public:
 	Timer last_footstep_timer;
 	int last_foostep_side;
 
-	double last_timerEvent_elapsed;
+	double last_timerEvent_CPU_work_elapsed;
 
 	Timer time_since_object_edited; // For undo edit merging.
 	bool force_new_undo_edit; // // Multiple edits using the object editor, in a short timespan, will be merged together, unless force_new_undo_edit is true (is set when undo or redo is issued).
