@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
 
 #ifdef WIN32
-		server.screenshot_dir = "C:\\programming\\new_cyberspace\\webdata\\screenshots"; // Dir generated screenshots will be saved to.
+		server.screenshot_dir = "C:\\programming\\cyberspace\\webdata\\screenshots"; // Dir generated screenshots will be saved to.
 #else
 		server.screenshot_dir = "/var/www/cyberspace/screenshots";
 #endif
@@ -234,6 +234,9 @@ int main(int argc, char *argv[])
 
 
 		const std::string server_state_path = server_state_dir + "/server_state.bin";
+
+		conPrint("server_state_path: " + server_state_path);
+
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path);
 
@@ -381,9 +384,9 @@ int main(int argc, char *argv[])
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
 #ifdef WIN32		
-		web_data_store->public_files_dir = "C:\\programming\\new_cyberspace\\webdata\\public_files";
+		web_data_store->public_files_dir = "C:\\programming\\cyberspace\\webdata\\public_files";
 		//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
-		web_data_store->letsencrypt_webroot = "C:\\programming\\new_cyberspace\\webdata\\letsencrypt_webroot";
+		web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 #else
 		web_data_store->public_files_dir = "/var/www/cyberspace/public_html";
 		//web_data_store->resources_dir    = "/var/www/cyberspace/resources";
@@ -416,7 +419,7 @@ int main(int argc, char *argv[])
 #ifdef WIN32
 		// NOTE: key generated with 
 		// cd D:\programming\LibreSSL\libressl-2.8.3-x64-vs2019-install\bin
-		// openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key
+		// ./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key
 		if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
 			throw glare::Exception("tls_config_set_cert_file failed.");
 		
