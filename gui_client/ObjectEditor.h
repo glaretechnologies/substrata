@@ -48,6 +48,8 @@ public:
 
 	void materialSelectedInBrowser(const std::string& path);
 
+	bool posAndRot3DControlsEnabled() { return show3DControlsCheckBox->isChecked(); }
+
 	std::string base_dir_path;
 protected:
 
@@ -55,6 +57,7 @@ signals:;
 	void objectChanged();
 	void bakeObjectLightmap();
 	void bakeObjectLightmapHighQual();
+	void posAndRot3DControlsToggled();
 	
 private slots:
 	void on_visitURLLabel_linkActivated(const QString& link);

@@ -46,6 +46,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	//this->scaleYDoubleSpinBox->setMinimum(0.00001);
 	//this->scaleZDoubleSpinBox->setMinimum(0.00001);
 
+	SignalBlocker::setChecked(show3DControlsCheckBox, true); // On by default.
+
 	connect(this->matEditor,				SIGNAL(materialChanged()),			this, SIGNAL(objectChanged()));
 
 	connect(this->modelFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
@@ -69,6 +71,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
 	connect(this->luminousFluxDoubleSpinBox,SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+
+	connect(this->show3DControlsCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(posAndRot3DControlsToggled()));
 
 	this->visitURLLabel->hide();
 
