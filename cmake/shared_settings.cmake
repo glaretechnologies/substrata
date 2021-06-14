@@ -337,6 +337,8 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp
 ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/UniformBufOb.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/UniformBufOb.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/WGL.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/WGL.h
 )
