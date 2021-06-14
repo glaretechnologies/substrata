@@ -644,7 +644,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-		gl_ob->mesh_data = OpenGLEngine::buildBatchedMesh(bmesh, /*skip_opengl_calls=*/false);
+		gl_ob->mesh_data = OpenGLEngine::buildBatchedMesh(bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
 		const size_t num_mats = bmesh->numMaterialsReferenced();
 		gl_ob->materials.resize(num_mats);
@@ -672,8 +672,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 
 GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
-												   ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
-												   const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
+												ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
+												const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
 	size_t num_materials_referenced;
@@ -766,7 +766,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 
 		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
 
-		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls);
+		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
 
 		// Build RayMesh from our batched mesh (used for physics + picking)
 		raymesh = new RayMesh("mesh", false);

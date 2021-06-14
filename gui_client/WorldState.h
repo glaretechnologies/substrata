@@ -40,8 +40,6 @@ public:
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects;
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_local_objects;
 
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> instances; // Objects created by the instancing command in scripts.
-
 	std::map<ParcelID, ParcelRef> parcels;
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_remote_parcels;
 

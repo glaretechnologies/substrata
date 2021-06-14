@@ -160,7 +160,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	logged_in_user_id(UserID::invalidUserID()),
 	shown_object_modification_error_msg(false),
 	need_help_info_dock_widget_position(false),
-	num_frames(0),
+	num_frames_since_fps_timer_reset(0),
 	last_fps(0),
 	voxel_edit_marker_in_engine(false),
 	voxel_edit_face_marker_in_engine(false),
@@ -170,7 +170,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	proximity_loader(/*load distance=*/ob_load_distance),
 	client_tls_config(NULL),
 	last_foostep_side(0),
-	last_timerEvent_elapsed(0),
+	last_timerEvent_CPU_work_elapsed(0),
 	grabbed_axis(-1),
 	grabbed_angle(0),
 #if defined(_WIN32)
@@ -315,8 +315,11 @@ void MainWindow::initialise()
 	ui->objectEditor->setControlsEnabled(false);
 	ui->parcelEditor->hide();
 
-	// Set to 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
-	startTimer(17);
+#ifdef OSX
+	startTimer(17); // Set to 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
+#else
+	startTimer(1);
+#endif
 
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 	ui->infoDockWidget->hide();
@@ -812,6 +815,9 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob)
 // Also enqueue any downloads for missing resources such as textures.
 void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_missing_files*/)
 {
+	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
+		return;
+
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
 	ob->loaded_model_url = ob->model_url;
@@ -987,23 +993,19 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 
 // Remove any existing instances of this object from the instance set, also from 3d engine and physics engine.
-void MainWindow::removeInstancesOfObject(const WorldObject* ob)
+void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 {
-	for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); )
+	for(size_t z=0; z<prototype_ob->instances.size(); ++z)
 	{
-		WorldObject* instance = (*it).ptr();
-		if(instance->prototype_object.ptr() == ob) // If the instance has ob as a prototype:
-		{
-			ui->glWidget->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
+		WorldObjectRef instance = prototype_ob->instances[z];
+		
+		if(instance->opengl_engine_ob.nonNull()) ui->glWidget->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
 
-			physics_world->removeObject(instance->physics_object); // Remove from physics engine
-
-			auto it_to_erase = it++;
-			this->world_state->instances.erase(it_to_erase);
-		}
-		else
-			++it;
+		if(instance->physics_object.nonNull()) physics_world->removeObject(instance->physics_object); // Remove from physics engine
 	}
+
+	prototype_ob->instances.clear();
+	prototype_ob->instance_matrices.clear();
 }
 
 
@@ -1053,11 +1055,14 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				{
 					conPrint("Doing instancing with count " + toString(count));
 
+					ob->instance_matrices.resize(count);
+					ob->instances.resize(count);
+
 					// Create a bunch of copies of this object
 					for(size_t z=0; z<(size_t)count; ++z)
 					{
 						WorldObjectRef instance = new WorldObject();
-						instance->instance_index = 1 + (int)z; // Prototype object can be considered instance 0.
+						instance->instance_index = (int)z;
 						instance->num_instances = count;
 						instance->script_evaluator = ob->script_evaluator;
 						instance->prototype_object = ob;
@@ -1068,22 +1073,13 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 						instance->materials = ob->materials;
 						instance->content = ob->content;
 						instance->target_url = ob->target_url;
-						instance->pos = ob->pos;// +Vec3d((double)z, 0, 0); // TEMP HACK
+						instance->pos = ob->pos;// +Vec3d((double)z * 0.2, 0, 0); // TEMP HACK
 						instance->axis = ob->axis;
 						instance->angle = ob->angle;
 						instance->scale = ob->scale;
 						instance->flags = ob->flags;
 
 						instance->state = WorldObject::State_Alive;
-
-						// Make GL object
-						instance->opengl_engine_ob = new GLObject();
-						instance->opengl_engine_ob->ob_to_world_matrix = ob->opengl_engine_ob->ob_to_world_matrix;
-						instance->opengl_engine_ob->mesh_data = ob->opengl_engine_ob->mesh_data;
-						instance->opengl_engine_ob->materials = ob->opengl_engine_ob->materials;
-
-						// Add to 3d engine
-						ui->glWidget->addObject(instance->opengl_engine_ob);
 
 						// Make physics object
 						PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
@@ -1095,8 +1091,15 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 						physics_ob->userdata_type = 0;
 						physics_world->addObject(physics_ob);
 
-						// Add to instances list
-						this->world_state->instances.insert(instance);
+						ob->instances[z] = instance;
+						ob->instance_matrices[z] = obToWorldMatrix(*instance);
+					}
+
+					if(ob->opengl_engine_ob.nonNull())
+					{
+						ob->opengl_engine_ob->enableInstancing(new VBO(ob->instance_matrices.data(), sizeof(Matrix4f) * count));
+						
+						ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
 					}
 				}
 			}
@@ -1121,33 +1124,19 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 
 void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 {
-	// Remove any existing instances of this object
-	for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); ++it)
+	for(size_t z=0; z<ob->instances.size(); ++z)
 	{
-		WorldObject* instance = it->ptr();
+		WorldObject* instance = ob->instances[z].ptr();
 
-		if(instance->prototype_object.ptr() == ob) // If the instance has this object as a prototype:
+		instance->materials = ob->materials;
+
+		instance->angle = ob->angle;
+		instance->pos = ob->pos;
+		instance->scale = ob->scale;
+
+		if(instance->physics_object.nonNull())
 		{
-			instance->materials = ob->materials;
-
-			instance->opengl_engine_ob->materials.resize(ob->materials.size());
-			for(uint32 i=0; i<ob->materials.size(); ++i)
-				ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, instance->opengl_engine_ob->materials[i]);
-
-			instance->angle = ob->angle;
-			instance->pos = ob->pos;
-			instance->scale = ob->scale;
-
-			if(instance->opengl_engine_ob.nonNull())
-			{
-				ui->glWidget->opengl_engine->objectMaterialsUpdated(instance->opengl_engine_ob);
-				ui->glWidget->opengl_engine->updateObjectTransformData(*instance->opengl_engine_ob);
-			}
-
-			if(instance->physics_object.nonNull())
-			{
-				physics_world->updateObjectTransformData(*instance->physics_object);
-			}
+			physics_world->updateObjectTransformData(*instance->physics_object);
 		}
 	}
 }
@@ -1245,7 +1234,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 
 	if(ob->script_evaluator->jitted_evalTranslation)
 	{
-		if(ob->prototype_object.nonNull())
+		if(ob->prototype_object)
 			ob->pos = ob->prototype_object->pos;
 		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
 	}
@@ -1261,7 +1250,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 	// Update in physics engine
 	if(ob->physics_object.nonNull())
 	{
-		ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
+		ob->physics_object->ob_to_world = obToWorldMatrix(*ob);
 		physics_world->updateObjectTransformData(*ob->physics_object);
 
 		// TODO: Update physics world accel structure?
@@ -1679,13 +1668,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	time_since_last_timer_ev.reset();
 
 
-	if(ui->diagnosticsDockWidget->isVisible())
+	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
 	{
 		//const double fps = num_frames / (double)fps_display_timer.elapsed();
 		
 		std::string msg;
 		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
-		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_elapsed * 1000, 3) + " ms\n";
+		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 
 		if(ui->glWidget->opengl_engine.nonNull())
 			msg += ui->glWidget->opengl_engine->getDiagnostics();
@@ -1862,15 +1851,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
-	num_frames++;
+	num_frames_since_fps_timer_reset++;
 	if(fps_display_timer.elapsed() > 1.0)
 	{
-		last_fps = num_frames / fps_display_timer.elapsed();
+		last_fps = num_frames_since_fps_timer_reset / fps_display_timer.elapsed();
 		//conPrint("FPS: " + doubleToStringNSigFigs(fps, 4));
-		num_frames = 0;
+		num_frames_since_fps_timer_reset = 0;
 		fps_display_timer.reset();
 	}
-		
+	
 
 	// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
 	// We don't want to do too much at one time or it will cause hitches.
@@ -2415,16 +2404,40 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 		{
 			WorldObject* ob = it->second.getPointer();
-			if(ob->script_evaluator.nonNull())
-				evalObjectScript(ob, use_global_time);
-		}
 
-		// Evaluate scripts on instances
-		for(auto it = this->world_state->instances.begin(); it != this->world_state->instances.end(); ++it)
-		{
-			WorldObject* ob = it->getPointer();
 			if(ob->script_evaluator.nonNull())
+			{
 				evalObjectScript(ob, use_global_time);
+
+				// If this object has instances (and has a graphics ob):
+				if(!ob->instances.empty() && ob->opengl_engine_ob.nonNull())
+				{
+					// Update instance ob-to-world transform based on the script.
+					// Compute AABB over all instances of the object
+					js::AABBox all_instances_aabb_ws = js::AABBox::emptyAABBox();
+					for(size_t z=0; z<ob->instances.size(); ++z)
+					{
+						WorldObject* instance = ob->instances[z].ptr();
+						evalObjectScript(instance, use_global_time); // Updates instance->physics_object->ob_to_world
+
+						const Matrix4f& instance_to_world = instance->physics_object->ob_to_world;
+						all_instances_aabb_ws.enlargeToHoldAABBox(ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(instance_to_world));
+
+						ob->instance_matrices[z] = instance_to_world;
+					}
+
+					// Manually set AABB of instanced object.
+					// NOTE: we will avoid opengl_engine->updateObjectTransformData(), since it doesn't handle instances currently.
+					ob->opengl_engine_ob->aabb_ws = all_instances_aabb_ws;
+
+					// Also update instance_matrix_vbo.
+					assert(ob->instance_matrices.size() == ob->instances.size());
+					if(ob->opengl_engine_ob->instance_matrix_vbo.nonNull())
+					{
+						ob->opengl_engine_ob->instance_matrix_vbo->updateData(ob->instance_matrices.data(), ob->instance_matrices.dataSizeBytes());
+					}
+				}
+			}
 		}
 	}
 
@@ -3098,6 +3111,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		time_since_update_packet_sent.reset();
 	}
 
+	last_timerEvent_CPU_work_elapsed = time_since_last_timer_ev.elapsed();
+
 	ui->glWidget->makeCurrent();
 	ui->glWidget->updateGL();
 
@@ -3107,8 +3122,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		physics_world->rebuild(task_manager, print_output);
 		//conPrint("Physics world rebuild took " + timer.elapsedStringNSigFigs(5));
 	}
-
-	last_timerEvent_elapsed = time_since_last_timer_ev.elapsed();
 }
 
 
@@ -4759,17 +4772,6 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 				this->physics_world->removeObject(ob->physics_object);
 		}
 
-		for(auto it = world_state->instances.begin(); it != world_state->instances.end(); ++it)
-		{
-			WorldObject* ob = it->ptr();
-
-			if(ob->opengl_engine_ob.nonNull())
-				ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
-
-			if(ob->physics_object.nonNull())
-				this->physics_world->removeObject(ob->physics_object);
-		}
-
 		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
 		{
 			Parcel* parcel = it->second.ptr();
@@ -5482,7 +5484,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			this->selected_ob->is_selected = true;
 
 			// If we hit an instance, select the prototype object instead.
-			if(this->selected_ob->instance_index > 0 && this->selected_ob->prototype_object.nonNull())
+			if(this->selected_ob->prototype_object)
 				this->selected_ob = this->selected_ob->prototype_object;
 
 
@@ -6383,10 +6385,11 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			Matrix4f::test();
 			//BatchedMeshTests::test();
 			//UVUnwrapper::test();
 			//quaternionTests();
-			FormatDecoderGLTF::test();
+			//FormatDecoderGLTF::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();

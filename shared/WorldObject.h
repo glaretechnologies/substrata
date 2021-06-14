@@ -160,7 +160,8 @@ public:
 	int instance_index;
 	int num_instances; // number of instances of the prototype object that this is object is an instance of.
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
-	Reference<WorldObject> prototype_object; // for instances - this is the object this object is a copy of.
+	WorldObject* prototype_object; // for instances - this is the object this object is a copy of.
+	std::vector<Reference<WorldObject>> instances;
 
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
@@ -180,6 +181,8 @@ public:
 	bool lightmap_baking; // Is lightmap baking in progress for this object?
 
 	Reference<WinterShaderEvaluator> script_evaluator;
+
+	js::Vector<Matrix4f, 16> instance_matrices;
 #endif
 
 	float max_load_dist2;
