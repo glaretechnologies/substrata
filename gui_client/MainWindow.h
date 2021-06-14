@@ -123,6 +123,7 @@ private slots:;
 	void objectEditedSlot();
 	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap
 	void bakeObjectLightmapHighQualSlot(); // Bake the currently selected object lightmap
+	void posAndRot3DControlsToggledSlot();
 	void URLChangedSlot();
 	void materialSelectedInBrowser(const std::string& path);
 	void sendLightmapNeededFlagsSlot();

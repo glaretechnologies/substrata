@@ -255,6 +255,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
+	connect(ui->objectEditor, SIGNAL(posAndRot3DControlsToggled()), this, SLOT(posAndRot3DControlsToggledSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
@@ -4622,6 +4623,40 @@ void MainWindow::bakeObjectLightmapHighQualSlot()
 }
 
 
+void MainWindow::posAndRot3DControlsToggledSlot()
+{
+	if(ui->objectEditor->posAndRot3DControlsEnabled())
+	{
+		if(selected_ob.nonNull())
+		{
+			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
+
+			// Add an object placement beam
+			if(have_edit_permissions)
+			{
+				for(int i = 0; i < 3; ++i)
+					ui->glWidget->opengl_engine->addObject(axis_arrow_objects[i]);
+
+				for(int i = 0; i < 3; ++i)
+					ui->glWidget->opengl_engine->addObject(rot_handle_arc_objects[i]);
+
+				updateSelectedObjectPlacementBeam();
+			}
+		}
+	}
+	else
+	{
+		for(int i = 0; i < 3; ++i)
+			ui->glWidget->opengl_engine->removeObject(this->axis_arrow_objects[i]);
+
+		for(int i = 0; i < 3; ++i)
+			ui->glWidget->opengl_engine->removeObject(this->rot_handle_arc_objects[i]);
+	}
+
+	
+}
+
+
 void MainWindow::materialSelectedInBrowser(const std::string& path)
 {
 	if(selected_ob.nonNull())
@@ -5510,11 +5545,14 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 				ui->glWidget->opengl_engine->addObject(ob_placement_beam);
 				ui->glWidget->opengl_engine->addObject(ob_placement_marker);
 
-				for(int i=0; i<3; ++i)
-					ui->glWidget->opengl_engine->addObject(axis_arrow_objects[i]);
+				if(ui->objectEditor->posAndRot3DControlsEnabled())
+				{
+					for(int i=0; i<3; ++i)
+						ui->glWidget->opengl_engine->addObject(axis_arrow_objects[i]);
 				
-				for(int i=0; i<3; ++i)
-					ui->glWidget->opengl_engine->addObject(rot_handle_arc_objects[i]);
+					for(int i=0; i<3; ++i)
+						ui->glWidget->opengl_engine->addObject(rot_handle_arc_objects[i]);
+				}
 
 				updateSelectedObjectPlacementBeam();
 			}
@@ -6385,11 +6423,11 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			Matrix4f::test();
+			//Matrix4f::test();
 			//BatchedMeshTests::test();
 			//UVUnwrapper::test();
 			//quaternionTests();
-			//FormatDecoderGLTF::test();
+			FormatDecoderGLTF::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
