@@ -242,6 +242,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 		this->ui->diagnosticsDockWidget->hide();
 	}
 
+	ui->objectEditor->show3DControlsCheckBox->setChecked(settings->value("objectEditor/show3DControlsCheckBoxChecked", true).toBool());
+
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->glWidget, SIGNAL(mouseClicked(QMouseEvent*)), this, SLOT(glWidgetMouseClicked(QMouseEvent*)));
@@ -1926,61 +1928,68 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
 							WorldObject* ob = it->second.getPointer();
-
-							if(!isFinite(ob->angle))
-								throw glare::Exception("Invalid angle");
-
+							
 							if(ob->model_url == loaded_model_url)
 							{
-								// Remove any existing OpenGL and physics model
-								if(ob->using_placeholder_model)
-									removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-								// Create GLObject and PhysicsObjects for this world object if they have not been created already.
-								// They may have been created in the LoadModelTask already.
-								if(ob->opengl_engine_ob.isNull())
+								try
 								{
-									const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+									if(!isFinite(ob->angle) || !ob->axis.isFinite())
+										throw glare::Exception("Invalid angle or axis");
 
-									Reference<RayMesh> raymesh;
-									ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
-										false, // skip opengl calls
-										raymesh);
+									// Remove any existing OpenGL and physics model
+									if(ob->using_placeholder_model)
+										removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-									if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
-									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
-									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
-									if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
-								}
-								else
-								{
-									//assert(ob->physics_object.nonNull());
-								}
-
-								if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
-								{
-									// Shouldn't be needed.
-									if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-										OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
-
-									for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+									// Create GLObject and PhysicsObjects for this world object if they have not been created already.
+									// They may have been created in the LoadModelTask already.
+									if(ob->opengl_engine_ob.isNull())
 									{
-										if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
-											ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+										const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-										if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-											ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+										Reference<RayMesh> raymesh;
+										ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+											false, // skip opengl calls
+											raymesh);
+
+										if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
+										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
+										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
+										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
+									}
+									else
+									{
+										//assert(ob->physics_object.nonNull());
 									}
 
-									ui->glWidget->addObject(ob->opengl_engine_ob);
+									if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
+									{
+										// Shouldn't be needed.
+										if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+											OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
-									if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(ob->physics_object);
-									if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+										for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+										{
+											if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+												ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
 
-									ui->indigoView->objectAdded(*ob, *this->resource_manager);
+											if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+												ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+										}
 
-									loadScriptForObject(ob); // Load any script for the object.
+										ui->glWidget->addObject(ob->opengl_engine_ob);
+
+										if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(ob->physics_object);
+										if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+
+										ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+										loadScriptForObject(ob); // Load any script for the object.
+									}
+								}
+								catch(glare::Exception& e)
+								{
+									print("Error while loading model: " + e.what());
 								}
 							}
 						}
@@ -4652,8 +4661,8 @@ void MainWindow::posAndRot3DControlsToggledSlot()
 		for(int i = 0; i < 3; ++i)
 			ui->glWidget->opengl_engine->removeObject(this->rot_handle_arc_objects[i]);
 	}
-
 	
+	settings->setValue("objectEditor/show3DControlsCheckBoxChecked", ui->objectEditor->posAndRot3DControlsEnabled());
 }
 
 
@@ -5256,77 +5265,80 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 			{
 				selected_ob->decompressVoxels(); // Make sure voxels are decompressed for this object.
 
-				const bool have_edit_permissions = objectModificationAllowedWithMsg(*selected_ob, "edit");
-				if(have_edit_permissions)
+				if((e->modifiers() & Qt::ControlModifier) || e->modifiers() & Qt::AltModifier) // If user is trying to edit voxels:
 				{
-					const float current_voxel_w = 1;
-
-					Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
-					Matrix4f world_to_ob = worldToObMatrix(*selected_ob);
-
-					bool voxels_changed = false;
-
-					if(e->modifiers() & Qt::ControlModifier)
+					const bool have_edit_permissions = objectModificationAllowedWithMsg(*selected_ob, "edit");
+					if(have_edit_permissions)
 					{
-						const Vec4f point_off_surface = hitpos_ws + results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
+						const float current_voxel_w = 1;
 
-						// Don't allow voxel creation if it is too far from existing voxels.
-						// This is to prevent misclicks where the mouse pointer is just off an existing object, which may sometimes create a voxel very far away (after the ray intersects the ground plane for example)
-						const float dist_from_aabb = selected_ob->opengl_engine_ob.nonNull() ? selected_ob->opengl_engine_ob->aabb_ws.distanceToPoint(point_off_surface) : 0.f;
-						if(dist_from_aabb < 2.f)
+						Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
+						Matrix4f world_to_ob = worldToObMatrix(*selected_ob);
+
+						bool voxels_changed = false;
+
+						if(e->modifiers() & Qt::ControlModifier)
 						{
-							undo_buffer.startWorldObjectEdit(*selected_ob);
+							const Vec4f point_off_surface = hitpos_ws + results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
 
-							const Vec4f point_os = world_to_ob * point_off_surface;
-							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
-							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
-
-							// Add the voxel!
-							this->selected_ob->getDecompressedVoxels().push_back(Voxel());
-							this->selected_ob->getDecompressedVoxels().back().pos = voxel_indices;
-							this->selected_ob->getDecompressedVoxels().back().mat_index = ui->objectEditor->getSelectedMatIndex();
-
-							voxels_changed = true;
-
-							undo_buffer.finishWorldObjectEdit(*selected_ob);
-						}
-						else
-						{
-							showErrorNotification("Can't create voxel that far away from rest of voxels.");
-						}
-					}
-					else if(e->modifiers() & Qt::AltModifier)
-					{
-						if(this->selected_ob->getDecompressedVoxels().size() > 1)
-						{
-							undo_buffer.startWorldObjectEdit(*selected_ob);
-
-							const Vec4f point_under_surface = hitpos_ws - results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
-
-							const Vec4f point_os = world_to_ob * point_under_surface;
-							const Vec4f point_os_voxel_space = point_os / current_voxel_w;
-							Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
-
-							// Remove the voxel, if present
-							for(size_t z=0; z<this->selected_ob->getDecompressedVoxels().size(); ++z)
+							// Don't allow voxel creation if it is too far from existing voxels.
+							// This is to prevent misclicks where the mouse pointer is just off an existing object, which may sometimes create a voxel very far away (after the ray intersects the ground plane for example)
+							const float dist_from_aabb = selected_ob->opengl_engine_ob.nonNull() ? selected_ob->opengl_engine_ob->aabb_ws.distanceToPoint(point_off_surface) : 0.f;
+							if(dist_from_aabb < 2.f)
 							{
-								if(this->selected_ob->getDecompressedVoxels()[z].pos == voxel_indices)
-									this->selected_ob->getDecompressedVoxels().erase(this->selected_ob->getDecompressedVoxels().begin() + z);
+								undo_buffer.startWorldObjectEdit(*selected_ob);
+
+								const Vec4f point_os = world_to_ob * point_off_surface;
+								const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+								Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+
+								// Add the voxel!
+								this->selected_ob->getDecompressedVoxels().push_back(Voxel());
+								this->selected_ob->getDecompressedVoxels().back().pos = voxel_indices;
+								this->selected_ob->getDecompressedVoxels().back().mat_index = ui->objectEditor->getSelectedMatIndex();
+
+								voxels_changed = true;
+
+								undo_buffer.finishWorldObjectEdit(*selected_ob);
 							}
-
-							voxels_changed = true;
-
-							undo_buffer.finishWorldObjectEdit(*selected_ob);
+							else
+							{
+								showErrorNotification("Can't create voxel that far away from rest of voxels.");
+							}
 						}
-						else
+						else if(e->modifiers() & Qt::AltModifier)
 						{
-							showErrorNotification("Can't delete last voxel in voxel group.  Delete entire voxel object ('delete' key) to remove it.");
-						}
-					}
+							if(this->selected_ob->getDecompressedVoxels().size() > 1)
+							{
+								undo_buffer.startWorldObjectEdit(*selected_ob);
 
-					if(voxels_changed)
-					{
-						updateObjectModelForChangedDecompressedVoxels(this->selected_ob);
+								const Vec4f point_under_surface = hitpos_ws - results.hit_normal_ws * (current_voxel_w * 1.0e-3f);
+
+								const Vec4f point_os = world_to_ob * point_under_surface;
+								const Vec4f point_os_voxel_space = point_os / current_voxel_w;
+								Vec3<int> voxel_indices((int)floor(point_os_voxel_space[0]), (int)floor(point_os_voxel_space[1]), (int)floor(point_os_voxel_space[2]));
+
+								// Remove the voxel, if present
+								for(size_t z=0; z<this->selected_ob->getDecompressedVoxels().size(); ++z)
+								{
+									if(this->selected_ob->getDecompressedVoxels()[z].pos == voxel_indices)
+										this->selected_ob->getDecompressedVoxels().erase(this->selected_ob->getDecompressedVoxels().begin() + z);
+								}
+
+								voxels_changed = true;
+
+								undo_buffer.finishWorldObjectEdit(*selected_ob);
+							}
+							else
+							{
+								showErrorNotification("Can't delete last voxel in voxel group.  Delete entire voxel object ('delete' key) to remove it.");
+							}
+						}
+
+						if(voxels_changed)
+						{
+							updateObjectModelForChangedDecompressedVoxels(this->selected_ob);
+						}
 					}
 				}
 			}
