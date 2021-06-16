@@ -6435,6 +6435,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			OpenGLEngineTests::buildData();
 			//Matrix4f::test();
 			//BatchedMeshTests::test();
 			//UVUnwrapper::test();
