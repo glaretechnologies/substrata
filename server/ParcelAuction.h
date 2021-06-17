@@ -25,6 +25,7 @@ public:
 	ParcelAuction();
 	~ParcelAuction();
 
+	double computeAuctionPrice(TimeStamp time) const;
 	double computeCurrentAuctionPrice() const;
 
 	// Get the time the auction ended, or if it was sold, when it was sold.
