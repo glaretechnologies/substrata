@@ -51,7 +51,8 @@ GlWidget::GlWidget(QWidget *parent)
 :	QGLWidget(makeFormat(), parent),
 	cam_controller(NULL),
 	current_time(0.f),
-	cam_rot_on_mouse_move_enabled(true)
+	cam_rot_on_mouse_move_enabled(true),
+	max_draw_dist(1000.f)
 {
 	viewport_aspect_ratio = 1;
 
@@ -118,7 +119,7 @@ void GlWidget::initializeGL()
 	assert(this->texture_server_ptr);
 
 	opengl_engine->initialise(
-		//"o:/indigo/trunk/opengl", // data dir
+		//"n:/indigo/trunk/opengl", // data dir
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		this->texture_server_ptr
 	);
@@ -147,7 +148,8 @@ void GlWidget::paintGL()
 		const float lens_sensor_dist = lensSensorDist();
 		const float render_aspect_ratio = viewport_aspect_ratio;
 		opengl_engine->setViewport(viewport_w, viewport_h);
-		opengl_engine->setMaxDrawDistance(2000.f);
+		opengl_engine->setNearDrawDistance(0.22f);
+		opengl_engine->setMaxDrawDistance(max_draw_dist);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 		opengl_engine->setCurrentTime(current_time);
 		opengl_engine->draw();

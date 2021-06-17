@@ -94,4 +94,5 @@ public:
 	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;
+	float max_draw_dist;
 };
