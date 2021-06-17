@@ -228,7 +228,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	settings = new QSettings("Glare Technologies", "Cyberspace");
 
-	proximity_loader.setLoadDistance((float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble());
+	const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble();
+	proximity_loader.setLoadDistance(dist);
+	ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
 
 	// Restore main window geometry and state
 	this->restoreGeometry(settings->value("mainwindow/geometry").toByteArray());
@@ -4280,7 +4282,9 @@ void MainWindow::on_actionOptions_triggered()
 	const int code = d.exec();
 	if(code == QDialog::Accepted)
 	{
-		this->proximity_loader.setLoadDistance((float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble());
+		const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble();
+		this->proximity_loader.setLoadDistance(dist);
+		ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
 	}
 }
 
