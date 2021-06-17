@@ -1,0 +1,24 @@
+0.59
+====
+Optimised 3D engine rendering of many objects.
+Improved transitions between shadow map cascades (reduces some shadow artifacts)
+Drawing preview grid for voxel editing on transparent objects also.
+Made preview grid less aliased.
+Added better support for GLTF files with default materials.
+Removed 60fps cap on Windows/Linux.  (Mac todo)
+Made instances use OpenGL instances.
+Misc. optimisations for object rendering.
+Fixes issue with unselectable objects when scaled by zero in some direction.
+Fixed collidable not updating in physics engine when toggled.
+Added checkbox to toggle 3d ob pos/rot controls.
+
+
+
+
+
+
+
+
+
+
+
