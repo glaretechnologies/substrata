@@ -27,13 +27,24 @@ ParcelAuction::~ParcelAuction()
 {}
 
 
-double ParcelAuction::computeCurrentAuctionPrice() const
+
+double ParcelAuction::computeAuctionPrice(TimeStamp time) const
 {
-	const double t = ((double)TimeStamp::currentTime().time - (double)auction_start_time.time) / ((double)auction_end_time.time - (double)auction_start_time.time);
-	const double current_price_exact = Maths::uncheckedLerp(auction_start_price, auction_end_price, t);
+	const double t = ((double)time.time - (double)auction_start_time.time) / ((double)auction_end_time.time - (double)auction_start_time.time);
+
+	const float A = 2.5;
+	const double current_price_exact = auction_end_price + (auction_start_price - auction_end_price) * (std::exp(-A * t) - std::exp(-A)) / (1 - std::exp(-A));
+
+	//const double current_price_exact = Maths::uncheckedLerp(auction_start_price, auction_end_price, t);
 
 	const double current_price_rounded = (int)(current_price_exact * 100) / 100.0;
 	return current_price_rounded;
+}
+
+
+double ParcelAuction::computeCurrentAuctionPrice() const
+{
+	return computeAuctionPrice(TimeStamp::currentTime());
 }
 
 

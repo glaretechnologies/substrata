@@ -172,6 +172,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AuctionHandlers::renderParcelAuctionListPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/recent_parcel_sales")
+		{
+			AuctionHandlers::renderRecentParcelSalesPage(*this->world_state, request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/parcel_auction/")) // parcel auction ID follows in URL
 		{
 			AuctionHandlers::renderParcelAuctionPage(*this->world_state, request, reply_info);

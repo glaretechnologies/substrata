@@ -392,6 +392,7 @@ int main(int argc, char *argv[])
 		//web_data_store->resources_dir    = "/var/www/cyberspace/resources";
 		web_data_store->letsencrypt_webroot = "/var/www/cyberspace/letsencrypt_webroot";
 #endif
+		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
 
 		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
 		shared_request_handler->data_store = web_data_store.ptr();
