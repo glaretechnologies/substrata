@@ -1,3 +1,10 @@
+0.60
+====
+Fixed black screen on Mac.
+Disable lightmaps for now on Mac.
+Fixed material previews not rendering properly on Mac.
+Reduced z-fighting artifacts.
+
 0.59
 ====
 Optimised 3D engine rendering of many objects.
@@ -11,14 +18,3 @@ Misc. optimisations for object rendering.
 Fixes issue with unselectable objects when scaled by zero in some direction.
 Fixed collidable not updating in physics engine when toggled.
 Added checkbox to toggle 3d ob pos/rot controls.
-
-
-
-
-
-
-
-
-
-
-
