@@ -51,6 +51,10 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	QSurfaceFormat format;
 	format.setSamples(4); // For MSAA
 	format.setColorSpace(QSurfaceFormat::sRGBColorSpace);
+	format.setProfile(QSurfaceFormat::CoreProfile);
+#ifdef OSX
+	format.setVersion(3, 2); // We need to request version 3.2 (or above?) on OS X, otherwise we get legacy version 2.
+#endif
 
 	this->context = new QOpenGLContext();
 	this->context->setFormat(format);
@@ -71,6 +75,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	opengl_engine = new OpenGLEngine(settings);
 
 	opengl_engine->initialise(
+		//"n:/indigo/trunk/opengl", // data dir
 		basedir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server_ptr
 	);
@@ -136,7 +141,6 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		opengl_engine->addObject(ob);
 	}
 
-	glViewport(0, 0, PREVIEW_SIZE, PREVIEW_SIZE);
 	opengl_engine->setViewport(PREVIEW_SIZE, PREVIEW_SIZE);
 
 	const Matrix4f world_to_camera_space_matrix =  Matrix4f::rotationAroundXAxis(0.5f) * Matrix4f::translationMatrix(0, 0.8, -0.6) * Matrix4f::rotationAroundZAxis(2.5);
@@ -168,7 +172,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 		for(size_t i=0; i<filepaths.size(); ++i)
 		{
-			const std::string EPOCH_STRING = "_3"; // Can change to invalidate cache.
+			const std::string EPOCH_STRING = "_4"; // Can change to invalidate cache.
 			const std::string cache_key_input = FileUtils::getFilename(filepaths[i]) + EPOCH_STRING;
 			const uint64 cache_hashkey = XXH64(cache_key_input.data(), cache_key_input.size(), 1);
 			const uint64 dir_bits = cache_hashkey >> 58; // 6 bits for the dirs => 64 subdirs in program_cache.
