@@ -60,6 +60,53 @@ ${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThreadTests.h
 #${WEBSITE_CORE_TRUNK_DIR_ENV}/StaticAssetManager.h
 )
 
+# Add eliptical curve stuff for Eth code.
+SET(secp256k1_files
+../secp256k1-master/src/assumptions.h                        
+../secp256k1-master/src/basic-config.h                       
+../secp256k1-master/src/ecdsa.h                              
+../secp256k1-master/src/ecdsa_impl.h                         
+../secp256k1-master/src/eckey.h                              
+../secp256k1-master/src/eckey_impl.h                         
+../secp256k1-master/src/ecmult.h                             
+../secp256k1-master/src/ecmult_const.h                       
+../secp256k1-master/src/ecmult_const_impl.h                  
+../secp256k1-master/src/ecmult_gen.h                         
+../secp256k1-master/src/ecmult_gen_impl.h                    
+../secp256k1-master/src/ecmult_impl.h                        
+../secp256k1-master/src/field.h                              
+../secp256k1-master/src/field_10x26.h                        
+../secp256k1-master/src/field_10x26_impl.h                   
+../secp256k1-master/src/field_5x52.h                         
+../secp256k1-master/src/field_5x52_asm_impl.h                
+../secp256k1-master/src/field_5x52_impl.h                    
+../secp256k1-master/src/field_5x52_int128_impl.h             
+../secp256k1-master/src/field_impl.h                         
+../secp256k1-master/src/group.h                              
+../secp256k1-master/src/group_impl.h                         
+../secp256k1-master/src/hash.h                               
+../secp256k1-master/src/hash_impl.h                          
+../secp256k1-master/src/modinv32.h                           
+../secp256k1-master/src/modinv32_impl.h                      
+../secp256k1-master/src/modinv64.h                           
+../secp256k1-master/src/modinv64_impl.h                      
+../secp256k1-master/src/scalar.h                             
+../secp256k1-master/src/scalar_4x64.h                        
+../secp256k1-master/src/scalar_4x64_impl.h                   
+../secp256k1-master/src/scalar_8x32.h                        
+../secp256k1-master/src/scalar_8x32_impl.h                   
+../secp256k1-master/src/scalar_impl.h                        
+../secp256k1-master/src/scalar_low.h                         
+../secp256k1-master/src/scalar_low_impl.h                    
+../secp256k1-master/src/scratch.h                            
+../secp256k1-master/src/scratch_impl.h                       
+../secp256k1-master/src/secp256k1.c                          
+../secp256k1-master/src/selftest.h                           
+../secp256k1-master/src/util.h                               
+
+../secp256k1-master/src/modules/recovery/main_impl.h                
+)
+
 include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
 
 
@@ -68,6 +115,24 @@ SOURCE_GROUP(webserver FILES ${webserver})
 SOURCE_GROUP(website_core FILES ${website_core_files})
 SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
+SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
+
+
+# From secp256k1-master\configure.ac:
+#[window size for ecmult precomputation for verification, specified as integer in range [2..24].]
+#[Larger values result in possibly better performance at the cost of an exponentially larger precomputed table.]
+#[The table will store 2^(SIZE-1) * 64 bytes of data but can be larger in memory due to platform-specific padding and alignment.]
+#["auto" is a reasonable setting for desktop machines (currently 15). [default=auto]]
+
+#[Precision bits to tune the precomputed table size for signing.]
+#[The size of the table is 32kB for 2 bits, 64kB for 4 bits, 512kB for 8 bits of precision.]
+#[A larger table size usually results in possible faster signing.]
+#["auto" is a reasonable setting for desktop machines (currently 4). [default=auto]]
+
+#NOTE: this table seems to be allocated on stack, so keep size down to avoid stack overflow.
+
+add_definitions(-DECMULT_WINDOW_SIZE=8 -DECMULT_GEN_PREC_BITS=2 -DENABLE_MODULE_RECOVERY=1)
+
 
 if(WIN32)
 	SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
@@ -113,6 +178,7 @@ ${fft2d}
 ${xxhash}
 ${docs}
 ${lang}
+${secp256k1_files}
 )
 
 

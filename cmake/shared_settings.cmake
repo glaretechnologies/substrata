@@ -159,6 +159,8 @@ ${INDIGO_UTILS_DIR}/JSONParser.cpp
 ${INDIGO_UTILS_DIR}/JSONParser.h
 ${INDIGO_UTILS_DIR}/KillThreadMessage.cpp
 ${INDIGO_UTILS_DIR}/KillThreadMessage.h
+${INDIGO_UTILS_DIR}/Keccak256.cpp
+${INDIGO_UTILS_DIR}/Keccak256.h
 ${INDIGO_UTILS_DIR}/Lock.cpp
 ${INDIGO_UTILS_DIR}/Lock.h
 ${INDIGO_UTILS_DIR}/Maybe.h

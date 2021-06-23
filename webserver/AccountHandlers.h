@@ -35,5 +35,6 @@ namespace AccountHandlers
 	void test();
 
 
+	// Recover an Ethereum address from a signature and message
 	std::string ecrecover(const std::string& sig, const std::string& msg); // hex-encoded sig, plain text msg
 }
