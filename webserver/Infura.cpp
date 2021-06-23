@@ -54,9 +54,28 @@ static std::string functionSelector(const std::string& s)
 }
 
 
-// Returns a hex address like 0x290FbE4d4745f6B5267c209C92C8D81CebB5E9f0
-const std::string Infura::getOwnerOfERC721Token(const std::string& contract_address, uint32 token_id)
+std::string Infura::makeUInt256BigEndianString(uint32 x)
 {
+	std::string x_little_endian(4, '\0');
+	std::memcpy(&x_little_endian[0], &x, 4);
+
+	std::string x_big_endian(32, '\0');
+	x_big_endian[28] = x_little_endian[3];
+	x_big_endian[29] = x_little_endian[2];
+	x_big_endian[30] = x_little_endian[1];
+	x_big_endian[31] = x_little_endian[0];
+	return x_big_endian;
+}
+
+
+// Queries the Ethereum blockchain via Infura APIs, to get the owning address of an ERC721 token,
+// or any smart contract that implements the ownerOf method.
+// Returns a hex address string like "0x290FbE4d4745f6B5267c209C92C8D81CebB5E9f0"
+std::string Infura::getOwnerOfERC721Token(const std::string& contract_address, const std::string& token_id)
+{
+	if(token_id.size() != 32) // token_id should be a 32 byte string.
+		throw glare::Exception("Invalid token_id size.");
+
 	try
 	{
 		const std::string INFURA_PROJECT_ID = "2886dd8d54c34b74af9ed0c11181affc";
@@ -64,22 +83,17 @@ const std::string Infura::getOwnerOfERC721Token(const std::string& contract_addr
 		HTTPClient client;
 		client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + INFURA_PROJECT_SECRET));
 	
-
+		// Compute function selector for the ownerOf method.
 		const std::string func_selector = functionSelector("ownerOf(uint256)");
 
-		std::string arg0_little_endian(4, '\0');
-		std::memcpy(&arg0_little_endian[0], &token_id, 4);
-		std::string arg0_big_endian(4, '\0');
-		arg0_big_endian[0] = arg0_little_endian[3];
-		arg0_big_endian[1] = arg0_little_endian[2];
-		arg0_big_endian[2] = arg0_little_endian[1];
-		arg0_big_endian[3] = arg0_little_endian[0];
+		
 
-		std::string func_call_encoded(4 + 32, '\0'); // without 0x prefix.
-		std::memcpy(&func_call_encoded[0], &func_selector[0], 4);
-		std::memcpy(&func_call_encoded[32], &arg0_big_endian[0], 4);
+		// Compute the entire encoded function call (in binary)
+		std::string func_call_encoded(4 + 32, '\0');
+		std::memcpy(&func_call_encoded[0], &func_selector[0], 4); // Function selector is first 4 bytes
+		std::memcpy(&func_call_encoded[4], &token_id[0], 32); // Arg 0 is next 32 bytes
 
-		std::string hex_func_call_encoded = stringToHexWith0xPrefix(func_call_encoded);
+		const std::string hex_func_call_encoded = stringToHexWith0xPrefix(func_call_encoded); // Convert binary to hex
 
 		const std::string post_content = 
 			"{"
@@ -113,7 +127,7 @@ const std::string Infura::getOwnerOfERC721Token(const std::string& contract_addr
 		if(result.size() != 2 + 64)
 			throw glare::Exception("Unexpected result length.");
 
-		// Address is last 20 bytes = 40 hex chars or the result value
+		// Address is last 20 bytes (40 hex chars) of the result value
 		const std::string result_address = "0x" + result.substr(2 + 24);
 
 		return result_address;
@@ -133,11 +147,25 @@ const std::string Infura::getOwnerOfERC721Token(const std::string& contract_addr
 
 void Infura::test()
 {
-	const std::string owner_addr = getOwnerOfERC721Token("0x79986aF15539de2db9A5086382daEdA917A9CF0C", 1);
+	testAssert(stringToHexWith0xPrefix(makeUInt256BigEndianString(0)) == "0x0000000000000000000000000000000000000000000000000000000000000000");
+	testAssert(stringToHexWith0xPrefix(makeUInt256BigEndianString(1)) == "0x0000000000000000000000000000000000000000000000000000000000000001");
+	testAssert(stringToHexWith0xPrefix(makeUInt256BigEndianString(15)) == "0x000000000000000000000000000000000000000000000000000000000000000f");
+	testAssert(stringToHexWith0xPrefix(makeUInt256BigEndianString(31)) == "0x000000000000000000000000000000000000000000000000000000000000001f");
+	testAssert(stringToHexWith0xPrefix(makeUInt256BigEndianString(1234567890)) == "0x00000000000000000000000000000000000000000000000000000000499602d2");
 
-	conPrint("owner_addr: " + owner_addr);
+	try
+	{
+		// Query owner of token 1 of Cryptovoxels parcel smart contract
+		const std::string owner_addr = getOwnerOfERC721Token("0x79986aF15539de2db9A5086382daEdA917A9CF0C", makeUInt256BigEndianString(1));
 
-	testAssert(owner_addr == "0x290fbe4d4745f6b5267c209c92c8d81cebb5e9f0");
+		conPrint("owner_addr: " + owner_addr);
+
+		testAssert(owner_addr == "0x290fbe4d4745f6b5267c209c92c8d81cebb5e9f0");
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
 }
 
 

@@ -29,9 +29,13 @@ Infura
 class Infura 
 {
 public:
+
+
+	static std::string makeUInt256BigEndianString(uint32 x);
 	
+	// token_id is a 256 bit unsigned integer, encoded in a big-endian order as a 32 byte binary string.
 	// Throws glare::Exception on failure.
-	static const std::string getOwnerOfERC721Token(const std::string& contract_address, uint32 token_id);
+	static std::string getOwnerOfERC721Token(const std::string& contract_address, const std::string& token_id);
 
 
 	static void test();
