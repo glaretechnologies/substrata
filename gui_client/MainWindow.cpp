@@ -53,6 +53,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <QtWidgets/QSplashScreen>
 #include <QtWidgets/QShortcut>
 #include <QtCore/QTimer>
+#include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
 #ifdef _MSC_VER
 #pragma warning(pop) // Re-enable warnings
@@ -179,6 +180,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	force_new_undo_edit(false)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+
+	QGamepadManager::instance();
 
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);

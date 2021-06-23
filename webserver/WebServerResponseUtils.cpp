@@ -86,7 +86,7 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 
 	if(logged_in)
 	{
-		page_out += "You are logged in as " + logged_in_username.HTMLEscaped();
+		page_out += "You are logged in as <a href=\"/account\">" + logged_in_username.HTMLEscaped() + "</a>";
 
 		// Add logout button
 		page_out += "<form action=\"/logout_post\" method=\"post\">\n";
