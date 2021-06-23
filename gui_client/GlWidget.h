@@ -13,6 +13,8 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/RefCounted.h"
 #include <QtCore/QEvent>
 #include <QtOpenGL/QGLWidget>
+#include <QtGamepad/QGamepad>
+#include <QtCore/QTimer>
 
 
 namespace Indigo { class Mesh; }
@@ -29,6 +31,8 @@ class GlWidget : public QGLWidget
 public:
 	GlWidget(QWidget *parent = 0);
 	~GlWidget();
+
+	void init();
 
 	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
 
@@ -64,7 +68,7 @@ protected:
 	virtual void mouseDoubleClickEvent(QMouseEvent* e);
 
 	void showEvent(QShowEvent* e);
-
+	
 signals:;
 	void cameraUpdated();
 	void widgetShowSignal();
@@ -75,8 +79,13 @@ signals:;
 	void keyReleased(QKeyEvent* e);
 	void mouseWheelSignal(QWheelEvent* e);
 	void mouseDoubleClickedSignal(QMouseEvent* e);
+	
+private slots:
+	void gamepadInputSlot();
+	void initGamepadsSlot();
 
 private:
+	
 	QPoint mouse_move_origin;
 	QPoint last_mouse_press_pos;
 	CameraController* cam_controller;
@@ -90,9 +99,13 @@ private:
 	Timer timer;
 	float current_time;
 	bool cam_rot_on_mouse_move_enabled;
+
+	QGamepad* gamepad;
 public:
 	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;
 	float max_draw_dist;
+
+	QTimer* gamepad_init_timer;
 };

@@ -49,6 +49,9 @@ public:
 	std::string hashed_password; // SHA-256 hash, so 256/8 = 32 bytes
 	std::string password_hash_salt; // Base-64 encoded 256 random bits.
 
+	std::string current_eth_signing_nonce; // Doesn't need to be serialised, should be generated and used relatively quickly.
+	std::string controlled_eth_address;
+
 	std::vector<PasswordReset> password_resets; // pending password reset tokens
 };
 

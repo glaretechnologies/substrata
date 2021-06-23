@@ -52,7 +52,8 @@ GlWidget::GlWidget(QWidget *parent)
 	cam_controller(NULL),
 	current_time(0.f),
 	cam_rot_on_mouse_move_enabled(true),
-	max_draw_dist(1000.f)
+	max_draw_dist(1000.f),
+	gamepad(NULL)
 {
 	viewport_aspect_ratio = 1;
 
@@ -78,6 +79,54 @@ GlWidget::GlWidget(QWidget *parent)
 	setFocusPolicy(Qt::StrongFocus);
 
 	setMouseTracking(true); // Set this so we get mouse move events even when a mouse button is not down.
+
+
+	gamepad_init_timer = new QTimer(this);
+	gamepad_init_timer->setSingleShot(true);
+	connect(gamepad_init_timer, SIGNAL(timeout()), this, SLOT(initGamepadsSlot()));
+	gamepad_init_timer->start(/*msec=*/500); 
+
+	//// See if we have any attached gamepads
+	//QGamepadManager* manager = QGamepadManager::instance();
+
+	//const QList<int> list = manager->connectedGamepads();
+
+	//if(!list.isEmpty())
+	//{
+	//	gamepad = new QGamepad(list.at(0));
+
+	//	connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
+	//	connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
+	//}
+}
+
+
+void GlWidget::initGamepadsSlot()
+{
+	// See if we have any attached gamepads
+	QGamepadManager* manager = QGamepadManager::instance();
+
+	const QList<int> list = manager->connectedGamepads();
+
+	if(!list.isEmpty())
+	{
+		gamepad = new QGamepad(list.at(0));
+
+		connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
+		connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
+	}
+}
+
+
+void GlWidget::init()
+{
+	
+}
+
+
+void GlWidget::gamepadInputSlot()
+{
+
 }
 
 
@@ -303,6 +352,34 @@ void GlWidget::playerPhyicsThink(float dt)
 	// TODO: Find an equivalent solution to GetAsyncKeyState on Mac/Linux.
 
 	bool cam_changed = false;
+
+	// Handle gamepad input
+	double gamepad_strafe_leftright = 0;
+	double gamepad_strafe_forwardsback = 0;
+	double gamepad_turn_leftright = 0;
+	double gamepad_turn_updown = 0;
+	if(gamepad)
+	{
+		gamepad_strafe_leftright = gamepad->axisLeftX();
+		gamepad_strafe_forwardsback = gamepad->axisLeftY();
+
+		gamepad_turn_leftright = gamepad->axisRightX();
+		gamepad_turn_updown = gamepad->axisRightY();
+
+		//if(gamepad->axisLeftY() != 0)
+		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisLeftY())); cam_changed = true; }
+
+		//if(gamepad->axisRightX() != 0)
+		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -gamepad->axisRightX())); cam_changed = true; }
+
+		//if(gamepad->axisRightY() != 0)
+		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisRightY())); cam_changed = true; }
+	}
+
+	if(gamepad_strafe_leftright != 0 || gamepad_strafe_forwardsback != 0 || gamepad_turn_leftright != 0 || gamepad_turn_updown != 0)
+		cam_changed = true;
+
+
 #ifdef _WIN32
 	if(hasFocus())
 	{
@@ -356,6 +433,33 @@ void GlWidget::playerPhyicsThink(float dt)
 	if(right_down)
 	{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
 #endif
+
+	
+	if(gamepad)
+	{
+		const float gamepad_move_speed_factor = 10;
+		const float gamepad_rotate_speed = 400;
+
+		// Move vertically up or down in flymode.
+		if(gamepad->buttonR2() != 0)
+		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * pow(gamepad->buttonR2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+
+		if(gamepad->buttonL2() != 0)
+		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * -pow(gamepad->buttonL2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+
+		if(gamepad->axisLeftX() != 0)
+		{	this->player_physics->processStrafeRight(gamepad_move_speed_factor * pow(gamepad->axisLeftX(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+
+		if(gamepad->axisLeftY() != 0)
+		{	this->player_physics->processMoveForwards(gamepad_move_speed_factor * -pow(gamepad->axisLeftY(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+
+		if(gamepad->axisRightX() != 0)
+		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(gamepad->axisRightX(), 3.0f))); cam_changed = true; }
+
+		if(gamepad->axisRightY() != 0)
+		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(gamepad->axisRightY(), 3.f), 0)); cam_changed = true; }
+	}
+
 
 	if(cam_changed)
 		emit cameraUpdated();

@@ -29,10 +29,13 @@ Copyright Glare Technologies Limited 2016 -
 #include <Matrix4f.h>
 #include <Quat.h>
 #include <OpenSSL.h>
+#include <Keccak256.h>
 #include <tls.h>
 #include <networking/HTTPClient.h>//TEMP for testing
 #include "../webserver/WebServerRequestHandler.h"
+#include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
+#include "../webserver/Infura.h"
 #include <WorkerThreadTests.h>//TEMP for testing
 #include <WebListenerThread.h>
 #include "../webserver/CoinbasePollerThread.h"
@@ -187,13 +190,16 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
-			web::WorkerThreadTests::test();
-			//SHA256::test();
-			//CryptoRNG::test();
-			StringUtils::test();
-			//HTTPClient::test();
-			Base64::test();
-			Parser::doUnitTests();
+			Keccak256::test();
+			Infura::test();
+			AccountHandlers::test();
+			//web::WorkerThreadTests::test();
+			////SHA256::test();
+			////CryptoRNG::test();
+			//StringUtils::test();
+			////HTTPClient::test();
+			//Base64::test();
+			//Parser::doUnitTests();
 			conPrint("----Finished tests----");
 #endif
 			return 0;
@@ -384,7 +390,8 @@ int main(int argc, char *argv[])
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
 #ifdef WIN32		
-		web_data_store->public_files_dir = "C:\\programming\\cyberspace\\webdata\\public_files";
+		web_data_store->public_files_dir = "N:\\new_cyberspace\\trunk\\webserver_public_files";
+		//web_data_store->public_files_dir = "C:\\programming\\cyberspace\\webdata\\public_files";
 		//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
 		web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 #else
