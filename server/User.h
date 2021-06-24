@@ -50,7 +50,7 @@ public:
 	std::string password_hash_salt; // Base-64 encoded 256 random bits.
 
 	std::string current_eth_signing_nonce; // Doesn't need to be serialised, should be generated and used relatively quickly.
-	std::string controlled_eth_address;
+	std::string controlled_eth_address; // Eth address that user controls, in hex encoding with 0x prefix.  Empty if no such address.
 
 	std::vector<PasswordReset> password_resets; // pending password reset tokens
 };
