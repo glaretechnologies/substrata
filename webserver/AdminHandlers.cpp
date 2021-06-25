@@ -71,7 +71,8 @@ void renderUsersPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		{
 			const User* user = it->second.ptr();
 			page_out += "<div>\n";
-			page_out += "id: " + user->id.toString() + ",       username: " + web::Escaping::HTMLEscape(user->name) + ",       email: " + web::Escaping::HTMLEscape(user->email_address) + ",      joined " + user->created_time.timeAgoDescription();
+			page_out += "id: " + user->id.toString() + ",       username: " + web::Escaping::HTMLEscape(user->name) + ",       email: " + web::Escaping::HTMLEscape(user->email_address) + ",      joined " + user->created_time.timeAgoDescription() +
+				"  linked eth address: <span style=\"color: grey;\">" + user->controlled_eth_address + "</span>";
 			page_out += "</div>\n";
 		}
 
