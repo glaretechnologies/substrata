@@ -196,20 +196,29 @@ void handleEthSignMessagePost(ServerAllWorldsState& world_state, const web::Requ
 			 return;
 
 		 const std::string message = "Please sign this message to confirm you own the Ethereum account.\n(Unique string: " + logged_in_user->current_eth_signing_nonce + ")";
-		 const std::string recovered_address = ecrecover(sig.str(), message);
-
-		 if(recovered_address == address.str())
+		 
+		 try
 		 {
-			 // The user has proved that they control the account with the given address.
+			 const std::string recovered_address = ecrecover(sig.str(), message);
 
-			 logged_in_user->controlled_eth_address = recovered_address;
-			 world_state.markAsChanged();
+			 if(recovered_address == address.str())
+			 {
+				 // The user has proved that they control the account with the given address.
 
-			 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Congrats, you have sucessfully proven you control the Ethereum address " + recovered_address + 
-				 ". You will now be redirected to your account page.\", \"redirect_URL\":\"/account\"}");
+				 logged_in_user->controlled_eth_address = recovered_address;
+				 world_state.markAsChanged();
+
+				 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Congrats, you have sucessfully proven you control the Ethereum address " + recovered_address + 
+					 ". You will now be redirected to your account page.\", \"redirect_URL\":\"/account\"}");
+			 }
+			 else
+			 {
+				 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Sorry, we could not confirm you control the Ethereum address.\"}");
+			 }
 		 }
-		 else
+		 catch(glare::Exception& e)
 		 {
+			 conPrint("Excep while calling ecrecover(): " + e.what());
 			 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Sorry, we could not confirm you control the Ethereum address.\"}");
 		 }
 	 }
