@@ -52,6 +52,8 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		{
 			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
 			page += "You must be logged in to view your user account page.";
+			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
 			return;
 		}
 
