@@ -87,6 +87,15 @@ public:
 
 	std::vector<uint64> screenshot_ids;
 
+	enum NFTStatus
+	{
+		NFTStatus_NotNFT,
+		NFTStatus_MintingNFT,
+		NFTStatus_MintedNFT
+	};
+	NFTStatus nft_status;
+
+
 	// This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
 	std::string owner_name;
 	std::vector<std::string> admin_names;

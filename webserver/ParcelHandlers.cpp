@@ -164,7 +164,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			if(LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
 			{
-				page += "<h3>Admin tools</h3>  \n";
+				page += "<h2>Admin tools</h2>  \n";
 				page += "<p><a href=\"/admin_set_parcel_owner/" + parcel->id.toString() + "\">Set parcel owner</a></p>";
 			}
 

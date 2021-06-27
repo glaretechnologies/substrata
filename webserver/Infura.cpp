@@ -31,6 +31,10 @@ Copyright Glare Technologies Limited 2021 -
 #include <Keccak256.h>
 
 
+static const std::string INFURA_PROJECT_ID = "2886dd8d54c34b74af9ed0c11181affc";
+static const std::string INFURA_PROJECT_SECRET = "05ec9009a94843b5af4146aad8d05ee8";
+
+
 static std::string base64Encode(const std::string& s)
 {
 	std::string res;
@@ -78,8 +82,6 @@ std::string Infura::getOwnerOfERC721Token(const std::string& contract_address, c
 
 	try
 	{
-		const std::string INFURA_PROJECT_ID = "2886dd8d54c34b74af9ed0c11181affc";
-		const std::string INFURA_PROJECT_SECRET = "05ec9009a94843b5af4146aad8d05ee8";
 		HTTPClient client;
 		client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + INFURA_PROJECT_SECRET));
 	
@@ -137,6 +139,75 @@ std::string Infura::getOwnerOfERC721Token(const std::string& contract_address, c
 		throw e;
 	}
 }
+
+
+void mintParcel(const std::string& contract_address, const std::string& parcel_owner_addr, const std::string& token_id)
+{
+	if(token_id.size() != 32) // token_id should be a 32 byte string.
+		throw glare::Exception("Invalid token_id size.");
+
+	try
+	{
+		HTTPClient client;
+		client.additional_headers.push_back("Authorization: Basic " + base64Encode(":" + INFURA_PROJECT_SECRET));
+
+		// Compute function selector for the mint method.
+		// mint(address to, uint256 tokenId)
+		const std::string func_selector = functionSelector("mint(address, uint256)");
+
+
+		// Compute the entire encoded function call (in binary)
+		std::string func_call_encoded(4 + 2*32, '\0');
+		std::memcpy(&func_call_encoded[0], &func_selector[0], 4); // Function selector is first 4 bytes
+		std::memcpy(&func_call_encoded[4], &parcel_owner_addr[0], 32); // Arg 0 is next 32 bytes (parcel_ownder_addr)
+		std::memcpy(&func_call_encoded[4 + 32], &token_id[0], 32); // Arg 1 is next 32 bytes (token_id)
+
+		const std::string hex_func_call_encoded = stringToHexWith0xPrefix(func_call_encoded); // Convert binary to hex
+
+		const std::string post_content = 
+			"{"
+			"\"jsonrpc\":\"2.0\","
+			"\"method\":\"eth_call\","
+			"\"params\": [{\"to\":\"" + contract_address + "\", \"data\":\"" + hex_func_call_encoded + "\"}, \"latest\"]," // to = smart contract address
+			"\"id\":1"
+			"}";
+
+		//conPrint(post_content);
+
+		std::string data;
+		HTTPClient::ResponseInfo response = client.sendPost("https://mainnet.infura.io/v3/" + INFURA_PROJECT_ID, post_content, /*content_type=*/"application/json", data);
+		if(!(response.response_code >= 200 && response.response_code < 300))
+			throw glare::Exception("HTTP Response was not a 2xx.  Response code: " + toString(response.response_code) + ", msg: " + response.response_message);
+
+		//Example response: data = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x000000000000000000000000290fbe4d4745f6b5267c209c92c8d81cebb5e9f0\"}";
+
+		// Parse result
+		JSONParser parser;
+		parser.parseBuffer(data.data(), data.size());
+
+		if(parser.nodes[0].getChildStringValue(parser, "jsonrpc") != "2.0")
+			throw glare::Exception("Invalid jsonrpc response.");
+
+		if(parser.nodes[0].getChildDoubleValue(parser, "id") != 1.0)
+			throw glare::Exception("Invalid id response.");
+
+		const std::string result = parser.nodes[0].getChildStringValue(parser, "result");
+
+		if(result.size() != 2 + 64)
+			throw glare::Exception("Unexpected result length.");
+
+		// Address is last 20 bytes (40 hex chars) of the result value
+		const std::string result_address = "0x" + result.substr(2 + 24);
+
+		return result_address;
+	}
+	catch(glare::Exception& e)
+	{
+		throw e;
+	}
+
+}
+
 
 
 #if BUILD_TESTS

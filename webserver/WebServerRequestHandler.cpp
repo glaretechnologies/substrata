@@ -140,6 +140,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::handleEthSignMessagePost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/make_parcel_into_nft_post")
+		{
+			AccountHandlers::handleMakeParcelIntoNFTPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
@@ -248,6 +252,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/prove_eth_address_owner")
 		{
 			AccountHandlers::renderProveEthAddressOwnerPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/make_parcel_into_nft")
+		{
+			AccountHandlers::renderMakeParcelIntoNFTPage(*this->world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/screenshot/")) // Screenshot ID follows
 		{

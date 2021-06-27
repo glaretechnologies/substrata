@@ -77,6 +77,7 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 				page += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a><br/>" +
 					"description: " + web::Escaping::HTMLEscape(parcel->description);// +"<br/>" +
 					//"created " + parcel->created_time.timeAgoDescription();
+				page += "<a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
 				page += "</p>\n";
 				//page += "<br/>  \n";
 			}
@@ -119,6 +120,8 @@ void renderProveEthAddressOwnerPage(ServerAllWorldsState& world_state, const web
 		{
 			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
 			page += "You must be logged in to view your user account page.";
+			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
 			return;
 		}
 
@@ -289,6 +292,124 @@ std::string ecrecover(const std::string& sig, const std::string& msg) // hex-enc
 	const std::string hashed_pubkey = bytes_to_hex_string(hash, HASH_SIZE);
 
 	return "0x" + hashed_pubkey.substr(24);
+}
+
+
+void renderMakeParcelIntoNFTPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+
+	const ParcelID parcel_id(request.getURLIntParam("parcel_id"));
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+		if(logged_in_user == NULL)
+		{
+			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			page += "You must be logged in to view this page.";
+			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+			return;
+		}
+
+		// Lookup parcel
+		auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+		if(res == world_state.getRootWorldState()->parcels.end())
+			throw glare::Exception("No such parcel");
+		
+		const Parcel* parcel = res->second.ptr();
+
+		if(parcel->owner_id != logged_in_user->id)
+			throw glare::Exception("Parcel must be owned by user");
+
+		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Convert parcel " + parcel_id.toString() + " to a NFT");
+		page += "<div class=\"main\">   \n";
+
+		if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
+		{
+			if(logged_in_user->controlled_eth_address.empty())
+			{
+				page += "You must link an ethereum address to your account first.";
+			}
+			else
+			{
+				page += "<p>Are you sure you want to make this parcel an ERC721 NFT on the Ethereum blockchain?  This cannot currently be reversed.</p>";
+
+				page += "<p>If you make this parcel an NFT, then the Substrata server will consider the owner of the parcel NFT to be the owner "
+					" of the parcel.</p>";
+
+				page += "<p>Ownership of the NFT will be assigned to your Ethereum address: <span style=\"color: grey;\">" +
+					logged_in_user->controlled_eth_address + "</span></p>";
+
+				page +=
+					"	<form action=\"/make_parcel_into_nft_post\" method=\"post\">																\n"
+					"		<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel_id.toString() + "\"  />			\n"
+					"		<button type=\"submit\" id=\"button-make-parcel-nft\" class=\"button-link\">Make parcel into NFT</button>			\n"
+					"	</form>";
+			}
+		}
+		else
+		{
+			page += "Parcel is already a NFT, or is currently being minted as a NFT.";
+		}
+
+		page += "</div>   \n"; // End main div
+	}
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	const ParcelID parcel_id(request_info.getPostIntField("parcel_id"));
+
+	std::string user_eth_address;
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+		if(logged_in_user == NULL)
+		{
+			// page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			// page += "You must be logged in to view your user account page.";
+			web::ResponseUtils::writeRedirectTo(reply_info, "/account");
+			return;
+		}
+
+		if(logged_in_user->controlled_eth_address.empty())
+			throw glare::Exception("controlled eth address must be valid.");
+
+		// Lookup parcel
+		auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+		if(res == world_state.getRootWorldState()->parcels.end())
+			throw glare::Exception("No such parcel");
+
+		Parcel* parcel = res->second.ptr();
+
+		if(parcel->owner_id != logged_in_user->id)
+			throw glare::Exception("Parcel must be owned by user");
+
+		if(parcel->nft_status != Parcel::NFTStatus_NotNFT)
+			throw glare::Exception("Parcel must not already be a NFT");
+
+
+		// Transition the parcel into 'minting' state
+		parcel->nft_status = Parcel::NFTStatus_MintingNFT;
+
+		world_state.markAsChanged();
+
+		user_eth_address = logged_in_user->controlled_eth_address;
+	
+	} // End lock scope
+
+	// Make an Eth transaction to mint the parcel
+
 }
 
 
