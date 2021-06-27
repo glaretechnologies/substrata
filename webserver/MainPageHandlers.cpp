@@ -117,6 +117,11 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"	<a href=\"https://twitter.com/SubstrataVr\" ><img width=\"60px\" src=\"/files/twitter.png\" />@SubstrataVr</a>																							\n"
 	"	</p>																																																	\n"
 	"																																																			\n"
+	"	<h2>Screenshots and Videos</h2>																																											\n"
+	"																																																			\n"
+	"	<iframe width=\"650\" height=\"400\" src=\"https://www.youtube.com/embed/5cKDiktip2w\" frameborder=\"0\" allow=\"accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe>\n"
+	"	<iframe width=\"650\" height=\"400\" src=\"https://www.youtube.com/embed/CcWYmJLdnFI\" frameborder=\"0\" allow=\"accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe>\n"
+	"																																																			\n"
 	"	<h2>Scripting</h2>																																														\n"
 	"	<p>Read about <a href=\"/about_scripting\">object scripting in Substrata</a>.</p>																														\n"
 	"																																																			\n"
@@ -129,9 +134,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"	<p>																																																		\n"
 	"	<b>Go &gt; Go to CryptoVoxels World</b>																																									\n"
 	"	</p>																																																	\n"
-	"	<h2>Screenshots and Videos</h2>																																											\n"
-	"																																																			\n"
-	"	<iframe width=\"650\" height=\"400\" src=\"https://www.youtube.com/embed/zAizMS16BvM\" frameborder=\"0\" allow=\"accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe>\n";
+		;
 	
 	page_out += WebServerResponseUtils::standardFooter(request_info, true);
 
