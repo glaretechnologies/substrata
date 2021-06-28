@@ -112,6 +112,10 @@ SET(secp256k1_files
 SET(ethereum_files
 ../ethereum/RLP.cpp                     
 ../ethereum/RLP.h                     
+../ethereum/Signing.cpp                     
+../ethereum/Signing.h                     
+../ethereum/EthTransaction.h                     
+../ethereum/UInt256.h
 )
 
 
