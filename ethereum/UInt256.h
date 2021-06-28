@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include <Platform.h>
-#include <string>
+#include <string.h>
 
 
 /*=====================================================================
