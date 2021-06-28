@@ -75,6 +75,9 @@ std::string Infura::makeUInt256BigEndianString(uint32 x)
 // Queries the Ethereum blockchain via Infura APIs, to get the owning address of an ERC721 token,
 // or any smart contract that implements the ownerOf method.
 // Returns a hex address string like "0x290FbE4d4745f6B5267c209C92C8D81CebB5E9f0"
+//
+// See https://infura.io/docs/ethereum/json-rpc/eth-call
+// and https://docs.soliditylang.org/en/latest/abi-spec.html
 std::string Infura::getOwnerOfERC721Token(const std::string& contract_address, const std::string& token_id)
 {
 	if(token_id.size() != 32) // token_id should be a 32 byte string.
@@ -96,7 +99,7 @@ std::string Infura::getOwnerOfERC721Token(const std::string& contract_address, c
 		std::memcpy(&func_call_encoded[4], &token_id[0], 32); // Arg 0 is next 32 bytes
 
 		const std::string hex_func_call_encoded = stringToHexWith0xPrefix(func_call_encoded); // Convert binary to hex
-
+		
 		const std::string post_content = 
 			"{"
 				"\"jsonrpc\":\"2.0\","
@@ -141,6 +144,7 @@ std::string Infura::getOwnerOfERC721Token(const std::string& contract_address, c
 }
 
 
+// See https://infura.io/docs/ethereum/json-rpc/eth-sendRawTransaction
 void mintParcel(const std::string& contract_address, const std::string& parcel_owner_addr, const std::string& token_id)
 {
 	if(token_id.size() != 32) // token_id should be a 32 byte string.
@@ -167,7 +171,7 @@ void mintParcel(const std::string& contract_address, const std::string& parcel_o
 		const std::string post_content = 
 			"{"
 			"\"jsonrpc\":\"2.0\","
-			"\"method\":\"eth_call\","
+			"\"method\":\"eth_sendRawTransaction\","
 			"\"params\": [{\"to\":\"" + contract_address + "\", \"data\":\"" + hex_func_call_encoded + "\"}, \"latest\"]," // to = smart contract address
 			"\"id\":1"
 			"}";
@@ -198,8 +202,6 @@ void mintParcel(const std::string& contract_address, const std::string& parcel_o
 
 		// Address is last 20 bytes (40 hex chars) of the result value
 		const std::string result_address = "0x" + result.substr(2 + 24);
-
-		return result_address;
 	}
 	catch(glare::Exception& e)
 	{
