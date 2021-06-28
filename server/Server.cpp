@@ -35,10 +35,12 @@ Copyright Glare Technologies Limited 2016 -
 #include "../webserver/WebServerRequestHandler.h"
 #include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
-#include "../webserver/Infura.h"
+#include "../ethereum/Infura.h"
 #include <WorkerThreadTests.h>//TEMP for testing
 #include <WebListenerThread.h>
 #include "../webserver/CoinbasePollerThread.h"
+#include "../ethereum/RLP.h"//TEMP for testing
+#include "../ethereum/Signing.h"//TEMP for testing
 
 
 static const int parcel_coords[10][4][2] ={
@@ -190,9 +192,11 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			RLP::test();
+			Signing::test();
 			Keccak256::test();
 			Infura::test();
-			AccountHandlers::test();
+			//AccountHandlers::test();
 			//web::WorkerThreadTests::test();
 			////SHA256::test();
 			////CryptoRNG::test();

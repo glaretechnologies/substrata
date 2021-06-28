@@ -274,3 +274,4 @@ ADD_SUBDIRECTORY(server server)
 
 #ADD_SUBDIRECTORY(screenshot_bot screenshot_bot)
 
+#ADD_SUBDIRECTORY(eth_bot eth_bot)

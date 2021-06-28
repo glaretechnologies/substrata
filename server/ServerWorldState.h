@@ -16,6 +16,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include "UserWebSession.h"
 #include "ParcelAuction.h"
 #include "Screenshot.h"
+#include "SubEthTransaction.h"
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
 #include <Mutex.h>
@@ -56,6 +57,7 @@ public:
 	UID getNextObjectUID(); // Gets and then increments next_object_uid
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.
 	uint64 getNextOrderUID(); // Gets and then increments next_order_uid.  Locks mutex.
+	uint64 getNextSubEthTransactionUID();
 
 	void markAsChanged() { changed = 1; }
 	void clearChangedFlag() { changed = 0; }
@@ -78,6 +80,8 @@ public:
 
 	std::map<uint64, ScreenshotRef> screenshots;// Screenshot id to ScreenshotRef
 
+	std::map<uint64, SubEthTransactionRef> sub_eth_transactions; // SubEthTransaction id to SubEthTransaction
+
 	// Ephemeral state that is not serialised to disk.  Set by CoinbasePollerThread.
 	double BTC_per_EUR;
 	double ETH_per_EUR;
@@ -91,4 +95,5 @@ private:
 	UID next_object_uid;
 	UID next_avatar_uid;
 	uint64 next_order_uid;
+	uint64 next_sub_eth_transaction_uid;
 };

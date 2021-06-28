@@ -31,6 +31,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "LoginHandlers.h"
 #include "../server/ServerWorldState.h"
 #include "../server/UserWebSession.h"
+#include "../server/SubEthTransaction.h"
 #include "../ethereum/Signing.h"
 
 
@@ -75,7 +76,8 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 				page += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a><br/>" +
 					"description: " + web::Escaping::HTMLEscape(parcel->description);// +"<br/>" +
 					//"created " + parcel->created_time.timeAgoDescription();
-				page += "<a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
+				if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
+					page += "<a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
 				page += "</p>\n";
 				//page += "<br/>  \n";
 			}
@@ -265,7 +267,7 @@ void renderMakeParcelIntoNFTPage(ServerAllWorldsState& world_state, const web::R
 		{
 			if(logged_in_user->controlled_eth_address.empty())
 			{
-				page += "You must link an ethereum address to your account first.";
+				page += "You must link an ethereum address to your account first.  You can do that <a href=\"/prove_eth_address_owner\">here</a>.";
 			}
 			else
 			{
@@ -302,8 +304,6 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 {
 	const ParcelID parcel_id(request_info.getPostIntField("parcel_id"));
 
-	std::string user_eth_address;
-
 	{ // lock scope
 		Lock lock(world_state.mutex);
 
@@ -336,13 +336,24 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 		// Transition the parcel into 'minting' state
 		parcel->nft_status = Parcel::NFTStatus_MintingNFT;
 
-		world_state.markAsChanged();
 
-		user_eth_address = logged_in_user->controlled_eth_address;
+		// Make an Eth transaction to mint the parcel
+		SubEthTransactionRef transaction = new SubEthTransaction();
+		transaction->id = world_state.getNextSubEthTransactionUID();
+		transaction->created_time = TimeStamp::currentTime();
+		transaction->state = SubEthTransaction::State_New;
+		transaction->initiating_user_id = logged_in_user->id;
+		transaction->parcel_id = parcel->id;
+		transaction->user_eth_address = logged_in_user->controlled_eth_address;
+
+		world_state.sub_eth_transactions[transaction->id] = transaction;
+
+
+		world_state.markAsChanged();
 	
 	} // End lock scope
 
-	// Make an Eth transaction to mint the parcel
+	
 
 }
 

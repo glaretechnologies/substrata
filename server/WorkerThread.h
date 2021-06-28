@@ -41,6 +41,7 @@ private:
 	void handleResourceUploadConnection();
 	void handleResourceDownloadConnection();
 	void handleScreenshotBotConnection();
+	void handleEthBotConnection();
 
 	ThreadSafeQueue<std::string> data_to_send;
 

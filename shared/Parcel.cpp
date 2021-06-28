@@ -22,7 +22,8 @@ Parcel::Parcel()
 :	state(State_JustCreated),
 	from_remote_dirty(false),
 	from_local_dirty(false),
-	all_writeable(false)
+	all_writeable(false),
+	nft_status(NFTStatus_NotNFT)
 {
 }
 
