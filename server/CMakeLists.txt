@@ -107,6 +107,14 @@ SET(secp256k1_files
 ../secp256k1-master/src/modules/recovery/main_impl.h                
 )
 
+
+# Add eliptical curve stuff for Eth code.
+SET(ethereum_files
+../ethereum/RLP.cpp                     
+../ethereum/RLP.h                     
+)
+
+
 include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
 
 
@@ -116,6 +124,7 @@ SOURCE_GROUP(website_core FILES ${website_core_files})
 SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
+SOURCE_GROUP(ethereum FILES ${ethereum_files})
 
 
 # From secp256k1-master\configure.ac:
@@ -179,6 +188,7 @@ ${xxhash}
 ${docs}
 ${lang}
 ${secp256k1_files}
+${ethereum_files}
 )
 
 
