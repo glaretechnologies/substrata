@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ServerWorldState.h"
 #include "Server.h"
 #include "Screenshot.h"
+#include "SubEthTransaction.h"
 #include "../shared/Protocol.h"
 #include "../shared/UID.h"
 #include "../shared/WorldObject.h"
@@ -434,6 +435,92 @@ void WorkerThread::handleScreenshotBotConnection()
 }
 
 
+void WorkerThread::handleEthBotConnection()
+{
+	conPrint("handleEthBotConnection()");
+
+	// TODO: authentication
+
+	try
+	{
+		while(1)
+		{
+			// Poll server state for a screenshot request
+			SubEthTransactionRef trans;
+			uint64 largest_nonce_used = 0; 
+			{ // lock scope
+				Lock lock(server->world_state->mutex);
+
+				// Find first transction in New state.  NOTE: slow linear scan.
+				for(auto it = server->world_state->sub_eth_transactions.begin(); it != server->world_state->sub_eth_transactions.end(); ++it)
+				{
+					if(it->second->state == SubEthTransaction::State_New)
+					{
+						trans = it->second;
+						break;
+					}
+				}
+
+				// Work out nonce to use for this transaction.  First, work out largest nonce used for succesfully submitted transactions
+				for(auto it = server->world_state->sub_eth_transactions.begin(); it != server->world_state->sub_eth_transactions.end(); ++it)
+				{
+					if(it->second->state == SubEthTransaction::State_Completed)
+						largest_nonce_used = myMax(largest_nonce_used, it->second->nonce);
+				}
+			} // End lock scope
+
+			const uint64 next_nonce = largest_nonce_used + 1;
+
+			if(trans.nonNull()) // If there is a transaction to submit:
+			{
+				socket->writeUInt32(Protocol::SubmitEthTransactionRequest);
+
+				trans->nonce = next_nonce; // Update transaction nonce
+				
+				writeToStream(*trans, *socket);
+
+				// Read response
+				const uint32 result = socket->readUInt32();
+				if(result == Protocol::EthTransactionSubmitted)
+				{
+					const UInt256 transaction_hash = readUInt256FromStream(*socket);
+
+					conPrint("Transaction was submitted.");
+
+					trans->state = SubEthTransaction::State_Completed; // State_Submitted;
+					trans->transaction_hash = transaction_hash;
+				}
+				else if(result == Protocol::EthTransactionSubmissionFailed)
+				{
+					conPrint("Transaction submission failed.");
+
+					trans->state = SubEthTransaction::State_Submitted;
+					trans->transaction_hash = UInt256(0);
+					trans->submission_error_message = socket->readStringLengthFirst(10000);
+				}
+				else
+					throw glare::Exception("Client reported transaction submission failed.");
+
+				server->world_state->markAsChanged();
+			}
+			else
+			{
+				// There is no current screenshot request, sleep for a while
+				PlatformUtils::Sleep(2000);
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleEthBotConnection: glare::Exception: " + e.what());
+	}
+	catch(std::exception& e)
+	{
+		conPrint(std::string("handleEthBotConnection: Caught std::exception: ") + e.what());
+	}
+}
+
+
 static bool userHasObjectWritePermissions(const WorldObject& ob, const User& user, const std::string& connected_world_name)
 {
 	if(user.id.valid())
@@ -504,6 +591,11 @@ void WorkerThread::doRun()
 		else if(connection_type == Protocol::ConnectionTypeScreenshotBot)
 		{
 			handleScreenshotBotConnection();
+			return;
+		}
+		else if(connection_type == Protocol::ConnectionTypeEthBot)
+		{
+			handleEthBotConnection();
 			return;
 		}
 		else if(connection_type == Protocol::ConnectionTypeUpdates)

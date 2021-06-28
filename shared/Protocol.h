@@ -32,6 +32,7 @@ const uint32 ConnectionTypeUploadResource		= 501;
 const uint32 ConnectionTypeDownloadResources	= 502;
 const uint32 ConnectionTypeWebsite				= 503; // A connection from the webserver.
 const uint32 ConnectionTypeScreenshotBot		= 504; // A connection from the screenshot bot.
+const uint32 ConnectionTypeEthBot				= 505; // A connection from the Ethereum bot.
 
 
 const uint32 AvatarCreated			= 1000;
@@ -107,6 +108,11 @@ const uint32 TimeSyncMessage		= 9000; // Sends the current time
 
 const uint32 ScreenShotRequest		= 11001;
 const uint32 ScreenShotSucceeded	= 11002;
+
+
+const uint32 SubmitEthTransactionRequest		= 12001;
+const uint32 EthTransactionSubmitted			= 12002;
+const uint32 EthTransactionSubmissionFailed		= 12003;
 
 
 } // end namespace Protocol

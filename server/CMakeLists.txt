@@ -110,6 +110,8 @@ SET(secp256k1_files
 
 # Add eliptical curve stuff for Eth code.
 SET(ethereum_files
+../ethereum/Infura.cpp                     
+../ethereum/Infura.h     
 ../ethereum/RLP.cpp                     
 ../ethereum/RLP.h                     
 ../ethereum/Signing.cpp                     

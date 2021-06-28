@@ -225,6 +225,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::renderOrdersPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_sub_eth_transactions")
+		{
+			AdminHandlers::renderSubEthTransactionsPage(*this->world_state, request, reply_info);
+		}
 		else if(::hasPrefix(request.path, "/admin_create_parcel_auction/")) // parcel ID follows in URL
 		{
 			AdminHandlers::renderCreateParcelAuction(*this->world_state, request, reply_info);

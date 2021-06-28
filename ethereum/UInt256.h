@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include <Platform.h>
+#include <InStream.h>
+#include <OutStream.h>
 #include <cstring>
 
 
@@ -39,3 +41,18 @@ struct UInt256
 
 	uint8 data[32]; // big endian order
 };
+
+
+
+inline void writeToStream(const UInt256& x, OutStream& stream)
+{
+	stream.writeData(x.data, 32);
+}
+
+
+inline UInt256 readUInt256FromStream(InStream& stream)
+{
+	UInt256 x;
+	stream.readData(x.data, 32);
+	return x;
+}

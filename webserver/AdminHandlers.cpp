@@ -29,7 +29,7 @@ std::string sharedAdminHeader(ServerAllWorldsState& world_state, const web::Requ
 	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Admin");
 
 	page_out += "<p><a href=\"/admin\">Main admin page</a> | <a href=\"/admin_users\">Users</a> | <a href=\"/admin_parcels\">Parcels</a> | ";
-	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a></p>";
+	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a></p>";
 
 	return page_out;
 }
@@ -245,6 +245,50 @@ void renderOrdersPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				"coinbase charge code: " + order->coinbase_charge_code + "</br>" +
 				"coinbase charge status: " + order->coinbase_status + "</br>" +
 				"confirmed: " + boolToString(order->confirmed);
+
+			page_out += "</p>    \n";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		page_out += "<h2>Substrata Ethereum Transactions</h2>\n";
+
+		for(auto it = world_state.sub_eth_transactions.begin(); it != world_state.sub_eth_transactions.end(); ++it)
+		{
+			const SubEthTransaction* trans = it->second.ptr();
+
+			// Look up user who initiated the transaction
+			std::string username;
+			auto user_res = world_state.user_id_to_users.find(trans->initiating_user_id);
+			if(user_res == world_state.user_id_to_users.end())
+				username = "[No user found]";
+			else
+				username = user_res->second->name;
+
+
+			page_out += "<p>\n";
+			page_out += "Transaction " + toString(trans->id) + ", " +
+				"initiating user: " + web::Escaping::HTMLEscape(username) + "<br/>" +
+				"user_eth_address: " + web::Escaping::HTMLEscape(trans->user_eth_address) + "<br/>" +
+				"parcel: <a href=\"/parcel/" + trans->parcel_id.toString() + "\">" + trans->parcel_id.toString() + "</a>, " + "<br/>" +
+				"created_time: " + trans->created_time.RFC822FormatedString() + "(" + trans->created_time.timeAgoDescription() + ")<br/>" +
+				"state: " + web::Escaping::HTMLEscape(SubEthTransaction::statestring(trans->state)) + "<br/>";
 
 			page_out += "</p>    \n";
 		}

@@ -7,23 +7,18 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "UInt256.h"
-#include <Platform.h>
-#include <string>
 #include <vector>
 
 
-// See https://github.com/kvhnuke/Ethereum-Arduino/blob/master/Ethereum-Arduino/TX.h
-
-
+// See https://ethereum.org/en/developers/docs/transactions/
 struct EthTransaction
 {
-	UInt256 nonce;
-	UInt256 gas_price;
-	UInt256 gas_limit;
-	//std::string to;
-	std::vector<uint8> to;
-	UInt256 value; // amount
-	std::string data;
+	UInt256 nonce; // How many confirmed transactions this account has sent previously
+	UInt256 gas_price; // The fee the sender pays per unit of gas
+	UInt256 gas_limit; // The maximum amount of gas units that can be consumed by the transaction. Units of gas represent computational steps
+	std::vector<uint8> to; // the receiving address (if an externally-owned account, the transaction will transfer value. If a contract account, the transaction will execute the contract code)
+	UInt256 value; // Amount of ETH to transfer from sender to recipient (in WEI, a denomination of ETH)
+	std::vector<uint8> data; // Optional field to include arbitrary data
 
 	// Signature data
 	UInt256 v; // https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md

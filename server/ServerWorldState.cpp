@@ -36,6 +36,7 @@ ServerAllWorldsState::ServerAllWorldsState()
 	next_avatar_uid = UID(0);
 	next_object_uid = UID(0);
 	next_order_uid = 0;
+	next_sub_eth_transaction_uid = 0;
 
 	world_states[""] = new ServerWorldState();
 
@@ -340,6 +341,7 @@ static const uint32 ORDER_CHUNK = 104;
 static const uint32 USER_WEB_SESSION_CHUNK = 105;
 static const uint32 PARCEL_AUCTION_CHUNK = 106;
 static const uint32 SCREENSHOT_CHUNK = 107;
+static const uint32 SUB_ETH_TRANSACTIONS_CHUNK = 108;
 static const uint32 EOS_CHUNK = 1000;
 
 
@@ -369,6 +371,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_sessions = 0;
 	size_t num_auctions = 0;
 	size_t num_screenshots = 0;
+	size_t num_sub_eth_transactions = 0;
 	while(1)
 	{
 		const uint32 chunk = stream.readUInt32();
@@ -460,6 +463,17 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			screenshots[shot->id] = shot;
 			num_screenshots++;
 		}
+		else if(chunk == SUB_ETH_TRANSACTIONS_CHUNK)
+		{
+			// Deserialise Screenshot
+			SubEthTransactionRef trans = new SubEthTransaction();
+			readFromStream(stream, *trans);
+
+			next_sub_eth_transaction_uid = myMax(trans->id + 1, next_sub_eth_transaction_uid);
+
+			sub_eth_transactions[trans->id] = trans;
+			num_sub_eth_transactions++;
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -541,7 +555,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
-		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s) in " + timer.elapsedStringNSigFigs(4));
+		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
+		toString(num_sub_eth_transactions) + " sub eth transaction(s) in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -611,6 +626,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 		size_t num_sessions = 0;
 		size_t num_auctions = 0;
 		size_t num_screenshots = 0;
+		size_t num_sub_eth_transactions = 0;
 
 		const std::string temp_path = path + "_temp";
 		{
@@ -710,6 +726,16 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 					num_screenshots++;
 				}
 			}
+			
+			// Write SubEthTransactions
+			{
+				for(auto i=sub_eth_transactions.begin(); i != sub_eth_transactions.end(); ++i)
+				{
+					stream.writeUInt32(SUB_ETH_TRANSACTIONS_CHUNK);
+					writeToStream(*i->second, stream);
+					num_sub_eth_transactions++;
+				}
+			}
 
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
 		}
@@ -718,7 +744,8 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
-			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s) in " + timer.elapsedStringNSigFigs(4));
+			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " +
+			toString(num_sub_eth_transactions) + " sub eth transction(s) in " + timer.elapsedStringNSigFigs(4));
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
@@ -749,4 +776,11 @@ uint64 ServerAllWorldsState::getNextOrderUID()
 {
 	Lock lock(mutex);
 	return next_order_uid++;
+}
+
+
+uint64 ServerAllWorldsState::getNextSubEthTransactionUID()
+{
+	Lock lock(mutex);
+	return next_sub_eth_transaction_uid++;
 }
