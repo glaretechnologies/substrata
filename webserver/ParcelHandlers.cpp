@@ -222,7 +222,7 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 
 			std::string descrip;
 			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
-			descrip += "Dimensions: " + toString(span.x) + " m x " + toString(span.y) + " m x " + toString(span.z) + " m.   \n";
+			descrip += "Dimensions: " + toString(span.x) + " m x " + toString(span.y) + " m x " + toString(span.z) + " m.  "; // Two spaces make a linebreak in markdown (maybe)  "\n" doesn't work on OpenSea at least
 
 			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
 			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
