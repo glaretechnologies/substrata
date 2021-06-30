@@ -289,6 +289,15 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 				"parcel: <a href=\"/parcel/" + trans->parcel_id.toString() + "\">" + trans->parcel_id.toString() + "</a>, " + "<br/>" +
 				"created_time: " + trans->created_time.RFC822FormatedString() + "(" + trans->created_time.timeAgoDescription() + ")<br/>" +
 				"state: " + web::Escaping::HTMLEscape(SubEthTransaction::statestring(trans->state)) + "<br/>";
+			if(trans->state != SubEthTransaction::State_New)
+			{
+				page_out += "submitted_time: " + trans->submitted_time.RFC822FormatedString() + "(" + trans->created_time.timeAgoDescription() + ")<br/>";
+				page_out += "txn hash: " + web::Escaping::HTMLEscape(trans->transaction_hash.toHexString()) + "<br/>";
+				page_out += "error msg: " + web::Escaping::HTMLEscape(trans->submission_error_message) + "<br/>";
+			}
+
+			page_out +=
+				"nonce: " + toString(trans->nonce) + "<br/>";
 
 			page_out += "</p>    \n";
 		}

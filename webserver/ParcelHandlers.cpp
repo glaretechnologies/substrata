@@ -182,4 +182,64 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 }
 
 
+// URL for parcel ERC 721 metadata JSON
+// See https://docs.opensea.io/docs/metadata-standards
+void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		// Parse parcel id from request path
+		Parser parser(request.path.c_str(), request.path.size());
+		if(!parser.parseString("/p/"))
+			throw glare::Exception("Failed to parse /p/");
+
+		uint32 parcel_id;
+		if(!parser.parseUnsignedInt(parcel_id))
+			throw glare::Exception("Failed to parse parcel id");
+
+		std::string page = "{"
+			"\"name\":\"Parcel " + toString(parcel_id) + "\","
+			"\"external_url\":\"https://substrata.info/parcel/" + toString(parcel_id) + "\"," // "This is the URL that will appear below the asset's image on OpenSea and will allow users to leave OpenSea and view the item on your site."
+			;
+
+		{ // lock scope
+			Lock lock(world_state.mutex);
+
+			Reference<ServerWorldState> root_world = world_state.getRootWorldState();
+
+			auto res = root_world->parcels.find(ParcelID(parcel_id));
+			if(res == root_world->parcels.end())
+				throw glare::Exception("Couldn't find parcel");
+
+			const Parcel* parcel = res->second.ptr();
+
+			if(!parcel->screenshot_ids.empty())
+			{
+				const uint64 screenshot_id = parcel->screenshot_ids[0];
+
+				page += "\"image\":\"https://substrata.info/screenshot/" + toString(screenshot_id) + "\",";
+			}
+
+			std::string descrip;
+			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
+			descrip += "Dimensions: " + toString(span.x) + " m x " + toString(span.y) + " m x " + toString(span.z) + " m.   \n";
+
+			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
+			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
+
+			descrip += "Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin)";
+
+			page += "\"description\":\"" + web::Escaping::JSONEscape(descrip) + "\"" // "A human readable description of the item. Markdown is supported."
+				"}";
+		} // end lock scope
+
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+	}
+	catch(glare::Exception& e)
+	{
+		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
 } // end namespace ParcelHandlers

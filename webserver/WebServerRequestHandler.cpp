@@ -144,6 +144,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::handleMakeParcelIntoNFTPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/claim_parcel_owner_by_nft_post")
+		{
+			AccountHandlers::handleClaimParcelOwnerByNFTPost(*this->world_state, request, reply_info);
+		}
 		else
 		{
 			const std::string page = "Unknown post URL";
@@ -257,9 +261,29 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::renderProveEthAddressOwnerPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/prove_parcel_owner_by_nft")
+		{
+			AccountHandlers::renderProveParcelOwnerByNFT(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/make_parcel_into_nft")
 		{
 			AccountHandlers::renderMakeParcelIntoNFTPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/parcel_claim_succeeded")
+		{
+			AccountHandlers::renderParcelClaimSucceeded(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/parcel_claim_failed")
+		{
+			AccountHandlers::renderParcelClaimFailed(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/parcel_claim_invalid")
+		{
+			AccountHandlers::renderParcelClaimInvalid(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/p/")) // URL for parcel ERC 721 metadata JSON
+		{
+			ParcelHandlers::renderMetadata(*world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/screenshot/")) // Screenshot ID follows
 		{

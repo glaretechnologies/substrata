@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Platform.h>
 #include <InStream.h>
 #include <OutStream.h>
+#include <StringUtils.h>
 #include <cstring>
 
 
@@ -38,6 +39,8 @@ struct UInt256
 		std::memcpy(data + 30, (const uint8*)&x + 1, 1);
 		std::memcpy(data + 31, (const uint8*)&x + 0, 1);
 	}
+
+	const std::string toHexString() const { return StringUtils::convertByteArrayToHexString(data, 32); } // Without 0x prefix.
 
 	uint8 data[32]; // big endian order
 };
