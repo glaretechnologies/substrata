@@ -77,8 +77,8 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 				page += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a><br/>" +
 					"description: " + web::Escaping::HTMLEscape(parcel->description);// +"<br/>" +
 					//"created " + parcel->created_time.timeAgoDescription();
-				if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
-					page += "<a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
+				//TEMP if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
+				//	page += "<a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
 				page += "</p>\n";
 				//page += "<br/>  \n";
 			}
@@ -101,9 +101,10 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		page += "<br/>";
 		page += "<br/>";
 		page += "<a href=\"/prove_eth_address_owner\">Link an Ethereum address and prove you own it by signing a message</a>";
-		page += "<br/>";
-		page += "<br/>";
-		page += "<a href=\"/prove_parcel_owner_by_nft\">Claim ownership of a parcel on substrata.info based on NFT ownership</a>";
+		//TEMP:
+		//page += "<br/>";
+		//page += "<br/>";
+		//page += "<a href=\"/prove_parcel_owner_by_nft\">Claim ownership of a parcel on substrata.info based on NFT ownership</a>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
