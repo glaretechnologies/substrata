@@ -76,7 +76,9 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 		auction_html += "</tr></table>\n";
 
 		if(num_auctions_shown == 0)
-			auction_html += "<p>Sorry, there are no parcels for sale right now.  Please check back later!</p>";
+			auction_html += "<p>Sorry, there are no parcels for sale here right now.  Please check back later!</p>";
+
+		auction_html += "<p>See also the <a href=\"https://opensea.io/collection/substrata-parcel\">OpenSea page for Substrata Parcels</a>.</p>";
 	} // end lock scope
 
 
