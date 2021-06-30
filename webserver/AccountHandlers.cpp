@@ -101,10 +101,10 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		page += "<br/>";
 		page += "<br/>";
 		page += "<a href=\"/prove_eth_address_owner\">Link an Ethereum address and prove you own it by signing a message</a>";
-		//TEMP:
-		//page += "<br/>";
-		//page += "<br/>";
-		//page += "<a href=\"/prove_parcel_owner_by_nft\">Claim ownership of a parcel on substrata.info based on NFT ownership</a>";
+		
+		page += "<br/>";
+		page += "<br/>";
+		page += "<a href=\"/prove_parcel_owner_by_nft\">Claim ownership of a parcel on substrata.info based on NFT ownership</a>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
@@ -361,7 +361,7 @@ void renderParcelClaimSucceeded(ServerAllWorldsState& world_state, const web::Re
 	page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Successfully claimed ownership of parcel");
 
 	page += "<div class=\"main\">   \n";
-	page += "<p>TEMP NO OWNERSHIP CHANGE DURING TESTING.  NO OWNERSHIP CHANGE WILL ACTUALLY TAKE PLACE.</p>";
+	// page += "<p>TEMP NO OWNERSHIP CHANGE DURING TESTING.  NO OWNERSHIP CHANGE WILL ACTUALLY TAKE PLACE.</p>";
 	page += "<p>You have successfully claimed ownership of a parcel.  The parcel will now be listed on your <a href=\"/account\">account page</a>.</p>";
 	page += "</div>   \n"; // End main div
 
@@ -517,7 +517,7 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 	try
 	{
 		const std::string network = "mainnet";
-		const EthAddress substrata_smart_contact_addr = EthAddress::parseFromHexString("0x91324C50e2bc053A2A05AC09cFCEF64723CB07cB"); // This should be address of the Substrata parcel smart contract
+		const EthAddress substrata_smart_contact_addr = EthAddress::parseFromHexString("0xa4535F84e8D746462F9774319E75B25Bc151ba1D"); // This should be address of the Substrata parcel smart contract
 
 		const EthAddress eth_parcel_owner = Infura::getOwnerOfERC721Token(network, substrata_smart_contact_addr, UInt256(parcel_id.value()));
 
@@ -539,7 +539,11 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 
 				Parcel* parcel = res->second.ptr();
 
-				// TEMP NO OWNERSHIP CHANGE DURING TESTING parcel->owner_id = logged_in_user->id;
+				parcel->owner_id = logged_in_user->id;
+
+				// Set parcel admins and writers to the new user as well.
+				parcel->admin_ids  = std::vector<UserID>(1, UserID(logged_in_user->id));
+				parcel->writer_ids = std::vector<UserID>(1, UserID(logged_in_user->id));
 
 				// TODO: Log ownership change?
 
