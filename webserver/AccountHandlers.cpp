@@ -360,7 +360,8 @@ void renderParcelClaimSucceeded(ServerAllWorldsState& world_state, const web::Re
 	page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Successfully claimed ownership of parcel");
 
 	page += "<div class=\"main\">   \n";
-	page += "You have successfully claimed ownership of a parcel.  The parcel will now be listed on your <a href=\"/account\">account page</a>.";
+	page += "<p>TEMP NO OWNERSHIP CHANGE DURING TESTING.  NO OWNERSHIP CHANGE WILL ACTUALLY TAKE PLACE.</p>";
+	page += "<p>You have successfully claimed ownership of a parcel.  The parcel will now be listed on your <a href=\"/account\">account page</a>.</p>";
 	page += "</div>   \n"; // End main div
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
@@ -498,12 +499,12 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 			throw glare::Exception("parcel already owned by user.");
 
 	} // End lock scope
-	catch(web::WebsiteExcep& e)
+	catch(web::WebsiteExcep&)
 	{
 		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_invalid");
 		return;
 	}
-	catch(glare::Exception& e)
+	catch(glare::Exception&)
 	{
 		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_invalid");
 		return;
@@ -514,7 +515,7 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 	bool succeeded = false;
 	try
 	{
-		const std::string network = "ropsten";
+		const std::string network = "mainnet";
 		const EthAddress substrata_smart_contact_addr = EthAddress::parseFromHexString("0x91324C50e2bc053A2A05AC09cFCEF64723CB07cB"); // This should be address of the Substrata parcel smart contract
 
 		const EthAddress eth_parcel_owner = Infura::getOwnerOfERC721Token(network, substrata_smart_contact_addr, UInt256(parcel_id.value()));
@@ -537,7 +538,7 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 
 				Parcel* parcel = res->second.ptr();
 
-				parcel->owner_id = logged_in_user->id;
+				// TEMP NO OWNERSHIP CHANGE DURING TESTING parcel->owner_id = logged_in_user->id;
 
 				// TODO: Log ownership change?
 
