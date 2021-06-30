@@ -439,10 +439,13 @@ void WorkerThread::handleEthBotConnection()
 {
 	conPrint("handleEthBotConnection()");
 
-	// TODO: authentication
-
 	try
 	{
+		// Do authentication
+		const std::string password = socket->readStringLengthFirst(10000);
+		if(SHA256::hash(password) != StringUtils::convertHexToBinary("9bd7674cb1e7ec496f88b31264aaa3ff75ce9d60aabc5e6fd0f8e7ba8a27f829")) // See ethBotTests().
+			throw glare::Exception("Invalid password");
+			
 		while(1)
 		{
 			// Poll server state for a screenshot request
@@ -507,8 +510,8 @@ void WorkerThread::handleEthBotConnection()
 			}
 			else
 			{
-				// There is no current screenshot request, sleep for a while
-				PlatformUtils::Sleep(2000);
+				// There is no current transaction to process, sleep for a while
+				PlatformUtils::Sleep(10000);
 			}
 		}
 	}
