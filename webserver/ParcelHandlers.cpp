@@ -233,7 +233,7 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 				"}";
 		} // end lock scope
 
-		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page.c_str(), page.size(), "application/json");
 	}
 	catch(glare::Exception& e)
 	{
