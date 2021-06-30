@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2021 -
 SubEthTransaction::SubEthTransaction()
 {
 	nonce = 0;
+	submitted_time = TimeStamp(0);
 }
 
 
@@ -36,7 +37,8 @@ std::string SubEthTransaction::statestring(State s)
 }
 
 
-static const uint32 SUB_ETH_TRANSACTION_SERIALISATION_VERSION = 2;
+static const uint32 SUB_ETH_TRANSACTION_SERIALISATION_VERSION = 3;
+// 3: Added submitted_time
 // 2: Added submission_error_message, transaction_hash, nonce
 
 
@@ -50,6 +52,7 @@ void writeToStream(const SubEthTransaction& trans, OutStream& stream)
 	stream.writeUInt32((uint32)trans.state);
 	writeToStream(trans.initiating_user_id, stream);
 	stream.writeUInt64(trans.nonce);
+	trans.submitted_time.writeToStream(stream);
 	stream.writeStringLengthFirst(trans.submission_error_message);
 	writeToStream(trans.transaction_hash, stream);
 
@@ -70,8 +73,11 @@ void readFromStream(InStream& stream, SubEthTransaction& trans)
 	trans.state = (SubEthTransaction::State)stream.readUInt32();
 	trans.initiating_user_id = readUserIDFromStream(stream);
 	if(v >= 2)
-	{
 		trans.nonce = stream.readUInt64();
+	if(v >= 3)
+		trans.submitted_time.readFromStream(stream);
+	if(v >= 2)
+	{
 		trans.submission_error_message = stream.readStringLengthFirst(10000);
 		trans.transaction_hash = readUInt256FromStream(stream);
 	}

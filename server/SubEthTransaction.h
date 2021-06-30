@@ -46,6 +46,7 @@ public:
 
 	uint64 nonce; // A scalar value equal to the number of (successful) transactions sent from this address
 
+	TimeStamp submitted_time;
 	std::string submission_error_message;
 	UInt256 transaction_hash;
 

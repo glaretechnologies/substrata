@@ -469,13 +469,15 @@ void WorkerThread::handleEthBotConnection()
 				}
 			} // End lock scope
 
-			const uint64 next_nonce = largest_nonce_used + 1;
+			const uint64 MIN_NONCE = 3; // To reflect any existing transactions on account
+			const uint64 next_nonce = myMax(MIN_NONCE, largest_nonce_used) + 1;
 
 			if(trans.nonNull()) // If there is a transaction to submit:
 			{
 				socket->writeUInt32(Protocol::SubmitEthTransactionRequest);
 
 				trans->nonce = next_nonce; // Update transaction nonce
+				trans->submitted_time = TimeStamp::currentTime();
 				
 				writeToStream(*trans, *socket);
 

@@ -33,6 +33,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../server/UserWebSession.h"
 #include "../server/SubEthTransaction.h"
 #include "../ethereum/Signing.h"
+#include "../ethereum/Infura.h"
 
 
 namespace AccountHandlers
@@ -100,6 +101,9 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		page += "<br/>";
 		page += "<br/>";
 		page += "<a href=\"/prove_eth_address_owner\">Link an Ethereum address and prove you own it by signing a message</a>";
+		page += "<br/>";
+		page += "<br/>";
+		page += "<a href=\"/prove_parcel_owner_by_nft\">Claim ownership of a parcel on substrata.info based on NFT ownership</a>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
@@ -180,6 +184,56 @@ void renderProveEthAddressOwnerPage(ServerAllWorldsState& world_state, const web
 }
 
 
+void renderProveParcelOwnerByNFT(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+		if(logged_in_user == NULL)
+		{
+			page += WebServerResponseUtils::standardHTMLHeader(request, "User Account");
+			page += "You must be logged in to view this page.";
+			page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+			return;
+		}
+
+		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Prove parcel ownership via NFT ownership");
+		page += "<div class=\"main\">   \n";
+
+		if(logged_in_user->controlled_eth_address.empty())
+		{
+			page += "You must link an ethereum address to your account first.  You can do that <a href=\"/prove_eth_address_owner\">here</a>.";
+		}
+		else
+		{
+			page += "<p>If your Ethereum account is the owner of a Substrata Parcel NFT, you can claim ownership of the parcel on the substrata server on this page.</p>";
+
+			page += "<p>Your linked Ethereum address: <span style=\"color: grey;\">" +
+				logged_in_user->controlled_eth_address + "</span> (The parcel NFT must be owned by this address)</p>";
+
+			page +=
+				"	<form action=\"/claim_parcel_owner_by_nft_post\" method=\"post\">																\n"
+				"		<label for=\"parcel-id\">Parcel number:</label><br>																					 \n"
+				"		<input id=\"parcel-id\" type=\"number\" name=\"parcel_id\" />			\n"
+				"		<button type=\"submit\" id=\"claim-parcel-button\" class=\"button-link\">Claim Parcel</button>			\n"
+				"	</form>";
+
+			page += "<p>Please don't spam this button, it does an Ethereum query!  It may take a few seconds to return a response.</p>";
+		}
+
+		page += "</div>   \n"; // End main div
+	}
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 void handleEthSignMessagePost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	 const web::UnsafeString address = request_info.getURLParam("address");
@@ -204,16 +258,16 @@ void handleEthSignMessagePost(ServerAllWorldsState& world_state, const web::Requ
 		 
 		 try
 		 {
-			 const std::string recovered_address = Signing::ecrecover(sig.str(), message);
+			 const EthAddress recovered_address = Signing::ecrecover(sig.str(), message);
 
-			 if(recovered_address == address.str())
+			 if(recovered_address.toHexStringWith0xPrefix() == address.str())
 			 {
 				 // The user has proved that they control the account with the given address.
 
-				 logged_in_user->controlled_eth_address = recovered_address;
+				 logged_in_user->controlled_eth_address = recovered_address.toHexStringWith0xPrefix();
 				 world_state.markAsChanged();
 
-				 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Congrats, you have sucessfully proven you control the Ethereum address " + recovered_address + 
+				 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Congrats, you have sucessfully proven you control the Ethereum address " + recovered_address.toHexStringWith0xPrefix() + 
 					 ". You will now be redirected to your account page.\", \"redirect_URL\":\"/account\"}");
 			 }
 			 else
@@ -300,6 +354,62 @@ void renderMakeParcelIntoNFTPage(ServerAllWorldsState& world_state, const web::R
 }
 
 
+void renderParcelClaimSucceeded(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+	page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Successfully claimed ownership of parcel");
+
+	page += "<div class=\"main\">   \n";
+	page += "You have successfully claimed ownership of a parcel.  The parcel will now be listed on your <a href=\"/account\">account page</a>.";
+	page += "</div>   \n"; // End main div
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderParcelClaimFailed(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+	page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Ownership claim of parcel failed.");
+
+	page += "<div class=\"main\">   \n";
+	page += "<p>Sorry, the ownership claim for the parcel failed.</p>";
+
+	page += "<p>This is either because the Ethereum address associated with your Substrata account is not the owner of the parcel NFT, the parcel was not minted as an NFT, or because there was an internal error in the query of the Ethereum block chain.</p>";
+	
+	page += "<p>Please visit the Discord channel (see homepage) or email contact@glaretechnologies.com for more info.</p>";
+	
+	page += "<p>You can try again via your <a href=\"/account\">account page</a>.</p>";
+	page += "</div>   \n"; // End main div
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderParcelClaimInvalid(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+	page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Ownership claim of parcel was invalid");
+
+	page += "<div class=\"main\">   \n";
+	page += "<p>Sorry, the ownership claim for the parcel was not valid.</p>";
+
+	page += "<p>This is either because you do not have an Ethereum address associated with your Substrata account, or you already own the parcel, or the parcel does not exist.</p>";
+	
+	page += "<p>Please visit the Discord channel (see homepage) or email contact@glaretechnologies.com for more info.</p>";
+	
+	page += "</div>   \n"; // End main div
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	const ParcelID parcel_id(request_info.getPostIntField("parcel_id"));
@@ -352,9 +462,102 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 		world_state.markAsChanged();
 	
 	} // End lock scope
+}
 
-	
 
+void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	ParcelID parcel_id;
+	std::string user_controlled_eth_address;
+
+	// Check user is logged in, check they have an eth address, check parcel exists.
+	try
+	{ // lock scope
+
+		parcel_id = ParcelID(request_info.getPostIntField("parcel_id"));
+
+		Lock lock(world_state.mutex);
+
+		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+		if(logged_in_user == NULL)
+			throw glare::Exception("You must be logged in.");
+
+		if(logged_in_user->controlled_eth_address.empty())
+			throw glare::Exception("controlled eth address must be valid.");
+
+		user_controlled_eth_address = logged_in_user->controlled_eth_address;
+
+		// Lookup parcel
+		auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+		if(res == world_state.getRootWorldState()->parcels.end())
+			throw glare::Exception("No such parcel");
+
+		Parcel* parcel = res->second.ptr();
+
+		if(parcel->owner_id == logged_in_user->id)
+			throw glare::Exception("parcel already owned by user.");
+
+	} // End lock scope
+	catch(web::WebsiteExcep& e)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_invalid");
+		return;
+	}
+	catch(glare::Exception& e)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_invalid");
+		return;
+	}
+
+
+	// Do infura lookup
+	bool succeeded = false;
+	try
+	{
+		const std::string network = "ropsten";
+		const EthAddress substrata_smart_contact_addr = EthAddress::parseFromHexString("0x91324C50e2bc053A2A05AC09cFCEF64723CB07cB"); // This should be address of the Substrata parcel smart contract
+
+		const EthAddress eth_parcel_owner = Infura::getOwnerOfERC721Token(network, substrata_smart_contact_addr, UInt256(parcel_id.value()));
+
+		if(eth_parcel_owner == EthAddress::parseFromHexString(user_controlled_eth_address))
+		{
+			// The logged in user does indeed own the parcel NFT.  So assign ownership of the parcel.
+
+			{ // lock scope
+				Lock lock(world_state.mutex);
+
+				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+				if(logged_in_user == NULL)
+					throw glare::Exception("logged_in_user == NULL.");
+
+				// Lookup parcel
+				auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+				if(res == world_state.getRootWorldState()->parcels.end())
+					throw glare::Exception("No such parcel");
+
+				Parcel* parcel = res->second.ptr();
+
+				parcel->owner_id = logged_in_user->id;
+
+				// TODO: Log ownership change?
+
+				world_state.denormaliseData();
+				world_state.markAsChanged();
+
+				succeeded = true;
+
+			} // End lock scope
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("Error while executing Infura::getOwnerOfERC721Token(): " + e.what());
+	}
+
+	if(succeeded)
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_succeeded");
+	else
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_claim_failed");
 }
 
 

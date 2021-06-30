@@ -68,6 +68,13 @@ std::vector<uint8> encode(const std::string& s)
 }
 
 
+std::vector<uint8> encode(const EthAddress& addr)
+{
+	std::vector<uint8> v(addr.data, addr.data + 20);
+	return encode(v);
+}
+
+
 std::vector<uint8> encode(const std::vector<uint8>& data)
 {
 	if(data.empty())
