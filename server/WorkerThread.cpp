@@ -469,7 +469,7 @@ void WorkerThread::handleEthBotConnection()
 				}
 			} // End lock scope
 
-			const uint64 MIN_NONCE = 3; // To reflect any existing transactions on account
+			const uint64 MIN_NONCE = 0; // To reflect any existing transactions on account
 			const uint64 next_nonce = myMax(MIN_NONCE, largest_nonce_used) + 1;
 
 			if(trans.nonNull()) // If there is a transaction to submit:
