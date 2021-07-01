@@ -650,7 +650,55 @@ void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state,
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		conPrint("handleRegenerateParcelAuctionScreenshots error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				for(size_t z=0; z<parcel->screenshot_ids.size(); ++z)
+				{
+					const uint64 screenshot_id = parcel->screenshot_ids[z];
+
+					auto shot_res = world_state.screenshots.find(screenshot_id);
+					if(shot_res != world_state.screenshots.end())
+					{
+						Screenshot* shot = shot_res->second.ptr();
+						shot->state = Screenshot::ScreenshotState_notdone;
+					}
+				}
+
+				world_state.markAsChanged();
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + parcel_id.toString());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleRegenerateParcelScreenshots error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
