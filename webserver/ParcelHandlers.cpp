@@ -187,6 +187,11 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			{
 				page += "<h2>Admin tools</h2>  \n";
 				page += "<p><a href=\"/admin_set_parcel_owner/" + parcel->id.toString() + "\">Set parcel owner</a></p>";
+
+				page += "<form action=\"/admin_regenerate_parcel_screenshots\" method=\"post\">";
+				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
+				page += "<input type=\"submit\" value=\"Regenerate screenshots\">";
+				page += "</form>";
 			}
 
 		} // end lock scope
@@ -248,7 +253,8 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
 			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
 
-			descrip += "Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin)";
+			descrip += "Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin).";
+			descrip += "  Visit https://substrata.info/parcel/" + toString(parcel_id) + " for more info.";
 
 			page += "\"description\":\"" + web::Escaping::JSONEscape(descrip) + "\"" // "A human readable description of the item. Markdown is supported."
 				"}";
