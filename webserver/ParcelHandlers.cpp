@@ -112,7 +112,8 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				if(txn_res != world_state.sub_eth_transactions.end())
 				{
 					const SubEthTransaction* trans = txn_res->second.ptr();
-					page += "<p>This parcel has been minted as an Ethereum NFT.</p><p>View <a href=\"https://etherscan.io/tx/0x" + trans->transaction_hash.toHexString() + "\">minting transaction on Etherscan</a></p>";
+					page += "<p>This parcel has been minted as an Ethereum NFT.</p><p><a href=\"https://etherscan.io/tx/0x" + trans->transaction_hash.toHexString() + "\">View minting transaction on Etherscan</a></p>";
+					page += "<p><a href=\"https://opensea.io/assets/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + parcel->id.toString() + "\">View on OpenSea</a></p>";
 				}
 				else
 				{
