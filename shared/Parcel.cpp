@@ -23,7 +23,8 @@ Parcel::Parcel()
 	from_remote_dirty(false),
 	from_local_dirty(false),
 	all_writeable(false),
-	nft_status(NFTStatus_NotNFT)
+	nft_status(NFTStatus_NotNFT),
+	minting_transaction_id(std::numeric_limits<uint64>::max())
 {
 }
 
@@ -438,12 +439,13 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 #endif // GUI_CLIENT
 
 
-static const uint32 PARCEL_SERIALISATION_VERSION = 6;
+static const uint32 PARCEL_SERIALISATION_VERSION = 7;
 /*
 Version 3: added all_writeable.
 Version 4: Added auction data
 Version 5: Removed auction data, added parcel_auction_ids
 Version 6: Added screenshot_ids (serialised to disk only, not over network)
+Version 7: Added nft_status, minting_transaction_id (serialised to disk only, not over network)
 */
 
 
@@ -552,10 +554,14 @@ void writeToStream(const Parcel& parcel, OutStream& stream)
 
 	writeToStreamCommon(parcel, stream);
 
-	// Write screenshot_ids (serialised to disk only)
+	// Write screenshot_ids (serialised to disk only, not sent over network)
 	stream.writeUInt32((uint32)parcel.screenshot_ids.size());
 	for(size_t i=0; i<parcel.screenshot_ids.size(); ++i)
 		stream.writeUInt64(parcel.screenshot_ids[i]);
+
+	// Write NFT/Eth stuff (serialised to disk only, not sent over network)
+	stream.writeUInt32((uint32)parcel.nft_status);
+	stream.writeUInt64((uint64)parcel.minting_transaction_id);
 }
 
 
@@ -579,6 +585,13 @@ void readFromStream(InStream& stream, Parcel& parcel)
 		parcel.screenshot_ids.resize(num);
 		for(size_t i=0; i<num; ++i)
 			parcel.screenshot_ids[i] = stream.readUInt64();
+	}
+
+	if(version >= 7)
+	{
+		// Read NFT/Eth stuff (serialised to disk only, not sent over network)
+		parcel.nft_status = (Parcel::NFTStatus)stream.readUInt32();
+		parcel.minting_transaction_id = stream.readUInt64();
 	}
 }
 

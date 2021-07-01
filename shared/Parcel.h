@@ -94,6 +94,7 @@ public:
 		NFTStatus_MintedNFT
 	};
 	NFTStatus nft_status;
+	uint64 minting_transaction_id; // Id of SubEthTransaction that did/is doing the minting.
 
 
 	// This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.

@@ -41,9 +41,16 @@ public:
 	// Throws glare::Exception on failure.
 	static EthAddress getOwnerOfERC721Token(const std::string& network, const EthAddress& contract_address, const UInt256& token_id);
 
+	static EthAddress getContractOwner(const std::string& network, const EthAddress& contract_address);
+
+
+	static UInt256 transferContractOwnership(const std::string& network, const EthAddress& contract_address, const EthAddress& new_owner, int nonce);
+
 	// Execute an ethereum function call on the given smart contract.
 	// The function must take zero or more uint256 args, and should return an eth address.
 	static EthAddress doEthCallReturningAddress(const std::string& network, const EthAddress& contract_address, const std::string& func_name, const std::vector<UInt256>& uint256_args);
+
+	static UInt256 doEthCallReturningTransactionHash(const std::string& network, const EthAddress& contract_address, const std::string& func_name, const std::vector<EthAddress>& address_args);
 
 	// network should be one of "mainnet" etc..
 	// Returns transaction hash
