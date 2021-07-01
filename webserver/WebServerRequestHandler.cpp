@@ -140,6 +140,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleTerminateParcelAuction(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/regenerate_parcel_screenshots")
+		{
+			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/account_eth_sign_message_post")
 		{
 			AccountHandlers::handleEthSignMessagePost(*this->world_state, request, reply_info);

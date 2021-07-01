@@ -183,6 +183,18 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			}*/
 			page += "</p>";
 
+			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+			if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
+			{
+				page += "<h2>Parcel owner tools</h2>  \n";
+
+				page += "<form action=\"/regenerate_parcel_screenshots\" method=\"post\">";
+				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
+				page += "<input type=\"submit\" value=\"Regenerate screenshots\"> (Screenshot generation may take several minutes)";
+				page += "</form>";
+			}
+
+
 			if(LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
 			{
 				page += "<h2>Admin tools</h2>  \n";
@@ -265,6 +277,52 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	catch(glare::Exception& e)
 	{
 		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
+				{
+					for(size_t z=0; z<parcel->screenshot_ids.size(); ++z)
+					{
+						const uint64 screenshot_id = parcel->screenshot_ids[z];
+
+						auto shot_res = world_state.screenshots.find(screenshot_id);
+						if(shot_res != world_state.screenshots.end())
+						{
+							Screenshot* shot = shot_res->second.ptr();
+							shot->state = Screenshot::ScreenshotState_notdone;
+						}
+					}
+
+					world_state.markAsChanged();
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + parcel_id.toString());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleRegenerateParcelScreenshots error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
 

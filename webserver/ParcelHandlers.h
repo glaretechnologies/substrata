@@ -25,4 +25,6 @@ namespace ParcelHandlers
 
 	// URL for parcel ERC 721 metadata JSON
 	void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Shows parcel details
+
+	void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 } 
