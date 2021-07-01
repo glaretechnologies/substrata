@@ -113,12 +113,12 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				{
 					const SubEthTransaction* trans = txn_res->second.ptr();
 					page += "<p>This parcel has been minted as an Ethereum NFT.</p><p><a href=\"https://etherscan.io/tx/0x" + trans->transaction_hash.toHexString() + "\">View minting transaction on Etherscan</a></p>";
-					page += "<p><a href=\"https://opensea.io/assets/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + parcel->id.toString() + "\">View on OpenSea</a></p>";
 				}
 				else
 				{
 					page += "<p>This parcel has been minted as an Ethereum NFT.  (Could not find minting transaction hash)</p>";
 				}
+				page += "<p><a href=\"https://opensea.io/assets/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + parcel->id.toString() + "\">View on OpenSea</a></p>";
 			}
 
 			// Get current auction if any
@@ -140,7 +140,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				}
 			}
 			if(num == 0)
-				page += "This parcel is not currently for sale.";
+				page += "This parcel is not up for auction on this site.";
 
 			page += "<h2>Past auctions</h2>         \n";
 			num = 0;
@@ -204,6 +204,11 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				page += "<form action=\"/admin_regenerate_parcel_screenshots\" method=\"post\">";
 				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
 				page += "<input type=\"submit\" value=\"Regenerate screenshots\">";
+				page += "</form>";
+
+				page += "<form action=\"/admin_mark_parcel_as_nft_minted_post\" method=\"post\">";
+				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
+				page += "<input type=\"submit\" value=\"Mark parcel as NFT-minted\">";
 				page += "</form>";
 			}
 

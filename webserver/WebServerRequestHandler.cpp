@@ -140,6 +140,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleTerminateParcelAuction(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_mark_parcel_as_nft_minted_post")
+		{
+			AdminHandlers::handleMarkParcelAsNFTMintedPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
