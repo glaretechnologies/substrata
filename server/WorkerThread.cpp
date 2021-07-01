@@ -494,6 +494,19 @@ void WorkerThread::handleEthBotConnection()
 
 					trans->state = SubEthTransaction::State_Completed; // State_Submitted;
 					trans->transaction_hash = transaction_hash;
+
+					// Mark parcel as minted as an NFT
+					{ // lock scope
+						Lock lock(server->world_state->mutex);
+
+						auto parcel_res = server->world_state->getRootWorldState()->parcels.find(trans->parcel_id);
+						if(parcel_res != server->world_state->getRootWorldState()->parcels.end())
+						{
+							Parcel* parcel = parcel_res->second.ptr();
+							parcel->nft_status = Parcel::NFTStatus_MintedNFT;
+						}
+					} // End lock scope
+
 				}
 				else if(result == Protocol::EthTransactionSubmissionFailed)
 				{

@@ -281,6 +281,15 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::renderParcelClaimInvalid(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/making_parcel_into_nft")
+		{
+			AccountHandlers::renderMakingParcelIntoNFT(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/making_parcel_into_nft_failed")
+		{
+			AccountHandlers::renderMakingParcelIntoNFTFailed(*this->world_state, request, reply_info);
+		}
+
 		else if(::hasPrefix(request.path, "/p/")) // URL for parcel ERC 721 metadata JSON
 		{
 			ParcelHandlers::renderMetadata(*world_state, request, reply_info);

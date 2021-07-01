@@ -99,6 +99,27 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			page += "<p>Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin)</p>  \n";
 
+
+			// Show NFT status
+			page += "<h2>NFT status</h2>         \n";
+			if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
+				page += "<p>This parcel has not been minted as an NFT.</p>";
+			else if(parcel->nft_status == Parcel::NFTStatus_MintingNFT)
+				page += "<p>This parcel is being minted as an Ethereum NFT...</p>";
+			else if(parcel->nft_status == Parcel::NFTStatus_MintedNFT)
+			{
+				auto txn_res = world_state.sub_eth_transactions.find(parcel->minting_transaction_id);
+				if(txn_res != world_state.sub_eth_transactions.end())
+				{
+					const SubEthTransaction* trans = txn_res->second.ptr();
+					page += "<p>This parcel has been minted as an Ethereum NFT.</p><p>View <a href=\"https://etherscan.io/tx/0x" + trans->transaction_hash.toHexString() + "\">minting transaction on Etherscan</a></p>";
+				}
+				else
+				{
+					page += "<p>This parcel has been minted as an Ethereum NFT.  (Could not find minting transaction hash)</p>";
+				}
+			}
+
 			// Get current auction if any
 			page += "<h2>Current auction</h2>         \n";
 			const TimeStamp now = TimeStamp::currentTime();

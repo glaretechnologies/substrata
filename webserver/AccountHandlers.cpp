@@ -77,8 +77,8 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 				page += "<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a><br/>" +
 					"description: " + web::Escaping::HTMLEscape(parcel->description);// +"<br/>" +
 					//"created " + parcel->created_time.timeAgoDescription();
-				//TEMP if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
-				//	page += "<a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
+				if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
+					page += "<br/><a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a>";
 				page += "</p>\n";
 				//page += "<br/>  \n";
 			}
@@ -412,11 +412,55 @@ void renderParcelClaimInvalid(ServerAllWorldsState& world_state, const web::Requ
 }
 
 
+void renderMakingParcelIntoNFT(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	const int parcel_id = request.getURLIntParam("parcel_id");
+
+	std::string page;
+	page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Making parcel NFT");
+
+	page += "<div class=\"main\">   \n";
+	page += "<p>The transaction to mint your parcel as an NFT is queued.</p>";
+
+	page += "<p>This may take a while to complete (10 minutes or more).</p>";
+
+	page += "<p>Once the transaction is complete, the minting transaction will be shown on the <a href=\"/parcel/" + toString(parcel_id) + "\">parcel page</a>.</p>";
+
+	page += "<p>If the transaction does not complete in that time, please visit the Discord channel (see homepage) or email contact@glaretechnologies.com for more info.</p>";
+
+	page += "</div>   \n"; // End main div
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderMakingParcelIntoNFTFailed(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	std::string page;
+	page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Making parcel NFT failed.");
+
+	page += "<div class=\"main\">   \n";
+	page += "<p>Sorry, we failed to make the parcel into an NFT.</p>";
+
+	page += "<p>Please visit the Discord channel (see homepage) or email contact@glaretechnologies.com for more info.</p>";
+
+	page += "<p>You can try again via your <a href=\"/account\">account page</a>.</p>";
+	page += "</div>   \n"; // End main div
+
+	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	const ParcelID parcel_id(request_info.getPostIntField("parcel_id"));
-
+	try
 	{ // lock scope
+		const ParcelID parcel_id(request_info.getPostIntField("parcel_id"));
+
 		Lock lock(world_state.mutex);
 
 		User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
@@ -458,12 +502,26 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 		transaction->parcel_id = parcel->id;
 		transaction->user_eth_address = logged_in_user->controlled_eth_address;
 
-		world_state.sub_eth_transactions[transaction->id] = transaction;
+		parcel->minting_transaction_id = transaction->id;
 
+		world_state.sub_eth_transactions[transaction->id] = transaction;
 
 		world_state.markAsChanged();
 	
 	} // End lock scope
+	catch(web::WebsiteExcep&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/making_parcel_into_nft_failed");
+		return;
+	}
+	catch(glare::Exception&)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/making_parcel_into_nft_failed");
+		return;
+	}
+
+	web::ResponseUtils::writeRedirectTo(reply_info, "/making_parcel_into_nft?parcel_id=" + toString(request_info.getPostIntField("parcel_id")));
+	return;
 }
 
 
