@@ -39,7 +39,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 
 		ServerWorldState* root_world = world_state.getRootWorldState().ptr();
 
-		int num_auctions_shown = 0;
+		int num_auctions_shown = 0; // Num substrata auctions shown
 		const TimeStamp now = TimeStamp::currentTime();
 		auction_html += "<table style=\"width: 100%;\"><tr>\n";
 		for(auto it = root_world->parcels.begin(); (it != root_world->parcels.end()) && (num_auctions_shown < 3); ++it)
@@ -75,10 +75,39 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 		}
 		auction_html += "</tr></table>\n";
 
+		// If no auctions on substrata site were shown, show OpenSea auctions, if any.
+		int opensea_num_shown = 0;
 		if(num_auctions_shown == 0)
+		{
+			auction_html += "<table style=\"width: 100%;\"><tr>\n";
+			for(auto it = world_state.opensea_parcel_listings.begin(); (it != world_state.opensea_parcel_listings.end()) && (opensea_num_shown < 3); ++it)
+			{
+				const OpenSeaParcelListing& listing = *it;
+
+				auto parcel_res = root_world->parcels.find(listing.parcel_id); // Look up parcel
+				if(parcel_res != root_world->parcels.end())
+				{
+					const Parcel* parcel = parcel_res->second.ptr();
+
+					if(parcel->screenshot_ids.size() >= 1)
+					{
+						const uint64 shot_id = parcel->screenshot_ids[0]; // Close-in screenshot
+
+						const std::string opensea_url = "https://opensea.io/assets/0xa4535f84e8d746462f9774319e75b25bc151ba1d/" + listing.parcel_id.toString();
+
+						auction_html += "<td style=\"vertical-align:top\"><a href=\"/parcel/" + parcel->id.toString() + "\"><img src=\"/screenshot/" + toString(shot_id) + "\" width=\"200px\" alt=\"screenshot\" /></a>  <br/>"
+							"<a href=\"/parcel/" + parcel->id.toString() + "\">Parcel " + parcel->id.toString() + "</a> <a href=\"" + opensea_url + "\">View&nbsp;on&nbsp;OpenSea</a></td>";
+					}
+
+					opensea_num_shown++;
+				}
+			}
+			auction_html += "</tr></table>\n";
+		}
+
+		if(num_auctions_shown == 0 && opensea_num_shown == 0)
 			auction_html += "<p>Sorry, there are no parcels for sale here right now.  Please check back later!</p>";
 
-		auction_html += "<p>See also the <a href=\"https://opensea.io/collection/substrata-parcel\">OpenSea page for Substrata Parcels</a>.</p>";
 	} // end lock scope
 
 
@@ -108,7 +137,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"																																																			\n"
 	"	<h2>Buy a land parcel</h2>																																												\n"
 	 + auction_html + 
-	"   <a href=\"/parcel_auction_list\">View all parcels for sale</a>																																			\n"
+	"   <br/> <a href=\"/parcel_auction_list\">View all parcels for sale</a>																																			\n"
 	"																																																			\n"
 	"	<h2>Community</h2>																																														\n"
 	"																																																			\n"

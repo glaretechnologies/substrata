@@ -37,6 +37,12 @@ public:
 };
 
 
+struct OpenSeaParcelListing
+{
+	ParcelID parcel_id;
+};
+
+
 /*=====================================================================
 ServerWorldState
 ----------------
@@ -85,6 +91,10 @@ public:
 	// Ephemeral state that is not serialised to disk.  Set by CoinbasePollerThread.
 	double BTC_per_EUR;
 	double ETH_per_EUR;
+
+	// Ephemeral state that is not serialised to disk.  Set by OpenSeaPollerThread.
+	std::vector<OpenSeaParcelListing> opensea_parcel_listings;
+
 
 	::Mutex mutex;
 private:
