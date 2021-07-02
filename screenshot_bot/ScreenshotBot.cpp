@@ -91,6 +91,8 @@ int main(int argc, char* argv[])
 
 			while(1)
 			{
+				conPrint("Waiting for ScreenShotRequest...");
+
 				const uint32 request_type = socket->readUInt32();
 				if(request_type == Protocol::ScreenShotRequest)
 				{
@@ -162,6 +164,9 @@ int main(int argc, char* argv[])
 					conPrint("GUI_CLIENT> " + err_output);
 					conPrint("Gui client process terminated.");
 
+					if(process.getExitCode() != 0)
+						throw glare::Exception("Return code from gui_client was non-zero: " + toString(process.getExitCode()));
+
 					// Load generated screenshot
 					const std::string screenshot_data = FileUtils::readEntireFile(screenshot_path);
 
@@ -180,8 +185,8 @@ int main(int argc, char* argv[])
 		catch(glare::Exception& e)
 		{
 			// Connection failed.
-			conPrint("Connection failed: " + e.what());
-			PlatformUtils::Sleep(10000);
+			conPrint("Error: " + e.what());
+			PlatformUtils::Sleep(1000);
 		}
 	}
 
