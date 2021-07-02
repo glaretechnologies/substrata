@@ -61,6 +61,19 @@ static const Indigo::String toIndigoString(const std::string& s)
 }
 
 
+static bool checkForDisconnect(ThreadSafeQueue<Reference<ThreadMessage> >& msg_queue)
+{
+	Lock lock(msg_queue.getMutex());
+	while(msg_queue.unlockedNonEmpty())
+	{
+		Reference<ThreadMessage> msg = msg_queue.unlockedDequeue();
+		if(dynamic_cast<ClientDisconnectedFromServerMessage*>(msg.ptr()))
+			return true;
+	}
+	return false;
+}
+
+
 class LightMapperBot
 {
 public:
@@ -981,7 +994,7 @@ public:
 	}
 
 
-	void doLightMapping(WorldState& world_state, Reference<ClientThread>& client_thread_)
+	void doLightMapping(WorldState& world_state, Reference<ClientThread>& client_thread_, ThreadSafeQueue<Reference<ThreadMessage> >& msg_queue)
 	{
 		conPrint("---------------doLightMapping()-----------------");
 		this->client_thread = client_thread_;
@@ -1072,6 +1085,8 @@ public:
 					buildLightMapForOb(world_state, res->second.ptr());
 				}*/
 
+				if(checkForDisconnect(msg_queue))
+					throw glare::Exception("client thread disconnected.");
 
 				PlatformUtils::Sleep(100);
 			}
@@ -1132,59 +1147,78 @@ int main(int argc, char* argv[])
 	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
 	tls_config_insecure_noverifyname(client_tls_config);
 
-	Reference<ClientThread> client_thread = new ClientThread(
-		&msg_queue,
-		server_hostname,
-		server_port, // port
-		"", // avatar URL
-		"", // world name - default world
-		client_tls_config
-	);
-	client_thread->world_state = world_state;
 
-	ThreadManager client_thread_manager;
-	client_thread_manager.addThread(client_thread);
-
-	const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
-	const std::string resources_dir = appdata_path + "/resources";
-	conPrint("resources_dir: " + resources_dir);
-	Reference<ResourceManager> resource_manager = new ResourceManager(resources_dir);
-
-
-	// Make LogInMessage packet and enqueue to send
+	while(1) // While lightmapper bot should keep running:
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::LogInMessage);
-		packet.writeStringLengthFirst(username);
-		packet.writeStringLengthFirst(password);
+		// Connect to substrata server
+		try
+		{
+			// Reset msg queue (get rid of any disconnected msgs)
+			msg_queue.clear();
 
-		client_thread->enqueueDataToSend(packet);
+			Reference<ClientThread> client_thread = new ClientThread(
+				&msg_queue,
+				server_hostname,
+				server_port, // port
+				"", // avatar URL
+				"", // world name - default world
+				client_tls_config
+			);
+			client_thread->world_state = world_state;
+
+			ThreadManager client_thread_manager;
+			client_thread_manager.addThread(client_thread);
+
+			const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
+			const std::string resources_dir = appdata_path + "/resources";
+			conPrint("resources_dir: " + resources_dir);
+			Reference<ResourceManager> resource_manager = new ResourceManager(resources_dir);
+
+
+			// Make LogInMessage packet and enqueue to send
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::LogInMessage);
+				packet.writeStringLengthFirst(username);
+				packet.writeStringLengthFirst(password);
+
+				client_thread->enqueueDataToSend(packet);
+			}
+
+			// Send GetAllObjects msg
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::GetAllObjects);
+				client_thread->enqueueDataToSend(packet);
+			}
+
+			// Wait until we have received all object data.
+			conPrint("Waiting for initial data to be received");
+			while(!client_thread->all_objects_received)
+			{
+				if(checkForDisconnect(msg_queue))
+					throw glare::Exception("client thread disconnected.");
+
+				PlatformUtils::Sleep(100);
+				conPrintStr(".");
+			}
+
+			conPrint("Received objects.  world_state->objects.size(): " + toString(world_state->objects.size()));
+
+			conPrint("===================== Running LightMapperBot =====================");
+
+			LightMapperBot bot(server_hostname, server_port, resource_manager, client_tls_config);
+			bot.base_dir_path = PlatformUtils::getResourceDirectoryPath();
+			bot.doLightMapping(*world_state, client_thread, msg_queue);
+
+			conPrint("===================== Done Running LightMapperBot. =====================");
+		}
+		catch(glare::Exception& e)
+		{
+			// Connection failed.
+			conPrint("Error: " + e.what());
+			PlatformUtils::Sleep(5000);
+		}
 	}
-
-	// Send GetAllObjects msg
-	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::GetAllObjects);
-		client_thread->enqueueDataToSend(packet);
-	}
-
-	// Wait until we have received all object data.
-	conPrint("Waiting for initial data to be received");
-	while(!client_thread->all_objects_received)
-	{
-		PlatformUtils::Sleep(100);
-		conPrintStr(".");
-	}
-
-	conPrint("Received objects.  world_state->objects.size(): " + toString(world_state->objects.size()));
-
-	conPrint("===================== Running LightMapperBot =====================");
-
-	LightMapperBot bot(server_hostname, server_port, resource_manager, client_tls_config);
-	bot.base_dir_path = PlatformUtils::getResourceDirectoryPath();
-	bot.doLightMapping(*world_state, client_thread);
-
-	conPrint("===================== Done Running LightMapperBot. =====================");
-
 	return 0;
 }
