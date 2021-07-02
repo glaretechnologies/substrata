@@ -1743,29 +1743,55 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		//conPrint("processing animated textures took " + timer.elapsedString() + " (tex_upload_time: " + tex_upload_timer.elapsedString() + ")");
 	}
-	
 
-	const double screenshot_load_time = 15;
-	if(!screenshot_output_path.empty() && !done_screenshot_setup && total_timer.elapsed() > (screenshot_load_time - 1)) // TEMP HACK timer
+
+	if(!screenshot_output_path.empty())
 	{
-		// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
-		ui->editorDockWidget->setFloating(false);
-		this->addDockWidget(Qt::LeftDockWidgetArea, ui->editorDockWidget);
-		ui->editorDockWidget->show();
+		size_t num_obs;
+		{
+			Lock lock(this->world_state->mutex);
+			num_obs = world_state->objects.size();
+		}
 
-		ui->chatDockWidget->setFloating(false);
-		this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
-		ui->chatDockWidget->show();
+		conPrint("---------------Waiting for loading to be done for screenshot ---------------");
+		printVar(num_obs);
+		printVar(model_building_task_manager.getNumUnfinishedTasks());
+		printVar(texture_loader_task_manager.getNumUnfinishedTasks());
+		printVar(num_non_net_resources_downloading);
+		printVar(num_net_resources_downloading);
 
-		setGeometry(
-			QRect(100, 100, 2000, 1000)
-		);
-		setUpForScreenshot();
-	}
-	if(!screenshot_output_path.empty() && total_timer.elapsed() > screenshot_load_time) // TEMP HACK timer
-	{
-		saveScreenshot();
-		close();
+		const bool loaded_all =
+			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
+			(total_timer.elapsed() >= 5) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
+			(model_building_task_manager.getNumUnfinishedTasks() == 0) &&
+			(texture_loader_task_manager.getNumUnfinishedTasks() == 0) &&
+			(num_non_net_resources_downloading == 0) &&
+			(num_net_resources_downloading == 0);
+
+		if(loaded_all)
+		{
+			if(!done_screenshot_setup)
+			{
+				// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
+				ui->editorDockWidget->setFloating(false);
+				this->addDockWidget(Qt::LeftDockWidgetArea, ui->editorDockWidget);
+				ui->editorDockWidget->show();
+
+				ui->chatDockWidget->setFloating(false);
+				this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
+				ui->chatDockWidget->show();
+
+				setGeometry(
+					QRect(100, 100, 2000, 1000)
+				);
+				setUpForScreenshot();
+			}
+			else
+			{
+				saveScreenshot();
+				close();
+			}
+		}
 	}
 
 	if(false)//stats_timer.elapsed() > 2.0)
