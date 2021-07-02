@@ -39,6 +39,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <WorkerThreadTests.h>//TEMP for testing
 #include <WebListenerThread.h>
 #include "../webserver/CoinbasePollerThread.h"
+#include "../webserver/OpenSeaPollerThread.h"
 #include "../ethereum/RLP.h"//TEMP for testing
 #include "../ethereum/Signing.h"//TEMP for testing
 
@@ -192,6 +193,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			SHA256::test();
 			RLP::test();
 			Signing::test();
 			Keccak256::test();
@@ -420,6 +422,8 @@ int main(int argc, char *argv[])
 
 		// While Coinbase webhooks are not working, add a Coinbase polling thread.
 		web_thread_manager.addThread(new CoinbasePollerThread(server.world_state.ptr()));
+
+		web_thread_manager.addThread(new OpenSeaPollerThread(server.world_state.ptr()));
 
 
 		//-----------------------------------------------------------------------------------------
