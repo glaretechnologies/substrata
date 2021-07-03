@@ -1135,8 +1135,8 @@ int main(int argc, char* argv[])
 
 	Reference<WorldState> world_state = new WorldState();
 
-	const std::string server_hostname = "localhost";
-	//const std::string server_hostname = "substrata.info";
+	//const std::string server_hostname = "localhost";
+	const std::string server_hostname = "substrata.info";
 	const int server_port = 7600;
 
 
