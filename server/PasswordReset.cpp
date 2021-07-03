@@ -24,16 +24,8 @@ PasswordReset::~PasswordReset()
 }
 
 
-//bool PasswordReset::isPasswordValid(const std::string& password_attempt) const
-//{
-//	const std::string attempt_digest = computePasswordHash(password_attempt, this->password_hash_salt);
-//	return attempt_digest == this->hashed_password;
-//}
-//
-
-
-
-static const uint32 PASSWORD_RESET_SERIALISATION_VERSION = 1;
+static const uint32 PASSWORD_RESET_SERIALISATION_VERSION = 2;
+// Note: changed token to uint8 token_hash[32].
 
 
 void writeToStream(const PasswordReset& password_reset, OutStream& stream)
@@ -42,7 +34,7 @@ void writeToStream(const PasswordReset& password_reset, OutStream& stream)
 	stream.writeUInt32(PASSWORD_RESET_SERIALISATION_VERSION);
 
 	password_reset.created_time.writeToStream(stream);
-	stream.writeStringLengthFirst(password_reset.token);
+	stream.writeData(password_reset.token_hash.data(), 32);
 }
 
 
@@ -54,5 +46,14 @@ void readFromStream(InStream& stream, PasswordReset& password_reset)
 		throw glare::Exception("Unsupported version " + toString(v) + ", expected " + toString(PASSWORD_RESET_SERIALISATION_VERSION) + ".");
 
 	password_reset.created_time.readFromStream(stream);
-	password_reset.token = stream.readStringLengthFirst(10000);
+	if(v == 1)
+	{
+		const std::string token = stream.readStringLengthFirst(10000);
+		std::memset(password_reset.token_hash.data(), 0, 32);
+		password_reset.created_time = TimeStamp(0); // Mark reset token invalid by setting created time to 0 (far in the past)
+	}
+	else
+	{
+		stream.readData(password_reset.token_hash.data(), 32);
+	}
 }

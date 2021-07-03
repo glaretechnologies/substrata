@@ -37,7 +37,8 @@ public:
 
 	void sendPasswordResetEmail(); // throws glare::Exception on error
 
-	bool resetPasswordWithToken(const std::string& reset_token, const std::string& new_password);
+	bool isResetTokenHashValidForUser(const std::array<uint8, 32>& reset_token_hash) const;
+	bool resetPasswordWithTokenHash(const std::array<uint8, 32>& reset_token_hash, const std::string& new_password);
 
 	UserID id;
 

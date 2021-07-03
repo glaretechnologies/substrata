@@ -106,7 +106,6 @@ private slots:;
 	void on_actionRedo_triggered();
 
 	void applyUndoOrRedoObject(const Reference<WorldObject>& ob);
-	void passwordResetRequested();
 
 	void sendChatMessageSlot();
 

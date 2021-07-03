@@ -503,4 +503,47 @@ void renderNotFoundPage(ServerAllWorldsState& world_state, const web::RequestInf
 }
 
 
+void renderBotStatusPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Bot Status");
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+		page += "<h3>Screenshot bot</h3>";
+		if(world_state.last_screenshot_bot_contact_time.time == 0)
+			page += "No contact from screenshot bot since last server start.";
+		else
+		{
+			if(TimeStamp::currentTime().time - world_state.last_screenshot_bot_contact_time.time < 60)
+				page += "Screenshot bot is running.  ";
+			page += "Last contact from screenshot bot " + world_state.last_screenshot_bot_contact_time.timeAgoDescription();
+		}
+
+		page += "<h3>Lightmapper bot</h3>";
+		if(world_state.last_lightmapper_bot_contact_time.time == 0)
+			page += "No contact from lightmapper bot since last server start.";
+		else
+		{
+			if(TimeStamp::currentTime().time - world_state.last_lightmapper_bot_contact_time.time < 60 * 10)
+				page += "Lightmapper bot is running.  ";
+			page += "Last contact from lightmapper bot " + world_state.last_lightmapper_bot_contact_time.timeAgoDescription();
+		}
+
+		page += "<h3>Ethereum parcel minting bot</h3>";
+		if(world_state.last_eth_bot_contact_time.time == 0)
+			page += "No contact from eth bot since last server start.";
+		else
+		{
+			if(TimeStamp::currentTime().time - world_state.last_eth_bot_contact_time.time < 60 * 10)
+				page += "Eth bot is running.  ";
+			page += "Last contact from eth bot " + world_state.last_eth_bot_contact_time.timeAgoDescription();
+		}
+	}
+
+	page += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
 }  // end namespace MainPageHandlers

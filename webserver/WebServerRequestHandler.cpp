@@ -96,6 +96,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			LoginHandlers::handleSignUpPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/reset_password_post")
+		{
+			LoginHandlers::handleResetPasswordPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/set_new_password_post")
+		{
+			LoginHandlers::handleSetNewPasswordPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/ipn_listener")
 		{
 			PayPalHandlers::handleIPNPost(*this->world_state, request, reply_info);
@@ -189,6 +197,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderAboutSubstrataPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/bot_status")
+		{
+			MainPageHandlers::renderBotStatusPage(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/pdt_landing")
 		{
 			PayPalHandlers::handlePayPalPDTOrderLanding(*this->world_state, request, reply_info);
@@ -264,6 +276,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/signup")
 		{
 			LoginHandlers::renderSignUpPage(request, reply_info);
+		}
+		else if(request.path == "/reset_password")
+		{
+			LoginHandlers::renderResetPasswordPage(request, reply_info);
+		}
+		else if(request.path == "/reset_password_email")
+		{
+			LoginHandlers::renderResetPasswordFromEmailPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/account")
 		{

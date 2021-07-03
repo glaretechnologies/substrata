@@ -31,7 +31,8 @@ LoginDialog::LoginDialog(QSettings* settings_)
 
 	this->buttonBox->button(QDialogButtonBox::Ok)->setText("Log in");
 
-	this->resetPasswordLabel->setText("<a href=\"#reset_password\">Reset Password</a>");
+	this->resetPasswordLabel->setOpenExternalLinks(true);
+	this->resetPasswordLabel->setText("<a href=\"https://substrata.info/reset_password\">Forgot password?</a>");
 
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
 }
@@ -40,12 +41,6 @@ LoginDialog::LoginDialog(QSettings* settings_)
 LoginDialog::~LoginDialog()
 {
 	settings->setValue("LoginDialog/geometry", saveGeometry());
-}
-
-
-void LoginDialog::on_resetPasswordLabel_linkActivated(const QString& link)
-{
-	emit passWordResetRequested();
 }
 
 
