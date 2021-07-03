@@ -13,6 +13,8 @@ Copyright Glare Technologies Limited 2018 -
 #include <string>
 #include <OutStream.h>
 #include <InStream.h>
+#include <vector>
+#include <array>
 
 
 /*=====================================================================
@@ -28,7 +30,10 @@ public:
 
 	TimeStamp created_time;
 
-	std::string token;
+	//std::string token_hash; // SHA 256 hash of the token
+	//std::vector<uint8> token_hash; // SHA 256 hash of the token
+	//uint8 token_hash[32];
+	std::array<uint8, 32> token_hash;
 };
 
 

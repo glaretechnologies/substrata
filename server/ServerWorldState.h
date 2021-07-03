@@ -95,6 +95,9 @@ public:
 	// Ephemeral state that is not serialised to disk.  Set by OpenSeaPollerThread.
 	std::vector<OpenSeaParcelListing> opensea_parcel_listings;
 
+	TimeStamp last_screenshot_bot_contact_time;
+	TimeStamp last_lightmapper_bot_contact_time;
+	TimeStamp last_eth_bot_contact_time;
 
 	::Mutex mutex;
 private:

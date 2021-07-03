@@ -3997,45 +3997,6 @@ void MainWindow::on_actionReset_Layout_triggered()
 }
 
 
-void MainWindow::passwordResetRequested()
-{
-	conPrint("passwordResetRequested()");
-
-	ResetPasswordDialog dialog(settings);
-	const int res = dialog.exec();
-	if(res == QDialog::Accepted)
-	{
-		// Make RequestPasswordReset packet and enqueue to send
-		const std::string email_addr = QtUtils::toIndString(dialog.emailLineEdit->text());
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::RequestPasswordReset);
-		packet.writeStringLengthFirst(email_addr);
-		this->client_thread->enqueueDataToSend(packet);
-
-		QMessageBox msgBox;
-		msgBox.setWindowTitle("Password Reset Requested");
-		msgBox.setText("A reset-password email has been sent to the email address you entered.");
-		msgBox.exec();
-
-		ChangePasswordDialog change_password_dialog(settings);
-		change_password_dialog.setResetCodeLineEditVisible(true);
-		const int res2 = change_password_dialog.exec();
-		if(res2 == QDialog::Accepted)
-		{
-			// Send a ChangePasswordWithResetToken packet
-			const std::string reset_token = QtUtils::toIndString(change_password_dialog.resetCodeLineEdit->text());
-			const std::string new_password = QtUtils::toIndString(change_password_dialog.passwordLineEdit->text());
-			SocketBufferOutStream packet2(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet2.writeUInt32(Protocol::ChangePasswordWithResetToken);
-			packet2.writeStringLengthFirst(email_addr);
-			packet2.writeStringLengthFirst(reset_token);
-			packet2.writeStringLengthFirst(new_password);
-			this->client_thread->enqueueDataToSend(packet2);
-		}
-	}
-}
-
-
 void MainWindow::on_actionLogIn_triggered()
 {
 	if(connection_state != ServerConnectionState_Connected)
@@ -4048,7 +4009,6 @@ void MainWindow::on_actionLogIn_triggered()
 	}
 
 	LoginDialog dialog(settings);
-	connect(&dialog, SIGNAL(passWordResetRequested()), this, SLOT(passwordResetRequested()));
 	const int res = dialog.exec();
 	if(res == QDialog::Accepted)
 	{

@@ -127,7 +127,6 @@ void WorkerThread::handleResourceUploadConnection()
 
 	try
 	{
-
 		const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
 		const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
 
@@ -358,6 +357,8 @@ void WorkerThread::handleScreenshotBotConnection()
 			{ // lock scope
 				Lock lock(server->world_state->mutex);
 
+				server->world_state->last_screenshot_bot_contact_time = TimeStamp::currentTime();
+
 				// Find first screenshot in ScreenshotState_notdone state.  NOTE: slow linear scan.
 				for(auto it = server->world_state->screenshots.begin(); it != server->world_state->screenshots.end(); ++it)
 				{
@@ -448,11 +449,13 @@ void WorkerThread::handleEthBotConnection()
 			
 		while(1)
 		{
-			// Poll server state for a screenshot request
+			// Poll server state for a request
 			SubEthTransactionRef trans;
 			uint64 largest_nonce_used = 0; 
 			{ // lock scope
 				Lock lock(server->world_state->mutex);
+
+				server->world_state->last_eth_bot_contact_time = TimeStamp::currentTime();
 
 				// Find first transction in New state.  NOTE: slow linear scan.
 				for(auto it = server->world_state->sub_eth_transactions.begin(); it != server->world_state->sub_eth_transactions.end(); ++it)
@@ -1219,7 +1222,7 @@ void WorkerThread::doRun()
 							bool read = false;
 
 							// Only allow updating of parcels is this is a website connection.
-							const bool have_permissions = connection_type == Protocol::ConnectionTypeWebsite;
+							const bool have_permissions = false;// connection_type == Protocol::ConnectionTypeWebsite;
 
 							if(have_permissions)
 							{
@@ -1334,6 +1337,9 @@ void WorkerThread::doRun()
 						conPrint("logged_in: " + boolToString(logged_in));
 						if(logged_in)
 						{
+							if(username == "lightmapperbot")
+								server->world_state->last_lightmapper_bot_contact_time = TimeStamp::currentTime(); // bit of a hack
+
 							// Send logged-in message to client
 							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 							packet.writeUInt32(Protocol::LoggedInMessageID);
@@ -1461,28 +1467,30 @@ void WorkerThread::doRun()
 
 						const std::string email    = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-						conPrint("email: " + email);
+						// NOTE: This stuff is done via the website now instead.
 
-						// TEMP: Send password reset email in this thread for now. 
-						// TODO: move to another thread (make some kind of background task?)
-						{
-							Lock lock(world_state->mutex);
-							for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
-								if(it->second->email_address == email)
-								{
-									User* user = it->second.getPointer();
-									try
-									{
-										user->sendPasswordResetEmail();
-										world_state->markAsChanged(); // Mark as changed so gets saved to disk.
-										conPrint("Sent user password reset email to '" + email + ", username '" + user->name + "'");
-									}
-									catch(glare::Exception& e)
-									{
-										conPrint("Sending password reset email failed: " + e.what());
-									}
-								}
-						}
+						//conPrint("email: " + email);
+						//
+						//// TEMP: Send password reset email in this thread for now. 
+						//// TODO: move to another thread (make some kind of background task?)
+						//{
+						//	Lock lock(world_state->mutex);
+						//	for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+						//		if(it->second->email_address == email)
+						//		{
+						//			User* user = it->second.getPointer();
+						//			try
+						//			{
+						//				user->sendPasswordResetEmail();
+						//				world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+						//				conPrint("Sent user password reset email to '" + email + ", username '" + user->name + "'");
+						//			}
+						//			catch(glare::Exception& e)
+						//			{
+						//				conPrint("Sending password reset email failed: " + e.what());
+						//			}
+						//		}
+						//}
 					
 						break;
 					}
@@ -1494,26 +1502,28 @@ void WorkerThread::doRun()
 						const std::string reset_token	= socket->readStringLengthFirst(MAX_STRING_LEN);
 						const std::string new_password	= socket->readStringLengthFirst(MAX_STRING_LEN);
 
-						conPrint("email: " + email);
-						conPrint("reset_token: " + reset_token);
-						//conPrint("new_password: " + new_password);
-
-						{
-							Lock lock(world_state->mutex);
-
-							// Find user with the given email address:
-							for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
-								if(it->second->email_address == email)
-								{
-									User* user = it->second.getPointer();
-									const bool reset = user->resetPasswordWithToken(reset_token, new_password);
-									if(reset)
-									{
-										world_state->markAsChanged(); // Mark as changed so gets saved to disk.
-										conPrint("User password successfully updated.");
-									}
-								}
-						}
+						// NOTE: This stuff is done via the website now instead.
+						// 
+						//conPrint("email: " + email);
+						//conPrint("reset_token: " + reset_token);
+						////conPrint("new_password: " + new_password);
+						//
+						//{
+						//	Lock lock(world_state->mutex);
+						//
+						//	// Find user with the given email address:
+						//	for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+						//		if(it->second->email_address == email)
+						//		{
+						//			User* user = it->second.getPointer();
+						//			const bool reset = user->resetPasswordWithToken(reset_token, new_password);
+						//			if(reset)
+						//			{
+						//				world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+						//				conPrint("User password successfully updated.");
+						//			}
+						//		}
+						//}
 
 						break;
 					}

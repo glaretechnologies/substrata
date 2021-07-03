@@ -20,7 +20,7 @@ Generated at 2013-04-16 21:36:01 +0100
 #endif
 
 
-TimeStamp::TimeStamp()
+TimeStamp::TimeStamp() : time(0)
 {
 
 }

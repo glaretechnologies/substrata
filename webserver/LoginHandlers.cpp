@@ -123,11 +123,12 @@ void renderLoginPage(const web::RequestInfo& request_info, web::ReplyInfo& reply
 	page_out += "<input type=\"hidden\" name=\"return\" value=\"" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\"><br>";
 	page_out += "username: <input type=\"text\" name=\"username\"><br>";
 	page_out += "password: <input type=\"password\" name=\"password\"><br/>";
-	page_out += "<input type=\"submit\" value=\"Submit\">";
+	page_out += "<input type=\"submit\" value=\"Log in\">";
 	page_out += "</form>";
 
-	page_out += "<br/><br/><br/>";
-	page_out += "<div>Don't have an account?  <a href=\"/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\">Sign up</a>";
+	page_out += "<br/>";
+	page_out += "<div><a href=\"/reset_password\">Forgot password?</a></div>";
+	page_out += "<div>Don't have an account?  <a href=\"/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\">Sign up</a></div>";
 
 	page_out += "</body></html>";
 
@@ -254,7 +255,6 @@ void renderSignUpPage(const web::RequestInfo& request_info, web::ReplyInfo& repl
 	page_out += "</form>";
 
 	page_out += "<br/><br/><br/>";
-	page_out += "<div>Don't have an account?  <a href=\"/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\">Sign up</a>";
 
 	page_out += WebServerResponseUtils::standardFooter(request_info, true);
 
@@ -344,6 +344,231 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 	catch(InvalidCredentialsExcep& e)
 	{
 		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSignUpPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void renderResetPasswordPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Reset Password");
+
+	const web::UnsafeString msg = request_info.getURLParam("msg");
+
+	page_out += "<body>";
+	page_out += "</head><h1>Reset Password</h1><body>";
+
+	if(!msg.empty())
+		page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
+
+	page_out += "<form action=\"reset_password_post\" method=\"post\">";
+	page_out += "Enter your email or username: <input type=\"text\" name=\"username\"><br>";
+	page_out += "<input type=\"submit\" value=\"Reset password\">";
+	page_out += "</form>";
+
+	page_out += "<br/><br/><br/>";
+
+	page_out += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		const web::UnsafeString username_or_email = request_info.getPostField("username"); // or email address
+		
+		User* matching_user = NULL;
+		if(StringUtils::containsChar(username_or_email.str(), '@'))
+		{
+			// Treat this as an email address
+			const std::string email_addr = username_or_email.str();
+
+			{ // Lock scope
+				Lock lock(world_state.mutex);
+				for(auto it = world_state.user_id_to_users.begin(); it != world_state.user_id_to_users.end(); ++it)
+					if(it->second->email_address == email_addr)
+					{
+						matching_user = it->second.getPointer();
+						break;
+					}
+			} // End lock scope
+		}
+		else // Treat this as a username
+		{
+			const std::string username = username_or_email.str();
+
+			{ // Lock scope
+				Lock lock(world_state.mutex);
+				for(auto it = world_state.user_id_to_users.begin(); it != world_state.user_id_to_users.end(); ++it)
+					if(it->second->name == username)
+					{
+						matching_user = it->second.getPointer();
+						break;
+					}
+			} // End lock scope
+		}
+
+		if(matching_user)
+		{
+			// TEMP: Send password reset email in this thread for now. 
+			// TODO: move to another thread (make some kind of background task?)
+			try
+			{
+				matching_user->sendPasswordResetEmail();
+				
+				conPrint("Sent user password reset email to '" + matching_user->email_address + ", username '" + matching_user->name + "'");
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Sending password reset email failed: " + e.what());
+			}
+
+			web::ResponseUtils::writeRedirectTo(reply_info, "/reset_password?msg=" + web::Escaping::URLEscape("Email sent"));
+
+			world_state.markAsChanged(); // Mark as changed so gets saved to disk.
+		}
+		else
+		{
+			web::ResponseUtils::writeRedirectTo(reply_info, "/reset_password?msg=" + web::Escaping::URLEscape("Could not find matching username or email address"));
+		}
+	}
+	catch(InvalidCredentialsExcep& e)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSignUpPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void renderResetPasswordFromEmailPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Reset Password");
+
+		const web::UnsafeString msg = request_info.getURLParam("msg");
+
+		page_out += "<body>";
+		page_out += "</head><h1>Reset Password</h1><body>";
+
+		const std::string reset_token = request_info.getURLParam("token").str();
+
+		const std::vector<unsigned char> token_hash_vec = SHA256::hash(reset_token);
+
+		std::array<uint8, 32> token_hash;
+		std::memcpy(token_hash.data(), token_hash_vec.data(), 32);
+
+
+		if(!msg.empty())
+			page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
+
+		conPrint("reset_token: " + reset_token);
+		//conPrint("new_password: " + new_password);
+
+		bool valid_token = false;
+		{
+			Lock lock(world_state.mutex);
+
+			// Find user with the given email address:
+			for(auto it = world_state.user_id_to_users.begin(); it != world_state.user_id_to_users.end(); ++it)
+			{
+				User* user = it->second.getPointer();
+				if(user->isResetTokenHashValidForUser(token_hash))
+				{
+					valid_token = true;
+					break;
+				}
+			}
+		}
+
+		if(valid_token)
+		{
+			page_out += "<form action=\"set_new_password_post\" method=\"post\">";
+			page_out += "Enter a new password: <input type=\"password\" name=\"password\"><br>";
+			page_out += "<input type=\"hidden\" name=\"reset_token\" value=\"" + web::Escaping::HTMLEscape(reset_token) + "\"><br>";
+			page_out += "<input type=\"submit\" value=\"Set new password\">";
+			page_out += "</form>";
+
+			page_out += "<br/><br/><br/>";
+		}
+		else
+		{
+			page_out += "Sorry, that reset token is invalid.  It may have been used, or it may have expired.";
+		}
+
+		page_out += WebServerResponseUtils::standardFooter(request_info, true);
+
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+	}
+	catch(InvalidCredentialsExcep& e)
+	{
+		web::ResponseUtils::writeRedirectTo(reply_info, "/signup?return=" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "&msg=" + web::Escaping::URLEscape(e.what()));
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSignUpPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+// From the reset password link from the password reset email
+void handleSetNewPasswordPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		const std::string reset_token = request_info.getPostField("reset_token").str();
+		const std::string new_password = request_info.getPostField("password").str();
+
+		const std::vector<unsigned char> token_hash_vec = SHA256::hash(reset_token);
+
+		std::array<uint8, 32> token_hash;
+		std::memcpy(token_hash.data(), token_hash_vec.data(), 32);
+
+		if(new_password.size() < 6)
+		{
+			web::ResponseUtils::writeRedirectTo(reply_info, "/reset_password_email?token=" + web::Escaping::URLEscape(reset_token) + "&msg=" + web::Escaping::URLEscape("Password is too short, must have at least 6 characters"));
+			return;
+		}
+
+		bool password_reset = false;
+		{
+			Lock lock(world_state.mutex);
+
+			// Find user with the given email address:
+			for(auto it = world_state.user_id_to_users.begin(); it != world_state.user_id_to_users.end(); ++it)
+			{
+				User* user = it->second.getPointer();
+				if(user->isResetTokenHashValidForUser(token_hash))
+				{
+					password_reset = user->resetPasswordWithTokenHash(token_hash, new_password);
+					if(password_reset)
+						break;
+				}
+			}
+		}
+
+		if(password_reset)
+		{
+			conPrint("handleSetNewPasswordPost(): User succesfully reset password.");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/login?msg=" + web::Escaping::URLEscape("New password set"));
+		}
+		else
+		{
+			conPrint("handleSetNewPasswordPost(): User failed to reset password.");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/login?msg=" + web::Escaping::URLEscape("Failed to set new password"));
+		}
 	}
 	catch(glare::Exception& e)
 	{
