@@ -565,6 +565,7 @@ void WorkerThread::doRun()
 	UID client_avatar_uid(0);
 	Reference<User> client_user; // Will be a null reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
 	Reference<ServerWorldState> cur_world_state; // World the client is connected to.
+	bool logged_in_user_is_lightmapper_bot = false; // Just for updating the last_lightmapper_bot_contact_time.
 
 	try
 	{
@@ -740,6 +741,10 @@ void WorkerThread::doRun()
 					}
 				}
 			}
+
+
+			if(logged_in_user_is_lightmapper_bot)
+				server->world_state->last_lightmapper_bot_contact_time = TimeStamp::currentTime(); // bit of a hack
 
 
 #if defined(_WIN32) || defined(OSX)
@@ -1338,7 +1343,7 @@ void WorkerThread::doRun()
 						if(logged_in)
 						{
 							if(username == "lightmapperbot")
-								server->world_state->last_lightmapper_bot_contact_time = TimeStamp::currentTime(); // bit of a hack
+								logged_in_user_is_lightmapper_bot = true;
 
 							// Send logged-in message to client
 							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
