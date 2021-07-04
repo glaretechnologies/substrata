@@ -177,7 +177,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 #if defined(_WIN32)
 	interop_device_handle(NULL),
 #endif
-	force_new_undo_edit(false)
+	force_new_undo_edit(false),
+	log_window(NULL)
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -220,16 +221,20 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	
 	
 	// Open Log File
-	const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
-	this->logfile.open(StringUtils::UTF8ToPlatformUnicodeEncoding(logfile_path).c_str(), std::ios_base::out);
-	if(!logfile.good())
-		conPrint("WARNING: Failed to open log file at '" + logfile_path + "' for writing.");
-	logfile << "============================= Cyberspace Started =============================" << std::endl;
-	logfile << Clock::getAsciiTime() << std::endl;
+	//const std::string logfile_path = FileUtils::join(this->appdata_path, "log.txt");
+	//this->logfile.open(StringUtils::UTF8ToPlatformUnicodeEncoding(logfile_path).c_str(), std::ios_base::out);
+	//if(!logfile.good())
+	//	conPrint("WARNING: Failed to open log file at '" + logfile_path + "' for writing.");
+	//logfile << "============================= Cyberspace Started =============================" << std::endl;
+	//logfile << Clock::getAsciiTime() << std::endl;
 
 
 
 	settings = new QSettings("Glare Technologies", "Cyberspace");
+
+	// Create the LogWindow early so we can log stuff to it.
+	log_window = new LogWindow(this, settings);
+
 
 	const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble();
 	proximity_loader.setLoadDistance(dist);
@@ -534,6 +539,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 		}
 	}
 	obs_with_animated_tex.clear();
+
+	if(log_window) log_window->close();
 
 	QMainWindow::closeEvent(event);
 }
@@ -1152,8 +1159,18 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 
 void MainWindow::print(const std::string& message) // Print to log and console
 {
-	conPrint(message);
-	this->logfile << message << std::endl;
+	//conPrint(message);
+	//this->logfile << message << std::endl;
+	logMessage(message);
+}
+
+
+void MainWindow::logMessage(const std::string& msg) // Print to stdout and append to LogWindow log display
+{
+	conPrint(msg);
+	//this->logfile << msg << "\n";
+	if(this->log_window)
+		this->log_window->appendLine(msg);
 }
 
 
@@ -1277,6 +1294,9 @@ struct AvatarNameInfo
 
 void MainWindow::updateOnlineUsersList() // Works off world state avatars.
 {
+	if(world_state.isNull())
+		return;
+
 	std::vector<AvatarNameInfo> names;
 	{
 		Lock lock(world_state->mutex);
@@ -1724,6 +1744,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	ui->glWidget->makeCurrent();
 
 	// Set current animation frame for objects with animated textures
+	if(world_state.nonNull())
 	{
 		//Timer timer;
 		//Timer tex_upload_timer;
@@ -1745,7 +1766,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
-	if(!screenshot_output_path.empty())
+	if(!screenshot_output_path.empty() && world_state.nonNull())
 	{
 		size_t num_obs;
 		{
@@ -1832,7 +1853,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-	const double global_time = this->world_state->getCurrentGlobalTime(); // Used as input into script functions
+	const double global_time = world_state.nonNull() ? this->world_state->getCurrentGlobalTime() : 0.0; // Used as input into script functions
 
 	ui->indigoView->timerThink();
 
@@ -1895,168 +1916,170 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 	
 
-	// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
-	// We don't want to do too much at one time or it will cause hitches.
-	// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
-	// We alternate for fairness.
-	const double MAX_LOADING_TIME = 0.050; // 10 ms.
-	Timer loading_timer;
-	while((!model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
+	if(world_state.nonNull())
 	{
-		// ui->glWidget->makeCurrent();
-
-		if(process_model_loaded_next && !model_loaded_messages_to_process.empty())
+		// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
+		// We don't want to do too much at one time or it will cause hitches.
+		// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
+		// We alternate for fairness.
+		const double MAX_LOADING_TIME = 0.050; // 10 ms.
+		Timer loading_timer;
+		while((!model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
 		{
-			const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
-			model_loaded_messages_to_process.pop_front();
+			// ui->glWidget->makeCurrent();
 
-			try
+			if(process_model_loaded_next && !model_loaded_messages_to_process.empty())
 			{
-				WorldObjectRef message_ob = message->ob;
+				const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
+				model_loaded_messages_to_process.pop_front();
 
-				// Remove placeholder model if using one.
-				//if(message_ob->using_placeholder_model)
-					removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
-
-				if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
+				try
 				{
-					static const bool LOAD_PHYSICS_RAYMESH = true;
+					WorldObjectRef message_ob = message->ob;
 
-					message_ob->opengl_engine_ob = message->opengl_ob;
-					if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
+					// Remove placeholder model if using one.
+					//if(message_ob->using_placeholder_model)
+						removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
 
-					const std::string loaded_model_url = message_ob->model_url;
-
-					if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
-
-					// Add this object to the GL engine and physics engine.
-					if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
+					if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
 					{
-						for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
-						{
-							if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
-								message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
+						static const bool LOAD_PHYSICS_RAYMESH = true;
 
-							if(!message_ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-								message_ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].lightmap_path));
+						message_ob->opengl_engine_ob = message->opengl_ob;
+						if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
+
+						const std::string loaded_model_url = message_ob->model_url;
+
+						if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
+
+						// Add this object to the GL engine and physics engine.
+						if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
+						{
+							for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
+							{
+								if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
+									message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
+
+								if(!message_ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+									message_ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].lightmap_path));
+							}
+
+							ui->glWidget->addObject(message_ob->opengl_engine_ob);
+
+							if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(message_ob->physics_object);
+							if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+
+							ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+
+							loadScriptForObject(message_ob.ptr()); // Load any script for the object.
 						}
 
-						ui->glWidget->addObject(message_ob->opengl_engine_ob);
-
-						if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(message_ob->physics_object);
-						if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
-
-						ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
-
-						loadScriptForObject(message_ob.ptr()); // Load any script for the object.
-					}
-
-					// Iterate over objects, and assign the loaded model for any other objects also using this model:
-					if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
-					{
-						Lock lock(this->world_state->mutex);
-						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						// Iterate over objects, and assign the loaded model for any other objects also using this model:
+						if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
 						{
-							WorldObject* ob = it->second.getPointer();
-							
-							if(ob->model_url == loaded_model_url)
+							Lock lock(this->world_state->mutex);
+							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 							{
-								try
+								WorldObject* ob = it->second.getPointer();
+								
+								if(ob->model_url == loaded_model_url)
 								{
-									if(!isFinite(ob->angle) || !ob->axis.isFinite())
-										throw glare::Exception("Invalid angle or axis");
-
-									// Remove any existing OpenGL and physics model
-									if(ob->using_placeholder_model)
-										removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-									// Create GLObject and PhysicsObjects for this world object if they have not been created already.
-									// They may have been created in the LoadModelTask already.
-									if(ob->opengl_engine_ob.isNull())
+									try
 									{
-										const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+										if(!isFinite(ob->angle) || !ob->axis.isFinite())
+											throw glare::Exception("Invalid angle or axis");
 
-										Reference<RayMesh> raymesh;
-										ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
-											false, // skip opengl calls
-											raymesh);
+										// Remove any existing OpenGL and physics model
+										if(ob->using_placeholder_model)
+											removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-										if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
-										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
-										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
-										if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
-									}
-									else
-									{
-										//assert(ob->physics_object.nonNull());
-									}
-
-									if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
-									{
-										// Shouldn't be needed.
-										if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-											OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
-
-										for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+										// Create GLObject and PhysicsObjects for this world object if they have not been created already.
+										// They may have been created in the LoadModelTask already.
+										if(ob->opengl_engine_ob.isNull())
 										{
-											if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
-												ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-											if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-												ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+											Reference<RayMesh> raymesh;
+											ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+												false, // skip opengl calls
+												raymesh);
+
+											if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
+											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
+											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
+											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
+										}
+										else
+										{
+											//assert(ob->physics_object.nonNull());
 										}
 
-										ui->glWidget->addObject(ob->opengl_engine_ob);
+										if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
+										{
+											// Shouldn't be needed.
+											if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+												OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
-										if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(ob->physics_object);
-										if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+											for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+											{
+												if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+													ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
 
-										ui->indigoView->objectAdded(*ob, *this->resource_manager);
+												if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+													ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+											}
 
-										loadScriptForObject(ob); // Load any script for the object.
+											ui->glWidget->addObject(ob->opengl_engine_ob);
+
+											if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(ob->physics_object);
+											if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+
+											ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+											loadScriptForObject(ob); // Load any script for the object.
+										}
 									}
-								}
-								catch(glare::Exception& e)
-								{
-									print("Error while loading model: " + e.what());
+									catch(glare::Exception& e)
+									{
+										print("Error while loading model: " + e.what());
+									}
 								}
 							}
 						}
 					}
 				}
+				catch(glare::Exception& e)
+				{
+					print("Error while loading model: " + e.what());
+				}
 			}
-			catch(glare::Exception& e)
+
+			if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
 			{
-				print("Error while loading model: " + e.what());
+				// Process any loaded textures
+				const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
+				texture_loaded_messages_to_process.pop_front();
+
+				// conPrint("Handling texture loaded message " + message->tex_path);
+
+				//Timer timer;
+				try
+				{
+					// ui->glWidget->makeCurrent();
+					ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key));
+				}
+				catch(glare::Exception& e)
+				{
+					print("Error while loading texture: " + e.what());
+				}
+				//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
 			}
+
+			process_model_loaded_next = !process_model_loaded_next;
 		}
-
-		if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
-		{
-			// Process any loaded textures
-			const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
-			texture_loaded_messages_to_process.pop_front();
-
-			// conPrint("Handling texture loaded message " + message->tex_path);
-
-			//Timer timer;
-			try
-			{
-				// ui->glWidget->makeCurrent();
-				ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key));
-			}
-			catch(glare::Exception& e)
-			{
-				print("Error while loading texture: " + e.what());
-			}
-			//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
-		}
-
-		process_model_loaded_next = !process_model_loaded_next;
 	}
-
 	
 	// Handle any messages (chat messages etc..)
 	{
@@ -2136,56 +2159,64 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const AvatarIsHereMessage* m = static_cast<const AvatarIsHereMessage*>(msg.getPointer());
 
-				Lock lock(this->world_state->mutex);
-
-				auto res = this->world_state->avatars.find(m->avatar_uid);
-				if(res != this->world_state->avatars.end())
+				if(world_state.nonNull())
 				{
-					Avatar* avatar = res->second.getPointer();
+					Lock lock(this->world_state->mutex);
 
-					ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
-						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
-						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> is here.</i>"));
-					updateOnlineUsersList();
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
+					{
+						Avatar* avatar = res->second.getPointer();
+
+						ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
+							toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
+							")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> is here.</i>"));
+						updateOnlineUsersList();
+					}
 				}
 			}
 			else if(dynamic_cast<const AvatarCreatedMessage*>(msg.getPointer()))
 			{
 				const AvatarCreatedMessage* m = static_cast<const AvatarCreatedMessage*>(msg.getPointer());
 
-				Lock lock(this->world_state->mutex);
-
-				auto res = this->world_state->avatars.find(m->avatar_uid);
-				if(res != this->world_state->avatars.end())
+				if(world_state.nonNull())
 				{
-					const Avatar* avatar = res->second.getPointer();
-					ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
-						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
-						")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>"));
-					updateOnlineUsersList();
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
+					{
+						const Avatar* avatar = res->second.getPointer();
+						ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
+							toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
+							")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>"));
+						updateOnlineUsersList();
+					}
 				}
 			}
 			else if(dynamic_cast<const ChatMessage*>(msg.getPointer()))
 			{
 				const ChatMessage* m = static_cast<const ChatMessage*>(msg.getPointer());
 
-				// Look up sending avatar name colour.  TODO: could do this with sending avatar UID, would be faster + simpler.
-				Colour3f col;
+				if(world_state.nonNull())
 				{
-					Lock lock(this->world_state->mutex);
-
-					for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+					// Look up sending avatar name colour.  TODO: could do this with sending avatar UID, would be faster + simpler.
+					Colour3f col;
 					{
-						const Avatar* avatar = it->second.getPointer();
-						if(avatar->name == m->name)
-							col = avatar->name_colour;
+						Lock lock(this->world_state->mutex);
+
+						for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+						{
+							const Avatar* avatar = it->second.getPointer();
+							if(avatar->name == m->name)
+								col = avatar->name_colour;
+						}
 					}
+
+					ui->chatMessagesTextEdit->append(QtUtils::toQString(
+						"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(m->name) + "</span>: " +
+						web::Escaping::HTMLEscape(m->msg) + "</p>"));
 				}
-
-				ui->chatMessagesTextEdit->append(QtUtils::toQString(
-					"<p><span style=\"color:rgb(" + toString(col.r * 255) + ", " + toString(col.g * 255) + ", " + toString(col.b * 255) + ")\">" + web::Escaping::HTMLEscape(m->name) + "</span>: " +
-					web::Escaping::HTMLEscape(m->msg) + "</p>"));
-
 			}
 			else if(dynamic_cast<const InfoMessage*>(msg.getPointer()))
 			{
@@ -2279,22 +2310,28 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
 			{
-				//print("MainWIndow: Received UserSelectedObjectMessage");
-				const UserSelectedObjectMessage* m = static_cast<const UserSelectedObjectMessage*>(msg.getPointer());
-				Lock lock(this->world_state->mutex);
-				if(this->world_state->avatars.count(m->avatar_uid) != 0 && this->world_state->objects.count(m->object_uid) != 0)
+				if(world_state.nonNull())
 				{
-					this->world_state->avatars[m->avatar_uid]->selected_object_uid = m->object_uid;
+					//print("MainWIndow: Received UserSelectedObjectMessage");
+					const UserSelectedObjectMessage* m = static_cast<const UserSelectedObjectMessage*>(msg.getPointer());
+					Lock lock(this->world_state->mutex);
+					if(this->world_state->avatars.count(m->avatar_uid) != 0 && this->world_state->objects.count(m->object_uid) != 0)
+					{
+						this->world_state->avatars[m->avatar_uid]->selected_object_uid = m->object_uid;
+					}
 				}
 			}
 			else if(dynamic_cast<const UserDeselectedObjectMessage*>(msg.getPointer()))
 			{
-				//print("MainWIndow: Received UserDeselectedObjectMessage");
-				const UserDeselectedObjectMessage* m = static_cast<const UserDeselectedObjectMessage*>(msg.getPointer());
-				Lock lock(this->world_state->mutex);
-				if(this->world_state->avatars.count(m->avatar_uid) != 0)
-				{
-					this->world_state->avatars[m->avatar_uid]->selected_object_uid = UID::invalidUID();
+				if(world_state.nonNull())
+				{	
+					//print("MainWIndow: Received UserDeselectedObjectMessage");
+					const UserDeselectedObjectMessage* m = static_cast<const UserDeselectedObjectMessage*>(msg.getPointer());
+					Lock lock(this->world_state->mutex);
+					if(this->world_state->avatars.count(m->avatar_uid) != 0)
+					{
+						this->world_state->avatars[m->avatar_uid]->selected_object_uid = UID::invalidUID();
+					}
 				}
 			}
 			else if(dynamic_cast<const GetFileMessage*>(msg.getPointer()))
@@ -2326,34 +2363,37 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				const NewResourceOnServerMessage* m = static_cast<const NewResourceOnServerMessage*>(msg.getPointer());
 
-				conPrint("Got NewResourceOnServerMessage, URL: " + m->URL);
-
-				if(ResourceManager::isValidURL(m->URL))
+				if(world_state.nonNull())
 				{
-					if(!resource_manager->isFileForURLPresent(m->URL)) // If we don't have this file yet:
+					conPrint("Got NewResourceOnServerMessage, URL: " + m->URL);
+
+					if(ResourceManager::isValidURL(m->URL))
 					{
-						conPrint("Do not have resource.");
-
-						// Iterate over objects and see if they were using a placeholder model for this resource.
-						Lock lock(this->world_state->mutex);
-						bool need_resource = false;
-						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						if(!resource_manager->isFileForURLPresent(m->URL)) // If we don't have this file yet:
 						{
-							WorldObject* ob = it->second.getPointer();
-							//if(ob->using_placeholder_model)
+							conPrint("Do not have resource.");
+
+							// Iterate over objects and see if they were using a placeholder model for this resource.
+							Lock lock(this->world_state->mutex);
+							bool need_resource = false;
+							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 							{
-								std::set<std::string> URL_set;
-								ob->getDependencyURLSet(URL_set);
-								need_resource = need_resource || (URL_set.count(m->URL) != 0);
+								WorldObject* ob = it->second.getPointer();
+								//if(ob->using_placeholder_model)
+								{
+									std::set<std::string> URL_set;
+									ob->getDependencyURLSet(URL_set);
+									need_resource = need_resource || (URL_set.count(m->URL) != 0);
+								}
 							}
-						}
 
-						conPrint("need_resource: " + boolToString(need_resource));
+							conPrint("need_resource: " + boolToString(need_resource));
 
-						if(need_resource)// && !shouldStreamResourceViaHTTP(m->URL))
-						{
-							conPrint("Need resource, downloading: " + m->URL);
-							this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(m->URL));
+							if(need_resource)// && !shouldStreamResourceViaHTTP(m->URL))
+							{
+								conPrint("Need resource, downloading: " + m->URL);
+								this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(m->URL));
+							}
 						}
 					}
 				}
@@ -2370,63 +2410,67 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const std::string& URL = m->URL;
 				//conPrint("ResourceDownloadedMessage, URL: " + URL);
 
-				// If we just downloaded a texture, start loading it.
-				// NOTE: Do we want to check this texture is actually used by an object?
-				if(ImFormatDecoder::hasImageExtension(URL))
+				if(world_state.nonNull())
 				{
-					//conPrint("Downloaded texture resource, loading it...");
 
-					const std::string tex_path = resource_manager->pathForURL(URL);
-
-					if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
-						!this->isTextureProcessed(tex_path)) // and not being loaded already:
+					// If we just downloaded a texture, start loading it.
+					// NOTE: Do we want to check this texture is actually used by an object?
+					if(ImFormatDecoder::hasImageExtension(URL))
 					{
-						this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
-					}
-				}
-				else // Else we didn't download a texture, but maybe a model:
-				{
-					// Iterate over objects and avatars and if they were using a placeholder model for this newly-downloaded resource, load the proper model.
-					try
-					{
-						Lock lock(this->world_state->mutex);
+						//conPrint("Downloaded texture resource, loading it...");
 
-						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						const std::string tex_path = resource_manager->pathForURL(URL);
+
+						if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
+							!this->isTextureProcessed(tex_path)) // and not being loaded already:
 						{
-							WorldObject* ob = it->second.getPointer();
-
-							if(ob->model_url == URL)
-								loadModelForObject(ob);
+							this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
 						}
-
-						//for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-						//{
-						//	Avatar* avatar = it->second.getPointer();
-						//	if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
-						//	{
-						//		// Remove placeholder GL object
-						//		assert(avatar->opengl_engine_ob.nonNull());
-						//		ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
-
-						//		conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
-						//		//const std::string path = resources_dir + "/" + ob->model_url;
-						//		const std::string path = this->resource_manager->pathForURL(avatar->model_url);
-
-						//		// Make GL object, add to OpenGL engine
-						//		Indigo::MeshRef mesh;
-						//		const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
-						//			Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
-						//		GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
-						//		avatar->opengl_engine_ob = gl_ob;
-						//		ui->glWidget->addObject(gl_ob);
-
-						//		avatar->using_placeholder_model = false;
-						//	}
-						//}
 					}
-					catch(glare::Exception& e)
+					else // Else we didn't download a texture, but maybe a model:
 					{
-						print("Error while loading object: " + e.what());
+						// Iterate over objects and avatars and if they were using a placeholder model for this newly-downloaded resource, load the proper model.
+						try
+						{
+							Lock lock(this->world_state->mutex);
+
+							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+							{
+								WorldObject* ob = it->second.getPointer();
+
+								if(ob->model_url == URL)
+									loadModelForObject(ob);
+							}
+
+							//for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+							//{
+							//	Avatar* avatar = it->second.getPointer();
+							//	if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
+							//	{
+							//		// Remove placeholder GL object
+							//		assert(avatar->opengl_engine_ob.nonNull());
+							//		ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+
+							//		conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
+							//		//const std::string path = resources_dir + "/" + ob->model_url;
+							//		const std::string path = this->resource_manager->pathForURL(avatar->model_url);
+
+							//		// Make GL object, add to OpenGL engine
+							//		Indigo::MeshRef mesh;
+							//		const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
+							//			Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
+							//		GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
+							//		avatar->opengl_engine_ob = gl_ob;
+							//		ui->glWidget->addObject(gl_ob);
+
+							//		avatar->using_placeholder_model = false;
+							//	}
+							//}
+						}
+						catch(glare::Exception& e)
+						{
+							print("Error while loading object: " + e.what());
+						}
 					}
 				}
 			}
@@ -2434,6 +2478,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	// Evaluate scripts on objects
+	if(world_state.nonNull())
 	{
 		Lock lock(this->world_state->mutex);
 
@@ -2488,44 +2533,47 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	ui->glWidget->setCurrentTime((float)cur_time);
 	ui->glWidget->playerPhyicsThink((float)dt);
 
-	// Process player physics
 	Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
-	const Vec4f last_campos = campos;
-	const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
-	this->cam_controller.setPosition(toVec3d(campos));
 
-	if(campos.getDist(last_campos) > 0.01)
+	if(physics_world.nonNull())
 	{
-		ui->indigoView->cameraUpdated(this->cam_controller);
+		// Process player physics
+		const Vec4f last_campos = campos;
+		const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
+		this->cam_controller.setPosition(toVec3d(campos));
 
-		const float walk_cycle_period = AvatarGraphics::walkCyclePeriod() * 0.5f;
-		const float walk_run_cycle_period = player_physics.isRunPressed() ? (walk_cycle_period * 0.5f) : walk_cycle_period;
-		if(player_physics.onGround() && (last_footstep_timer.elapsed() > walk_run_cycle_period))
+		if(campos.getDist(last_campos) > 0.01)
 		{
-			last_foostep_side = (last_foostep_side + 1) % 2;
+			ui->indigoView->cameraUpdated(this->cam_controller);
 
-			// 4cm left/right, 40cm forwards.
-			const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) + 
-				cam_controller.getForwardsVec().toVec4fVector() * 0.4f + 
-				cam_controller.getRightVec().toVec4fVector() * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
-			//conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3));
+			const float walk_cycle_period = AvatarGraphics::walkCyclePeriod() * 0.5f;
+			const float walk_run_cycle_period = player_physics.isRunPressed() ? (walk_cycle_period * 0.5f) : walk_cycle_period;
+			if(player_physics.onGround() && (last_footstep_timer.elapsed() > walk_run_cycle_period))
+			{
+				last_foostep_side = (last_foostep_side + 1) % 2;
 
-			const int rnd_src_i = rng.nextUInt(4);
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
+				// 4cm left/right, 40cm forwards.
+				const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) + 
+					cam_controller.getForwardsVec().toVec4fVector() * 0.4f + 
+					cam_controller.getRightVec().toVec4fVector() * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
+				//conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3));
 
-			last_footstep_timer.reset();
-		}
+				const int rnd_src_i = rng.nextUInt(4);
+				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
 
-		if(physics_events.jumped)
-		{
-			const Vec4f jump_sound_pos = campos - Vec4f(0, 0, 0.1f, 0) +
-				cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
+				last_footstep_timer.reset();
+			}
 
-			const int rnd_src_i = rng.nextUInt(4);
-			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
+			if(physics_events.jumped)
+			{
+				const Vec4f jump_sound_pos = campos - Vec4f(0, 0, 0.1f, 0) +
+					cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
+
+				const int rnd_src_i = rng.nextUInt(4);
+				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
+			}
 		}
 	}
-
 	proximity_loader.updateCamPos(campos);
 
 	const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -2540,191 +2588,193 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	// Update avatar graphics
-	try
+	if(world_state.nonNull())
 	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
+		try
 		{
-			Avatar* avatar = it->second.getPointer();
-			const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+			Lock lock(this->world_state->mutex);
 
-			if(avatar->state == Avatar::State_Dead)
+			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
 			{
-				print("Removing avatar.");
+				Avatar* avatar = it->second.getPointer();
+				const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
 
-				ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
-					toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
-					web::Escaping::HTMLEscape(avatar->name) + "</span> left.</i>"));
-
-				// Remove any OpenGL object for it
-				if(avatar->graphics.nonNull())
+				if(avatar->state == Avatar::State_Dead)
 				{
-					avatar->graphics->destroy(*ui->glWidget->opengl_engine);
-					avatar->graphics = NULL;
-				}
+					print("Removing avatar.");
 
-				// Remove nametag OpenGL object
-				if(avatar->opengl_engine_nametag_ob.nonNull())
-					ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+					ui->chatMessagesTextEdit->append(QtUtils::toQString("<i><span style=\"color:rgb(" + 
+						toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) + ")\">" + 
+						web::Escaping::HTMLEscape(avatar->name) + "</span> left.</i>"));
 
-				// Remove avatar from avatar map
-				auto old_avatar_iterator = it;
-				it++;
-				this->world_state->avatars.erase(old_avatar_iterator);
-
-				updateOnlineUsersList();
-			}
-			else
-			{
-				bool reload_opengl_model = false; // load or reload model?
-
-				if(avatar->graphics.isNull()) // If this is a new avatar that doesn't have an OpenGL model yet:
-					reload_opengl_model = true;
-
-				if(avatar->other_dirty)
-				{
-					reload_opengl_model = true;
-
-					updateOnlineUsersList();
-				}
-
-				if(!our_avatar && reload_opengl_model) // Don't load graphics for our avatar
-				{
-					print("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
-
-					// Remove any existing model and nametag
+					// Remove any OpenGL object for it
 					if(avatar->graphics.nonNull())
 					{
 						avatar->graphics->destroy(*ui->glWidget->opengl_engine);
 						avatar->graphics = NULL;
 					}
-					if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
-						ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
 
-					{
-						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
+					// Remove nametag OpenGL object
+					if(avatar->opengl_engine_nametag_ob.nonNull())
+						ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
 
-						avatar->graphics = new AvatarGraphics();
-						avatar->graphics->create(*ui->glWidget->opengl_engine);
+					// Remove avatar from avatar map
+					auto old_avatar_iterator = it;
+					it++;
+					this->world_state->avatars.erase(old_avatar_iterator);
 
-						// No physics object for avatars.
-					}
-
-					// Add nametag object for avatar
-					{
-						avatar->opengl_engine_nametag_ob = makeNameTagGLObject(avatar->name);
-
-						// Set transform to be above avatar.  This transform will be updated later.
-						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
-
-						ui->glWidget->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
-					}
-
-					// Play entry teleport sound
-					audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
-
-				} // End if reload_opengl_model
-
-
-				// Update transform if we have an avatar or placeholder OpenGL model.
-				Vec3d pos;
-				Vec3f rotation;
-				avatar->getInterpolatedTransform(cur_time, pos, rotation);
-
-				if(avatar->graphics.nonNull())
-				{
-					AnimEvents anim_events;
-					avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time, anim_events);
-					
-					if((avatar->anim_state == 0) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
-					{
-						//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
-						//footstep_sources[rnd_src_i]->cur_read_i = 0;
-						//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
-						const int rnd_src_i = rng.nextUInt(4);
-						audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
-					}
-				}
-
-				// Update nametag transform also
-				if(avatar->opengl_engine_nametag_ob.nonNull())
-				{
-					// We want to rotate the nametag towards the camera.
-					Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
-					if(!isFinite(to_cam[0]))
-						to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
-
-					const Vec4f axis_k = Vec4f(0, 0, 1, 0);
-					if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
-						to_cam[0] += 0.1;
-
-					const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
-					const Vec4f axis_i = crossProduct(axis_j, axis_k);
-					const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
-
-					// Tex width and height from makeNameTagGLObject():
-					const int W = 256;
-					const int H = 80;
-					const float ws_width = 0.4f;
-					const float ws_height = ws_width * H / W;
-
-					// Rotate around z-axis, then translate to just above the avatar's head.
-					avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) *
-						rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
-
-					assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
-					ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
-				}
-
-				// Update selected object beam for the avatar, if it has an object selected
-				if(avatar->selected_object_uid.valid())
-				{
-					if(avatar->graphics.nonNull())
-					{
-						auto selected_it = world_state->objects.find(avatar->selected_object_uid);
-						if(selected_it != world_state->objects.end())
-						{
-							WorldObject* their_selected_ob = selected_it->second.getPointer();
-							Vec3d selected_pos;
-							Vec3f axis;
-							float angle;
-							their_selected_ob->getInterpolatedTransform(cur_time, selected_pos, axis, angle);
-
-							// Replace pos with the centre of the AABB (instead of the object space origin)
-							if(their_selected_ob->opengl_engine_ob.nonNull())
-							{
-								their_selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)selected_pos.x, (float)selected_pos.y, (float)selected_pos.z) *
-									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
-									Matrix4f::scaleMatrix(their_selected_ob->scale.x, their_selected_ob->scale.y, their_selected_ob->scale.z);
-
-								ui->glWidget->opengl_engine->updateObjectTransformData(*their_selected_ob->opengl_engine_ob);
-
-								selected_pos = toVec3d(their_selected_ob->opengl_engine_ob->aabb_ws.centroid());
-							}
-
-							avatar->graphics->setSelectedObBeam(*ui->glWidget->opengl_engine, selected_pos);
-						}
-					}
+					updateOnlineUsersList();
 				}
 				else
 				{
+					bool reload_opengl_model = false; // load or reload model?
+
+					if(avatar->graphics.isNull()) // If this is a new avatar that doesn't have an OpenGL model yet:
+						reload_opengl_model = true;
+
+					if(avatar->other_dirty)
+					{
+						reload_opengl_model = true;
+
+						updateOnlineUsersList();
+					}
+
+					if(!our_avatar && reload_opengl_model) // Don't load graphics for our avatar
+					{
+						print("(Re)Loading avatar model. model URL: " + avatar->model_url + ", Avatar name: " + avatar->name);
+
+						// Remove any existing model and nametag
+						if(avatar->graphics.nonNull())
+						{
+							avatar->graphics->destroy(*ui->glWidget->opengl_engine);
+							avatar->graphics = NULL;
+						}
+						if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
+							ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
+
+						{
+							print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
+
+							avatar->graphics = new AvatarGraphics();
+							avatar->graphics->create(*ui->glWidget->opengl_engine);
+
+							// No physics object for avatars.
+						}
+
+						// Add nametag object for avatar
+						{
+							avatar->opengl_engine_nametag_ob = makeNameTagGLObject(avatar->name);
+
+							// Set transform to be above avatar.  This transform will be updated later.
+							avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
+
+							ui->glWidget->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
+						}
+
+						// Play entry teleport sound
+						audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
+
+					} // End if reload_opengl_model
+
+
+					// Update transform if we have an avatar or placeholder OpenGL model.
+					Vec3d pos;
+					Vec3f rotation;
+					avatar->getInterpolatedTransform(cur_time, pos, rotation);
+
 					if(avatar->graphics.nonNull())
-						avatar->graphics->hideSelectedObBeam(*ui->glWidget->opengl_engine);
+					{
+						AnimEvents anim_events;
+						avatar->graphics->setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, cur_time, anim_events);
+						
+						if((avatar->anim_state == 0) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
+						{
+							//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
+							//footstep_sources[rnd_src_i]->cur_read_i = 0;
+							//audio_engine.setSourcePosition(footstep_sources[rnd_src_i], anim_events.footstrike_pos.toVec4fPoint());
+							const int rnd_src_i = rng.nextUInt(4);
+							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
+						}
+					}
+
+					// Update nametag transform also
+					if(avatar->opengl_engine_nametag_ob.nonNull())
+					{
+						// We want to rotate the nametag towards the camera.
+						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
+						if(!isFinite(to_cam[0]))
+							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
+
+						const Vec4f axis_k = Vec4f(0, 0, 1, 0);
+						if(std::fabs(dot(to_cam, axis_k)) > 0.999f) // Make vectors linearly independent.
+							to_cam[0] += 0.1;
+
+						const Vec4f axis_j = normalise(removeComponentInDir(to_cam, axis_k));
+						const Vec4f axis_i = crossProduct(axis_j, axis_k);
+						const Matrix4f rot_matrix(axis_i, axis_j, axis_k, Vec4f(0, 0, 0, 1));
+
+						// Tex width and height from makeNameTagGLObject():
+						const int W = 256;
+						const int H = 80;
+						const float ws_width = 0.4f;
+						const float ws_height = ws_width * H / W;
+
+						// Rotate around z-axis, then translate to just above the avatar's head.
+						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f, 0)) *
+							rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
+
+						assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
+						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
+					}
+
+					// Update selected object beam for the avatar, if it has an object selected
+					if(avatar->selected_object_uid.valid())
+					{
+						if(avatar->graphics.nonNull())
+						{
+							auto selected_it = world_state->objects.find(avatar->selected_object_uid);
+							if(selected_it != world_state->objects.end())
+							{
+								WorldObject* their_selected_ob = selected_it->second.getPointer();
+								Vec3d selected_pos;
+								Vec3f axis;
+								float angle;
+								their_selected_ob->getInterpolatedTransform(cur_time, selected_pos, axis, angle);
+
+								// Replace pos with the centre of the AABB (instead of the object space origin)
+								if(their_selected_ob->opengl_engine_ob.nonNull())
+								{
+									their_selected_ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)selected_pos.x, (float)selected_pos.y, (float)selected_pos.z) *
+										Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
+										Matrix4f::scaleMatrix(their_selected_ob->scale.x, their_selected_ob->scale.y, their_selected_ob->scale.z);
+
+									ui->glWidget->opengl_engine->updateObjectTransformData(*their_selected_ob->opengl_engine_ob);
+
+									selected_pos = toVec3d(their_selected_ob->opengl_engine_ob->aabb_ws.centroid());
+								}
+
+								avatar->graphics->setSelectedObBeam(*ui->glWidget->opengl_engine, selected_pos);
+							}
+						}
+					}
+					else
+					{
+						if(avatar->graphics.nonNull())
+							avatar->graphics->hideSelectedObBeam(*ui->glWidget->opengl_engine);
+					}
+
+					avatar->other_dirty = false;
+					avatar->transform_dirty = false;
+
+					++it;
 				}
-
-				avatar->other_dirty = false;
-				avatar->transform_dirty = false;
-
-				++it;
-			}
-		} // end for each avatar
+			} // end for each avatar
+		}
+		catch(glare::Exception& e)
+		{
+			print("Error while Updating avatar graphics: " + e.what());
+		}
 	}
-	catch(glare::Exception& e)
-	{
-		print("Error while Updating avatar graphics: " + e.what());
-	}
-
 
 	//TEMP
 	if(test_avatar.nonNull())
@@ -2751,302 +2801,304 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	bool need_physics_world_rebuild = false;
 
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
-	try
+	if(world_state.nonNull())
 	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
+		try
 		{
-			WorldObject* ob = it->ptr();
+			Lock lock(this->world_state->mutex);
 
-			// conPrint("Processing dirty object.");
-
-			if(ob->from_remote_other_dirty || ob->from_remote_model_url_dirty)
+			for(auto it = this->world_state->dirty_from_remote_objects.begin(); it != this->world_state->dirty_from_remote_objects.end(); ++it)
 			{
-				if(ob->state == WorldObject::State_Dead)
+				WorldObject* ob = it->ptr();
+
+				// conPrint("Processing dirty object.");
+
+				if(ob->from_remote_other_dirty || ob->from_remote_model_url_dirty)
 				{
-					print("Removing WorldObject.");
-				
-					removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-					need_physics_world_rebuild = true;
-
-					ui->indigoView->objectRemoved(*ob);
-
-					removeInstancesOfObject(ob);
-
-					this->world_state->objects.erase(ob->uid);
-					//this->objects_to_remove.push_back(it->second); // Mark as to-be-removed
-
-					active_objects.erase(ob);
-					obs_with_animated_tex.erase(ob);
-				}
-				else
-				{
-					// Decompress voxel group
-					//ob->decompressVoxels();
-
-					bool reload_opengl_model = false; // Do we need to load or reload model?
-					if(ob->opengl_engine_ob.isNull())
-						reload_opengl_model = true;
-
-					if(ob->object_type == WorldObject::ObjectType_Generic)
+					if(ob->state == WorldObject::State_Dead)
 					{
-						if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
-							reload_opengl_model = true;
-					}
-					else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
-					{
-						reload_opengl_model = true;
-					}
-					else if(ob->object_type == WorldObject::ObjectType_Hypercard)
-					{
-						if(ob->loaded_content != ob->content)
-							reload_opengl_model = true;
-					}
-					else if(ob->object_type == WorldObject::ObjectType_Spotlight)
-					{
-						// no reload needed
-					}
+						print("Removing WorldObject.");
+					
+						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+						need_physics_world_rebuild = true;
 
-					if(reload_opengl_model)
-					{
-						// loadModelForObject(ob);
-						proximity_loader.checkAddObject(ob);
+						ui->indigoView->objectRemoved(*ob);
+
+						removeInstancesOfObject(ob);
+
+						this->world_state->objects.erase(ob->uid);
+						//this->objects_to_remove.push_back(it->second); // Mark as to-be-removed
+
+						active_objects.erase(ob);
+						obs_with_animated_tex.erase(ob);
 					}
 					else
 					{
-						// Update transform for object in OpenGL engine
-						if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
+						// Decompress voxel group
+						//ob->decompressVoxels();
+
+						bool reload_opengl_model = false; // Do we need to load or reload model?
+						if(ob->opengl_engine_ob.isNull())
+							reload_opengl_model = true;
+
+						if(ob->object_type == WorldObject::ObjectType_Generic)
 						{
-							// Update materials in opengl engine.
-							GLObjectRef opengl_ob = ob->opengl_engine_ob;
+							if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
+								reload_opengl_model = true;
+						}
+						else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+						{
+							reload_opengl_model = true;
+						}
+						else if(ob->object_type == WorldObject::ObjectType_Hypercard)
+						{
+							if(ob->loaded_content != ob->content)
+								reload_opengl_model = true;
+						}
+						else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+						{
+							// no reload needed
+						}
 
-							for(size_t i=0; i<ob->materials.size(); ++i)
-								if(i < opengl_ob->materials.size())
-									ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+						if(reload_opengl_model)
+						{
+							// loadModelForObject(ob);
+							proximity_loader.checkAddObject(ob);
+						}
+						else
+						{
+							// Update transform for object in OpenGL engine
+							if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
+							{
+								// Update materials in opengl engine.
+								GLObjectRef opengl_ob = ob->opengl_engine_ob;
 
-							ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+								for(size_t i=0; i<ob->materials.size(); ++i)
+									if(i < opengl_ob->materials.size())
+										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 
-							updateInstancedCopiesOfObject(ob);
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 
-							active_objects.insert(ob);
+								updateInstancedCopiesOfObject(ob);
+
+								active_objects.insert(ob);
+							}
+						}
+
+						ob->from_remote_other_dirty = false;
+						ob->from_remote_model_url_dirty = false;
+
+						if(ob == selected_ob.ptr())
+							ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
+
+						if(ob->state == WorldObject::State_JustCreated)
+						{
+							// Got just created object
+
+							if(last_restored_ob_uid_in_edit.valid())
+							{
+								//conPrint("Adding mapping from " + last_restored_ob_uid_in_edit.toString() + " to " + ob->uid.toString());
+								recreated_ob_uid[last_restored_ob_uid_in_edit] = ob->uid;
+								last_restored_ob_uid_in_edit = UID::invalidUID();
+							}
 						}
 					}
+				}
+				else if(ob->from_remote_lightmap_url_dirty)
+				{
+					// Try and download and resources we don't have for this object
+					startDownloadingResourcesForObject(ob);
 
-					ob->from_remote_other_dirty = false;
-					ob->from_remote_model_url_dirty = false;
+					// Update materials in opengl engine, so it picks up the new lightmap URL
+					GLObjectRef opengl_ob = ob->opengl_engine_ob;
+					if(opengl_ob.nonNull())
+					{
+						for(size_t i=0; i<ob->materials.size(); ++i)
+							if(i < opengl_ob->materials.size())
+								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+					}
+
+					ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
 
 					if(ob == selected_ob.ptr())
-						ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
+						ui->objectEditor->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
 
-					if(ob->state == WorldObject::State_JustCreated)
+					ob->from_remote_lightmap_url_dirty = false;
+				}
+				
+				if(ob->from_remote_transform_dirty)
+				{
+					if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
 					{
-						// Got just created object
+						// Compute interpolated transformation
+						Vec3d pos;
+						Vec3f axis;
+						float angle;
+						ob->getInterpolatedTransform(cur_time, pos, axis, angle);
 
-						if(last_restored_ob_uid_in_edit.valid())
+						const Matrix4f interpolated_to_world_mat = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
+							Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
+							Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+
+						if(ob->opengl_engine_ob.nonNull())
 						{
-							//conPrint("Adding mapping from " + last_restored_ob_uid_in_edit.toString() + " to " + ob->uid.toString());
-							recreated_ob_uid[last_restored_ob_uid_in_edit] = ob->uid;
-							last_restored_ob_uid_in_edit = UID::invalidUID();
+							ob->opengl_engine_ob->ob_to_world_matrix = interpolated_to_world_mat;
+							ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 						}
+
+						// Update in physics engine
+						if(ob->physics_object.nonNull())
+						{
+							ob->physics_object->ob_to_world = interpolated_to_world_mat;
+							physics_world->updateObjectTransformData(*ob->physics_object);
+						}
+
+						proximity_loader.objectTransformChanged(ob);
+
+						// Update in Indigo view
+						ui->indigoView->objectTransformChanged(*ob);
+
+						active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
 					}
+
+					ob->from_remote_transform_dirty = false;
 				}
 			}
-			else if(ob->from_remote_lightmap_url_dirty)
+
+			this->world_state->dirty_from_remote_objects.clear();
+		}
+		catch(glare::Exception& e)
+		{
+			print("Error while Updating object graphics: " + e.what());
+		}
+
+
+
+		// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
+		try
+		{
+			Lock lock(this->world_state->mutex);
+
+			for(auto it = this->world_state->dirty_from_remote_parcels.begin(); it != this->world_state->dirty_from_remote_parcels.end(); ++it)
 			{
-				// Try and download and resources we don't have for this object
-				startDownloadingResourcesForObject(ob);
-
-				// Update materials in opengl engine, so it picks up the new lightmap URL
-				GLObjectRef opengl_ob = ob->opengl_engine_ob;
-				if(opengl_ob.nonNull())
+				Parcel* parcel = it->getPointer();
+				if(parcel->from_remote_dirty)
 				{
-					for(size_t i=0; i<ob->materials.size(); ++i)
-						if(i < opengl_ob->materials.size())
-							ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
-					ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
-				}
+					if(parcel->state == Parcel::State_Dead)
+					{
+						print("Removing Parcel.");
+					
+						// Remove any OpenGL object for it
+						if(parcel->opengl_engine_ob.nonNull())
+							ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
 
-				ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
+						// Remove physics object
+						if(parcel->physics_object.nonNull())
+						{
+							physics_world->removeObject(parcel->physics_object);
+							need_physics_world_rebuild = true;
+						}
 
-				if(ob == selected_ob.ptr())
-					ui->objectEditor->objectLightmapURLUpdated(*ob); // Update lightmap URL in UI if we have selected the object.
+						this->world_state->parcels.erase(parcel->id);
+					}
+					else
+					{
+						const Vec4f aabb_min((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.0f);
+						const Vec4f aabb_max((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.0f);
 
-				ob->from_remote_lightmap_url_dirty = false;
+						if(ui->actionShow_Parcels->isChecked())
+						{
+							if(parcel->opengl_engine_ob.isNull())
+							{
+								// Make OpenGL model for parcel:
+								const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
+
+								bool use_write_perms = write_perms;
+								if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
+									use_write_perms = false;
+
+								parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
+								parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
+								ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
+
+								// Make physics object for parcel:
+								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
+								physics_world->addObject(parcel->physics_object);
+								need_physics_world_rebuild = true;
+							}
+							else // else if opengl ob is not null:
+							{
+								// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
+								//const Vec4f span = aabb_max - aabb_min;
+								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
+								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
+								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
+								//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
+								//ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
+								//
+								//// Update in physics engine
+								//parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
+								//physics_world->updateObjectTransformData(*parcel->physics_object);
+							}
+						}
+
+						parcel->from_remote_dirty = false;
+					}
+				} // end if(parcel->from_remote_dirty)
 			}
-			
-			if(ob->from_remote_transform_dirty)
+
+			this->world_state->dirty_from_remote_parcels.clear();
+		}
+		catch(glare::Exception& e)
+		{
+			print("Error while updating parcel graphics: " + e.what());
+		}
+
+
+		// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
+		{
+			Lock lock(this->world_state->mutex);
+			for(auto it = active_objects.begin(); it != active_objects.end();)
 			{
-				if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
+				WorldObjectRef ob = *it;
+
+				if(cur_time - ob->snapshot_times[0]/*last_snapshot_time*/ > 1.0)
 				{
-					// Compute interpolated transformation
+					// Object is not active any more, remove from active_objects set.
+					auto to_erase = it;
+					it++;
+					active_objects.erase(to_erase);
+				}
+				else
+				{
 					Vec3d pos;
 					Vec3f axis;
 					float angle;
 					ob->getInterpolatedTransform(cur_time, pos, axis, angle);
 
-					const Matrix4f interpolated_to_world_mat = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
-						Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
-						Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-
 					if(ob->opengl_engine_ob.nonNull())
 					{
-						ob->opengl_engine_ob->ob_to_world_matrix = interpolated_to_world_mat;
+						ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+							Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
+							Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+
 						ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 					}
 
-					// Update in physics engine
 					if(ob->physics_object.nonNull())
 					{
-						ob->physics_object->ob_to_world = interpolated_to_world_mat;
+						// Update in physics engine
+						ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
 						physics_world->updateObjectTransformData(*ob->physics_object);
-					}
-
-					proximity_loader.objectTransformChanged(ob);
-
-					// Update in Indigo view
-					ui->indigoView->objectTransformChanged(*ob);
-
-					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
-				}
-
-				ob->from_remote_transform_dirty = false;
-			}
-		}
-
-		this->world_state->dirty_from_remote_objects.clear();
-	}
-	catch(glare::Exception& e)
-	{
-		print("Error while Updating object graphics: " + e.what());
-	}
-
-
-
-	// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
-	try
-	{
-		Lock lock(this->world_state->mutex);
-
-		for(auto it = this->world_state->dirty_from_remote_parcels.begin(); it != this->world_state->dirty_from_remote_parcels.end(); ++it)
-		{
-			Parcel* parcel = it->getPointer();
-			if(parcel->from_remote_dirty)
-			{
-				if(parcel->state == Parcel::State_Dead)
-				{
-					print("Removing Parcel.");
-				
-					// Remove any OpenGL object for it
-					if(parcel->opengl_engine_ob.nonNull())
-						ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
-
-					// Remove physics object
-					if(parcel->physics_object.nonNull())
-					{
-						physics_world->removeObject(parcel->physics_object);
 						need_physics_world_rebuild = true;
 					}
 
-					this->world_state->parcels.erase(parcel->id);
+					it++;
 				}
-				else
-				{
-					const Vec4f aabb_min((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.0f);
-					const Vec4f aabb_max((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.0f);
-
-					if(ui->actionShow_Parcels->isChecked())
-					{
-						if(parcel->opengl_engine_ob.isNull())
-						{
-							// Make OpenGL model for parcel:
-							const bool write_perms = parcel->userHasWritePerms(this->logged_in_user_id);
-
-							bool use_write_perms = write_perms;
-							if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode, don't highlight writable parcels.
-								use_write_perms = false;
-
-							parcel->opengl_engine_ob = parcel->makeOpenGLObject(ui->glWidget->opengl_engine, use_write_perms);
-							parcel->opengl_engine_ob->materials[0].shader_prog = this->parcel_shader_prog;
-							ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
-
-							// Make physics object for parcel:
-							parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
-							physics_world->addObject(parcel->physics_object);
-							need_physics_world_rebuild = true;
-						}
-						else // else if opengl ob is not null:
-						{
-							// Update transform for object in OpenGL engine.  See OpenGLEngine::makeAABBObject() for transform details.
-							//const Vec4f span = aabb_max - aabb_min;
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-							//parcel->opengl_engine_ob->ob_to_world_matrix.setColumn(3, aabb_min); // set origin
-							//ui->glWidget->opengl_engine->updateObjectTransformData(*parcel->opengl_engine_ob);
-							//
-							//// Update in physics engine
-							//parcel->physics_object->ob_to_world = parcel->opengl_engine_ob->ob_to_world_matrix;
-							//physics_world->updateObjectTransformData(*parcel->physics_object);
-						}
-					}
-
-					parcel->from_remote_dirty = false;
-				}
-			} // end if(parcel->from_remote_dirty)
-		}
-
-		this->world_state->dirty_from_remote_parcels.clear();
-	}
-	catch(glare::Exception& e)
-	{
-		print("Error while updating parcel graphics: " + e.what());
-	}
-
-
-	// Interpolate any active objects (Objects that have moved recently and so need interpolation done on them.)
-	{
-		Lock lock(this->world_state->mutex);
-		for(auto it = active_objects.begin(); it != active_objects.end();)
-		{
-			WorldObjectRef ob = *it;
-
-			if(cur_time - ob->snapshot_times[0]/*last_snapshot_time*/ > 1.0)
-			{
-				// Object is not active any more, remove from active_objects set.
-				auto to_erase = it;
-				it++;
-				active_objects.erase(to_erase);
-			}
-			else
-			{
-				Vec3d pos;
-				Vec3f axis;
-				float angle;
-				ob->getInterpolatedTransform(cur_time, pos, axis, angle);
-
-				if(ob->opengl_engine_ob.nonNull())
-				{
-					ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
-						Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
-						Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-
-					ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
-				}
-
-				if(ob->physics_object.nonNull())
-				{
-					// Update in physics engine
-					ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
-					physics_world->updateObjectTransformData(*ob->physics_object);
-					need_physics_world_rebuild = true;
-				}
-
-				it++;
 			}
 		}
-	}
-
+	} // end if(world_state.nonNull())
 
 
 	// Move selected object if there is one and it is picked up, based on direction camera is currently facing.
@@ -3084,7 +3136,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	updateVoxelEditMarkers();
 
 	// Send an AvatarTransformUpdate packet to the server if needed.
-	if(time_since_update_packet_sent.elapsed() > 0.1)
+	if(client_thread.nonNull() && (time_since_update_packet_sent.elapsed() > 0.1))
 	{
 		// Send AvatarTransformUpdate packet
 		{
@@ -3111,6 +3163,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 
 		//============ Send any object updates needed ===========
+		if(world_state.nonNull())
 		{
 			Lock lock(this->world_state->mutex);
 
@@ -4404,6 +4457,13 @@ void MainWindow::on_actionRedo_triggered()
 }
 
 
+void MainWindow::on_actionShow_Log_triggered()
+{
+	this->log_window->show();
+	this->log_window->raise();
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -5654,6 +5714,9 @@ inline static bool clipLineToPlaneBackHalfSpace(const Planef& plane, Vec4f& a, V
 
 void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 {
+	if(ui->glWidget->opengl_engine.isNull() || !ui->glWidget->opengl_engine->initSucceeded())
+		return;
+
 	if(selected_ob.nonNull() && grabbed_axis >= 0 && grabbed_axis < 3)
 	{
 		// If we have have grabbed an axis and are moving it:
@@ -6094,6 +6157,9 @@ static bool contains(const SmallVector<Vec2i, 4>& v, const Vec2i& p)
 
 void MainWindow::updateGroundPlane()
 {
+	if(this->world_state.isNull())
+		return;
+
 	try
 	{
 		// The basic idea is that we want to have a ground-plane quad under the player's feet at all times.
@@ -6567,7 +6633,11 @@ int main(int argc, char *argv[])
 
 			if(!mw.ui->glWidget->opengl_engine->initSucceeded())
 			{
-				mw.print("opengl_engine init failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg());
+				const std::string msg = "OpenGL engine initialisation failed: " + mw.ui->glWidget->opengl_engine->getInitialisationErrorMsg();
+				
+				mw.logMessage(msg);
+				
+				QtUtils::showErrorMessageDialog(msg, &mw);
 			}
 
 			for(int i=0; i<8; ++i)
