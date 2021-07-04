@@ -1695,6 +1695,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
+	// Log any error/warning messages from the opengl engine.
+	if(ui->glWidget && ui->glWidget->opengl_engine.nonNull())
+	{
+		if(!ui->glWidget->opengl_engine->opengl_msgs.empty())
+		{
+			for(size_t i=0; i<ui->glWidget->opengl_engine->opengl_msgs.size(); ++i)
+				logMessage("OpenGL Engine: " + ui->glWidget->opengl_engine->opengl_msgs[i]);
+
+			ui->glWidget->opengl_engine->opengl_msgs.clear();
+		}
+	}
+
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
 	{
