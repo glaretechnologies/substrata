@@ -58,6 +58,7 @@ GlWidget::GlWidget(QWidget *parent)
 	viewport_aspect_ratio = 1;
 
 	OpenGLEngineSettings settings;
+	settings.enable_debug_output = true;
 	settings.shadow_mapping = true;
 	settings.compress_textures = true;
 	settings.depth_fog = true;
