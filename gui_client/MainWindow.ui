@@ -77,6 +77,7 @@
      <string>Tools</string>
     </property>
     <addaction name="actionExport_view_to_Indigo"/>
+    <addaction name="actionShow_Log"/>
     <addaction name="actionOptions"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
@@ -480,6 +481,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Y</string>
+   </property>
+  </action>
+  <action name="actionShow_Log">
+   <property name="text">
+    <string>Show Log</string>
    </property>
   </action>
  </widget>

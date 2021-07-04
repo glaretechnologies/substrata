@@ -34,6 +34,9 @@ public:
 
 	void init();
 
+	// Non-empty if error occurred.
+	std::string getInitialisationErrorMsg() const { return initialisation_error_msg; }
+
 	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
 
 	void setCameraController(CameraController* cam_controller_);
@@ -101,6 +104,8 @@ private:
 	bool cam_rot_on_mouse_move_enabled;
 
 	QGamepad* gamepad;
+
+	std::string initialisation_error_msg;
 public:
 	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;

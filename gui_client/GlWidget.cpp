@@ -175,6 +175,7 @@ void GlWidget::initializeGL()
 	if(!opengl_engine->initSucceeded())
 	{
 		conPrint("opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
+		initialisation_error_msg = opengl_engine->getInitialisationErrorMsg();
 	}
 }
 
@@ -212,6 +213,8 @@ void GlWidget::paintGL()
 void GlWidget::addObject(const Reference<GLObject>& object, bool force_load_textures_immediately)
 {
 	this->makeCurrent();
+	if(!opengl_engine->initSucceeded())
+		return;
 
 	if(force_load_textures_immediately)
 	{

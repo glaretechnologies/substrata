@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ProximityLoader.h"
 #include "AnimatedTextureManager.h"
 #include "UndoBuffer.h"
+#include "LogWindow.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/WGL.h"
@@ -75,7 +76,8 @@ public:
 
 	void updateGroundPlane();
 
-	void print(const std::string& message); // Print to log and console
+	void print(const std::string& message); // Print to console, log file, and append to LogWindow log display
+	void logMessage(const std::string& msg); // Print to console, log file, and append to LogWindow log display
 
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
 signals:;
@@ -104,6 +106,7 @@ private slots:;
 	void on_actionOptions_triggered();
 	void on_actionUndo_triggered();
 	void on_actionRedo_triggered();
+	void on_actionShow_Log_triggered();
 
 	void applyUndoOrRedoObject(const Reference<WorldObject>& ob);
 
@@ -263,7 +266,7 @@ public:
 
 	ThreadContext thread_context;
 
-	std::ofstream logfile;
+	//std::ofstream logfile;
 
 	UserDetailsWidget* user_details;
 	URLWidget* url_widget;
@@ -405,6 +408,8 @@ private:
 	glare::AudioEngine audio_engine;
 
 	UndoBuffer undo_buffer;
+
+	LogWindow* log_window;
 public:
 	std::vector<GLObjectRef> test_obs;
 	std::vector<glare::AudioSourceRef> test_srcs;
