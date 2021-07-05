@@ -60,7 +60,7 @@ GlWidget::GlWidget(QWidget *parent)
 	OpenGLEngineSettings settings;
 	settings.enable_debug_output = true;
 	settings.shadow_mapping = false; // TEMP HACK IMPORTANT
-	settings.compress_textures = false;
+	settings.compress_textures = true;
 	settings.depth_fog = false;
 	opengl_engine = new OpenGLEngine(settings);
 
