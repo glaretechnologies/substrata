@@ -668,6 +668,19 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 			{
 				Parcel* parcel = res->second.ptr();
 
+				// Find the last (greatest id) SubEthTransaction for this parcel.  We will use the assign-to eth address for this (Instead of admin eth address)
+				SubEthTransaction* last_trans = NULL;
+				for(auto it = world_state.sub_eth_transactions.begin(); it != world_state.sub_eth_transactions.end(); ++it)
+				{
+					SubEthTransaction* trans = it->second.ptr();
+					if(trans->parcel_id == ParcelID((uint32)parcel_id))
+						last_trans = trans;
+				}
+
+				if(last_trans == NULL)
+					throw glare::Exception("no last transaction found.");
+
+
 				// Make an Eth transaction to mint the parcel
 				SubEthTransactionRef transaction = new SubEthTransaction();
 				transaction->id = world_state.getNextSubEthTransactionUID();
@@ -675,7 +688,7 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 				transaction->state = SubEthTransaction::State_New;
 				transaction->initiating_user_id = logged_in_user->id;
 				transaction->parcel_id = parcel->id;
-				transaction->user_eth_address = logged_in_user->controlled_eth_address;
+				transaction->user_eth_address = last_trans->user_eth_address;
 
 				parcel->minting_transaction_id = transaction->id;
 
