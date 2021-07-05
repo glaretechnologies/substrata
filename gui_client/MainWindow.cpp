@@ -1717,7 +1717,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 
 		if(ui->glWidget->opengl_engine.nonNull())
-			msg += ui->glWidget->opengl_engine->getDiagnostics();
+		{
+			msg += ui->glWidget->opengl_engine->getDiagnostics() + "\n";
+			msg += "GL widget valid: " + boolToString(ui->glWidget->isValid()) + "\n";
+			msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
+			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
+			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
+		}
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
 		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())
