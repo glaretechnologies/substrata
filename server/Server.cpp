@@ -126,6 +126,28 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 }
 
 
+static void makeRoad(ServerAllWorldsState& world_state, const Vec3d& pos, const Vec3f& scale, float rotation_angle)
+{
+	WorldObjectRef test_object = new WorldObject();
+	test_object->creator_id = UserID(0);
+	test_object->state = WorldObject::State_Alive;
+	test_object->uid = world_state.getNextObjectUID();//  world_state->UID(road_uid++);
+	test_object->pos = pos;
+	test_object->angle = rotation_angle;
+	test_object->axis = Vec3f(0,0,1);
+	test_object->model_url = "Cube_obj_11907297875084081315.bmesh";
+	test_object->scale = scale;
+	test_object->content = "road";
+	test_object->materials.push_back(new WorldMaterial());
+
+	// Set tex matrix based on scale
+	test_object->materials[0]->tex_matrix = Matrix2f(scale.x / 10.f, 0, 0, scale.y / 10.f);
+	test_object->materials[0]->colour_texture_url = "stone_floor_jpg_6978110256346892991.jpg";
+
+	world_state.getRootWorldState()->objects[test_object->uid] = test_object;
+}
+
+
 static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
 {
 	if(packet_buffer.buf.size() > 0)
@@ -340,23 +362,7 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		// TEMP: Print out users
-		/*for(auto i = server.world_state->user_id_to_users.begin(); i != server.world_state->user_id_to_users.end(); ++i)
-			conPrint("User with id " + i->second->id.toString() + ": " + i->second->name);
-
-		// TEMP: Assign some parcel permissions
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(10), UserID(1));
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(11), UserID(2)); // dirtypunk
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(12), UserID(3)); // zom-b
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(15), UserID(3)); // zom-b
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(32), UserID(4)); // lycium
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(35), UserID(4)); // lycium		
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(31), UserID(5)); // Harry
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(41), UserID(6)); // Originalplan
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(40), UserID(8)); // trislit
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(30), UserID(9)); // fused
-		assignParcelToUser(server.world_state->getRootWorldState(), ParcelID(50), UserID(23)); // cody2343
-
+		/*
 		// Make parcel with id 20 a 'sandbox', world-writeable parcel
 		{
 			auto res = server.world_state->getRootWorldState()->parcels.find(ParcelID(20));
@@ -369,6 +375,198 @@ int main(int argc, char *argv[])
 
 
 		//server.world_state->objects.clear();
+
+
+		// Add road objects
+		{
+			bool have_added_roads = false;
+			for(auto it = server.world_state->getRootWorldState()->objects.begin(); it != server.world_state->getRootWorldState()->objects.end(); ++it)
+			{
+				const WorldObject* object = it->second.ptr();
+				if(object->creator_id.value() == 0 && object->content == "road")
+					have_added_roads = true;
+			}
+
+			printVar(have_added_roads);
+
+
+			if(false)
+			{
+				// Remove all existing road objects (UID > 1000000)
+				for(auto it = server.world_state->getRootWorldState()->objects.begin(); it != server.world_state->getRootWorldState()->objects.end();)
+				{
+					if(it->second->uid.value() >= 1000000)
+						it = server.world_state->getRootWorldState()->objects.erase(it);
+					else
+						++it;
+				}
+			}
+
+			if(!have_added_roads)
+			{
+				const UID next_uid = server.world_state->getNextObjectUID();
+				conPrint(next_uid.toString());
+
+				const float z_scale = 0.1;
+
+				// Long roads near centre
+				for(int x=-1; x <= 1; ++x)
+				{
+					if(x != 0)
+					{
+						makeRoad(*server.world_state,
+							Vec3d(x * 92.5, 0, 0), // pos
+							Vec3f(87, 8, z_scale), // scale
+							0 // rot angle
+						);
+					}
+				}
+
+				for(int y=-1; y <= 1; ++y)
+				{
+					if(y != 0)
+					{
+						makeRoad(*server.world_state,
+							Vec3d(0, y * 92.5, 0), // pos
+							Vec3f(8, 87, z_scale), // scale
+							0 // rot angle
+						);
+					}
+				}
+
+				// Diagonal roads
+				{
+					const float diag_z_scale = z_scale / 2; // to avoid z-fighting
+					makeRoad(*server.world_state,
+						Vec3d(57.5, 57.5, 0), // pos
+						Vec3f(30, 6, diag_z_scale), // scale
+						Maths::pi<float>() / 4 // rot angle
+					);
+
+					makeRoad(*server.world_state,
+						Vec3d(57.5, -57.5, 0), // pos
+						Vec3f(30, 6, diag_z_scale), // scale
+						-Maths::pi<float>() / 4 // rot angle
+					);
+
+					makeRoad(*server.world_state,
+						Vec3d(-57.5, 57.5, 0), // pos
+						Vec3f(30, 6, diag_z_scale), // scale
+						Maths::pi<float>() * 3 / 4 // rot angle
+					);
+
+					makeRoad(*server.world_state,
+						Vec3d(-57.5, -57.5, 0), // pos
+						Vec3f(30, 6, diag_z_scale), // scale
+						-Maths::pi<float>() * 3 / 4 // rot angle
+					);
+				}
+
+			
+				// Roads along x axis:
+				for(int x = -4; x <= 3; ++x)
+				for(int y = -3; y <= 3; ++y)
+				{
+					bool near_centre = y >= -1 && y <= 1 && x >= -1 && x <= 0;
+
+					bool long_roads = (x >= -2 && x <= 1) && y == 0;
+
+					if(!near_centre && !long_roads)
+					{
+						makeRoad(*server.world_state,
+							Vec3d(35 + x * 70, y * 70.0, 0), // pos
+							Vec3f(62, 8, z_scale), // scale
+							0 // rot angle
+						);
+					}
+				}
+
+				// Roads along y axis:
+				for(int y = -4; y <= 3; ++y)
+					for(int x = -3; x <= 3; ++x)
+					{
+						bool near_centre = x >= -1 && x <= 1 && y >= -1 && y <= 0;
+
+						bool long_roads = (y >= -2 && y <= 1) && x == 0;
+
+						if(!near_centre && !long_roads)
+						{
+							makeRoad(*server.world_state,
+								Vec3d(x * 70.0, 35 + y * 70, 0), // pos
+								Vec3f(8, 62, z_scale), // scale
+								0 // rot angle
+							);
+						}
+					}
+
+				// Intersections
+				for(int y = -3; y <= 3; ++y)
+					for(int x = -3; x <= 3; ++x)
+					{
+						bool near_centre = x >= -1 && x <= 1 && y >= -1 && y <= 1;
+
+						if(!near_centre)
+						{
+							makeRoad(*server.world_state,
+								Vec3d(x * 70.0, y * 70, 0), // pos
+								Vec3f(8, 8, z_scale), // scale
+								0 // rot angle
+							);
+						}
+					}
+
+				// Intersections with diagonal roads (outer)
+				for(int y = -1; y <= 1; ++y)
+					for(int x = -1; x <= 1; ++x)
+					{
+						if(x != 0 && y != 0)
+						{
+							makeRoad(*server.world_state,
+								Vec3d(x * 70.0, y * 70, 0), // pos
+								Vec3f(8, 8, z_scale), // scale
+								0 // rot angle
+							);
+						}
+					}
+
+				// Intersections with diagonal roads (inner)
+				for(int y = -1; y <= 1; ++y)
+					for(int x = -1; x <= 1; ++x)
+					{
+						if(x != 0 && y != 0)
+						{
+							makeRoad(*server.world_state,
+								Vec3d(x * 45, y * 45, 0), // pos
+								Vec3f(8, 8, z_scale), // scale
+								0 // rot angle
+							);
+						}
+					}
+
+				// Centre roads
+				makeRoad(*server.world_state,
+					Vec3d(0, 45, 0), // pos
+					Vec3f(82, 8, z_scale), // scale
+					0 // rot angle
+				);
+				makeRoad(*server.world_state,
+					Vec3d(0, -45, 0), // pos
+					Vec3f(82, 8, z_scale), // scale
+					0 // rot angle
+				);
+				makeRoad(*server.world_state,
+					Vec3d(45, 0, 0), // pos
+					Vec3f(8, 82, z_scale), // scale
+					0 // rot angle
+				);
+				makeRoad(*server.world_state,
+					Vec3d(-45, 0, 0), // pos
+					Vec3f(8, 82, z_scale), // scale
+					0 // rot angle
+				);
+			}
+		}
+
 
 
 
