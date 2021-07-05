@@ -6442,6 +6442,8 @@ int main(int argc, char *argv[])
 {
 	try
 	{
+		QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
+
 		GuiClientApplication app(argc, argv);
 
 #if defined(_WIN32)
