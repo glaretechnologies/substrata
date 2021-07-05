@@ -644,6 +644,57 @@ void handleMarkParcelAsNFTMintedPost(ServerAllWorldsState& world_state, const we
 }
 
 
+// Creates a new minting transaction for the parcel.
+void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int parcel_id = request.getPostIntField("parcel_id");
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				// Make an Eth transaction to mint the parcel
+				SubEthTransactionRef transaction = new SubEthTransaction();
+				transaction->id = world_state.getNextSubEthTransactionUID();
+				transaction->created_time = TimeStamp::currentTime();
+				transaction->state = SubEthTransaction::State_New;
+				transaction->initiating_user_id = logged_in_user->id;
+				transaction->parcel_id = parcel->id;
+				transaction->user_eth_address = logged_in_user->controlled_eth_address;
+
+				parcel->minting_transaction_id = transaction->id;
+
+				world_state.sub_eth_transactions[transaction->id] = transaction;
+
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transactions");
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleMarkParcelAsNFTMintedPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
 void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
