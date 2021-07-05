@@ -59,9 +59,9 @@ GlWidget::GlWidget(QWidget *parent)
 
 	OpenGLEngineSettings settings;
 	settings.enable_debug_output = true;
-	settings.shadow_mapping = true;
-	settings.compress_textures = true;
-	settings.depth_fog = true;
+	settings.shadow_mapping = false; // TEMP HACK IMPORTANT
+	settings.compress_textures = false;
+	settings.depth_fog = false;
 	opengl_engine = new OpenGLEngine(settings);
 
 	SHIFT_down = false;
@@ -113,22 +113,16 @@ void GlWidget::initGamepadsSlot()
 	{
 		gamepad = new QGamepad(list.at(0));
 
-		connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
-		connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
+		//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
+		//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
 	}
 }
 
 
-void GlWidget::init()
-{
-	
-}
-
-
-void GlWidget::gamepadInputSlot()
-{
-
-}
+//void GlWidget::gamepadInputSlot()
+//{
+//
+//}
 
 
 GlWidget::~GlWidget()

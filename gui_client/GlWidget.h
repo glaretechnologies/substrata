@@ -32,8 +32,6 @@ public:
 	GlWidget(QWidget *parent = 0);
 	~GlWidget();
 
-	void init();
-
 	// Non-empty if error occurred.
 	std::string getInitialisationErrorMsg() const { return initialisation_error_msg; }
 
@@ -84,7 +82,7 @@ signals:;
 	void mouseDoubleClickedSignal(QMouseEvent* e);
 	
 private slots:
-	void gamepadInputSlot();
+	//void gamepadInputSlot();
 	void initGamepadsSlot();
 
 private:
