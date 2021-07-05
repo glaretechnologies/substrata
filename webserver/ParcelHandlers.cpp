@@ -210,6 +210,12 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
 				page += "<input type=\"submit\" value=\"Mark parcel as NFT-minted\">";
 				page += "</form>";
+
+				page += "<form action=\"/admin_retry_parcel_mint_post\" method=\"post\">";
+				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + parcel->id.toString() + "\">";
+				page += "<input type=\"submit\" value=\"Retry parcel minting\">";
+				page += "</form>";
+
 			}
 
 		} // end lock scope

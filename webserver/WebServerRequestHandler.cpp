@@ -152,6 +152,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleMarkParcelAsNFTMintedPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_retry_parcel_mint_post")
+		{
+			AdminHandlers::handleRetryParcelMintPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
