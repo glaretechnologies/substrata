@@ -90,8 +90,10 @@ void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 void AddObjectPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
+		//"n:/indigo/trunk/opengl", // data dir
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
-		texture_server_ptr
+		texture_server_ptr,
+		NULL // print output
 	);
 	if(!opengl_engine->initSucceeded())
 	{

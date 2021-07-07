@@ -83,7 +83,8 @@ void AvatarPreviewWidget::initializeGL()
 	opengl_engine->initialise(
 		//"n:/indigo/trunk/opengl/shaders" // shader dir
 		"./shaders", // shader dir
-		texture_server_ptr
+		texture_server_ptr,
+		NULL // print output
 	);
 	if(!opengl_engine->initSucceeded())
 	{

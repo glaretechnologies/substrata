@@ -53,13 +53,14 @@ GlWidget::GlWidget(QWidget *parent)
 	current_time(0.f),
 	cam_rot_on_mouse_move_enabled(true),
 	max_draw_dist(1000.f),
-	gamepad(NULL)
+	gamepad(NULL),
+	print_output(NULL)
 {
 	viewport_aspect_ratio = 1;
 
 	OpenGLEngineSettings settings;
 	settings.enable_debug_output = true;
-	settings.shadow_mapping = false; // TEMP HACK IMPORTANT
+	settings.shadow_mapping = true;
 	settings.compress_textures = true;
 	settings.depth_fog = false;
 	opengl_engine = new OpenGLEngine(settings);
@@ -165,7 +166,8 @@ void GlWidget::initializeGL()
 	opengl_engine->initialise(
 		//"n:/indigo/trunk/opengl", // data dir
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
-		this->texture_server_ptr
+		this->texture_server_ptr,
+		this->print_output
 	);
 	if(!opengl_engine->initSucceeded())
 	{

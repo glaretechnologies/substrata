@@ -20,6 +20,7 @@ class FrameBuffer;
 class OpenGLMaterial;
 class QOpenGLFramebufferObject;
 class QOpenGLContext;
+class PrintOutput;
 
 
 /*=====================================================================
@@ -34,7 +35,7 @@ public:
 	MaterialBrowser();
 	~MaterialBrowser();
 
-	void init(QWidget* parent, const std::string& basedir_path, const std::string& appdata_path, TextureServer* texture_server_ptr);
+	void init(QWidget* parent, const std::string& basedir_path, const std::string& appdata_path, TextureServer* texture_server_ptr, PrintOutput* print_output);
 
 signals:;
 	void materialSelected(const std::string& path);
@@ -58,4 +59,5 @@ private:
 	
 	Reference<OpenGLEngine> opengl_engine;
 	std::string basedir_path, appdata_path;
+	PrintOutput* print_output;
 };

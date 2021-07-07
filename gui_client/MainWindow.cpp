@@ -178,9 +178,12 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	interop_device_handle(NULL),
 #endif
 	force_new_undo_edit(false),
-	log_window(NULL)
+	log_window(NULL),
+	model_building_task_manager("model building task manager"),
+	texture_loader_task_manager("texture loader task manager")
 {
 	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+	texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	QGamepadManager::instance();
 
@@ -201,7 +204,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	proximity_loader.callbacks = this;
 	proximity_loader.opengl_engine = ui->glWidget->opengl_engine.ptr();
 
-	ui->glWidget->setBaseDir(base_dir_path);
+	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this);
 	ui->objectEditor->base_dir_path = base_dir_path;
 
 	// Add a space to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
@@ -322,7 +325,7 @@ void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString("Substrata v" + ::cyberspace_version));
 
-	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, this->texture_server);
+	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, this->texture_server, /*print output=*/this);
 	connect(ui->materialBrowserDockWidgetContents, SIGNAL(materialSelected(const std::string&)), this, SLOT(materialSelectedInBrowser(const std::string&)));
 
 	ui->objectEditor->setControlsEnabled(false);
@@ -1157,20 +1160,24 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 }
 
 
-void MainWindow::print(const std::string& message) // Print to log and console
-{
-	//conPrint(message);
-	//this->logfile << message << std::endl;
-	logMessage(message);
-}
-
-
 void MainWindow::logMessage(const std::string& msg) // Print to stdout and append to LogWindow log display
 {
 	conPrint(msg);
 	//this->logfile << msg << "\n";
 	if(this->log_window)
 		this->log_window->appendLine(msg);
+}
+
+
+void MainWindow::print(const std::string& s) // Print a message and a newline character.
+{
+	logMessage(s);
+}
+
+
+void MainWindow::printStr(const std::string& s) // Print a message without a newline character.
+{
+	logMessage(s);
 }
 
 
@@ -1695,18 +1702,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
-	// Log any error/warning messages from the opengl engine.
-	if(ui->glWidget && ui->glWidget->opengl_engine.nonNull())
-	{
-		if(!ui->glWidget->opengl_engine->opengl_msgs.empty())
-		{
-			for(size_t i=0; i<ui->glWidget->opengl_engine->opengl_msgs.size(); ++i)
-				logMessage("OpenGL Engine: " + ui->glWidget->opengl_engine->opengl_msgs[i]);
-
-			ui->glWidget->opengl_engine->opengl_msgs.clear();
-		}
-	}
-
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
 	{
@@ -1942,6 +1937,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// We alternate for fairness.
 		const double MAX_LOADING_TIME = 0.050; // 10 ms.
 		Timer loading_timer;
+		int num_models_loaded = 0;
+		int num_textures_loaded = 0;
 		while((!model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
 		{
 			// ui->glWidget->makeCurrent();
@@ -1950,6 +1947,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
 				model_loaded_messages_to_process.pop_front();
+
+				num_models_loaded++;
 
 				try
 				{
@@ -2080,6 +2079,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
 				texture_loaded_messages_to_process.pop_front();
 
+				num_textures_loaded++;
+
 				// conPrint("Handling texture loaded message " + message->tex_path);
 
 				//Timer timer;
@@ -2097,6 +2098,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			process_model_loaded_next = !process_model_loaded_next;
 		}
+
+		// conPrint("Done loading, num_textures_loaded: " + toString(num_textures_loaded) + ", num_models_loaded: " + toString(num_models_loaded) + ", elapsed: " + loading_timer.elapsedStringNPlaces(4));
 	}
 	
 	// Handle any messages (chat messages etc..)
@@ -6514,12 +6517,12 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			OpenGLEngineTests::buildData();
+			//OpenGLEngineTests::buildData();
 			//Matrix4f::test();
 			//BatchedMeshTests::test();
 			//UVUnwrapper::test();
 			//quaternionTests();
-			FormatDecoderGLTF::test();
+			//FormatDecoderGLTF::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
@@ -6531,7 +6534,7 @@ int main(int argc, char *argv[])
 			//FormatDecoderVox::test();
 			//ModelLoading::test();
 			//HTTPClient::test();
-			//GIFDecoder::test();
+			GIFDecoder::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
 			//StringUtils::test();
