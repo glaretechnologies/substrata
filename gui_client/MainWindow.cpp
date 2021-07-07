@@ -1015,7 +1015,7 @@ void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 {
 	for(size_t z=0; z<prototype_ob->instances.size(); ++z)
 	{
-		WorldObjectRef instance = prototype_ob->instances[z];
+		WorldObject* instance = prototype_ob->instances[z].ptr();
 		
 		if(instance->opengl_engine_ob.nonNull()) ui->glWidget->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
 
@@ -1066,7 +1066,9 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				const int MAX_COUNT = 1000;
 				count = myMin(count, MAX_COUNT);
 
+				//Timer timer;
 				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
+				//conPrint("WinterShaderEvaluator creation took " + timer.elapsedStringNSigFigs(4));
 				ob->num_instances = count;
 
 				if(count > 0) // If instancing was requested:
@@ -1935,7 +1937,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// We don't want to do too much at one time or it will cause hitches.
 		// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
 		// We alternate for fairness.
-		const double MAX_LOADING_TIME = 0.050; // 10 ms.
+		const double MAX_LOADING_TIME = 0.010;// 10 ms
 		Timer loading_timer;
 		int num_models_loaded = 0;
 		int num_textures_loaded = 0;
@@ -1948,6 +1950,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
 				model_loaded_messages_to_process.pop_front();
 
+				//conPrint("Handling model loaded message, model_url: " + message->ob->model_url);
 				num_models_loaded++;
 
 				try
@@ -2099,7 +2102,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			process_model_loaded_next = !process_model_loaded_next;
 		}
 
-		// conPrint("Done loading, num_textures_loaded: " + toString(num_textures_loaded) + ", num_models_loaded: " + toString(num_models_loaded) + ", elapsed: " + loading_timer.elapsedStringNPlaces(4));
+		//if(num_models_loaded > 0 || num_textures_loaded > 0)
+		//	conPrint("Done loading, num_textures_loaded: " + toString(num_textures_loaded) + ", num_models_loaded: " + toString(num_models_loaded) + ", elapsed: " + loading_timer.elapsedStringNPlaces(4));
 	}
 	
 	// Handle any messages (chat messages etc..)
@@ -3429,9 +3433,13 @@ void MainWindow::updateStatusBar()
 	if(num_resources_uploading > 0)
 		status += " | Uploading " + toString(num_resources_uploading) + ((num_resources_uploading == 1) ? " resource..." : " resources...");
 
-	const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks();
+	const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks() + texture_loaded_messages_to_process.size();
 	if(num_tex_tasks > 0)
 		status += " | Loading " + toString(num_tex_tasks) + ((num_tex_tasks == 1) ? " texture..." : " textures...");
+
+	const size_t num_model_tasks = model_building_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
+	if(num_model_tasks > 0)
+		status += " | Loading " + toString(num_model_tasks) + ((num_model_tasks == 1) ? " model..." : " models...");
 
 	this->statusBar()->showMessage(QtUtils::toQString(status));
 }
