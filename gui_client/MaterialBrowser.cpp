@@ -46,6 +46,7 @@ MaterialBrowser::~MaterialBrowser()
 
 
 // Set up offscreen rendering and OpenGL engine
+// Throws glare::Exception on failure
 void MaterialBrowser::createOpenGLEngineAndSurface()
 {
 	QSurfaceFormat format;
@@ -59,17 +60,21 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	this->context = new QOpenGLContext();
 	this->context->setFormat(format);
 	this->context->create();
-	assert(context->isValid());
+	if(!context->isValid())
+		throw glare::Exception("MaterialBrowser: Could not create valid QOpenGLContext");
 
 	this->offscreen_surface = new QOffscreenSurface();
 	this->offscreen_surface->setFormat(context->format());
 	this->offscreen_surface->create();
-	assert(this->offscreen_surface->isValid());
+	if(!offscreen_surface->isValid())
+		throw glare::Exception("MaterialBrowser: Could not create valid QOffscreenSurface");
+
 
 	context->makeCurrent(this->offscreen_surface);
 
 
 	OpenGLEngineSettings settings;
+	settings.enable_debug_output = true;
 	settings.shadow_mapping = true;
 	settings.compress_textures = true;
 	opengl_engine = new OpenGLEngine(settings);
@@ -77,18 +82,18 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	opengl_engine->initialise(
 		//"n:/indigo/trunk/opengl", // data dir
 		basedir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
-		texture_server_ptr
+		texture_server_ptr,
+		print_output
 	);
 	if(!opengl_engine->initSucceeded())
-	{
-		conPrint("opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
-	}
+		throw glare::Exception("MaterialBrowser: opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
 
 	QOpenGLFramebufferObjectFormat fbo_format;
 	fbo_format.setSamples(4); // For MSAA
-	fbo_format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil); // Seems to be needed for shadow mapping.
+	fbo_format.setAttachment(QOpenGLFramebufferObject::Depth);// Seems to be needed for shadow mapping.
 	this->fbo = new QOpenGLFramebufferObject(QSize(PREVIEW_SIZE, PREVIEW_SIZE), fbo_format);
-	assert(fbo->isValid());
+	if(!fbo->isValid())
+		throw glare::Exception("QOpenGLFramebufferObject is invalid");
 
 	this->frame_buffer = new FrameBuffer();
 	this->frame_buffer->buffer_name = this->fbo->handle();
@@ -108,8 +113,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		}
 		catch(glare::Exception& e)
 		{
-			assert(0);
-			conPrint("ERROR: " + e.what());
+			throw glare::Exception("MaterialBrowser: " + e.what());
 		}
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 		opengl_engine->setEnvMat(env_mat);
@@ -128,8 +132,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		}
 		catch(glare::Exception& e)
 		{
-			assert(0);
-			conPrint("ERROR: " + e.what());
+			throw glare::Exception("MaterialBrowser: " + e.what());
 		}
 		ob->materials[0].roughness = 0.8f;
 		ob->materials[0].fresnel_scale = 0.5f;
@@ -140,8 +143,6 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 
 		opengl_engine->addObject(ob);
 	}
-
-	opengl_engine->setViewport(PREVIEW_SIZE, PREVIEW_SIZE);
 
 	const Matrix4f world_to_camera_space_matrix =  Matrix4f::rotationAroundXAxis(0.5f) * Matrix4f::translationMatrix(0, 0.8, -0.6) * Matrix4f::rotationAroundZAxis(2.5);
 
@@ -155,11 +156,12 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 }
 
 
-void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, const std::string& appdata_path_, TextureServer* texture_server_ptr_)
+void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, const std::string& appdata_path_, TextureServer* texture_server_ptr_, PrintOutput* print_output_)
 {
 	basedir_path = basedir_path_;
 	appdata_path = appdata_path_;
 	texture_server_ptr = texture_server_ptr_;
+	print_output = print_output_;
 
 	setupUi(this);
 
@@ -255,12 +257,9 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 			mat_paths.push_back(filepaths[i]);
 		}
 	}
-	catch(FileUtils::FileUtilsExcep& e)
-	{
-		conPrint("Error: " + e.what());
-	}
 	catch(glare::Exception& e)
 	{
+		print_output->print("MaterialBrowser: " + e.what());
 		conPrint("Error: " + e.what());
 	}
 

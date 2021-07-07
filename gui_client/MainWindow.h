@@ -58,7 +58,7 @@ struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 
 
-class MainWindow : public QMainWindow, public ObLoadingCallbacks
+class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput
 {
 	Q_OBJECT
 public:
@@ -76,8 +76,12 @@ public:
 
 	void updateGroundPlane();
 
-	void print(const std::string& message); // Print to console, log file, and append to LogWindow log display
 	void logMessage(const std::string& msg); // Print to console, log file, and append to LogWindow log display
+
+	// PrintOutput interface
+	virtual void print(const std::string& s); // Print a message and a newline character.
+	virtual void printStr(const std::string& s); // Print a message without a newline character.
+
 
 	// Semicolon is for intellisense, see http://www.qtsoftware.com/developer/faqs/faq.2007-08-23.5900165993
 signals:;
