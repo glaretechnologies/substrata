@@ -117,6 +117,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/BatchedMeshTests.h" // Just for testing
 #include "../graphics/KTXDecoder.h" // Just for testing
 #include "../graphics/ImageMapSequence.h" // Just for testing
+#include "../graphics/NoiseTests.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
 #include "../indigo/UVUnwrapper.h" // Just for testing
 
@@ -6525,6 +6526,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			NoiseTests::test();
 			//OpenGLEngineTests::buildData();
 			//Matrix4f::test();
 			//BatchedMeshTests::test();
@@ -6542,7 +6544,7 @@ int main(int argc, char *argv[])
 			//FormatDecoderVox::test();
 			//ModelLoading::test();
 			//HTTPClient::test();
-			GIFDecoder::test();
+			//GIFDecoder::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
 			//StringUtils::test();
@@ -6695,6 +6697,7 @@ int main(int argc, char *argv[])
 				try
 				{
 					env_mat.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture(cyberspace_base_dir_path + "/resources/sky_no_sun.exr");
+					env_mat.albedo_texture->setTWrappingEnabled(false); // Disable wrapping in vertical direction to avoid grey dot straight up.
 				}
 				catch(glare::Exception& e)
 				{
