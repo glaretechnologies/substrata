@@ -335,19 +335,19 @@ void AudioEngine::init()
 		if ( info.probed == true ) {
 			// Print, for example, the maximum number of output channels for each device
 
-			conPrint("name = " + info.name);
-			conPrint("maximum output channels = " + toString(info.outputChannels));
-			conPrint("maximum input channels = " + toString(info.inputChannels));
-			conPrint("supported sample rates = " + toString(info.inputChannels));
-			for(auto r : info.sampleRates)
-				conPrint(toString(r) + " hz");
-			conPrint("preferredSampleRate = " + toString(info.preferredSampleRate));
+			// conPrint("name = " + info.name);
+			// conPrint("maximum output channels = " + toString(info.outputChannels));
+			// conPrint("maximum input channels = " + toString(info.inputChannels));
+			// conPrint("supported sample rates = " + toString(info.inputChannels));
+			// for(auto r : info.sampleRates)
+			// 	conPrint(toString(r) + " hz");
+			// conPrint("preferredSampleRate = " + toString(info.preferredSampleRate));
 		}
 	}
 
 
 	const unsigned int default_output_dev = audio->getDefaultOutputDevice();
-	conPrint("default_output_dev: " + toString(default_output_dev));
+	// conPrint("default_output_dev: " + toString(default_output_dev));
 
 	info = audio->getDeviceInfo(default_output_dev);
 	if(!info.isDefaultOutput)
@@ -362,7 +362,7 @@ void AudioEngine::init()
 	unsigned int sample_rate = use_sample_rate;
 	unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
 
-	conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
+	// conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
 
 	callback_data.resonance = NULL;
 	callback_data.engine = this;
