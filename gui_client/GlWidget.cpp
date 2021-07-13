@@ -62,7 +62,7 @@ GlWidget::GlWidget(QWidget *parent)
 	settings.enable_debug_output = true;
 	settings.shadow_mapping = true;
 	settings.compress_textures = true;
-	settings.depth_fog = false;
+	settings.depth_fog = true;
 	opengl_engine = new OpenGLEngine(settings);
 
 	SHIFT_down = false;
@@ -173,6 +173,18 @@ void GlWidget::initializeGL()
 	{
 		conPrint("opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
 		initialisation_error_msg = opengl_engine->getInitialisationErrorMsg();
+	}
+
+	if(opengl_engine->initSucceeded())
+	{
+		try
+		{
+			opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir_path + "/resources/cirrus.exr"));
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Error: " + e.what());
+		}
 	}
 }
 
