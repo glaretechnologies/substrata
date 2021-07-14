@@ -166,8 +166,6 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 
 	setupUi(this);
 
-	return;//TEMP HACK IMPORTANT DISABLE MaterialBrowser
-
 	flow_layout = new FlowLayout(this);
 
 	// Scan for all materials on disk, make preview buttons for them.
