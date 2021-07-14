@@ -317,6 +317,8 @@ set(fft2d "../libs/fft2d/fft4f2d.c")
 
 set(opengl 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/gl3w.c 
+#${INDIGO_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.cpp 
+#${INDIGO_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/FrameBuffer.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/FrameBuffer.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/VAO.cpp 
