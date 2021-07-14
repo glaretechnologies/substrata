@@ -35,7 +35,8 @@ Copyright Glare Technologies Limited 2019 -
 MaterialBrowser::MaterialBrowser()
 :	fbo(NULL),
 	context(NULL),
-	offscreen_surface(NULL)
+	offscreen_surface(NULL),
+	print_output(NULL)
 {
 }
 
@@ -261,7 +262,8 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 	}
 	catch(glare::Exception& e)
 	{
-		print_output->print("MaterialBrowser: " + e.what());
+		if(print_output)
+			print_output->print("MaterialBrowser: " + e.what());
 		conPrint("Error: " + e.what());
 	}
 
