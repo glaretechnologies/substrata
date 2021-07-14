@@ -119,6 +119,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/ImageMapSequence.h" // Just for testing
 #include "../graphics/NoiseTests.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
+//#include "../opengl/EnvMapProcessing.h" // Just for testing
 #include "../indigo/UVUnwrapper.h" // Just for testing
 
 #ifdef _WIN32
@@ -6526,6 +6527,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			//EnvMapProcessing::run(cyberspace_base_dir_path);
 			NoiseTests::test();
 			//OpenGLEngineTests::buildData();
 			//Matrix4f::test();
@@ -6683,7 +6685,7 @@ int main(int argc, char *argv[])
 
 			const float sun_phi = 1.f;
 			const float sun_theta = Maths::pi<float>() / 4;
-			mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sun_theta, cos(sun_theta), 0)));
+			mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0)));
 			// printVar(mw.ui->glWidget->opengl_engine->getSunDir());
 
 			mw.ui->glWidget->opengl_engine->setEnvMapTransform(Matrix3f::rotationMatrix(Vec3f(0,0,1), sun_phi));
