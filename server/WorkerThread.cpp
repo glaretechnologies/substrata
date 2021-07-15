@@ -542,14 +542,31 @@ void WorkerThread::handleEthBotConnection()
 }
 
 
-static bool userHasObjectWritePermissions(const WorldObject& ob, const User& user, const std::string& connected_world_name)
+static bool objectIsInParcelOwnedByLoggedInUser(const WorldObject& ob, const User& user, ServerWorldState& world_state)
+{
+	assert(user.id.valid());
+
+	for(auto& it : world_state.parcels)
+	{
+		const Parcel* parcel = it.second.ptr();
+		if((parcel->owner_id == user.id) && parcel->pointInParcel(ob.pos))
+			return true;
+	}
+
+	return false;
+}
+
+
+// NOTE: world state mutex should be locked before calling this method.
+static bool userHasObjectWritePermissions(const WorldObject& ob, const User& user, const std::string& connected_world_name, ServerWorldState& world_state)
 {
 	if(user.id.valid())
 	{
 		return (user.id == ob.creator_id) || // If the user created/owns the object
 			isGodUser(user.id) || // or if the user is the god user (id 0)
 			user.name == "lightmapperbot" || // lightmapper bot has full write permissions for now.
-			((connected_world_name != "") && (user.name == connected_world_name)); // or if this is the user's personal world
+			((connected_world_name != "") && (user.name == connected_world_name)) || // or if this is the user's personal world
+			objectIsInParcelOwnedByLoggedInUser(ob, user, world_state); // Can modify objects owned by other people if they are in parcels you own.
 	}
 	else
 		return false;
@@ -891,7 +908,7 @@ void WorkerThread::doRun()
 									WorldObject* ob = res->second.getPointer();
 
 									// See if the user has permissions to alter this object:
-									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name))
+									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
 										err_msg_to_client = "You must be the owner of this object to change it.";
 									else
 									{
@@ -937,7 +954,7 @@ void WorkerThread::doRun()
 									WorldObject* ob = res->second.getPointer();
 
 									// See if the user has permissions to alter this object:
-									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name))
+									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
 									{
 										send_must_be_owner_msg = true;
 									}
@@ -1094,7 +1111,7 @@ void WorkerThread::doRun()
 									WorldObject* ob = res->second.getPointer();
 
 									// See if the user has permissions to alter this object:
-									const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name);
+									const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state);
 									if(!have_delete_perms)
 										send_must_be_owner_msg = true;
 									else
