@@ -587,7 +587,10 @@ void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::Req
 					}
 
 					if(added_writer)
+					{
+						world_state.denormaliseData(); // Update parcel writer names
 						world_state.markAsChanged();
+					}
 
 					world_state.setUserWebMessage(logged_in_user->id, message);
 				}
@@ -633,6 +636,7 @@ void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::
 					else
 						world_state.setUserWebMessage(logged_in_user->id, "User was not a writer.");
 
+					world_state.denormaliseData(); // Update parcel writer names
 					world_state.markAsChanged();
 				}
 			}
