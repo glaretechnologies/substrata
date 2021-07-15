@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <StringUtils.h>
 #include <PlatformUtils.h>
 #include <Parser.h>
+#include <ContainerUtils.h>
 
 
 namespace ParcelHandlers
@@ -56,6 +57,18 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			const Parcel* parcel = res->second.ptr();
 
+
+			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+			const bool logged_in_user_is_parcel_owner = logged_in_user && (parcel->owner_id == logged_in_user->id); // If the user is logged in and owns this parcel:
+
+
+			if(logged_in_user)
+			{
+				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+				if(!msg.empty())
+					page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+			}
+
 			//page += "<div>Parcel " + parcel->id.toString() + "</div>";
 
 			// Lookup screenshot object for auction
@@ -79,17 +92,48 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				"</span><br/>(enter URL into location bar in Substrata client)</p>   \n";
 
 			// Look up owner
-			std::string owner_username;
-			auto user_res = world_state.user_id_to_users.find(parcel->owner_id);
-			if(user_res == world_state.user_id_to_users.end())
-				owner_username = "[No user found]";
-			else
-				owner_username = user_res->second->name;
+			{
+				std::string owner_username;
+				auto user_res = world_state.user_id_to_users.find(parcel->owner_id);
+				if(user_res == world_state.user_id_to_users.end())
+					owner_username = "[No user found]";
+				else
+					owner_username = user_res->second->name;
 
 
-			page += "<p>Owner: " + web::Escaping::HTMLEscape(owner_username) + "</p>   \n";
+				page += "<p>Owner: " + web::Escaping::HTMLEscape(owner_username) + "</p>   \n";
+			}
+
+			page += "<p>Writers: ";
+			// Look up writers
+			for(size_t z=0; z<parcel->writer_ids.size(); ++z)
+			{
+				// Look up user for id
+				std::string writer_username;
+				auto user_res = world_state.user_id_to_users.find(parcel->writer_ids[z]);
+				if(user_res == world_state.user_id_to_users.end())
+					writer_username = "[No user found]";
+				else
+					writer_username = user_res->second->name;
+
+				page += web::Escaping::HTMLEscape(writer_username);
+
+				if(logged_in_user_is_parcel_owner)
+					page += " <small><a href=\"/remove_parcel_writer?parcel_id=" + parcel->id.toString() + "&writer_id=" + parcel->writer_ids[z].toString() + "\">[Remove]</a></small>";
+
+				if(z + 1 < parcel->writer_ids.size())
+					page += ", ";
+			}
+			page += "</p>   \n";
+			if(logged_in_user_is_parcel_owner)
+				page += "<a href=\"/add_parcel_writer?parcel_id=" + parcel->id.toString() + "\">Add writer</a>";
+
+
+
 			page += "<p>Description: " + web::Escaping::HTMLEscape(parcel->description) + "</p>   \n";
 			//page += "<p>Created: " + parcel->created_time.timeAgoDescription() + "</p>   \n";
+			if(logged_in_user_is_parcel_owner)
+				page += "<a href=\"/edit_parcel_description?parcel_id=" + parcel->id.toString() + "\">Edit description</a>";
 
 			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
 			page += "<p>Dimensions: " + toString(span.x) + " m x " + toString(span.y) + " m x " + toString(span.z) + " m.</p>   \n";
@@ -184,8 +228,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			}*/
 			page += "</p>";
 
-			User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-			if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
+			if(logged_in_user_is_parcel_owner) // If the user is logged in and owns this parcel:
 			{
 				page += "<h2>Parcel owner tools</h2>  \n";
 
@@ -229,6 +272,124 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 	{
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
+}
+
+
+void renderEditParcelDescriptionPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	const int parcel_id = request.getURLIntParam("parcel_id");
+
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request, "Edit parcel description");
+	page += "<div class=\"main\">   \n";
+
+	{ // Lock scope
+
+		Lock lock(world_state.mutex);
+
+		// Lookup parcel
+		const auto res = world_state.getRootWorldState()->parcels.find(ParcelID(parcel_id));
+		if(res != world_state.getRootWorldState()->parcels.end())
+		{
+			Parcel* parcel = res->second.ptr();
+
+			page += "<form action=\"/edit_parcel_description_post\" method=\"post\" id=\"usrform\">";
+			page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + toString(parcel_id) + "\"><br>";
+			page += "<textarea rows=\"8\" cols=\"80\" name=\"description\" form=\"usrform\">" + web::Escaping::HTMLEscape(parcel->description) + "</textarea><br>";
+			page += "<input type=\"submit\" value=\"Update description\">";
+			page += "</form>";
+		}
+	} // End lock scope
+
+	page += "</div>   \n"; // end main div
+	page += WebServerResponseUtils::standardFooter(request, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderAddParcelWriterPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	const int parcel_id = request.getURLIntParam("parcel_id");
+
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request, "Add writer to parcel");
+	page += "<div class=\"main\">   \n";
+
+	page += "Add a user that will have write permissions for the parcel.  They will be able to create, edit and delete objects in the parcel.";
+
+	const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+	if(logged_in_user)
+	{
+		const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+		if(!msg.empty())
+			page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+	}
+
+	{ // Lock scope
+
+		Lock lock(world_state.mutex);
+
+		// Lookup parcel
+		const auto res = world_state.getRootWorldState()->parcels.find(ParcelID(parcel_id));
+		if(res != world_state.getRootWorldState()->parcels.end())
+		{
+			page += "<form action=\"/add_parcel_writer_post\" method=\"post\" id=\"usrform\">";
+			page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + toString(parcel_id) + "\"><br>";
+			page += "Writer username: <input type=\"text\" name=\"writer_name\" value=\"\"><br>";
+			page += "<input type=\"submit\" value=\"Add as writer\">";
+			page += "</form>";
+		}
+	} // End lock scope
+
+	page += "</div>   \n"; // end main div
+	page += WebServerResponseUtils::standardFooter(request, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+void renderRemoveParcelWriterPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	const int parcel_id = request.getURLIntParam("parcel_id");
+	const int writer_id = request.getURLIntParam("writer_id");
+
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request, "Remove writer from parcel");
+	page += "<div class=\"main\">   \n";
+
+	const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+	if(logged_in_user)
+	{
+		const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+		if(!msg.empty())
+			page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+	}
+
+	{ // Lock scope
+
+		Lock lock(world_state.mutex);
+
+		// Lookup writer
+		const auto writer_res = world_state.user_id_to_users.find(UserID(writer_id));
+		if(writer_res != world_state.user_id_to_users.end())
+		{
+			page += "Are you sure you want to remove the user " + web::Escaping::HTMLEscape(writer_res->second->name) + " as a writer from the parcel?";
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID(parcel_id));
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				page += "<form action=\"/remove_parcel_writer_post\" method=\"post\" id=\"usrform\">";
+				page += "<input type=\"hidden\" name=\"parcel_id\" value=\"" + toString(parcel_id) + "\"><br>";
+				page += "<input type=\"hidden\" name=\"writer_id\" value=\"" + toString(writer_id) + "\"><br>";
+				page += "<input type=\"submit\" value=\"Remove writer\">";
+				page += "</form>";
+			}
+		}
+	} // End lock scope
+
+	page += "</div>   \n"; // end main div
+	page += WebServerResponseUtils::standardFooter(request, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
 }
 
 
@@ -338,5 +499,152 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 	}
 }
 
+
+void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
+		const web::UnsafeString new_descrip = request.getPostField("description");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
+				{
+					parcel->description = new_descrip.str();
+
+					world_state.markAsChanged();
+
+					world_state.setUserWebMessage(logged_in_user->id, "Updated description.");
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + parcel_id.toString());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleEditParcelDescriptionPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
+		const web::UnsafeString writer_name = request.getPostField("writer_name");
+
+		bool added_writer = false;
+		std::string message;
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
+				{
+					// Try and find user for writer_name
+					User* new_writer_user = NULL;
+					for(auto it = world_state.user_id_to_users.begin(); it != world_state.user_id_to_users.end(); ++it)
+						if(it->second->name == writer_name.str())
+							new_writer_user = it->second.ptr();
+
+					if(new_writer_user)
+					{
+						if(!ContainerUtils::contains(parcel->writer_ids, new_writer_user->id))
+						{
+							added_writer = true;
+							parcel->writer_ids.push_back(new_writer_user->id);
+							message = "Added user as writer.";
+						}
+						else
+						{
+							message = "User is already a writer.";
+						}
+					}
+					else
+					{
+						message = "Could not find a user with that name.";
+					}
+
+					if(added_writer)
+						world_state.markAsChanged();
+
+					world_state.setUserWebMessage(logged_in_user->id, message);
+				}
+			}
+		} // End lock scope
+
+		if(added_writer)
+			web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + parcel_id.toString());
+		else
+			web::ResponseUtils::writeRedirectTo(reply_info, "/add_parcel_writer?parcel_id=" + parcel_id.toString());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleEditParcelDescriptionPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
+		const UserID writer_id = UserID(request.getPostIntField("writer_id"));
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(parcel_id);
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+
+				User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
+				{
+					const bool removed = ContainerUtils::removeFirst(parcel->writer_ids, writer_id);
+
+					if(removed)
+						world_state.setUserWebMessage(logged_in_user->id, "removed user as writer");
+					else
+						world_state.setUserWebMessage(logged_in_user->id, "User was not a writer.");
+
+					world_state.markAsChanged();
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + parcel_id.toString());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleEditParcelDescriptionPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
 
 } // end namespace ParcelHandlers

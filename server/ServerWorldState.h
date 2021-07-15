@@ -69,6 +69,9 @@ public:
 	void clearChangedFlag() { changed = 0; }
 	bool hasChanged() const { return changed != 0; }
 
+	void setUserWebMessage(const UserID& user_id, const std::string& s);
+	std::string getAndRemoveUserWebMessage(const UserID& user_id); // returns empty string if no message or user
+
 	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; } // Guaranteed to be return a non-null reference
 
 	Reference<ResourceManager> resource_manager;
@@ -98,6 +101,8 @@ public:
 	TimeStamp last_screenshot_bot_contact_time;
 	TimeStamp last_lightmapper_bot_contact_time;
 	TimeStamp last_eth_bot_contact_time;
+
+	std::map<UserID, std::string> user_web_messages;
 
 	::Mutex mutex;
 private:

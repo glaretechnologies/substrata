@@ -784,3 +784,25 @@ uint64 ServerAllWorldsState::getNextSubEthTransactionUID()
 	Lock lock(mutex);
 	return next_sub_eth_transaction_uid++;
 }
+
+
+void ServerAllWorldsState::setUserWebMessage(const UserID& user_id, const std::string& s)
+{
+	Lock lock(mutex);
+	user_web_messages[user_id] = s;
+}
+
+
+std::string ServerAllWorldsState::getAndRemoveUserWebMessage(const UserID& user_id) // returns empty string if no message or user
+{
+	Lock lock(mutex);
+	auto res = user_web_messages.find(user_id);
+	if(res != user_web_messages.end())
+	{
+		const std::string msg = res->second;
+		user_web_messages.erase(res);
+		return msg;
+	}
+	else
+		return std::string();
+}
