@@ -160,6 +160,18 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/edit_parcel_description_post")
+		{
+			ParcelHandlers::handleEditParcelDescriptionPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/add_parcel_writer_post")
+		{
+			ParcelHandlers::handleAddParcelWriterPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/remove_parcel_writer_post")
+		{
+			ParcelHandlers::handleRemoveParcelWriterPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/account_eth_sign_message_post")
 		{
 			AccountHandlers::handleEthSignMessagePost(*this->world_state, request, reply_info);
@@ -236,6 +248,18 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/parcel/")) // Parcel ID follows in URL
 		{
 			ParcelHandlers::renderParcelPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/edit_parcel_description")
+		{
+			ParcelHandlers::renderEditParcelDescriptionPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/add_parcel_writer")
+		{
+			ParcelHandlers::renderAddParcelWriterPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/remove_parcel_writer")
+		{
+			ParcelHandlers::renderRemoveParcelWriterPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/admin")
 		{
@@ -325,7 +349,6 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AccountHandlers::renderMakingParcelIntoNFTFailed(*this->world_state, request, reply_info);
 		}
-
 		else if(::hasPrefix(request.path, "/p/")) // URL for parcel ERC 721 metadata JSON
 		{
 			ParcelHandlers::renderMetadata(*world_state, request, reply_info);
