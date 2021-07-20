@@ -114,7 +114,9 @@ void LoadModelTask::run(size_t thread_index)
 			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
 			msg->opengl_ob = opengl_ob;
 			msg->physics_ob = physics_ob;
-			msg->model_url = lod_model_url;
+			msg->base_model_url = base_model_url;
+			msg->lod_level = lod_level;
+			msg->lod_model_url = lod_model_url;
 			msg->ob = ob;
 			main_window->msg_queue.enqueue(msg);
 		}
