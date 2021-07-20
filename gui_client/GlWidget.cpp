@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2018 -
 
 #include "PlayerPhysics.h"
 #include "CameraController.h"
+#include "MainOptionsDialog.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
@@ -26,6 +27,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/StringUtils.h"
 #include "../utils/TaskManager.h"
 #include <QtGui/QMouseEvent>
+#include <QtCore/QSettings>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -54,16 +56,17 @@ GlWidget::GlWidget(QWidget *parent)
 	cam_rot_on_mouse_move_enabled(true),
 	max_draw_dist(1000.f),
 	gamepad(NULL),
-	print_output(NULL)
+	print_output(NULL),
+	settings(NULL)
 {
 	viewport_aspect_ratio = 1;
 
-	OpenGLEngineSettings settings;
+	/*OpenGLEngineSettings settings;
 	settings.enable_debug_output = true;
 	settings.shadow_mapping = true;
 	settings.compress_textures = true;
 	settings.depth_fog = true;
-	opengl_engine = new OpenGLEngine(settings);
+	opengl_engine = new OpenGLEngine(settings);*/
 
 	SHIFT_down = false;
 	W_down = false;
@@ -162,6 +165,18 @@ void GlWidget::resizeGL(int width_, int height_)
 void GlWidget::initializeGL()
 {
 	assert(this->texture_server_ptr);
+
+	bool shadows = true;
+	if(settings)
+		shadows = settings->value(MainOptionsDialog::shadowsKey(), /*default val=*/true).toBool();
+
+	OpenGLEngineSettings settings;
+	settings.enable_debug_output = true;
+	settings.shadow_mapping = shadows;
+	settings.compress_textures = true;
+	settings.depth_fog = true;
+	opengl_engine = new OpenGLEngine(settings);
+
 
 	opengl_engine->initialise(
 		//"n:/indigo/trunk/opengl", // data dir
