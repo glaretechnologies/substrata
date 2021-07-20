@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
 #include "vec3.h"
+#include <physics/jscol_aabbox.h>
 #if GUI_CLIENT
 #include <graphics/ImageMap.h>
 #endif
@@ -47,6 +48,9 @@ public:
 class VoxelGroup
 {
 public:
+	// Iterate over voxels and get voxel position bounds
+	js::AABBox getAABB() const;
+
 	js::Vector<Voxel, 16> voxels;
 };
 
@@ -64,8 +68,15 @@ public:
 
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	void appendDependencyURLs(std::vector<std::string>& URLs_out);
-	void getDependencyURLSet(std::set<std::string>& URLS_out);
+	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
+
+	int getLODLevel(const Vec3d& campos) const;
+	std::string getLODModelURL(const Vec3d& campos) const;
+
+	void appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out);
+	void appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out);
+	void getDependencyURLSet(int ob_lod_level, std::set<std::string>& URLS_out);
+	void getDependencyURLSetForAllLODLevels(std::set<std::string>& URLS_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
@@ -134,6 +145,9 @@ public:
 
 	std::string creator_name; // This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
 
+	js::AABBox aabb_ws; // World space axis-aligned bounding box.  Not authoritative.  Used to show a box while loading, also for computing LOD levels.
+	int max_lod_level; // maximum LOD level for model.  0 for models that don't have lower LOD versions.
+
 	enum State
 	{
 		State_JustCreated = 0,
@@ -183,6 +197,8 @@ public:
 	Reference<WinterShaderEvaluator> script_evaluator;
 
 	js::Vector<Matrix4f, 16> instance_matrices;
+
+	int current_lod_level;
 #endif
 
 	float max_load_dist2;
@@ -230,6 +246,7 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID wi
 
 
 const Matrix4f obToWorldMatrix(const WorldObject& ob);
+const Matrix4f worldToObMatrix(const WorldObject& ob);
 
 
 struct WorldObjectRefHash

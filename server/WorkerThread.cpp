@@ -967,7 +967,7 @@ void WorkerThread::doRun()
 
 										// Process resources
 										std::set<std::string> URLs;
-										ob->getDependencyURLSet(URLs);
+										ob->getDependencyURLSetForAllLODLevels(URLs);
 										for(auto it = URLs.begin(); it != URLs.end(); ++it)
 											sendGetFileMessageIfNeeded(*it);
 									}
@@ -1071,7 +1071,7 @@ void WorkerThread::doRun()
 							new_ob->creator_name = client_user->name;
 
 							std::set<std::string> URLs;
-							new_ob->getDependencyURLSet(URLs);
+							new_ob->getDependencyURLSetForAllLODLevels(URLs);
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 								sendGetFileMessageIfNeeded(*it);
 

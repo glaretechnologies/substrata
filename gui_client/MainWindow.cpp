@@ -118,6 +118,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/KTXDecoder.h" // Just for testing
 #include "../graphics/ImageMapSequence.h" // Just for testing
 #include "../graphics/NoiseTests.h" // Just for testing
+#include "../graphics/MeshSimplification.h" // Just for testing
 #include "../opengl/TextureLoadingTests.h" // Just for testing
 //#include "../opengl/EnvMapProcessing.h" // Just for testing
 #include "../indigo/UVUnwrapper.h" // Just for testing
@@ -606,17 +607,6 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 }*/
 
 
-// TODO: check/test
-static const Matrix4f worldToObMatrix(const WorldObject& ob)
-{
-	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
-
-	return Matrix4f::scaleMatrix(1/ob.scale.x, 1/ob.scale.y, 1/ob.scale.z) *
-		Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), -ob.angle) *
-		Matrix4f::translationMatrix(-pos - ob.translation);
-}
-
-
 // Some resources, such as MP4 videos, shouldn't be downloaded fully before displaying, but instead can be streamed and displayed when only part of the stream is downloaded.
 /*static bool shouldStreamResourceViaHTTP(const std::string& url)
 {
@@ -745,8 +735,6 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 {
 	WorldObject* ob = &ob_;
 
-	const Matrix4f ob_to_world_matrix = obToWorldMatrix(ob_);
-
 	// Remove any existing OpenGL and physics model
 	if(ob->opengl_engine_ob.nonNull())
 		ui->glWidget->removeObject(ob->opengl_engine_ob);
@@ -754,21 +742,15 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	if(ob->physics_object.nonNull())
 		physics_world->removeObject(ob->physics_object);
 
-	
-	// Scale up the cube for voxel groups since there are likely a few voxels.
-	const float extra_scale = 1.f;// (ob->object_type == WorldObject::ObjectType_VoxelGroup) ? 10.0f : 1.0f;
+	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(/*min=*/ob->aabb_ws.min_, /*max=*/ob->aabb_ws.max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
 
-	const Matrix4f cube_ob_to_world_matrix = Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f) * ob_to_world_matrix * Matrix4f::uniformScaleMatrix(extra_scale);
-
-	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0, 0, 0, 1), Vec4f(1, 1, 1, 1), Colour4f(0.6f, 0.2f, 0.2, 0.5f));
-	cube_gl_ob->ob_to_world_matrix = cube_ob_to_world_matrix;
 	ob->opengl_engine_ob = cube_gl_ob;
 	ui->glWidget->addObject(cube_gl_ob);
 
 	// Make physics object
 	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false); // Make non-collidable, so avatar doesn't get stuck in large placeholder objects.
 	physics_ob->geometry = this->unit_cube_raymesh;
-	physics_ob->ob_to_world = cube_ob_to_world_matrix;
+	physics_ob->ob_to_world = cube_gl_ob->ob_to_world_matrix;
 
 	ob->physics_object = physics_ob;
 	physics_ob->userdata = ob;
@@ -812,10 +794,10 @@ static void checkTransformOK(const WorldObject* ob)
 
 
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
-void MainWindow::startDownloadingResourcesForObject(WorldObject* ob)
+void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
 	std::set<std::string> dependency_URLs;
-	ob->getDependencyURLSet(dependency_URLs);
+	ob->getDependencyURLSet(ob_lod_level, dependency_URLs);
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 	{
 		const std::string& url = *it;
@@ -830,12 +812,15 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob)
 
 
 // Check if the model file is downloaded.
-// If so load the model into the OpenGL and physics engines.
+// If so, load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the model download.
 // Also enqueue any downloads for missing resources such as textures.
 void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_missing_files*/)
 {
-	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
+	const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+
+	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
+	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->current_lod_level == ob_lod_level))
 		return;
 
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
@@ -851,7 +836,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 		const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
 		// Start downloading any resources we don't have that the object uses.
-		startDownloadingResourcesForObject(ob);
+		startDownloadingResourcesForObject(ob, ob_lod_level);
 
 		startLoadingTexturesForObject(*ob);
 
@@ -877,131 +862,171 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 			}
 		}
 
+		
+		bool load_placeholder = false;
 
-		if(ob->model_url.empty() || resource_manager->isFileForURLPresent(ob->model_url)) // If this object doesn't use a model resource, or we have downloaded the model resource:
+		if(ob->object_type == WorldObject::ObjectType_Hypercard)
 		{
-			if(ob->object_type == WorldObject::ObjectType_Hypercard)
+			// Since makeHypercardTexMap does OpenGL calls, do this in the main thread for now.
+
+			removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+			physics_ob->geometry = this->hypercard_quad_raymesh;
+			physics_ob->ob_to_world = ob_to_world_matrix;
+			physics_ob->userdata = ob;
+			physics_ob->userdata_type = 0;
+
+			GLObjectRef opengl_ob = new GLObject();
+			opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+			opengl_ob->materials.resize(1);
+			opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+			opengl_ob->materials[0].albedo_texture = this->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
+			opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+			ob->opengl_engine_ob = opengl_ob;
+			ob->physics_object = physics_ob;
+			ob->loaded_content = ob->content;
+
+			ui->glWidget->addObject(ob->opengl_engine_ob);
+
+			physics_world->addObject(ob->physics_object);
+			physics_world->rebuild(task_manager, print_output);
+		}
+		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+		{
+			removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+			physics_ob->geometry = this->spotlight_raymesh;
+			physics_ob->ob_to_world = ob_to_world_matrix;
+			physics_ob->userdata = ob;
+			physics_ob->userdata_type = 0;
+
+			GLObjectRef opengl_ob = new GLObject();
+			opengl_ob->mesh_data = this->spotlight_opengl_mesh;
+			opengl_ob->materials.resize(1);
+			opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+			ob->opengl_engine_ob = opengl_ob;
+			ob->physics_object = physics_ob;
+			ob->loaded_content = ob->content;
+
+			ui->glWidget->addObject(ob->opengl_engine_ob);
+
+			physics_world->addObject(ob->physics_object);
+			physics_world->rebuild(task_manager, print_output);
+		}
+		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+		{
+			// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
+			Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+			load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
+			load_model_task->main_window = this;
+			load_model_task->mesh_manager = &mesh_manager;
+			load_model_task->resource_manager = resource_manager;
+			load_model_task->ob = ob;
+			load_model_task->model_building_task_manager = &model_building_task_manager;
+
+			task_manager.addTask(load_model_task);
+
+			load_placeholder = ob->getCompressedVoxels().size() != 0;
+		}
+		else // else ob->object_type == WorldObject::ObjectType_Generic:
+		{
+			assert(ob->object_type == WorldObject::ObjectType_Generic);
+
+			if(!ob->model_url.empty())
 			{
-				// Since makeHypercardTexMap does OpenGL calls, do this in the main thread for now.
+				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_lod_level);
 
-				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+				ob->current_lod_level = ob_lod_level;
 
-				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-				physics_ob->geometry = this->hypercard_quad_raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
-				physics_ob->userdata = ob;
-				physics_ob->userdata_type = 0;
+				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
-				GLObjectRef opengl_ob = new GLObject();
-				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-				opengl_ob->materials.resize(1);
-				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-				opengl_ob->materials[0].albedo_texture = this->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
-				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
-
-				ob->opengl_engine_ob = opengl_ob;
-				ob->physics_object = physics_ob;
-				ob->loaded_content = ob->content;
-
-				ui->glWidget->addObject(ob->opengl_engine_ob);
-
-				physics_world->addObject(ob->physics_object);
-				physics_world->rebuild(task_manager, print_output);
-			}
-			else if(ob->object_type == WorldObject::ObjectType_Spotlight)
-			{
-				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-				physics_ob->geometry = this->spotlight_raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
-				physics_ob->userdata = ob;
-				physics_ob->userdata_type = 0;
-
-				GLObjectRef opengl_ob = new GLObject();
-				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
-				opengl_ob->materials.resize(1);
-				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
-
-				ob->opengl_engine_ob = opengl_ob;
-				ob->physics_object = physics_ob;
-				ob->loaded_content = ob->content;
-
-				ui->glWidget->addObject(ob->opengl_engine_ob);
-
-				physics_world->addObject(ob->physics_object);
-				physics_world->rebuild(task_manager, print_output);
-			}
-			else
-			{
-				const bool load_in_task = (ob->object_type == WorldObject::ObjectType_VoxelGroup) || // Always load voxel models in a LoadModelTask
-					!(this->isModelProcessed(ob->model_url) || mesh_manager.isMeshDataInserted(ob->model_url)); // Is model not being loaded or is not loaded already.
-
-				if(load_in_task)
+				if(resource_manager->isFileForURLPresent(lod_model_url/*ob->model_url*/))
 				{
-					// Do the model loading in a different thread
-					Reference<LoadModelTask> load_model_task = new LoadModelTask();
+					const bool load_in_task = !(this->isModelProcessed(lod_model_url) || mesh_manager.isMeshDataInserted(lod_model_url)); // Is model not being loaded or is not loaded already.
 
-					load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-					load_model_task->main_window = this;
-					load_model_task->mesh_manager = &mesh_manager;
-					load_model_task->resource_manager = resource_manager;
-					load_model_task->ob = ob;
-					load_model_task->model_building_task_manager = &model_building_task_manager;
-
-					task_manager.addTask(load_model_task);
-				}
-				else
-				{
-					// Model is either being loaded, or is already loaded.
-					
-					if(mesh_manager.isMeshDataInserted(ob->model_url)) // If model mesh data is already loaded:
+					if(load_in_task)
 					{
-						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+						// Do the model loading in a different thread
+						Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-						// Create gl and physics object now
-						Reference<RayMesh> raymesh;
-						ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
-							false, // skip opengl calls
-							raymesh);
+						load_model_task->lod_model_url = lod_model_url;
+						load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
+						load_model_task->main_window = this;
+						load_model_task->mesh_manager = &mesh_manager;
+						load_model_task->resource_manager = resource_manager;
+						load_model_task->ob = ob;
+						load_model_task->model_building_task_manager = &model_building_task_manager;
 
-						if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
-							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+						task_manager.addTask(load_model_task);
 
-						for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+						load_placeholder = true;
+					}
+					else
+					{
+						// Model is either being loaded, or is already loaded.
+					
+						if(mesh_manager.isMeshDataInserted(lod_model_url)) // If model mesh data is already loaded:
 						{
-							if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
-								ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+							removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-							if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-								ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+							// Create gl and physics object now
+							Reference<RayMesh> raymesh;
+							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+								false, // skip opengl calls
+								raymesh);
+
+							if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
+								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+
+							for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+							{
+								if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+									ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+
+								if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+									ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+							}
+
+							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+							ob->physics_object->geometry = raymesh;
+							ob->physics_object->ob_to_world = ob_to_world_matrix;
+							ob->physics_object->userdata = ob;
+							ob->physics_object->userdata_type = 0;
+
+							//Timer timer;
+							ui->glWidget->addObject(ob->opengl_engine_ob);
+							//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+
+							physics_world->addObject(ob->physics_object);
+							physics_world->rebuild(task_manager, print_output);
+
+							ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+							loadScriptForObject(ob); // Load any script for the object.
 						}
-
-						ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-						ob->physics_object->geometry = raymesh;
-						ob->physics_object->ob_to_world = ob_to_world_matrix;
-						ob->physics_object->userdata = ob;
-						ob->physics_object->userdata_type = 0;
-
-						//Timer timer;
-						ui->glWidget->addObject(ob->opengl_engine_ob);
-						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
-
-						physics_world->addObject(ob->physics_object);
-						physics_world->rebuild(task_manager, print_output);
-
-						ui->indigoView->objectAdded(*ob, *this->resource_manager);
-
-						loadScriptForObject(ob); // Load any script for the object.
+						else
+						{
+							load_placeholder = true;
+						}
 					}
 				}
 			}
 		}
 
-		if(ob->opengl_engine_ob.isNull())
-			addPlaceholderObjectsForOb(*ob);
+		if(load_placeholder)
+		{
+			// Load a placeholder object (cube) if we don't have an existing model (e.g. another LOD level) being displayed.
+			// We also need a valid AABB.
+			if(!ob->aabb_ws.isEmpty() && ob->opengl_engine_ob.isNull())
+				addPlaceholderObjectsForOb(*ob);
+		}
 
 		//print("\tModel loaded. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 	}
@@ -1697,6 +1722,7 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 
 		this->ui->objectEditor->updateObjectPos(*selected_ob);
 
+		this->selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
 
 		// Mark as from-local-dirty to send an object transform updated message to the server
 		this->selected_ob->from_local_transform_dirty = true;
@@ -1718,10 +1744,43 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 }
 
 
+void MainWindow::checkForLODChanges()
+{
+	if(world_state.isNull())
+		return;
+		
+	//Timer timer;
+	{
+		Lock lock(this->world_state->mutex);
+
+		const Vec3d cam_pos = cam_controller.getPosition();
+		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+		{
+			WorldObject* ob = it->second.ptr();
+
+			const int lod_level = ob->getLODLevel(cam_pos);
+
+			if(lod_level != ob->current_lod_level)
+			{
+				loadModelForObject(ob);
+
+				// conPrint("Changing LOD level for object " + ob->uid.toString() + " to " + toString(lod_level));
+
+				ob->current_lod_level = lod_level;
+			}
+		}
+	} // End lock scope
+	// conPrint("checkForLODChanges took " + timer.elapsedString());
+}
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+
+
+	checkForLODChanges();
 
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
@@ -1740,6 +1799,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
 			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
 		}
+
+		if(!selected_ob_diag_info.empty())
+			msg += selected_ob_diag_info + "\n";
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
 		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())
@@ -1969,7 +2031,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
 				model_loaded_messages_to_process.pop_front();
 
-				//conPrint("Handling model loaded message, model_url: " + message->ob->model_url);
+				// conPrint("Handling model loaded message, model_url: " + message->model_url);
 				num_models_loaded++;
 
 				try
@@ -1987,7 +2049,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						message_ob->opengl_engine_ob = message->opengl_ob;
 						if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
 
-						const std::string loaded_model_url = message_ob->model_url;
+						const std::string loaded_model_url = message->model_url;
 
 						if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
 							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
@@ -2021,8 +2083,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 							{
 								WorldObject* ob = it->second.getPointer();
+
+								const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition()); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
 								
-								if(ob->model_url == loaded_model_url)
+								if(ob_lod_model_url == loaded_model_url)
 								{
 									try
 									{
@@ -2040,7 +2104,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
 											Reference<RayMesh> raymesh;
-											ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob->model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+											ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob_lod_model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 												false, // skip opengl calls
 												raymesh);
 
@@ -2423,10 +2487,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 							{
 								WorldObject* ob = it->second.getPointer();
+
+								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+
 								//if(ob->using_placeholder_model)
 								{
 									std::set<std::string> URL_set;
-									ob->getDependencyURLSet(URL_set);
+									ob->getDependencyURLSet(ob_lod_level, URL_set);
 									need_resource = need_resource || (URL_set.count(m->URL) != 0);
 								}
 							}
@@ -2482,7 +2549,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								WorldObject* ob = it->second.getPointer();
 
-								if(ob->model_url == URL)
+								const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition()); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
+
+								if(ob_lod_model_url == URL)
 									loadModelForObject(ob);
 							}
 
@@ -2950,8 +3019,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 				else if(ob->from_remote_lightmap_url_dirty)
 				{
-					// Try and download and resources we don't have for this object
-					startDownloadingResourcesForObject(ob);
+					// Try and download any resources we don't have for this object
+					const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+					startDownloadingResourcesForObject(ob, ob_lod_level);
 
 					// Update materials in opengl engine, so it picks up the new lightmap URL
 					GLObjectRef opengl_ob = ob->opengl_engine_ob;
@@ -3714,6 +3784,23 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 }
 
 
+static void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::string& LOD_model_path)
+{
+	BatchedMeshRef simplified_mesh;
+	if(lod_level == 1)
+	{
+		simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/10.f, /*target_error=*/0.02f, /*sloppy=*/false);
+	}
+	else
+	{
+		assert(lod_level == 2);
+		simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/100.f, /*target_error=*/0.08f, /*sloppy=*/true);
+	}
+
+	simplified_mesh->writeToFile(LOD_model_path);
+}
+
+
 void MainWindow::on_actionAddObject_triggered()
 {
 	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f;
@@ -3750,6 +3837,7 @@ void MainWindow::on_actionAddObject_triggered()
 
 			// If the user selected an obj, convert it to an indigo mesh file
 			std::string bmesh_disk_path = d.result_path;
+			js::AABBox aabb_os;
 			if(d.loaded_mesh.nonNull())
 			{
 				if(!hasExtension(d.result_path, "bmesh"))
@@ -3777,6 +3865,24 @@ void MainWindow::on_actionAddObject_triggered()
 				this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
 
 				new_world_object->model_url = mesh_URL;
+
+				aabb_os = d.loaded_mesh->aabb_os;
+
+				new_world_object->max_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+
+				if(new_world_object->max_lod_level == 2)
+				{
+					for(int lvl = 1; lvl <= 2; ++lvl)
+					{
+						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(new_world_object->model_url, lvl);
+						const std::string temp_lod_path = PlatformUtils::getTempDirPath() + "/temp_lod" + toString(lvl) + ".bmesh"; // this->resource_manager->pathForURL(lod_URL);
+
+						generateLODModel(d.loaded_mesh, lvl, temp_lod_path);
+
+						// Copy model to local resources dir.  UploadResourceThread will read from here.
+						this->resource_manager->copyLocalFileToResourceDir(temp_lod_path, lod_URL);
+					}
+				}
 			}
 			else
 			{
@@ -3786,6 +3892,8 @@ void MainWindow::on_actionAddObject_triggered()
 				new_world_object->getDecompressedVoxels() = d.loaded_object->getDecompressedVoxels();
 				new_world_object->compressVoxels();
 				new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
+
+				aabb_os = new_world_object->getDecompressedVoxelGroup().getAABB();
 			}
 
 			new_world_object->uid = UID(0); // Will be set by server
@@ -3794,10 +3902,12 @@ void MainWindow::on_actionAddObject_triggered()
 			new_world_object->axis = Vec3f(0, 0, 1);
 			new_world_object->angle = (float)this->cam_controller.getAngles().x - Maths::pi_2<float>();
 			new_world_object->scale = d.loaded_object->scale;
+			
+			new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 			std::set<std::string> paths;
-			new_world_object->getDependencyURLSet(paths);
+			new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, paths);
 			for(auto it = paths.begin(); it != paths.end(); ++it)
 			{
 				const std::string path = *it;
@@ -3882,6 +3992,8 @@ void MainWindow::on_actionAddHypercard_triggered()
 	new_world_object->scale = Vec3f(0.4f);
 	new_world_object->content = "Select the object \nto edit this text";
 
+	const js::AABBox aabb_os = js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
+	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 	// Send CreateObject message to server
 	{
@@ -3923,6 +4035,10 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	new_world_object->axis = Vec3f(0, 0, 1);
 	new_world_object->angle = 0;
 	new_world_object->scale = Vec3f(1.f);
+
+	const float fixture_w = 0.1;
+	const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
+	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 
 	// Send CreateObject message to server
@@ -3968,6 +4084,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	new_world_object->scale = Vec3f(0.5f); // This will be the initial width of the voxels
 	new_world_object->getDecompressedVoxels().push_back(Voxel(Vec3<int>(0, 0, 0), 0)); // Start with a single voxel.
 	new_world_object->compressVoxels();
+	new_world_object->aabb_ws = new_world_object->getDecompressedVoxelGroup().getAABB().transformedAABB(obToWorldMatrix(*new_world_object));
 
 	// Send CreateObject message to server
 	{
@@ -4026,6 +4143,12 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->flags = selected_ob->flags;// | WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG; // Lightmaps need to be built for it.
 		new_world_object->getDecompressedVoxels() = selected_ob->getDecompressedVoxels();
 		new_world_object->getCompressedVoxels() = selected_ob->getCompressedVoxels();
+
+		// Compute WS AABB of new object, using OS AABB from opengl ob.
+		if(this->selected_ob->opengl_engine_ob.nonNull() && this->selected_ob->opengl_engine_ob->mesh_data.nonNull())
+			new_world_object->aabb_ws = this->selected_ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+		new_world_object->max_lod_level = selected_ob->max_lod_level;
 
 		// Send CreateObject message to server
 		{
@@ -4448,6 +4571,8 @@ void MainWindow::applyUndoOrRedoObject(const Reference<WorldObject>& restored_ob
 					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
 					// updateInstancedCopiesOfObject(ob); // TODO: enable + test this
+					if(opengl_ob.nonNull())
+						in_world_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
 
 					// Mark as from-local-dirty to send an object updated message to the server
 					in_world_ob->from_local_other_dirty = true;
@@ -4555,7 +4680,7 @@ void MainWindow::objectEditedSlot()
 		// Copy all dependencies into resource directory if they are not there already.
 		// URLs will actually be paths from editing for now.
 		std::vector<std::string> URLs;
-		this->selected_ob->appendDependencyURLs(URLs);
+		this->selected_ob->appendDependencyURLs(/*ob_lod_level=*/0, URLs);
 
 		for(size_t i=0; i<URLs.size(); ++i)
 		{
@@ -4573,7 +4698,9 @@ void MainWindow::objectEditedSlot()
 
 		startLoadingTexturesForObject(*this->selected_ob);
 
-		startDownloadingResourcesForObject(this->selected_ob.ptr());
+		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
+
+		startDownloadingResourcesForObject(this->selected_ob.ptr(), ob_lod_level);
 
 		// All paths should be URLs now
 		//URLs.clear();
@@ -4676,6 +4803,10 @@ void MainWindow::objectEditedSlot()
 				ui->indigoView->objectTransformChanged(*selected_ob);
 
 				updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
+
+				selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
+				// TODO: set max_lod_level here?
+				//selected_ob->max_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 
 				// Mark as from-local-dirty to send an object updated message to the server
 				this->selected_ob->from_local_other_dirty = true;
@@ -4866,6 +4997,8 @@ void MainWindow::URLChangedSlot()
 
 void MainWindow::connectToServer(const std::string& URL/*const std::string& hostname, const std::string& worldname*/)
 {
+	// Move player position back to near origin.
+	// Randomly vary the position a bit so players don't spawn inside other players.
 	const double spawn_r = 4.0;
 	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), 2);
 
@@ -4973,9 +5106,6 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	//-------------------------------- Do connect process --------------------------------
 
 	// Move player position back to near origin.
-	// Randomly vary the position a bit so players don't spawn inside other players.
-	//const double spawn_r = 4.0;
-	//this->cam_controller.setPosition(Vec3d(-spawn_r + 2*spawn_r*rng.unitRandom(), -spawn_r + 2*spawn_r*rng.unitRandom(), 2));
 	this->cam_controller.setPosition(spawn_pos);
 	this->cam_controller.resetRotation();
 
@@ -5505,6 +5635,8 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		physics_ob->userdata_type = 0;
 		physics_world->addObject(physics_ob);
 		physics_world->rebuild(task_manager, print_output);
+
+		ob->aabb_ws = gl_ob->aabb_ws; // gl_ob->aabb_ws will ahve been set in ui->glWidget->addObject() above.
 	}
 
 	// Mark as from-local-dirty to send an object updated message to the server
@@ -5647,6 +5779,17 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 					this->selected_ob->opengl_engine_ob->materials[z].draw_planar_uv_grid = true;
 				
 				ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
+			}
+
+			if(selected_ob->opengl_engine_ob.nonNull())
+			{
+				conPrint("num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()));
+				conPrint("num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()));
+
+				this->selected_ob_diag_info = 
+					std::string("\nSelected object: \n") + 
+					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + "\n" + 
+					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + "\n";
 			}
 
 
@@ -5933,6 +6076,7 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		// Update object values in editor
 		ui->objectEditor->setFromObject(*ob, ui->objectEditor->getSelectedMatIndex());
 
+		ob->aabb_ws = opengl_ob->aabb_ws; // Will have been set above in updateObjectTransformData().
 
 		// Mark as from-local-dirty to send an object updated message to the server.
 		ob->from_local_transform_dirty = true;
@@ -6544,8 +6688,9 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			//MeshSimplification::test();
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
-			NoiseTests::test();
+			//NoiseTests::test();
 			//OpenGLEngineTests::buildData();
 			//Matrix4f::test();
 			//BatchedMeshTests::test();
@@ -6566,7 +6711,7 @@ int main(int argc, char *argv[])
 			//GIFDecoder::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
-			//StringUtils::test();
+			StringUtils::test();
 			//HTTPClient::test();
 			//return 0;
 			//GIFDecoder::test();

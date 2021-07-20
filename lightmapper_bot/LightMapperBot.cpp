@@ -123,7 +123,7 @@ public:
 	void startDownloadingResourcesForObject(WorldObject* ob)
 	{
 		std::set<std::string> dependency_URLs;
-		ob->getDependencyURLSet(dependency_URLs);
+		ob->getDependencyURLSet(/*lod level=*/0, dependency_URLs);
 		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
 			const std::string& url = *it;
@@ -136,7 +136,7 @@ public:
 	bool allResourcesPresentForOb(WorldObject* ob)
 	{
 		std::set<std::string> dependency_URLs;
-		ob->getDependencyURLSet(dependency_URLs);
+		ob->getDependencyURLSet(/*lod level=*/0, dependency_URLs);
 		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
 			const std::string& url = *it;

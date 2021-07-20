@@ -146,7 +146,7 @@ private:
 	void loadScriptForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
-	void startDownloadingResourcesForObject(WorldObject* ob);
+	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResource(const std::string& url); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void evalObjectScript(WorldObject* ob, float use_global_time);
 	void updateStatusBar();
@@ -175,6 +175,8 @@ private:
 	void pickUpSelectedObject();
 	void dropSelectedObject();
 	void setUIForSelectedObject(); // Enable/disable delete object action etc..
+
+	void checkForLODChanges();
 
 	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
 
@@ -431,4 +433,6 @@ public:
 	std::map<UID, UID> recreated_ob_uid; // Map from old object UID to recreated object UID when an object deletion is undone.
 
 	UID last_restored_ob_uid_in_edit;
+
+	std::string selected_ob_diag_info;
 };

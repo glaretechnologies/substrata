@@ -437,6 +437,9 @@ include_directories(../resonance-audio/resonance_audio)
 include_directories(../resonance-audio/third_party/eigen)
 include_directories(../resonance-audio/third_party/pffft)
 
+
+#include_directories(../meshoptimizer/src)
+
 # Definitions that Resonance Audio needs:
 add_definitions(-D_USE_MATH_DEFINES)
 add_definitions(-DNOMINMAX)
@@ -458,6 +461,7 @@ SOURCE_GROUP(website_core_files FILES ${website_core_files})
 SOURCE_GROUP(rtaudio FILES ${rtaudio})
 SOURCE_GROUP(audio FILES ${audio})
 SOURCE_GROUP(resonance-audio FILES ${resonance})
+SOURCE_GROUP(meshoptimizer FILES ${meshoptimizer})
 
 
 if(WIN32)
@@ -532,6 +536,7 @@ ${website_core_files}
 ${rtaudio}
 ${audio}
 ${resonance}
+${meshoptimizer}
 )
 
 add_definitions(-DGUI_CLIENT=1)

@@ -811,6 +811,29 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		}
 	}
 
+	// Show LOD level by tinting materials
+	if(false)
+	{
+		const int lod_level = StringUtils::containsString(model_URL, "_lod1") ? 1 : (StringUtils::containsString(model_URL, "_lod2") ? 2 : 0);
+		if(lod_level == 1)
+		{
+			for(uint32 i=0; i<ob->materials.size(); ++i)
+			{
+				ob->materials[i].albedo_rgb.r *= 0.6;
+				ob->materials[i].albedo_rgb.b *= 0.6;
+			}
+		}
+		else if(lod_level == 2)
+		{
+			for(uint32 i=0; i<ob->materials.size(); ++i)
+			{
+				ob->materials[i].albedo_rgb.g *= 0.6;
+				ob->materials[i].albedo_rgb.b *= 0.6;
+			}
+		}
+	}
+
+
 	raymesh_out = raymesh;
 	return ob;
 }
