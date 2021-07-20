@@ -433,6 +433,4 @@ public:
 	std::map<UID, UID> recreated_ob_uid; // Map from old object UID to recreated object UID when an object deletion is undone.
 
 	UID last_restored_ob_uid_in_edit;
-
-	std::string selected_ob_diag_info;
 };
