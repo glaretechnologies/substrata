@@ -948,7 +948,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
-				if(resource_manager->isFileForURLPresent(lod_model_url/*ob->model_url*/))
+				if(resource_manager->isFileForURLPresent(lod_model_url))
 				{
 					const bool load_in_task = !(this->isModelProcessed(lod_model_url) || mesh_manager.isMeshDataInserted(lod_model_url)); // Is model not being loaded or is not loaded already.
 
@@ -1025,6 +1025,10 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 							load_placeholder = true;
 						}
 					}
+				} 
+				else // else if(!resource_manager->isFileForURLPresent(lod_model_url)):
+				{
+					load_placeholder = true;
 				}
 			}
 		}
