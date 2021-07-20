@@ -820,7 +820,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 	const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
-	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->current_lod_level == ob_lod_level))
+	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_lod_level == ob_lod_level))
 		return;
 
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
@@ -924,6 +924,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 			// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
 			Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
+			load_model_task->lod_level = 0;
 			load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 			load_model_task->main_window = this;
 			load_model_task->mesh_manager = &mesh_manager;
@@ -956,6 +957,8 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 						// Do the model loading in a different thread
 						Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
+						load_model_task->base_model_url = ob->model_url;
+						load_model_task->lod_level = ob_lod_level;
 						load_model_task->lod_model_url = lod_model_url;
 						load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 						load_model_task->main_window = this;
@@ -1000,6 +1003,8 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 							ob->physics_object->userdata = ob;
 							ob->physics_object->userdata_type = 0;
 
+							ob->loaded_lod_level = ob_lod_level;
+
 							//Timer timer;
 							ui->glWidget->addObject(ob->opengl_engine_ob);
 							//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
@@ -1010,6 +1015,10 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 							ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
 							loadScriptForObject(ob); // Load any script for the object.
+
+							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+							if(this->selected_ob == ob)
+								ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
 						}
 						else
 						{
@@ -1800,8 +1809,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
 		}
 
-		if(!selected_ob_diag_info.empty())
-			msg += selected_ob_diag_info + "\n";
+		if(selected_ob.nonNull())
+		{
+			msg += std::string("\nSelected object: \n");
+
+			msg += "max_lod_level: " + toString(selected_ob->max_lod_level) + "\n";
+			msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
+			msg += "loaded_lod_level: " + toString(selected_ob->loaded_lod_level) + "\n";
+
+			if(selected_ob->opengl_engine_ob.nonNull())
+			{
+				msg += 
+					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + "\n" + 
+					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + "\n";
+			}
+		}
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
 		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())
@@ -2036,7 +2058,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				try
 				{
+					static const bool LOAD_PHYSICS_RAYMESH = true;
+
 					WorldObjectRef message_ob = message->ob;
+					const std::string loaded_base_model_url = message->base_model_url;
 
 					// Remove placeholder model if using one.
 					//if(message_ob->using_placeholder_model)
@@ -2044,50 +2069,62 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
 					{
-						static const bool LOAD_PHYSICS_RAYMESH = true;
-
-						message_ob->opengl_engine_ob = message->opengl_ob;
-						if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
-
-						const std::string loaded_model_url = message->model_url;
-
-						if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-							OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
-
-						// Add this object to the GL engine and physics engine.
-						if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
+						const int message_ob_lod_level = message_ob->getLODLevel(cam_controller.getPosition()); // Get current LOD level for message ob (may have changed during model loading)
+						if(message_ob_lod_level == message->lod_level)
 						{
-							for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
-							{
-								if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
-									message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
+							message_ob->opengl_engine_ob = message->opengl_ob;
+							if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
 
-								if(!message_ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-									message_ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].lightmap_path));
+							if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
+
+							// Add this object to the GL engine and physics engine.
+							if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
+							{
+								for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
+								{
+									if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
+										message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
+
+									if(!message_ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+										message_ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].lightmap_path));
+								}
+
+								ui->glWidget->addObject(message_ob->opengl_engine_ob);
+
+								if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(message_ob->physics_object);
+								if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
+
+								ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+
+								loadScriptForObject(message_ob.ptr()); // Load any script for the object.
 							}
 
-							ui->glWidget->addObject(message_ob->opengl_engine_ob);
+							message_ob->loaded_lod_level = message_ob_lod_level;
 
-							if(LOAD_PHYSICS_RAYMESH) physics_world->addObject(message_ob->physics_object);
-							if(LOAD_PHYSICS_RAYMESH) physics_world->rebuild(task_manager, print_output);
-
-							ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
-
-							loadScriptForObject(message_ob.ptr()); // Load any script for the object.
+							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+							if(this->selected_ob == message_ob)
+								ui->glWidget->opengl_engine->selectObject(message_ob->opengl_engine_ob);
 						}
+					} // End proximity_loader.isObjectInLoadProximity()
 
-						// Iterate over objects, and assign the loaded model for any other objects also using this model:
-						if(!loaded_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
+					// Iterate over objects, and assign the loaded model for any other objects also using this model:
+					if(!loaded_base_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
+					{
+						Lock lock(this->world_state->mutex);
+						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
-							Lock lock(this->world_state->mutex);
-							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
-							{
-								WorldObject* ob = it->second.getPointer();
+							WorldObject* ob = it->second.getPointer();
 
-								const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition()); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
+							if(proximity_loader.isObjectInLoadProximity(ob))
+							{
+								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+								//const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition()); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
 								
-								if(ob_lod_model_url == loaded_model_url)
+								if(ob->model_url == loaded_base_model_url && ob_lod_level == message->lod_level) //ob_lod_model_url == loaded_model_url)
 								{
+									const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition()); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
+
 									try
 									{
 										if(!isFinite(ob->angle) || !ob->axis.isFinite())
@@ -2109,7 +2146,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												raymesh);
 
 											if(LOAD_PHYSICS_RAYMESH) ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = message_ob->physics_object->geometry;
+											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->geometry = raymesh;
 											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->ob_to_world = ob_to_world_matrix;
 											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata = ob;
 											if(LOAD_PHYSICS_RAYMESH) ob->physics_object->userdata_type = 0;
@@ -2118,6 +2155,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										{
 											//assert(ob->physics_object.nonNull());
 										}
+
+										ob->loaded_lod_level = ob_lod_level;
 
 										if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
 										{
@@ -2143,6 +2182,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 											loadScriptForObject(ob); // Load any script for the object.
 										}
+
+										// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+										if(this->selected_ob == ob)
+											ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
 									}
 									catch(glare::Exception& e)
 									{
@@ -5780,18 +5823,6 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 				
 				ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
 			}
-
-			if(selected_ob->opengl_engine_ob.nonNull())
-			{
-				conPrint("num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()));
-				conPrint("num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()));
-
-				this->selected_ob_diag_info = 
-					std::string("\nSelected object: \n") + 
-					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + "\n" + 
-					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + "\n";
-			}
-
 
 			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
 

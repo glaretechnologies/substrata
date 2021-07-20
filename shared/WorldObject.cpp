@@ -43,6 +43,7 @@ WorldObject::WorldObject()
 	loaded = false;
 	lightmap_baking = false;
 	current_lod_level = 0;
+	loaded_lod_level = -1;
 #endif
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
