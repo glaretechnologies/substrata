@@ -20,6 +20,7 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
 
 	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox, settings->value(objectLoadDistanceKey(), /*default val=*/500.0).toDouble());
+	SignalBlocker::setChecked(this->shadowsCheckBox, settings->value(shadowsKey(), /*default val=*/true).toBool());
 }
 
 
@@ -30,4 +31,5 @@ MainOptionsDialog::~MainOptionsDialog()
 void MainOptionsDialog::accepted()
 {
 	settings->setValue(objectLoadDistanceKey(), this->loadDistanceDoubleSpinBox->value());
+	settings->setValue(shadowsKey(), this->shadowsCheckBox->isChecked());
 }

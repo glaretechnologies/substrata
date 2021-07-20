@@ -27,6 +27,8 @@ public:
 	// Strings associated with registry keys.
 	static const QString objectLoadDistanceKey() { return "ob_load_distance"; }
 
+	static const QString shadowsKey() { return "setting/shadows"; }
+
 private slots:;
 	void accepted();
 

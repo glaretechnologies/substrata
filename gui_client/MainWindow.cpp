@@ -203,11 +203,13 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	//ui->menuWindow->addAction(ui->indigoViewDockWidget->toggleViewAction());
 	ui->menuWindow->addAction(ui->diagnosticsDockWidget->toggleViewAction());
 
+	settings = new QSettings("Glare Technologies", "Cyberspace");
+
 
 	proximity_loader.callbacks = this;
 	proximity_loader.opengl_engine = ui->glWidget->opengl_engine.ptr();
 
-	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this);
+	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
 	ui->objectEditor->base_dir_path = base_dir_path;
 
 	// Add a space to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
@@ -234,9 +236,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	//logfile << "============================= Cyberspace Started =============================" << std::endl;
 	//logfile << Clock::getAsciiTime() << std::endl;
 
-
-
-	settings = new QSettings("Glare Technologies", "Cyberspace");
+	
 
 	// Create the LogWindow early so we can log stuff to it.
 	log_window = new LogWindow(this, settings);

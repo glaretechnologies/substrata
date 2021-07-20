@@ -22,6 +22,7 @@ class CameraController;
 class PlayerPhysics;
 class TextureServer;
 class EnvEmitter;
+class QSettings;
 
 
 class GlWidget : public QGLWidget
@@ -35,7 +36,7 @@ public:
 	// Non-empty if error occurred.
 	std::string getInitialisationErrorMsg() const { return initialisation_error_msg; }
 
-	void setBaseDir(const std::string& base_dir_path_, PrintOutput* print_output_) { base_dir_path = base_dir_path_; print_output = print_output_; }
+	void setBaseDir(const std::string& base_dir_path_, PrintOutput* print_output_, QSettings* settings_) { base_dir_path = base_dir_path_; print_output = print_output_; settings = settings_; }
 
 	void setCameraController(CameraController* cam_controller_);
 	void setPlayerPhysics(PlayerPhysics* player_physics_);
@@ -112,4 +113,5 @@ public:
 
 	QTimer* gamepad_init_timer;
 	PrintOutput* print_output;
+	QSettings* settings;
 };
