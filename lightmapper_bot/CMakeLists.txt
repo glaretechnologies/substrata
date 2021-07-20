@@ -97,6 +97,7 @@ ${fft2d}
 ${xxhash}
 ${docs}
 ${lang}
+${meshoptimizer}
 )
 
 

@@ -72,6 +72,8 @@ ${INDIGO_GRAPHICS_DIR}/KTXDecoder.cpp
 ${INDIGO_GRAPHICS_DIR}/KTXDecoder.h
 ${INDIGO_GRAPHICS_DIR}/Map2D.cpp
 ${INDIGO_GRAPHICS_DIR}/Map2D.h
+${INDIGO_GRAPHICS_DIR}/MeshSimplification.cpp
+${INDIGO_GRAPHICS_DIR}/MeshSimplification.h
 ${INDIGO_GRAPHICS_DIR}/MitchellNetravali.cpp
 ${INDIGO_GRAPHICS_DIR}/MitchellNetravali.h
 ${INDIGO_GRAPHICS_DIR}/MitchellNetravaliFilterFunction.cpp
@@ -99,6 +101,29 @@ ${INDIGO_GRAPHICS_DIR}/TriBoxIntersection.h
 ${INDIGO_GRAPHICS_DIR}/Voronoi.cpp
 ${INDIGO_GRAPHICS_DIR}/Voronoi.h
 )
+
+set(MESHOPTIMIZER_DIR "${INDIGO_TRUNK_DIR_ENV}/meshoptimizer/src")
+
+set(meshoptimizer
+${MESHOPTIMIZER_DIR}/allocator.cpp
+${MESHOPTIMIZER_DIR}/meshoptimizer.h
+${MESHOPTIMIZER_DIR}/allocator.cpp
+${MESHOPTIMIZER_DIR}/clusterizer.cpp
+${MESHOPTIMIZER_DIR}/indexcodec.cpp
+${MESHOPTIMIZER_DIR}/indexgenerator.cpp
+${MESHOPTIMIZER_DIR}/overdrawanalyzer.cpp
+${MESHOPTIMIZER_DIR}/overdrawoptimizer.cpp
+${MESHOPTIMIZER_DIR}/simplifier.cpp
+${MESHOPTIMIZER_DIR}/spatialorder.cpp
+${MESHOPTIMIZER_DIR}/stripifier.cpp
+${MESHOPTIMIZER_DIR}/vcacheanalyzer.cpp
+${MESHOPTIMIZER_DIR}/vcacheoptimizer.cpp
+${MESHOPTIMIZER_DIR}/vertexcodec.cpp
+${MESHOPTIMIZER_DIR}/vertexfilter.cpp
+${MESHOPTIMIZER_DIR}/vfetchanalyzer.cpp
+${MESHOPTIMIZER_DIR}/vfetchoptimizer.cpp   
+)
+
 
 
 set(INDIGO_UTILS_DIR "${INDIGO_TRUNK_DIR_ENV}/utils")
@@ -429,3 +454,4 @@ SOURCE_GROUP(opengl\\shaders FILES ${opengl_shaders})
 SOURCE_GROUP(dll FILES ${dll_src})
 SOURCE_GROUP(fft2d FILES ${fft2d})
 SOURCE_GROUP(xxhash FILES ${xxhash})
+SOURCE_GROUP(meshoptimizer FILES ${meshoptimizer})

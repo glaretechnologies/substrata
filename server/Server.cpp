@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "ListenerThread.h"
+#include "MeshLODGenThread.h"
 #include "WorkerThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
@@ -651,6 +652,8 @@ int main(int argc, char *argv[])
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server, tls_configuration));
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
+
+		thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
 
 		Timer save_state_timer;
 

@@ -24,6 +24,7 @@ public:
 	// Results of the task:
 	GLObjectRef opengl_ob;
 	PhysicsObjectRef physics_ob;
+	std::string model_url; // May differ from ob->model_url for LOD levels != 0.
 
 	WorldObjectRef ob;
 };
@@ -49,6 +50,7 @@ public:
 
 	virtual void run(size_t thread_index);
 
+	std::string lod_model_url;
 	WorldObjectRef ob;
 	Reference<OpenGLEngine> opengl_engine;
 	MainWindow* main_window;

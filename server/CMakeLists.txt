@@ -195,6 +195,7 @@ ${docs}
 ${lang}
 ${secp256k1_files}
 ${ethereum_files}
+${meshoptimizer}
 )
 
 

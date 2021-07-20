@@ -423,6 +423,14 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 			//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
+			// TEMP HACK: Rewrite resource local path for testing server state on dev machine.
+			/*if(!resource->URL.empty())
+			{
+				resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
+				if(FileUtils::fileExists(resource->getLocalPath()))
+					resource->setState(Resource::State_Present);
+			}*/
+
 			this->resource_manager->addResource(resource);
 		}
 		else if(chunk == ORDER_CHUNK)

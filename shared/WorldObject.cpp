@@ -42,6 +42,7 @@ WorldObject::WorldObject()
 	is_selected = false;
 	loaded = false;
 	lightmap_baking = false;
+	current_lod_level = 0;
 #endif
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
@@ -53,6 +54,10 @@ WorldObject::WorldObject()
 	max_load_dist2 = 1000000000;
 
 	prototype_object = NULL;
+
+	aabb_ws = js::AABBox::emptyAABBox();
+
+	max_lod_level = 0;
 }
 
 
@@ -62,10 +67,45 @@ WorldObject::~WorldObject()
 }
 
 
-void WorldObject::appendDependencyURLs(std::vector<std::string>& URLs_out)
+std::string WorldObject::getLODModelURLForLevel(const std::string& base_model_url, int level)
+{
+	if(level == 0)
+		return base_model_url;
+	else if(level == 1)
+		return removeDotAndExtension(base_model_url) + "_lod1.bmesh"; // LOD models are always saved in BatchedMesh (bmesh) format.
+	else
+		return removeDotAndExtension(base_model_url) + "_lod2.bmesh";
+}
+
+
+int WorldObject::getLODLevel(const Vec3d& campos) const
+{
+	if(max_lod_level == 0)
+		return 0;
+
+	const float dist = campos.toVec4fVector().getDist(this->pos.toVec4fVector());
+	const float proj_len = aabb_ws.longestLength() / dist;
+
+	if(proj_len > 0.16)
+		return 0;
+	else if(proj_len > 0.03)
+		return 1;
+	else
+		return 2;
+}
+
+
+std::string WorldObject::getLODModelURL(const Vec3d& campos) const
+{
+	const int level = getLODLevel(campos);
+	return getLODModelURLForLevel(this->model_url, level);
+}
+
+
+void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out)
 {
 	if(!model_url.empty())
-		URLs_out.push_back(model_url);
+		URLs_out.push_back(getLODModelURLForLevel(model_url, ob_lod_level));
 
 	if(!lightmap_url.empty())
 		URLs_out.push_back(lightmap_url);
@@ -75,10 +115,39 @@ void WorldObject::appendDependencyURLs(std::vector<std::string>& URLs_out)
 }
 
 
-void WorldObject::getDependencyURLSet(std::set<std::string>& URLS_out)
+void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out)
+{
+	if(!model_url.empty())
+	{
+		URLs_out.push_back(model_url);
+		if(max_lod_level > 0)
+		{
+			URLs_out.push_back(getLODModelURLForLevel(model_url, 1));
+			URLs_out.push_back(getLODModelURLForLevel(model_url, 2));
+		}
+	}
+
+	if(!lightmap_url.empty())
+		URLs_out.push_back(lightmap_url);
+
+	for(size_t i=0; i<materials.size(); ++i)
+		materials[i]->appendDependencyURLs(URLs_out);
+}
+
+
+void WorldObject::getDependencyURLSet(int ob_lod_level, std::set<std::string>& URLS_out)
 {
 	std::vector<std::string> URLs;
-	this->appendDependencyURLs(URLs);
+	this->appendDependencyURLs(ob_lod_level, URLs);
+
+	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+}
+
+
+void WorldObject::getDependencyURLSetForAllLODLevels(std::set<std::string>& URLS_out)
+{
+	std::vector<std::string> URLs;
+	this->appendDependencyURLsForAllLODLevels(URLs);
 
 	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
 }
@@ -261,7 +330,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 13;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 15;
 /*
 Version history:
 9: introduced voxels
@@ -269,6 +338,8 @@ Version history:
 11: Added flags
 12: Added compressed voxel field.
 13: Added lightmap URL
+14: Added aabb_ws
+15: Added max_lod_level
 */
 
 
@@ -304,6 +375,11 @@ void WorldObject::writeToStream(OutStream& stream) const
 	::writeToStream(creator_id, stream); // new in v5
 
 	stream.writeUInt32(flags); // new in v11
+
+	stream.writeData(aabb_ws.min_.x, sizeof(float) * 3); // new in v14
+	stream.writeData(aabb_ws.max_.x, sizeof(float) * 3);
+
+	stream.writeInt32(max_lod_level); // new in v15
 
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -386,6 +462,17 @@ void readFromStream(InStream& stream, WorldObject& ob)
 	if(v >= 11)
 		ob.flags = stream.readUInt32();
 
+	if(v >= 14)
+	{
+		stream.readData(ob.aabb_ws.min_.x, sizeof(float) * 3);
+		ob.aabb_ws.min_.x[3] = 1.f;
+		stream.readData(ob.aabb_ws.max_.x, sizeof(float) * 3);
+		ob.aabb_ws.max_.x[3] = 1.f;
+	}
+
+	if(v >= 15)
+		ob.max_lod_level = stream.readInt32();
+
 	if(v >= 9 && ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		if(v <= 11)
@@ -450,6 +537,11 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 
 	stream.writeStringLengthFirst(creator_name);
 
+	stream.writeData(aabb_ws.min_.x, sizeof(float) * 3); // new in v14
+	stream.writeData(aabb_ws.max_.x, sizeof(float) * 3);
+
+	stream.writeInt32(max_lod_level); // new in v15
+
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		// Write compressed voxel data
@@ -487,6 +579,10 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	creator_name = other.creator_name;
 
 	compressed_voxels = other.compressed_voxels;
+
+	aabb_ws = other.aabb_ws;
+
+	max_lod_level = other.max_lod_level;
 }
 
 
@@ -528,6 +624,13 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 
 	ob.creator_name = stream.readStringLengthFirst(10000);
 
+	stream.readData(ob.aabb_ws.min_.x, sizeof(float) * 3);
+	ob.aabb_ws.min_.x[3] = 1.f;
+	stream.readData(ob.aabb_ws.max_.x, sizeof(float) * 3);
+	ob.aabb_ws.max_.x[3] = 1.f;
+
+	ob.max_lod_level = stream.readInt32();
+
 	if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		// Read compressed voxel data
@@ -567,6 +670,16 @@ const Matrix4f obToWorldMatrix(const WorldObject& ob)
 	rot.setColumn(2, rot.getColumn(2) * use_scale.z);
 	rot.setColumn(3, pos + ob.translation);
 	return rot;
+}
+
+
+const Matrix4f worldToObMatrix(const WorldObject& ob)
+{
+	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
+
+	return Matrix4f::scaleMatrix(1/ob.scale.x, 1/ob.scale.y, 1/ob.scale.z) *
+		Matrix4f::rotationMatrix(normalise(ob.axis.toVec4fVector()), -ob.angle) *
+		Matrix4f::translationMatrix(-pos - ob.translation);
 }
 
 
@@ -756,4 +869,18 @@ void WorldObject::clearDecompressedVoxels()
 {
 	this->voxel_group.voxels.clearAndFreeMem();
 	//this->voxel_group.voxels = std::vector<Voxel>();
+}
+
+
+js::AABBox VoxelGroup::getAABB() const
+{
+	// Iterate over voxels and get voxel position bounds
+	Vec3<int> minpos( 1000000000);
+	Vec3<int> maxpos(-1000000000);
+	for(size_t i=0; i<voxels.size(); ++i)
+	{
+		minpos = minpos.min(voxels[i].pos);
+		maxpos = maxpos.max(voxels[i].pos);
+	}
+	return js::AABBox(Vec4f((float)minpos.x, (float)minpos.y, (float)minpos.z, 1), Vec4f((float)(maxpos.x + 1), (float)(maxpos.y + 1), (float)(maxpos.z + 1), 1));
 }

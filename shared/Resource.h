@@ -28,7 +28,7 @@ Resource
 A resource is a file that is used by an object, for example a mesh or texture,
 and that is stored on the server and downloaded to clients as needed.
 Resources have a (currently abitrary) URL.
-Resources are owned by a single user, so that the resource may count against the user's storage allowments.
+Resources are owned by a single user, so that the resource may count against the user's storage allowance.
 =====================================================================*/
 class Resource : public ThreadSafeRefCounted
 {
