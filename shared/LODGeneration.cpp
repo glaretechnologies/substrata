@@ -243,15 +243,22 @@ void generateLODTexturesForMaterialsIfNotPresent(WorldObject& world_ob, Resource
 			{
 				const std::string lod_URL = WorldObject::getLODTextureURLForLevel(base_tex_URL, lvl, mat->colourTexHasAlpha());
 
-				if(!resource_manager.isFileForURLPresent(lod_URL))
+				if((lod_URL != base_tex_URL) && !resource_manager.isFileForURLPresent(lod_URL))
 				{
 					const std::string local_base_path = resource_manager.pathForURL(base_tex_URL);
 					const std::string local_lod_path  = resource_manager.pathForURL(lod_URL); // Path where we will write the LOD texture.
 
 					conPrint("Generating LOD texture '" + local_lod_path + "'...");
-					LODGeneration::generateLODTexture(local_base_path, lvl, local_lod_path, task_manager);
+					try
+					{
+						LODGeneration::generateLODTexture(local_base_path, lvl, local_lod_path, task_manager);
 
-					resource_manager.setResourceAsLocallyPresentForURL(lod_URL);
+						resource_manager.setResourceAsLocallyPresentForURL(lod_URL);
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("Warning: Error while generating LOD texture: " + e.what());
+					}
 				}
 			}
 		}
