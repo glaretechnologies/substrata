@@ -45,6 +45,8 @@ struct AnimatedTexData : public RefCounted
 #endif
 	);
 
+	static const double maxVidPlayDist() { return 20.0; }
+
 	std::map<void*, OpenGLAndD3DTex> opengl_tex_for_d3d_tex;
 
 	Reference<VideoReader> video_reader;

@@ -133,8 +133,13 @@ int WorldObject::getModelLODLevel(const Vec3d& campos) const // getLODLevel() cl
 
 std::string WorldObject::getLODModelURL(const Vec3d& campos) const
 {
-	const int level = getLODLevel(campos);
-	return getLODModelURLForLevel(this->model_url, level);
+	// Early-out for max_model_lod_level == 0: avoid computing LOD
+	if(this->max_model_lod_level == 0)
+		return this->model_url;
+
+	const int ob_lod_level = getLODLevel(campos);
+	const int ob_model_lod_level = myMin(ob_lod_level, this->max_model_lod_level);
+	return getLODModelURLForLevel(this->model_url, ob_model_lod_level);
 }
 
 

@@ -56,6 +56,7 @@
     <addaction name="actionAdd_Spotlight"/>
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
+    <addaction name="actionFind_Object"/>
    </widget>
    <widget class="QMenu" name="menuMovement">
     <property name="title">
@@ -486,6 +487,11 @@
   <action name="actionShow_Log">
    <property name="text">
     <string>Show Log</string>
+   </property>
+  </action>
+  <action name="actionFind_Object">
+   <property name="text">
+    <string>Find Object</string>
    </property>
   </action>
  </widget>

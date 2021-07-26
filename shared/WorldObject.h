@@ -73,7 +73,7 @@ public:
 
 	int getLODLevel(const Vec3d& campos) const;
 	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level
-	std::string getLODModelURL(const Vec3d& campos) const;
+	std::string getLODModelURL(const Vec3d& campos) const; // Using lod level clamped to max_model_lod_level
 
 	void appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out);
 	void appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out);
