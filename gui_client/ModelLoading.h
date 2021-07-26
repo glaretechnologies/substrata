@@ -57,7 +57,7 @@ class ModelLoading
 {
 public:
 	static void setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat);
-	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
+	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int ob_lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
 
 
 	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);
@@ -79,7 +79,7 @@ public:
 	// For when we have materials:
 	//
 	// Throws glare::Exception on invalid mesh.
-	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
+	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& lod_model_URL, int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
 		ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
 		const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out);
 

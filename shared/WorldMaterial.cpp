@@ -24,6 +24,7 @@ WorldMaterial::WorldMaterial()
 	opacity = ScalarVal(1.0f);
 	tex_matrix = Matrix2f::identity();
 	emission_lum_flux = 0;
+	flags = 0;
 }
 
 
@@ -47,10 +48,26 @@ void ScalarVal::convertLocalPathsToURLS(ResourceManager& resource_manager)
 }
 
 
-void WorldMaterial::appendDependencyURLs(std::vector<std::string>& paths_out)
+void WorldMaterial::appendDependencyURLs(int lod_level, std::vector<std::string>& paths_out)
 {
 	if(!colour_texture_url.empty())
+		paths_out.push_back(WorldObject::getLODTextureURLForLevel(colour_texture_url, lod_level, this->colourTexHasAlpha()));
+
+	roughness.appendDependencyURLs(paths_out);
+	metallic_fraction.appendDependencyURLs(paths_out);
+	opacity.appendDependencyURLs(paths_out);
+}
+
+
+void WorldMaterial::appendDependencyURLsAllLODLevels(std::vector<std::string>& paths_out)
+{
+	if(!colour_texture_url.empty())
+	{
 		paths_out.push_back(colour_texture_url);
+
+		paths_out.push_back(WorldObject::getLODTextureURLForLevel(colour_texture_url, 1, this->colourTexHasAlpha()));
+		paths_out.push_back(WorldObject::getLODTextureURLForLevel(colour_texture_url, 2, this->colourTexHasAlpha()));
+	}
 
 	roughness.appendDependencyURLs(paths_out);
 	metallic_fraction.appendDependencyURLs(paths_out);
@@ -202,9 +219,10 @@ static Colour3f readColour3fFromStram(InStream& stream)
 }
 
 
-static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 5;
+static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 6;
 
 // v5: added emission_lum_flux
+// v6: added flags
 
 
 void writeToStream(const WorldMaterial& mat, OutStream& stream)
@@ -222,6 +240,8 @@ void writeToStream(const WorldMaterial& mat, OutStream& stream)
 	writeToStream(mat.tex_matrix, stream);
 
 	stream.writeFloat(mat.emission_lum_flux);
+
+	stream.writeUInt32(mat.flags);
 }
 
 
@@ -286,6 +306,9 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 
 	if(v >= 5)
 		mat.emission_lum_flux = stream.readFloat();
+
+	if(v >= 6)
+		mat.flags = stream.readUInt32();
 }
 
 

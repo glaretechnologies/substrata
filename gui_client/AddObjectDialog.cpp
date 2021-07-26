@@ -10,6 +10,7 @@ Code By Nicholas Chapman.
 #include "ModelLoading.h"
 #include "NetDownloadResourcesThread.h"
 #include "SubstrataVideoSurface.h"
+#include "../shared/LODGeneration.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
 #include "../graphics/formatdecoderobj.h"
@@ -566,6 +567,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			loaded_object->materials[0]->opacity = ScalarVal(1.f);
 			loaded_object->materials[0]->roughness = ScalarVal(0.5f);
 			loaded_object->materials[0]->colour_texture_url = local_path;
+			BitUtils::setOrZeroBit(loaded_object->materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, LODGeneration::textureHasAlphaChannel(local_path, im)); // Set COLOUR_TEX_HAS_ALPHA_FLAG flag
 
 			loaded_object->materials[1] = new WorldMaterial();
 			loaded_object->materials[1]->colour_rgb = Colour3f(0.7f);

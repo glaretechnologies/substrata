@@ -26,7 +26,7 @@ public:
 	PhysicsObjectRef physics_ob;
 	
 	std::string base_model_url;
-	int lod_level;
+	int ob_lod_level;
 	std::string lod_model_url; // May differ from ob->model_url for LOD levels != 0.
 
 	WorldObjectRef ob;
@@ -54,7 +54,7 @@ public:
 	virtual void run(size_t thread_index);
 
 	std::string base_model_url;
-	int lod_level;
+	int ob_lod_level;
 	std::string lod_model_url;
 	WorldObjectRef ob;
 	Reference<OpenGLEngine> opengl_engine;

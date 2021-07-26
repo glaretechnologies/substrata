@@ -98,11 +98,19 @@ static const std::string toLocalPath(const std::string& URL, ResourceManager& re
 }
 
 
-void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
+void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int ob_lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;
-	opengl_mat.tex_path = toLocalPath(mat.colour_texture_url, resource_manager);// (mat.colour_texture_url.empty() ? "" : resource_manager.pathForURL(mat.colour_texture_url));
-	opengl_mat.lightmap_path = toLocalPath(lightmap_url, resource_manager);// (lightmap_url.empty() ? "" : resource_manager.pathForURL(lightmap_url));
+	if(!mat.colour_texture_url.empty())
+		opengl_mat.tex_path = toLocalPath(WorldObject::getLODTextureURLForLevel(mat.colour_texture_url, ob_lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
+	else
+		opengl_mat.tex_path.clear();
+
+	if(!lightmap_url.empty())
+		//opengl_mat.lightmap_path = toLocalPath(WorldObject::getLODTextureURLForLevel(lightmap_url, ob_lod_level, /*has alpha=*/false), resource_manager); // TEMP No LOD for lightmaps
+		opengl_mat.lightmap_path = toLocalPath(lightmap_url, resource_manager);
+	else
+		opengl_mat.lightmap_path.clear();
 
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
@@ -671,7 +679,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 }
 
 
-GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& model_URL, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
+GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& lod_model_URL, int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
 												ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
 												const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
@@ -683,20 +691,20 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	bool present;
 	{
 		Lock lock(mesh_manager.mutex);
-		present = mesh_manager.model_URL_to_mesh_map.count(model_URL) > 0;
+		present = mesh_manager.model_URL_to_mesh_map.count(lod_model_URL) > 0;
 	}
 
 	if(present)
 	{
 		Lock lock(mesh_manager.mutex);
-		num_materials_referenced = mesh_manager.model_URL_to_mesh_map[model_URL].num_materials_referenced;
-		gl_meshdata  = mesh_manager.model_URL_to_mesh_map[model_URL].gl_meshdata;
-		raymesh      = mesh_manager.model_URL_to_mesh_map[model_URL].raymesh;
+		num_materials_referenced = mesh_manager.model_URL_to_mesh_map[lod_model_URL].num_materials_referenced;
+		gl_meshdata  = mesh_manager.model_URL_to_mesh_map[lod_model_URL].gl_meshdata;
+		raymesh      = mesh_manager.model_URL_to_mesh_map[lod_model_URL].raymesh;
 	}
 	else
 	{
 		// Load mesh from disk:
-		const std::string model_path = resource_manager.pathForURL(model_URL);
+		const std::string model_path = resource_manager.pathForURL(lod_model_URL);
 		
 		BatchedMeshRef batched_mesh = new BatchedMesh();
 
@@ -786,7 +794,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		mesh_data.raymesh = raymesh;
 		{
 			Lock lock(mesh_manager.mutex);
-			mesh_manager.model_URL_to_mesh_map[model_URL] = mesh_data;
+			mesh_manager.model_URL_to_mesh_map[lod_model_URL] = mesh_data;
 		}
 	}
 
@@ -800,7 +808,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	{
 		if(i < materials.size())
 		{
-			setGLMaterialFromWorldMaterial(*materials[i], lightmap_url, resource_manager, ob->materials[i]);
+			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, resource_manager, ob->materials[i]);
 		}
 		else
 		{
@@ -814,7 +822,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	// Show LOD level by tinting materials
 	if(false)
 	{
-		const int lod_level = StringUtils::containsString(model_URL, "_lod1") ? 1 : (StringUtils::containsString(model_URL, "_lod2") ? 2 : 0);
+		const int lod_level = StringUtils::containsString(lod_model_URL, "_lod1") ? 1 : (StringUtils::containsString(lod_model_URL, "_lod2") ? 2 : 0);
 		if(lod_level == 1)
 		{
 			for(uint32 i=0; i<ob->materials.size(); ++i)

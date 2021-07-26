@@ -167,6 +167,25 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 }
 
 
+void ResourceManager::setResourceAsLocallyPresentForURL(const std::string& URL) // Threadsafe
+{
+	try
+	{
+		assert(FileUtils::fileExists(this->pathForURL(URL)));
+
+		Lock lock(mutex);
+		ResourceRef res = getOrCreateResourceForURL(URL);
+		res->setState(Resource::State_Present);
+
+		this->changed = 1;
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		throw glare::Exception(e.what());
+	}
+}
+
+
 const std::string ResourceManager::pathForURL(const std::string& URL)
 {
 	Lock lock(mutex);

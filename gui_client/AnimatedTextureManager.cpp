@@ -372,9 +372,18 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 			if(mat.albedo_texture.nonNull() && hasExtensionStringView(mat.tex_path, "gif"))
 			{
 				// Fetch the texdata for this texture if we haven't already
-
-				if(animtexdata.texdata.isNull())
-					animtexdata.texdata = opengl_engine->texture_data_manager->getTextureData(mat.tex_path);
+				// Note that mat.tex_path may change due to LOD changes.
+				if(animtexdata.texdata.isNull() || (animtexdata.texdata_tex_path != mat.tex_path))
+				{
+					// Only replace the tex data if the new tex data is non-null.
+					// new tex data may take a while to load after LOD changes.
+					Reference<TextureData> new_tex_data = opengl_engine->texture_data_manager->getTextureData(mat.tex_path);
+					if(new_tex_data.nonNull())
+					{
+						animtexdata.texdata = new_tex_data;
+						animtexdata.texdata_tex_path = mat.tex_path;
+					}
+				}
 
 				TextureData* texdata = animtexdata.texdata.ptr();
 

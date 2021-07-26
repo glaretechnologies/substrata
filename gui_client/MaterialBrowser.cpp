@@ -71,7 +71,8 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 		throw glare::Exception("MaterialBrowser: Could not create valid QOffscreenSurface");
 
 
-	context->makeCurrent(this->offscreen_surface);
+	if(!context->makeCurrent(this->offscreen_surface))
+		throw glare::Exception("MaterialBrowser: Failed to make context current.");
 
 
 	OpenGLEngineSettings settings;

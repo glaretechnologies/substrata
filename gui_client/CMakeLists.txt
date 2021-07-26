@@ -143,6 +143,8 @@ SET(shared_files
 ../shared/Avatar.h
 ../shared/GroundPatch.cpp
 ../shared/GroundPatch.h
+../shared/LODGeneration.cpp
+../shared/LODGeneration.h
 ../shared/Parcel.cpp
 ../shared/Parcel.h
 ../shared/ParcelID.h

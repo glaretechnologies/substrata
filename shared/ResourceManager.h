@@ -46,6 +46,8 @@ public:
 	// Throws glare::Exception on failure.
 	void copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL); // Threadsafe
 
+	void setResourceAsLocallyPresentForURL(const std::string& URL); // Threadsafe
+
 	// NOTE: currently has the side-effect of adding a resource to the resource map if it was not already present.
 	const std::string pathForURL(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
