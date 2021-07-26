@@ -105,6 +105,7 @@ private slots:;
 	void on_actionGoToPersonalWorld_triggered();
 	void on_actionGo_to_CryptoVoxels_World_triggered();
 	void on_actionGo_to_Parcel_triggered();
+	void on_actionFind_Object_triggered();
 	void on_actionExport_view_to_Indigo_triggered();
 	void on_actionAbout_Substrata_triggered();
 	void on_actionOptions_triggered();
@@ -137,6 +138,7 @@ private:
 	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
+	void selectObject(const WorldObjectRef& ob, int selected_tri_index);
 	void deleteSelectedObject();
 	void deselectObject();
 	void deselectParcel();

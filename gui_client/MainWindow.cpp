@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "AvatarSettingsDialog.h"
 #include "AddObjectDialog.h"
 #include "MainOptionsDialog.h"
+#include "FindObjectDialog.h"
 #include "ModelLoading.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
@@ -819,7 +820,16 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 		// If resources are streamable, don't download them.
 		//const bool stream = shouldStreamResourceViaHTTP(url);
 
-		if(!resource_manager->isFileForURLPresent(url))// && !stream)
+		// Only download mp4s if we are nearby them.
+		bool in_range = true;
+		if(hasExtensionStringView(url, "mp4"))
+		{
+			const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+			const double max_play_dist = AnimatedTexData::maxVidPlayDist();
+			in_range = ob_dist < max_play_dist;
+		}
+
+		if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 			startDownloadingResource(url);
 	}
 }
@@ -1442,7 +1452,7 @@ static float safeATan2(float y, float x)
 void MainWindow::updateSelectedObjectPlacementBeam()
 {
 	// Update object placement beam - a beam that goes from the object to what's below it.
-	if(selected_ob.nonNull())
+	if(selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull())
 	{
 		GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
 		const Matrix4f& to_world = opengl_ob->ob_to_world_matrix;
@@ -2609,7 +2619,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(world_state.nonNull())
 				{
-
 					// If we just downloaded a texture, start loading it.
 					// NOTE: Do we want to check this texture is actually used by an object?
 					if(ImFormatDecoder::hasImageExtension(URL))
@@ -4555,6 +4564,43 @@ void MainWindow::on_actionGo_to_Parcel_triggered()
 }
 
 
+void MainWindow::on_actionFind_Object_triggered()
+{
+	FindObjectDialog d(this->settings);
+	const int code = d.exec();
+	if(code == QDialog::Accepted)
+	{
+		try
+		{
+			const int ob_id = stringToInt(QtUtils::toStdString(d.objectIDLineEdit->text()));
+
+			auto res = world_state->objects.find(UID(ob_id));
+			if(res != world_state->objects.end())
+			{
+				WorldObject* ob = res->second.ptr();
+
+				deselectObject();
+				selectObject(ob, /*selected_tri_index=*/0);
+			}
+			else
+			{
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Invalid object id");
+				msgBox.setText("There is no object with that id.");
+				msgBox.exec();
+			}
+		}
+		catch(glare::Exception&)
+		{
+			QMessageBox msgBox;
+			msgBox.setWindowTitle("Invalid object id");
+			msgBox.setText("Please enter just a number.");
+			msgBox.exec();
+		}
+	}
+}
+
+
 void MainWindow::on_actionExport_view_to_Indigo_triggered()
 {
 	ui->indigoView->saveSceneToDisk();
@@ -5854,83 +5900,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 
 		if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
 		{
-			// Select the object
-
-			this->selected_ob = static_cast<WorldObject*>(results.hit_object->userdata);
-			assert(this->selected_ob->getRefCount() >= 0);
-
-			this->selected_ob->is_selected = true;
-
-			// If we hit an instance, select the prototype object instead.
-			if(this->selected_ob->prototype_object)
-				this->selected_ob = this->selected_ob->prototype_object;
-
-
-			// Mark the materials on the hit object as selected
-			ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
-			ui->glWidget->opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
-
-			// Turn on voxel grid drawing if this is a voxel object
-			if((this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && this->selected_ob->opengl_engine_ob.nonNull())
-			{
-				for(size_t z=0; z<this->selected_ob->opengl_engine_ob->materials.size(); ++z)
-					this->selected_ob->opengl_engine_ob->materials[z].draw_planar_uv_grid = true;
-				
-				ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
-			}
-
-			const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
-
-			// Add an object placement beam
-			if(have_edit_permissions)
-			{
-				ui->glWidget->opengl_engine->addObject(ob_placement_beam);
-				ui->glWidget->opengl_engine->addObject(ob_placement_marker);
-
-				if(ui->objectEditor->posAndRot3DControlsEnabled())
-				{
-					for(int i=0; i<3; ++i)
-						ui->glWidget->opengl_engine->addObject(axis_arrow_objects[i]);
-				
-					for(int i=0; i<3; ++i)
-						ui->glWidget->opengl_engine->addObject(rot_handle_arc_objects[i]);
-				}
-
-				updateSelectedObjectPlacementBeam();
-			}
-
-			const int selected_mat = selected_ob->physics_object->geometry->getMaterialIndexForTri(results.hit_tri_index);
-
-			// Show object editor, hide parcel editor.
-			ui->objectEditor->setFromObject(*selected_ob, selected_mat); // Update the editor widget with values from the selected object
-			ui->objectEditor->setEnabled(true);
-			ui->objectEditor->show();
-			ui->parcelEditor->hide();
-
-			setUIForSelectedObject();
-			
-			ui->objectEditor->setControlsEditable(have_edit_permissions);
-			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
-
-			// Update help text
-			if(have_edit_permissions)
-			{
-				QString text;
-				if(selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
-					text += "Ctrl + left-click: Add voxel.\n"
-						"Alt + left-click: Delete voxel.\n"
-						"\n";
-
-				text += "'E' key: Pick up/drop object.\n"
-					"Click and drag the mouse to move the object around when picked up.\n"
-					"'[' and  ']' keys rotate the object.\n"
-					"PgUp and  pgDown keys rotate the object.\n"
-					"'-' and '+' keys or mouse wheel moves object near/far.\n"
-					"Esc key: deselect object.";
-
-				this->ui->helpInfoLabel->setText(text);
-				this->ui->helpInfoDockWidget->show();
-			}
+			selectObject(static_cast<WorldObject*>(results.hit_object->userdata), results.hit_tri_index);
 		}
 		else if(results.hit_object->userdata && results.hit_object->userdata_type == 1) // Else if we hit a parcel:
 		{
@@ -6197,6 +6167,95 @@ void MainWindow::deleteSelectedObject()
 
 			showInfoNotification("Object deleted.");
 		}
+	}
+}
+
+
+void MainWindow::selectObject(const WorldObjectRef& ob, int selected_tri_index)
+{
+	assert(ob.nonNull());
+
+	this->selected_ob = ob;
+	assert(this->selected_ob->getRefCount() >= 0);
+
+	this->selected_ob->is_selected = true;
+
+	// If we hit an instance, select the prototype object instead.
+	if(this->selected_ob->prototype_object)
+		this->selected_ob = this->selected_ob->prototype_object;
+
+
+	// Mark the materials on the hit object as selected
+	if(this->selected_ob->opengl_engine_ob.nonNull())
+	{
+		ui->glWidget->opengl_engine->selectObject(selected_ob->opengl_engine_ob);
+		ui->glWidget->opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
+	}
+
+	// Turn on voxel grid drawing if this is a voxel object
+	if((this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && this->selected_ob->opengl_engine_ob.nonNull())
+	{
+		for(size_t z=0; z<this->selected_ob->opengl_engine_ob->materials.size(); ++z)
+			this->selected_ob->opengl_engine_ob->materials[z].draw_planar_uv_grid = true;
+
+		ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
+	}
+
+	const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
+
+	// Add an object placement beam
+	if(have_edit_permissions)
+	{
+		ui->glWidget->opengl_engine->addObject(ob_placement_beam);
+		ui->glWidget->opengl_engine->addObject(ob_placement_marker);
+
+		if(ui->objectEditor->posAndRot3DControlsEnabled())
+		{
+			for(int i=0; i<3; ++i)
+				ui->glWidget->opengl_engine->addObject(axis_arrow_objects[i]);
+
+			for(int i=0; i<3; ++i)
+				ui->glWidget->opengl_engine->addObject(rot_handle_arc_objects[i]);
+		}
+
+		updateSelectedObjectPlacementBeam();
+	}
+
+	int selected_mat = 0;
+	if(selected_ob->physics_object.nonNull())
+	{
+		selected_mat = selected_ob->physics_object->geometry->getMaterialIndexForTri(selected_tri_index/*results.hit_tri_index*/);
+	}
+
+	// Show object editor, hide parcel editor.
+	ui->objectEditor->setFromObject(*selected_ob, selected_mat); // Update the editor widget with values from the selected object
+	ui->objectEditor->setEnabled(true);
+	ui->objectEditor->show();
+	ui->parcelEditor->hide();
+
+	setUIForSelectedObject();
+
+	ui->objectEditor->setControlsEditable(have_edit_permissions);
+	ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
+
+	// Update help text
+	if(have_edit_permissions)
+	{
+		QString text;
+		if(selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
+			text += "Ctrl + left-click: Add voxel.\n"
+			"Alt + left-click: Delete voxel.\n"
+			"\n";
+
+		text += "'E' key: Pick up/drop object.\n"
+			"Click and drag the mouse to move the object around when picked up.\n"
+			"'[' and  ']' keys rotate the object.\n"
+			"PgUp and  pgDown keys rotate the object.\n"
+			"'-' and '+' keys or mouse wheel moves object near/far.\n"
+			"Esc key: deselect object.";
+
+		this->ui->helpInfoLabel->setText(text);
+		this->ui->helpInfoDockWidget->show();
 	}
 }
 

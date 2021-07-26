@@ -414,7 +414,7 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
 			{
 				const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
-				const double max_play_dist = 20.0;
+				const double max_play_dist = AnimatedTexData::maxVidPlayDist();
 				const bool in_process_dist = ob_dist_from_cam < max_play_dist; // Only play videos within X metres for now.
 				
 #if defined(_WIN32)
