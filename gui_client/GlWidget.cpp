@@ -61,13 +61,6 @@ GlWidget::GlWidget(QWidget *parent)
 {
 	viewport_aspect_ratio = 1;
 
-	/*OpenGLEngineSettings settings;
-	settings.enable_debug_output = true;
-	settings.shadow_mapping = true;
-	settings.compress_textures = true;
-	settings.depth_fog = true;
-	opengl_engine = new OpenGLEngine(settings);*/
-
 	SHIFT_down = false;
 	W_down = false;
 	A_down = false;
@@ -170,12 +163,12 @@ void GlWidget::initializeGL()
 	if(settings)
 		shadows = settings->value(MainOptionsDialog::shadowsKey(), /*default val=*/true).toBool();
 
-	OpenGLEngineSettings settings;
-	settings.enable_debug_output = true;
-	settings.shadow_mapping = shadows;
-	settings.compress_textures = true;
-	settings.depth_fog = true;
-	opengl_engine = new OpenGLEngine(settings);
+	OpenGLEngineSettings engine_settings;
+	engine_settings.enable_debug_output = true;
+	engine_settings.shadow_mapping = shadows;
+	engine_settings.compress_textures = true;
+	engine_settings.depth_fog = true;
+	opengl_engine = new OpenGLEngine(engine_settings);
 
 
 	opengl_engine->initialise(

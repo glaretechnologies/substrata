@@ -39,6 +39,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "CameraController.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
+#include "../shared/LODGeneration.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -182,11 +183,13 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 #endif
 	force_new_undo_edit(false),
 	log_window(NULL),
-	model_building_task_manager("model building task manager"),
-	texture_loader_task_manager("texture loader task manager")
+	model_loader_task_manager("model loader task manager"),
+	texture_loader_task_manager("texture loader task manager"),
+	model_building_subsidary_task_manager("model building subsidary task manager")
 {
-	model_building_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+	model_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	QGamepadManager::instance();
 
@@ -482,11 +485,17 @@ MainWindow::~MainWindow()
 	task_manager.removeQueuedTasks();
 	task_manager.waitForTasksToComplete();
 
-	model_building_task_manager.removeQueuedTasks();
-	model_building_task_manager.waitForTasksToComplete();
+	//model_building_task_manager.removeQueuedTasks();
+	//model_building_task_manager.waitForTasksToComplete();
+
+	model_loader_task_manager.removeQueuedTasks();
+	model_loader_task_manager.waitForTasksToComplete();
 
 	texture_loader_task_manager.removeQueuedTasks();
 	texture_loader_task_manager.waitForTasksToComplete();
+
+	model_loaded_messages_to_process.clear();
+	texture_loaded_messages_to_process.clear();
 
 	if(this->client_tls_config)
 		tls_config_free(this->client_tls_config);
@@ -520,10 +529,13 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	task_manager.removeQueuedTasks();
 	task_manager.waitForTasksToComplete();
 
-	model_building_task_manager.removeQueuedTasks();
-	model_building_task_manager.waitForTasksToComplete();
+	//model_building_task_manager.removeQueuedTasks();
+	//model_building_task_manager.waitForTasksToComplete();
 
 	model_loaded_messages_to_process.clear();
+
+	model_loader_task_manager.removeQueuedTasks();
+	model_loader_task_manager.waitForTasksToComplete();
 
 	texture_loader_task_manager.removeQueuedTasks();
 	texture_loader_task_manager.waitForTasksToComplete();
@@ -681,16 +693,17 @@ bool MainWindow::isModelProcessed(const std::string& url) const
 }
 
 
-void MainWindow::startLoadingTexturesForObject(const WorldObject& ob)
+void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level)
 {
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
 		if(!ob.materials[i]->colour_texture_url.empty())
 		{
-			const std::string tex_path = resource_manager->pathForURL(ob.materials[i]->colour_texture_url);
+			const std::string lod_tex_url = WorldObject::getLODTextureURLForLevel(ob.materials[i]->colour_texture_url, ob_lod_level, ob.materials[i]->colourTexHasAlpha());
+			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
-			if(resource_manager->isFileForURLPresent(ob.materials[i]->colour_texture_url) && // If the texture is present on disk,
+			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
 				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
 				!this->isTextureProcessed(tex_path)) // and not being loaded already:
 			{
@@ -702,9 +715,10 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob)
 	// Start loading lightmap
 	if(!ob.lightmap_url.empty())
 	{
-		const std::string tex_path = resource_manager->pathForURL(ob.lightmap_url);
+		const std::string lod_tex_url = ob.lightmap_url; // TEMP no LOD for lightmaps   WorldObject::getLODTextureURLForLevel(ob.lightmap_url, ob_lod_level, /*has alpha=*/false);
+		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
-		if(resource_manager->isFileForURLPresent(ob.lightmap_url) && // If the texture is present on disk,
+		if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
 			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
 			!this->isTextureProcessed(tex_path)) // and not being loaded already:
 		{
@@ -811,6 +825,47 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 }
 
 
+// For when the desired texture LOD is not loaded, pick another texture LOD that is loaded (if it exists).
+// Prefer lower LOD levels (more detail).
+static Reference<OpenGLTexture> getBestTextureLOD(const std::string& base_tex_path, bool tex_has_alpha, OpenGLEngine& opengl_engine)
+{
+	for(int lvl=0; lvl<=2; ++lvl)
+	{
+		const std::string tex_lod_path = WorldObject::getLODTextureURLForLevel(base_tex_path, lvl, tex_has_alpha);
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
+		if(tex.nonNull())
+			return tex;
+	}
+
+	return Reference<OpenGLTexture>();
+}
+
+
+static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
+{
+	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+	{
+		if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+		{
+			ob->opengl_engine_ob->materials[z].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+
+			if(ob->opengl_engine_ob->materials[z].albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			{
+				if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
+				{
+					// Try and use a different LOD level of the texture, that is actually loaded.
+					ob->opengl_engine_ob->materials[z].albedo_texture = getBestTextureLOD(resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), opengl_engine);
+					ob->opengl_engine_ob->materials[z].albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+				}
+			}
+		}
+
+		if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
+			ob->opengl_engine_ob->materials[z].lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+	}
+}
+
+
 // Check if the model file is downloaded.
 // If so, load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the model download.
@@ -818,6 +873,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_missing_files*/)
 {
 	const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+	const int ob_model_lod_level = myMin(ob_lod_level, ob->max_model_lod_level);
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_lod_level == ob_lod_level))
@@ -838,7 +894,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 		// Start downloading any resources we don't have that the object uses.
 		startDownloadingResourcesForObject(ob, ob_lod_level);
 
-		startLoadingTexturesForObject(*ob);
+		startLoadingTexturesForObject(*ob, ob_lod_level);
 
 		// Add any objects with gif or mp4 textures to the set of animated objects.
 		for(size_t i=0; i<ob->materials.size(); ++i)
@@ -924,15 +980,15 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 			// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
 			Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-			load_model_task->lod_level = 0;
+			load_model_task->ob_lod_level = 0;
 			load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 			load_model_task->main_window = this;
 			load_model_task->mesh_manager = &mesh_manager;
 			load_model_task->resource_manager = resource_manager;
 			load_model_task->ob = ob;
-			load_model_task->model_building_task_manager = &model_building_task_manager;
+			load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-			task_manager.addTask(load_model_task);
+			model_loader_task_manager.addTask(load_model_task);
 
 			load_placeholder = ob->getCompressedVoxels().size() != 0;
 		}
@@ -942,7 +998,7 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 			if(!ob->model_url.empty())
 			{
-				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_lod_level);
+				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
 
 				ob->current_lod_level = ob_lod_level;
 
@@ -958,16 +1014,16 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 						Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
 						load_model_task->base_model_url = ob->model_url;
-						load_model_task->lod_level = ob_lod_level;
+						load_model_task->ob_lod_level = ob_lod_level;
 						load_model_task->lod_model_url = lod_model_url;
 						load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 						load_model_task->main_window = this;
 						load_model_task->mesh_manager = &mesh_manager;
 						load_model_task->resource_manager = resource_manager;
 						load_model_task->ob = ob;
-						load_model_task->model_building_task_manager = &model_building_task_manager;
+						load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-						task_manager.addTask(load_model_task);
+						model_loader_task_manager.addTask(load_model_task);
 
 						load_placeholder = true;
 					}
@@ -981,21 +1037,14 @@ void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_mi
 
 							// Create gl and physics object now
 							Reference<RayMesh> raymesh;
-							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 								false, // skip opengl calls
 								raymesh);
 
 							if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
 								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
-							for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-							{
-								if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
-									ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
-
-								if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-									ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
-							}
+							assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
 							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 							ob->physics_object->geometry = raymesh;
@@ -1817,7 +1866,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			msg += std::string("\nSelected object: \n");
 
-			msg += "max_lod_level: " + toString(selected_ob->max_lod_level) + "\n";
+			msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
 			msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
 			msg += "loaded_lod_level: " + toString(selected_ob->loaded_lod_level) + "\n";
 
@@ -1898,7 +1947,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		conPrint("---------------Waiting for loading to be done for screenshot ---------------");
 		printVar(num_obs);
-		printVar(model_building_task_manager.getNumUnfinishedTasks());
+		printVar(model_loader_task_manager.getNumUnfinishedTasks());
 		printVar(texture_loader_task_manager.getNumUnfinishedTasks());
 		printVar(num_non_net_resources_downloading);
 		printVar(num_net_resources_downloading);
@@ -1906,7 +1955,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		const bool loaded_all =
 			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
 			(total_timer.elapsed() >= 5) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
-			(model_building_task_manager.getNumUnfinishedTasks() == 0) &&
+			(model_loader_task_manager.getNumUnfinishedTasks() == 0) &&
 			(texture_loader_task_manager.getNumUnfinishedTasks() == 0) &&
 			(num_non_net_resources_downloading == 0) &&
 			(num_net_resources_downloading == 0);
@@ -2073,8 +2122,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
 					{
-						const int message_ob_lod_level = message_ob->getLODLevel(cam_controller.getPosition()); // Get current LOD level for message ob (may have changed during model loading)
-						if(message_ob_lod_level == message->lod_level)
+						const int message_ob_model_lod_level = message_ob->getModelLODLevel(cam_controller.getPosition()); // Get current model LOD level for message ob (may have changed during model loading)
+						const int loaded_model_lod_level = myMin(message_ob->max_model_lod_level, message->ob_lod_level);
+						if(message_ob_model_lod_level == loaded_model_lod_level)
 						{
 							message_ob->opengl_engine_ob = message->opengl_ob;
 							if(LOAD_PHYSICS_RAYMESH) message_ob->physics_object = message->physics_ob;
@@ -2085,14 +2135,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// Add this object to the GL engine and physics engine.
 							if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 							{
-								for(size_t z=0; z<message_ob->opengl_engine_ob->materials.size(); ++z)
-								{
-									if(!message_ob->opengl_engine_ob->materials[z].tex_path.empty())
-										message_ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].tex_path));
-
-									if(!message_ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-										message_ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message_ob->opengl_engine_ob->materials[z].lightmap_path));
-								}
+								assignedLoadedOpenGLTexturesToMats(message_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 
 								ui->glWidget->addObject(message_ob->opengl_engine_ob);
 
@@ -2104,7 +2147,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								loadScriptForObject(message_ob.ptr()); // Load any script for the object.
 							}
 
-							message_ob->loaded_lod_level = message_ob_lod_level;
+							message_ob->loaded_lod_level = message->ob_lod_level; // NOTE THIS RIGHT?
 
 							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 							if(this->selected_ob == message_ob)
@@ -2115,6 +2158,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					// Iterate over objects, and assign the loaded model for any other objects also using this model:
 					if(!loaded_base_model_url.empty()) // If had a model URL (will be empty for voxel objects etc..)
 					{
+						const int loaded_model_lod_level = myMin(message_ob->max_model_lod_level, message->ob_lod_level);
+
 						Lock lock(this->world_state->mutex);
 						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
@@ -2123,9 +2168,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(proximity_loader.isObjectInLoadProximity(ob))
 							{
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+								const int ob_model_lod_level = myMin(ob->max_model_lod_level, ob_lod_level);
 								//const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition()); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
 								
-								if(ob->model_url == loaded_base_model_url && ob_lod_level == message->lod_level) //ob_lod_model_url == loaded_model_url)
+								if(ob->model_url == loaded_base_model_url && ob_model_lod_level == loaded_model_lod_level) //ob_lod_model_url == loaded_model_url)
 								{
 									const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition()); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
 
@@ -2145,7 +2191,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
 											Reference<RayMesh> raymesh;
-											ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob_lod_model_url, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+											ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(ob_lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 												false, // skip opengl calls
 												raymesh);
 
@@ -2168,14 +2214,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
 												OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
-											for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
-											{
-												if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
-													ob->opengl_engine_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
-
-												if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-													ob->opengl_engine_ob->materials[z].lightmap_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
-											}
+											assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
 											ui->glWidget->addObject(ob->opengl_engine_ob);
 
@@ -3033,9 +3072,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								// Update materials in opengl engine.
 								GLObjectRef opengl_ob = ob->opengl_engine_ob;
 
+								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 								for(size_t i=0; i<ob->materials.size(); ++i)
 									if(i < opengl_ob->materials.size())
-										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 
 								ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 
@@ -3076,7 +3116,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						for(size_t i=0; i<ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 					}
 
@@ -3573,7 +3613,7 @@ void MainWindow::updateStatusBar()
 	if(num_tex_tasks > 0)
 		status += " | Loading " + toString(num_tex_tasks) + ((num_tex_tasks == 1) ? " texture..." : " textures...");
 
-	const size_t num_model_tasks = model_building_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
+	const size_t num_model_tasks = model_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
 	if(num_model_tasks > 0)
 		status += " | Loading " + toString(num_model_tasks) + ((num_model_tasks == 1) ? " model..." : " models...");
 
@@ -3831,22 +3871,6 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 }
 
 
-static void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::string& LOD_model_path)
-{
-	BatchedMeshRef simplified_mesh;
-	if(lod_level == 1)
-	{
-		simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/10.f, /*target_error=*/0.02f, /*sloppy=*/false);
-	}
-	else
-	{
-		assert(lod_level == 2);
-		simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/100.f, /*target_error=*/0.08f, /*sloppy=*/true);
-	}
-
-	simplified_mesh->writeToFile(LOD_model_path);
-}
-
 
 void MainWindow::on_actionAddObject_triggered()
 {
@@ -3915,19 +3939,23 @@ void MainWindow::on_actionAddObject_triggered()
 
 				aabb_os = d.loaded_mesh->aabb_os;
 
-				new_world_object->max_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+				new_world_object->max_model_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 
-				if(new_world_object->max_lod_level == 2)
+				// Generate LOD models, to be uploaded to server also.
+				if(new_world_object->max_model_lod_level == 2)
 				{
 					for(int lvl = 1; lvl <= 2; ++lvl)
 					{
 						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(new_world_object->model_url, lvl);
-						const std::string temp_lod_path = PlatformUtils::getTempDirPath() + "/temp_lod" + toString(lvl) + ".bmesh"; // this->resource_manager->pathForURL(lod_URL);
 
-						generateLODModel(d.loaded_mesh, lvl, temp_lod_path);
+						if(!resource_manager->isFileForURLPresent(lod_URL))
+						{
+							const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
 
-						// Copy model to local resources dir.  UploadResourceThread will read from here.
-						this->resource_manager->copyLocalFileToResourceDir(temp_lod_path, lod_URL);
+							LODGeneration::generateLODModel(d.loaded_mesh, lvl, local_lod_path);
+
+							resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
+						}
 					}
 				}
 			}
@@ -3970,7 +3998,11 @@ void MainWindow::on_actionAddObject_triggered()
 			// Convert texture paths on the object to URLs
 			new_world_object->convertLocalPathsToURLS(*this->resource_manager);
 
+
+			// Generate LOD textures for materials, if not already present on disk.
+			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(*new_world_object, *resource_manager, task_manager);
 			
+
 			// Send CreateObject message to server
 			{
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -4195,7 +4227,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		if(this->selected_ob->opengl_engine_ob.nonNull() && this->selected_ob->opengl_engine_ob->mesh_data.nonNull())
 			new_world_object->aabb_ws = this->selected_ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
-		new_world_object->max_lod_level = selected_ob->max_lod_level;
+		new_world_object->max_model_lod_level = selected_ob->max_model_lod_level;
 
 		// Send CreateObject message to server
 		{
@@ -4594,10 +4626,12 @@ void MainWindow::applyUndoOrRedoObject(const Reference<WorldObject>& restored_ob
 						opengl_ob->ob_to_world_matrix = obToWorldMatrix(*in_world_ob);
 						ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
+						const int ob_lod_level = in_world_ob->getLODLevel(cam_controller.getPosition());
+
 						// Update materials in opengl engine.
 						for(size_t i=0; i<in_world_ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
-								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], in_world_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 
 						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 					}
@@ -4741,11 +4775,32 @@ void MainWindow::objectEditedSlot()
 			}
 		}
 
+		// Set material COLOUR_TEX_HAS_ALPHA_FLAG as applicable
+		for(size_t z=0; z<selected_ob->materials.size(); ++z)
+		{
+			WorldMaterial* mat = selected_ob->materials[z].ptr();
+			if(mat)
+			{
+				if(!mat->colour_texture_url.empty())
+				{
+					if(FileUtils::fileExists(mat->colour_texture_url)) // If this was a local path:
+					{
+						const std::string local_tex_path = mat->colour_texture_url;
+						Map2DRef tex = texture_server->getTexForPath(base_dir_path, local_tex_path); // Get from texture server so it's cached.
+						const bool has_alpha = LODGeneration::textureHasAlphaChannel(local_tex_path, tex);
+						BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
+					}
+				}
+			}
+		}
+
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
-		startLoadingTexturesForObject(*this->selected_ob);
+		LODGeneration::generateLODTexturesForMaterialsIfNotPresent(*selected_ob, *resource_manager, task_manager);
 
 		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
+		
+		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level);
 
 		startDownloadingResourcesForObject(this->selected_ob.ptr(), ob_lod_level);
 
@@ -4803,17 +4858,11 @@ void MainWindow::objectEditedSlot()
 							opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
 
 							for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], this->selected_ob->lightmap_url, *this->resource_manager,
+								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, *this->resource_manager,
 									opengl_ob->materials[i]
 								);
 
-							for(size_t z=0; z<opengl_ob->materials.size(); ++z)
-							{
-								if(!opengl_ob->materials[z].tex_path.empty())
-									opengl_ob->materials[z].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(opengl_ob->materials[z].tex_path));
-								else
-									opengl_ob->materials[z].albedo_texture = NULL;
-							}
+							assignedLoadedOpenGLTexturesToMats(selected_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 						}
 					}
 
@@ -5648,6 +5697,8 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 	{
 		const Matrix4f ob_to_world = obToWorldMatrix(*ob);
 
+		const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+
 		// Add updated model!
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), ob_to_world, task_manager, /*do_opengl_stuff=*/true, raymesh);
@@ -5659,7 +5710,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		gl_ob->materials.resize(ob->materials.size());
 		for(uint32 i=0; i<ob->materials.size(); ++i)
 		{
-			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, gl_ob->materials[i]);
+			ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, gl_ob->materials[i]);
 			gl_ob->materials[i].gen_planar_uvs = true;
 			gl_ob->materials[i].draw_planar_uv_grid = true;
 		}
@@ -6723,6 +6774,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			GIFDecoder::test();
+			BitUtils::test();
 			//MeshSimplification::test();
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
 			//NoiseTests::test();

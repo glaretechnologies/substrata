@@ -69,8 +69,10 @@ public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
 	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
+	static std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha);
 
 	int getLODLevel(const Vec3d& campos) const;
+	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level
 	std::string getLODModelURL(const Vec3d& campos) const;
 
 	void appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out);
@@ -146,7 +148,7 @@ public:
 	std::string creator_name; // This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
 
 	js::AABBox aabb_ws; // World space axis-aligned bounding box.  Not authoritative.  Used to show a box while loading, also for computing LOD levels.
-	int max_lod_level; // maximum LOD level for model.  0 for models that don't have lower LOD versions.
+	int max_model_lod_level; // maximum LOD level for model.  0 for models that don't have lower LOD versions.
 
 	enum State
 	{

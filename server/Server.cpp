@@ -379,6 +379,7 @@ int main(int argc, char *argv[])
 
 
 		// Add road objects
+		if(false)
 		{
 			bool have_added_roads = false;
 			for(auto it = server.world_state->getRootWorldState()->objects.begin(); it != server.world_state->getRootWorldState()->objects.end(); ++it)

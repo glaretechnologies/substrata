@@ -58,7 +58,7 @@ WorldObject::WorldObject()
 
 	aabb_ws = js::AABBox::emptyAABBox();
 
-	max_lod_level = 0;
+	max_model_lod_level = 0;
 }
 
 
@@ -79,11 +79,24 @@ std::string WorldObject::getLODModelURLForLevel(const std::string& base_model_ur
 }
 
 
+std::string WorldObject::getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha)
+{
+	if(level == 0)
+		return base_texture_url;
+	else
+	{
+		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
+
+		if(level == 1)
+			return removeDotAndExtension(base_texture_url) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+		else
+			return removeDotAndExtension(base_texture_url) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+	}
+}
+
+
 int WorldObject::getLODLevel(const Vec3d& campos) const
 {
-	if(max_lod_level == 0)
-		return 0;
-
 	const float dist = campos.toVec4fVector().getDist(this->pos.toVec4fVector());
 	const float proj_len = aabb_ws.longestLength() / dist;
 
@@ -93,6 +106,15 @@ int WorldObject::getLODLevel(const Vec3d& campos) const
 		return 1;
 	else
 		return 2;
+}
+
+
+int WorldObject::getModelLODLevel(const Vec3d& campos) const // getLODLevel() clamped to max_model_lod_level
+{
+	if(max_model_lod_level == 0)
+		return 0;
+
+	return getLODLevel(campos);
 }
 
 
@@ -106,13 +128,16 @@ std::string WorldObject::getLODModelURL(const Vec3d& campos) const
 void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out)
 {
 	if(!model_url.empty())
-		URLs_out.push_back(getLODModelURLForLevel(model_url, ob_lod_level));
+	{
+		const int ob_model_lod_level = myMin(ob_lod_level, this->max_model_lod_level);
+		URLs_out.push_back(getLODModelURLForLevel(model_url, ob_model_lod_level));
+	}
 
 	if(!lightmap_url.empty())
-		URLs_out.push_back(lightmap_url);
+		URLs_out.push_back(lightmap_url); // TEMP NO LIGHTMAP LOD   getLODTextureURLForLevel(lightmap_url, ob_lod_level, /*has alpha=*/false));
 
 	for(size_t i=0; i<materials.size(); ++i)
-		materials[i]->appendDependencyURLs(URLs_out);
+		materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
 }
 
 
@@ -121,7 +146,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<std::string>& 
 	if(!model_url.empty())
 	{
 		URLs_out.push_back(model_url);
-		if(max_lod_level > 0)
+		if(max_model_lod_level > 0)
 		{
 			URLs_out.push_back(getLODModelURLForLevel(model_url, 1));
 			URLs_out.push_back(getLODModelURLForLevel(model_url, 2));
@@ -132,7 +157,7 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<std::string>& 
 		URLs_out.push_back(lightmap_url);
 
 	for(size_t i=0; i<materials.size(); ++i)
-		materials[i]->appendDependencyURLs(URLs_out);
+		materials[i]->appendDependencyURLsAllLODLevels(URLs_out);
 }
 
 
@@ -380,7 +405,7 @@ void WorldObject::writeToStream(OutStream& stream) const
 	stream.writeData(aabb_ws.min_.x, sizeof(float) * 3); // new in v14
 	stream.writeData(aabb_ws.max_.x, sizeof(float) * 3);
 
-	stream.writeInt32(max_lod_level); // new in v15
+	stream.writeInt32(max_model_lod_level); // new in v15
 
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -472,7 +497,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 	}
 
 	if(v >= 15)
-		ob.max_lod_level = stream.readInt32();
+		ob.max_model_lod_level = stream.readInt32();
 
 	if(v >= 9 && ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -541,7 +566,7 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 	stream.writeData(aabb_ws.min_.x, sizeof(float) * 3); // new in v14
 	stream.writeData(aabb_ws.max_.x, sizeof(float) * 3);
 
-	stream.writeInt32(max_lod_level); // new in v15
+	stream.writeInt32(max_model_lod_level); // new in v15
 
 	if(object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -583,7 +608,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 
 	aabb_ws = other.aabb_ws;
 
-	max_lod_level = other.max_lod_level;
+	max_model_lod_level = other.max_model_lod_level;
 }
 
 
@@ -630,7 +655,7 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 	stream.readData(ob.aabb_ws.max_.x, sizeof(float) * 3);
 	ob.aabb_ws.max_.x[3] = 1.f;
 
-	ob.max_lod_level = stream.readInt32();
+	ob.max_model_lod_level = stream.readInt32();
 
 	if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{

@@ -74,7 +74,7 @@ void LoadModelTask::run(size_t thread_index)
 				opengl_ob->materials.resize(ob->materials.size());
 				for(uint32 i=0; i<ob->materials.size(); ++i)
 				{
-					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], this->ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 					opengl_ob->materials[i].gen_planar_uvs = true;
 				}
 
@@ -91,7 +91,7 @@ void LoadModelTask::run(size_t thread_index)
 			{
 				// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
 				Reference<RayMesh> raymesh;
-				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob->materials, ob->lightmap_url, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
+				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, this->ob_lod_level, ob->materials, ob->lightmap_url, *this->resource_manager, *this->mesh_manager, *model_building_task_manager, ob_to_world_matrix,
 					true, // skip_opengl_calls - we need to do these on the main thread.
 					raymesh);
 
@@ -115,7 +115,7 @@ void LoadModelTask::run(size_t thread_index)
 			msg->opengl_ob = opengl_ob;
 			msg->physics_ob = physics_ob;
 			msg->base_model_url = base_model_url;
-			msg->lod_level = lod_level;
+			msg->ob_lod_level = ob_lod_level;
 			msg->lod_model_url = lod_model_url;
 			msg->ob = ob;
 			main_window->msg_queue.enqueue(msg);

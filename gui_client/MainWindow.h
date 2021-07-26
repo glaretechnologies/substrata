@@ -201,7 +201,7 @@ public:
 	bool checkAddModelToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool isModelProcessed(const std::string& url) const;
 
-	void startLoadingTexturesForObject(const WorldObject& ob);
+	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
 	void addPlaceholderObjectsForOb(WorldObject& ob);
 	void setUpForScreenshot();
@@ -342,11 +342,14 @@ public:
 	Reference<OpenGLProgram> parcel_shader_prog;
 
 	StandardPrintOutput print_output;
-	glare::TaskManager task_manager;
-	glare::TaskManager model_building_task_manager; // For use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
+	glare::TaskManager task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff.
+	
+	glare::TaskManager model_loader_task_manager; // Contains LoadModelTask objects.
 public:
-	glare::TaskManager texture_loader_task_manager;
+	glare::TaskManager texture_loader_task_manager; // Contains LoadTextureTask objects.
 private:
+	glare::TaskManager model_building_subsidary_task_manager; // Just for use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
+
 	MeshManager mesh_manager;
 
 	struct Notification
