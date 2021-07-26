@@ -72,10 +72,16 @@ std::string WorldObject::getLODModelURLForLevel(const std::string& base_model_ur
 {
 	if(level == 0)
 		return base_model_url;
-	else if(level == 1)
-		return removeDotAndExtension(base_model_url) + "_lod1.bmesh"; // LOD models are always saved in BatchedMesh (bmesh) format.
 	else
-		return removeDotAndExtension(base_model_url) + "_lod2.bmesh";
+	{
+		if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
+			return base_model_url;
+
+		if(level == 1)
+			return removeDotAndExtension(base_model_url) + "_lod1.bmesh"; // LOD models are always saved in BatchedMesh (bmesh) format.
+		else
+			return removeDotAndExtension(base_model_url) + "_lod2.bmesh";
+	}
 }
 
 
@@ -85,6 +91,13 @@ std::string WorldObject::getLODTextureURLForLevel(const std::string& base_textur
 		return base_texture_url;
 	else
 	{
+		// Don't do LOD on mp4 (video) textures (for now).
+		// Also don't do LOD with http URLs
+		if(::hasExtensionStringView(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
+			return base_texture_url; 
+
+		// Gifs LOD textures are always gifs.
+		// Other image formats get converted to jpg if they don't have alpha, and png if they do.
 		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
 
 		if(level == 1)

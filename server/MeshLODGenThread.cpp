@@ -44,7 +44,7 @@ MeshLODGenThread::~MeshLODGenThread()
 
 static bool textureHasAlphaChannel(const std::string& tex_path)
 {
-	if(hasExtension(tex_path, "gif") || hasExtension(tex_path, "jpg"))
+	if(hasExtension(tex_path, "gif") || hasExtension(tex_path, "mp4") || hasExtension(tex_path, "jpg")) // We don't support alpha in GIF and MP4 currently.
 		return false;
 	else
 	{
@@ -172,9 +172,16 @@ void MeshLODGenThread::doRun()
 						}
 						else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 						{
-							VoxelGroup voxel_group;
-							WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
-							aabb_os = voxel_group.getAABB();
+							try
+							{
+								VoxelGroup voxel_group;
+								WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
+								aabb_os = voxel_group.getAABB();
+							}
+							catch(glare::Exception& e)
+							{
+								throw glare::Exception("Error while decompressing voxel group: " + e.what());
+							}
 						}
 						else // else if(ob->object_type == WorldObject::ObjectType_Generic):
 						{
@@ -183,7 +190,7 @@ void MeshLODGenThread::doRun()
 							// Try and load mesh, get AABB from it.
 							if(!ob->model_url.empty())
 							{
-								if(false)
+								if(true)
 								{
 									const std::string model_path = world_state->resource_manager->pathForURL(ob->model_url);
 
@@ -301,23 +308,26 @@ void MeshLODGenThread::doRun()
 											made_change = made_change || (mat->flags != old_flags);
 
 											const std::string lod_URL  = WorldObject::getLODTextureURLForLevel(mat->colour_texture_url, lvl, has_alpha);
-											const std::string lod_path = world_state->resource_manager->pathForURL(lod_URL);
-
-
-											if(lod_URLs_considered.count(lod_URL) == 0)
+											
+											if(lod_URL != mat->colour_texture_url) // We don't do LOD for some texture types.
 											{
-												lod_URLs_considered.insert(lod_URL);
+												const std::string lod_path = world_state->resource_manager->pathForURL(lod_URL);
 
-												if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+												if(lod_URLs_considered.count(lod_URL) == 0)
 												{
-													// Generate the texture
-													LODTextureToGen tex_to_gen;
-													tex_to_gen.lod_level = lvl;
-													tex_to_gen.tex_path = tex_path;
-													tex_to_gen.LOD_tex_path = lod_path;
-													tex_to_gen.lod_URL = lod_URL;
-													tex_to_gen.owner_id = base_resource->owner_id;
-													textures_to_gen.push_back(tex_to_gen);
+													lod_URLs_considered.insert(lod_URL);
+
+													if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+													{
+														// Generate the texture
+														LODTextureToGen tex_to_gen;
+														tex_to_gen.lod_level = lvl;
+														tex_to_gen.tex_path = tex_path;
+														tex_to_gen.LOD_tex_path = lod_path;
+														tex_to_gen.lod_URL = lod_URL;
+														tex_to_gen.owner_id = base_resource->owner_id;
+														textures_to_gen.push_back(tex_to_gen);
+													}
 												}
 											}
 										}
