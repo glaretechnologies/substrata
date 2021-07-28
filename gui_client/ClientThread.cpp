@@ -121,23 +121,18 @@ void ClientThread::doRun()
 				return;
 			}
 
-			// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
-			if(VERBOSE) conPrint("ClientThread: checking for pending data to send...");
+			// See if we have any pending data to send in the data_to_send buffer, and if so, send all pending data.
+			// We don't want to do network writes while holding the data_to_send_mutex.  So copy to temp_data_to_send.
 			{
-				Lock lock(data_to_send.getMutex());
+				Lock lock(data_to_send_mutex);
+				temp_data_to_send = data_to_send;
+				data_to_send.clear();
+			}
 
-				while(!data_to_send.unlockedEmpty())
-				{
-					std::string data;
-					data_to_send.unlockedDequeue(data);
-
-					// Write the data to the socket
-					if(!data.empty())
-					{
-						if(VERBOSE) conPrint("ClientThread: calling writeData with data '" + data + "'...");
-						socket->writeData(data.data(), data.size());
-					}
-				}
+			if(temp_data_to_send.nonEmpty())
+			{
+				socket->writeData(temp_data_to_send.data(), temp_data_to_send.size());
+				temp_data_to_send.clear();
 			}
 
 
@@ -706,19 +701,32 @@ void ClientThread::doRun()
 void ClientThread::enqueueDataToSend(const std::string& data)
 {
 	if(VERBOSE) conPrint("ClientThread::enqueueDataToSend(), data: '" + data + "'");
-	data_to_send.enqueue(data);
+
+	// Append data to data_to_send
+	if(!data.empty())
+	{
+		Lock lock(data_to_send_mutex);
+		const size_t write_i = data_to_send.size();
+		data_to_send.resize(write_i + data.size());
+		std::memcpy(&data_to_send[write_i], data.data(), data.size());
+	}
+
 	event_fd.notify();
 }
 
 
-void ClientThread::enqueueDataToSend(const SocketBufferOutStream& packet) // threadsafe
+void ClientThread::enqueueDataToSend(const SocketBufferOutStream& packet)
 {
-	if(packet.buf.size() > 0)
+	if(!packet.buf.empty())
 	{
-		std::string packet_string(packet.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
+		// Append data to data_to_send
+		{
+			Lock lock(data_to_send_mutex);
+			const size_t write_i = data_to_send.size();
+			data_to_send.resize(write_i + packet.buf.size());
+			std::memcpy(&data_to_send[write_i], packet.buf.data(), packet.buf.size());
+		}
 
-		data_to_send.enqueue(packet_string);
 		event_fd.notify();
 	}
 }
