@@ -109,6 +109,7 @@ public:
 	float viewport_aspect_ratio;
 	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;
+	float near_draw_dist;
 	float max_draw_dist;
 
 	QTimer* gamepad_init_timer;

@@ -54,6 +54,7 @@ GlWidget::GlWidget(QWidget *parent)
 	cam_controller(NULL),
 	current_time(0.f),
 	cam_rot_on_mouse_move_enabled(true),
+	near_draw_dist(0.22f), // As large as possible as we can get without clipping becoming apparent.
 	max_draw_dist(1000.f),
 	gamepad(NULL),
 	print_output(NULL),
@@ -215,7 +216,7 @@ void GlWidget::paintGL()
 		const float lens_sensor_dist = lensSensorDist();
 		const float render_aspect_ratio = viewport_aspect_ratio;
 		opengl_engine->setViewport(viewport_w, viewport_h);
-		opengl_engine->setNearDrawDistance(0.22f);
+		opengl_engine->setNearDrawDistance(near_draw_dist);
 		opengl_engine->setMaxDrawDistance(max_draw_dist);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 		opengl_engine->setCurrentTime(current_time);

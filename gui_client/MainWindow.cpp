@@ -111,6 +111,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/ReferenceTest.h" // Just for testing
 #include "../utils/JSONParser.h" // Just for testing
 #include "../utils/PoolAllocator.h" // Just for testing
+//#include "../utils/ManagerWithCache.h" // Just for testing
 #include "../opengl/OpenGLEngineTests.h" // Just for testing
 #include "../graphics/FormatDecoderGLTF.h" // Just for testing
 #include "../graphics/GifDecoder.h" // Just for testing
@@ -820,7 +821,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 		// If resources are streamable, don't download them.
 		//const bool stream = shouldStreamResourceViaHTTP(url);
 
-		// Only download mp4s if we are nearby them.
+		// Only download mp4s if the camera is near them in the world.
 		bool in_range = true;
 		if(hasExtensionStringView(url, "mp4"))
 		{
@@ -880,7 +881,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 // If so, load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the model download.
 // Also enqueue any downloads for missing resources such as textures.
-void MainWindow::loadModelForObject(WorldObject* ob/*, bool start_downloading_missing_files*/)
+void MainWindow::loadModelForObject(WorldObject* ob)
 {
 	const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 	const int ob_model_lod_level = myMin(ob_lod_level, ob->max_model_lod_level);
@@ -1659,6 +1660,8 @@ void MainWindow::setUpForScreenshot()
 		}
 	}
 
+	ui->glWidget->near_draw_dist = 0.7f; // Increase near draw distance, to reduce z-fighting.  Hope there are no nearby objects!
+
 	done_screenshot_setup = true;
 }
 
@@ -1956,17 +1959,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 
 		conPrint("---------------Waiting for loading to be done for screenshot ---------------");
+		const size_t num_model_tasks = model_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
+		const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks() + texture_loaded_messages_to_process.size();
+		
+
 		printVar(num_obs);
-		printVar(model_loader_task_manager.getNumUnfinishedTasks());
-		printVar(texture_loader_task_manager.getNumUnfinishedTasks());
+		printVar(num_model_tasks);
+		printVar(num_tex_tasks);
 		printVar(num_non_net_resources_downloading);
 		printVar(num_net_resources_downloading);
 
 		const bool loaded_all =
 			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
 			(total_timer.elapsed() >= 5) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
-			(model_loader_task_manager.getNumUnfinishedTasks() == 0) &&
-			(texture_loader_task_manager.getNumUnfinishedTasks() == 0) &&
+			(num_model_tasks == 0) &&
+			(num_tex_tasks == 0) &&
 			(num_non_net_resources_downloading == 0) &&
 			(num_net_resources_downloading == 0);
 
@@ -2262,6 +2269,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				texture_loaded_messages_to_process.pop_front();
 
 				num_textures_loaded++;
+
+				//TEMP: Now that this texture is loaded, removed from textures_processed set.
+				/*{
+					Lock lock(textures_processed_mutex);
+					textures_processed.erase(message->tex_key);
+				}*/
 
 				// conPrint("Handling texture loaded message " + message->tex_path);
 
@@ -6833,6 +6846,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			//testManagerWithCache();
 			GIFDecoder::test();
 			BitUtils::test();
 			//MeshSimplification::test();
