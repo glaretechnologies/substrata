@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <MyThread.h>
 #include <EventFD.h>
 #include <MySocket.h>
+#include <Vector.h>
 #include <string>
 class WorkUnit;
 class PrintOutput;
@@ -43,9 +44,11 @@ private:
 	void handleScreenshotBotConnection();
 	void handleEthBotConnection();
 
-	ThreadSafeQueue<std::string> data_to_send;
-
 	Reference<SocketInterface> socket;
 	Server* server;
 	EventFD event_fd;	
+
+	Mutex data_to_send_mutex;
+	js::Vector<uint8, 16> data_to_send;
+	js::Vector<uint8, 16> temp_data_to_send;
 };

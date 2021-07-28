@@ -739,24 +739,18 @@ void WorkerThread::doRun()
 		{
 			// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
 			if(VERBOSE) conPrint("WorkerThread: checking for pending data to send...");
+
+			// We don't want to do network writes while holding the data_to_send_mutex.  So copy to temp_data_to_send.
 			{
-				Lock lock(data_to_send.getMutex());
+				Lock lock(data_to_send_mutex);
+				temp_data_to_send = data_to_send;
+				data_to_send.clear();
+			}
 
-				while(!data_to_send.unlockedEmpty())
-				{
-					std::string data;
-					data_to_send.unlockedDequeue(data);
-
-					if(connection_type == Protocol::ConnectionTypeUpdates)
-					{
-						// Write the data to the socket
-						if(!data.empty())
-						{
-							if(VERBOSE) conPrint("WorkerThread: calling writeData() with data '" + data + "'...");
-							socket->writeData(data.data(), data.size());
-						}
-					}
-				}
+			if(temp_data_to_send.nonEmpty() && (connection_type == Protocol::ConnectionTypeUpdates))
+			{
+				socket->writeData(temp_data_to_send.data(), temp_data_to_send.size());
+				temp_data_to_send.clear();
 			}
 
 
@@ -1603,6 +1597,15 @@ void WorkerThread::doRun()
 void WorkerThread::enqueueDataToSend(const std::string& data)
 {
 	if(VERBOSE) conPrint("WorkerThread::enqueueDataToSend(), data: '" + data + "'");
-	data_to_send.enqueue(data);
+
+	// Append data to data_to_send
+	if(!data.empty())
+	{
+		Lock lock(data_to_send_mutex);
+		const size_t write_i = data_to_send.size();
+		data_to_send.resize(write_i + data.size());
+		std::memcpy(&data_to_send[write_i], data.data(), data.size());
+	}
+
 	event_fd.notify();
 }
