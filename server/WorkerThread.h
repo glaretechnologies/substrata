@@ -17,6 +17,7 @@ class WorkUnit;
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
+class SocketBufferOutStream;
 
 
 /*=====================================================================
@@ -36,6 +37,7 @@ public:
 	std::string connected_world_name;
 
 	void enqueueDataToSend(const std::string& data); // threadsafe
+	void enqueueDataToSend(const SocketBufferOutStream& packet); // threadsafe
 
 private:
 	void sendGetFileMessageIfNeeded(const std::string& resource_URL);

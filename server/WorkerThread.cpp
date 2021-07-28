@@ -84,10 +84,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 			packet.writeUInt32(Protocol::GetFile);
 			packet.writeStringLengthFirst(resource_URL);
 
-			std::string packet_string(packet.buf.size(), '\0');
-			std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
-
-			this->enqueueDataToSend(packet_string);
+			this->enqueueDataToSend(packet);
 		}
 	}
 }
@@ -103,19 +100,16 @@ static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::str
 
 
 // Enqueues packet to WorkerThreads to send to clients connected to the server.
-static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, Server* server)
+static void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer, Server* server)
 {
 	assert(packet_buffer.buf.size() > 0);
 	if(packet_buffer.buf.size() > 0)
 	{
-		std::string packet_string(packet_buffer.buf.size(), '\0');
-		std::memcpy(&packet_string[0], packet_buffer.buf.data(), packet_buffer.buf.size());
-
 		Lock lock(server->worker_thread_manager.getMutex());
 		for(auto i = server->worker_thread_manager.getThreads().begin(); i != server->worker_thread_manager.getThreads().end(); ++i)
 		{
 			assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-			static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+			static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_buffer);
 		}
 	}
 }
@@ -602,7 +596,7 @@ void WorkerThread::doRun()
 		{
 			socket->writeUInt32(Protocol::ClientProtocolTooOld);
 			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too old, require version " + 
-				toString(Protocol::CyberspaceProtocolVersion) + ".  Please update your client.");
+				toString(Protocol::CyberspaceProtocolVersion) + ".  Please update your client at substrata.info.");
 		}
 		else if(client_version > Protocol::CyberspaceProtocolVersion)
 		{
@@ -1605,6 +1599,21 @@ void WorkerThread::enqueueDataToSend(const std::string& data)
 		const size_t write_i = data_to_send.size();
 		data_to_send.resize(write_i + data.size());
 		std::memcpy(&data_to_send[write_i], data.data(), data.size());
+	}
+
+	event_fd.notify();
+}
+
+
+void WorkerThread::enqueueDataToSend(const SocketBufferOutStream& packet) // threadsafe
+{
+	// Append data to data_to_send
+	if(!packet.buf.empty())
+	{
+		Lock lock(data_to_send_mutex);
+		const size_t write_i = data_to_send.size();
+		data_to_send.resize(write_i + packet.buf.size());
+		std::memcpy(&data_to_send[write_i], packet.buf.data(), packet.buf.size());
 	}
 
 	event_fd.notify();
