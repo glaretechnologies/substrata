@@ -1,7 +1,7 @@
 /*=====================================================================
 ServerWorldState.h
--------------------
-Copyright Glare Technologies Limited 2018 -
+------------------
+Copyright Glare Technologies Limited 2021 -
 Generated at 2016-01-12 12:22:34 +1300
 =====================================================================*/
 #pragma once
@@ -58,8 +58,6 @@ public:
 	void serialiseToDisk(const std::string& path);
 	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.  Mutex should be locked already.
 
-	void updateFromDatabase();
-	
 	UID getNextObjectUID(); // Gets and then increments next_object_uid
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.
 	uint64 getNextOrderUID(); // Gets and then increments next_order_uid.  Locks mutex.

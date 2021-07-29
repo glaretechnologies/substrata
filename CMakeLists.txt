@@ -172,9 +172,6 @@ else()
 endif()
 
 
-SET(MYSQL_CONNECTOR_DIR "${INDIGO_LIBS_ENV}/mysql_connector_install")
-
-
 # The llvm dirs use the version seperator "_" instead of "."
 string(REPLACE "." "_" INDIGO_LLVM_VERSION_PATH ${INDIGO_LLVM_VERSION})
 
@@ -194,7 +191,6 @@ MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
 MESSAGE("OpenSSL version: ${INDIGO_OPENSSL_VERSION}")
 MESSAGE("QT dir: ${INDIGO_QT_DIR}")
 MESSAGE("LibJPEG Turbo dir: ${jpegturbodir}")
-MESSAGE("MySQL connector dir: ${MYSQL_CONNECTOR_DIR}")
 
 # LLVM, LibreSSL, OpenSSL
 if(WIN32)
