@@ -27,6 +27,10 @@ ServerAllWorldsState::ServerAllWorldsState()
 
 	world_states[""] = new ServerWorldState();
 
+	last_parcel_sale_update_hour = 0;
+	last_parcel_sale_update_day = 0;
+	last_parcel_sale_update_year = 0;
+
 	BTC_per_EUR = 0;
 	ETH_per_EUR = 0;
 }
@@ -49,7 +53,11 @@ static const uint32 USER_WEB_SESSION_CHUNK = 105;
 static const uint32 PARCEL_AUCTION_CHUNK = 106;
 static const uint32 SCREENSHOT_CHUNK = 107;
 static const uint32 SUB_ETH_TRANSACTIONS_CHUNK = 108;
+static const uint32 LAST_PARCEL_SALE_UPDATE_CHUNK = 109;
 static const uint32 EOS_CHUNK = 1000;
+
+
+static const uint32 PARCEL_SALE_UPDATE_VERSION = 1;
 
 
 void ServerAllWorldsState::readFromDisk(const std::string& path)
@@ -188,6 +196,15 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 			sub_eth_transactions[trans->id] = trans;
 			num_sub_eth_transactions++;
+		}
+		else if(chunk == LAST_PARCEL_SALE_UPDATE_CHUNK)
+		{
+			const uint32 update_v = stream.readInt32();
+			if(update_v != PARCEL_SALE_UPDATE_VERSION)
+				throw glare::Exception("invalid parcel_sale_update_version: " + toString(update_v));
+			this->last_parcel_sale_update_hour = stream.readInt32();
+			this->last_parcel_sale_update_day = stream.readInt32();
+			this->last_parcel_sale_update_year = stream.readInt32();
 		}
 		else if(chunk == EOS_CHUNK)
 		{
@@ -450,6 +467,15 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 					writeToStream(*i->second, stream);
 					num_sub_eth_transactions++;
 				}
+			}
+
+			// Write LAST_PARCEL_SALE_UPDATE_CHUNK
+			{
+				stream.writeUInt32(LAST_PARCEL_SALE_UPDATE_CHUNK);
+				stream.writeUInt32(PARCEL_SALE_UPDATE_VERSION);
+				stream.writeInt32(this->last_parcel_sale_update_hour);
+				stream.writeInt32(this->last_parcel_sale_update_day);
+				stream.writeInt32(this->last_parcel_sale_update_year);
 			}
 
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk

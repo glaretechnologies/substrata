@@ -149,6 +149,124 @@ static void makeRoad(ServerAllWorldsState& world_state, const Vec3d& pos, const 
 }
 
 
+static void updateParcelSales(ServerAllWorldsState& world_state)
+{
+	conPrint("updateParcelSales()");
+
+	PCG32 rng((uint64)Clock::getSecsSince1970() + (uint64)(Clock::getTimeSinceInit() * 1000.0)); // Poor seeding but not too important
+
+	{
+		Lock lock(world_state.mutex);
+
+		int num_for_sale = 0;
+		TimeStamp now = TimeStamp::currentTime();
+		for(auto it = world_state.parcel_auctions.begin(); it != world_state.parcel_auctions.end(); ++it)
+		{
+			ParcelAuction* auction = it->second.ptr();
+			if(auction->currentlyForSale(now))
+				num_for_sale++;
+		}
+
+		const int target_num_for_sale = 9;
+		if(num_for_sale < target_num_for_sale)
+		{
+			// We have less than the desired number of parcels up for sale, so list some:
+
+			// Get list of sellable parcels
+			std::vector<Parcel*> sellable_parcels;
+			for(auto pit = world_state.getRootWorldState()->parcels.begin(); pit != world_state.getRootWorldState()->parcels.end(); ++pit)
+			{
+				Parcel* parcel = pit->second.ptr();
+				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90)) // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90):
+					sellable_parcels.push_back(parcel);
+			}
+
+			// Permute parcels (Fisher–Yates shuffle).  NOTE: kinda slow if we have lots of sellable parcels.
+			for(int i=(int)sellable_parcels.size()-1; i>0; --i)
+			{
+				const uint32 k = rng.nextUInt((uint32)i + 1);
+				mySwap(sellable_parcels[i], sellable_parcels[k]);
+			}
+
+			const int desired_num_to_add = target_num_for_sale - num_for_sale;
+			assert(desired_num_to_add > 0);
+			const int num_to_add = myMin(desired_num_to_add, (int)sellable_parcels.size());
+			for(int i=0; i<num_to_add; ++i)
+			{
+				Parcel* parcel = sellable_parcels[i];
+
+				conPrint("updateParcelSales(): Putting parcel " + parcel->id.toString() + " up for auction");
+
+				// Make a parcel auction for this parcel
+
+				const int auction_duration_hours = 48;
+				const double auction_start_price = 2000; // EUR
+				const double auction_end_price = 400; // EUR
+
+				//TEMP: scan over all ParcelAuctions and find highest used ID.
+				uint32 highest_auction_id = 0;
+				for(auto it = world_state.parcel_auctions.begin(); it != world_state.parcel_auctions.end(); ++it)
+					highest_auction_id = myMax(highest_auction_id, it->first);
+
+				ParcelAuctionRef auction = new ParcelAuction();
+				auction->id = highest_auction_id + 1;
+				auction->parcel_id = parcel->id;
+				auction->auction_state = ParcelAuction::AuctionState_ForSale;
+				auction->auction_start_time  = now;
+				auction->auction_end_time    = TimeStamp((uint64)(now.time + auction_duration_hours * 3600));
+				auction->auction_start_price = auction_start_price;
+				auction->auction_end_price   = auction_end_price;
+
+				world_state.parcel_auctions[auction->id] = auction;
+
+				// Make new screenshot (request) for parcel auction
+
+				//TEMP: scan over all screenshots and find highest used ID. (was running into a problem on localhost of id >= num items)
+				uint64 highest_id = 0;
+				for(auto it = world_state.screenshots.begin(); it != world_state.screenshots.end(); ++it)
+					highest_id = myMax(highest_id, it->first);
+
+				// Close-in screenshot
+				{
+					ScreenshotRef shot = new Screenshot();
+					shot->id = highest_id + 1;
+					parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+					shot->width_px = 650;
+					shot->highlight_parcel_id = (int)parcel->id.value();
+					shot->created_time = TimeStamp::currentTime();
+					shot->state = Screenshot::ScreenshotState_notdone;
+
+					world_state.screenshots[shot->id] = shot;
+
+					auction->screenshot_ids.push_back(shot->id);
+				}
+				// Zoomed-out screenshot
+				{
+					ScreenshotRef shot = new Screenshot();
+					shot->id = highest_id + 2;
+					parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+					shot->width_px = 650;
+					shot->highlight_parcel_id = (int)parcel->id.value();
+					shot->created_time = TimeStamp::currentTime();
+					shot->state = Screenshot::ScreenshotState_notdone;
+
+					world_state.screenshots[shot->id] = shot;
+
+					auction->screenshot_ids.push_back(shot->id);
+				}
+
+				parcel->parcel_auction_ids.push_back(auction->id);
+
+				world_state.markAsChanged();
+			}
+
+			conPrint("updateParcelSales(): Put " + toString(num_to_add) + " parcels up for auction.");
+		}
+	} // End lock scope
+}
+
+
+
 static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
 {
 	if(packet_buffer.buf.size() > 0)
@@ -276,53 +394,13 @@ int main(int argc, char *argv[])
 			server.world_state->readFromDisk(server_state_path);
 
 
-		//server.world_state->updateFromDatabase();
-
 		//TEMP:
 		//server.world_state->resource_manager->getResourcesForURL().clear();
 
-		// Add a teapot object
-		WorldObjectRef test_object;
-		if(false)
-		{
-			const UID uid(6000);
-			test_object = new WorldObject();
-			test_object->state = WorldObject::State_Alive;
-			test_object->uid = uid;
-			test_object->pos = Vec3d(3, 0, 1);
-			test_object->angle = 0;
-			test_object->axis = Vec3f(1,0,0);
-			test_object->model_url = "teapot_obj_12507117953098989663.obj";
-			test_object->scale = Vec3f(1.f);
-			//server.world_state->objects[uid] = test_object;
-		}
-
 		//TEMP
 		//server.world_state->parcels.clear();
-
-		// TEMP: Add a parcel
-		if(false)
-		{
-			const ParcelID parcel_id(7000);
-			ParcelRef test_parcel = new Parcel();
-			test_parcel->state = Parcel::State_Alive;
-			test_parcel->id = parcel_id;
-			test_parcel->owner_id = UserID(0);
-			test_parcel->admin_ids.push_back(UserID(0));
-			test_parcel->writer_ids.push_back(UserID(0));
-			test_parcel->created_time = TimeStamp::currentTime();
-			test_parcel->verts[0] = Vec2d(-10, -10);
-			test_parcel->verts[1] = Vec2d( 10, -10);
-			test_parcel->verts[2] = Vec2d( 10,  10);
-			test_parcel->verts[3] = Vec2d(-10,  10);
-			test_parcel->zbounds = Vec2d(-1, 10);
-			test_parcel->build();
-
-			test_parcel->description = "This is a pretty cool parcel.";
-			//server.world_state->parcels[parcel_id] = test_parcel;
-		}
-
 		
+
 		// Add 'town square' parcels
 		if(server.world_state->getRootWorldState()->parcels.empty())
 		{
@@ -610,11 +688,6 @@ int main(int argc, char *argv[])
 		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
 		shared_request_handler->data_store = web_data_store.ptr();
 		shared_request_handler->world_state = server.world_state.ptr();
-
-		/*if(FileUtils::fileExists(data_store->path))
-		data_store->loadFromDisk();
-		else
-		conPrint(data_store->path + " not found!");*/
 
 		ThreadManager web_thread_manager;
 		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
@@ -909,14 +982,34 @@ int main(int argc, char *argv[])
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				packet.writeUInt32(Protocol::TimeSyncMessage);
 				packet.writeDouble(server.getCurrentGlobalTime());
-				std::string packet_string(packet.buf.size(), '\0');
-				std::memcpy(&packet_string[0], packet.buf.data(), packet.buf.size());
 
 				Lock lock3(server.worker_thread_manager.getMutex());
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 				{
 					assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-					static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet_string);
+					static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet);
+				}
+			}
+
+
+			if((loop_iter % 128) == 0) // Approx every 10 s.
+			{
+				// Want want to list new parcels (to bring the total number being listed up to our target number) every day at midnight UTC.
+				int hour, day, year;
+				Clock::getHourDayOfYearAndYear(Clock::getSecsSince1970(), hour, day, year);
+
+				const bool different_day = 
+					server.world_state->last_parcel_sale_update_year != year ||
+					server.world_state->last_parcel_sale_update_day != day;
+
+				const bool initial_listing = server.world_state->last_parcel_sale_update_year == 0;
+
+				if(initial_listing || different_day)
+				{
+					updateParcelSales(*server.world_state);
+					server.world_state->last_parcel_sale_update_hour = hour;
+					server.world_state->last_parcel_sale_update_day = day;
+					server.world_state->last_parcel_sale_update_year = year;
 				}
 			}
 

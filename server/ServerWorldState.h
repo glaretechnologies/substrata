@@ -89,6 +89,12 @@ public:
 
 	std::map<uint64, SubEthTransactionRef> sub_eth_transactions; // SubEthTransaction id to SubEthTransaction
 
+
+	int last_parcel_sale_update_hour;
+	int last_parcel_sale_update_day;
+	int last_parcel_sale_update_year;
+
+
 	// Ephemeral state that is not serialised to disk.  Set by CoinbasePollerThread.
 	double BTC_per_EUR;
 	double ETH_per_EUR;
@@ -100,7 +106,7 @@ public:
 	TimeStamp last_lightmapper_bot_contact_time;
 	TimeStamp last_eth_bot_contact_time;
 
-	std::map<UserID, std::string> user_web_messages;
+	std::map<UserID, std::string> user_web_messages; // For displaying an informational or error message on the next webpage served to a user.
 
 	::Mutex mutex;
 private:
