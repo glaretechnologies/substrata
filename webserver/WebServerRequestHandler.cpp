@@ -217,6 +217,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderBotStatusPage(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/faq")
+		{
+			MainPageHandlers::renderFAQ(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/pdt_landing")
 		{
 			PayPalHandlers::handlePayPalPDTOrderLanding(*this->world_state, request, reply_info);
