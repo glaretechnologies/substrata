@@ -173,6 +173,12 @@ const std::string TimeStamp::timeAgoDescription() const // Returns a string like
 }
 
 
+static const std::string hourString(int h)
+{
+	return (h == 1) ? "1 hour" : toString(h) + " hours";
+}
+
+
 const std::string TimeStamp::timeDescription() const // Returns a string like '1 hour ago' or 'in 5 minutes'
 {
 	if(currentTime().time >= this->time)
@@ -195,8 +201,16 @@ const std::string TimeStamp::timeDescription() const // Returns a string like '1
 		}
 		else
 		{
+			int diff_h = diff_s / 3600;
 			int diff_d = diff_s / (3600 * 24);
-			return diff_d == 1 ? "in 1 day" : "in " + toString(diff_d) + " days";
+			if(diff_d <= 5)
+			{
+				// Show hours as well, something like "in 2 days and 16 hours"
+				const int remaining_hours = diff_h - diff_d * 24;
+				return (diff_d == 1) ? ("in 1 day and " + hourString(remaining_hours)) : ("in " + toString(diff_d) + " days and " + hourString(remaining_hours));
+			}
+			else
+				return (diff_d == 1) ? "in 1 day" : ("in " + toString(diff_d) + " days");
 		}
 	}
 }

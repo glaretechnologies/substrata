@@ -156,6 +156,13 @@ int main(int argc, char* argv[])
 							break;
 
 						PlatformUtils::Sleep(10);
+
+						if(timer.elapsed() > 100)
+						{
+							conPrint("gui client process seems stuck, terminating it...");
+							process.terminateProcess();
+							break;
+						}
 					}
 
 					std::string output, err_output;

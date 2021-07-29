@@ -5645,7 +5645,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 			const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
 
 			Vec2f pixel_coords;
-			const bool visible = getPixelForPoint(hitpos_ws, pixel_coords);
+			/*const bool visible = */getPixelForPoint(hitpos_ws, pixel_coords);
 
 			if(selected_ob.nonNull())
 			{
@@ -5658,8 +5658,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 					{
 						const float current_voxel_w = 1;
 
-						Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
-						Matrix4f world_to_ob = worldToObMatrix(*selected_ob);
+						const Matrix4f world_to_ob = worldToObMatrix(*selected_ob);
 
 						bool voxels_changed = false;
 
@@ -5983,7 +5982,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		//conPrint("Grabbed axis " + toString(grabbed_axis));
 
 		const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
-		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
+		//const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 		Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
 
