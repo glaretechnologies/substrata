@@ -57,6 +57,7 @@ signals:;
 	void objectChanged();
 	void bakeObjectLightmap();
 	void bakeObjectLightmapHighQual();
+	void removeLightmapSignal();
 	void posAndRot3DControlsToggled();
 	
 private slots:
@@ -69,6 +70,7 @@ private slots:
 	void on_editScriptPushButton_clicked(bool checked);
 	void on_bakeLightmapPushButton_clicked(bool checked);
 	void on_bakeLightmapHighQualPushButton_clicked(bool checked);
+	void on_removeLightmapPushButton_clicked(bool checked);
 	void editTimerTimeout();
 
 private:

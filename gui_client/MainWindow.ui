@@ -48,6 +48,13 @@
     <property name="title">
      <string>Edit</string>
     </property>
+    <widget class="QMenu" name="menuLightmaps">
+     <property name="title">
+      <string>Lightmaps</string>
+     </property>
+     <addaction name="actionBake_Lightmaps_fast_for_all_objects_in_parcel"/>
+     <addaction name="actionBake_lightmaps_high_quality_for_all_objects_in_parcel"/>
+    </widget>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
     <addaction name="separator"/>
@@ -57,6 +64,7 @@
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
     <addaction name="actionFind_Object"/>
+    <addaction name="menuLightmaps"/>
    </widget>
    <widget class="QMenu" name="menuMovement">
     <property name="title">
@@ -203,7 +211,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>156</height>
+          <height>157</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -300,7 +308,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>156</height>
+          <height>155</height>
          </rect>
         </property>
        </widget>
@@ -492,6 +500,16 @@
   <action name="actionFind_Object">
    <property name="text">
     <string>Find Object</string>
+   </property>
+  </action>
+  <action name="actionBake_Lightmaps_fast_for_all_objects_in_parcel">
+   <property name="text">
+    <string>Bake Lightmaps (fast) for all objects in parcel</string>
+   </property>
+  </action>
+  <action name="actionBake_lightmaps_high_quality_for_all_objects_in_parcel">
+   <property name="text">
+    <string>Bake lightmaps (high quality) for all objects in parcel</string>
    </property>
   </action>
  </widget>
