@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../shared/Protocol.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/VoxelMeshBuilding.h"
+#include "../shared/LODGeneration.h"
 #include "../gui_client/ClientThread.h"
 #include "../gui_client/DownloadResourcesThread.h"
 #include "../gui_client/NetDownloadResourcesThread.h"
@@ -666,6 +667,30 @@ public:
 
 							ob_to_lightmap->model_url = mesh_URL;
 
+							// Generate LOD models, to be uploaded to server also.
+							ob_to_lightmap->max_model_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+
+							if(ob_to_lightmap->max_model_lod_level == 2)
+							{
+								for(int lvl = 1; lvl <= 2; ++lvl)
+								{
+									const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob_to_lightmap->model_url, lvl);
+
+									if(!resource_manager->isFileForURLPresent(lod_URL))
+									{
+										const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
+
+										LODGeneration::generateLODModel(batched_mesh, lvl, local_lod_path);
+
+										resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
+
+										// Spawn an UploadResourceThread to upload the new LOD model
+										resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, /*local_path=*/local_lod_path, lod_URL, 
+											server_hostname, server_port, username, password, client_tls_config, &num_resources_uploading));
+									}
+								}
+							}
+
 							// Send the updated object, with the new model URL, to the server.
 
 							conPrint("Sending unwrapped model '" + mesh_URL + "' to server...");
@@ -679,8 +704,8 @@ public:
 							this->client_thread->enqueueDataToSend(packet);
 
 							// Spawn an UploadResourceThread to upload the new model
-							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, this->resource_manager->pathForURL(mesh_URL), mesh_URL, server_hostname, server_port, 
-								username, password, client_tls_config, &num_resources_uploading));
+							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, /*local_path=*/this->resource_manager->pathForURL(mesh_URL), mesh_URL, 
+								server_hostname, server_port, username, password, client_tls_config, &num_resources_uploading));
 						}
 					}
 				}
@@ -789,7 +814,8 @@ public:
 				settings_node->optimise_for_denoising.setValue(true);
 				settings_node->denoise.setValue(true);
 
-				settings_node->setWhitePoint(Indigo::SceneNodeRenderSettings::getWhitepointForWhiteBalance("D65"));
+				// See SkyModel2Generator::makeSkyEnvMap() for the details of the whitepoint we chose.
+				settings_node->setWhitePoint(Indigo::Vec2d(0.3225750029085, 0.338224992156));
 
 				root_node->addChildNode(settings_node);
 
@@ -813,7 +839,7 @@ public:
 				Reference<Indigo::SunSkyMaterial> sun_sky_mat = new Indigo::SunSkyMaterial();
 				const float sun_phi = 1.f; // See MainWindow.cpp
 				const float sun_theta = Maths::pi<float>() / 4;
-				sun_sky_mat->sundir = normalise(Indigo::Vec3d(std::cos(sun_phi) * std::sin(sun_theta), std::sin(sun_phi) * sun_theta, std::cos(sun_theta)));
+				sun_sky_mat->sundir = normalise(Indigo::Vec3d(std::cos(sun_phi) * std::sin(sun_theta), std::sin(sun_phi) * std::sin(sun_theta), std::cos(sun_theta)));
 				sun_sky_mat->model = "captured-simulation";
 				Indigo::SceneNodeBackgroundSettingsRef background_node = new Indigo::SceneNodeBackgroundSettings(sun_sky_mat);
 				root_node->addChildNode(background_node);

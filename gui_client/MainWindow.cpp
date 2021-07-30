@@ -4817,7 +4817,7 @@ void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 
 	if(cur_parcel)
 	{
-		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+		lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
 
 		showInfoNotification("Baking lightmaps for " + toString(num_lightmaps_to_bake) + " objects in current parcel...");
 	}
@@ -5062,7 +5062,7 @@ void MainWindow::bakeObjectLightmapSlot()
 
 		BitUtils::setBit(this->selected_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+		lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
 	}
 }
 
@@ -5075,7 +5075,7 @@ void MainWindow::bakeObjectLightmapHighQualSlot()
 
 		BitUtils::setBit(this->selected_ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
 		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+		lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
 	}
 }
 
