@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>524</width>
-    <height>1028</height>
+    <height>1060</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -474,13 +474,6 @@
         </property>
        </widget>
       </item>
-      <item row="20" column="1">
-       <widget class="QLabel" name="lightmapURLLabel">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
       <item row="21" column="1">
        <widget class="QWidget" name="widget_6" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_5">
@@ -541,6 +534,44 @@
         <property name="text">
          <string>Show 3D pos/rot controls</string>
         </property>
+       </widget>
+      </item>
+      <item row="20" column="1">
+       <widget class="QWidget" name="widget_7" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_6">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="lightmapURLLabel">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="removeLightmapPushButton">
+           <property name="maximumSize">
+            <size>
+             <width>20</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="text">
+            <string>x</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
      </layout>

@@ -278,6 +278,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
+	connect(ui->objectEditor, SIGNAL(removeLightmapSignal()), this, SLOT(removeLightmapSignalSlot()));
 	connect(ui->objectEditor, SIGNAL(posAndRot3DControlsToggled()), this, SLOT(posAndRot3DControlsToggledSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
@@ -873,6 +874,8 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 
 		if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
 			ob->opengl_engine_ob->materials[z].lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+		else
+			ob->opengl_engine_ob->materials[z].lightmap_texture = NULL;
 	}
 }
 
@@ -4777,6 +4780,64 @@ void MainWindow::on_actionShow_Log_triggered()
 }
 
 
+void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
+{
+	int num_lightmaps_to_bake = 0;
+	const Parcel* cur_parcel = NULL;
+	{
+		Lock lock(world_state->mutex);
+
+		// Get current parcel
+		for(auto& it : world_state->parcels)
+		{
+			const Parcel* parcel = it.second.ptr();
+
+			if(parcel->pointInParcel(cam_controller.getPosition()))
+			{
+				cur_parcel = parcel;
+				break;
+			}
+		}
+
+		if(cur_parcel)
+		{
+			for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+			{
+				WorldObject* ob = it->second.ptr();
+				
+				if(cur_parcel->pointInParcel(ob->pos) && objectModificationAllowed(*ob))
+				{
+					BitUtils::setBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+					objs_with_lightmap_rebuild_needed.insert(ob);
+					num_lightmaps_to_bake++;
+				}
+			}
+		}
+	} // End lock scope
+
+	if(cur_parcel)
+	{
+		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+
+		showInfoNotification("Baking lightmaps for " + toString(num_lightmaps_to_bake) + " objects in current parcel...");
+	}
+	else
+		showErrorNotification("You must be in a parcel to trigger lightmapping on it.");
+}
+
+
+void MainWindow::on_actionBake_Lightmaps_fast_for_all_objects_in_parcel_triggered()
+{
+	bakeLightmapsForAllObjectsInParcel(WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+}
+
+
+void MainWindow::on_actionBake_lightmaps_high_quality_for_all_objects_in_parcel_triggered()
+{
+	bakeLightmapsForAllObjectsInParcel(WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -5015,6 +5076,17 @@ void MainWindow::bakeObjectLightmapHighQualSlot()
 		BitUtils::setBit(this->selected_ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
 		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
 		lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+	}
+}
+
+
+void MainWindow::removeLightmapSignalSlot()
+{
+	if(this->selected_ob.nonNull())
+	{
+		this->selected_ob->lightmap_url.clear();
+
+		objectEditedSlot();
 	}
 }
 

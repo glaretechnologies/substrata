@@ -112,6 +112,8 @@ private slots:;
 	void on_actionUndo_triggered();
 	void on_actionRedo_triggered();
 	void on_actionShow_Log_triggered();
+	void on_actionBake_Lightmaps_fast_for_all_objects_in_parcel_triggered();
+	void on_actionBake_lightmaps_high_quality_for_all_objects_in_parcel_triggered();
 
 	void applyUndoOrRedoObject(const Reference<WorldObject>& ob);
 
@@ -130,6 +132,7 @@ private slots:;
 	void objectEditedSlot();
 	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap
 	void bakeObjectLightmapHighQualSlot(); // Bake the currently selected object lightmap
+	void removeLightmapSignalSlot();
 	void posAndRot3DControlsToggledSlot();
 	void URLChangedSlot();
 	void materialSelectedInBrowser(const std::string& path);
@@ -160,6 +163,7 @@ private:
 	void updateSelectedObjectPlacementBeam();
 	void updateInstancedCopiesOfObject(WorldObject* ob);
 	void removeInstancesOfObject(WorldObject* ob);
+	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
 	
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
