@@ -1135,7 +1135,7 @@ void WorkerThread::doRun()
 						}
 					}
 
-					temp_buf.writeUInt32(Protocol::AllObjectsSent);
+					temp_buf.writeUInt32(Protocol::AllObjectsSent); // Terminate the buffer with a AllObjectsSent message.
 
 					socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
 
