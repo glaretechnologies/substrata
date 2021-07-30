@@ -994,7 +994,7 @@ public:
 	}
 
 
-	void doLightMapping(WorldState& world_state, Reference<ClientThread>& client_thread_, ThreadSafeQueue<Reference<ThreadMessage> >& msg_queue)
+	void doLightMapping(WorldState& world_state, Reference<ClientThread>& client_thread_, ThreadSafeQueue<Reference<ThreadMessage> >& external_msg_queue)
 	{
 		conPrint("---------------doLightMapping()-----------------");
 		this->client_thread = client_thread_;
@@ -1010,7 +1010,7 @@ public:
 				for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
 				{
 					WorldObject* ob = it->second.ptr();
-					conPrint("Checking object with UID " + ob->uid.toString());
+					// conPrint("Checking object with UID " + ob->uid.toString());
 					if(/*!ob->model_url.empty() && */BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG) || BitUtils::isBitSet(ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG))
 					{
 						// Decompress voxel group
@@ -1085,7 +1085,7 @@ public:
 					buildLightMapForOb(world_state, res->second.ptr());
 				}*/
 
-				if(checkForDisconnect(msg_queue))
+				if(checkForDisconnect(external_msg_queue))
 					throw glare::Exception("client thread disconnected.");
 
 				PlatformUtils::Sleep(100);
