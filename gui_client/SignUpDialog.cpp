@@ -5,7 +5,7 @@ SignUpDialog.cpp
 #include "SignUpDialog.h"
 
 
-#include "LoginDialog.h"
+#include "CredentialManager.h"
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
@@ -13,8 +13,9 @@ SignUpDialog.cpp
 #include <QtCore/QSettings>
 
 
-SignUpDialog::SignUpDialog(QSettings* settings_)
-:	settings(settings_)
+SignUpDialog::SignUpDialog(QSettings* settings_, const std::string& server_hostname_)
+:	settings(settings_),
+	server_hostname(server_hostname_)
 {
 	setupUi(this);
 
@@ -47,7 +48,11 @@ void SignUpDialog::accepted()
 	settings->setValue("SignUpDialog/email",    this->emailLineEdit->text());
 	//settings->setValue("SignUpDialog/password", this->passwordLineEdit->text());
 
-	// Save these credentials in the LoginDialog settings as well, so that next time the user starts cyberspace it can log them in.
-	settings->setValue("LoginDialog/username", this->usernameLineEdit->text());
-	settings->setValue("LoginDialog/password", QtUtils::toQString(LoginDialog::encryptPassword(QtUtils::toStdString(this->passwordLineEdit->text()))));
+	// Save these credentials as well, so that next time the user starts cyberspace it can log them in.
+	CredentialManager manager;
+	manager.loadFromSettings(*settings);
+
+	manager.setDomainCredentials(server_hostname, QtUtils::toStdString(this->usernameLineEdit->text()), QtUtils::toStdString(this->passwordLineEdit->text()));
+
+	manager.saveToSettings(*settings);
 }

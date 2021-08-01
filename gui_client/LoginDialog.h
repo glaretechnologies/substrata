@@ -21,15 +21,15 @@ class LoginDialog : public QDialog, public Ui_LoginDialog
 {
 	Q_OBJECT
 public:
-	LoginDialog(QSettings* settings);
+	LoginDialog(QSettings* settings, const std::string& server_hostname);
 	~LoginDialog();
 
-	static const std::string decryptPassword(const std::string& cyphertext);
-	static const std::string encryptPassword(const std::string& password);
+	
 
 private slots:;
 	void accepted();
 
 private:
+	std::string server_hostname;
 	QSettings* settings;
 };

@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "MainOptionsDialog.h"
 #include "FindObjectDialog.h"
 #include "ModelLoading.h"
+#include "CredentialManager.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
 #include "NetDownloadResourcesThread.h"
@@ -2334,18 +2335,27 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->connection_state = ServerConnectionState_Connected;
 				updateStatusBar();
 
-				// Try and log in automatically if we have saved credentials, and auto_login is true.
-				if(!settings->value("LoginDialog/username").toString().isEmpty() && !settings->value("LoginDialog/password").toString().isEmpty() && settings->value("LoginDialog/auto_login", /*default=*/true).toBool())
+				// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
+				if(settings->value("LoginDialog/auto_login", /*default=*/true).toBool())
 				{
-					// Make LogInMessage packet and enqueue to send
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::LogInMessage);
-					packet.writeStringLengthFirst(QtUtils::toStdString(settings->value("LoginDialog/username").toString()));
-					packet.writeStringLengthFirst(LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString())));
+					CredentialManager manager;
+					manager.loadFromSettings(*settings);
 
-					this->client_thread->enqueueDataToSend(packet);
+					const std::string username = manager.getUsernameForDomain(server_hostname);
+					if(!username.empty())
+					{
+						const std::string password = manager.getDecryptedPasswordForDomain(server_hostname);
+
+						// Make LogInMessage packet and enqueue to send
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+						packet.writeUInt32(Protocol::LogInMessage);
+						packet.writeStringLengthFirst(username);
+						packet.writeStringLengthFirst(password);
+
+						this->client_thread->enqueueDataToSend(packet);
+					}
 				}
-
+				
 				// Send CreateAvatar packet for this client's avatar
 				{
 					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
@@ -2565,8 +2575,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						const std::string path = resource_manager->pathForURL(m->URL);
 
-						const std::string username = QtUtils::toStdString(settings->value("LoginDialog/username").toString());
-						const std::string password = LoginDialog::decryptPassword(QtUtils::toStdString(settings->value("LoginDialog/password").toString()));
+						CredentialManager manager;
+						manager.loadFromSettings(*settings);
+
+						const std::string username = manager.getUsernameForDomain(server_hostname);
+						const std::string password = manager.getDecryptedPasswordForDomain(server_hostname);
 
 						this->num_resources_uploading++;
 						resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, path, m->URL, server_hostname, server_port, username, password, this->client_tls_config, 
@@ -4336,7 +4349,7 @@ void MainWindow::on_actionLogIn_triggered()
 		return;
 	}
 
-	LoginDialog dialog(settings);
+	LoginDialog dialog(settings, this->server_hostname);
 	const int res = dialog.exec();
 	if(res == QDialog::Accepted)
 	{
@@ -4379,7 +4392,7 @@ void MainWindow::on_actionSignUp_triggered()
 		return;
 	}
 
-	SignUpDialog dialog(settings);
+	SignUpDialog dialog(settings, this->server_hostname);
 	const int res = dialog.exec();
 	if(res == QDialog::Accepted)
 	{
