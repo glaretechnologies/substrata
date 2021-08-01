@@ -21,12 +21,13 @@ class SignUpDialog : public QDialog, public Ui_SignUpDialog
 {
 	Q_OBJECT
 public:
-	SignUpDialog(QSettings* settings);
+	SignUpDialog(QSettings* settings, const std::string& server_hostname);
 	~SignUpDialog();
 
 private slots:;
 	void accepted();
 
 private:
+	std::string server_hostname;
 	QSettings* settings;
 };
