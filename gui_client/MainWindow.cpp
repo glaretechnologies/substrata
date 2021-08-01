@@ -331,9 +331,15 @@ static inline void throwOnError(HRESULT hres)
 #endif
 
 
+static std::string computeWindowTitle()
+{
+	return "Substrata v" + ::cyberspace_version;
+}
+
+
 void MainWindow::initialise()
 {
-	setWindowTitle(QtUtils::toQString("Substrata v" + ::cyberspace_version));
+	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
 
 	ui->materialBrowserDockWidgetContents->init(this, this->base_dir_path, this->appdata_path, this->texture_server, /*print output=*/this);
 	connect(ui->materialBrowserDockWidgetContents, SIGNAL(materialSelected(const std::string&)), this, SLOT(materialSelectedInBrowser(const std::string&)));
@@ -6860,6 +6866,37 @@ static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(float arc_e
 }
 
 
+// See https://www.programmersought.com/article/216036067/
+bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, long* result)
+{
+	if(event_type == "windows_generic_MSG")
+	{
+		MSG* msg = reinterpret_cast<MSG*>(message);
+
+		if(msg->message == WM_COPYDATA)
+		{
+			COPYDATASTRUCT* copy_data = reinterpret_cast<COPYDATASTRUCT*>(msg->lParam);
+
+			const std::string text_body((const char*)copy_data->lpData, (const char*)copy_data->lpData + copy_data->cbData);
+
+			if(hasPrefix(text_body, "openSubURL:"))
+			{
+				const std::string url = eatPrefix(text_body, "openSubURL:");
+
+				conPrint("Opening URL '" + url + "'...");
+
+				this->connectToServer(url);
+
+				// Flash the taskbar icon, since the this window may not be visible.
+				QApplication::alert(this);
+			}
+		}
+	}
+
+	return QWidget::nativeEvent(event_type, message, result); // Hand on to Qt processing
+}
+
+
 int main(int argc, char *argv[])
 {
 	try
@@ -6907,6 +6944,7 @@ int main(int argc, char *argv[])
 		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
+		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 
 		std::vector<ArgumentParser::ArgumentType> takescreenshot_args;
 		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_x
@@ -7037,6 +7075,41 @@ int main(int argc, char *argv[])
 			//	return 1;
 			//}
 		}
+		else if(parsed_args.isArgPresent("-linku"))
+		{
+#if defined(_WIN32)
+			// If we already have a Substrata application open on this computer, we want to tell that one to go to the URL, instead of opening another Substrata.
+			// Search for an already existing Window called "Substrata vx.y"
+			// If it exists, send a Windows message to that process, telling it to open the URL, and return from this process.
+			// TODO: work out how to do this on Mac and Linux, if it's needed.
+			const std::string target_window_title = computeWindowTitle();
+			const HWND target_hwnd = ::FindWindowA(NULL, target_window_title.c_str());
+			if(target_hwnd != 0)
+			{
+				const std::string msg_body = "openSubURL:" + parsed_args.getArgStringValue("-linku");
+
+				COPYDATASTRUCT copy_data;
+				copy_data.dwData = 0;
+				copy_data.cbData = (DWORD)msg_body.size(); // The size, in bytes, of the data pointed to by the lpData member.
+				copy_data.lpData = (void*)msg_body.data(); // The data to be passed to the receiving application
+
+				SendMessage(target_hwnd,
+					WM_COPYDATA,
+					NULL,
+					(LPARAM)&copy_data
+				);
+				return 0;
+			}
+			else
+			{
+				server_URL = parsed_args.getArgStringValue("-linku");
+			}
+#else
+			server_URL = parsed_args.getArgStringValue("-linku");
+#endif
+		}
+
+
 
 		int app_exec_res;
 		{ // Scope of MainWindow mw and textureserver.

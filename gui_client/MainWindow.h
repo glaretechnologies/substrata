@@ -138,6 +138,7 @@ private slots:;
 	void materialSelectedInBrowser(const std::string& path);
 	void sendLightmapNeededFlagsSlot();
 private:
+	bool nativeEvent(const QByteArray& event_type, void* message, long* result);
 	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
