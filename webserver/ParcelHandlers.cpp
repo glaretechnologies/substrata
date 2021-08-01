@@ -88,8 +88,9 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			}
 
 			const Vec3d pos = parcel->getVisitPosition();
-			page += "<p>Visit in Substrata: <span style=\"color: blue\">sub://substrata.info/?x=" + doubleToStringNSigFigs(pos.x, 2) + "&y=" + doubleToStringNSigFigs(pos.y, 2) + "&z=" + doubleToStringNSigFigs(pos.z, 2) +
-				"</span><br/>(enter URL into location bar in Substrata client)</p>   \n";
+			const std::string URL = "sub://substrata.info/?x=" + doubleToStringMaxNDecimalPlaces(pos.x, 1) + "&y=" + doubleToStringMaxNDecimalPlaces(pos.y, 1) + "&z=" + doubleToStringMaxNDecimalPlaces(pos.z, 1);
+			page += "<p>Visit in Substrata: <a href=\"" + URL + "\">" + URL + "</a><br/>(Click or enter URL into location bar in Substrata client)</p>   \n";
+
 
 			// Look up owner
 			{
