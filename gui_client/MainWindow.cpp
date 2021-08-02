@@ -6917,6 +6917,46 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, long* 
 }
 
 
+// If we receive a file-open event before the mainwindow has been created, (e.g. main_window is NULL), then store the url to use when the mainwindow is created.
+// However if the mainwindow has already been created, call connectToServer on it.
+// Note that this event will only be sent on Macs: "Note: This class is currently supported for macOS only."
+// See https://www.programmersought.com/article/55521160114/ - "Use url scheme in mac os to evoke qt program and get startup parameters"
+class OpenEventFilter : public QObject
+{
+public:
+	OpenEventFilter() : main_window(NULL) {}
+
+	virtual bool eventFilter(QObject* obj, QEvent* event)
+	{
+		if(event->type() == QEvent::FileOpen)
+		{
+			QFileOpenEvent* fileEvent = static_cast<QFileOpenEvent*>(event);
+			if(!fileEvent->url().isEmpty())
+			{
+				const QString qurl = fileEvent->url().toString();
+
+				if(main_window)
+				{
+					main_window->connectToServer(QtUtils::toStdString(qurl));
+
+					QApplication::alert(main_window); // Flash the taskbar icon, since the this window may not be visible.
+				}
+				else
+					url = QtUtils::toStdString(qurl);
+			}
+			return true; // Should the event be filtered out, e.g. have we handled it?
+		}
+		else
+		{
+			return QObject::eventFilter(obj, event);
+		}
+	}
+
+	MainWindow* main_window;
+	std::string url;
+};
+
+
 int main(int argc, char *argv[])
 {
 	try
@@ -6924,6 +6964,9 @@ int main(int argc, char *argv[])
 		QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
 
 		GuiClientApplication app(argc, argv);
+
+		OpenEventFilter* open_even_filter = new OpenEventFilter();
+		app.installEventFilter(open_even_filter);
 
 #if defined(_WIN32)
 		const bool com_init_success = WMFVideoReader::initialiseCOM();
@@ -7129,6 +7172,11 @@ int main(int argc, char *argv[])
 #endif
 		}
 
+		if(!open_even_filter->url.empty())
+		{
+			// If we have received a url from a file-open event on Mac:
+			server_URL = open_even_filter->url; // Use it
+		}
 
 
 		int app_exec_res;
@@ -7137,7 +7185,9 @@ int main(int argc, char *argv[])
 			// Since we will be inserted textures based on URLs, the textures should be different if they have different paths, so we don't need to do path canonicalisation.
 			TextureServer texture_server(/*use_canonical_path_keys=*/false);
 
-			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args); // Creates GLWidget 
+			MainWindow mw(cyberspace_base_dir_path, appdata_path, parsed_args); // Creates GLWidget
+
+			open_even_filter->main_window = &mw;
 
 			mw.texture_server = &texture_server;
 			mw.ui->glWidget->texture_server_ptr = &texture_server; // Set texture server pointer before GlWidget::initializeGL() gets called, as it passes texture server pointer to the openglengine.
@@ -7705,6 +7755,8 @@ int main(int argc, char *argv[])
 			mw.physics_world->rebuild(mw.task_manager, mw.print_output);
 
 			app_exec_res = app.exec();
+
+			open_even_filter->main_window = NULL;
 		} // End scope of MainWindow mw and textureserver.
 
 #if defined(_WIN32)
