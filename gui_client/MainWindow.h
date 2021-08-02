@@ -137,6 +137,7 @@ private slots:;
 	void URLChangedSlot();
 	void materialSelectedInBrowser(const std::string& path);
 	void sendLightmapNeededFlagsSlot();
+	void handleURL(const QUrl &url);
 private:
 	bool nativeEvent(const QByteArray& event_type, void* message, long* result);
 	void closeEvent(QCloseEvent* event);

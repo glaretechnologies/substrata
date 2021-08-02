@@ -48,6 +48,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <QtWidgets/QApplication>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QClipboard>
+#include <QtGui/QDesktopServices>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QGraphicsTextItem>
 #include <QtWidgets/QMessageBox>
@@ -309,6 +310,11 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	cam_controller.setMouseSensitivity(-1.0);
 
+#if !defined(_WIN32)
+	// On Windows, Windows will execute substrata.exe with the -linku argument, so we don't need this technique.
+	QDesktopServices::setUrlHandler("sub", /*receiver=*/this, /*method=*/"handleURL");
+#endif
+
 	try
 	{
 		uint64 rnd_buf;
@@ -462,6 +468,10 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
+#if !defined(_WIN32)
+	QDesktopServices::unsetUrlHandler("sub"); // Remove 'this' as an URL handler.
+#endif
+
 	// Save resources DB to disk if it has un-saved changes.
 	const std::string resources_db_path = appdata_path + "/resources_db";
 	try
@@ -6863,6 +6873,13 @@ static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(float arc_e
 
 	OpenGLEngine::buildMeshRenderData(*mesh_data, verts, normals, uvs, indices);
 	return mesh_data;
+}
+
+
+// See https://doc.qt.io/qt-5/qdesktopservices.html, this slot should be called when the user clicks on a sub:// link somewhere in the system.
+void MainWindow::handleURL(const QUrl &url)
+{
+	this->connectToServer(QtUtils::toStdString(url.toString()));
 }
 
 
