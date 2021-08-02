@@ -177,7 +177,10 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 			for(auto pit = world_state.getRootWorldState()->parcels.begin(); pit != world_state.getRootWorldState()->parcels.end(); ++pit)
 			{
 				Parcel* parcel = pit->second.ptr();
-				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90)) // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90):
+				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90) && // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90)
+					(parcel->nft_status == Parcel::NFTStatus_NotNFT) && // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
+					(!(parcel->id.value() >= 265 && parcel->id.value() <= 267)) // And not in the block that honest/luckotis has dibs on
+					)
 					sellable_parcels.push_back(parcel);
 			}
 
@@ -334,11 +337,12 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
-			SHA256::test();
-			RLP::test();
-			Signing::test();
-			Keccak256::test();
-			Infura::test();
+			StringUtils::test();
+			//SHA256::test();
+			//RLP::test();
+			//Signing::test();
+			//Keccak256::test();
+			//Infura::test();
 			//AccountHandlers::test();
 			//web::WorkerThreadTests::test();
 			////SHA256::test();
