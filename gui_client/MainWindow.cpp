@@ -189,7 +189,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	log_window(NULL),
 	model_loader_task_manager("model loader task manager"),
 	texture_loader_task_manager("texture loader task manager"),
-	model_building_subsidary_task_manager("model building subsidary task manager")
+	model_building_subsidary_task_manager("model building subsidary task manager"),
+	url_parcel_uid(-1)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
@@ -3298,6 +3299,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							}
 						}
 
+						// If we want to move to this parcel based on the URL entered:
+						if(this->url_parcel_uid == (int)parcel->id.value())
+						{
+							cam_controller.setPosition(parcel->getVisitPosition());
+							this->url_parcel_uid = -1;
+
+							showInfoNotification("Jumped to parcel " + parcel->id.toString());
+						}
+
+
 						parcel->from_remote_dirty = false;
 					}
 				} // end if(parcel->from_remote_dirty)
@@ -5233,13 +5244,35 @@ void MainWindow::URLChangedSlot()
 
 		const std::string hostname = parse_res.hostname;
 		const std::string worldname = parse_res.userpath;
+
+		if(parse_res.parsed_parcel_uid)
+			this->url_parcel_uid = parse_res.parcel_uid;
+		else
+			this->url_parcel_uid = -1;
+
 		if(hostname != this->server_hostname || worldname != this->server_worldname)
 		{
 			// Connect to a different server!
 			connectToServer(URL/*hostname, worldname*/);
 		}
 
-		this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
+		// If we had a URL with a parcel UID, like sub://substrata.info/parcel/10, then look up the parcel to get its position, then go there.
+		// Note that this could fail if the parcels are not loaded yet.
+		if(parse_res.parsed_parcel_uid)
+		{
+			const auto res = this->world_state->parcels.find(ParcelID(parse_res.parcel_uid));
+			if(res != this->world_state->parcels.end())
+			{
+				this->cam_controller.setPosition(res->second->getVisitPosition());
+				showInfoNotification("Jumped to parcel " + toString(parse_res.parcel_uid));
+			}
+			else
+				throw glare::Exception("Could not find parcel with id " + toString(parse_res.parcel_uid));
+		}
+		else
+		{
+			this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
+		}
 	}
 	catch(glare::Exception& e) // Handle URL parse failure
 	{
@@ -5264,6 +5297,11 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 		this->server_hostname = parse_res.hostname;
 		this->server_worldname = parse_res.userpath;
+
+		if(parse_res.parsed_parcel_uid)
+			this->url_parcel_uid = parse_res.parcel_uid;
+		else
+			this->url_parcel_uid = -1;
 
 		if(parse_res.parsed_x)
 			spawn_pos.x = parse_res.x;
@@ -7031,9 +7069,10 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
+			URLParser::test();
 			//testManagerWithCache();
-			GIFDecoder::test();
-			BitUtils::test();
+			//GIFDecoder::test();
+			///BitUtils::test();
 			//MeshSimplification::test();
 			//EnvMapProcessing::run(cyberspace_base_dir_path);
 			//NoiseTests::test();

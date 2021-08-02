@@ -31,11 +31,18 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	// Parse hostname and userpath
 	std::string hostname;
 	std::string userpath;
+	int parcel_index = -123;
 	while(!parser.eof())
 	{
 		if(parser.current() == '/') // End of hostname, start of userpath if there is one.
 		{
 			parser.consume('/');
+
+			if(parser.parseCString("parcel/"))
+			{
+				if(!parser.parseInt(parcel_index))
+					throw glare::Exception("Failed to parse parcel number");
+			}
 
 			// Parse userpath, if present
 			while(!parser.eof())
@@ -62,6 +69,8 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	res.parsed_x = false;
 	res.parsed_y = false;
 	res.parsed_z = false;
+	res.parsed_parcel_uid = parcel_index != -123;
+	res.parcel_uid = parcel_index;
 
 	double x = DEFAULT_X;
 	double y = DEFAULT_Y;
@@ -194,6 +203,40 @@ void URLParser::test()
 		testAssert(res.z == DEFAULT_Z);
 	}
 
+	{
+		URLParseResults res = parseURL("sub://substrata.info/bleh?x=-1.0&y=-2.0");
+		testAssert(res.hostname == "substrata.info");
+		testAssert(res.userpath == "bleh");
+		testAssert(res.x == -1.0);
+		testAssert(res.y == -2.0);
+		testAssert(res.z == DEFAULT_Z);
+	}
+
+	{
+		URLParseResults res = parseURL("sub://substrata.info/parcel/10");
+		testAssert(res.hostname == "substrata.info");
+		testAssert(res.parsed_parcel_uid);
+		testAssert(res.parcel_uid == 10);
+	}
+
+	{
+		URLParseResults res = parseURL("sub://substrata.info/parcel/102343");
+		testAssert(res.hostname == "substrata.info");
+		testAssert(res.parsed_parcel_uid);
+		testAssert(res.parcel_uid == 102343);
+	}
+
+	// Test parcel URL with coords as well. not sure this should be supported.
+	{
+		URLParseResults res = parseURL("sub://substrata.info/parcel/102343?x=-1.0&y=-2.0");
+		testAssert(res.hostname == "substrata.info");
+		testAssert(res.parsed_parcel_uid);
+		testAssert(res.parcel_uid == 102343);
+		testAssert(res.x == -1.0);
+		testAssert(res.y == -2.0);
+		testAssert(res.z == DEFAULT_Z);
+	}
+
 	testInvalidURL("ub://substrata.info");
 	testInvalidURL("sub//substrata.info");
 	testInvalidURL("sub/substrata.info");
@@ -211,6 +254,9 @@ void URLParser::test()
 	testInvalidURL("sub://substrata.info?x=1.0&y=1.0&z");
 	testInvalidURL("sub://substrata.info?x=1.0&y=1.0&z=");
 	//testInvalidURL("sub://substrata.info?x=1.0&y=1.0&z=A");
+	//testInvalidURL("sub://substrata.info/parcel");
+	testInvalidURL("sub://substrata.info/parcel/");
+	testInvalidURL("sub://substrata.info/parcel/a");
 }
 
 
