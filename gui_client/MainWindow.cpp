@@ -6866,9 +6866,11 @@ static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(float arc_e
 }
 
 
+// Override nativeEvent() so we can handle WM_COPYDATA messages from other Substrata processes.
 // See https://www.programmersought.com/article/216036067/
 bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, long* result)
 {
+#if defined(_WIN32)
 	if(event_type == "windows_generic_MSG")
 	{
 		MSG* msg = reinterpret_cast<MSG*>(message);
@@ -6892,6 +6894,7 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, long* 
 			}
 		}
 	}
+#endif
 
 	return QWidget::nativeEvent(event_type, message, result); // Hand on to Qt processing
 }
