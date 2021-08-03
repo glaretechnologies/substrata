@@ -16,9 +16,8 @@ LibreSSL build
 "
 
 
-# Both of these come from config-lib.rb.
-#$libressl_version = "2.3.1"
-#$vs_version = 2013
+$libressl_version = "3.3.3"
+# $vs_version = 2019 # comes from config-lib.rb.
 $configurations = [ :release, :debug ]
 $forcerebuild = false
 $build_epoch = 0
@@ -74,8 +73,8 @@ arg_parser.options.each do |opt|
 		printUsage()
 		exit 0
 	else
-		puts "Unrecognised argument: #{opt[0]}"
-		exit 1
+		puts "Warning: Unrecognised argument: #{opt[0]}" # We can have args here from build.rb which we don't handle.
+		#exit 1
 	end
 end
 
