@@ -104,21 +104,24 @@ def patchSource()
 
 	#puts "src_dir: #{src_dir}"
 
-	path = src_dir + "/crypto/compat/posix_win.c"
-	puts "Patching '#{path}'..."
+	#path = src_dir + "/crypto/compat/posix_win.c"
+	#puts "Patching '#{path}'..."
 
-	contents = File.open(path).read()
+	#contents = File.open(path).read()
 
 	#puts "contents: #{contents}"
 
-	new_content = contents.gsub("(err == WSAENOTSOCK || err == WSAEBADF", "/*GLARE NEWCODE*/0 && (err == WSAENOTSOCK || err == WSAEBADF")
+	#new_content = contents.gsub("(err == WSAENOTSOCK || err == WSAEBADF", "/*GLARE NEWCODE*/0 && (err == WSAENOTSOCK || err == WSAEBADF")
 
-	if new_content == contents
-		puts "Patching failed, failed to find code to be replaced."
-		exit(1)
-	end
+	#if new_content == contents
+	#	puts "Patching failed, failed to find code to be replaced."
+	#	exit(1)
+	#end
+	
+	FileUtils.cp($cyberspace_trunk_dir + "/libressl_patches/posix_win.c", src_dir + "/crypto/compat/posix_win.c")
+	FileUtils.cp($cyberspace_trunk_dir + "/libressl_patches/tls_config.c", src_dir + "/tls/tls_config.c")
 
-	File.open(path, 'w') { |file| file.write(new_content) }
+	#File.open(path, 'w') { |file| file.write(new_content) }
 	
 	FileUtils.touch("#{src_dir}/glare-patch.success")
 
@@ -181,6 +184,8 @@ end
 
 
 $indigo_libressl_dir = "#{$indigo_libs_dir}/LibreSSL"
+
+$cyberspace_trunk_dir = Dir.getwd + "/.."
 
 FileUtils.mkdir($indigo_libressl_dir, :verbose=>true) if !Dir.exists?($indigo_libressl_dir)
 puts "Chdir to \"#{$indigo_libressl_dir}\"."
