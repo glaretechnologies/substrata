@@ -84,6 +84,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../networking/Networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
+#include "../networking/TLSSocketTests.h" // Just for testing
 #include "../networking/HTTPClient.h" // Just for testing
 #include "../networking/URL.h" // Just for testing
 //#include "../networking/TLSSocketTests.h" // Just for testing
@@ -5628,6 +5629,9 @@ inline Vec4f closestPointOnLineToRay(const LineSegment4f& line, const Vec4f& ori
 // Also returns world space coords of the closest point.
 int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out) 
 {
+	if(!ui->objectEditor->posAndRot3DControlsEnabled()) // Don't select controls if there are not visible.
+		return -1;
+
 	const Vec2f clickpos = pixel_coords;
 
 	float closest_dist = 10000;
@@ -7069,7 +7073,8 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			URLParser::test();
+			TLSSocketTests::test();
+			//URLParser::test();
 			//testManagerWithCache();
 			//GIFDecoder::test();
 			///BitUtils::test();
