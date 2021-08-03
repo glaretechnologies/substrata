@@ -93,6 +93,7 @@ end
 
 # Patch source to fix an issue with closing the socket while it's doing a blocking call.
 # See https://github.com/libressl-portable/portable/issues/266
+# Basically we want to avoid calling read() on a socket.  Instead just return the WSA error code.
 def patchSource()
 	puts "Patching source.."
 	src_dir = $libressl_source_name
@@ -111,12 +112,7 @@ def patchSource()
 
 	#puts "contents: #{contents}"
 
-	# If version >= 3.1.3
-	if($libressl_version.split('.')[0].to_i >= 3 && $libressl_version.split('.')[1].to_i >= 1 && $libressl_version.split('.')[2].to_i >= 3)
-		new_content = contents.gsub("(err == WSAENOTSOCK || err == WSAEBADF ||\n\t\t    err == WSANOTINITIALISED)", "0 /*GLARE NEWCODE (err == WSAENOTSOCK || err == WSAEBADF || err == WSANOTINITIALISED)*/")
-	else
-		new_content = contents.gsub("(err == WSAENOTSOCK || err == WSAEBADF)", "0 /*GLARE NEWCODE (err == WSAENOTSOCK || err == WSAEBADF)*/")
-	end
+	new_content = contents.gsub("(err == WSAENOTSOCK || err == WSAEBADF", "/*GLARE NEWCODE*/0 && (err == WSAENOTSOCK || err == WSAEBADF")
 
 	if new_content == contents
 		puts "Patching failed, failed to find code to be replaced."
