@@ -202,13 +202,13 @@ if !$forcerebuild
 end
 
 
-Timer.time {
+#Timer.time {
 
 # Download the source.
 getLibreSSLSource()
 
 buildLibreSSL($configurations, $vs_version)
 
-}
+#}
 
-puts "Total build time: #{Timer.elapsedTime} s"
+#puts "Total build time: #{Timer.elapsedTime} s"
