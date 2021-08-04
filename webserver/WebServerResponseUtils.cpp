@@ -78,8 +78,8 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 {
 	std::string page_out = standardHTMLHeader(request_info, page_title);
 	page_out +=
-		"	<body>\n"
-		"	<div id=\"login\">\n"; // Start login div
+		"	<body style=\"margin-top: 60px;\">\n"
+		"	<div id=\"login\" style=\"float: right; margin-top: -8px;\">\n"; // Start login div
 	
 	web::UnsafeString logged_in_username;
 	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username);
@@ -99,6 +99,8 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 	}
 	page_out += 
 	"	</div>																									\n" // End login div
+	"	<a href=\"/\"><img src=\"/files/logo_small.png\" alt=\"substrata logo\" style=\"padding-bottom:20px\"/></a>											\n"
+	
 	"	<header>																								\n"
 	"		<h1>" + web::Escaping::HTMLEscape(page_title) + "</h1>												\n"
 	"	</header>																								\n";
