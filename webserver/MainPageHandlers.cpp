@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "Escaping.h"
 #include "ResponseUtils.h"
 #include "WebServerResponseUtils.h"
+#include "LoginHandlers.h"
 #include "../shared/Version.h"
 #include "../server/ServerWorldState.h"
 #include <ConPrint.h>
@@ -27,8 +28,35 @@ namespace MainPageHandlers
 
 void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
-	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
+	//std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
+
+	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, /*page title=*/"Substrata");
+	page_out +=
+		"	<body style=\"margin-top: 46px;\">\n"
+		"	<div id=\"login\" style=\"float: right; margin-top: -8px;\">\n"; // Start login div
+
+	web::UnsafeString logged_in_username;
+	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username);
+
+	if(logged_in)
+	{
+		page_out += "You are logged in as <a href=\"/account\">" + logged_in_username.HTMLEscaped() + "</a>";
+
+		// Add logout button
+		page_out += "<form action=\"/logout_post\" method=\"post\">\n";
+		page_out += "<input class=\"link-button\" type=\"submit\" value=\"Log out\">\n";
+		page_out += "</form>\n";
+	}
+	else
+	{
+		page_out += "<a href=\"/login\">log in</a> <br/>\n";
+	}
+	page_out += 
+		"	</div>																									\n"; // End login div
+
+
+	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" style=\"padding-bottom:20px\" />";
 
 
 	const std::string deployed_version = "0.64";// ::cyberspace_version;
@@ -118,6 +146,9 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"	<br/>																																																	\n"
 	"	You can create a free user account and add objects to the world as well!																																\n"
 	"	</p>																																																	\n"
+	"	<p>																																																		\n"
+	"	Land parcels in Substrata are <a href=\"/parcel_auction_list\">for sale</a>, and can be minted as Ethereum NFTs.																																\n"
+	"	</p>																																																\n"
 	"	<p>																																																		\n"
 	"	Substrata is early in development, please expect rough edges!																																			\n"
 	"	</p>																																														\n"
