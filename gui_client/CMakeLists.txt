@@ -454,7 +454,7 @@ add_definitions(-DEIGEN_MPL2_ONLY)
 #===================================== End Resonance Audio =====================================
 
 
-# SET(rc_stuff "../vs2008/indigo_icon.rc")
+SET(rc_stuff "../icons/substrata.rc")
 
 SOURCE_GROUP(gui_client FILES ${gui_client})
 SOURCE_GROUP(qt FILES ${qt})
@@ -543,6 +543,7 @@ ${rtaudio}
 ${audio}
 ${resonance}
 ${meshoptimizer}
+${rc_stuff}
 )
 
 add_definitions(-DGUI_CLIENT=1)
