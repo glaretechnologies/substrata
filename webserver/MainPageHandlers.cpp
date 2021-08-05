@@ -59,7 +59,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" style=\"padding-bottom:20px\" />";
 
 
-	const std::string deployed_version = "0.64";// ::cyberspace_version;
+	const std::string deployed_version = "0.65";// ::cyberspace_version;
 
 	std::string auction_html;
 	{ // lock scope
@@ -161,7 +161,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	"	Windows - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + "_Setup.exe\">Substrata_v" + deployed_version + "_Setup.exe</a>								\n"
 	"	</p>																																																	\n"
 	"	<p>																																																		\n"
-	"	OS X - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".pkg\">Substrata_v" + deployed_version + ".pkg</a>												\n"
+	"	MacOS - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".pkg\">Substrata_v" + deployed_version + ".pkg</a>												\n"
 	"	</p>																																																	\n"
 	"	<p>																																																		\n"
 	"	Linux - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".tar.gz\">Substrata_v" + deployed_version + ".tar.gz</a>										\n"
