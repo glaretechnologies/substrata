@@ -58,12 +58,8 @@ BatchedMeshRef loadModel(const std::string& model_path)
 	}
 	else if(hasExtension(model_path, "gltf"))
 	{
-		Indigo::MeshRef mesh = new Indigo::Mesh();
-
-		GLTFMaterials mats;
-		FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
-
-		batched_mesh->buildFromIndigoMesh(*mesh);
+		GLTFLoadedData data;
+		batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, 1.0f, data);
 	}
 	else if(hasExtension(model_path, "igmesh"))
 	{
