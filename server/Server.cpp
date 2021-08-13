@@ -149,6 +149,23 @@ static void makeRoad(ServerAllWorldsState& world_state, const Vec3d& pos, const 
 }
 
 
+static bool isParcelInCurrentAuction(ServerAllWorldsState& world_state, const Parcel* parcel, TimeStamp now)
+{
+	for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
+	{
+		auto res = world_state.parcel_auctions.find(parcel->parcel_auction_ids[i]);
+		if(res != world_state.parcel_auctions.end())
+		{
+			const ParcelAuction* auction = res->second.ptr();
+			if(auction->currentlyForSale(now))
+				return true;
+		}
+	}
+
+	return false;
+}
+
+
 static void updateParcelSales(ServerAllWorldsState& world_state)
 {
 	conPrint("updateParcelSales()");
@@ -178,6 +195,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 			{
 				Parcel* parcel = pit->second.ptr();
 				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90) && // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90)
+					!isParcelInCurrentAuction(world_state, parcel, now) && // And not already in a currently running auction
 					(parcel->nft_status == Parcel::NFTStatus_NotNFT) && // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
 					(!(parcel->id.value() >= 265 && parcel->id.value() <= 267)) // And not in the block that honest/luckotis has dibs on
 					)
@@ -665,7 +683,7 @@ int main(int argc, char *argv[])
 
 #ifdef WIN32
 		if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()/*"O:\\new_cyberspace\\trunk\\scripts\\cert.pem"*/) != 0)
-			throw glare::Exception("tls_config_set_cert_file failed.");
+			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 		if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str() /*"O:\\new_cyberspace\\trunk\\scripts\\key.pem"*/) != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #else
