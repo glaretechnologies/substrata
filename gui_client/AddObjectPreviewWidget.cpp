@@ -100,6 +100,18 @@ void AddObjectPreviewWidget::initializeGL()
 		conPrint("AddObjectPreviewWidget opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
 	}
 
+	if(opengl_engine->initSucceeded())
+	{
+		try
+		{
+			opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir_path + "/resources/cirrus.exr"));
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Error: " + e.what());
+		}
+	}
+
 	cam_phi = 0;
 	cam_theta = 1.3f;
 	cam_dist = 3;
