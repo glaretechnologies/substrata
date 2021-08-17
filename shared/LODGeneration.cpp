@@ -59,7 +59,7 @@ BatchedMeshRef loadModel(const std::string& model_path)
 	else if(hasExtension(model_path, "gltf"))
 	{
 		GLTFLoadedData data;
-		batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, 1.0f, data);
+		batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, data);
 	}
 	else if(hasExtension(model_path, "igmesh"))
 	{
