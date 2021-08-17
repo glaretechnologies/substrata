@@ -11,6 +11,8 @@ Copyright Glare Technologies Limited 2016 -
 #include <opengl/OpenGLEngine.h>
 #include <dll/include/IndigoMesh.h>
 #include <graphics/BatchedMesh.h>
+#include <utils/ManagerWithCache.h>
+
 
 struct GLObject;
 class Matrix4f;
@@ -30,6 +32,14 @@ struct MeshData
 	Reference<RayMesh> raymesh;
 };
 
+//
+//class GLMeshDataManager
+//{
+//	//mutable Mutex mutex;
+//
+//	ManagerWithCache<std::string, Reference<OpenGLMeshRenderData> > mesh_manager_with_cache;
+//};
+
 
 /*=====================================================================
 MeshManager
@@ -40,11 +50,20 @@ class MeshManager
 {
 public:
 	bool isMeshDataInserted(const std::string& model_url) const;
+	bool isMeshDataInsertedNoLock(const std::string& model_url) const;
 
 	GLMemUsage getTotalMemUsage() const;
 
+	Mutex& getMutex() { return mutex; }
+	//MeshData& operator [] (const std::string& model_url) { return model_URL_to_mesh_map[model_url]; }
+
+	//std::map<std::string, MeshData>::iterator find(const std::string& model_url) { return model_URL_to_mesh_map.find(model_url); }
+
+//private:
 	mutable Mutex mutex;
 	std::map<std::string, MeshData> model_URL_to_mesh_map;
+
+	//GLMeshDataManager glmeshdata_manager;
 };
 
 
