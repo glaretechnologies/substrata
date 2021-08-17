@@ -321,6 +321,8 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 	this->loaded_object = new WorldObject();
 	this->loaded_object->scale.set(1, 1, 1);
+	this->loaded_object->axis = Vec3f(1, 0, 0);
+	this->loaded_object->angle = 0;
 
 	// Try and load model
 	try

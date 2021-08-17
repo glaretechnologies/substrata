@@ -46,7 +46,7 @@ static std::string escapeString(const std::string& s)
 	res.reserve(s.size() * 2);
 	for(size_t i=0; i<s.size(); ++i)
 	{
-		if(::isAlphaNumeric(s[i]) || s[i] == '_' || s[i] == '.' || s[i] == '.')
+		if(::isAlphaNumeric(s[i]) || s[i] == '_' || s[i] == '.')
 			res.push_back(s[i]);
 		else
 		{

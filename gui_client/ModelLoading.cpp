@@ -40,6 +40,12 @@ bool MeshManager::isMeshDataInserted(const std::string& model_url) const
 }
 
 
+/*bool MeshManager::isMeshDataInsertedNoLock(const std::string& model_url) const
+{
+	return model_URL_to_mesh_map.count(model_url) > 0;
+}*/
+
+
 GLMemUsage MeshManager::getTotalMemUsage() const
 {
 	Lock lock(mutex);
@@ -306,6 +312,38 @@ void ModelLoading::checkValidAndSanitiseMesh(BatchedMesh& mesh)
 }
 
 
+static float getScaleForMesh(const BatchedMesh& mesh)
+{
+	// Automatically scale object down until it is < x m across
+	const float max_span = 5.0f;
+	float use_scale = 1.f;
+	const js::AABBox aabb = mesh.aabb_os;
+	float span = aabb.axisLength(aabb.longestAxis());
+	if(::isFinite(span))
+	{
+		while(span >= max_span)
+		{
+			use_scale *= 0.1f;
+			span *= 0.1f;
+		}
+	}
+
+
+	// Scale up if needed
+	const float min_span = 0.01f;
+	if(::isFinite(span))
+	{
+		while(span <= min_span)
+		{
+			use_scale *= 10.f;
+			span *= 10.f;
+		}
+	}
+
+	return use_scale;
+}
+
+
 static void scaleMesh(Indigo::Mesh& mesh)
 {
 	// Automatically scale object down until it is < x m across
@@ -484,73 +522,64 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 	}
 	else if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb"))
 	{
-		Indigo::MeshRef mesh = new Indigo::Mesh();
-
 		Timer timer;
-		GLTFMaterials mats;
-		if(hasExtension(model_path, "gltf"))
-			FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
-		else
-			FormatDecoderGLTF::loadGLBFile(model_path, *mesh, 1.0f, mats);
+		
+		GLTFLoadedData gltf_data;
+		BatchedMeshRef batched_mesh = hasExtension(model_path, "gltf") ? 
+			FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data) : 
+			FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
+		
 		conPrint("Loaded GLTF model in " + timer.elapsedString());
 
-		checkValidAndSanitiseMesh(*mesh);
+		checkValidAndSanitiseMesh(*batched_mesh);
 
-		// Convert model coordinates to z up
-		for(size_t i=0; i<mesh->vert_positions.size(); ++i)
-			mesh->vert_positions[i] = Indigo::Vec3f(mesh->vert_positions[i].x, -mesh->vert_positions[i].z, mesh->vert_positions[i].y);
-		
-		// Convert normals.
-		// Also normalise normals.  Although they are supposed to be unit length ("Normalized XYZ vertex normals" in spec, https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#meshes)
-		// In some models such as the duck model, they are not.  And normals with too large magnitude components get screwed up when converting to GL_INT_2_10_10_10_REV format.
-		for(size_t i=0; i<mesh->vert_normals.size(); ++i)
-			mesh->vert_normals[i] = normalise(Indigo::Vec3f(mesh->vert_normals[i].x, -mesh->vert_normals[i].z, mesh->vert_normals[i].y));
+		const float scale = getScaleForMesh(*batched_mesh);
 
-		// Automatically scale object down until it is < x m across
-		scaleMesh(*mesh);
-
-		// Now that vertices have been modified, recompute AABB
-		mesh->endOfModel();
+		loaded_object_out.pos = Vec3d(0,0,0);
+		loaded_object_out.scale = Vec3f(scale);
+		loaded_object_out.axis = Vec3f(1,0,0);
+		loaded_object_out.angle = Maths::pi_2<float>();
+		loaded_object_out.translation = Vec4f(0.f);
 
 		GLObjectRef gl_ob = new GLObject();
-		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-		timer.reset();
-		gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-		conPrint("Build OpenGL mesh for GLTF model in " + timer.elapsedString());
+		gl_ob->ob_to_world_matrix = obToWorldMatrix(loaded_object_out);
+		gl_ob->mesh_data = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
-		if(mats.materials.size() < mesh->num_materials_referenced)
+		gl_ob->mesh_data->animation_data = batched_mesh->animation_data;// gltf_data.anim_data;
+
+		const size_t bmesh_num_mats_referenced = batched_mesh->numMaterialsReferenced();
+		if(gltf_data.materials.materials.size() < bmesh_num_mats_referenced)
 			throw glare::Exception("mats.materials had incorrect size.");
 
-		gl_ob->materials.resize(mesh->num_materials_referenced);
-		loaded_object_out.materials.resize(mesh->num_materials_referenced);
-		for(uint32 i=0; i<mesh->num_materials_referenced; ++i)
+		gl_ob->materials.resize(bmesh_num_mats_referenced);
+		loaded_object_out.materials.resize(bmesh_num_mats_referenced);
+		for(uint32 i=0; i<bmesh_num_mats_referenced; ++i)
 		{
 			loaded_object_out.materials[i] = new WorldMaterial();
 
-			const std::string tex_path = mats.materials[i].diffuse_map.path;
+			const std::string tex_path = gltf_data.materials.materials[i].diffuse_map.path;
 
 			// NOTE: gltf has (0,0) at the upper left of the image, as opposed to the Indigo/substrata/opengl convention of (0,0) being at the lower left
 			// (See https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#images)
 			// Therefore we need to negate the y coord.
 			// For the gl_ob, there would usually be another negation, so the two cancel out.
 
-			gl_ob->materials[i].albedo_rgb = mats.materials[i].diffuse;
+			gl_ob->materials[i].albedo_rgb = gltf_data.materials.materials[i].diffuse;
 			gl_ob->materials[i].tex_path = tex_path;
-			gl_ob->materials[i].roughness = mats.materials[i].roughness;
-			gl_ob->materials[i].alpha = mats.materials[i].alpha;
-			gl_ob->materials[i].transparent = mats.materials[i].alpha < 1.0f;
-			gl_ob->materials[i].metallic_frac = mats.materials[i].metallic;
+			gl_ob->materials[i].roughness = gltf_data.materials.materials[i].roughness;
+			gl_ob->materials[i].alpha = gltf_data.materials.materials[i].alpha;
+			gl_ob->materials[i].transparent = gltf_data.materials.materials[i].alpha < 1.0f;
+			gl_ob->materials[i].metallic_frac = gltf_data.materials.materials[i].metallic;
 
-			loaded_object_out.materials[i]->colour_rgb = mats.materials[i].diffuse;
+			loaded_object_out.materials[i]->colour_rgb = gltf_data.materials.materials[i].diffuse;
 			loaded_object_out.materials[i]->colour_texture_url = tex_path;
 			loaded_object_out.materials[i]->opacity = ScalarVal(gl_ob->materials[i].alpha);
-			loaded_object_out.materials[i]->roughness = mats.materials[i].roughness;
-			loaded_object_out.materials[i]->opacity = mats.materials[i].alpha;
-			loaded_object_out.materials[i]->metallic_fraction = mats.materials[i].metallic;
+			loaded_object_out.materials[i]->roughness = gltf_data.materials.materials[i].roughness;
+			loaded_object_out.materials[i]->opacity = gltf_data.materials.materials[i].alpha;
+			loaded_object_out.materials[i]->metallic_fraction = gltf_data.materials.materials[i].metallic;
 			loaded_object_out.materials[i]->tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
-		mesh_out = new BatchedMesh();
-		mesh_out->buildFromIndigoMesh(*mesh);
+		mesh_out = batched_mesh;
 		return gl_ob;
 	}
 	else if(hasExtension(model_path, "stl"))
@@ -684,24 +713,23 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 												const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
-	size_t num_materials_referenced;
+	size_t num_materials_referenced = 0;
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 	Reference<RayMesh> raymesh;
 
-	bool present;
 	{
-		Lock lock(mesh_manager.mutex);
-		present = mesh_manager.model_URL_to_mesh_map.count(lod_model_URL) > 0;
+		Lock lock(mesh_manager.getMutex());
+
+		auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_URL);
+		if(res != mesh_manager.model_URL_to_mesh_map.end())
+		{
+			num_materials_referenced = res->second.num_materials_referenced;
+			gl_meshdata  = res->second.gl_meshdata;
+			raymesh      = res->second.raymesh;
+		}
 	}
 
-	if(present)
-	{
-		Lock lock(mesh_manager.mutex);
-		num_materials_referenced = mesh_manager.model_URL_to_mesh_map[lod_model_URL].num_materials_referenced;
-		gl_meshdata  = mesh_manager.model_URL_to_mesh_map[lod_model_URL].gl_meshdata;
-		raymesh      = mesh_manager.model_URL_to_mesh_map[lod_model_URL].raymesh;
-	}
-	else
+	if(gl_meshdata.isNull())
 	{
 		// Load mesh from disk:
 		const std::string model_path = resource_manager.pathForURL(lod_model_URL);
@@ -723,6 +751,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		//	}
 		//}
 		//else 
+		
 		if(hasExtension(model_path, "obj"))
 		{
 			Indigo::MeshRef mesh = new Indigo::Mesh();
@@ -742,12 +771,13 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		}
 		else if(hasExtension(model_path, "gltf"))
 		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-
-			GLTFMaterials mats;
-			FormatDecoderGLTF::streamModel(model_path, *mesh, 1.0f, mats);
-
-			batched_mesh->buildFromIndigoMesh(*mesh);
+			GLTFLoadedData gltf_data;
+			batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data);
+		}
+		else if(hasExtension(model_path, "glb"))
+		{
+			GLTFLoadedData gltf_data;
+			batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
 		}
 		else if(hasExtension(model_path, "igmesh"))
 		{
@@ -775,6 +805,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
 
 		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+
+		gl_meshdata->animation_data = batched_mesh->animation_data;
 
 		// Build RayMesh from our batched mesh (used for physics + picking)
 		raymesh = new RayMesh("mesh", false);

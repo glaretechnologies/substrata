@@ -68,4 +68,6 @@ public:
 	Reference<OpenGLEngine> opengl_engine;
 
 	Reference<GLObject> target_marker_ob; // For debugging camera
+
+	Timer timer;
 };

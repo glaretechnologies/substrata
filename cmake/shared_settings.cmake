@@ -2,6 +2,8 @@
 
 set(INDIGO_GRAPHICS_DIR "${INDIGO_TRUNK_DIR_ENV}/graphics")
 set(graphics
+${INDIGO_GRAPHICS_DIR}/AnimationData.cpp
+${INDIGO_GRAPHICS_DIR}/AnimationData.h
 ${INDIGO_GRAPHICS_DIR}/BatchedMesh.cpp
 ${INDIGO_GRAPHICS_DIR}/BatchedMesh.h
 ${INDIGO_GRAPHICS_DIR}/BatchedMeshTests.cpp
@@ -271,6 +273,8 @@ ${INDIGO_UTILS_DIR}/XMLParseUtils.cpp
 ${INDIGO_UTILS_DIR}/XMLParseUtils.h
 ${INDIGO_UTILS_DIR}/TestUtils.cpp
 ${INDIGO_UTILS_DIR}/TestUtils.h
+${INDIGO_UTILS_DIR}/ManagerWithCache.cpp
+${INDIGO_UTILS_DIR}/ManagerWithCache.h
 )
 
 

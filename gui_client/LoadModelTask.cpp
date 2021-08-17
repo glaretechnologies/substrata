@@ -123,6 +123,6 @@ void LoadModelTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint(e.what());
+		conPrint("Error while loading model: " + e.what());
 	}
 }

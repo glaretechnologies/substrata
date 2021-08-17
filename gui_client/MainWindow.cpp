@@ -128,6 +128,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../opengl/TextureLoadingTests.h" // Just for testing
 //#include "../opengl/EnvMapProcessing.h" // Just for testing
 #include "../indigo/UVUnwrapper.h" // Just for testing
+#include "../utils/TestUtils.h" // Just for testing
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -2014,6 +2015,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				setGeometry(
 					QRect(100, 100, 2000, 1000)
+					// For hi-res top down screenshot: QRect(100, 100, screenshot_width_px * 2, screenshot_width_px * 2)
 				);
 				setUpForScreenshot();
 			}
@@ -2292,11 +2294,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				num_textures_loaded++;
 
-				//TEMP: Now that this texture is loaded, removed from textures_processed set.
-				/*{
+				// Now that this texture is loaded, removed from textures_processed set.
+				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+				{
 					Lock lock(textures_processed_mutex);
 					textures_processed.erase(message->tex_key);
-				}*/
+				}
 
 				// conPrint("Handling texture loaded message " + message->tex_path);
 
@@ -4040,8 +4043,9 @@ void MainWindow::on_actionAddObject_triggered()
 			new_world_object->uid = UID(0); // Will be set by server
 			new_world_object->materials = d.loaded_object->materials;//d.loaded_materials;
 			new_world_object->pos = ob_pos + cam_controller.getRightVec() * d.ob_cam_right_translation + cam_controller.getUpVec() * d.ob_cam_up_translation;
-			new_world_object->axis = Vec3f(0, 0, 1);
-			new_world_object->angle = (float)this->cam_controller.getAngles().x - Maths::pi_2<float>();
+			new_world_object->axis = d.loaded_object->axis;
+			//new_world_object->angle = (float)this->cam_controller.getAngles().x - Maths::pi_2<float>();
+			new_world_object->angle = d.loaded_object->angle;
 			new_world_object->scale = d.loaded_object->scale;
 			
 			new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
@@ -5629,7 +5633,7 @@ inline Vec4f closestPointOnLineToRay(const LineSegment4f& line, const Vec4f& ori
 // Also returns world space coords of the closest point.
 int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out) 
 {
-	if(!ui->objectEditor->posAndRot3DControlsEnabled()) // Don't select controls if there are not visible.
+	if(!ui->objectEditor->posAndRot3DControlsEnabled()) // Don't select controls if they are not visible.
 		return -1;
 
 	const Vec2f clickpos = pixel_coords;
@@ -7073,7 +7077,7 @@ int main(int argc, char *argv[])
 #if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			TLSSocketTests::test();
+			//TLSSocketTests::test();
 			//URLParser::test();
 			//testManagerWithCache();
 			//GIFDecoder::test();
@@ -7086,7 +7090,7 @@ int main(int argc, char *argv[])
 			//BatchedMeshTests::test();
 			//UVUnwrapper::test();
 			//quaternionTests();
-			//FormatDecoderGLTF::test();
+			FormatDecoderGLTF::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
@@ -7101,7 +7105,7 @@ int main(int argc, char *argv[])
 			//GIFDecoder::test();
 			//PNGDecoder::test();
 			//FileUtils::doUnitTests();
-			StringUtils::test();
+			//StringUtils::test();
 			//HTTPClient::test();
 			//return 0;
 			//GIFDecoder::test();
@@ -7746,6 +7750,31 @@ int main(int argc, char *argv[])
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}
 
+
+				if(false)
+				{
+					//const std::string path = "D:\\models\\cryptovoxels-avatar-all-actions.glb";
+					//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/2CylinderEngine.glb";
+					//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/VertexColorTest.glb";
+					//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/RiggedSimple.glb";
+					//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/RiggedFigure.glb";
+					//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/BoxAnimated.glb";
+					const std::string path = "C:\\Users\\nick\\Downloads\\schurli_animated.glb";
+
+					BatchedMeshRef mesh;
+					WorldObjectRef world_object = new WorldObject();
+					world_object->pos = Vec3d(1, 0, 2);
+					world_object->scale = Vec3f(1.f);
+					world_object->axis = Vec3f(1.f, 0, 0);
+					world_object->angle = Maths::pi<float>() / 2;
+					world_object->model_url = FileUtils::getFilename(path);
+					world_object->max_model_lod_level = 0;
+
+					world_object->from_remote_other_dirty = true;
+					mw.world_state->objects[UID(1000000)] = world_object;
+
+					mw.resource_manager->copyLocalFileToResourceDir(path, FileUtils::getFilename(path));
+				}
 
 
 				if(false)
