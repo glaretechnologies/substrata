@@ -40,11 +40,15 @@ struct UInt256
 		std::memcpy(data + 31, (const uint8*)&x + 0, 1);
 	}
 
-	const std::string toHexString() const { return StringUtils::convertByteArrayToHexString(data, 32); } // Without 0x prefix.
+	const std::string toHexString() const; // Without 0x prefix.
+
+	static UInt256 parseFromHexString(const std::string& hex_string);
+
+	static void test();
+
 
 	uint8 data[32]; // big endian order
 };
-
 
 
 inline void writeToStream(const UInt256& x, OutStream& stream)
