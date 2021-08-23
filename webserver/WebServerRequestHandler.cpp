@@ -156,6 +156,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleRetryParcelMintPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_transaction_state_to_new_post")
+		{
+			AdminHandlers::handleSetTransactionStateToNewPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
