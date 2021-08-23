@@ -63,7 +63,7 @@ public:
 	{
 		EthAddress contract_address;
 	};
-	TransactionReceipt getTransactionReceipt(const std::string& network, const UInt256& transaction_hash);
+	static TransactionReceipt getTransactionReceipt(const std::string& network, const UInt256& transaction_hash);
 
 
 	static uint64 getCurrentGasPrice(const std::string& network); // In wei (1 ETH = 10^-18 wei)
