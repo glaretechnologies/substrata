@@ -1,12 +1,13 @@
 /*=====================================================================
 LoadModelTask.h
 ---------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #pragma once
 
 
 #include "../shared/WorldObject.h"
+#include "../shared/Avatar.h"
 #include "PhysicsObject.h"
 #include <opengl/OpenGLEngine.h>
 #include <Task.h>
@@ -26,10 +27,8 @@ public:
 	PhysicsObjectRef physics_ob;
 	
 	std::string base_model_url;
-	int ob_lod_level;
+	int model_lod_level;
 	std::string lod_model_url; // May differ from ob->model_url for LOD levels != 0.
-
-	WorldObjectRef ob;
 };
 
 
@@ -54,9 +53,10 @@ public:
 	virtual void run(size_t thread_index);
 
 	std::string base_model_url;
-	int ob_lod_level;
+	int model_lod_level;
 	std::string lod_model_url;
-	WorldObjectRef ob;
+	WorldObjectRef ob; // Either ob or avatar will be non-null
+	AvatarRef avatar;
 	Reference<OpenGLEngine> opengl_engine;
 	MainWindow* main_window;
 	MeshManager* mesh_manager;

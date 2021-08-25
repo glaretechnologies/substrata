@@ -104,11 +104,11 @@ static const std::string toLocalPath(const std::string& URL, ResourceManager& re
 }
 
 
-void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int ob_lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
+void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;
 	if(!mat.colour_texture_url.empty())
-		opengl_mat.tex_path = toLocalPath(WorldObject::getLODTextureURLForLevel(mat.colour_texture_url, ob_lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
+		opengl_mat.tex_path = toLocalPath(WorldObject::getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
 	else
 		opengl_mat.tex_path.clear();
 

@@ -125,6 +125,7 @@ public:
 	LoggedInMessage(UserID user_id_, const std::string& username_) : user_id(user_id_), username(username_) {}
 	UserID user_id;
 	std::string username;
+	AvatarSettings avatar_settings;
 };
 
 

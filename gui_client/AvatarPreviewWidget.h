@@ -26,6 +26,10 @@ public:
 	AvatarPreviewWidget(QWidget *parent = 0);
 	~AvatarPreviewWidget();
 
+	void shutdown();
+
+	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
+
 	void addObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
 
@@ -50,6 +54,7 @@ signals:;
 	void widgetShowSignal();
 
 private:
+	std::string base_dir_path;
 	QPoint mouse_prev_pos;
 	QPoint mouse_move_origin;
 
@@ -63,4 +68,6 @@ private:
 public:
 	TextureServer* texture_server_ptr;
 	Reference<OpenGLEngine> opengl_engine;
+
+	Timer timer;
 };

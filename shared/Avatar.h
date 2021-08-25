@@ -7,6 +7,10 @@ Generated at 2016-01-12 12:24:54 +1300
 #pragma once
 
 
+#include "WorldMaterial.h"
+#if GUI_CLIENT
+#include "../gui_client/AvatarGraphics.h"
+#endif
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include "../shared/UID.h"
@@ -15,8 +19,26 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "Matrix4f.h"
 #include <string>
 #include <vector>
+#include <set>
 struct GLObject;
 class AvatarGraphics;
+
+
+
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable:4324) // Disable 'structure was padded due to __declspec(align())' warning.
+#endif
+
+
+struct AvatarSettings
+{
+	std::string model_url;
+	std::vector<WorldMaterialRef> materials;
+	Matrix4f pre_ob_to_world_matrix; // For y-up to z-up transformation, and translating so feet are on ground etc..
+
+	void copyNetworkStateFrom(const AvatarSettings& other);
+};
 
 
 /*=====================================================================
@@ -30,18 +52,32 @@ public:
 	Avatar();
 	~Avatar();
 
-	//GLARE_ALIGNED_16_NEW_DELETE
+	GLARE_ALIGNED_16_NEW_DELETE
 
-	void appendDependencyURLs(std::vector<std::string>& URLs_out);
+	int getLODLevel(const Vec3d& campos) const;
+
+	std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
+
+	void appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out);
+	void appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out);
+	void getDependencyURLSet(int ob_lod_level, std::set<std::string>& URLS_out);
+	void getDependencyURLSetForAllLODLevels(std::set<std::string>& URLS_out);
+
+	void convertLocalPathsToURLS(ResourceManager& resource_manager);
+
 
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& rotation_out) const;
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& rotation);
 
 	void generatePseudoRandomNameColour();
 
+	void copyNetworkStateFrom(const Avatar& other);
+
+	
+
 	UID uid;
 	std::string name;
-	std::string model_url;
+	AvatarSettings avatar_settings;
 	Vec3d pos;
 	Vec3f rotation;
 	uint32 anim_state; // 0 on ground, 1 = flying
@@ -59,6 +95,7 @@ public:
 	bool transform_dirty;
 	bool other_dirty;
 
+	std::string loaded_model_url;
 	//bool using_placeholder_model;
 
 	//Reference<GLObject> opengl_engine_ob;
@@ -68,7 +105,8 @@ public:
 
 	Reference<GLObject> opengl_engine_nametag_ob;
 
-	Reference<AvatarGraphics> graphics;
+	AvatarGraphics graphics;
+
 #endif
 
 	/*
@@ -88,7 +126,19 @@ private:
 };
 
 
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
+
 typedef Reference<Avatar> AvatarRef;
+
+
+const Matrix4f obToWorldMatrix(const Avatar& ob);
+
+
+void writeToStream(const AvatarSettings& settings, OutStream& stream);
+void readFromStream(InStream& stream, AvatarSettings& settings);
 
 
 void writeToNetworkStream(const Avatar& world_ob, OutStream& stream); // Write without version.  Writes UID.

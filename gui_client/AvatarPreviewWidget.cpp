@@ -61,9 +61,18 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 
 AvatarPreviewWidget::~AvatarPreviewWidget()
 {
-	// Make context current as we destroy the opengl enegine.
-	this->makeCurrent();
-	opengl_engine = NULL;
+	shutdown();
+}
+
+
+void AvatarPreviewWidget::shutdown()
+{
+	if(opengl_engine.nonNull())
+	{
+		// Make context current as we destroy the opengl enegine.
+		this->makeCurrent();
+		opengl_engine = NULL;
+	}
 }
 
 
@@ -82,13 +91,25 @@ void AvatarPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
 		//"n:/indigo/trunk/opengl/shaders" // shader dir
-		"./shaders", // shader dir
+		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server_ptr,
 		NULL // print output
 	);
 	if(!opengl_engine->initSucceeded())
 	{
 		conPrint("AvatarPreviewWidget opengl_engine init failed: " + opengl_engine->getInitialisationErrorMsg());
+	}
+
+	if(opengl_engine->initSucceeded())
+	{
+		try
+		{
+			opengl_engine->setCirrusTexture(opengl_engine->getTexture(base_dir_path + "/resources/cirrus.exr"));
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Error: " + e.what());
+		}
 	}
 
 
@@ -100,42 +121,43 @@ void AvatarPreviewWidget::initializeGL()
 	// Add env mat
 	{
 		OpenGLMaterial env_mat;
-		//env_mat.albedo_tex_path = "resources/sky.png";
+		try
+		{
+			env_mat.albedo_texture = opengl_engine->getTexture(base_dir_path + "/resources/sky_no_sun.exr");
+		}
+		catch(glare::Exception& e)
+		{
+			assert(0);
+			conPrint("ERROR: " + e.what());
+		}
 		env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
 		opengl_engine->setEnvMat(env_mat);
 	}
 
 
-	/*
-		Load a ground plane into the GL engine
-	*/
-	if(true)
+	// Load a ground plane into the GL engine
 	{
-		Indigo::MeshRef mesh = new Indigo::Mesh();
-		mesh->addVertex(Indigo::Vec3f(-1, -1, 0), Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f( 1, -1, 0), Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f( 1,  1, 0), Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f(-1,  1, 0), Indigo::Vec3f(0,0,1));
-			
-		mesh->num_uv_mappings = 1;
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,0)));
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(1,0)));
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(1,1)));
-		mesh->addUVs(Indigo::Vector<Indigo::Vec2f>(1, Indigo::Vec2f(0,1)));
-			
-		uint32 indices[] = {0, 1, 2, 3};
-		mesh->addQuad(indices, indices, 0);
-
-		mesh->endOfModel();
+		const float W = 200;
 
 		GLObjectRef ob = new GLObject();
 		ob->materials.resize(1);
-		ob->materials[0].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
-		ob->materials[0].roughness = 0.5f;
+		ob->materials[0].albedo_rgb = Colour3f(0.9f);
+		try
+		{
+			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
+		}
+		catch(glare::Exception& e)
+		{
+			assert(0);
+			conPrint("ERROR: " + e.what());
+		}
+		ob->materials[0].roughness = 0.8f;
+		ob->materials[0].fresnel_scale = 0.5f;
+		ob->materials[0].tex_matrix = Matrix2f(W, 0, 0, W);
 
-		ob->ob_to_world_matrix.setToTranslationMatrix(0,0,0);
-		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+		ob->ob_to_world_matrix = Matrix4f::scaleMatrix(W, W, 1) * Matrix4f::translationMatrix(-0.5f, -0.5f, 0);
+		ob->mesh_data = opengl_engine->getUnitQuadMeshData();
 
 		opengl_engine->addObject(ob);
 	}
@@ -144,6 +166,9 @@ void AvatarPreviewWidget::initializeGL()
 
 void AvatarPreviewWidget::paintGL()
 {
+	if(opengl_engine.isNull())
+		return;
+
 	const Matrix4f T = Matrix4f::translationMatrix(0.f, cam_dist, 0.f);
 	const Matrix4f z_rot = Matrix4f::rotationMatrix(Vec4f(0,0,1,0), cam_phi);
 	const Matrix4f x_rot = Matrix4f::rotationMatrix(Vec4f(1,0,0,0), -(cam_theta - Maths::pi_2<float>()));
@@ -157,6 +182,7 @@ void AvatarPreviewWidget::paintGL()
 	opengl_engine->setViewport(viewport_w, viewport_h);
 	opengl_engine->setMaxDrawDistance(100.f);
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
+	opengl_engine->setCurrentTime((float)timer.elapsed());
 	opengl_engine->draw();
 }
 
@@ -244,7 +270,7 @@ void AvatarPreviewWidget::wheelEvent(QWheelEvent* ev)
 {
 	// Make change proportional to distance value.
 	// Mouse wheel scroll up reduces distance.
-	cam_dist = myClamp<float>(cam_dist - (cam_dist * ev->delta() * 0.002f), 0.01f, 100.f);
+	cam_dist = myClamp<float>(cam_dist - (cam_dist * ev->delta() * 0.002f), 0.01f, 20.f);
 
 	ev->accept(); // We want to kill the event now.
 	this->setFocus(); // otherwise this loses focus for some reason.

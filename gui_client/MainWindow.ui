@@ -95,8 +95,15 @@
     </property>
     <addaction name="actionAbout_Substrata"/>
    </widget>
+   <widget class="QMenu" name="menuAvatar">
+    <property name="title">
+     <string>Avatar</string>
+    </property>
+    <addaction name="actionAvatarSettings"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuMovement"/>
+   <addaction name="menuAvatar"/>
    <addaction name="menuGo"/>
    <addaction name="menuTools"/>
    <addaction name="menuWindow"/>
@@ -211,7 +218,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>157</height>
+          <height>156</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -308,7 +315,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>155</height>
+          <height>156</height>
          </rect>
         </property>
        </widget>

@@ -7,6 +7,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "Avatar.h"
 
 
+#include "ResourceManager.h"
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "../gui_client/AvatarGraphics.h"
@@ -14,6 +15,26 @@ Generated at 2016-01-12 12:24:54 +1300
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>
 #include <utils/IncludeXXHash.h>
+#include <utils/FileUtils.h>
+#include <utils/FileChecksum.h>
+#include <physics/jscol_aabbox.h>
+
+
+const Matrix4f obToWorldMatrix(const Avatar& ob)
+{
+	// From rotateThenTranslateMatrix in AvatarGraphics
+	Matrix4f m;
+	const float rot_len2 = ob.rotation.length2();
+	if(rot_len2 < 1.0e-20f)
+		m.setToIdentity();
+	else
+	{
+		const float rot_len = std::sqrt(rot_len2);
+		m.setToRotationMatrix(ob.rotation.toVec4fVector() / rot_len, rot_len);
+	}
+	m.setColumn(3, Vec4f((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f));
+	return m * ob.avatar_settings.pre_ob_to_world_matrix;
+}
 
 
 Avatar::Avatar()
@@ -30,6 +51,8 @@ Avatar::Avatar()
 
 #if GUI_CLIENT
 	name_colour = Colour3f(0.8f);
+
+	avatar_settings.pre_ob_to_world_matrix = Matrix4f::identity();
 #endif
 	anim_state = 0;
 }
@@ -37,6 +60,100 @@ Avatar::Avatar()
 
 Avatar::~Avatar()
 {}
+
+
+void Avatar::appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out)
+{
+	if(!avatar_settings.model_url.empty())
+		URLs_out.push_back(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level));
+
+	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
+		avatar_settings.materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
+}
+
+
+void Avatar::appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out)
+{
+	if(!avatar_settings.model_url.empty())
+	{
+		URLs_out.push_back(avatar_settings.model_url);
+		URLs_out.push_back(getLODModelURLForLevel(avatar_settings.model_url, 1));
+		URLs_out.push_back(getLODModelURLForLevel(avatar_settings.model_url, 2));
+	}
+
+	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
+		avatar_settings.materials[i]->appendDependencyURLsAllLODLevels(URLs_out);
+}
+
+
+void Avatar::getDependencyURLSet(int ob_lod_level, std::set<std::string>& URLS_out)
+{
+	std::vector<std::string> URLs;
+	this->appendDependencyURLs(ob_lod_level, URLs);
+
+	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+}
+
+
+void Avatar::getDependencyURLSetForAllLODLevels(std::set<std::string>& URLS_out)
+{
+	std::vector<std::string> URLs;
+	this->appendDependencyURLsForAllLODLevels(URLs);
+
+	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+}
+
+
+void Avatar::convertLocalPathsToURLS(ResourceManager& resource_manager)
+{
+	if(FileUtils::fileExists(this->avatar_settings.model_url)) // If the URL is a local path:
+		this->avatar_settings.model_url = resource_manager.URLForPathAndHash(this->avatar_settings.model_url, FileChecksum::fileChecksum(this->avatar_settings.model_url));
+
+	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
+		avatar_settings.materials[i]->convertLocalPathsToURLS(resource_manager);
+}
+
+
+
+int Avatar::getLODLevel(const Vec3d& campos) const
+{
+	// TEMP: just use 0 for now
+	return 0;
+	/*Vec4f pos_((float)pos.x, (float)pos.y, (float)pos.z, 1.f);
+	const js::AABBox aabb_os( // Use approx OS AABB for now.
+		pos_ - Vec4f(1.f, 1.f, 1.f, 0),
+		pos_ + Vec4f(1.f, 1.f, 1.f, 0)
+	);
+
+	const js::AABBox aabb_ws = aabb_os.transformedAABBFast(obToWorldMatrix(*this));
+
+	const float dist = campos.toVec4fVector().getDist(this->pos.toVec4fVector());
+	const float proj_len = aabb_ws.longestLength() / dist;
+
+	if(proj_len > 0.16)
+		return 0;
+	else if(proj_len > 0.03)
+		return 1;
+	else
+		return 2;*/
+}
+
+
+std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, int level)
+{
+	if(level == 0)
+		return base_model_url;
+	else
+	{
+		if(hasPrefix(base_model_url, "http:") || hasPrefix(base_model_url, "https:"))
+			return base_model_url;
+
+		if(level == 1)
+			return removeDotAndExtension(base_model_url) + "_lod1.bmesh"; // LOD models are always saved in BatchedMesh (bmesh) format.
+		else
+			return removeDotAndExtension(base_model_url) + "_lod2.bmesh";
+	}
+}
 
 
 void Avatar::generatePseudoRandomNameColour()
@@ -53,12 +170,6 @@ void Avatar::generatePseudoRandomNameColour()
 
 	// conPrint("Generated name_colour=" + name_colour.toVec3().toString() + " for avatar " + name);
 #endif
-}
-
-
-void Avatar::appendDependencyURLs(std::vector<std::string>& URLs_out)
-{
-	URLs_out.push_back(model_url);
 }
 
 
@@ -144,21 +255,73 @@ void Avatar::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& ro
 }
 
 
+void Avatar::copyNetworkStateFrom(const Avatar& other)
+{
+	// NOTE: The data in here needs to match that in readFromNetworkStreamGivenUID()
+	name = other.name;
+	pos = other.pos;
+	rotation = other.rotation;
+
+	avatar_settings.copyNetworkStateFrom(other.avatar_settings);
+}
+
+
+void AvatarSettings::copyNetworkStateFrom(const AvatarSettings& other)
+{
+	model_url = other.model_url;
+	materials = other.materials;
+	pre_ob_to_world_matrix = other.pre_ob_to_world_matrix;
+}
+
+
+void writeToStream(const AvatarSettings& settings, OutStream& stream)
+{
+	stream.writeStringLengthFirst(settings.model_url);
+
+	// Write materials
+	stream.writeUInt32((uint32)settings.materials.size());
+	for(size_t i=0; i<settings.materials.size(); ++i)
+		::writeToStream(*settings.materials[i], stream);
+
+	stream.writeData(settings.pre_ob_to_world_matrix.e, sizeof(float)*16);
+}
+
+
+void readFromStream(InStream& stream, AvatarSettings& settings)
+{
+	settings.model_url	= stream.readStringLengthFirst(10000);
+
+	// Read materials
+	{
+		const uint32 num_mats = stream.readUInt32();
+		settings.materials.resize(num_mats);
+		for(size_t i=0; i<settings.materials.size(); ++i)
+		{
+			if(settings.materials[i].isNull())
+				settings.materials[i] = new WorldMaterial();
+			readFromStream(stream, *settings.materials[i]);
+		}
+	}
+
+	stream.readData(settings.pre_ob_to_world_matrix.e, sizeof(float)*16);
+}
+
+
 
 void writeToNetworkStream(const Avatar& avatar, OutStream& stream) // Write without version
 {
 	writeToStream(avatar.uid, stream);
 	stream.writeStringLengthFirst(avatar.name);
-	stream.writeStringLengthFirst(avatar.model_url);
 	writeToStream(avatar.pos, stream);
 	writeToStream(avatar.rotation, stream);
+	writeToStream(avatar.avatar_settings, stream);
 }
 
 
 void readFromNetworkStreamGivenUID(InStream& stream, Avatar& avatar) // UID will have been read already
 {
 	avatar.name			= stream.readStringLengthFirst(10000);
-	avatar.model_url	= stream.readStringLengthFirst(10000);
 	avatar.pos			= readVec3FromStream<double>(stream);
 	avatar.rotation		= readVec3FromStream<float>(stream);
+	readFromStream(stream, avatar.avatar_settings);
 }

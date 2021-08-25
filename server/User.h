@@ -9,6 +9,8 @@ Copyright Glare Technologies Limited 2017 -
 #include "PasswordReset.h"
 #include "../shared/TimeStamp.h"
 #include "../shared/UserID.h"
+#include "../shared/WorldMaterial.h"
+#include "../shared/Avatar.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <string>
@@ -54,6 +56,8 @@ public:
 	std::string controlled_eth_address; // Eth address that user controls, in hex encoding with 0x prefix.  Empty if no such address.
 
 	std::vector<PasswordReset> password_resets; // pending password reset tokens
+
+	AvatarSettings avatar_settings;
 };
 
 
