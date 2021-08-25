@@ -2360,6 +2360,53 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				try
 				{
+					if(message->loaded_voxels)
+					{
+						WorldObjectRef message_ob = message->ob;
+						const std::string loaded_base_model_url = message->base_model_url;
+
+						// Remove placeholder model if using one.
+						//if(message_ob->using_placeholder_model)
+						removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
+
+						if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
+						{
+							//const int message_ob_model_lod_level = message_ob->getModelLODLevel(cam_controller.getPosition()); // Get current model LOD level for message ob (may have changed during model loading)
+							//const int loaded_model_lod_level = myMin(message_ob->max_model_lod_level, message->ob_lod_level);
+							//if(message_ob_model_lod_level == loaded_model_lod_level)
+							{
+								message_ob->opengl_engine_ob = message->opengl_ob;
+								message_ob->physics_object = message->physics_ob;
+
+								if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
+
+								// Add this object to the GL engine and physics engine.
+								if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
+								{
+									assignedLoadedOpenGLTexturesToMats(message_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
+
+									ui->glWidget->addObject(message_ob->opengl_engine_ob);
+
+									physics_world->addObject(message_ob->physics_object);
+									physics_world->rebuild(task_manager, print_output);
+
+									ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
+
+									loadScriptForObject(message_ob.ptr()); // Load any script for the object.
+								}
+
+								message_ob->loaded_lod_level = message->model_lod_level; // NOTE THIS RIGHT?
+
+								// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+								if(this->selected_ob == message_ob)
+									ui->glWidget->opengl_engine->selectObject(message_ob->opengl_engine_ob);
+							}
+						} // End proximity_loader.isObjectInLoadProximity()
+					}
+
+
+
 					const std::string loaded_base_model_url = message->base_model_url;
 
 					// Iterate over objects, and assign the loaded model for any objects using this model:
