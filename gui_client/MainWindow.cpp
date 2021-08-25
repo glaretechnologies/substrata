@@ -988,7 +988,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 	const int ob_model_lod_level = myMin(ob_lod_level, ob->max_model_lod_level);
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
-	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_lod_level == ob_lod_level))
+	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level))
 		return;
 
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
@@ -1164,7 +1164,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							ob->physics_object->userdata = ob;
 							ob->physics_object->userdata_type = 0;
 
-							ob->loaded_lod_level = ob_lod_level;
+							ob->loaded_model_lod_level = ob_model_lod_level;
 
 							//Timer timer;
 							ui->glWidget->addObject(ob->opengl_engine_ob);
@@ -2129,7 +2129,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
 			msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
-			msg += "loaded_lod_level: " + toString(selected_ob->loaded_lod_level) + "\n";
+			msg += "loaded_model_lod_level: " + toString(selected_ob->loaded_model_lod_level) + "\n";
 
 			if(selected_ob->opengl_engine_ob.nonNull())
 			{
@@ -2379,18 +2379,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				{
 					if(message->loaded_voxels)
 					{
+						// Handle loading a voxel group
 						WorldObjectRef message_ob = message->ob;
 						const std::string loaded_base_model_url = message->base_model_url;
 
-						// Remove placeholder model if using one.
-						//if(message_ob->using_placeholder_model)
-						removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob);
+						removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob); // Remove placeholder model if using one.
 
 						if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
 						{
-							//const int message_ob_model_lod_level = message_ob->getModelLODLevel(cam_controller.getPosition()); // Get current model LOD level for message ob (may have changed during model loading)
-							//const int loaded_model_lod_level = myMin(message_ob->max_model_lod_level, message->ob_lod_level);
-							//if(message_ob_model_lod_level == loaded_model_lod_level)
+							// TODO: LOD level stuff for voxels
 							{
 								message_ob->opengl_engine_ob = message->opengl_ob;
 								message_ob->physics_object = message->physics_ob;
@@ -2413,7 +2410,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									loadScriptForObject(message_ob.ptr()); // Load any script for the object.
 								}
 
-								message_ob->loaded_lod_level = message->model_lod_level; // NOTE THIS RIGHT?
+								message_ob->loaded_model_lod_level = message->model_lod_level;
 
 								// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 								if(this->selected_ob == message_ob)
@@ -2421,7 +2418,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							}
 						} // End proximity_loader.isObjectInLoadProximity()
 					}
-
 
 
 					const std::string loaded_base_model_url = message->base_model_url;
@@ -2439,8 +2435,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 								const int ob_model_lod_level = myMin(ob->max_model_lod_level, ob_lod_level);
 								
-								// TODO: Fix LOD stuff here.
-								if(ob->model_url == loaded_base_model_url && ob_model_lod_level == message->model_lod_level)
+								if(ob->model_url == loaded_base_model_url && ob_model_lod_level == message->model_lod_level) // If we have just loaded the model with the LOD level this object needs:
 								{
 									const std::string ob_lod_model_url = ob->getLODModelURL(cam_controller.getPosition());
 
@@ -2449,9 +2444,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										if(!isFinite(ob->angle) || !ob->axis.isFinite())
 											throw glare::Exception("Invalid angle or axis");
 
-										// Remove any existing OpenGL and physics model
-										if(ob->using_placeholder_model)
-											removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+										removeAndDeleteGLAndPhysicsObjectsForOb(*ob); // Remove any existing OpenGL and physics model
 
 										// Create GLObject and PhysicsObjects for this world object if they have not been created already.
 										// They may have been created in the LoadModelTask already.
@@ -2475,7 +2468,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											//assert(ob->physics_object.nonNull());
 										}
 
-										ob->loaded_lod_level = ob_lod_level;
+										ob->loaded_model_lod_level = message->model_lod_level;
 
 										if(!ui->glWidget->opengl_engine->isObjectAdded(ob->opengl_engine_ob))
 										{
@@ -2524,8 +2517,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									try
 									{
 										// Remove any existing OpenGL and physics model
-										//if(ob->using_placeholder_model)
-										//	removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 										removeAndDeleteGLObjectForAvatar(*av);
 
 										// Create GLObject for this avatar if they have not been created already.

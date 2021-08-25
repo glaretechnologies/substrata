@@ -201,7 +201,7 @@ public:
 	js::Vector<Matrix4f, 16> instance_matrices;
 
 	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
-	int loaded_lod_level; // If we have loaded a model for this object, this is the LOD level of the model.
+	int loaded_model_lod_level; // If we have loaded a model for this object, this is the LOD level of the model.
 	// This may differ from current_lod_level, for example if the new LOD level model needs to be downloaded from the server, then loaded_lod_level will be the previous level.
 #endif
 
