@@ -1225,14 +1225,15 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 		return;
 
 	const std::string default_model_url = "xbot_glb_10972822012543217816.glb";
-	const std::string use_model_url = avatar->avatar_settings.model_url.empty() ? default_model_url : avatar->avatar_settings.model_url;
+	//const std::string use_model_url = avatar->avatar_settings.model_url.empty() ? default_model_url : avatar->avatar_settings.model_url;
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
-	avatar->loaded_model_url = use_model_url;
+	
 
 	// If the avatar model URL is empty, we will be using the default xbot model.  Need to make it be rotated from y-up to z-up, and assign materials.
 	if(avatar->avatar_settings.model_url.empty())
 	{
+		avatar->avatar_settings.model_url = default_model_url;
 		avatar->avatar_settings.materials.resize(2);
 		avatar->avatar_settings.materials[0] = new WorldMaterial();
 		avatar->avatar_settings.materials[0]->colour_rgb = Colour3f(0.5f, 0.6f, 0.7f);
@@ -1245,6 +1246,8 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 		const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
 		avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
 	}
+
+	avatar->loaded_model_url = avatar->avatar_settings.model_url;
 
 
 	ui->glWidget->makeCurrent();
@@ -1269,7 +1272,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 
 		bool load_placeholder = false;
 
-		const std::string lod_model_url = WorldObject::getLODModelURLForLevel(use_model_url, ob_model_lod_level);
+		const std::string lod_model_url = WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level);
 
 		avatar->graphics.loaded_lod_level = ob_lod_level;
 
@@ -1284,7 +1287,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 				// Do the model loading in a different thread
 				Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-				load_model_task->base_model_url = use_model_url;
+				load_model_task->base_model_url = avatar->avatar_settings.model_url;
 				load_model_task->model_lod_level = ob_lod_level;
 				load_model_task->lod_model_url = lod_model_url;
 				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
@@ -1353,7 +1356,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 	}
 	catch(glare::Exception& e)
 	{
-		print("Error while loading avatar with UID " + avatar->uid.toString() + ", model_url='" + use_model_url + "': " + e.what());
+		print("Error while loading avatar with UID " + avatar->uid.toString() + ", model_url='" + avatar->avatar_settings.model_url + "': " + e.what());
 	}
 }
 
