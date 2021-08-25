@@ -18,13 +18,14 @@ CyberspaceProtocolVersion
 25: Added AvatarIsHere message, Added anim_state to avatar
 26: Added aabb_ws and max_lod_level to WorldObject
 27: Added flags to WorldMaterial
+28: Added pre_ob_to_world_matrix, materials to Avatar
 */
 namespace Protocol
 {
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 27;
+const uint32 CyberspaceProtocolVersion = 28;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;

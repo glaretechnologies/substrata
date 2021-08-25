@@ -225,11 +225,11 @@ bool texHasAlpha(const std::string& tex_path, std::map<std::string, bool>& tex_h
 
 
 // Generate LOD textures for materials, if not already present on disk.
-void generateLODTexturesForMaterialsIfNotPresent(WorldObject& world_ob, ResourceManager& resource_manager, glare::TaskManager& task_manager)
+void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, glare::TaskManager& task_manager)
 {
-	for(size_t z=0; z<world_ob.materials.size(); ++z)
+	for(size_t z=0; z<materials.size(); ++z)
 	{
-		WorldMaterial* mat = world_ob.materials[z].ptr();
+		WorldMaterial* mat = materials[z].ptr();
 
 		if(!mat->colour_texture_url.empty())
 		{

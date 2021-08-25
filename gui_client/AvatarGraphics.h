@@ -36,9 +36,10 @@ public:
 	AvatarGraphics();
 	~AvatarGraphics();
 
-	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time, AnimEvents& anim_events_out);
+	// anim_state; // 0 on ground, 1 = flying
+	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out);
 
-	void create(OpenGLEngine& engine);
+	//void create(OpenGLEngine& engine, const std::string& URL);
 
 	void destroy(OpenGLEngine& engine);
 	
@@ -47,34 +48,12 @@ public:
 
 	static float walkCyclePeriod() { return 7.f / Maths::get2Pi<float>(); }
 
-	struct BodyPart
-	{
-		Matrix4f base_transform; // Transform that scales and rotates cylinder to avatar space.
-		Reference<GLObject> gl_ob;
-	};
-
-	BodyPart upper_arms[2];
-	BodyPart lower_arms[2];
-
-	BodyPart upper_legs[2];
-	BodyPart lower_legs[2];
-
-	BodyPart chest;
-	BodyPart pelvis;
-
-	BodyPart head;
-
-	BodyPart feet[2];
-
-
 	Reference<GLObject> selected_ob_beam;
-
 	
+	Reference<GLObject> skinned_gl_ob;
+	int loaded_lod_level;
 
 private:
-	void setWalkAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time, AnimEvents& anim_events_out);
-	void setStandAnimation(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, double cur_time);
-
 	Vec3d last_pos;
 	Vec3d last_hand_pos;
 	Vec3d last_selected_ob_target_pos;

@@ -668,13 +668,9 @@ void WorkerThread::doRun()
 					{
 						const Avatar* avatar = it->second.getPointer();
 
-						// Send AvatarIsHere message
+						// Write AvatarIsHere message
 						packet.writeUInt32(Protocol::AvatarIsHere);
-						writeToStream(avatar->uid, packet);
-						packet.writeStringLengthFirst(avatar->name);
-						packet.writeStringLengthFirst(avatar->model_url);
-						writeToStream(avatar->pos, packet);
-						writeToStream(avatar->rotation, packet);
+						writeToNetworkStream(*avatar, packet);
 					}
 				} // End lock scope
 
@@ -789,7 +785,7 @@ void WorkerThread::doRun()
 					}
 				case Protocol::AvatarFullUpdate:
 					{
-						conPrint("AvatarFullUpdate");
+						conPrint("Protocol::AvatarFullUpdate");
 						const UID avatar_uid = readUIDFromStream(*socket);
 
 						Avatar temp_avatar;
@@ -802,29 +798,49 @@ void WorkerThread::doRun()
 							if(res != cur_world_state->avatars.end())
 							{
 								Avatar* avatar = res->second.getPointer();
-								avatar->name = temp_avatar.name;
-								avatar->model_url = temp_avatar.model_url;
-								avatar->pos = temp_avatar.pos;
-								avatar->rotation = temp_avatar.rotation;
+								avatar->copyNetworkStateFrom(temp_avatar);
 								avatar->other_dirty = true;
+
+
+								// Store avatar settings in the user data
+								if(client_user.nonNull())
+								{
+									client_user->avatar_settings = avatar->avatar_settings;
+
+									server->world_state->markAsChanged(); // TODO: only do this if avatar settings actually changed.
+
+									conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+								}
 
 								//conPrint("updated avatar transform");
 							}
 						}
+
+						if(!temp_avatar.avatar_settings.model_url.empty())
+							sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
+
+						// Process resources
+						std::set<std::string> URLs;
+						temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
+						for(auto it = URLs.begin(); it != URLs.end(); ++it)
+							sendGetFileMessageIfNeeded(*it);
+
 						break;
 					}
 				case Protocol::CreateAvatar:
 					{
-						conPrint("CreateAvatar");
-						// Note: not reading name, name will come from user account
-						// Also not reading UID, will use the client_avatar_uid that we assigned to the client
-						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
-						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f rotation = readVec3FromStream<float>(*socket);
+						conPrint("received Protocol::CreateAvatar");
+						// Note: name will come from user account
+						// will use the client_avatar_uid that we assigned to the client
+						
+						Avatar temp_avatar;
+						temp_avatar.uid = readUIDFromStream(*socket); // Will be replaced.
+						readFromNetworkStreamGivenUID(*socket, temp_avatar); // Read message data before grabbing lock
 
-						const std::string use_avatar_name = client_user.isNull() ? "Anonymous" : client_user->name;
+						temp_avatar.name = client_user.isNull() ? "Anonymous" : client_user->name;
 
 						const UID use_avatar_uid = client_avatar_uid;
+						temp_avatar.uid = use_avatar_uid;
 
 						// Look up existing avatar in world state
 						{
@@ -835,10 +851,7 @@ void WorkerThread::doRun()
 								// Avatar for UID not already created, create it now.
 								AvatarRef avatar = new Avatar();
 								avatar->uid = use_avatar_uid;
-								avatar->name = use_avatar_name;
-								avatar->model_url = model_url;
-								avatar->pos = pos;
-								avatar->rotation = rotation;
+								avatar->copyNetworkStateFrom(temp_avatar);
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
 								cur_world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
@@ -847,9 +860,16 @@ void WorkerThread::doRun()
 							}
 						}
 
-						sendGetFileMessageIfNeeded(model_url);
+						if(!temp_avatar.avatar_settings.model_url.empty())
+							sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
 
-						conPrint("New Avatar creation: username: '" + use_avatar_name + "', model_url: '" + model_url + "'");
+						// Process resources
+						std::set<std::string> URLs;
+						temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
+						for(auto it = URLs.begin(); it != URLs.end(); ++it)
+							sendGetFileMessageIfNeeded(*it);
+
+						conPrint("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
 
 						break;
 					}
@@ -1355,6 +1375,8 @@ void WorkerThread::doRun()
 							packet.writeUInt32(Protocol::LoggedInMessageID);
 							writeToStream(client_user->id, packet);
 							packet.writeStringLengthFirst(username);
+							writeToStream(client_user->avatar_settings, packet);
+
 							socket->writeData(packet.buf.data(), packet.buf.size());
 						}
 						else

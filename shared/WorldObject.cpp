@@ -207,7 +207,6 @@ void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 	if(FileUtils::fileExists(this->lightmap_url)) // If the URL is a local path:
 		this->lightmap_url = resource_manager.URLForPathAndHash(this->lightmap_url, FileChecksum::fileChecksum(this->lightmap_url));
-
 }
 
 

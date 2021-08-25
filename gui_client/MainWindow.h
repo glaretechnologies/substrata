@@ -150,10 +150,12 @@ private:
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out);
 	void loadModelForObject(WorldObject* ob);
+	void loadModelForAvatar(Avatar* ob);
 	void loadScriptForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
+	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level);
 	void startDownloadingResource(const std::string& url); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void evalObjectScript(WorldObject* ob, float use_global_time);
 	void updateStatusBar();
@@ -210,7 +212,9 @@ public:
 	bool isModelProcessed(const std::string& url) const;
 
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level);
+	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
+	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
 	void addPlaceholderObjectsForOb(WorldObject& ob);
 	void setUpForScreenshot();
 	void saveScreenshot();
@@ -357,9 +361,9 @@ public:
 	glare::TaskManager texture_loader_task_manager; // Contains LoadTextureTask objects.
 private:
 	glare::TaskManager model_building_subsidary_task_manager; // Just for use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
-
+public:
 	MeshManager mesh_manager;
-
+private:
 	struct Notification
 	{
 		double creation_time;

@@ -76,7 +76,7 @@ class ModelLoading
 {
 public:
 	static void setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat);
-	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int ob_lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
+	static void setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat);
 
 
 	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);

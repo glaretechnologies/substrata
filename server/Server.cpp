@@ -798,11 +798,7 @@ int main(int argc, char *argv[])
 								// Send AvatarCreated packet
 								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 								packet.writeUInt32(Protocol::AvatarCreated);
-								writeToStream(avatar->uid, packet);
-								packet.writeStringLengthFirst(avatar->name);
-								packet.writeStringLengthFirst(avatar->model_url);
-								writeToStream(avatar->pos, packet);
-								writeToStream(avatar->rotation, packet);
+								writeToNetworkStream(*avatar, packet);
 
 								enqueuePacketToBroadcast(packet, world_packets);
 
