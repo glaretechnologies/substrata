@@ -1230,6 +1230,23 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 	Timer timer;
 	avatar->loaded_model_url = use_model_url;
 
+	// If the avatar model URL is empty, we will be using the default xbot model.  Need to make it be rotated from y-up to z-up, and assign materials.
+	if(avatar->avatar_settings.model_url.empty())
+	{
+		avatar->avatar_settings.materials.resize(2);
+		avatar->avatar_settings.materials[0] = new WorldMaterial();
+		avatar->avatar_settings.materials[0]->colour_rgb = Colour3f(0.5f, 0.6f, 0.7f);
+		avatar->avatar_settings.materials[0]->metallic_fraction.val = 0.5f;
+		avatar->avatar_settings.materials[1] = new WorldMaterial();
+		avatar->avatar_settings.materials[1]->colour_rgb = Colour3f(0.8f);
+		avatar->avatar_settings.materials[1]->metallic_fraction.val = 0.0f;
+
+		const float EYE_HEIGHT = 1.67f;
+		const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
+		avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
+	}
+
+
 	ui->glWidget->makeCurrent();
 
 	try
