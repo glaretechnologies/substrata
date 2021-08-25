@@ -55,11 +55,13 @@ void LoadModelTask::run(size_t thread_index)
 				msg->base_model_url = base_model_url;
 				msg->model_lod_level = model_lod_level;
 				msg->lod_model_url = lod_model_url;
+				msg->loaded_voxels = false;
 				main_window->msg_queue.enqueue(msg);
 			}
 		}
 		else
 		{
+			bool loaded_voxels = false;
 			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
 			if(ob->object_type == WorldObject::ObjectType_Hypercard)
@@ -110,6 +112,8 @@ void LoadModelTask::run(size_t thread_index)
 
 					opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 				}
+
+				loaded_voxels = true;
 			}
 			else
 			{
@@ -148,6 +152,8 @@ void LoadModelTask::run(size_t thread_index)
 				msg->base_model_url = base_model_url;
 				msg->model_lod_level = model_lod_level;
 				msg->lod_model_url = lod_model_url;
+				msg->loaded_voxels = loaded_voxels;
+				msg->ob = ob;
 				main_window->msg_queue.enqueue(msg);
 			}
 		}

@@ -29,6 +29,9 @@ public:
 	std::string base_model_url;
 	int model_lod_level;
 	std::string lod_model_url; // May differ from ob->model_url for LOD levels != 0.
+	bool loaded_voxels;
+
+	WorldObjectRef ob; // Used for when loading voxels.
 };
 
 
