@@ -2943,30 +2943,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									loadModelForObject(ob);
 							}
 
-							//for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-							//{
-							//	Avatar* avatar = it->second.getPointer();
-							//	if(avatar->using_placeholder_model && (avatar->model_url == m->URL))
-							//	{
-							//		// Remove placeholder GL object
-							//		assert(avatar->opengl_engine_ob.nonNull());
-							//		ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_ob);
+							for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+							{
+								Avatar* av = it->second.getPointer();
 
-							//		conPrint("Adding Object to OpenGL Engine, UID " + toString(avatar->uid.value()));
-							//		//const std::string path = resources_dir + "/" + ob->model_url;
-							//		const std::string path = this->resource_manager->pathForURL(avatar->model_url);
+								const std::string av_lod_model_url = av->getLODModelURLForLevel(av->avatar_settings.model_url, av->getLODLevel(cam_controller.getPosition())); // NOTE: slow in loop over all obs.  Could also compare base model URLS and lod level separately
 
-							//		// Make GL object, add to OpenGL engine
-							//		Indigo::MeshRef mesh;
-							//		const Matrix4f ob_to_world_matrix = Matrix4f::translationMatrix((float)avatar->pos.x, (float)avatar->pos.y, (float)avatar->pos.z) * 
-							//			Matrix4f::rotationMatrix(normalise(avatar->axis.toVec4fVector()), avatar->angle);
-							//		GLObjectRef gl_ob = ModelLoading::makeGLObjectForModelFile(path, ob_to_world_matrix, mesh);
-							//		avatar->opengl_engine_ob = gl_ob;
-							//		ui->glWidget->addObject(gl_ob);
-
-							//		avatar->using_placeholder_model = false;
-							//	}
-							//}
+								if(av_lod_model_url == URL)
+									loadModelForAvatar(av);
+							}
 						}
 						catch(glare::Exception& e)
 						{
