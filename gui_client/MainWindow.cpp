@@ -7973,7 +7973,7 @@ int main(int argc, char *argv[])
 
 					if(!mw.resource_manager->isFileForURLPresent(mesh_URL))
 					{
-						mw.resource_manager->copyLocalFileToResourceDir(cyberspace_base_dir_path + "/resources/xavatar5glb", mesh_URL);
+						mw.resource_manager->copyLocalFileToResourceDir(cyberspace_base_dir_path + "/resources/xavatar5.glb", mesh_URL);
 					}
 				}
 
