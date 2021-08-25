@@ -1224,7 +1224,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 	if(avatar->graphics.skinned_gl_ob.nonNull() && /*&& !ob->using_placeholder_model && */(avatar->graphics.loaded_lod_level == ob_lod_level))
 		return;
 
-	const std::string default_model_url = "xavatar5_glb_3215796125012511592.glb";
+	const std::string default_model_url = "xbot_glb_10972822012543217816.glb";
 	const std::string use_model_url = avatar->avatar_settings.model_url.empty() ? default_model_url : avatar->avatar_settings.model_url;
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
 	Timer timer;
@@ -7969,11 +7969,11 @@ int main(int argc, char *argv[])
 
 				// Copy default avatar into resource dir
 				{
-					const std::string mesh_URL = "xavatar5_glb_3215796125012511592.glb";
+					const std::string mesh_URL = "xbot_glb_10972822012543217816.glb";
 
 					if(!mw.resource_manager->isFileForURLPresent(mesh_URL))
 					{
-						mw.resource_manager->copyLocalFileToResourceDir(cyberspace_base_dir_path + "/resources/xavatar5.glb", mesh_URL);
+						mw.resource_manager->copyLocalFileToResourceDir(cyberspace_base_dir_path + "/resources/xbot.glb", mesh_URL);
 					}
 				}
 
@@ -8001,7 +8001,7 @@ int main(int argc, char *argv[])
 					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
 
 					
-					const std::string path = "D:\\models\\xavatar5.glb";
+					const std::string path = "D:\\models\\xbot.glb";
 					//const std::string path = "D:\\models\\xavatar3.glb";
 					//const std::string path = "D:\\models\\readyplayerme_female_avatar2.glb";
 					//const std::string path = "D:\\models\\tor-avatar.glb";

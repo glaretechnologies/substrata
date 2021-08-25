@@ -126,7 +126,7 @@ void AvatarSettingsDialog::animationComboBoxIndexChanged(int index)
 void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, bool show_error_dialogs)
 {
 	const std::string use_local_path = local_path.empty() ? 
-		(base_dir_path + "/resources/xavatar5.glb") :
+		(base_dir_path + "/resources/xbot.glb") :
 		local_path;
 
 	this->avatarPreviewGLWidget->makeCurrent();
