@@ -2873,6 +2873,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								}
 							}
 
+							for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+							{
+								Avatar* av = it->second.getPointer();
+
+								const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
+
+								//if(ob->using_placeholder_model)
+								{
+									std::set<std::string> URL_set;
+									av->getDependencyURLSet(av_lod_level, URL_set);
+									need_resource = need_resource || (URL_set.count(m->URL) != 0);
+								}
+							}
+
 							conPrint("need_resource: " + boolToString(need_resource));
 
 							if(need_resource)// && !shouldStreamResourceViaHTTP(m->URL))
