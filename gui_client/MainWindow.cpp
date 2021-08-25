@@ -988,7 +988,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 	const int ob_model_lod_level = myMin(ob_lod_level, ob->max_model_lod_level);
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
-	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level))
+	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->loaded_lod_level == ob_lod_level))
 		return;
 
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
@@ -1007,6 +1007,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		startDownloadingResourcesForObject(ob, ob_lod_level);
 
 		startLoadingTexturesForObject(*ob, ob_lod_level);
+
+		ob->loaded_lod_level = ob_lod_level;
 
 		// Add any objects with gif or mp4 textures to the set of animated objects.
 		for(size_t i=0; i<ob->materials.size(); ++i)
