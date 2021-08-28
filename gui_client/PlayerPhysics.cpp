@@ -31,7 +31,8 @@ PlayerPhysics::PlayerPhysics()
 	jumptimeremaining(0),
 	onground(false),
 	flymode(false),
-	last_runpressed(false)
+	last_runpressed(false),
+	forwards_pressed_time(0)
 {
 }
 
@@ -172,7 +173,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 	else
 	{
 		// else if flymode, no inertia so just set vel to the desired move direction
-		vel = moveimpulse;
+		const float time_pressed_factor = myMax(1.f, forwards_pressed_time); // Move faster the longer the forwards key is pressed.
+		vel = moveimpulse * time_pressed_factor;
 	}
 
 	//if(onground)
