@@ -406,7 +406,12 @@ void GlWidget::playerPhyicsThink(float dt)
 	{
 		SHIFT_down = GetAsyncKeyState(VK_SHIFT);
 
-		if(GetAsyncKeyState('W') || GetAsyncKeyState(VK_UP))
+		const bool forwards_key_down = (GetAsyncKeyState('W') || GetAsyncKeyState(VK_UP));
+		if(!forwards_key_down)
+			forwards_pressed_timer.reset();
+		this->player_physics->forwards_pressed_time = forwards_pressed_timer.elapsed();
+
+		if(forwards_key_down)
 		{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('S') || GetAsyncKeyState(VK_DOWN))
 		{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
@@ -432,7 +437,13 @@ void GlWidget::playerPhyicsThink(float dt)
 			emit cameraUpdated();
 	}
 #else
-	if(W_down)
+
+	const bool forwards_key_down = W_down;
+	if(!forwards_key_down)
+		forwards_pressed_timer.reset();
+	this->player_physics->forwards_pressed_time = forwards_pressed_timer.elapsed();
+
+	if(forwards_key_down)
 	{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
 	if(S_down)
 	{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
