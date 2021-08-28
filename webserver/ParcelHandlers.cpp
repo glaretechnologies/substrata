@@ -148,7 +148,12 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 			// Show NFT status
 			page += "<h2>NFT status</h2>         \n";
 			if(parcel->nft_status == Parcel::NFTStatus_NotNFT)
+			{
 				page += "<p>This parcel has not been minted as an NFT.</p>";
+
+				if(logged_in_user_is_parcel_owner)
+					page += "<p><a href=\"/make_parcel_into_nft?parcel_id=" + parcel->id.toString() + "\">Mint as a NFT</a></p>";
+			}
 			else if(parcel->nft_status == Parcel::NFTStatus_MintingNFT)
 				page += "<p>This parcel is being minted as an Ethereum NFT...</p>";
 			else if(parcel->nft_status == Parcel::NFTStatus_MintedNFT)

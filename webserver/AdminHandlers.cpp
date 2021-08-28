@@ -301,6 +301,14 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 
 			page_out += "</p>    \n";
 
+			if(trans->state == SubEthTransaction::State_New)
+			{
+				page_out += "<form action=\"/admin_delete_transaction_post\" method=\"post\">";
+				page_out += "<input type=\"hidden\" name=\"transaction_id\" value=\"" + toString(trans->id) + "\">";
+				page_out += "<input type=\"submit\" value=\"Delete transaction\">";
+				page_out += "</form>";
+			}
+
 			if(trans->state != SubEthTransaction::State_New)
 			{
 				page_out += "<form action=\"/admin_set_transaction_state_to_new_post\" method=\"post\">";
@@ -750,6 +758,38 @@ void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const
 	catch(glare::Exception& e)
 	{
 		conPrint("handleSetTransactionStateToNewPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+// Deletes a transaction
+void handleDeleteTransactionPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int transaction_id = request.getPostIntField("transaction_id");
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			// Lookup transaction
+			world_state.sub_eth_transactions.erase(transaction_id);
+
+			world_state.markAsChanged();
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transactions");
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleDeleteTransactionPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

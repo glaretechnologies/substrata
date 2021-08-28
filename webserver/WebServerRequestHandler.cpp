@@ -160,6 +160,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetTransactionStateToNewPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_delete_transaction_post")
+		{
+			AdminHandlers::handleDeleteTransactionPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
