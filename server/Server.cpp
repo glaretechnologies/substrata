@@ -196,8 +196,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				Parcel* parcel = pit->second.ptr();
 				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90) && // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90)
 					!isParcelInCurrentAuction(world_state, parcel, now) && // And not already in a currently running auction
-					(parcel->nft_status == Parcel::NFTStatus_NotNFT) && // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
-					(!(parcel->id.value() >= 265 && parcel->id.value() <= 267)) // And not in the block that honest/luckotis has dibs on
+					(parcel->nft_status == Parcel::NFTStatus_NotNFT) // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
 					)
 					sellable_parcels.push_back(parcel);
 			}
@@ -221,7 +220,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				// Make a parcel auction for this parcel
 
 				const int auction_duration_hours = 48;
-				const double auction_start_price = 2000; // EUR
+				const double auction_start_price = 3000; // EUR
 				const double auction_end_price = 400; // EUR
 
 				//TEMP: scan over all ParcelAuctions and find highest used ID.
