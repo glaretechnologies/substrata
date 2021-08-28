@@ -48,6 +48,7 @@ public:
 	UpdateEvents update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_in_out);
 
 	void setFlyModeEnabled(bool enabled);
+	bool flyModeEnabled() const { return flymode; }
 	
 	bool onGround() const { return onground; }
 	bool isRunPressed() const { return last_runpressed; }

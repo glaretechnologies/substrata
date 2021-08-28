@@ -101,9 +101,16 @@
     </property>
     <addaction name="actionAvatarSettings"/>
    </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <addaction name="actionThird_Person_Camera"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuMovement"/>
    <addaction name="menuAvatar"/>
+   <addaction name="menuView"/>
    <addaction name="menuGo"/>
    <addaction name="menuTools"/>
    <addaction name="menuWindow"/>
@@ -517,6 +524,14 @@
   <action name="actionBake_lightmaps_high_quality_for_all_objects_in_parcel">
    <property name="text">
     <string>Bake lightmaps (high quality) for all objects in parcel</string>
+   </property>
+  </action>
+  <action name="actionThird_Person_Camera">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Third Person Camera</string>
    </property>
   </action>
  </widget>

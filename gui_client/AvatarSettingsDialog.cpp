@@ -119,7 +119,7 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 void AvatarSettingsDialog::animationComboBoxIndexChanged(int index)
 {
 	const std::string anim_name = QtUtils::toStdString(this->animationComboBox->itemText(index));
-	preview_gl_ob->mesh_data->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.findAnimation(anim_name));
+	preview_gl_ob->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.findAnimation(anim_name));
 }
 
 
@@ -161,7 +161,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 
 		// TEMP: Load animation data for ready-player-me type avatars
 		//float eye_height_adjustment = 0;
-		float foot_bottom_height = original_toe_pos[1] - 0.0362269469; // SHould be ~= 0
+		float foot_bottom_height = original_toe_pos[1] - 0.0362269469; // Should be ~= 0
 		if(true)
 		{
 			FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
@@ -185,8 +185,8 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		animationComboBox->setMaxVisibleItems(50);
 
 		// Select Idle animation initially
-		preview_gl_ob->mesh_data->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.findAnimation("Idle"));
-		SignalBlocker::setCurrentIndex(animationComboBox, preview_gl_ob->mesh_data->current_anim_i);
+		preview_gl_ob->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.findAnimation("Idle"));
+		SignalBlocker::setCurrentIndex(animationComboBox, preview_gl_ob->current_anim_i);
 
 		// Construct transformation to bring ready-player-me avatars to z-up and standing on the ground.
 		// We want to translate the avatar down from 1.67 metres in the sky (which is the default substrata eye height), to the ground

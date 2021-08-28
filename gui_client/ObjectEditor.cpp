@@ -1,8 +1,6 @@
 #include "ObjectEditor.h"
 
 
-#include "PlayerPhysics.h"
-#include "CameraController.h"
 #include "ShaderEditorDialog.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"

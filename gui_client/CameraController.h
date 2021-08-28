@@ -30,6 +30,7 @@ public:
 
 	void updateTrackball(const Vec3d& pos_delta, const Vec2d& rot_delta);
 
+	Vec3d getPositionWithThirdPersonOffset() const;
 	Vec3d getPosition() const;
 	void setPosition(const Vec3d& pos);
 
@@ -57,6 +58,12 @@ public:
 
 	void setTargetPos(const Vec3d& p);
 
+	void setThirdPersonEnabled(bool enabled) { third_person = enabled; }
+	bool thirdPersonEnabled() const { return third_person; }
+
+	void setThirdPersonCamTranslation(const Vec3d& v) { third_person_cam_translation = v; }
+	Vec3d thirdPersonCamTranslation() const { return third_person_cam_translation; }
+
 	bool invert_mouse;
 	bool invert_sideways_movement;
 
@@ -81,4 +88,8 @@ private:
 
 	// Spherical camera doesn't allow looking up or down. So for spherical camera, allow_pitching should be set to false.
 	bool allow_pitching;
+
+	bool third_person;
+
+	Vec3d third_person_cam_translation;
 };

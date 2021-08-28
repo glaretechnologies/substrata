@@ -80,7 +80,7 @@ public:
 	AvatarSettings avatar_settings;
 	Vec3d pos;
 	Vec3f rotation;
-	uint32 anim_state; // 0 on ground, 1 = flying
+	uint32 anim_state; // See AvatarGraphics::ANIM_STATE_IN_AIR flag etc..
 
 	UID selected_object_uid; // Will be set to invalidUID if no object selected.
 
@@ -104,6 +104,7 @@ public:
 	Colour3f name_colour;
 
 	Reference<GLObject> opengl_engine_nametag_ob;
+	float nametag_z_offset; // To adjust nametag up when animation requires.  Smoothed over time value.
 
 	AvatarGraphics graphics;
 
