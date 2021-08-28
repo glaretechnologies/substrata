@@ -220,8 +220,8 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				// Make a parcel auction for this parcel
 
 				const int auction_duration_hours = 48;
-				const double auction_start_price = 3000; // EUR
-				const double auction_end_price = 400; // EUR
+				const double auction_start_price = 4000; // EUR
+				const double auction_end_price = 800; // EUR
 
 				//TEMP: scan over all ParcelAuctions and find highest used ID.
 				uint32 highest_auction_id = 0;
