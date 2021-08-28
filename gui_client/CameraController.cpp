@@ -191,18 +191,26 @@ void CameraController::updateTrackball(const Vec3d& pos_delta, const Vec2d& rot_
 }
 
 
-Vec3d CameraController::getPosition() const
+Vec3d CameraController::getFirstPersonPosition() const
 {
 	return position;
 }
 
 
-Vec3d CameraController::getPositionWithThirdPersonOffset() const
+Vec3d CameraController::getPosition() const
 {
 	return third_person ? 
 		(position + third_person_cam_translation) :
 		position;
 }
+
+
+//Vec3d CameraController::getPositionWithThirdPersonOffset() const
+//{
+//	return third_person ? 
+//		(position + third_person_cam_translation) :
+//		position;
+//}
 
 
 void CameraController::setPosition(const Vec3d& pos)

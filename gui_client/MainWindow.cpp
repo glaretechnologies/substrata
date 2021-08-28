@@ -2332,9 +2332,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Update URL Bar
 	if(!this->url_widget->hasFocus())
 		this->url_widget->setURL("sub://" + server_hostname + "/" + server_worldname +
-			"?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().x, 1) + 
-			"&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().y, 1) +
-			"&z=" + doubleToStringNDecimalPlaces(this->cam_controller.getPosition().z, 1));
+			"?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getFirstPersonPosition().x, 1) + 
+			"&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getFirstPersonPosition().y, 1) +
+			"&z=" + doubleToStringNDecimalPlaces(this->cam_controller.getFirstPersonPosition().z, 1));
 
 	const QPoint gl_pos = ui->glWidget->mapToGlobal(QPoint(200, 10));
 	if(ui->infoDockWidget->geometry().topLeft() != gl_pos)
@@ -2676,7 +2676,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					const Vec3d cam_angles = this->cam_controller.getAngles();
 					Avatar avatar;
 					avatar.uid = this->client_thread->client_avatar_uid;
-					avatar.pos = Vec3d(this->cam_controller.getPosition());
+					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 					avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 					writeToNetworkStream(avatar, packet);
 
@@ -2684,7 +2684,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 
 				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
-					(this->cam_controller.getPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
+					(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 			}
 			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
 			{
@@ -2793,7 +2793,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const Vec3d cam_angles = this->cam_controller.getAngles();
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
-				avatar.pos = Vec3d(this->cam_controller.getPosition());
+				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 				avatar.avatar_settings = m->avatar_settings;
 				avatar.name = m->username;
@@ -2816,7 +2816,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const Vec3d cam_angles = this->cam_controller.getAngles();
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
-				avatar.pos = Vec3d(this->cam_controller.getPosition());
+				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 				avatar.avatar_settings.model_url = "";
 				avatar.name = "Anonymous";
@@ -2843,7 +2843,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const Vec3d cam_angles = this->cam_controller.getAngles();
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
-				avatar.pos = Vec3d(this->cam_controller.getPosition());
+				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 				avatar.avatar_settings.model_url = "";
 				avatar.name = m->username;
@@ -3085,7 +3085,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	ui->glWidget->setCurrentTime((float)cur_time);
 	ui->glWidget->playerPhyicsThink((float)dt);
 
-	Vec4f campos = this->cam_controller.getPosition().toVec4fPoint();
+	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	if(physics_world.nonNull())
 	{
@@ -3222,7 +3222,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					// Do 3rd person cam stuff for our avatar:
 					if(our_avatar)
 					{
-						pos = cam_controller.getPosition();
+						pos = cam_controller.getFirstPersonPosition();
 						rotation = Vec3f(0, 0, (float)cam_angles.x);
 
 						//rotation = Vec3f(0, 0, 0); // just for testing
@@ -3252,7 +3252,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 					{
 						// We want to rotate the nametag towards the camera.
-						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPositionWithThirdPersonOffset().toVec4fPoint());
+						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
 						if(!isFinite(to_cam[0]))
 							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
 
@@ -3730,7 +3730,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, packet);
-			writeToStream(Vec3d(this->cam_controller.getPosition()), packet);
+			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), packet);
 			writeToStream(Vec3f(0, 0, (float)angle), packet);
 			packet.writeUInt32(anim_state);
 
@@ -4055,7 +4055,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			const Vec3d cam_angles = this->cam_controller.getAngles();
 			Avatar avatar;
 			avatar.uid = this->client_thread->client_avatar_uid;
-			avatar.pos = Vec3d(this->cam_controller.getPosition());
+			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 			avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
 			avatar.name = this->logged_in_user_name;
 			avatar.avatar_settings.model_url = mesh_URL;
@@ -4302,7 +4302,7 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 
 void MainWindow::on_actionAddObject_triggered()
 {
-	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f;
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f;
 
 	// Check permissions
 	bool ob_pos_in_parcel;
@@ -4475,7 +4475,7 @@ void MainWindow::on_actionAddObject_triggered()
 void MainWindow::on_actionAddHypercard_triggered()
 {
 	const float quad_w = 0.4f;
-	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f -
 		this->cam_controller.getUpVec() * quad_w * 0.5f -
 		this->cam_controller.getRightVec() * quad_w * 0.5f;
 
@@ -4520,7 +4520,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 void MainWindow::on_actionAdd_Spotlight_triggered()
 {
 	const float quad_w = 0.4f;
-	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f -
 		this->cam_controller.getUpVec() * quad_w * 0.5f -
 		this->cam_controller.getRightVec() * quad_w * 0.5f;
 
@@ -4566,7 +4566,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 void MainWindow::on_actionAdd_Voxels_triggered()
 {
 	// Offset down by 0.25 to allow for centering with voxel width of 0.5.
-	const Vec3d ob_pos = this->cam_controller.getPosition() + this->cam_controller.getForwardsVec() * 2.0f - Vec3d(0.25, 0.25, 0.25);
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f - Vec3d(0.25, 0.25, 0.25);
 
 	// Check permissions
 	bool ob_pos_in_parcel;
@@ -5236,7 +5236,7 @@ void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 		{
 			const Parcel* parcel = it.second.ptr();
 
-			if(parcel->pointInParcel(cam_controller.getPosition()))
+			if(parcel->pointInParcel(cam_controller.getFirstPersonPosition()))
 			{
 				cur_parcel = parcel;
 				break;

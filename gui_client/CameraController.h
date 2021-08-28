@@ -30,8 +30,9 @@ public:
 
 	void updateTrackball(const Vec3d& pos_delta, const Vec2d& rot_delta);
 
-	Vec3d getPositionWithThirdPersonOffset() const;
-	Vec3d getPosition() const;
+	Vec3d getFirstPersonPosition() const;
+	//Vec3d getPositionWithThirdPersonOffset() const;
+	Vec3d getPosition() const; // Has third person offset if third person camera is enabled.
 	void setPosition(const Vec3d& pos);
 
 	void setMouseSensitivity(double sensitivity);

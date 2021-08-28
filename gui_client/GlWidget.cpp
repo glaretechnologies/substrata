@@ -204,7 +204,7 @@ void GlWidget::paintGL()
 	{
 		// Work out current camera transform
 		Vec3d cam_pos, up, forwards, right;
-		cam_pos = cam_controller->getPositionWithThirdPersonOffset();
+		cam_pos = cam_controller->getPosition();
 		cam_controller->getBasis(right, up, forwards);
 
 		const Matrix4f rot = Matrix4f(right.toVec4fVector(), forwards.toVec4fVector(), up.toVec4fVector(), Vec4f(0,0,0,1)).getTranspose();
