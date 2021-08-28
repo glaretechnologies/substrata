@@ -32,6 +32,9 @@ CameraController::CameraController()
 	invert_sideways_movement = false;
 	allow_pitching = true;
 
+	third_person = true;
+	third_person_cam_translation = Vec3d(0.0);
+
 	// NOTE: Call initialise after the member variables above have been initialised.
 	initialise(Vec3d(0.0), Vec3d(0, 1, 0), Vec3d(0, 0, 1), 0.03, 0, 0);
 }
@@ -191,6 +194,14 @@ void CameraController::updateTrackball(const Vec3d& pos_delta, const Vec2d& rot_
 Vec3d CameraController::getPosition() const
 {
 	return position;
+}
+
+
+Vec3d CameraController::getPositionWithThirdPersonOffset() const
+{
+	return third_person ? 
+		(position + third_person_cam_translation) :
+		position;
 }
 
 

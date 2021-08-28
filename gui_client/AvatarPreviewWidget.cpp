@@ -1,8 +1,6 @@
 #include "AvatarPreviewWidget.h"
 
 
-#include "PlayerPhysics.h"
-#include "CameraController.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"

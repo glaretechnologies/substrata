@@ -447,6 +447,9 @@ void MainWindow::afterGLInitInitialise()
 		this->player_physics.setFlyModeEnabled(true);
 	}
 
+	this->cam_controller.setThirdPersonEnabled(settings->value("mainwindow/thirdPersonCamera", /*default val=*/false).toBool());
+	ui->actionThird_Person_Camera->setChecked (settings->value("mainwindow/thirdPersonCamera", /*default val=*/false).toBool());
+
 	//OpenGLEngineTests::doTextureLoadingTests(*ui->glWidget->opengl_engine);
 
 	if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
@@ -1320,7 +1323,8 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 						false, // skip opengl calls
 						raymesh);
 
-					// TEMP: Load animation data for ready-player-me type avatars
+					// Load animation data for ready-player-me type avatars
+					if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
 					{
 						FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
 						avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
@@ -2511,7 +2515,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							Avatar* av = it->second.getPointer();
 
 							const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
-							if(!our_avatar) // Don't load graphics for our avatar
+							if((cam_controller.thirdPersonEnabled() || !our_avatar)) // Don't load graphics for our avatar
 							{
 								const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
 
@@ -2535,14 +2539,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												*resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
 												false, // skip opengl calls
 												raymesh);
+
+											// Load animation data for ready-player-me type avatars
+											if(!av->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
+											{
+												FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
+												av->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+											}
 										}
 
-										// TEMP: Load animation data for ready-player-me type avatars
-										{
-											FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
-											av->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
-										}
-											
+										
 										//TEMP av->loaded_lod_level = ob_lod_level;
 
 										if(!ui->glWidget->opengl_engine->isObjectAdded(av->graphics.skinned_gl_ob))
@@ -3178,7 +3184,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						updateOnlineUsersList();
 					}
 
-					if(!our_avatar && reload_opengl_model) // Don't load graphics for our avatar
+					if((cam_controller.thirdPersonEnabled() || !our_avatar) && reload_opengl_model) // Don't load graphics for our avatar
 					{
 						print("(Re)Loading avatar model. model URL: " + avatar->avatar_settings.model_url + ", Avatar name: " + avatar->name);
 
@@ -3213,11 +3219,26 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					Vec3f rotation;
 					avatar->getInterpolatedTransform(cur_time, pos, rotation);
 
+					// Do 3rd person cam stuff for our avatar:
+					if(our_avatar)
+					{
+						pos = cam_controller.getPosition();
+						rotation = Vec3f(0, 0, (float)cam_angles.x);
+
+						//rotation = Vec3f(0, 0, 0); // just for testing
+						//pos = Vec3d(0,0,1.7);
+
+						avatar->anim_state = (player_physics.onGround() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
+
+						if(cam_controller.thirdPersonEnabled())
+							cam_controller.setThirdPersonCamTranslation(cam_controller.getForwardsVec() * -3 + cam_controller.getUpVec() * 0.2);
+					}
+
 					{
 						AnimEvents anim_events;
 						avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, anim_events);
 						
-						if((avatar->anim_state == 0) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
+						if(((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) == 0) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
 						{
 							//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
 							//footstep_sources[rnd_src_i]->cur_read_i = 0;
@@ -3231,7 +3252,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 					{
 						// We want to rotate the nametag towards the camera.
-						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
+						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPositionWithThirdPersonOffset().toVec4fPoint());
 						if(!isFinite(to_cam[0]))
 							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
 
@@ -3250,11 +3271,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const float ws_height = ws_width * H / W;
 
 						// If avatar is flying (e.g playing floating anim) move nametag up so it isn't blocked by the avatar head, which is higher in floating anim.
-						// TODO: smoothly move.
-						const float flying_z_offset = (avatar->anim_state == 1) ? 0.3f : 0.f;
+						const float flying_z_offset = ((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) != 0) ? 0.3f : 0.f;
+
+						// Blend in new z offset, don't immediately jump to it.
+						const float blend_speed = 0.1f;
+						avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
 
 						// Rotate around z-axis, then translate to just above the avatar's head.
-						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f + flying_z_offset, 0)) *
+						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
 							rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
 
 						assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
@@ -3701,7 +3725,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			conPrint("angle: " + toString(angle));*/
 
 			const double angle = cam_angles.x;
-			const uint32 anim_state = player_physics.onGround() ? 0 : 1;
+			const uint32 anim_state = (player_physics.onGround() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
 
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::AvatarTransformUpdate);
@@ -4893,6 +4917,46 @@ void MainWindow::on_actionFly_Mode_triggered()
 	this->player_physics.setFlyModeEnabled(ui->actionFly_Mode->isChecked());
 
 	settings->setValue("mainwindow/flyMode", QVariant(ui->actionFly_Mode->isChecked()));
+}
+
+
+void MainWindow::on_actionThird_Person_Camera_triggered()
+{
+	this->cam_controller.setThirdPersonEnabled(ui->actionThird_Person_Camera->isChecked());
+
+	settings->setValue("mainwindow/thirdPersonCamera", QVariant(ui->actionThird_Person_Camera->isChecked()));
+
+	// Add or remove our avatar opengl model.
+	if(this->cam_controller.thirdPersonEnabled())
+	{
+		// Add our avatar model. Do this by marking it as dirty.
+		Lock lock(this->world_state->mutex);
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* avatar = it->second.getPointer();
+			const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+			if(our_avatar)
+				avatar->other_dirty = true;
+		}
+	}
+	else
+	{
+		// Remove our avatar model
+		Lock lock(this->world_state->mutex);
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* avatar = it->second.getPointer();
+			const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+			if(our_avatar)
+			{
+				avatar->graphics.destroy(*ui->glWidget->opengl_engine);
+
+				// Remove nametag OpenGL object
+				if(avatar->opengl_engine_nametag_ob.nonNull())
+					ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
+			}
+		}
+	}
 }
 
 
@@ -6837,6 +6901,11 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 			deleteSelectedObject();
 		}
 	}
+	else if(e->key() == Qt::Key::Key_F)
+	{
+		ui->actionFly_Mode->toggle();
+		ui->actionFly_Mode->triggered(ui->actionFly_Mode->isChecked()); // Need to manually emit triggered signal, toggle doesn't do it.
+	}
 	
 	if(this->selected_ob.nonNull())
 	{
@@ -6906,8 +6975,8 @@ void MainWindow::cameraUpdated()
 
 GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 {
-	const int W = 256;
-	const int H = 80;
+	const int W = 512;
+	const int H = 160;
 
 	GLObjectRef gl_ob = new GLObject();
 	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
@@ -6917,11 +6986,14 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
 
+	QFont system_font = QApplication::font();
+	system_font.setPointSize(48);
+
 	QImage image(W, H, QImage::Format_RGB888);
 	image.fill(QColor(230, 230, 230));
 	QPainter painter(&image);
 	painter.setPen(QPen(QColor(0, 0, 0)));
-	painter.setFont(QFont("Times", 24, QFont::Bold));
+	painter.setFont(system_font);
 	painter.drawText(image.rect(), Qt::AlignCenter, QtUtils::toQString(nametag));
 
 	// Copy to map
@@ -6933,7 +7005,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_rgb = Colour3f(0.8f);
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("nametag_" + nametag), *map/*, this->build_uint8_map_scratch_state*/);
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("nametag_" + nametag), *map);
 	return gl_ob;
 }
 
@@ -7421,7 +7493,7 @@ int main(int argc, char *argv[])
 			//NoiseTests::test();
 			//OpenGLEngineTests::buildData();
 			//Matrix4f::test();
-			BatchedMeshTests::test();
+			//BatchedMeshTests::test();
 			//UVUnwrapper::test();
 			//quaternionTests();
 			FormatDecoderGLTF::test();
@@ -8085,8 +8157,7 @@ int main(int argc, char *argv[])
 						}
 					}
 
-					// TEMP: Load animation data for ready-player-me type avatars
-					if(false)
+					// Load animation data for ready-player-me type avatars
 					{
 						FileInStream file(cyberspace_base_dir_path + "/resources/extracted_avatar_anim.bin");
 						test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);

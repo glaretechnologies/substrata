@@ -53,6 +53,8 @@ Avatar::Avatar()
 	name_colour = Colour3f(0.8f);
 
 	avatar_settings.pre_ob_to_world_matrix = Matrix4f::identity();
+
+	nametag_z_offset = 0;
 #endif
 	anim_state = 0;
 }
