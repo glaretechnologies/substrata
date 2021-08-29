@@ -53,7 +53,7 @@ public:
 	size_t getTotalMemUsage() const;
 
 
-	void traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const;
+	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
 	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, RayTraceResult& results_out) const;
 

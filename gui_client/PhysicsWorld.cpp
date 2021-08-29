@@ -87,13 +87,13 @@ size_t PhysicsWorld::getTotalMemUsage() const
 
 
 
-void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, ThreadContext& thread_context, RayTraceResult& results_out) const
+void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
 
 	float closest_dist = std::numeric_limits<float>::infinity();
 
-	const Ray ray(origin, dir, 0.f, std::numeric_limits<float>::infinity());
+	const Ray ray(origin, dir, 0.f, max_t);
 
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
 	{
