@@ -662,6 +662,43 @@ void handleMarkParcelAsNFTMintedPost(ServerAllWorldsState& world_state, const we
 }
 
 
+void handleMarkParcelAsNotNFTPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int parcel_id = request.getPostIntField("parcel_id");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup parcel
+			const auto res = world_state.getRootWorldState()->parcels.find(ParcelID((uint32)parcel_id));
+			if(res != world_state.getRootWorldState()->parcels.end())
+			{
+				Parcel* parcel = res->second.ptr();
+				parcel->nft_status = Parcel::NFTStatus_NotNFT;
+
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + toString(parcel_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleMarkParcelAsNotNFTPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
 // Creates a new minting transaction for the parcel.
 void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
@@ -720,7 +757,7 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleMarkParcelAsNFTMintedPost error: " + e.what());
+		conPrint("handleRetryParcelMintPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
