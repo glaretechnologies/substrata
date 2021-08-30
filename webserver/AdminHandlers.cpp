@@ -305,7 +305,7 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 			{
 				page_out += "<form action=\"/admin_delete_transaction_post\" method=\"post\">";
 				page_out += "<input type=\"hidden\" name=\"transaction_id\" value=\"" + toString(trans->id) + "\">";
-				page_out += "<input type=\"submit\" value=\"Delete transaction\">";
+				page_out += "<input type=\"submit\" value=\"Delete transaction\" onclick=\"return confirm('Are you sure you want to delete the transaction?');\" >";
 				page_out += "</form>";
 			}
 
@@ -313,7 +313,7 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 			{
 				page_out += "<form action=\"/admin_set_transaction_state_to_new_post\" method=\"post\">";
 				page_out += "<input type=\"hidden\" name=\"transaction_id\" value=\"" + toString(trans->id) + "\">";
-				page_out += "<input type=\"submit\" value=\"Set transaction state to new\">";
+				page_out += "<input type=\"submit\" value=\"Set transaction state to new\" onclick=\"return confirm('Are you sure you want to set the transaction state to new?');\" >";
 				page_out += "</form>";
 			}
 
