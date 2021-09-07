@@ -386,6 +386,77 @@ static void scaleMesh(Indigo::Mesh& mesh)
 	}
 }
 
+
+// Rotate vertices around the y axis by half a turn, so that the figure faces in the positive z direction, similary to Mixamo animation data and readyplayerme avatars.
+static void rotateVRMMesh(BatchedMesh& mesh)
+{
+	conPrint("Rotating VRM mesh");
+
+	const BatchedMesh::VertAttribute& pos = mesh.getAttribute(BatchedMesh::VertAttribute_Position);
+	if(pos.component_type != BatchedMesh::ComponentType_Float)
+		throw glare::Exception("unhandled pos component type in rotateVRMMesh()");
+
+	const size_t num_verts = mesh.numVerts();
+	const size_t vert_stride_B = mesh.vertexSize();
+
+	js::AABBox new_aabb_os = js::AABBox::emptyAABBox();
+
+	for(size_t i=0; i<num_verts; ++i)
+	{
+		Vec3f v;
+		std::memcpy(&v, &mesh.vertex_data[vert_stride_B * i + pos.offset_B], sizeof(Vec3f));
+		
+		const Vec3f new_v(-v.x, v.y, -v.z);
+		
+		std::memcpy(&mesh.vertex_data[vert_stride_B * i + pos.offset_B], &new_v, sizeof(Vec3f));
+		
+		new_aabb_os.enlargeToHoldPoint(new_v.toVec4fPoint());
+	}
+
+	const BatchedMesh::VertAttribute* normal_attr = mesh.findAttribute(BatchedMesh::VertAttribute_Normal);
+	if(normal_attr)
+	{
+		if(normal_attr->component_type == BatchedMesh::ComponentType_PackedNormal)
+		{
+			for(size_t i=0; i<num_verts; ++i)
+			{
+				uint32 packed_normal;
+				std::memcpy(&packed_normal, &mesh.vertex_data[vert_stride_B * i + normal_attr->offset_B], sizeof(uint32));
+
+				Vec4f n = batchedMeshUnpackNormal(packed_normal); // TODO: do this with integer manipulation instead of floats? Will avoid possible rounding error.
+				Vec4f new_n(-n[0], n[1], -n[2], 0);
+
+				const uint32 new_packed_normal = batchedMeshPackNormal(new_n);
+				std::memcpy(&mesh.vertex_data[vert_stride_B * i + normal_attr->offset_B], &new_packed_normal, sizeof(uint32));
+			}
+		}
+		else
+			throw glare::Exception("unhandled normal component type in rotateVRMMesh()");
+	}
+
+	// Update animation data
+	for(size_t i=0; i<mesh.animation_data.nodes.size(); ++i)
+	{
+		assert(mesh.animation_data.nodes[i].inverse_bind_matrix.getUpperLeftMatrix() == Matrix3f::identity());
+		mesh.animation_data.nodes[i].inverse_bind_matrix.e[12] *= -1.f; // Negate x translation
+		mesh.animation_data.nodes[i].inverse_bind_matrix.e[14] *= -1.f; // Negate z translation
+
+		//mesh.animation_data.nodes[i].default_node_hierarchical_to_world.e[12] *= -1.f; // Negate x translation
+		//mesh.animation_data.nodes[i].default_node_hierarchical_to_world.e[14] *= -1.f; // Negate z translation
+
+		// Negate x and z components of trans
+		mesh.animation_data.nodes[i].trans = Vec4f(
+			-mesh.animation_data.nodes[i].trans[0], 
+			mesh.animation_data.nodes[i].trans[1], 
+			-mesh.animation_data.nodes[i].trans[2],
+			0);
+	}
+	
+
+	mesh.aabb_os = new_aabb_os;
+}
+
+
 // We don't have a material file, just the model file:
 GLObjectRef ModelLoading::makeGLObjectForModelFile(
 	glare::TaskManager& task_manager, 
@@ -520,7 +591,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		mesh_out->buildFromIndigoMesh(*mesh);
 		return ob;
 	}
-	else if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb"))
+	else if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
 	{
 		Timer timer;
 		
@@ -532,6 +603,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		conPrint("Loaded GLTF model in " + timer.elapsedString());
 
 		checkValidAndSanitiseMesh(*batched_mesh);
+
+		if(batched_mesh->animation_data.vrm_data.nonNull())
+			rotateVRMMesh(*batched_mesh);
 
 		const float scale = getScaleForMesh(*batched_mesh);
 
@@ -774,7 +848,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			GLTFLoadedData gltf_data;
 			batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data);
 		}
-		else if(hasExtension(model_path, "glb"))
+		else if(hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
 		{
 			GLTFLoadedData gltf_data;
 			batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
@@ -803,6 +877,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 
 
 		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
+
+		if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
+			if(batched_mesh->animation_data.vrm_data.nonNull())
+				rotateVRMMesh(*batched_mesh);
 
 		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
 
