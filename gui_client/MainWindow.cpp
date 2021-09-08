@@ -2228,7 +2228,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		const bool loaded_all =
 			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
-			(total_timer.elapsed() >= 5) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
+			(total_timer.elapsed() >= 15) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
 			(num_model_tasks == 0) &&
 			(num_tex_tasks == 0) &&
 			(num_non_net_resources_downloading == 0) &&
