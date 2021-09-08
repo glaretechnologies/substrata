@@ -58,7 +58,8 @@ GlWidget::GlWidget(QWidget *parent)
 	max_draw_dist(1000.f),
 	gamepad(NULL),
 	print_output(NULL),
-	settings(NULL)
+	settings(NULL),
+	player_physics(NULL)
 {
 	viewport_aspect_ratio = 1;
 
@@ -367,6 +368,9 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 
 void GlWidget::playerPhyicsThink(float dt)
 {
+	if(!player_physics)
+		return;
+
 	// On Windows we will use GetAsyncKeyState() to test if a key is down.
 	// On Mac OS / Linux we will use our W_down etc.. state.
 	// This isn't as good because if we miss the keyReleaseEvent due to not having focus when the key is released, the key will act as if it's stuck down.
