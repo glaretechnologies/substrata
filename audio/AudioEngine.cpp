@@ -156,6 +156,8 @@ public:
 
 	virtual void doRun() override
 	{
+		PlatformUtils::setCurrentThreadNameIfTestsEnabled("ResonanceThread");
+
 		while(die == 0)
 		{
 			size_t num_samples_buffered;
