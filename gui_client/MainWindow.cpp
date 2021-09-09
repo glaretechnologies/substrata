@@ -7426,12 +7426,14 @@ public:
 
 int main(int argc, char *argv[])
 {
+	QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
+
+	// Note that this is deliberately constructed outside of the try..catch block below, because QErrorMessage crashes when displayed if
+	// GuiClientApplication has been destroyed. (stupid qt).
+	GuiClientApplication app(argc, argv);
+
 	try
 	{
-		QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
-
-		GuiClientApplication app(argc, argv);
-
 		OpenEventFilter* open_even_filter = new OpenEventFilter();
 		app.installEventFilter(open_even_filter);
 
@@ -7508,10 +7510,11 @@ int main(int argc, char *argv[])
 			//NoiseTests::test();
 			//OpenGLEngineTests::buildData();
 			//Matrix4f::test();
-			//BatchedMeshTests::test();
+			
 			//UVUnwrapper::test();
 			//quaternionTests();
 			FormatDecoderGLTF::test();
+			BatchedMeshTests::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
@@ -8147,10 +8150,15 @@ int main(int argc, char *argv[])
 					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
 
 					
-					const std::string path = "D:\\models\\xbot.glb";
+					//const std::string path = "D:/models/VRMs/vitalab2.vrm";
+					//const std::string path = "D:\\models\\VRMs\\PolygonApe_97.glb";
+					//const std::string path = "D:\\models\\VRMs\\schurli.glb";
+					//const std::string path = "D:\\models\\VRMs\\testguy.vrm";
+					//const std::string path = "D:\\models\\VRMs\\vroidhub_avatarsample_A.vrm";
+					//const std::string path = "D:\\models\\xbot.glb";
 					//const std::string path = "D:\\models\\xavatar3.glb";
-					//const std::string path = "D:\\models\\readyplayerme_female_avatar2.glb";
-					//const std::string path = "D:\\models\\tor-avatar.glb";
+					const std::string path = "D:\\models\\readyplayerme_female_avatar2.glb";
+					//const std::string path = "D:\\models\\readyplayerme_avatar_animation_13.glb";
 					//const std::string path = "D:\\models\\readyplayerme_avatar_animation_05_30fps.glb";
 					const uint64 model_hash = FileChecksum::fileChecksum(path);
 					const std::string original_filename = FileUtils::getFilename(path); // Use the original filename, not 'temp.igmesh'.
@@ -8164,6 +8172,10 @@ int main(int argc, char *argv[])
 						mw.task_manager, ob_to_world_matrix,
 						false, // skip opengl calls
 						raymesh);
+
+					for(int z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+						test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
+					mw.ui->glWidget->opengl_engine->objectMaterialsUpdated(test_avatar->graphics.skinned_gl_ob);
 
 					{
 						for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
@@ -8333,15 +8345,6 @@ int main(int argc, char *argv[])
 #endif
 
 		return app_exec_res;
-	}
-	catch(ArgumentParserExcep& e)
-	{
-		// Show error
-		conPrint(e.what());
-		QErrorMessage m;
-		m.showMessage(QtUtils::toQString(e.what()));
-		m.exec();
-		return 1;
 	}
 	catch(Indigo::IndigoException& e)
 	{
