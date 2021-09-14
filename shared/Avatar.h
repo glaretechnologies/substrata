@@ -79,7 +79,7 @@ public:
 	std::string name;
 	AvatarSettings avatar_settings;
 	Vec3d pos;
-	Vec3f rotation;
+	Vec3f rotation; // (roll, pitch, heading)
 	uint32 anim_state; // See AvatarGraphics::ANIM_STATE_IN_AIR flag etc..
 
 	UID selected_object_uid; // Will be set to invalidUID if no object selected.

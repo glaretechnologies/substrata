@@ -1,8 +1,7 @@
 /*=====================================================================
 AvatarGraphics.cpp
--------------------
-Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-12 12:24:54 +1300
+------------------
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #include "AvatarGraphics.h"
 
@@ -18,16 +17,22 @@ AvatarGraphics::AvatarGraphics()
 {
 	last_pos.set(0, 0, 0);
 	last_selected_ob_target_pos.set(0, 0, 0);
-	last_rotation.set(0,0,0);
+	last_cam_rotation.set(0,0,0);
+	avatar_rotation.set(0,0,0);
 	cur_sideweays_lean = 0;
 	cur_forwards_lean = 0;
 	last_vel = Vec3d(0.0);
 
-	cur_eye_target_ws = Vec4f(0,0,0,1);
-	next_eye_target_ws = Vec4f(0,0,0,1);
+	cur_eye_target_os = Vec4f(0,0,1,1);
+	next_eye_target_os = Vec4f(0,0,1,1);
 	eye_start_transition_time = -2;
 	eye_end_transition_time = -1;
 	saccade_gap = 0.5;
+
+	cur_head_rot_z = 0;
+
+	turn_anim_end_time = -1;
+	turning = false;
 }
 
 
@@ -39,39 +44,38 @@ AvatarGraphics::~AvatarGraphics()
 
 static const int NUM_FRAMES = 52;
 
+
+// rotation is (roll, pitch, heading)
 static const Matrix4f rotationMatrix(const Vec3f& rotation)
 {
-	Matrix4f m;
-	const float rot_len2 = rotation.length2();
-	if(rot_len2 < 1.0e-20f)
-		m.setToIdentity();
-	else
-	{
-		const float rot_len = std::sqrt(rot_len2);
-		m.setToRotationMatrix(rotation.toVec4fVector() / rot_len, rot_len);
-	}
-	return m;
+	// Just rotate avatar according to heading, for pitch we will move head up/down.
+	return Matrix4f::rotationAroundZAxis(rotation.z);
 }
+
 
 static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& rotation)
 {
-	Matrix4f m;
-	const float rot_len2 = rotation.length2();
-	if(rot_len2 < 1.0e-20f)
-		m.setToIdentity();
-	else
-	{
-		const float rot_len = std::sqrt(rot_len2);
-		m.setToRotationMatrix(rotation.toVec4fVector() / rot_len, rot_len);
-	}
+	Matrix4f m = Matrix4f::rotationAroundZAxis(rotation.z);
 	m.setColumn(3, Vec4f((float)translation.x, (float)translation.y, (float)translation.z, 1.f));
 	return m;
 }
 
 
-
-void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out)
+void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& cam_rotation, const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out)
 {
+	if(false) // debug_avatar_basis_ob.isNull())
+	{
+		debug_avatar_basis_ob = new GLObject();
+		debug_avatar_basis_ob->mesh_data = engine.make3DBasisArrowMesh(); // Base will be at origin, tip will lie at (1, 0, 0)
+		debug_avatar_basis_ob->materials.resize(3);
+		debug_avatar_basis_ob->materials[0].albedo_rgb = Colour3f(0.9f, 0.5f, 0.3f);
+		debug_avatar_basis_ob->materials[1].albedo_rgb = Colour3f(0.5f, 0.9f, 0.5f);
+		debug_avatar_basis_ob->materials[2].albedo_rgb = Colour3f(0.3f, 0.5f, 0.9f);
+		debug_avatar_basis_ob->ob_to_world_matrix = Matrix4f::translationMatrix(1000, 0, 0);
+		engine.addObject(debug_avatar_basis_ob);
+	}
+
+
 	if(skinned_gl_ob.nonNull())
 	{
 		if(cur_time >= skinned_gl_ob->transition_end_time && skinned_gl_ob->next_anim_i != -1)
@@ -81,47 +85,32 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			//conPrint("Finished transitioning to anim " + skinned_gl_ob->mesh_data->animation_data.animations[skinned_gl_ob->current_anim_i]->name);
 		}
 
+		int new_anim_i = 0;
 
-		const Vec4f forwards_vec = rotationMatrix(rotation) * Vec4f(1,0,0,0);
-		const Vec4f right_vec    = rotationMatrix(rotation) * Vec4f(0,1,0,0);
-		const Vec4f up_vec       = rotationMatrix(rotation) * Vec4f(0,0,1,0);
-		//conPrint("forwards_vec: " + forwards_vec.toString());
-
-		
-		int idle_anim_i = skinned_gl_ob->mesh_data->animation_data.findAnimation("Idle");
-		if(idle_anim_i < 0) idle_anim_i = 0;
-
-		int walking_anim_i = skinned_gl_ob->mesh_data->animation_data.findAnimation("Walking");
-		if(walking_anim_i < 0) walking_anim_i = 0;
-
-		int walking_backwards_anim_i = myMax(0, skinned_gl_ob->mesh_data->animation_data.findAnimation("Walking Backward"));
-
-		int running_anim_i = skinned_gl_ob->mesh_data->animation_data.findAnimation("Running");
-		if(running_anim_i < 0) running_anim_i = 0;
-
-		int running_backwards_anim_i = myMax(0, skinned_gl_ob->mesh_data->animation_data.findAnimation("Running Backward"));
-
-		int floating_anim_i = myMax(0, skinned_gl_ob->mesh_data->animation_data.findAnimation("Floating"));
-		int flying_anim_i = myMax(0, skinned_gl_ob->mesh_data->animation_data.findAnimation("Flying"));
-	
-		int turn_left_anim_i  = myMax(0, skinned_gl_ob->mesh_data->animation_data.findAnimation("Left Turn"));
-		int turn_right_anim_i = myMax(0, skinned_gl_ob->mesh_data->animation_data.findAnimation("Right Turn"));
-
+		const Vec4f forwards_vec = rotationMatrix(avatar_rotation) * Vec4f(1,0,0,0);
+		const Vec4f right_vec    = rotationMatrix(avatar_rotation) * Vec4f(0,1,0,0);
+		const Vec4f up_vec       = rotationMatrix(avatar_rotation) * Vec4f(0,0,1,0);
 
 		const Vec3d dpos = pos - last_pos;
 		const Vec3d vel = dpos / dt;
 		const double speed = vel.length();
 		
 		const Vec3d old_vel = last_vel;
-		const Vec3d accel = (vel - old_vel) / dt;//(midpoint - last_pos) / dt;
+		const Vec3d accel = (vel - old_vel) / dt;
 		const float unclamped_sideways_accel = dot(right_vec,    accel.toVec4fVector());
 		const float unclamped_forwards_accel = dot(forwards_vec, accel.toVec4fVector());
 		
-		const Vec3f drot = rotation - last_rotation;
+		const Vec3f drot = cam_rotation - last_cam_rotation;
 		const Vec3f rot_vel = drot / (float)dt;
 
+		if(drot.length() > 0.01)
+			last_cam_rotation_time = cur_time;
+
 		Matrix4f lean_matrix = Matrix4f::identity();
-		int new_anim_i = 0;
+
+		// float turn_forwards_nudge = 0;
+		double new_anim_transition_duration = 0.3; // Duration of the blend period, if we have a new animation to transiton to.
+		
 		if((anim_state & ANIM_STATE_IN_AIR) == 0) // if on ground:
 		{
 			const float max_accel_mag = 10.2f;
@@ -139,30 +128,101 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 			if(speed > 6)
 			{
+				// Blend rotation of avatar towards camera rotation
+				const float rot_blend_frac = (float)(10 * dt);
+				this->avatar_rotation = this->avatar_rotation * (1 - rot_blend_frac) + cam_rotation * rot_blend_frac;
+
 				if(moving_forwards)
 					new_anim_i = running_anim_i;
 				else
 					new_anim_i = running_backwards_anim_i;
+
+				new_anim_transition_duration = 0.1;
 			}
 			else if(speed > 0.1)
 			{
+				// Blend rotation of avatar towards camera rotation
+				const float rot_blend_frac = (float)(10 * dt);
+				this->avatar_rotation = this->avatar_rotation * (1 - rot_blend_frac) + cam_rotation * rot_blend_frac;
+
 				if(moving_forwards)
 					new_anim_i = walking_anim_i;
 				else
 					new_anim_i = walking_backwards_anim_i;
+
+				new_anim_transition_duration = 0.2;
 			}
 			else // else if (nearly) stationary:
 			{
-				new_anim_i = idle_anim_i;
+				const double turn_anim_duration = 57.0 / 60;// Left and right turn anims are 57 frames at 60fps
 
-				if(rot_vel.z > 0.5f)
-					new_anim_i = turn_left_anim_i;
-				else if(rot_vel.z < -0.5f)
-					new_anim_i = turn_right_anim_i;
+				if(cur_time < turn_anim_end_time) // If we are currently performing a turn left/right anim:
+				{
+					// Slowly rotate in the turn direction.
+					const float turn_sign = turning_left ? 1.f : -1.f;
+
+					if(turning_left)
+						new_anim_i = turn_left_anim_i;
+					else
+						new_anim_i = turn_right_anim_i;
+
+					{
+						const double turn_anim_start_time = turn_anim_end_time - turn_anim_duration;
+						const float frac = (float)((cur_time - turn_anim_start_time) / turn_anim_duration);
+						this->avatar_rotation = avatar_rotation_at_turn_start + Vec3f(0, 0, turn_sign * ::degreeToRad(118.f) * frac);
+
+						const double time_remaining = turn_anim_end_time - cur_time;
+						if(time_remaining < 0.3)
+						{
+							// Start blending into idle pose anim
+							new_anim_i = idle_anim_i;
+						}
+					}
+				}
+				else
+				{
+					if(turning && (skinned_gl_ob->current_anim_i == turn_left_anim_i || skinned_gl_ob->current_anim_i == turn_right_anim_i)) // If we were performing a turn, and we have finished the animation:
+					{
+						//conPrint("Finished the turn anim");
+						turning = false;
+					}
+
+					new_anim_i = idle_anim_i;
+
+					const float yaw_diff = cam_rotation.z - avatar_rotation.z;
+
+					// conPrint("cam_rotation.z: " + doubleToStringNSigFigs(cam_rotation.z, 3) + ", avatar_rotation.z: " + doubleToStringNSigFigs(avatar_rotation.z, 3));
+
+					if(std::fabs(yaw_diff) > ::degreeToRad(118.f))
+					{
+						avatar_rotation_at_turn_start = avatar_rotation;
+
+						if(yaw_diff > 0)
+						{
+							new_anim_i = turn_left_anim_i;
+							// conPrint("Starting left turn anim");
+							turning_left = true;
+						}
+						else
+						{
+							new_anim_i = turn_right_anim_i;
+							// conPrint("Starting right turn anim");
+							turning_left = false;
+						}
+
+						turn_anim_end_time = cur_time + turn_anim_duration;
+						skinned_gl_ob->use_time_offset = -cur_time; // Set anim time offset so that we are at the beginning of the animation. NOTE: bit of a hack, messes with the blended anim also.
+						turning = true;
+
+						new_anim_transition_duration = 0.3;
+					}
+				}
 			}
 		}
 		else
 		{
+			this->avatar_rotation = cam_rotation;
+
 			const bool flying = (anim_state & ANIM_STATE_FLYING) != 0;
 			const bool moving_forwards = dot(vel.toVec4fVector(), forwards_vec) > speed * 0.4f;
 
@@ -172,7 +232,10 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			const float blend_frac = 0.03f;
 
 			if(!flying) // If jumping:
+			{
 				clamped_forwards_accel = 0;
+				new_anim_transition_duration = 0.15; // Make the transition to jumping faster than the default.
+			}
 
 			cur_sideweays_lean = cur_sideweays_lean * (1 - blend_frac) + clamped_sideways_accel * blend_frac;
 			cur_forwards_lean  = cur_forwards_lean  * (1 - blend_frac) + clamped_forwards_accel * blend_frac;
@@ -188,8 +251,9 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		}
 
 
-		// NOTE: not sure why this rotationAroundZAxis is needed.  Added to make animated GLB avatar work
-		skinned_gl_ob->ob_to_world_matrix = rotateThenTranslateMatrix(pos, rotation) * lean_matrix * Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * pre_ob_to_world_matrix;
+		// pre_ob_to_world_matrix will rotate avatars from y-up and z-forwards to z-up and -y forwards.  Rotate around z axis to change to +x-forwards
+		skinned_gl_ob->ob_to_world_matrix = /*Matrix4f::translationMatrix(forwards_vec * turn_forwards_nudge) * */rotateThenTranslateMatrix(pos, avatar_rotation) * lean_matrix * 
+			Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * pre_ob_to_world_matrix;
 		engine.updateObjectTransformData(*skinned_gl_ob);
 
 		// See if we need to start a transition to a new animation
@@ -206,96 +270,247 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				skinned_gl_ob->next_anim_i = new_anim_i;
 
 				skinned_gl_ob->transition_start_time = cur_time;
-				skinned_gl_ob->transition_end_time = cur_time + 0.3f;
+				skinned_gl_ob->transition_end_time = cur_time + new_anim_transition_duration;
 			}
 		}
 
 		last_vel = vel;
 
 
-		//------------------- Do eye saccades (eye darting movements) -----------------------
-		const int left_eye_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftEye");
-		const int right_eye_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightEye");
+		// Set transform of debug basis arrows.
+		// debug_avatar_basis_ob->ob_to_world_matrix = skinned_gl_ob->ob_to_world_matrix;
+		// engine.updateObjectTransformData(*debug_avatar_basis_ob);
 
-		Matrix4f world_to_ob;
-		const bool inverted = skinned_gl_ob->ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
-		assert(inverted);
 
 		const Vec4f up_os(0,1,0,0);
 
-		if(left_eye_node_i >= 0 && left_eye_node_i < (int)skinned_gl_ob->anim_node_data.size())
+		// Check node indices are in-bounds
+		if(	head_node_i >= 0 && head_node_i < (int)skinned_gl_ob->anim_node_data.size() &&
+			neck_node_i >= 0 && neck_node_i < (int)skinned_gl_ob->anim_node_data.size() &&
+			left_eye_node_i >= 0 && left_eye_node_i < (int)skinned_gl_ob->anim_node_data.size() &&
+			right_eye_node_i >= 0 && right_eye_node_i < (int)skinned_gl_ob->anim_node_data.size())
 		{
-			const Vec4f left_eye_pos_os = Vec4f(0.04, 1.67, 0, 1); // TEMP HACK TODO: use actual eye bone pos instead of this hard-coded value.
 
-			// Get rotation quat for looking at cur_eye_target_ws
-			Quatf to_cur_rot;
-			{
-				const Vec4f cur_target_os = world_to_ob * cur_eye_target_ws;
-				const Vec4f to_cur_target_os = normalise(cur_target_os - left_eye_pos_os);
-				const Vec4f i = normalise(crossProduct(up_os, to_cur_target_os));
-				const Vec4f j = crossProduct(to_cur_target_os, i);
-				const Matrix4f cur_lookat_matrix(i, j, to_cur_target_os, Vec4f(0,0,0,1));
-				to_cur_rot = Quatf::fromMatrix(cur_lookat_matrix);
+			const bool is_VRM_model = skinned_gl_ob->mesh_data->animation_data.vrm_data.nonNull(); // VRM models tend to have anime eyes which are bigger and can move less without loooking weird.
+			// TODO: use the metadata limits from the VRM file.
+
+			const float MAX_EYE_YAW_MAG = is_VRM_model ? 0.25f : 0.4f; // relative to head
+			float MAX_EYE_PITCH_MAG_UP = is_VRM_model ? 0.1f : 0.15f; // relative to head
+			float MAX_EYE_PITCH_MAG_DOWN = is_VRM_model ? 0.15f : 0.3f; // relative to head
+
+			const float MAX_HEAD_YAW_MAG = 0.8f;
+
+
+			// Get total yaw and pitch differences between cam rotation and avatar rotation
+			const float total_yaw_amount   = cam_rotation.z - avatar_rotation.z;
+			const float total_pitch_amount = cam_rotation.y - Maths::pi_2<float>();
+
+			//------------------- Do head look-at procedural movement -----------------------
+			// Get clamped desired/target head yaw.
+			const float target_head_yaw_amount = myClamp(total_yaw_amount, -MAX_HEAD_YAW_MAG, MAX_HEAD_YAW_MAG);
+
+			const float target_head_rot_z = avatar_rotation.z + target_head_yaw_amount; // Get target head rotation given the clamped target yaw
+
+			// Blend current head rot z towards target_head_rot_z
+			const float head_rot_frac = (float)(10 * dt);
+			this->cur_head_rot_z = this->cur_head_rot_z * (1 - head_rot_frac) + target_head_rot_z * head_rot_frac;
+
+
+			const float head_yaw_amount = this->cur_head_rot_z - avatar_rotation.z; // Get actual blended yaw of the head.
+
+
+			const float MAX_HEAD_PITCH_MAG = 0.4f;
+			const float head_pitch_amount = myClamp(total_pitch_amount, -MAX_HEAD_PITCH_MAG, MAX_HEAD_PITCH_MAG);
+
+
+			/*
+			Lets say we have the head to model transform T:
+			We want to set T to some target value (T_target) and solve for a procedural head transform that will give T_target.
+
+			T = hip_T * neck_T * head_T = body_T * head_T
+
+			T_target = body_T * head_T * proc_head
+
+			(body_T * head_T)^-1 T_target = proc_head
+
+			*/
+			Matrix4f inverse_last_pre_proc_head_to_world;
+			skinned_gl_ob->anim_node_data[head_node_i].last_pre_proc_to_object.getInverseForAffine3Matrix(inverse_last_pre_proc_head_to_world);
+			inverse_last_pre_proc_head_to_world.setColumn(3, Vec4f(0,0,0,1));
+
+			skinned_gl_ob->anim_node_data[head_node_i].procedural_transform = inverse_last_pre_proc_head_to_world * Matrix4f::rotationAroundYAxis(head_yaw_amount) * Matrix4f::rotationAroundXAxis(head_pitch_amount);
+
+
+			const float NECK_FACTOR = 0.5f; // relative to amount of head rotation and translation
+			const float pitch_move_forwards_factor = head_pitch_amount * 0.0f * NECK_FACTOR;
+			Matrix4f neck_rot = Matrix4f::translationMatrix(0, 0, pitch_move_forwards_factor /*- fabs(yaw_amount) * 0.04 * NECK_FACTOR*/) *
+				Matrix4f::rotationAroundZAxis(-0.2f * head_yaw_amount * NECK_FACTOR) * Matrix4f::rotationAroundYAxis(head_yaw_amount * NECK_FACTOR) * Matrix4f::rotationAroundXAxis(head_pitch_amount * NECK_FACTOR);
+
+			skinned_gl_ob->anim_node_data[neck_node_i].procedural_transform = neck_rot;
+
+
+			// Compute 'camera pitch/yaw', and clamp it.
+			// This is the pitch and yaw around which we will do eye saccades.
+			const float MAX_CAM_YAW_MAG = MAX_HEAD_YAW_MAG + MAX_EYE_YAW_MAG;
+			const float use_cam_yaw = myClamp(total_yaw_amount, -MAX_CAM_YAW_MAG, MAX_CAM_YAW_MAG);
+			const float MAX_CAM_PITCH_MAG_UP   = MAX_HEAD_PITCH_MAG + MAX_EYE_PITCH_MAG_UP;
+			const float MAX_CAM_PITCH_MAG_DOWN = MAX_HEAD_PITCH_MAG + MAX_EYE_PITCH_MAG_DOWN;
+			const float use_cam_pitch = myClamp(total_pitch_amount, -MAX_CAM_PITCH_MAG_UP, MAX_CAM_PITCH_MAG_DOWN);
+
+			const Matrix4f cam_rot = Matrix4f::rotationAroundYAxis(use_cam_yaw) * Matrix4f::rotationAroundXAxis(use_cam_pitch);
+			const Vec4f cam_forwards_os = cam_rot * Vec4f(0,0,1,0);
+			const Vec4f cam_right_os    = cam_rot * Vec4f(1,0,0,0);
+			const Vec4f cam_up_os       = cam_rot * Vec4f(0,1,0,0);
+			//conPrint("cam_forwards_os: " + cam_forwards_os.toStringNSigFigs(4));
+
+
+			const Matrix4f last_head_to_object_space = skinned_gl_ob->anim_node_data[head_node_i].node_hierarchical_to_object; // last head bone to object space (y-up) transformation.
+			Matrix4f head_object_to_bone_space;
+			last_head_to_object_space.getInverseForAffine3Matrix(head_object_to_bone_space);
+			const Vec4f last_head_pos_os = last_head_to_object_space * Vec4f(0,0,0,1);
+
+			
+			
+			const Vec4f head_forwards_os = last_head_to_object_space * Vec4f(0,0,1,0);
+
+			const Vec4f last_head_forwards_os = last_head_to_object_space * Vec4f(0,0,1,0); // in object/model space
+			const Vec4f last_head_right_os    = last_head_to_object_space * Vec4f(1,0,0,0); // in object/model space
+			const Vec4f last_head_up_os       = last_head_to_object_space * Vec4f(0,1,0,0); // in object/model space
+
+			//conPrint("last_head_forwards_os: " + last_head_forwards_os.toStringNSigFigs(4));
+
+			bool eye_rot_valid = true; // Is eye still a valid rotation relative to the head, or is it rotated too far?
+			{				
+				const Vec4f cur_target_os = cur_eye_target_os;
+				const Vec4f eye_pos_os = last_head_pos_os; // Approx eye pos
+				const Vec4f to_cur_target_os = normalise(cur_target_os - eye_pos_os);
+
+				// Get eye yaw relative to head:
+				const float right_dot = dot(to_cur_target_os, last_head_right_os);
+				const float up_dot    = dot(to_cur_target_os, last_head_up_os);
+
+				const float cur_eye_pitch = -asin(up_dot);
+				const float cur_eye_yaw   = -asin(right_dot);
+
+				eye_rot_valid = 
+					cur_eye_pitch > -MAX_EYE_PITCH_MAG_UP && cur_eye_pitch < MAX_EYE_PITCH_MAG_DOWN &&
+					std::fabs(cur_eye_yaw) < MAX_EYE_YAW_MAG;
 			}
 
-			// Get rotation quat for looking at next_eye_target_ws
-			Quatf to_next_rot;
+			//------------------- Do eye saccades (eye darting movements) -----------------------
 			{
-				const Vec4f next_target_os = world_to_ob * next_eye_target_ws;
-				const Vec4f to_next_target_os = normalise(next_target_os - left_eye_pos_os);
-				const Vec4f i = normalise(crossProduct(up_os, to_next_target_os));
-				const Vec4f j = crossProduct(to_next_target_os, i);
-				const Matrix4f next_lookat_matrix(i, j, to_next_target_os, Vec4f(0,0,0,1));
-				to_next_rot = Quatf::fromMatrix(next_lookat_matrix);
+				const Vec4f left_eye_pos_os = skinned_gl_ob->anim_node_data[left_eye_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1);
+
+				// Get rotation quat for looking at cur_eye_target_ws
+				Quatf to_cur_rot;
+				{
+					const Vec4f to_cur_target_os = normalise(cur_eye_target_os - left_eye_pos_os);
+					const Vec4f to_cur_target_bs = head_object_to_bone_space * to_cur_target_os;
+
+					const Vec4f i = normalise(crossProduct(up_os, to_cur_target_bs));
+					const Vec4f j = crossProduct(to_cur_target_bs, i);
+					const Matrix4f cur_lookat_matrix(i, j, to_cur_target_bs, Vec4f(0,0,0,1));
+					to_cur_rot = Quatf::fromMatrix(cur_lookat_matrix);
+				}
+
+				// Get rotation quat for looking at next_eye_target_ws
+				Quatf to_next_rot;
+				{
+					const Vec4f to_next_target_os = normalise(next_eye_target_os - left_eye_pos_os);
+					const Vec4f to_next_target_bs = head_object_to_bone_space * to_next_target_os;
+
+					const Vec4f i = normalise(crossProduct(up_os, to_next_target_bs));
+					const Vec4f j = crossProduct(to_next_target_bs, i);
+					const Matrix4f next_lookat_matrix(i, j, to_next_target_bs, Vec4f(0,0,0,1));
+					to_next_rot = Quatf::fromMatrix(next_lookat_matrix);
+				}
+
+				// Blend between the rotations based on the transition times.
+				const float lerp_frac = (float)Maths::smoothStep(eye_start_transition_time, eye_end_transition_time, cur_time);
+				const Quatf lerped_rot = Quatf::nlerp(to_cur_rot, to_next_rot, lerp_frac);
+
+				skinned_gl_ob->anim_node_data[left_eye_node_i].procedural_transform = lerped_rot.toMatrix();
 			}
 
-			// Blend between the rotations based on the transition times.
-			const float lerp_frac = Maths::smoothStep(eye_start_transition_time, eye_end_transition_time, cur_time);
-			const Quatf lerped_rot = Quatf::nlerp(to_cur_rot, to_next_rot, lerp_frac);
-
-			skinned_gl_ob->anim_node_data[left_eye_node_i].procedural_transform = lerped_rot.toMatrix();
-		}
-
-		if(right_eye_node_i >= 0 && right_eye_node_i < (int)skinned_gl_ob->anim_node_data.size())
-		{
-			const Vec4f right_eye_pos_os = Vec4f(-0.04, 1.67, 0, 1); // TEMP HACK TODO: use actual eye bone pos instead of this hard-coded value.
-
-			Quatf to_cur_rot;
 			{
-				const Vec4f cur_target_os = world_to_ob * cur_eye_target_ws;
-				const Vec4f to_cur_target_os = normalise(cur_target_os - right_eye_pos_os);
-				const Vec4f i = normalise(crossProduct(up_os, to_cur_target_os));
-				const Vec4f j = crossProduct(to_cur_target_os, i);
-				const Matrix4f cur_lookat_matrix(i, j, to_cur_target_os, Vec4f(0,0,0,1));
-				to_cur_rot = Quatf::fromMatrix(cur_lookat_matrix);
+				const Vec4f right_eye_pos_os = skinned_gl_ob->anim_node_data[right_eye_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1);
+
+				Quatf to_cur_rot;
+				{
+					const Vec4f to_cur_target_os = normalise(cur_eye_target_os - right_eye_pos_os);
+					const Vec4f to_cur_target_bs = head_object_to_bone_space * to_cur_target_os;
+
+					const Vec4f i = normalise(crossProduct(up_os, to_cur_target_bs));
+					const Vec4f j = crossProduct(to_cur_target_bs, i);
+					const Matrix4f cur_lookat_matrix(i, j, to_cur_target_bs, Vec4f(0,0,0,1));
+					to_cur_rot = Quatf::fromMatrix(cur_lookat_matrix);
+				}
+
+				Quatf to_next_rot;
+				{
+					const Vec4f to_next_target_os = normalise(next_eye_target_os - right_eye_pos_os);
+					const Vec4f to_next_target_bs = head_object_to_bone_space * to_next_target_os;
+
+					const Vec4f i = normalise(crossProduct(up_os, to_next_target_bs));
+					const Vec4f j = crossProduct(to_next_target_bs, i);
+					const Matrix4f next_lookat_matrix(i, j, to_next_target_bs, Vec4f(0,0,0,1));
+					to_next_rot = Quatf::fromMatrix(next_lookat_matrix);
+				}
+
+				const float lerp_frac = (float)Maths::smoothStep(eye_start_transition_time, eye_end_transition_time, cur_time);
+				const Quatf lerped_rot = Quatf::nlerp(to_cur_rot, to_next_rot, lerp_frac);
+
+				skinned_gl_ob->anim_node_data[right_eye_node_i].procedural_transform = lerped_rot.toMatrix();//Matrix4f::rotationAroundYAxis((float)cur_time);
 			}
 
-			Quatf to_next_rot;
+
+			const double SACCADE_DURATION = 0.03; // 30ms, rough value from wikipedia
+			if((cur_time > eye_end_transition_time + saccade_gap) || !eye_rot_valid)
 			{
-				const Vec4f next_target_os = world_to_ob * next_eye_target_ws;
-				const Vec4f to_next_target_os = normalise(next_target_os - right_eye_pos_os);
-				const Vec4f i = normalise(crossProduct(up_os, to_next_target_os));
-				const Vec4f j = crossProduct(to_next_target_os, i);
-				const Matrix4f next_lookat_matrix(i, j, to_next_target_os, Vec4f(0,0,0,1));
-				to_next_rot = Quatf::fromMatrix(next_lookat_matrix);
+				eye_start_transition_time = cur_time;
+				eye_end_transition_time = cur_time + SACCADE_DURATION;
+
+				cur_eye_target_os = next_eye_target_os;
+
+				// NOTE: could do this a few times with rejection sampling until we satisfy constraints.  But looks fine as it is.
+				//const int max_iters = 10;
+				//for(int i=0; i<max_iters; ++i)
+				//{
+					const float forwards_comp = 2;
+					const float right_comp = 0.3f * (-0.5f + rng.unitRandom());
+					const float up_comp    = 0.1f * (-0.5f + rng.unitRandom());
+
+					next_eye_target_os = last_head_pos_os + cam_forwards_os * forwards_comp + cam_right_os * right_comp + cam_up_os * up_comp;
+
+					// Check constraints
+					//const float up_dot = dot(normalise(next_eye_target_os), last_head_up_os);
+					//float cur_eye_pitch = -asin(up_dot);
+					//printVar(cur_eye_pitch);
+
+					//const bool valid = cur_eye_pitch > -MAX_EYE_PITCH_MAG_UP && cur_eye_pitch < MAX_EYE_PITCH_MAG_DOWN;
+					//printVar(valid);
+					//if(valid)
+					//	break;
+				//}
+
+				saccade_gap = 0.4 + rng.unitRandom() * rng.unitRandom() * rng.unitRandom() * 3; // Compute a random time until the next saccade
 			}
 
-			const float lerp_frac = Maths::smoothStep(eye_start_transition_time, eye_end_transition_time, cur_time);
-			const Quatf lerped_rot = Quatf::nlerp(to_cur_rot, to_next_rot, lerp_frac);
+			// If the camera has moved recently, make the eyes point in the camera direction as much as possible (subject to constraints)
+			const double time_since_last_cam_rotation = cur_time - last_cam_rotation_time;
+			if(time_since_last_cam_rotation < 0.5)
+			{
+				const float eye_yaw_amount_unclamped = total_yaw_amount - head_yaw_amount; // Desired eye yaw is yaw remaining after head yaw.
+				const float eye_yaw_amount = myClamp(eye_yaw_amount_unclamped, -MAX_EYE_YAW_MAG, MAX_EYE_YAW_MAG);
 
-			skinned_gl_ob->anim_node_data[right_eye_node_i].procedural_transform = lerped_rot.toMatrix();//Matrix4f::rotationAroundYAxis((float)cur_time);
-		}
+				const float eye_pitch_amount_unclamped = total_pitch_amount - head_pitch_amount;
+				const float eye_pitch_amount = myClamp(eye_pitch_amount_unclamped, -MAX_EYE_PITCH_MAG_UP, MAX_EYE_PITCH_MAG_DOWN);
 
-		const double SACCADE_DURATION = 0.03; // 30ms, rough value from wikipedia
-		if(cur_time > eye_end_transition_time + saccade_gap)
-		{
-			eye_start_transition_time = cur_time;
-			eye_end_transition_time = cur_time + SACCADE_DURATION;
+				skinned_gl_ob->anim_node_data[left_eye_node_i ].procedural_transform = Matrix4f::rotationAroundYAxis(eye_yaw_amount) * Matrix4f::rotationAroundXAxis(eye_pitch_amount);
+				skinned_gl_ob->anim_node_data[right_eye_node_i].procedural_transform = Matrix4f::rotationAroundYAxis(eye_yaw_amount) * Matrix4f::rotationAroundXAxis(eye_pitch_amount);
 
-			cur_eye_target_ws = next_eye_target_ws;
-			next_eye_target_ws = pos.toVec4fPoint() + forwards_vec * 2 + right_vec * 0.5f * (-0.5f + rng.unitRandom()) + up_vec * 0.2f * (-0.5f + rng.unitRandom());
-
-			saccade_gap = 0.4 + rng.unitRandom() * rng.unitRandom() * rng.unitRandom() * 3;
+				eye_end_transition_time = cur_time; // Don't start doing saccades for a little while
+			}
 		}
 	}
 	else
@@ -305,13 +520,48 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 	
 	last_pos = pos;
-	last_rotation = rotation;
+	last_cam_rotation = cam_rotation;
 }
 
 
 //void AvatarGraphics::create(OpenGLEngine& engine, const std::string& URL)
 //{
 //}
+
+
+static int findAnimation(GLObject& ob, const std::string& name)
+{
+	const int anim_i = ob.mesh_data->animation_data.findAnimation(name);
+	if(anim_i < 0)
+	{
+		conPrint("Failed to find animation '" + name + "'");
+		assert(0);
+		return 0;
+	}
+	else
+		return anim_i;
+}
+
+
+void AvatarGraphics::build()
+{
+	idle_anim_i = findAnimation(*skinned_gl_ob, "Idle");
+	walking_anim_i = findAnimation(*skinned_gl_ob, "Walking");
+	walking_backwards_anim_i = findAnimation(*skinned_gl_ob, "Walking Backward");
+	running_anim_i = findAnimation(*skinned_gl_ob, "Running");
+	running_backwards_anim_i = findAnimation(*skinned_gl_ob, "Running Backward");
+	floating_anim_i = findAnimation(*skinned_gl_ob, "Floating");
+	flying_anim_i = findAnimation(*skinned_gl_ob, "Flying");
+	turn_left_anim_i  = findAnimation(*skinned_gl_ob, "Left Turn");
+	turn_right_anim_i = findAnimation(*skinned_gl_ob, "Right Turn");
+
+	// root_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("player_rig");
+	neck_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Neck");
+	head_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Head");
+	left_eye_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftEye");
+	right_eye_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightEye");
+	// left_foot_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftFoot");
+}
 
 
 void AvatarGraphics::destroy(OpenGLEngine& engine)
