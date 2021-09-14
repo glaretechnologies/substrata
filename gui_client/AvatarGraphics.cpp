@@ -89,7 +89,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 		const Vec4f forwards_vec = rotationMatrix(avatar_rotation) * Vec4f(1,0,0,0);
 		const Vec4f right_vec    = rotationMatrix(avatar_rotation) * Vec4f(0,1,0,0);
-		const Vec4f up_vec       = rotationMatrix(avatar_rotation) * Vec4f(0,0,1,0);
+		//const Vec4f up_vec       = rotationMatrix(avatar_rotation) * Vec4f(0,0,1,0);
 
 		const Vec3d dpos = pos - last_pos;
 		const Vec3d vel = dpos / dt;
@@ -101,7 +101,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		const float unclamped_forwards_accel = dot(forwards_vec, accel.toVec4fVector());
 		
 		const Vec3f drot = cam_rotation - last_cam_rotation;
-		const Vec3f rot_vel = drot / (float)dt;
+		//const Vec3f rot_vel = drot / (float)dt;
 
 		if(drot.length() > 0.01)
 			last_cam_rotation_time = cur_time;
@@ -120,7 +120,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			cur_sideweays_lean = cur_sideweays_lean * (1 - blend_frac) + clamped_sideways_accel * blend_frac;
 			cur_forwards_lean  = cur_forwards_lean  * (1 - blend_frac) + clamped_forwards_accel * blend_frac;
 
-			const float forwards_vel = dot(forwards_vec, vel.toVec4fVector());
+			//const float forwards_vel = dot(forwards_vec, vel.toVec4fVector());
 			const bool moving_forwards = dot(forwards_vec, normalise(dpos.toVec4fVector())) > -0.1f;
 
 			//if(speed > 0.1 && (forwards_vel < -0.1f || forwards_vel > 0.1f))
@@ -370,10 +370,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			const Vec4f last_head_pos_os = last_head_to_object_space * Vec4f(0,0,0,1);
 
 			
-			
-			const Vec4f head_forwards_os = last_head_to_object_space * Vec4f(0,0,1,0);
-
-			const Vec4f last_head_forwards_os = last_head_to_object_space * Vec4f(0,0,1,0); // in object/model space
+			//const Vec4f last_head_forwards_os = last_head_to_object_space * Vec4f(0,0,1,0); // in object/model space
 			const Vec4f last_head_right_os    = last_head_to_object_space * Vec4f(1,0,0,0); // in object/model space
 			const Vec4f last_head_up_os       = last_head_to_object_space * Vec4f(0,1,0,0); // in object/model space
 
