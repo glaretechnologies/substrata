@@ -82,6 +82,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/ShouldCancelCallback.h"
 #include "../utils/CryptoRNG.h"
 #include "../utils/FileInStream.h"
+#include "../utils/FileOutStream.h"
 #include "../networking/Networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -1330,6 +1331,8 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 						avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
 					}
 
+					avatar->graphics.build();
+
 					if(avatar->graphics.skinned_gl_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
 						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*avatar->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
 
@@ -2546,6 +2549,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
 												av->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
 											}
+
+											av->graphics.build();
 										}
 
 										
@@ -2677,7 +2682,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					Avatar avatar;
 					avatar.uid = this->client_thread->client_avatar_uid;
 					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-					avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
+					avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 					writeToNetworkStream(avatar, packet);
 
 					this->client_thread->enqueueDataToSend(packet);
@@ -2794,7 +2799,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
+				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 				avatar.avatar_settings = m->avatar_settings;
 				avatar.name = m->username;
 
@@ -2817,7 +2822,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
+				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 				avatar.avatar_settings.model_url = "";
 				avatar.name = "Anonymous";
 
@@ -2844,7 +2849,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				Avatar avatar;
 				avatar.uid = this->client_thread->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-				avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
+				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 				avatar.avatar_settings.model_url = "";
 				avatar.name = m->username;
 
@@ -3223,7 +3228,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(our_avatar)
 					{
 						pos = cam_controller.getFirstPersonPosition();
-						rotation = Vec3f(0, 0, (float)cam_angles.x);
+						rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 
 						//rotation = Vec3f(0, 0, 0); // just for testing
 						//pos = Vec3d(0,0,1.7);
@@ -3739,14 +3744,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			conPrint("axis: " + axis.toString());
 			conPrint("angle: " + toString(angle));*/
 
-			const double angle = cam_angles.x;
 			const uint32 anim_state = (player_physics.onGround() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
 
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, packet);
 			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), packet);
-			writeToStream(Vec3f(0, 0, (float)angle), packet);
+			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), packet);
 			packet.writeUInt32(anim_state);
 
 			this->client_thread->enqueueDataToSend(packet);
@@ -4071,7 +4075,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			Avatar avatar;
 			avatar.uid = this->client_thread->client_avatar_uid;
 			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
-			avatar.rotation = Vec3f(0, 0, (float)cam_angles.x);
+			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.name = this->logged_in_user_name;
 			avatar.avatar_settings.model_url = mesh_URL;
 			avatar.avatar_settings.pre_ob_to_world_matrix = d.pre_ob_to_world_matrix;
@@ -7477,6 +7481,7 @@ int main(int argc, char *argv[])
 		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
+		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string);
 
 		std::vector<ArgumentParser::ArgumentType> takescreenshot_args;
 		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_x
@@ -7583,6 +7588,23 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 #endif
+		// Extract animation data from a GLTF file, as at an output path.
+		if(parsed_args.isArgPresent("--extractanims"))
+		{
+			// E.g. --extractanims "D:\models\readyplayerme_avatar_animation_17.glb" "D:\models\extracted_avatar_anim.bin"
+			const std::string input_path  = parsed_args.getArgStringValue("--extractanims", 0);
+			const std::string output_path = parsed_args.getArgStringValue("--extractanims", 1);
+
+			// Extract anims
+			GLTFLoadedData data;
+			Reference<BatchedMesh> mesh = FormatDecoderGLTF::loadGLBFile(input_path, data);
+
+			FileOutStream file(output_path);
+			mesh->animation_data.writeToStream(file);
+
+			return 0;
+		}
+
 
 		//std::string server_hostname = "substrata.info";
 		//std::string server_userpath = "";
@@ -8172,6 +8194,8 @@ int main(int argc, char *argv[])
 						mw.task_manager, ob_to_world_matrix,
 						false, // skip opengl calls
 						raymesh);
+
+					test_avatar->graphics.build();
 
 					for(int z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
 						test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
