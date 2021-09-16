@@ -418,6 +418,9 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.cpp
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUI.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUI.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUICallbackHandler.h
 )
 
 
