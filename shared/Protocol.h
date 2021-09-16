@@ -19,13 +19,14 @@ CyberspaceProtocolVersion
 26: Added aabb_ws and max_lod_level to WorldObject
 27: Added flags to WorldMaterial
 28: Added pre_ob_to_world_matrix, materials to Avatar
+29: Added AvatarPerformGesture, AvatarStopGesture
 */
 namespace Protocol
 {
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 28;
+const uint32 CyberspaceProtocolVersion = 29;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
@@ -44,6 +45,8 @@ const uint32 AvatarTransformUpdate	= 1002;
 const uint32 AvatarFullUpdate		= 1003;
 const uint32 CreateAvatar			= 1004;
 const uint32 AvatarIsHere			= 1005;
+const uint32 AvatarPerformGesture	= 1010;
+const uint32 AvatarStopGesture		= 1011;
 
 const uint32 ChatMessageID			= 2000;
 

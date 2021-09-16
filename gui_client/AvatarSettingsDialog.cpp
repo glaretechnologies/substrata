@@ -119,7 +119,7 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 void AvatarSettingsDialog::animationComboBoxIndexChanged(int index)
 {
 	const std::string anim_name = QtUtils::toStdString(this->animationComboBox->itemText(index));
-	preview_gl_ob->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.findAnimation(anim_name));
+	preview_gl_ob->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.getAnimationIndex(anim_name));
 }
 
 
@@ -185,7 +185,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		animationComboBox->setMaxVisibleItems(50);
 
 		// Select Idle animation initially
-		preview_gl_ob->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.findAnimation("Idle"));
+		preview_gl_ob->current_anim_i = myMax(0, preview_gl_ob->mesh_data->animation_data.getAnimationIndex("Idle"));
 		SignalBlocker::setCurrentIndex(animationComboBox, preview_gl_ob->current_anim_i);
 
 		// Construct transformation to bring ready-player-me avatars to z-up and standing on the ground.

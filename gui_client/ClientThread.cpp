@@ -285,6 +285,27 @@ void ClientThread::doRun()
 						}
 						break;
 					}
+				case Protocol::AvatarPerformGesture:
+					{
+						conPrint("AvatarPerformGesture");
+						const UID avatar_uid = readUIDFromStream(*socket);
+						const std::string gesture_name = socket->readStringLengthFirst(10000);
+
+						conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
+
+						out_msg_queue->enqueue(new AvatarPerformGestureMessage(avatar_uid, gesture_name));
+
+						break;
+					}
+				case Protocol::AvatarStopGesture:
+					{
+						conPrint("AvatarStopGesture");
+						const UID avatar_uid = readUIDFromStream(*socket);
+
+						out_msg_queue->enqueue(new AvatarStopGestureMessage(avatar_uid));
+
+						break;
+					}
 				case Protocol::ObjectTransformUpdate:
 					{
 						//conPrint("ObjectTransformUpdate");

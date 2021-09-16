@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "AnimatedTextureManager.h"
 #include "UndoBuffer.h"
 #include "LogWindow.h"
+#include "GestureUI.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/WGL.h"
@@ -127,6 +128,7 @@ private slots:;
 	void glWidgetKeyPressed(QKeyEvent* e);
 	void glWidgetkeyReleased(QKeyEvent* e);
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
+	void glWidgetViewportResized(int w, int h);
 	void cameraUpdated();
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
@@ -149,6 +151,9 @@ private:
 	void deselectObject();
 	void deselectParcel();
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
+public:
+	OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
+private:
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out);
 	void loadModelForObject(WorldObject* ob);
 	void loadModelForAvatar(Avatar* ob);
@@ -228,6 +233,9 @@ public:
 	void tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
+
+	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
+	void stopGestureClicked(const std::string& gesture_name);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 private:
@@ -451,4 +459,7 @@ public:
 	std::map<UID, UID> recreated_ob_uid; // Map from old object UID to recreated object UID when an object deletion is undone.
 
 	UID last_restored_ob_uid_in_edit;
+
+
+	GestureUI gesture_ui;
 };

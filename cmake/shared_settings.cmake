@@ -412,6 +412,15 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
 ../shaders/parcel_vert_shader.glsl
 )
 
+
+set(opengl_ui
+${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUI.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUI.h
+)
+
+
 set(INDIGO_SRC_DIR "${INDIGO_TRUNK_DIR_ENV}/indigo")
 
 set(indigo_src
@@ -455,6 +464,7 @@ SOURCE_GROUP(scripts FILES ${scripts})
 SOURCE_GROUP(double_conversion FILES ${double_conversion})
 SOURCE_GROUP(opengl FILES ${opengl})
 SOURCE_GROUP(opengl\\shaders FILES ${opengl_shaders})
+SOURCE_GROUP(opengl\\ui FILES ${opengl_ui})
 SOURCE_GROUP(dll FILES ${dll_src})
 SOURCE_GROUP(fft2d FILES ${fft2d})
 SOURCE_GROUP(xxhash FILES ${xxhash})

@@ -283,6 +283,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(keyReleased(QKeyEvent*)), this, SLOT(glWidgetkeyReleased(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->glWidget, SIGNAL(cameraUpdated()), this, SLOT(cameraUpdated()));
+	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
@@ -472,11 +473,16 @@ void MainWindow::afterGLInitInitialise()
 	if(interop_device_handle == 0)
 		throw glare::Exception("wglDXOpenDeviceNV failed.");
 #endif
+
+
+	gesture_ui.create(ui->glWidget->opengl_engine, this);
 }
 
 
 MainWindow::~MainWindow()
 {
+	gesture_ui.destroy();
+
 #if !defined(_WIN32)
 	QDesktopServices::unsetUrlHandler("sub"); // Remove 'this' as an URL handler.
 #endif
@@ -2742,6 +2748,38 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							toString(avatar->name_colour.r * 255) + ", " + toString(avatar->name_colour.g * 255) + ", " + toString(avatar->name_colour.b * 255) +
 							")\">" + web::Escaping::HTMLEscape(avatar->name) + "</span> joined.</i>"));
 						updateOnlineUsersList();
+					}
+				}
+			}
+			else if(dynamic_cast<const AvatarPerformGestureMessage*>(msg.getPointer()))
+			{
+				const AvatarPerformGestureMessage* m = static_cast<const AvatarPerformGestureMessage*>(msg.getPointer());
+
+				if(world_state.nonNull())
+				{
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
+					{
+						Avatar* avatar = res->second.getPointer();
+						avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name));
+					}
+				}
+			}
+			else if(dynamic_cast<const AvatarStopGestureMessage*>(msg.getPointer()))
+			{
+				const AvatarStopGestureMessage* m = static_cast<const AvatarStopGestureMessage*>(msg.getPointer());
+
+				if(world_state.nonNull())
+				{
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
+					{
+						Avatar* avatar = res->second.getPointer();
+						avatar->graphics.stopGesture(cur_time);
 					}
 				}
 			}
@@ -6181,9 +6219,32 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 }
 
 
+static Vec2f GLCoordsForGLWidgetPos(MainWindow* main_window, const Vec2f widget_pos)
+{
+	const int vp_width  = main_window->ui->glWidget->opengl_engine->getViewPortWidth();
+	const int vp_height = main_window->ui->glWidget->opengl_engine->getViewPortHeight();
+	return Vec2f(
+		 (widget_pos.x - vp_width /2) / (vp_width /2),
+		-(widget_pos.y - vp_height/2) / (vp_height/2)
+	);
+}
+
+
 // This is emitted from GlWidget::mouseReleaseEvent().
 void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 {
+	{
+		const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+		const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+
+		const bool accepted = gesture_ui.handleMouseClick(gl_coords);
+		if(accepted)
+		{
+			e->accept();
+			return;
+		}
+	}
+
 	if(grabbed_axis != -1)
 	{
 		undo_buffer.finishWorldObjectEdit(*selected_ob);
@@ -6450,6 +6511,18 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 {
 	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
 
+	{
+		const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+		const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+
+		const bool accepted = gesture_ui.handleMouseClick(gl_coords);
+		if(accepted)
+		{
+			e->accept();
+			return;
+		}
+	}
+
 	// Trace ray through scene
 	const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 	const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
@@ -6539,6 +6612,19 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 {
 	if(ui->glWidget->opengl_engine.isNull() || !ui->glWidget->opengl_engine->initSucceeded())
 		return;
+
+	{
+		const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+		const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+
+		const bool accepted = gesture_ui.handleMouseMoved(gl_coords);
+		if(accepted)
+		{
+			e->accept();
+			return;
+		}
+	}
+
 
 	if(selected_ob.nonNull() && grabbed_axis >= 0 && grabbed_axis < 3)
 	{
@@ -6986,6 +7072,12 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 }
 
 
+void MainWindow::glWidgetViewportResized(int w, int h)
+{
+	gesture_ui.viewportResized(w, h);
+}
+
+
 void MainWindow::cameraUpdated()
 {
 	ui->indigoView->cameraUpdated(this->cam_controller);
@@ -7026,6 +7118,41 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	gl_ob->materials[0].albedo_rgb = Colour3f(0.8f);
 	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("nametag_" + nametag), *map);
 	return gl_ob;
+}
+
+
+OpenGLTextureRef MainWindow::makeToolTipTexture(const std::string& tooltip_text)
+{
+	const QString text = QtUtils::toQString(tooltip_text);
+
+	QFont system_font = QApplication::font();
+	system_font.setPointSize(24);
+
+	QFontMetrics metrics(system_font);
+	QRect text_rect = metrics.boundingRect(text);
+
+	const int x_padding = 20; // in pixels
+	const int y_padding = 12; // in pixels
+	const int W = text_rect.width()  + x_padding*2;
+	const int H = text_rect.height() + y_padding*2;
+	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
+
+	QImage image(W, H, QImage::Format_RGB888);
+	image.fill(QColor(255, 255, 255));
+	QPainter painter(&image);
+	painter.setPen(QPen(QColor(0, 0, 0)));
+	painter.setFont(system_font);
+	painter.drawText(x_padding, -text_rect.top() + y_padding, text);
+
+	// Copy to map
+	for(int y=0; y<H; ++y)
+	{
+		const QRgb* line = (const QRgb*)image.scanLine(y);
+		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
+	}
+
+	return ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("tooltip_" + tooltip_text), *map,
+		OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Clamp, /*allow compression=*/false);
 }
 
 
@@ -7344,6 +7471,67 @@ static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(float arc_e
 
 	OpenGLEngine::buildMeshRenderData(*mesh_data, verts, normals, uvs, indices);
 	return mesh_data;
+}
+
+
+void MainWindow::performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim)
+{
+	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* av = it->second.getPointer();
+
+			const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
+			if(our_avatar)
+			{
+				av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
+			}
+		}
+	}
+
+	// Send AvatarPerformGesture message
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::AvatarPerformGesture);
+		writeToStream(this->client_thread->client_avatar_uid, packet);
+		packet.writeStringLengthFirst(gesture_name);
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
+}
+
+
+void MainWindow::stopGestureClicked(const std::string& gesture_name)
+{
+	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+
+	{
+		Lock lock(this->world_state->mutex);
+
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* av = it->second.getPointer();
+
+			const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
+			if(our_avatar)
+			{
+				av->graphics.stopGesture(cur_time/*, gesture_name*/);
+			}
+		}
+	}
+
+	// Send AvatarStopGesture message
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		packet.writeUInt32(Protocol::AvatarStopGesture);
+		writeToStream(this->client_thread->client_avatar_uid, packet);
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
 }
 
 

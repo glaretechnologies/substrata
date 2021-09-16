@@ -783,6 +783,50 @@ void WorkerThread::doRun()
 						}
 						break;
 					}
+				case Protocol::AvatarPerformGesture:
+					{
+						//conPrint("AvatarPerformGesture");
+						const UID avatar_uid = readUIDFromStream(*socket);
+						const std::string gesture_name = socket->readStringLengthFirst(10000);
+
+						//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
+
+						if(client_user.isNull())
+						{
+							writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
+						}
+						else
+						{
+							// Enqueue AvatarPerformGesture messages to worker threads to send
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							packet.writeUInt32(Protocol::AvatarPerformGesture);
+							writeToStream(avatar_uid, packet);
+							packet.writeStringLengthFirst(gesture_name);
+
+							enqueuePacketToBroadcast(packet, server);
+						}
+						break;
+					}
+				case Protocol::AvatarStopGesture:
+					{
+						//conPrint("AvatarStopGesture");
+						const UID avatar_uid = readUIDFromStream(*socket);
+
+						if(client_user.isNull())
+						{
+							writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
+						}
+						else
+						{
+							// Enqueue AvatarStopGesture messages to worker threads to send
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							packet.writeUInt32(Protocol::AvatarStopGesture);
+							writeToStream(avatar_uid, packet);
+
+							enqueuePacketToBroadcast(packet, server);
+						}
+						break;
+				}
 				case Protocol::AvatarFullUpdate:
 					{
 						conPrint("Protocol::AvatarFullUpdate");
