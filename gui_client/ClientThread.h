@@ -34,6 +34,23 @@ public:
 };
 
 
+class AvatarPerformGestureMessage : public ThreadMessage
+{
+public:
+	AvatarPerformGestureMessage(const UID avatar_uid_, const std::string& gesture_name_) : avatar_uid(avatar_uid_), gesture_name(gesture_name_) {}
+	UID avatar_uid;
+	std::string gesture_name;
+};
+
+
+class AvatarStopGestureMessage : public ThreadMessage
+{
+public:
+	AvatarStopGestureMessage(const UID avatar_uid_) : avatar_uid(avatar_uid_) {}
+	UID avatar_uid;
+};
+
+
 // When the server wants a file from the client, it will send the client a GetFile protocol message.  The ClientThread will send this 'GetFileMessage' back to MainWindow.
 class GetFileMessage : public ThreadMessage
 {

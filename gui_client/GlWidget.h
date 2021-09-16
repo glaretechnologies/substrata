@@ -81,6 +81,7 @@ signals:;
 	void keyReleased(QKeyEvent* e);
 	void mouseWheelSignal(QWheelEvent* e);
 	void mouseDoubleClickedSignal(QMouseEvent* e);
+	void viewportResizedSignal(int w, int h);
 	
 private slots:
 	//void gamepadInputSlot();

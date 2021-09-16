@@ -52,6 +52,10 @@ public:
 
 	static float walkCyclePeriod() { return 7.f / Maths::get2Pi<float>(); }
 
+
+	void performGesture(double cur_time, const std::string& gesture_name, bool animate_head, bool loop_anim);
+	void stopGesture(double cur_time/*, const std::string& gesture_name*/);
+
 	Reference<GLObject> selected_ob_beam;
 	
 	Reference<GLObject> skinned_gl_ob;
@@ -77,6 +81,10 @@ private:
 	double eye_end_transition_time;
 
 	double last_cam_rotation_time;
+
+	int gesture_anim_i;
+	double gesture_end_time;
+	bool gesture_animated_head;
 
 	float cur_head_rot_z;
 

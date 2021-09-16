@@ -154,6 +154,8 @@ void GlWidget::resizeGL(int width_, int height_)
 	this->opengl_engine->setViewport(viewport_w, viewport_h);
 
 	this->opengl_engine->setMainViewport(viewport_w, viewport_h);
+
+	emit viewportResizedSignal(width_, height_);
 }
 
 

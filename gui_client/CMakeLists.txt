@@ -530,6 +530,7 @@ ${scripts}
 ${double_conversion}
 ${opengl}
 ${opengl_shaders}
+${opengl_ui}
 ${direct3d}
 ${dll_src}
 ${fft2d}
