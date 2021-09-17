@@ -2123,6 +2123,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	checkForLODChanges();
 
+	gesture_ui.think();
+
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
 	{
@@ -2755,15 +2757,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const AvatarPerformGestureMessage* m = static_cast<const AvatarPerformGestureMessage*>(msg.getPointer());
 
-				if(world_state.nonNull())
+				if(m->avatar_uid != client_thread->client_avatar_uid) // Ignore messages about our own avatar
 				{
-					Lock lock(this->world_state->mutex);
-
-					auto res = this->world_state->avatars.find(m->avatar_uid);
-					if(res != this->world_state->avatars.end())
+					if(world_state.nonNull())
 					{
-						Avatar* avatar = res->second.getPointer();
-						avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name));
+						Lock lock(this->world_state->mutex);
+
+						auto res = this->world_state->avatars.find(m->avatar_uid);
+						if(res != this->world_state->avatars.end())
+						{
+							Avatar* avatar = res->second.getPointer();
+							avatar->graphics.performGesture(cur_time, m->gesture_name, GestureUI::animateHead(m->gesture_name), GestureUI::loopAnim(m->gesture_name));
+						}
 					}
 				}
 			}
@@ -2771,15 +2776,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const AvatarStopGestureMessage* m = static_cast<const AvatarStopGestureMessage*>(msg.getPointer());
 
-				if(world_state.nonNull())
+				if(m->avatar_uid != client_thread->client_avatar_uid) // Ignore messages about our own avatar
 				{
-					Lock lock(this->world_state->mutex);
-
-					auto res = this->world_state->avatars.find(m->avatar_uid);
-					if(res != this->world_state->avatars.end())
+					if(world_state.nonNull())
 					{
-						Avatar* avatar = res->second.getPointer();
-						avatar->graphics.stopGesture(cur_time);
+						Lock lock(this->world_state->mutex);
+
+						auto res = this->world_state->avatars.find(m->avatar_uid);
+						if(res != this->world_state->avatars.end())
+						{
+							Avatar* avatar = res->second.getPointer();
+							avatar->graphics.stopGesture(cur_time);
+						}
 					}
 				}
 			}

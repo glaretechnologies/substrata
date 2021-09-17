@@ -12,7 +12,8 @@ Copyright Glare Technologies Limited 2021 -
 
 GestureUI::GestureUI()
 :	main_window(NULL),
-	gestures_visible(false)
+	gestures_visible(false),
+	untoggle_button_time(-1)
 {}
 
 
@@ -23,27 +24,31 @@ GestureUI::~GestureUI()
 // Column 0: Animation name
 // Column 1: Should the animation data control the head (e.g. override the procedural lookat anim)?
 // Column 2: Should the animation automatically loop.
+// Column 3: Animation duration (from debug output in OpenGLEngine.cpp, conPrint("anim_datum_a..  etc..")
 static const char* gestures[] = {
-	"Clapping",						"",				"Loop",
-	"Dancing",						"AnimHead",		"Loop",
-	"Excited",						"AnimHead",		"",
-	"Looking",						"AnimHead",		"",
-	"Quick Informal Bow",			"AnimHead",		"",
-	"Rejected",						"AnimHead",		"",
-	"Sit",							"",				"Loop",
-	"Sitting On Ground",			"",				"Loop",
-	"Sitting Talking",				"",				"Loop",
-	"Sleeping Idle",				"AnimHead",		"Loop",
-	"Standing React Death Forward",	"AnimHead",		"",
-	"Waving 1",						"",				"",
-	"Waving 2",						"",				"",
-	"Yawn",							"AnimHead",		""
+	"Clapping",						"",				"Loop",		"",
+	"Dancing",						"AnimHead",		"Loop",		"",
+	"Excited",						"AnimHead",		"",			"6.5666666",
+	"Looking",						"AnimHead",		"",			"8.016666",
+	"Quick Informal Bow",			"AnimHead",		"",			"2.75",
+	"Rejected",						"AnimHead",		"",			 "4.8166666",
+	"Sit",							"",				"Loop",		"",
+	"Sitting On Ground",			"",				"Loop",		"",
+	"Sitting Talking",				"",				"Loop",		"",
+	"Sleeping Idle",				"AnimHead",		"Loop",		"",
+	"Standing React Death Forward",	"AnimHead",		"",			"3.6833334",
+	"Waving 1",						"",				"Loop",		"",
+	"Waving 2",						"",				"",			"3.1833334",
+	"Yawn",							"AnimHead",		"",			"8.35"
 };
 
+static const int NUM_GESTURE_FIELDS = 4;
+
+static_assert((staticArrayNumElems(gestures) % NUM_GESTURE_FIELDS) == 0, "(staticArrayNumElems(gestures) % NUM_GESTURE_FIELDS) == 0");
 
 bool GestureUI::animateHead(const std::string& gesture)
 {
-	for(size_t i=0; i<staticArrayNumElems(gestures); i += 3)
+	for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
 		if(gestures[i] == gesture)
 			return std::string(gestures[i+1]) == "AnimHead";
 	assert(0);
@@ -53,7 +58,7 @@ bool GestureUI::animateHead(const std::string& gesture)
 
 bool GestureUI::loopAnim(const std::string& gesture)
 {
-	for(size_t i=0; i<staticArrayNumElems(gestures); i += 3)
+	for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
 		if(gestures[i] == gesture)
 			return std::string(gestures[i+2]) == "Loop";
 	assert(0);
@@ -73,15 +78,13 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 
 	const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
 
-	for(size_t i=0; i<staticArrayNumElems(gestures); i += 3)
+	for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
 	{
 		const std::string gesture_name = gestures[i];
-		//const bool animate_head = std::string(gestures[i+1]) == "AnimHead";
-		const bool looping = std::string(gestures[i+2]) == "Loop";
 
 		GLUIButtonRef button = new GLUIButton();
 		button->create(*gl_ui, opengl_engine, "N:\\new_cyberspace\\trunk\\source_resources\\buttons\\" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), /*tooltip=*/gesture_name);
-		button->toggleable = looping;
+		button->toggleable = true;
 		button->client_data = gesture_name;
 		button->handler = this;
 		gl_ui->addWidget(button);
@@ -127,6 +130,22 @@ void GestureUI::destroy()
 
 	gl_ui->destroy();
 	gl_ui = NULL;
+}
+
+
+void GestureUI::think()
+{
+	if(gl_ui.nonNull())
+	{
+		// Untoggle gesture buttons if we have reached untoggle_button_time.
+		if((untoggle_button_time > 0) && (timer.elapsed() >= untoggle_button_time))
+		{
+			for(size_t i=0; i<gesture_buttons.size(); ++i)
+				gesture_buttons[i]->setToggled(false);
+
+			untoggle_button_time = -1;
+		}
+	}
 }
 
 
@@ -196,18 +215,26 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 	{
 		GLUIButton* button = static_cast<GLUIButton*>(event.widget);
 
-		for(size_t i=0; i<staticArrayNumElems(gestures); i += 3)
+		for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
 		{
 			const std::string gesture_name = gestures[i];
 			if(gesture_name == event.widget->client_data)
 			{
 				event.accepted = true;
 				const bool animate_head = std::string(gestures[i+1]) == "AnimHead";
+				const bool loop			= std::string(gestures[i+2]) == "Loop";
 
 				if(button->toggleable)
 				{
 					if(button->toggled)
-						main_window->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/true);
+					{
+						main_window->performGestureClicked(event.widget->client_data, animate_head, /*loop anim=*/loop);
+
+						if(!loop)
+							untoggle_button_time = timer.elapsed() + ::stringToDouble(gestures[i+3]); // Make button untoggle when gesture has finished.
+						else
+							untoggle_button_time = -1;
+					}
 					else
 						main_window->stopGestureClicked(event.widget->client_data);
 				}

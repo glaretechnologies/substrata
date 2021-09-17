@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "vec3.h"
 #include "PCG32.h"
 #include "Matrix4f.h"
+#include "Quat.h"
 #include <string>
 #include <vector>
 struct GLObject;
@@ -23,6 +24,15 @@ struct AnimEvents
 	AnimEvents() : footstrike(false) {}
 	bool footstrike;
 	Vec3d footstrike_pos;
+};
+
+
+struct AnimToPlay
+{
+	AnimToPlay() : anim_i(-1), play_end_time(-1) {}
+	int anim_i;
+	double play_end_time;
+	bool animated_head;
 };
 
 
@@ -82,11 +92,14 @@ private:
 
 	double last_cam_rotation_time;
 
-	int gesture_anim_i;
-	double gesture_end_time;
-	bool gesture_animated_head;
+
+	AnimToPlay gesture_anim;
+	AnimToPlay next_gesture_anim;
 
 	float cur_head_rot_z;
+	//Quatf cur_head_rot_quat;
+	Quatf gesture_neck_quat;
+	Quatf gesture_head_quat;
 
 	double turn_anim_end_time;
 	bool turning;
