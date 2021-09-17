@@ -28,6 +28,8 @@ public:
 	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_);
 	void destroy();
 
+	void think();
+
 	bool handleMouseClick(const Vec2f& gl_coords);
 	bool handleMouseMoved(const Vec2f& gl_coords);
 	void viewportResized(int w, int h);
@@ -55,4 +57,7 @@ private:
 	GLUIRef gl_ui;
 
 	Reference<OpenGLEngine> opengl_engine;
+
+	Timer timer;
+	double untoggle_button_time;
 };
