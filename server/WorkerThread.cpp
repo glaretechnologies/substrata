@@ -814,7 +814,7 @@ void WorkerThread::doRun()
 
 						if(client_user.isNull())
 						{
-							writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
+							writeErrorMessageToClient(socket, "You must be logged in to stop a gesture.");
 						}
 						else
 						{
