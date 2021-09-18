@@ -3294,12 +3294,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							Vec4f cam_back_dir;
 							if(selfie_mode)
 							{
+								// Slowly blend towards use_target_pos as in selfie mode it comes from getLastHeadPosition() which can vary rapidly frame to frame.
+								const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
+								cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
+
 								cam_back_dir = (cam_controller.getForwardsVec() * 3.0).toVec4fVector();
 							}
 							else
 							{
+								cam_controller.current_third_person_target_pos = Vec3d(use_target_pos);
+
 								cam_back_dir = (cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2).toVec4fVector();
 							}
+
 
 							//printVar(cam_back_dir);
 
@@ -3315,7 +3322,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							}
 
 							//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
-							cam_controller.third_person_cam_position = Vec3d(use_target_pos + cam_back_dir);
+							cam_controller.third_person_cam_position = cam_controller.current_third_person_target_pos + Vec3d(cam_back_dir);
 						}
 					}
 
@@ -7566,6 +7573,9 @@ void MainWindow::setSelfieModeEnabled(bool enabled)
 {
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 	this->cam_controller.setSelfieModeEnabled(cur_time, enabled);
+
+	if(!ui->actionThird_Person_Camera->isChecked())
+		ui->actionThird_Person_Camera->trigger();
 }
 
 

@@ -33,7 +33,8 @@ CameraController::CameraController()
 	allow_pitching = true;
 
 	third_person = true;
-	third_person_cam_position = Vec3d(0.0);
+	third_person_cam_position = Vec3d(0,0,2);
+	current_third_person_target_pos = Vec3d(0,0,2);
 	selfie_mode = false;
 
 	start_cam_rot_z = 0;
