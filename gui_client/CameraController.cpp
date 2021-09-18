@@ -33,7 +33,14 @@ CameraController::CameraController()
 	allow_pitching = true;
 
 	third_person = true;
-	third_person_cam_translation = Vec3d(0.0);
+	third_person_cam_position = Vec3d(0.0);
+	selfie_mode = false;
+
+	start_cam_rot_z = 0;
+	end_cam_rot_z = 0;
+	start_transition_time = -2;
+	end_transition_time = -1;
+
 
 	// NOTE: Call initialise after the member variables above have been initialised.
 	initialise(Vec3d(0.0), Vec3d(0, 1, 0), Vec3d(0, 0, 1), 0.03, 0, 0);
@@ -90,7 +97,7 @@ void CameraController::update(const Vec3d& pos_delta, const Vec2d& rot_delta)
 	{
 		// Accumulate rotation angles, taking into account mouse speed and invertedness.
 		rotation.x += rot_delta.y * -rotate_speed;
-		rotation.y += rot_delta.x * -rotate_speed * (invert_mouse ? -1 : 1);
+		rotation.y += rot_delta.x * -rotate_speed * (invert_mouse ? -1 : 1) * (selfie_mode ? -1 : 1);
 
 		rotation.y = std::max(cap, std::min(Maths::pi<double>() - cap, rotation.y));
 
@@ -200,7 +207,7 @@ Vec3d CameraController::getFirstPersonPosition() const
 Vec3d CameraController::getPosition() const
 {
 	return third_person ? 
-		(position + third_person_cam_translation) :
+		third_person_cam_position : // (position + third_person_cam_translation) :
 		position;
 }
 
@@ -234,7 +241,14 @@ void CameraController::setMoveScale(double move_scale)
 
 void CameraController::getBasis(Vec3d& right_out, Vec3d& up_out, Vec3d& forward_out) const
 {
-	getBasisForAngles(rotation, initialised_up, right_out, up_out, forward_out);
+	Vec3d use_rotation = rotation;
+	if(selfie_mode)
+	{
+		use_rotation.x += Maths::pi<double>();
+		use_rotation.y = Maths::pi<double>() - rotation.y;
+	}
+
+	getBasisForAngles(use_rotation, initialised_up, right_out, up_out, forward_out);
 }
 
 
@@ -365,6 +379,21 @@ void CameraController::getAxisAngleForAngles(const Vec3d& euler_angles_in, Vec3d
 void CameraController::setTargetPos(const Vec3d& p)
 { 
 	target_pos = p;
+}
+
+
+void CameraController::setSelfieModeEnabled(double cur_time, bool enabled)
+{
+	selfie_mode = enabled;
+
+	start_transition_time = cur_time;
+	end_transition_time = cur_time + 1;
+}
+
+
+float CameraController::getCurrentCamRotZ(double cur_time) const
+{
+	return 0;
 }
 
 

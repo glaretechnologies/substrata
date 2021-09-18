@@ -52,6 +52,8 @@ private:
 	GLUIButtonRef left_tab_button;
 	GLUIButtonRef right_tab_button;
 
+	GLUIButtonRef selfie_button;
+
 	bool gestures_visible;
 
 	GLUIRef gl_ui;

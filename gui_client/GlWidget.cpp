@@ -417,14 +417,16 @@ void GlWidget::playerPhyicsThink(float dt)
 			forwards_pressed_timer.reset();
 		this->player_physics->forwards_pressed_time = forwards_pressed_timer.elapsed();
 
+		const float selfie_move_factor = cam_controller->selfieModeEnabled() ? -1.f : 1.f;
+
 		if(forwards_key_down)
-		{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveForwards(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('S') || GetAsyncKeyState(VK_DOWN))
-		{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveForwards(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('A'))
-		{	this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processStrafeRight(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
 		if(GetAsyncKeyState('D'))
-		{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processStrafeRight(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
 
 		// Move vertically up or down in flymode.
 		if(GetAsyncKeyState(' '))

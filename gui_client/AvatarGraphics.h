@@ -62,6 +62,7 @@ public:
 
 	static float walkCyclePeriod() { return 7.f / Maths::get2Pi<float>(); }
 
+	Vec4f getLastHeadPosition();
 
 	void performGesture(double cur_time, const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGesture(double cur_time/*, const std::string& gesture_name*/);
