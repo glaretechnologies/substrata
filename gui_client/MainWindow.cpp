@@ -3276,6 +3276,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						pos = cam_controller.getFirstPersonPosition();
 						rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 
+						const bool selfie_mode = this->cam_controller.selfieModeEnabled();
+
+						Vec4f use_target_pos;
+						if(selfie_mode)
+							use_target_pos = avatar->graphics.getLastHeadPosition();
+						else
+							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint();
+
 						//rotation = Vec3f(0, 0, 0); // just for testing
 						//pos = Vec3d(0,0,1.7);
 
@@ -3283,12 +3291,22 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						if(cam_controller.thirdPersonEnabled())
 						{
-							Vec4f cam_back_dir = (cam_controller.getForwardsVec() * -3 + cam_controller.getUpVec() * 0.2).toVec4fVector();
+							Vec4f cam_back_dir;
+							if(selfie_mode)
+							{
+								cam_back_dir = (cam_controller.getForwardsVec() * 3.0).toVec4fVector();
+							}
+							else
+							{
+								cam_back_dir = (cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2).toVec4fVector();
+							}
+
+							//printVar(cam_back_dir);
 
 							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 							RayTraceResult trace_results;
-							physics_world->traceRay(pos.toVec4fPoint(), normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() + 1.f, thread_context, trace_results);
+							physics_world->traceRay(use_target_pos, normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() + 1.f, thread_context, trace_results);
 
 							if(trace_results.hit_object)
 							{
@@ -3296,7 +3314,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								cam_back_dir = normalise(cam_back_dir) * use_dist;
 							}
 
-							cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
+							//cam_controller.setThirdPersonCamTranslation(Vec3d(cam_back_dir));
+							cam_controller.third_person_cam_position = Vec3d(use_target_pos + cam_back_dir);
 						}
 					}
 
@@ -7540,6 +7559,13 @@ void MainWindow::stopGestureClicked(const std::string& gesture_name)
 
 		this->client_thread->enqueueDataToSend(packet);
 	}
+}
+
+
+void MainWindow::setSelfieModeEnabled(bool enabled)
+{
+	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+	this->cam_controller.setSelfieModeEnabled(cur_time, enabled);
 }
 
 

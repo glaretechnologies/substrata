@@ -413,7 +413,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			const float NECK_FACTOR = 0.5f; // relative to amount of head rotation and translation
 			const float pitch_move_forwards_factor = head_pitch_amount * 0.0f * NECK_FACTOR;
 			const float neck_yaw_amount = head_yaw_amount * NECK_FACTOR;
-			const float neck_pitch_amount = 0.3 + head_pitch_amount * NECK_FACTOR; // Idle pose neck rotation is 0.5.  A value of 0 gives a very erect posture.  Use 0.3 as a compromise.
+			const float neck_pitch_amount = 0.3f + head_pitch_amount * NECK_FACTOR; // Idle pose neck rotation is 0.5.  A value of 0 gives a very erect posture.  Use 0.3 as a compromise.
 			// Note that ideally we would compute the neck pitch as some fraction betweeen 0.3 and head pitch amount.
 				
 			//Matrix4f neck_rot = Matrix4f::translationMatrix(0, 0, pitch_move_forwards_factor /*- fabs(yaw_amount) * 0.04 * NECK_FACTOR*/) *
@@ -705,6 +705,20 @@ void AvatarGraphics::hideSelectedObBeam(OpenGLEngine& engine)
 		engine.removeObject(selected_ob_beam);
 		selected_ob_beam = NULL;
 	}
+}
+
+
+Vec4f AvatarGraphics::getLastHeadPosition()
+{
+	if(skinned_gl_ob.nonNull())
+	{
+		if(head_node_i >= 0 && head_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			return skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[head_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1);
+		else
+			return skinned_gl_ob->ob_to_world_matrix * Vec4f(0,0,0,1);
+	}
+	else
+		return Vec4f(0,0,0,1);
 }
 
 

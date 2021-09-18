@@ -62,8 +62,15 @@ public:
 	void setThirdPersonEnabled(bool enabled) { third_person = enabled; }
 	bool thirdPersonEnabled() const { return third_person; }
 
-	void setThirdPersonCamTranslation(const Vec3d& v) { third_person_cam_translation = v; }
-	Vec3d thirdPersonCamTranslation() const { return third_person_cam_translation; }
+	//void setThirdPersonCamTranslation(const Vec3d& v) { third_person_cam_translation = v; }
+	//Vec3d thirdPersonCamTranslation() const { return third_person_cam_translation; }
+	//void setThirdPersonCamTranslation(const Vec3d& v) { third_person_cam_translation = v; }
+	//Vec3d thirdPersonCamTranslation() const { return third_person_cam_translation; }
+
+	void setSelfieModeEnabled(double cur_time, bool enabled);
+	bool selfieModeEnabled() const { return selfie_mode; }
+	float getCurrentCamRotZ(double cur_time) const;
+
 
 	bool invert_mouse;
 	bool invert_sideways_movement;
@@ -92,5 +99,13 @@ private:
 
 	bool third_person;
 
-	Vec3d third_person_cam_translation;
+	bool selfie_mode;
+	// For 3rd person/selfie cam:
+	float start_cam_rot_z;
+	float end_cam_rot_z;
+	double start_transition_time;
+	double end_transition_time;
+public:
+	//Vec3d third_person_cam_translation;
+	Vec3d third_person_cam_position;
 };

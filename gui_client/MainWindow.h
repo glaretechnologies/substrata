@@ -236,11 +236,13 @@ public:
 
 	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGestureClicked(const std::string& gesture_name);
+	void setSelfieModeEnabled(bool enabled);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
-private:
+
 	std::string base_dir_path;
 	std::string appdata_path;
+private:
 	ArgumentParser parsed_args;
 
 	Timer total_timer;

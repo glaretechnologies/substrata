@@ -83,7 +83,7 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 		const std::string gesture_name = gestures[i];
 
 		GLUIButtonRef button = new GLUIButton();
-		button->create(*gl_ui, opengl_engine, "N:\\new_cyberspace\\trunk\\source_resources\\buttons\\" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), /*tooltip=*/gesture_name);
+		button->create(*gl_ui, opengl_engine,  main_window->base_dir_path + "/resources/buttons/" + gesture_name + ".png", Vec2f(0.1f + i * 0.15f, -min_max_y + 0.06f), Vec2f(0.1f, 0.1f), /*tooltip=*/gesture_name);
 		button->toggleable = true;
 		button->client_data = gesture_name;
 		button->handler = this;
@@ -94,14 +94,20 @@ void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main
 
 	// Create left and right tab buttons
 	left_tab_button = new GLUIButton();
-	left_tab_button->create(*gl_ui, opengl_engine, "N:\\new_cyberspace\\trunk\\source_resources\\buttons\\left_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
+	left_tab_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/left_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"View gestures");
 	left_tab_button->handler = this;
 	gl_ui->addWidget(left_tab_button);
 	
 	right_tab_button = new GLUIButton();
-	right_tab_button->create(*gl_ui, opengl_engine, "N:\\new_cyberspace\\trunk\\source_resources\\buttons\\right_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
+	right_tab_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/right_tab.png", Vec2f(0.1f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Hide gestures");
 	right_tab_button->handler = this;
 	gl_ui->addWidget(right_tab_button);
+	
+	selfie_button = new GLUIButton();
+	selfie_button->create(*gl_ui, opengl_engine, main_window->base_dir_path + "/resources/buttons/Selfie.png", Vec2f(-0.9f, 0.1f), Vec2f(0.1f, 0.1f), /*tooltip=*/"Selfie view");
+	selfie_button->toggleable = true;
+	selfie_button->handler = this;
+	gl_ui->addWidget(selfie_button);
 
 	updateWidgetPositions();
 }
@@ -194,6 +200,9 @@ void GestureUI::updateWidgetPositions()
 			left_tab_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
 		else
 			left_tab_button->setPosAndDims(Vec2f(1000, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING)); // hide
+
+
+		selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 	}
 }
 
@@ -261,6 +270,11 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 			gestures_visible = false;
 			updateWidgetPositions();
 			main_window->settings->setValue("GestureUI/gestures_visible", gestures_visible);
+		}
+		else if(button == selfie_button.ptr())
+		{
+			event.accepted = true;
+			main_window->setSelfieModeEnabled(selfie_button->toggled);
 		}
 	}
 }
