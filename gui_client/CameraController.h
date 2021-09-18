@@ -108,4 +108,6 @@ private:
 public:
 	//Vec3d third_person_cam_translation;
 	Vec3d third_person_cam_position;
+
+	Vec3d current_third_person_target_pos; // Blended position
 };

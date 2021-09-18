@@ -328,7 +328,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 			const float MAX_EYE_YAW_MAG  = is_VRM_model ? 0.25f : 0.4f; // relative to head
 			float MAX_EYE_PITCH_MAG_UP   = is_VRM_model ? 0.1f : 0.15f; // relative to head
-			float MAX_EYE_PITCH_MAG_DOWN = is_VRM_model ? 0.15f : 0.3f; // relative to head
+			float MAX_EYE_PITCH_MAG_DOWN = is_VRM_model ? 0.15f : 0.4f; // relative to head
 
 			const float MAX_HEAD_YAW_MAG = 0.8f;
 
@@ -364,7 +364,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			const float unclamped_head_yaw_amount = this->cur_head_rot_z - avatar_rotation.z; // Get actual blended yaw of the head.
 			const float head_yaw_amount =  myClamp(unclamped_head_yaw_amount, -MAX_HEAD_YAW_MAG, MAX_HEAD_YAW_MAG);
 
-			const float MAX_HEAD_PITCH_MAG = 0.4f;
+			const float MAX_HEAD_PITCH_MAG = 0.8f;
 			const float head_pitch_amount = myClamp(total_pitch_amount, -MAX_HEAD_PITCH_MAG, MAX_HEAD_PITCH_MAG);
 
 			// We will interpolate between the gesture head rotation (if the head is being animated), and the procedural lookat rotation.
@@ -437,7 +437,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 			const Quatf neck_lookat_rot = inverse_last_pre_proc_neck_to_world_rot * Quatf::fromAxisAndAngle(Vec3f(0,1,0), neck_yaw_amount) * Quatf::fromAxisAndAngle(Vec3f(1,0,0), neck_pitch_amount);
 
-			const Quatf neck_rot = Quatf::nlerp(neck_gesture_rot, neck_lookat_rot, lookat_frac);
+			const Quatf neck_rot = Quatf::nlerp(neck_gesture_rot, neck_lookat_rot, lookat_frac * 0.5f); // Don't blend totally to lookat for neck rotation.  Sitting looks better this way.
 
 			skinned_gl_ob->anim_node_data[neck_node_i].procedural_transform = neck_rot.toMatrix();
 
@@ -602,6 +602,12 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				eye_end_transition_time = cur_time; // Don't start doing saccades for a little while
 			}
 			
+
+			if(doing_gesture_with_animated_head)
+			{
+				skinned_gl_ob->anim_node_data[left_eye_node_i ].procedural_transform = Matrix4f::identity();
+				skinned_gl_ob->anim_node_data[right_eye_node_i].procedural_transform = Matrix4f::identity();
+			}
 		}
 	}
 	else
