@@ -201,7 +201,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 						//printVar(time_remaining);
 						if(time_remaining < 0.3)
 						{
-							conPrint("Starting blend to idle pose anim");
+							// conPrint("Starting blend to idle pose anim");
 							// Start blending into idle pose anim
 							new_anim_i = idle_anim_i;
 						}

@@ -287,11 +287,11 @@ void ClientThread::doRun()
 					}
 				case Protocol::AvatarPerformGesture:
 					{
-						conPrint("AvatarPerformGesture");
+						//conPrint("AvatarPerformGesture");
 						const UID avatar_uid = readUIDFromStream(*socket);
 						const std::string gesture_name = socket->readStringLengthFirst(10000);
 
-						conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
+						//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
 
 						out_msg_queue->enqueue(new AvatarPerformGestureMessage(avatar_uid, gesture_name));
 
@@ -299,7 +299,7 @@ void ClientThread::doRun()
 					}
 				case Protocol::AvatarStopGesture:
 					{
-						conPrint("AvatarStopGesture");
+						//conPrint("AvatarStopGesture");
 						const UID avatar_uid = readUIDFromStream(*socket);
 
 						out_msg_queue->enqueue(new AvatarStopGestureMessage(avatar_uid));
