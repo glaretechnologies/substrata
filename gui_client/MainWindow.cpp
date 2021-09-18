@@ -3145,6 +3145,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
 		this->cam_controller.setPosition(toVec3d(campos));
 
+		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
+		{
+			const Vec3d cam_back_dir = cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2;
+			this->cam_controller.third_person_cam_position = toVec3d(campos) + Vec3d(cam_back_dir);
+		}
+
 		if(campos.getDist(last_campos) > 0.01)
 		{
 			ui->indigoView->cameraUpdated(this->cam_controller);
