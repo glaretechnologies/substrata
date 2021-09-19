@@ -126,6 +126,8 @@ private:
 	int left_eye_node_i;
 	int right_eye_node_i;
 	//int left_foot_node_i;
+
+	bool initial_set_overall_transform; // Will the next setOverallTransform() call be the first one?
 };
 
 

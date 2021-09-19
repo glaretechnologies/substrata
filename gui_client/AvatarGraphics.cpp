@@ -37,6 +37,8 @@ AvatarGraphics::AvatarGraphics()
 
 	turn_anim_end_time = -1;
 	turning = false;
+
+	initial_set_overall_transform = true;
 }
 
 
@@ -77,6 +79,14 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		debug_avatar_basis_ob->materials[2].albedo_rgb = Colour3f(0.3f, 0.5f, 0.9f);
 		debug_avatar_basis_ob->ob_to_world_matrix = Matrix4f::translationMatrix(1000, 0, 0);
 		engine.addObject(debug_avatar_basis_ob);
+	}
+
+	// If this is the first call to setOverallTransform(), initialise avatar_rotation to cam_rotation.
+	if(initial_set_overall_transform)
+	{
+		avatar_rotation = cam_rotation;
+		cur_head_rot_z = cam_rotation.z;
+		initial_set_overall_transform = false;
 	}
 
 
