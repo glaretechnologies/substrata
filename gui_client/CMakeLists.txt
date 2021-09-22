@@ -185,6 +185,11 @@ ${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.cpp
 ${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.h
 )
 
+SET(indigo_audio
+${INDIGO_TRUNK_DIR_ENV}/audio/AudioFileReader.cpp
+${INDIGO_TRUNK_DIR_ENV}/audio/AudioFileReader.h
+)
+
 SET(rtaudio
 ../rtaudio/RtAudio.cpp
 ../rtaudio/RtAudio.h
@@ -462,6 +467,7 @@ SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(client_indigo_files FILES ${client_indigo_files})
 SOURCE_GROUP(docs FILES ${doc_files})
 SOURCE_GROUP(video FILES ${video})
+SOURCE_GROUP(indigo_audio FILES ${indigo_audio})
 SOURCE_GROUP(direct3d FILES ${direct3d})
 SOURCE_GROUP(website_core_files FILES ${website_core_files})
 SOURCE_GROUP(rtaudio FILES ${rtaudio})
@@ -542,6 +548,7 @@ ${video}
 ${website_core_files}
 ${rtaudio}
 ${audio}
+${indigo_audio}
 ${resonance}
 ${meshoptimizer}
 ${rc_stuff}
