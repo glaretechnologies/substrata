@@ -133,6 +133,10 @@ static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int
 		{
 			//conPrint("rtAudioCallback: got data.");
 			data->buffer.popFrontNItems(output_buffer_f, n_buffer_frames*2);
+
+			// clamp data
+			for(unsigned int z=0; z<n_buffer_frames*2; ++z)
+				output_buffer_f[z] = myClamp(output_buffer_f[z], -1.f, 1.f);
 		}
 		else
 		{
@@ -429,14 +433,32 @@ void AudioEngine::addSource(AudioSourceRef source)
 {
 	source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
 
+	resonance->SetSourcePosition(source->resonance_handle, source->pos[0], source->pos[1], source->pos[2]);
+
 	Lock lock(mutex);
 	audio_sources.insert(source);
 }
 
 
-void AudioEngine::setSourcePosition(AudioSourceRef source, const Vec4f& pos)
+void AudioEngine::removeSource(AudioSourceRef source)
 {
-	resonance->SetSourcePosition(source->resonance_handle, pos[0], pos[1], pos[2]);
+	resonance->DestroySource(source->resonance_handle);
+
+	Lock lock(mutex);
+	audio_sources.erase(source);
+}
+
+
+void AudioEngine::sourcePositionUpdated(AudioSource& source)
+{
+	resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
+}
+
+
+void AudioEngine::sourceVolumeUpdated(AudioSource& source)
+{
+	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
+	resonance->SetSourceVolume(source.resonance_handle, source.volume);
 }
 
 

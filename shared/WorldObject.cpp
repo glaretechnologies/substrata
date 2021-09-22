@@ -28,7 +28,7 @@ WorldObject::WorldObject()
 {
 	creator_id = UserID::invalidUserID();
 	flags = COLLIDABLE_FLAG;
-
+	
 	object_type = ObjectType_Generic;
 	from_remote_transform_dirty = false;
 	from_remote_other_dirty = false;
@@ -37,7 +37,9 @@ WorldObject::WorldObject()
 	from_remote_flags_dirty = false;
 	from_local_transform_dirty = false;
 	from_local_other_dirty = false;
+	changed_flags = 0;
 	using_placeholder_model = false;
+
 #if GUI_CLIENT
 	is_selected = false;
 	loaded = false;
@@ -60,6 +62,8 @@ WorldObject::WorldObject()
 	aabb_ws = js::AABBox::emptyAABBox();
 
 	max_model_lod_level = 0;
+
+	audio_volume = 1;
 }
 
 
@@ -157,6 +161,9 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<std::string
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
+
+	if(!audio_source_url.empty())
+		URLs_out.push_back(audio_source_url);
 }
 
 
@@ -177,6 +184,9 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<std::string>& 
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLsAllLODLevels(URLs_out);
+
+	if(!audio_source_url.empty())
+		URLs_out.push_back(audio_source_url);
 }
 
 
@@ -208,6 +218,9 @@ void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 	if(FileUtils::fileExists(this->lightmap_url)) // If the URL is a local path:
 		this->lightmap_url = resource_manager.URLForPathAndHash(this->lightmap_url, FileChecksum::fileChecksum(this->lightmap_url));
+
+	if(FileUtils::fileExists(this->audio_source_url)) // If the URL is a local path:
+		this->audio_source_url = resource_manager.URLForPathAndHash(this->audio_source_url, FileChecksum::fileChecksum(this->audio_source_url));
 }
 
 
@@ -374,7 +387,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 15;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 16;
 /*
 Version history:
 9: introduced voxels
@@ -384,6 +397,7 @@ Version history:
 13: Added lightmap URL
 14: Added aabb_ws
 15: Added max_lod_level
+16: Added audio_source_url, audio_volume
 */
 
 
@@ -409,6 +423,8 @@ void WorldObject::writeToStream(OutStream& stream) const
 	stream.writeStringLengthFirst(script);
 	stream.writeStringLengthFirst(content);
 	stream.writeStringLengthFirst(target_url);
+	stream.writeStringLengthFirst(audio_source_url);
+	stream.writeFloat(audio_volume);
 
 	::writeToStream(pos, stream);
 	::writeToStream(axis, stream);
@@ -482,6 +498,12 @@ void readFromStream(InStream& stream, WorldObject& ob)
 
 	if(v >= 8)
 		ob.target_url = stream.readStringLengthFirst(10000);
+	
+	if(v >= 16)
+	{
+		ob.audio_source_url = stream.readStringLengthFirst(10000);
+		ob.audio_volume = stream.readFloat();
+	}
 
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);
@@ -516,7 +538,7 @@ void readFromStream(InStream& stream, WorldObject& ob)
 
 	if(v >= 15)
 		ob.max_model_lod_level = stream.readInt32();
-
+	
 	if(v >= 9 && ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
 		if(v <= 11)
@@ -568,6 +590,8 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 	stream.writeStringLengthFirst(script);
 	stream.writeStringLengthFirst(content);
 	stream.writeStringLengthFirst(target_url);
+	stream.writeStringLengthFirst(audio_source_url);
+	stream.writeFloat(audio_volume);
 
 	::writeToStream(pos, stream);
 	::writeToStream(axis, stream);
@@ -608,6 +632,8 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	script = other.script;
 	content = other.content;
 	target_url = other.target_url;
+	audio_source_url = other.audio_source_url;
+	audio_volume = other.audio_volume;
 
 	pos = other.pos;
 	axis = other.axis;
@@ -653,6 +679,12 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 	ob.script = stream.readStringLengthFirst(10000);
 	ob.content = stream.readStringLengthFirst(10000);
 	ob.target_url = stream.readStringLengthFirst(10000);
+
+	const std::string new_audio_source_url = stream.readStringLengthFirst(10000);
+	if(ob.audio_source_url != new_audio_source_url)
+		ob.changed_flags |= WorldObject::AUDIO_SOURCE_URL_CHANGED;
+	ob.audio_source_url = new_audio_source_url;
+	ob.audio_volume = stream.readFloat();
 
 	ob.pos = readVec3FromStream<double>(stream);
 	ob.axis = readVec3FromStream<float>(stream);

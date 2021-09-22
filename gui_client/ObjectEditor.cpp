@@ -39,6 +39,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	setupUi(this);
 
 	this->modelFileSelectWidget->force_use_last_dir_setting = true;
+	this->audioFileWidget->force_use_last_dir_setting = true;
 
 	//this->scaleXDoubleSpinBox->setMinimum(0.00001);
 	//this->scaleYDoubleSpinBox->setMinimum(0.00001);
@@ -53,6 +54,9 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->contentTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
 	connect(this->targetURLLineEdit,		SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
 	connect(this->targetURLLineEdit,		SIGNAL(textChanged()),				this, SLOT(targetURLChanged()));
+
+	connect(this->audioFileWidget,			SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
+	connect(this->volumeDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	connect(this->posXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->posYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -163,6 +167,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->audioGroupBox->show();
 	}
 	else if(ob.object_type == WorldObject::ObjectType_VoxelGroup)
 	{
@@ -170,6 +175,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->hide();
+		this->audioGroupBox->show();
 	}
 	else if(ob.object_type == WorldObject::ObjectType_Spotlight)
 	{
@@ -177,6 +183,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->show();
+		this->audioGroupBox->hide();
 	}
 	else
 	{
@@ -184,6 +191,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->modelLabel->show();
 		this->modelFileSelectWidget->show();
 		this->spotlightGroupBox->hide();
+		this->audioGroupBox->show();
 	}
 
 	if(ob.object_type == WorldObject::ObjectType_VoxelGroup || ob.object_type == WorldObject::ObjectType_Spotlight || ob.object_type == WorldObject::ObjectType_Generic)
@@ -212,6 +220,9 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	{
 		lightmapBakeStatusLabel->setText("");
 	}
+
+	this->audioFileWidget->setFilename(QtUtils::toQString(ob.audio_source_url));
+	SignalBlocker::setValue(volumeDoubleSpinBox, ob.audio_volume);
 }
 
 
@@ -279,6 +290,12 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 			ob_out.materials[0]->emission_lum_flux = (float)this->luminousFluxDoubleSpinBox->value();
 		}
 	}
+
+	const std::string new_audio_source_url = QtUtils::toStdString(this->audioFileWidget->filename());
+	if(ob_out.audio_source_url != new_audio_source_url)
+		ob_out.changed_flags |= WorldObject::AUDIO_SOURCE_URL_CHANGED;
+	ob_out.audio_source_url = new_audio_source_url;
+	ob_out.audio_volume = volumeDoubleSpinBox->value();
 }
 
 
@@ -352,6 +369,9 @@ void ObjectEditor::setControlsEditable(bool editable)
 	this->bakeLightmapPushButton->setEnabled(editable);
 	this->bakeLightmapHighQualPushButton->setEnabled(editable);
 	this->removeLightmapPushButton->setEnabled(editable);
+
+	this->audioFileWidget->setReadOnly(!editable);
+	this->volumeDoubleSpinBox->setReadOnly(!editable);
 }
 
 

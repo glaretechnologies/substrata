@@ -32,6 +32,8 @@ class AudioEngine;
 class AudioSource : public ThreadSafeRefCounted
 {
 public:
+	GLARE_ALIGNED_16_NEW_DELETE
+
 	enum SourceType
 	{
 		SourceType_Looping,
@@ -39,14 +41,19 @@ public:
 		SourceType_Streaming
 	};
 
-	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true) {}
-	int resonance_handle;
+	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), pos(0,0,0,1) {}
+	
+	int resonance_handle; // Set in AudioEngine::addSource().
 	//std::vector<float> buffer;
 	size_t cur_read_i;
 	CircularBuffer<float> buffer; // Read from front, enqueue to back.
 
 	SourceType type;
 	bool remove_on_finish; // for SourceType_OneShot
+
+	float volume; // 1 = default
+
+	Vec4f pos;
 };
 typedef Reference<AudioSource> AudioSourceRef;
 
@@ -97,9 +104,13 @@ public:
 
 	void addSource(AudioSourceRef source);
 
+	void removeSource(AudioSourceRef source);
+
 	AudioSourceRef addSourceFromSoundFile(const std::string& sound_file_path);
 
-	void setSourcePosition(AudioSourceRef source, const Vec4f& pos);
+	void sourcePositionUpdated(AudioSource& source);
+
+	void sourceVolumeUpdated(AudioSource& source);
 
 	void setHeadTransform(const Vec4f& head_pos, const Quatf& head_rot);
 

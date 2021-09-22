@@ -150,6 +150,9 @@ public:
 	js::AABBox aabb_ws; // World space axis-aligned bounding box.  Not authoritative.  Used to show a box while loading, also for computing LOD levels.
 	int max_model_lod_level; // maximum LOD level for model.  0 for models that don't have lower LOD versions.
 
+	std::string audio_source_url;
+	float audio_volume;
+
 	enum State
 	{
 		State_JustCreated = 0,
@@ -167,10 +170,15 @@ public:
 	bool from_local_transform_dirty;  // Transformation has been changed locally
 	bool from_local_other_dirty;      // Something else has been changed locally
 
+	static const uint32 AUDIO_SOURCE_URL_CHANGED = 1; // Set when audio_source_url is changed
+	uint32 changed_flags;
+
 	bool using_placeholder_model;
 	std::string loaded_model_url;
 
 	std::string loaded_content;
+
+	//std::string loaded_audio_source_url;
 
 	std::string loaded_script;
 	int instance_index;
@@ -183,6 +191,14 @@ public:
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
 	Reference<glare::AudioSource> audio_source;
+
+	enum AudioState
+	{
+		AudioState_NotLoaded,
+		AudioState_Loading, // The audio resource is downloading, or a LoadAudioTask has been constructed and is queued and/or executing.
+		AudioState_Loaded
+	};
+	AudioState audio_state;
 
 	ImageMapUInt8Ref hypercard_map;
 

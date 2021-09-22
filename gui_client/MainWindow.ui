@@ -534,6 +534,11 @@
     <string>Third Person Camera</string>
    </property>
   </action>
+  <action name="actionAdd_Audio_Source">
+   <property name="text">
+    <string>Add Audio Source</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

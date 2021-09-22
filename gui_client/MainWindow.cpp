@@ -37,6 +37,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "URLParser.h"
 #include "LoadModelTask.h"
 #include "LoadTextureTask.h"
+#include "LoadAudioTask.h"
 #include "SaveResourcesDBThread.h"
 #include "CameraController.h"
 #include "../shared/Protocol.h"
@@ -131,6 +132,7 @@ Copyright Glare Technologies Limited 2020 -
 //#include "../opengl/EnvMapProcessing.h" // Just for testing
 #include "../indigo/UVUnwrapper.h" // Just for testing
 #include "../utils/TestUtils.h" // Just for testing
+#include "../audio/AudioFileReader.h" // Just for testing
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -728,6 +730,21 @@ bool MainWindow::isModelProcessed(const std::string& url) const
 }
 
 
+bool MainWindow::checkAddAudioToProcessedSet(const std::string& url)
+{
+	Lock lock(audio_processed_mutex);
+	auto res = audio_processed.insert(url);
+	return res.second; // Was audio inserted? (will be false if already present in set)
+}
+
+
+bool MainWindow::isAudioProcessed(const std::string& url) const
+{
+	Lock lock(audio_processed_mutex);
+	return audio_processed.count(url) > 0;
+}
+
+
 void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level)
 {
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
@@ -869,6 +886,15 @@ static void checkTransformOK(const WorldObject* ob)
 }
 
 
+static bool hasAudioFileExtension(const std::string& url)
+{
+	return hasExtensionStringView(url, "mp3") || hasExtensionStringView(url, "wav") || hasExtensionStringView(url, "aac") || hasExtensionStringView(url, "flac");
+}
+
+
+static const float MAX_AUDIO_DIST = 60;
+
+
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
@@ -888,6 +914,11 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 			const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
 			const double max_play_dist = AnimatedTexData::maxVidPlayDist();
 			in_range = ob_dist < max_play_dist;
+		}
+		else if(hasAudioFileExtension(url))
+		{
+			const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+			in_range = ob_dist < MAX_AUDIO_DIST;
 		}
 
 		if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
@@ -1033,12 +1064,12 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			{
 				glare::AudioSourceRef audio_source = new glare::AudioSource();
 				audio_source->type = glare::AudioSource::SourceType_Streaming;
+				audio_source->pos = ob->aabb_ws.centroid();
 
 				//std::vector<float> buf(48000.0 * 0.5, 0.f);
 				//audio_source->buffer.pushBackNItems(buf.data(), buf.size());
 				ob->audio_source = audio_source;
 				this->audio_engine.addSource(audio_source);
-				this->audio_engine.setSourcePosition(audio_source, ob->pos.toVec4fPoint());
 			}
 		}
 
@@ -1116,7 +1147,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 			load_placeholder = ob->getCompressedVoxels().size() != 0;
 		}
-		else // else ob->object_type == WorldObject::ObjectType_Generic:
+		else if(ob->object_type == WorldObject::ObjectType_Generic)
 		{
 			assert(ob->object_type == WorldObject::ObjectType_Generic);
 
@@ -1204,6 +1235,10 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					load_placeholder = true;
 				}
 			}
+		}
+		else
+		{
+			throw glare::Exception("Invalid object_type: " + toString((int)(ob->object_type)));
 		}
 
 		if(load_placeholder)
@@ -1498,6 +1533,78 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				}
 
 				throw glare::Exception("Error while loading script '" + ob->script + "': " + e.what());
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+	}
+}
+
+
+// Try and start loading the audio file for the world object, as specified by ob->audio_source_url.
+// If the audio file is already loaded, (e.g. ob->loaded_audio_source_url == ob->audio_source_url), then do nothing.
+// If the object is further than MAX_AUDIO_DIST from the camera, don't load the audio.
+void MainWindow::loadAudioForObject(WorldObject* ob)
+{
+	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
+	{
+		conPrint("MainWindow::loadAudioForObject(): AUDIO_SOURCE_URL_CHANGED bit was set, setting state to AudioState_NotLoaded.");
+		ob->audio_state = WorldObject::AudioState_NotLoaded;
+		BitUtils::zeroBit(ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED);
+	}
+
+	try
+	{
+		if(ob->audio_source_url.empty())
+		{
+			// Remove any existing audio source
+			if(ob->audio_source.nonNull())
+				audio_engine.removeSource(ob->audio_source);
+			ob->audio_source = NULL;
+			//ob->loaded_audio_source_url = ob->audio_source_url;
+		}
+		else
+		{
+			if(ob->audio_state == WorldObject::AudioState_NotLoaded)
+			{
+				//if(ob->loaded_audio_source_url == ob->audio_source_url) // If the audio file is already loaded, (e.g. ob->loaded_audio_source_url == ob->audio_source_url), then do nothing.
+				//	return;
+			
+				// If the object is further than MAX_AUDIO_DIST from the camera, don't load the audio.
+				const float dist = cam_controller.getPosition().toVec4fVector().getDist(ob->pos.toVec4fVector());
+				if(dist > MAX_AUDIO_DIST)
+					return;
+
+				// Remove any existing audio source
+				if(ob->audio_source.nonNull())
+				{
+					audio_engine.removeSource(ob->audio_source);
+					ob->audio_source = NULL;
+				}
+
+				ob->audio_state = WorldObject::AudioState_Loading;
+
+				if(resource_manager->isFileForURLPresent(ob->audio_source_url))
+				{
+					//if(!isAudioProcessed(ob->audio_source_url)) // If we are not already loading the audio:
+
+					const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadTextureTask doesn't try and process it also.
+					if(just_inserted)
+					{
+						// Do the model loading in a different thread
+						Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
+
+						load_audio_task->audio_source_url = ob->audio_source_url;
+						load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
+						load_audio_task->main_window = this;
+
+						model_loader_task_manager.addTask(load_audio_task);
+					}
+
+					//ob->loaded_audio_source_url = ob->audio_source_url;
+				}
 			}
 		}
 	}
@@ -1949,12 +2056,21 @@ void MainWindow::saveScreenshot()
 void MainWindow::loadObject(WorldObjectRef ob)
 {
 	loadModelForObject(ob.ptr());
+
+	loadAudioForObject(ob.ptr());
 }
 
 
 void MainWindow::unloadObject(WorldObjectRef ob)
 {
 	removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+	if(ob->audio_source.nonNull())
+	{
+		audio_engine.removeSource(ob->audio_source);
+		ob->audio_source = NULL;
+		ob->audio_state = WorldObject::AudioState_NotLoaded;
+	}
 }
 
 
@@ -2075,6 +2191,13 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 		//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
 		//lightmap_flag_timer->start(/*msec=*/2000); 
 
+		// Update audio source position in audio engine.
+		if(this->selected_ob->audio_source.nonNull())
+		{
+			this->selected_ob->audio_source->pos = this->selected_ob->aabb_ws.centroid();
+			audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
+		}
+
 
 		updateSelectedObjectPlacementBeam();
 	} 
@@ -2108,6 +2231,32 @@ void MainWindow::checkForLODChanges()
 				// conPrint("Changing LOD level for object " + ob->uid.toString() + " to " + toString(lod_level));
 
 				ob->current_lod_level = lod_level;
+			}
+
+			if(!ob->audio_source_url.empty() || ob->audio_source.nonNull())
+			{				
+				const float dist = cam_pos.toVec4fVector().getDist(ob->pos.toVec4fVector());
+				if(ob->audio_source.nonNull())
+				{
+					if(dist > MAX_AUDIO_DIST)
+					{
+						conPrint("Object out of range, removing audio object.");
+						audio_engine.removeSource(ob->audio_source);
+						ob->audio_source = NULL;
+						ob->audio_state = WorldObject::AudioState_NotLoaded;
+						//ob->loaded_audio_source_url.clear();
+					}
+				}
+				else // Else if audio source is NULL:
+				{
+					assert(!ob->audio_source_url.empty()); // The object has an audio URL to play:
+
+					if(dist <= MAX_AUDIO_DIST)
+					{
+						conPrint("Object in range, loading audio object.");
+						loadAudioForObject(ob);
+					}
+				}
 			}
 		}
 	} // End lock scope
@@ -2182,7 +2331,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				1);
 			//Vec4f pos = Vec4f(0, 0, 3, 1);
 
-			audio_engine.setSourcePosition(test_srcs[i], pos);
+			test_srcs[i]->pos = pos;
+			audio_engine.sourcePositionUpdated(*test_srcs[i]);
 		
 			test_obs[i]->ob_to_world_matrix = Matrix4f::translationMatrix(pos) * Matrix4f::uniformScaleMatrix(0.1f) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
 			ui->glWidget->opengl_engine->updateObjectTransformData(*test_obs[i]);
@@ -2655,6 +2805,54 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Add to texture_loaded_messages_to_process to process later.
 				texture_loaded_messages_to_process.push_back((TextureLoadedThreadMessage*)msg.ptr());
 			}
+			else if(dynamic_cast<AudioLoadedThreadMessage*>(msg.getPointer()))
+			{
+				AudioLoadedThreadMessage* loaded_msg = static_cast<AudioLoadedThreadMessage*>(msg.ptr());
+
+				if(world_state.nonNull())
+				{
+					// Iterate over objects and load an audio source for any object using this audio URL.
+					try
+					{
+						Lock lock(this->world_state->mutex);
+
+						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						{
+							WorldObject* ob = it->second.getPointer();
+
+							if(ob->audio_source_url == loaded_msg->audio_source_url)
+							{
+								ob->audio_source = new glare::AudioSource();
+								ob->audio_source->buffer.pushBackNItems(loaded_msg->data.data(), loaded_msg->data.size());
+								ob->audio_source->pos = ob->aabb_ws.centroid();
+								ob->audio_source->volume = ob->audio_volume;
+								const double audio_len_s = loaded_msg->data.size() / 44100.0; // TEMP HACK
+								const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
+								ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->data.size());
+								audio_engine.addSource(ob->audio_source);
+
+								ob->audio_state = WorldObject::AudioState_Loaded;
+								//ob->loaded_audio_source_url = ob->audio_source_url;
+							}
+
+							//loadAudioForObject(ob);
+							//if(ob_lod_model_url == URL)
+							//	loadModelForObject(ob);
+						}
+					}
+					catch(glare::Exception& e)
+					{
+						print("Error while loading object: " + e.what());
+					}
+				}
+
+				// Now that this audio is loaded, removed from audio_processed set.
+				// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
+				{
+					Lock lock(audio_processed_mutex);
+					audio_processed.erase(loaded_msg->audio_source_url);
+				}
+			}
 			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
 				this->connection_state = ServerConnectionState_Connected;
@@ -3041,6 +3239,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							!this->isTextureProcessed(tex_path)) // and not being loaded already:
 						{
 							this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+						}
+					}
+					else if(hasAudioFileExtension(URL))
+					{
+						// Iterate over objects, if any object is using this audio file, load it.
+						{
+							Lock lock(this->world_state->mutex);
+
+							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+							{
+								WorldObject* ob = it->second.getPointer();
+
+								if(ob->audio_source_url == URL)
+									loadAudioForObject(ob);
+							}
 						}
 					}
 					else // Else we didn't download a texture, but maybe a model:
@@ -3485,6 +3698,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						ui->indigoView->objectRemoved(*ob);
 
+						if(ob->audio_source.nonNull())
+						{
+							audio_engine.removeSource(ob->audio_source);
+							ob->audio_source = NULL;
+							ob->audio_state = WorldObject::AudioState_NotLoaded;
+						}
+
 						removeInstancesOfObject(ob);
 
 						this->world_state->objects.erase(ob->uid);
@@ -3564,6 +3784,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								last_restored_ob_uid_in_edit = UID::invalidUID();
 							}
 						}
+
+						loadAudioForObject(ob);
 					}
 				}
 				else if(ob->from_remote_lightmap_url_dirty)
@@ -3765,6 +3987,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
 						physics_world->updateObjectTransformData(*ob->physics_object);
 						need_physics_world_rebuild = true;
+					}
+
+					if(ob->audio_source.nonNull())
+					{
+						// Update in audio engine
+						ob->audio_source->pos = ob->aabb_ws.centroid();
+						audio_engine.sourcePositionUpdated(*ob->audio_source);
 					}
 
 					it++;
@@ -4660,6 +4889,54 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 }
 
 
+void MainWindow::on_actionAdd_Audio_Source_triggered()
+{
+	const float quad_w = 0.4f;
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+		this->cam_controller.getUpVec() * quad_w * 0.5f -
+		this->cam_controller.getRightVec() * quad_w * 0.5f;
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create audio sources in a parcel that you have write permissions for.");
+		return;
+	}
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_Generic;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = 0;
+	new_world_object->scale = Vec3f(0.1f);
+
+	//const float fixture_w = 0.1;
+	//const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
+	//new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+	//new_world_object->aabb_ws = audiosource_opengl_mesh->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+
+	// Send CreateObject message to server
+	{
+		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+		packet.writeUInt32(Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(packet);
+
+		this->client_thread->enqueueDataToSend(packet);
+	}
+
+	showInfoNotification("Added audio source.");
+}
+
+
 void MainWindow::on_actionAdd_Voxels_triggered()
 {
 	// Offset down by 0.25 to allow for centering with voxel width of 0.5.
@@ -5246,6 +5523,13 @@ void MainWindow::applyUndoOrRedoObject(const Reference<WorldObject>& restored_ob
 						this->physics_world->updateObjectTransformData(*in_world_ob->physics_object);
 					}
 
+					if(in_world_ob->audio_source.nonNull())
+					{
+						// Update in audio engine
+						in_world_ob->audio_source->pos = in_world_ob->aabb_ws.centroid();
+						audio_engine.sourcePositionUpdated(*in_world_ob->audio_source);
+					}
+
 					// Update in Indigo view
 					ui->indigoView->objectTransformChanged(*in_world_ob);
 
@@ -5424,16 +5708,26 @@ void MainWindow::objectEditedSlot()
 		std::vector<std::string> URLs;
 		this->selected_ob->appendDependencyURLs(/*ob_lod_level=*/0, URLs);
 
-		for(size_t i=0; i<URLs.size(); ++i)
+		try
 		{
-			if(FileUtils::fileExists(URLs[i])) // If this was a local path:
+			for(size_t i=0; i<URLs.size(); ++i)
 			{
-				const std::string local_path = URLs[i];
-				const std::string URL = ResourceManager::URLForPathAndHash(local_path, FileChecksum::fileChecksum(local_path));
+				if(FileUtils::fileExists(URLs[i])) // If this was a local path:
+				{
+					const std::string local_path = URLs[i];
+					const std::string URL = ResourceManager::URLForPathAndHash(local_path, FileChecksum::fileChecksum(local_path));
 
-				// Copy model to local resources dir.
-				resource_manager->copyLocalFileToResourceDir(local_path, URL);
+					// Copy model to local resources dir.
+					resource_manager->copyLocalFileToResourceDir(local_path, URL);
+				}
 			}
+		}
+		catch(glare::Exception& e)
+		{
+			QMessageBox msgBox;
+			msgBox.setWindowTitle("Error");
+			msgBox.setText(QtUtils::toQString(e.what()));
+			msgBox.exec();
 		}
 
 		// Set material COLOUR_TEX_HAS_ALPHA_FLAG as applicable
@@ -5590,6 +5884,18 @@ void MainWindow::objectEditedSlot()
 			{
 				showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 			}
+		}
+
+		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
+			loadAudioForObject(this->selected_ob.getPointer());
+
+		if(this->selected_ob->audio_source.nonNull())
+		{
+			this->selected_ob->audio_source->pos = this->selected_ob->aabb_ws.centroid();
+			this->audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
+
+			this->selected_ob->audio_source->volume = this->selected_ob->audio_volume;
+			this->audio_engine.sourceVolumeUpdated(*this->selected_ob->audio_source);
 		}
 	}
 }
@@ -5843,6 +6149,12 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 			if(ob->physics_object.nonNull())
 				this->physics_world->removeObject(ob->physics_object);
+
+			if(ob->audio_source.nonNull())
+			{
+				this->audio_engine.removeSource(ob->audio_source);
+				ob->audio_state = WorldObject::AudioState_NotLoaded;
+			}
 		}
 
 		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
@@ -7756,12 +8068,13 @@ int main(int argc, char *argv[])
 			
 			//UVUnwrapper::test();
 			//quaternionTests();
-			FormatDecoderGLTF::test();
-			BatchedMeshTests::test();
+			//FormatDecoderGLTF::test();
+			//BatchedMeshTests::test();
 			//Matrix3f::test();
 			//glare::AudioEngine::test();
 			//circularBufferTest();
 			//glare::testPoolAllocator();
+			AudioFileReader::test();
 			//WMFVideoReader::test();
 			//TextureLoadingTests::test();
 			//KTXDecoder::test();

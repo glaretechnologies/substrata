@@ -94,6 +94,7 @@ private slots:;
 	void on_actionAddHypercard_triggered();
 	void on_actionAdd_Voxels_triggered();
 	void on_actionAdd_Spotlight_triggered();
+	void on_actionAdd_Audio_Source_triggered();
 	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
 	void on_actionReset_Layout_triggered();
@@ -158,6 +159,7 @@ private:
 	void loadModelForObject(WorldObject* ob);
 	void loadModelForAvatar(Avatar* ob);
 	void loadScriptForObject(WorldObject* ob);
+	void loadAudioForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
@@ -216,6 +218,9 @@ public:
 	
 	bool checkAddModelToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool isModelProcessed(const std::string& url) const;
+
+	bool checkAddAudioToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool isAudioProcessed(const std::string& url) const;
 
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level);
@@ -413,6 +418,12 @@ private:
 	// Models being loaded or already loaded.
 	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
 	std::unordered_set<std::string> models_processed;
+
+	mutable Mutex audio_processed_mutex;
+	// Audio files being loaded or already loaded.
+	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
+	std::unordered_set<std::string> audio_processed;
+
 
 	QTimer* lightmap_flag_timer;
 
