@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>524</width>
-    <height>1060</height>
+    <height>1145</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -607,6 +607,42 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="audioGroupBox">
+     <property name="title">
+      <string>Audio settings</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_8">
+        <property name="text">
+         <string>Volume</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="FileSelectWidget" name="audioFileWidget"/>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_14">
+        <property name="text">
+         <string>Audio File</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="RealControl" name="volumeDoubleSpinBox">
+        <property name="maximum">
+         <double>2.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="materialsGroupBox">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
@@ -691,6 +727,11 @@
    <class>IndigoDoubleSpinBox</class>
    <extends>QDoubleSpinBox</extends>
    <header>../qt/IndigoDoubleSpinBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>RealControl</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>../qt/RealControl.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

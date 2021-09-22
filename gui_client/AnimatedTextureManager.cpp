@@ -104,7 +104,7 @@ struct CreateVidReaderTask : public glare::Task
 		try
 		{
 #if defined(_WIN32)
-			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, URL, /*vid_reader_byte_stream, */callback, dev_manager, /*decode_to_d3d_tex=*/true);
+			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, /*just_read_audio=*/false, URL, /*vid_reader_byte_stream, */callback, dev_manager, /*decode_to_d3d_tex=*/true);
 
 			Lock lock(mutex);
 			this->vid_reader = vid_reader_;
@@ -442,7 +442,8 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 				{
 					if(in_process_dist && ob->audio_source.nonNull())
 					{
-						main_window->audio_engine.setSourcePosition(ob->audio_source, ob->opengl_engine_ob->aabb_ws.centroid());
+						ob->audio_source->pos = ob->opengl_engine_ob->aabb_ws.centroid();
+						main_window->audio_engine.sourcePositionUpdated(*ob->audio_source);
 					}
 
 					try
