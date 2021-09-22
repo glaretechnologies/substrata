@@ -2822,17 +2822,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							if(ob->audio_source_url == loaded_msg->audio_source_url)
 							{
-								ob->audio_source = new glare::AudioSource();
-								ob->audio_source->buffer.pushBackNItems(loaded_msg->data.data(), loaded_msg->data.size());
-								ob->audio_source->pos = ob->aabb_ws.centroid();
-								ob->audio_source->volume = ob->audio_volume;
-								const double audio_len_s = loaded_msg->data.size() / 44100.0; // TEMP HACK
-								const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
-								ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->data.size());
-								audio_engine.addSource(ob->audio_source);
+								if(loaded_msg->data.size() > 0) // Avoid divide by zero.
+								{
+									ob->audio_source = new glare::AudioSource();
+									ob->audio_source->buffer.pushBackNItems(loaded_msg->data.data(), loaded_msg->data.size());
+									ob->audio_source->pos = ob->aabb_ws.centroid();
+									ob->audio_source->volume = ob->audio_volume;
+									const double audio_len_s = loaded_msg->data.size() / 44100.0; // TEMP HACK
+									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
+									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->data.size());
+									audio_engine.addSource(ob->audio_source);
 
-								ob->audio_state = WorldObject::AudioState_Loaded;
-								//ob->loaded_audio_source_url = ob->audio_source_url;
+									ob->audio_state = WorldObject::AudioState_Loaded;
+									//ob->loaded_audio_source_url = ob->audio_source_url;
+								}
 							}
 
 							//loadAudioForObject(ob);
