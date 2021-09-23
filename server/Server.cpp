@@ -476,6 +476,38 @@ int main(int argc, char *argv[])
 
 		//server.world_state->objects.clear();
 
+		ParcelID max_parcel_id(0);
+		for(auto it = server.world_state->getRootWorldState()->parcels.begin(); it != server.world_state->getRootWorldState()->parcels.end(); ++it)
+		{
+			const Parcel* parcel = it->second.ptr();
+			max_parcel_id = myMax(max_parcel_id, parcel->id);
+		}
+
+		// Add park parcels if not already created.
+		if(max_parcel_id.value() == 425)
+		{
+			for(int i=0; i<4; ++i)
+			{
+				const ParcelID parcel_id(426 + i);
+				ParcelRef parcel = new Parcel();
+				parcel->state = Parcel::State_Alive;
+				parcel->id = parcel_id;
+				parcel->owner_id = UserID(0);
+				parcel->admin_ids.push_back(UserID(0));
+				parcel->writer_ids.push_back(UserID(0));
+				parcel->created_time = TimeStamp::currentTime();
+				parcel->zbounds = Vec2d(-2, 20);
+
+				Vec2d centre(-105 + 210 * (i % 2), -105 + 210 * (i / 2));
+				parcel->verts[0] = centre - Vec2d(-30, -30);
+				parcel->verts[1] = centre - Vec2d(30, -30);
+				parcel->verts[2] = centre - Vec2d(30, 30);
+				parcel->verts[3] = centre - Vec2d(-30, 30);
+
+				server.world_state->getRootWorldState()->parcels[parcel_id] = parcel;
+			}
+		}
+
 
 		// Add road objects
 		if(false)

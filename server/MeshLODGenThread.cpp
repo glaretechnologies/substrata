@@ -183,10 +183,8 @@ void MeshLODGenThread::doRun()
 								throw glare::Exception("Error while decompressing voxel group: " + e.what());
 							}
 						}
-						else // else if(ob->object_type == WorldObject::ObjectType_Generic):
+						else if(ob->object_type == WorldObject::ObjectType_Generic)
 						{
-							assert(ob->object_type == WorldObject::ObjectType_Generic);
-
 							// Try and load mesh, get AABB from it.
 							if(!ob->model_url.empty())
 							{
@@ -232,6 +230,8 @@ void MeshLODGenThread::doRun()
 								}
 							}
 						}
+						else
+							throw glare::Exception("invalid object type.");
 
 						// Compute and assign aabb_ws to object.
 						if(!aabb_os.isEmpty()) // If we got a valid aabb_os:

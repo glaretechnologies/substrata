@@ -1593,6 +1593,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 					const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadTextureTask doesn't try and process it also.
 					if(just_inserted)
 					{
+						// conPrint("Launching LoadAudioTask");
 						// Do the model loading in a different thread
 						Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
@@ -2240,7 +2241,7 @@ void MainWindow::checkForLODChanges()
 				{
 					if(dist > MAX_AUDIO_DIST)
 					{
-						conPrint("Object out of range, removing audio object.");
+						// conPrint("Object out of range, removing audio object '" + ob->audio_source_url + "'.");
 						audio_engine.removeSource(ob->audio_source);
 						ob->audio_source = NULL;
 						ob->audio_state = WorldObject::AudioState_NotLoaded;
@@ -2253,7 +2254,7 @@ void MainWindow::checkForLODChanges()
 
 					if(dist <= MAX_AUDIO_DIST)
 					{
-						conPrint("Object in range, loading audio object.");
+						// conPrint("Object in range, loading audio object.");
 						loadAudioForObject(ob);
 					}
 				}
@@ -2809,6 +2810,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				AudioLoadedThreadMessage* loaded_msg = static_cast<AudioLoadedThreadMessage*>(msg.ptr());
 
+				// conPrint("AudioLoadedThreadMessage: loaded_msg->audio_source_url: " + loaded_msg->audio_source_url);
+
 				if(world_state.nonNull())
 				{
 					// Iterate over objects and load an audio source for any object using this audio URL.
@@ -2835,6 +2838,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 									ob->audio_state = WorldObject::AudioState_Loaded;
 									//ob->loaded_audio_source_url = ob->audio_source_url;
+
+									// conPrint("Added AudioSource " + loaded_msg->audio_source_url);
 								}
 							}
 
