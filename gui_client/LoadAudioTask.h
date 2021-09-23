@@ -6,15 +6,11 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
-#include "../shared/WorldObject.h"
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <string>
 #include <vector>
 class MainWindow;
-class OpenGLEngine;
-class MeshManager;
-class ResourceManager;
 
 
 class AudioLoadedThreadMessage : public ThreadMessage
