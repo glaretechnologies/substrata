@@ -196,7 +196,8 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				Parcel* parcel = pit->second.ptr();
 				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90) && // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90)
 					!isParcelInCurrentAuction(world_state, parcel, now) && // And not already in a currently running auction
-					(parcel->nft_status == Parcel::NFTStatus_NotNFT) // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
+					(parcel->nft_status == Parcel::NFTStatus_NotNFT) && // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
+					(!(parcel->id.value() >= 426 && parcel->id.value() < 430)) // Don't auction off new park parcels (parcels 426...429)
 					)
 					sellable_parcels.push_back(parcel);
 			}
