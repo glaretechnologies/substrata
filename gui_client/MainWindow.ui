@@ -61,6 +61,7 @@
     <addaction name="actionAddObject"/>
     <addaction name="actionAddHypercard"/>
     <addaction name="actionAdd_Spotlight"/>
+    <addaction name="actionAdd_Audio_Source"/>
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
     <addaction name="actionFind_Object"/>
