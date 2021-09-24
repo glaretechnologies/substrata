@@ -433,7 +433,10 @@ void AudioEngine::addSource(AudioSourceRef source)
 {
 	source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
 
-	resonance->SetSourcePosition(source->resonance_handle, source->pos[0], source->pos[1], source->pos[2]);
+	if(source->pos.isFinite()) // Avoid crash in Resonance with NaN position coords.
+	{
+		resonance->SetSourcePosition(source->resonance_handle, source->pos[0], source->pos[1], source->pos[2]);
+	}
 
 	Lock lock(mutex);
 	audio_sources.insert(source);
@@ -451,6 +454,9 @@ void AudioEngine::removeSource(AudioSourceRef source)
 
 void AudioEngine::sourcePositionUpdated(AudioSource& source)
 {
+	if(!source.pos.isFinite())
+		return; // Avoid crash in Resonance with NaN position coords.
+
 	resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
 }
 

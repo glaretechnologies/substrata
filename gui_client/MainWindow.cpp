@@ -4899,49 +4899,103 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 
 void MainWindow::on_actionAdd_Audio_Source_triggered()
 {
-	const float quad_w = 0.4f;
-	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f -
-		this->cam_controller.getUpVec() * quad_w * 0.5f -
-		this->cam_controller.getRightVec() * quad_w * 0.5f;
-
-	// Check permissions
-	bool ob_pos_in_parcel;
-	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
-	if(!have_creation_perms)
+	try
 	{
-		if(ob_pos_in_parcel)
-			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
-		else
-			showErrorNotification("You can only create audio sources in a parcel that you have write permissions for.");
-		return;
+		const float quad_w = 0.0f;
+		const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+			this->cam_controller.getUpVec() * quad_w * 0.5f -
+			this->cam_controller.getRightVec() * quad_w * 0.5f;
+
+		// Check permissions
+		bool ob_pos_in_parcel;
+		const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+		if(!have_creation_perms)
+		{
+			if(ob_pos_in_parcel)
+				showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+			else
+				showErrorNotification("You can only create audio sources in a parcel that you have write permissions for.");
+			return;
+		}
+
+		const QString qpath = settings->value("mainwindow/lastAudioFileDir").toString();
+
+		QFileDialog::Options options;
+		QString selected_filter;
+		QString filename = QFileDialog::getOpenFileName(this,
+			tr("Select audio file..."),
+			qpath,
+			tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
+			&selected_filter,
+			options
+		);
+
+		if(filename != "")
+		{
+			settings->setValue("mainwindow/lastAudioFileDir", filename);
+
+			const std::string path = QtUtils::toStdString(qpath);
+
+			// Compute hash over audio file
+			const uint64 audio_file_hash = FileChecksum::fileChecksum(path);
+
+			const std::string audio_file_URL = ResourceManager::URLForNameAndExtensionAndHash(path, ::getExtension(path), audio_file_hash);
+
+			// Copy audio file to local resources dir.  UploadResourceThread will read from here.
+			this->resource_manager->copyLocalFileToResourceDir(path, audio_file_URL);
+
+			const std::string model_obj_path = base_dir_path + "/resources/models/Capsule.obj";
+			const std::string model_URL = "Capsule_obj_7611321750126528672.bmesh"; // NOTE: Assuming server already has capsule mesh as a resource
+
+		
+			WorldObjectRef new_world_object = new WorldObject();
+			new_world_object->uid = UID(0); // Will be set by server
+			new_world_object->object_type = WorldObject::ObjectType_Generic;
+			new_world_object->pos = ob_pos;
+			new_world_object->axis = Vec3f(0, 0, 1);
+			new_world_object->angle = 0;
+			new_world_object->scale = Vec3f(0.2f);
+			new_world_object->model_url = model_URL;
+			new_world_object->audio_source_url = audio_file_URL;
+			new_world_object->materials.resize(1);
+			new_world_object->materials[0] = new WorldMaterial();
+			new_world_object->materials[0]->colour_rgb = Colour3f(1,0,0);
+
+			// Set aabbws
+			
+			/*WorldObject loaded_object;
+			BatchedMeshRef batched_mesh;
+			ModelLoading::makeGLObjectForModelFile(task_manager, model_obj_path, batched_mesh, loaded_object);
+			if(batched_mesh.nonNull())
+			{
+				const js::AABBox aabb_os = batched_mesh->aabb_os;
+				new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+			}*/
+
+			const js::AABBox aabb_os(Vec4f(-0.25f, -0.25f, -0.5f, 1.0f), Vec4f(0.25f, 0.25f, 0.5f, 1.0f)); // AABB os of capsule.obj
+			new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+
+			// Send CreateObject message to server
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
+				packet.writeUInt32(Protocol::CreateObject);
+				new_world_object->writeToNetworkStream(packet);
+
+				this->client_thread->enqueueDataToSend(packet);
+			}
+
+			showInfoNotification("Added audio source.");
+		}
 	}
-
-	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->uid = UID(0); // Will be set by server
-	new_world_object->object_type = WorldObject::ObjectType_Generic;
-	new_world_object->pos = ob_pos;
-	new_world_object->axis = Vec3f(0, 0, 1);
-	new_world_object->angle = 0;
-	new_world_object->scale = Vec3f(0.1f);
-
-	//const float fixture_w = 0.1;
-	//const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
-	//new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
-
-	//new_world_object->aabb_ws = audiosource_opengl_mesh->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
-
-
-	// Send CreateObject message to server
+	catch(glare::Exception& e)
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-
-		packet.writeUInt32(Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(packet);
-
-		this->client_thread->enqueueDataToSend(packet);
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Error");
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
 	}
-
-	showInfoNotification("Added audio source.");
 }
 
 
