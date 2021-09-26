@@ -465,6 +465,8 @@ void MainWindow::afterGLInitInitialise()
 		// Enable fly mode so we don't just fall to the ground
 		ui->actionFly_Mode->setChecked(true);
 		this->player_physics.setFlyModeEnabled(true);
+		this->cam_controller.setThirdPersonEnabled(false);
+		ui->actionThird_Person_Camera->setChecked(false);
 	}
 
 	
@@ -2023,6 +2025,10 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 
 void MainWindow::setUpForScreenshot()
 {
+	const bool rendering_map_tile = parsed_args.isArgPresent("--takemapscreenshot");
+	if(rendering_map_tile)
+		removeParcelObjects();
+
 	// Highlight requested parcel_id
 	if(screenshot_highlight_parcel_id != -1)
 	{
@@ -2401,7 +2407,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		const bool loaded_all =
 			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
-			(total_timer.elapsed() >= 15) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
+			(total_timer.elapsed() >= 8) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
 			(num_model_tasks == 0) &&
 			(num_tex_tasks == 0) &&
 			(num_non_net_resources_downloading == 0) &&
@@ -8140,7 +8146,7 @@ int main(int argc, char *argv[])
 		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_string); // screenshot_path
 		syntax["--takemapscreenshot"] = takemapscreenshot_args;
 
-		// e.g. --takemapscreenshot 0 0 tile_0_0.jpg
+		// e.g. --takemapscreenshot 0 0 4 tile_0_0.jpg
 
 		
 

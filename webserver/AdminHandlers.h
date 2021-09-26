@@ -33,6 +33,8 @@ namespace AdminHandlers
 
 	void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
+	void renderMapPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+
 	void renderAdminOrderPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
 
@@ -59,4 +61,6 @@ namespace AdminHandlers
 	void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	
 	void handleTerminateParcelAuction(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+
+	void handleRegenMapTilesPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 } 
