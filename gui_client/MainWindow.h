@@ -435,6 +435,7 @@ public:
 	Vec3d screenshot_campos;
 	Vec3d screenshot_camangles;
 	int screenshot_width_px;
+	float screenshot_ortho_sensor_width_m;
 	int screenshot_highlight_parcel_id;
 	std::string screenshot_output_path;
 	bool done_screenshot_setup;
@@ -475,4 +476,6 @@ public:
 
 
 	GestureUI gesture_ui;
+
+	bool running_destructor;
 };

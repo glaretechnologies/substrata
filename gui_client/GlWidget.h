@@ -117,4 +117,7 @@ public:
 	QTimer* gamepad_init_timer;
 	PrintOutput* print_output;
 	QSettings* settings;
+
+	bool take_map_screenshot;
+	float screenshot_ortho_sensor_width_m;
 };

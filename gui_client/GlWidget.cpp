@@ -59,7 +59,9 @@ GlWidget::GlWidget(QWidget *parent)
 	gamepad(NULL),
 	print_output(NULL),
 	settings(NULL),
-	player_physics(NULL)
+	player_physics(NULL),
+	take_map_screenshot(false),
+	screenshot_ortho_sensor_width_m(10)
 {
 	viewport_aspect_ratio = 1;
 
@@ -203,6 +205,23 @@ void GlWidget::initializeGL()
 
 void GlWidget::paintGL()
 {
+	if(take_map_screenshot)
+	{
+		const Vec3d cam_pos = cam_controller->getPosition();
+
+		const Matrix4f world_to_camera_space_matrix = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::translationMatrix(-(cam_pos.toVec4fVector()));
+
+		const float render_aspect_ratio = viewport_aspect_ratio;
+		opengl_engine->setViewport(viewport_w, viewport_h);
+		opengl_engine->setNearDrawDistance(near_draw_dist);
+		opengl_engine->setMaxDrawDistance(300);//max_draw_dist);
+		opengl_engine->setDiagonalOrthoCameraTransform(world_to_camera_space_matrix, /*sensor_width*/screenshot_ortho_sensor_width_m, /*render_aspect_ratio=*/1.f);
+		opengl_engine->setCurrentTime(current_time);
+		opengl_engine->draw();
+		return;
+	}
+
+
 	if(cam_controller)
 	{
 		// Work out current camera transform

@@ -79,4 +79,54 @@ void handleScreenshotRequest(ServerAllWorldsState& world_state, WebDataStore& da
 }
 
 
+void handleMapTileRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request, web::ReplyInfo& reply_info) // Shows order details
+{
+	try
+	{
+		const int x = request.getURLIntParam("x");
+		const int y = -request.getURLIntParam("y") - 1; // NOTE: negated for y-down in leaflet.js, -1 to fix offset also.
+		const int z = request.getURLIntParam("z");
+
+		// Get screenshot local path
+		std::string local_path;
+		{ // lock scope
+			Lock lock(world_state.mutex);
+
+			auto res = world_state.map_tile_info.find(Vec3<int>(x, y, z));
+			if(res == world_state.map_tile_info.end())
+				throw glare::Exception("Couldn't find map tile");
+
+			const TileInfo& info = res->second;
+			if(info.cur_tile_screenshot.nonNull() && info.cur_tile_screenshot->state == Screenshot::ScreenshotState_done)
+				local_path = info.cur_tile_screenshot->local_path;
+			else if(info.prev_tile_screenshot.nonNull() && info.prev_tile_screenshot->state == Screenshot::ScreenshotState_done)
+				local_path = info.prev_tile_screenshot->local_path;
+			else
+				throw glare::Exception("Map tile screenshot not done.");
+		} // end lock scope
+
+
+		try
+		{
+			MemMappedFile file(local_path); // Load screenshot file
+			std::string content_type;
+			if(::hasExtension(local_path, "jpg"))
+				content_type = "image/jpeg";
+			else
+				content_type = "bleh";
+
+			// Send it to client
+			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14); // cache max age = 2 weeks
+		}
+		catch(glare::Exception&)
+		{
+			web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load file '" + local_path + "'.");
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
 } // end namespace ScreenshotHandlers

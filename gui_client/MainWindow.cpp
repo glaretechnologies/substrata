@@ -197,7 +197,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	model_loader_task_manager("model loader task manager"),
 	texture_loader_task_manager("texture loader task manager"),
 	model_building_subsidary_task_manager("model building subsidary task manager"),
-	url_parcel_uid(-1)
+	url_parcel_uid(-1),
+	running_destructor(false)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
@@ -483,6 +484,8 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
+	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
+
 	gesture_ui.destroy();
 
 #if !defined(_WIN32)
@@ -1640,7 +1643,7 @@ void MainWindow::logMessage(const std::string& msg) // Print to stdout and appen
 {
 	conPrint(msg);
 	//this->logfile << msg << "\n";
-	if(this->log_window)
+	if(this->log_window && !running_destructor)
 		this->log_window->appendLine(msg);
 }
 
@@ -2035,6 +2038,9 @@ void MainWindow::setUpForScreenshot()
 	}
 
 	ui->glWidget->near_draw_dist = 0.7f; // Increase near draw distance, to reduce z-fighting.  Hope there are no nearby objects!
+	ui->glWidget->take_map_screenshot = true;
+
+	gesture_ui.destroy();
 
 	done_screenshot_setup = true;
 }
@@ -2377,6 +2383,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			num_obs = world_state->objects.size();
 		}
 
+		const bool map_screenshot = parsed_args.isArgPresent("--takemapscreenshot");
+
+		ui->glWidget->take_map_screenshot = map_screenshot;
+		ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
+
 		conPrint("---------------Waiting for loading to be done for screenshot ---------------");
 		const size_t num_model_tasks = model_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
 		const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks() + texture_loaded_messages_to_process.size();
@@ -2401,17 +2412,30 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			if(!done_screenshot_setup)
 			{
 				// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
-				ui->editorDockWidget->setFloating(false);
+				/*ui->editorDockWidget->setFloating(false);
 				this->addDockWidget(Qt::LeftDockWidgetArea, ui->editorDockWidget);
 				ui->editorDockWidget->show();
 
 				ui->chatDockWidget->setFloating(false);
 				this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
-				ui->chatDockWidget->show();
+				ui->chatDockWidget->show();*/
 
+				ui->editorDockWidget->hide();
+				ui->chatDockWidget->hide();
+				ui->diagnosticsDockWidget->hide();
+
+				// Set the window geometry such that the gl viewport is the desired size for the screenshot.
+				const int cur_viewport_w = ui->glWidget->opengl_engine->getViewPortWidth();
+				const int cur_viewport_h = ui->glWidget->opengl_engine->getViewPortHeight();
+
+				const int taget_viewport_w = map_screenshot ? (screenshot_width_px * 2) : 2000;
+				const int taget_viewport_h = map_screenshot ? (screenshot_width_px * 2) : 1344; // 1344 is chosen for aspect ratio consistency with existing screenshots. (650 x 437 px)
+
+				const int new_geom_w = this->geometry().width()  + (taget_viewport_w - cur_viewport_w);
+				const int new_geom_h = this->geometry().height() + (taget_viewport_h - cur_viewport_h);
+				
 				setGeometry(
-					QRect(100, 100, 2000, 1000)
-					// For hi-res top down screenshot: QRect(100, 100, screenshot_width_px * 2, screenshot_width_px * 2)
+					QRect(100, 100, new_geom_w, new_geom_h)
 				);
 				setUpForScreenshot();
 			}
@@ -8109,6 +8133,17 @@ int main(int argc, char *argv[])
 
 		// e.g. --takescreenshot 100 200 300 0 3.1 0 800 15 screenshot1.jpg
 
+		std::vector<ArgumentParser::ArgumentType> takemapscreenshot_args;
+		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// tile x
+		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// tile y
+		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// tile z
+		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_string); // screenshot_path
+		syntax["--takemapscreenshot"] = takemapscreenshot_args;
+
+		// e.g. --takemapscreenshot 0 0 tile_0_0.jpg
+
+		
+
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it
 
@@ -8316,6 +8351,29 @@ int main(int argc, char *argv[])
 				mw.screenshot_output_path = parsed_args.getArgStringValue("--takescreenshot", /*index=*/8);
 			}
 
+			if(parsed_args.isArgPresent("--takemapscreenshot"))
+			{
+				const int tile_x = parsed_args.getArgIntValue("--takemapscreenshot", 0);
+				const int tile_y = parsed_args.getArgIntValue("--takemapscreenshot", 1);
+				const int tile_z = parsed_args.getArgIntValue("--takemapscreenshot", 2);
+
+				const int TILE_WIDTH_PX = 256; // Works the easiest with leaflet.js
+				const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
+				mw.screenshot_campos = Vec3d(
+					(tile_x + 0.5) * TILE_WIDTH_M,
+					(tile_y + 0.5) * TILE_WIDTH_M,
+					150.0
+				);
+				mw.screenshot_camangles = Vec3d(
+					0, // Heading
+					3.14, // pitch
+					0 // roll
+				);
+				mw.screenshot_ortho_sensor_width_m = TILE_WIDTH_M;
+				mw.screenshot_width_px = TILE_WIDTH_PX;
+				mw.screenshot_highlight_parcel_id = -1;
+				mw.screenshot_output_path = parsed_args.getArgStringValue("--takemapscreenshot", /*index=*/3);
+			}
 
 			mw.initialise();
 

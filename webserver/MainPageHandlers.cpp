@@ -925,4 +925,73 @@ void renderBotStatusPage(ServerAllWorldsState& world_state, const web::RequestIn
 }
 
 
-}  // end namespace MainPageHandlers
+void renderMapPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	const std::string extra_header_tags = "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.css\"\
+		integrity=\"sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==\"\
+		crossorigin=\"\"/>";
+	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Map", extra_header_tags);
+
+	page += 
+		"<script src=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.js\"\
+		integrity=\"sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==\"\
+		crossorigin=\"\"></script>";
+
+	page += "<div style=\"height: 650px\" id=\"mapid\"></div>";
+
+	// Get parcel polygon boundaries
+	std::vector<Vec2d> poly_verts;
+	std::vector<int> parcel_ids;
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		ServerWorldState* root_world = world_state.getRootWorldState().ptr();
+
+		poly_verts.reserve(root_world->parcels.size() * 4);
+		parcel_ids.reserve(root_world->parcels.size());
+
+		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
+		{
+			const Parcel* parcel = it->second.ptr();
+
+			for(int i=0; i<4; ++i)
+				poly_verts.push_back(parcel->verts[i]);
+
+			parcel_ids.push_back(parcel->id.value());
+		}
+	} // End lock scope
+
+	const double scale = 1.0 / 20; // Not totally sure where this scale comes from, but somehow from const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
+	std::string var_js;
+	var_js.reserve(parcel_ids.size() * 80); // Reserve 80 chars per parcel (only use about 70 in practice).
+	var_js += "<script>poly_coords = [";
+	for(size_t i=0; i<poly_verts.size(); ++i)
+	{
+		var_js += "[" + doubleToStringNSigFigs(poly_verts[i].y * scale, 4) + ", " + doubleToStringNSigFigs(poly_verts[i].x * scale, 4) + "]";
+		if(i + 1 < poly_verts.size())
+			var_js += ",\n";
+	}
+	var_js += "];\n";
+
+	var_js += "parcel_ids = [";
+	for(size_t i=0; i<parcel_ids.size(); ++i)
+	{
+		var_js += toString(parcel_ids[i]);
+		if(i + 1 < parcel_ids.size())
+			var_js += ", ";
+	}
+	var_js += "];</script>";
+
+	page += var_js;
+
+	page += "<script src=\"/files/map.js\"></script>";
+
+
+	page += WebServerResponseUtils::standardFooter(request_info, true);
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
+}
+
+
+} // end namespace MainPageHandlers

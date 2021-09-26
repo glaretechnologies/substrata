@@ -43,6 +43,13 @@ struct OpenSeaParcelListing
 };
 
 
+struct TileInfo
+{
+	ScreenshotRef cur_tile_screenshot;
+	ScreenshotRef prev_tile_screenshot;
+};
+
+
 /*=====================================================================
 ServerWorldState
 ----------------
@@ -89,6 +96,8 @@ public:
 
 	std::map<uint64, SubEthTransactionRef> sub_eth_transactions; // SubEthTransaction id to SubEthTransaction
 
+	// For the map:
+	std::map<Vec3<int>, TileInfo> map_tile_info;
 
 	int last_parcel_sale_update_hour;
 	int last_parcel_sale_update_day;

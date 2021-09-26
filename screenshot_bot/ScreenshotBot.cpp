@@ -94,50 +94,82 @@ int main(int argc, char* argv[])
 				conPrint("Waiting for ScreenShotRequest...");
 
 				const uint32 request_type = socket->readUInt32();
-				if(request_type == Protocol::ScreenShotRequest)
+				if(request_type == Protocol::ScreenShotRequest || request_type == Protocol::TileScreenShotRequest)
 				{
 					// Get screenshot request
-					conPrint("Received screenshot request from server.");
-
-					// Read cam position
-					const double cam_x = socket->readDouble();
-					const double cam_y = socket->readDouble();
-					const double cam_z = socket->readDouble();
-
-					// Read cam angles
-					const double angles_0 = socket->readDouble();
-					const double angles_1 = socket->readDouble();
-					const double angles_2 = socket->readDouble();
-
-					const int32 screenshot_width_px = socket->readInt32();
-					const int32 highlight_parcel_id = socket->readInt32();
-
-					conPrint("highlight_parcel_id: " + toString(highlight_parcel_id));
-
-					// Command a gui_client process to take the screenshot
+					if(request_type == Protocol::ScreenShotRequest)
+						conPrint("Received screenshot request from server.");
+					else
+						conPrint("Received map tile screenshot request from server.");
 
 					const int NUM_BYTES = 16;
 					uint8 data[NUM_BYTES];
 					CryptoRNG::getRandomBytes(data, NUM_BYTES);
 
-					const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
-					const std::string screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
-
 					const std::string gui_client_path = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/gui_client.exe";
+
 					std::vector<std::string> command_line_args;
-					command_line_args.push_back(gui_client_path);
-					command_line_args.push_back("-h");
-					command_line_args.push_back(server_hostname);
-					command_line_args.push_back("--takescreenshot");
-					command_line_args.push_back(toString(cam_x));
-					command_line_args.push_back(toString(cam_y));
-					command_line_args.push_back(toString(cam_z));
-					command_line_args.push_back(toString(angles_0));
-					command_line_args.push_back(toString(angles_1));
-					command_line_args.push_back(toString(angles_2));
-					command_line_args.push_back(toString(screenshot_width_px));
-					command_line_args.push_back(toString(highlight_parcel_id));
-					command_line_args.push_back(screenshot_path);
+
+					std::string screenshot_path;
+
+					if(request_type == Protocol::ScreenShotRequest)
+					{
+						// Read cam position
+						const double cam_x = socket->readDouble();
+						const double cam_y = socket->readDouble();
+						const double cam_z = socket->readDouble();
+
+						// Read cam angles
+						const double angles_0 = socket->readDouble();
+						const double angles_1 = socket->readDouble();
+						const double angles_2 = socket->readDouble();
+
+						const int32 screenshot_width_px = socket->readInt32();
+						const int32 highlight_parcel_id = socket->readInt32();
+
+						//conPrint("highlight_parcel_id: " + toString(highlight_parcel_id));
+
+						const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
+						screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
+
+						command_line_args.push_back(gui_client_path);
+						command_line_args.push_back("-h");
+						command_line_args.push_back(server_hostname);
+						command_line_args.push_back("--takescreenshot");
+						command_line_args.push_back(toString(cam_x));
+						command_line_args.push_back(toString(cam_y));
+						command_line_args.push_back(toString(cam_z));
+						command_line_args.push_back(toString(angles_0));
+						command_line_args.push_back(toString(angles_1));
+						command_line_args.push_back(toString(angles_2));
+						command_line_args.push_back(toString(screenshot_width_px));
+						command_line_args.push_back(toString(highlight_parcel_id));
+						command_line_args.push_back(screenshot_path);
+					}
+					else if(request_type == Protocol::TileScreenShotRequest)
+					{
+						const int tile_x = socket->readInt32();
+						const int tile_y = socket->readInt32();
+						const int tile_z = socket->readInt32();
+
+						conPrint("tile: (" + toString(tile_x) + ", " + toString(tile_y) + ", " + toString(tile_z) + ")");
+
+						const std::string screenshot_filename = "tile_" + toString(tile_x) + "_" + toString(tile_y) + "_" + toString(tile_z) + "_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
+						screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
+
+						command_line_args.push_back(gui_client_path);
+						command_line_args.push_back("-h");
+						command_line_args.push_back(server_hostname);
+						command_line_args.push_back("--takemapscreenshot");
+						command_line_args.push_back(toString(tile_x));
+						command_line_args.push_back(toString(tile_y));
+						command_line_args.push_back(toString(tile_z));
+						command_line_args.push_back(screenshot_path);
+					}
+					else
+						throw glare::Exception("invalid request type.");
+
+					// Command a gui_client process to take the screenshot
 					glare::Process process(gui_client_path, command_line_args);
 
 					Timer timer;
