@@ -233,6 +233,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderFAQ(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/map")
+		{
+			MainPageHandlers::renderMapPage(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/pdt_landing")
 		{
 			PayPalHandlers::handlePayPalPDTOrderLanding(*this->world_state, request, reply_info);
@@ -372,6 +376,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(::hasPrefix(request.path, "/screenshot/")) // Screenshot ID follows
 		{
 			ScreenshotHandlers::handleScreenshotRequest(*world_state, *data_store, request, reply_info);
+		}
+		else if(request.path == "/tile")
+		{
+			ScreenshotHandlers::handleMapTileRequest(*world_state, *data_store, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{

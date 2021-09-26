@@ -30,7 +30,7 @@ namespace WebServerResponseUtils
 const std::string CRLF = "\r\n";
 
 
-const std::string standardHTMLHeader(const web::RequestInfo& request_info, const std::string& page_title)
+const std::string standardHTMLHeader(const web::RequestInfo& request_info, const std::string& page_title, const std::string& extra_header_tags)
 {
 	return
 		"	<!DOCTYPE html>																								\n"
@@ -70,13 +70,14 @@ const std::string standardHTMLHeader(const web::RequestInfo& request_info, const
 		"			text-align: right;																						\n"
 		"		}																											\n"
 		"		</style>																									\n"
+		+ extra_header_tags + 
 		"		</head>																										\n";
 }
 
 
-const std::string standardHeader(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, const std::string& page_title)
+const std::string standardHeader(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, const std::string& page_title, const std::string& extra_header_tags)
 {
-	std::string page_out = standardHTMLHeader(request_info, page_title);
+	std::string page_out = standardHTMLHeader(request_info, page_title, extra_header_tags);
 	page_out +=
 		"	<body style=\"margin-top: 60px;\">\n"
 		"	<div id=\"login\" style=\"float: right; margin-top: -8px;\">\n"; // Start login div
@@ -117,7 +118,7 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 		"	<div class=\"footer\" style=\"font-size: 0.8em; color: grey\">Substrata is made by <a href=\"http://glaretechnologies.com\">Glare Technologies</a>		\n"
 		"	Contact us at contact@glaretechnologies.com<br/>											\n"
 		"	</div>																						\n"
-		"	<div class=\"footer\" style=\"font-size: 0.8em; color: grey; text-align: center\"><a href=\"/faq\">F.A.Q.</a> | <a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a></div>				\n"
+		"	<div class=\"footer\" style=\"font-size: 0.8em; color: grey; text-align: center\"><a href=\"/faq\">F.A.Q.</a> | <a href=\"/terms\">Terms of use</a> | <a href=\"/bot_status\">Bot status</a> | <a href=\"/map\">Map</a></div>				\n"
 		"	</body>																						\n"
 		"</html>																						\n";
 

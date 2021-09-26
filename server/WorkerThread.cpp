@@ -353,7 +353,7 @@ void WorkerThread::handleScreenshotBotConnection()
 
 				server->world_state->last_screenshot_bot_contact_time = TimeStamp::currentTime();
 
-				// Find first screenshot in ScreenshotState_notdone state.  NOTE: slow linear scan.
+				// Find first screenshot in screenshots map in ScreenshotState_notdone state.  NOTE: slow linear scan.
 				for(auto it = server->world_state->screenshots.begin(); it != server->world_state->screenshots.end(); ++it)
 				{
 					if(it->second->state == Screenshot::ScreenshotState_notdone)
@@ -362,20 +362,45 @@ void WorkerThread::handleScreenshotBotConnection()
 						break;
 					}
 				}
+
+				if(screenshot.isNull())
+				{
+					// Find first screenshot in map_tile_info map in ScreenshotState_notdone state.  NOTE: slow linear scan.
+					for(auto it = server->world_state->map_tile_info.begin(); it != server->world_state->map_tile_info.end(); ++it)
+					{
+						TileInfo& tile_info = it->second;
+						if(tile_info.cur_tile_screenshot.nonNull() && tile_info.cur_tile_screenshot->state == Screenshot::ScreenshotState_notdone)
+						{
+							screenshot = tile_info.cur_tile_screenshot;
+							break;
+						}
+					}
+				}
 			} // End lock scope
 
 			if(screenshot.nonNull()) // If there is a screenshot to take:
 			{
-				socket->writeUInt32(Protocol::ScreenShotRequest);
+				if(!screenshot->is_map_tile)
+				{
+					socket->writeUInt32(Protocol::ScreenShotRequest);
 
-				socket->writeDouble(screenshot->cam_pos.x);
-				socket->writeDouble(screenshot->cam_pos.y);
-				socket->writeDouble(screenshot->cam_pos.z);
-				socket->writeDouble(screenshot->cam_angles.x);
-				socket->writeDouble(screenshot->cam_angles.y);
-				socket->writeDouble(screenshot->cam_angles.z);
-				socket->writeInt32(screenshot->width_px);
-				socket->writeInt32(screenshot->highlight_parcel_id);
+					socket->writeDouble(screenshot->cam_pos.x);
+					socket->writeDouble(screenshot->cam_pos.y);
+					socket->writeDouble(screenshot->cam_pos.z);
+					socket->writeDouble(screenshot->cam_angles.x);
+					socket->writeDouble(screenshot->cam_angles.y);
+					socket->writeDouble(screenshot->cam_angles.z);
+					socket->writeInt32(screenshot->width_px);
+					socket->writeInt32(screenshot->highlight_parcel_id);
+				}
+				else
+				{
+					socket->writeUInt32(Protocol::TileScreenShotRequest);
+
+					socket->writeInt32(screenshot->tile_x);
+					socket->writeInt32(screenshot->tile_y);
+					socket->writeInt32(screenshot->tile_z);
+				}
 
 				// Read response
 				const uint32 result = socket->readUInt32();

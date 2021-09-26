@@ -115,6 +115,7 @@ const uint32 TimeSyncMessage		= 9000; // Sends the current time
 
 const uint32 ScreenShotRequest		= 11001;
 const uint32 ScreenShotSucceeded	= 11002;
+const uint32 TileScreenShotRequest	= 11003;
 
 
 const uint32 SubmitEthTransactionRequest		= 12001;

@@ -287,6 +287,83 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 }
 
 
+void updateMapTiles(ServerAllWorldsState& world_state)
+{
+	// TEMP: scan over all screenshots and find highest used ID. (was running into a problem on localhost of id >= num items)
+	uint64 highest_id = 0;
+	for(auto it = world_state.screenshots.begin(); it != world_state.screenshots.end(); ++it)
+		highest_id = myMax(highest_id, it->first);
+
+	uint64 next_shot_id = highest_id + 1;
+
+	const int z_begin = 0;
+	const int z_end = 7;
+	if(true) // world_state.map_tile_info.empty())
+	{
+		// world_state.map_tile_info.clear();
+
+		for(int z = z_begin; z < z_end; ++z)
+		{
+			const float TILE_WIDTH_M = 5120.f / (1 << z); //TILE_WIDTH_PX * metres_per_pixel;
+			//const float TILE_WIDTH_M = 2560.f/*5120.f*/ / (1 << z); //TILE_WIDTH_PX * metres_per_pixel;
+
+			const int span = (int)std::ceil(300 / TILE_WIDTH_M);
+
+
+			// We want zoom level 3 to have (half) span 2 = 2^1.
+			// zoom level 4 : span = 2^(4-2) = 2^2 = 4.
+			// So num tiles = (4*2)^2 = 64
+			// zoom level 5 : span = 2^(5-2) = 2^3 = 8.
+			// So num tiles = (8*2)^2 = 256
+
+			// in general num_tiles = (span*2)^2 = ((2^(z-2))*2)^2 = (2^(z-1))^2 = 2^((z-1)*2) = 2^(2z - 2)
+			// zoom level 6: num_tiles = 2^10 = 1024
+			//const int span = 1 << myMax(0, z - 2); // 2^(z-2)
+
+			const int x_begin = -span;
+			const int x_end = span;
+			const int y_begin = -span;
+			const int y_end = span;
+
+			
+
+			for(int y = y_begin; y < y_end; ++y)
+			for(int x = x_begin; x < x_end; ++x)
+			{
+				const Vec3<int> v(x, y, z);
+
+				if(world_state.map_tile_info.count(v) == 0)
+				{
+
+					TileInfo info;
+					info.cur_tile_screenshot = new Screenshot();
+					info.cur_tile_screenshot->id = next_shot_id++;
+					info.cur_tile_screenshot->created_time = TimeStamp::currentTime();
+					info.cur_tile_screenshot->state = Screenshot::ScreenshotState_notdone;
+					info.cur_tile_screenshot->is_map_tile = true;
+					info.cur_tile_screenshot->tile_x = x;
+					info.cur_tile_screenshot->tile_y = y;
+					info.cur_tile_screenshot->tile_z = z;
+
+					world_state.map_tile_info[v] = info;
+
+					conPrint("Added map tile screenshot: " + v.toString());
+
+					world_state.markAsChanged();
+				}
+			}
+		}
+	}
+	else
+	{
+		// TEMP: Redo screenshot
+		/*for(auto it = world_state.map_tile_info.begin(); it != world_state.map_tile_info.end(); ++it)
+		{
+			it->second.cur_tile_screenshot->state = Screenshot::ScreenshotState_notdone;
+		}*/
+	}
+}
+
 
 static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
 {
@@ -421,6 +498,9 @@ int main(int argc, char *argv[])
 
 		//TEMP
 		//server.world_state->parcels.clear();
+
+
+		updateMapTiles(*server.world_state);
 		
 
 		// Add 'town square' parcels

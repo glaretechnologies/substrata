@@ -23,4 +23,6 @@ ScreenshotHandlers
 namespace ScreenshotHandlers
 {
 	void handleScreenshotRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Get a screenshot
+
+	void handleMapTileRequest(ServerAllWorldsState& world_state, WebDataStore& datastore, const web::RequestInfo& request_info, web::ReplyInfo& reply_info); // Get a map tile screenshot
 } 

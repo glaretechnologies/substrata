@@ -34,6 +34,9 @@ public:
 	int width_px;
 	int highlight_parcel_id;
 	
+	bool is_map_tile;
+	int tile_x, tile_y, tile_z;
+	
 	TimeStamp created_time;
 
 	std::string local_path; // Path on disk of saved screenshot

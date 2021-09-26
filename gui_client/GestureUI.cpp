@@ -119,11 +119,19 @@ void GestureUI::destroy()
 	{
 		gl_ui->removeWidget(left_tab_button);
 		left_tab_button->destroy();
+		left_tab_button = NULL;
 	}
 	if(right_tab_button.nonNull())
 	{
 		gl_ui->removeWidget(right_tab_button);
 		right_tab_button->destroy();
+		right_tab_button = NULL;
+	}
+	if(selfie_button.nonNull())
+	{
+		gl_ui->removeWidget(selfie_button);
+		selfie_button->destroy();
+		selfie_button = NULL;
 	}
 
 
@@ -134,7 +142,7 @@ void GestureUI::destroy()
 	}
 	gesture_buttons.resize(0);
 
-	if(gl_ui.nonNull()) //boop
+	if(gl_ui.nonNull())
 	{
 		gl_ui->destroy();
 		gl_ui = NULL;

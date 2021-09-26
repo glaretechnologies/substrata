@@ -54,10 +54,12 @@ static const uint32 PARCEL_AUCTION_CHUNK = 106;
 static const uint32 SCREENSHOT_CHUNK = 107;
 static const uint32 SUB_ETH_TRANSACTIONS_CHUNK = 108;
 static const uint32 LAST_PARCEL_SALE_UPDATE_CHUNK = 109;
+static const uint32 MAP_TILE_INFO_CHUNK = 110;
 static const uint32 EOS_CHUNK = 1000;
 
 
 static const uint32 PARCEL_SALE_UPDATE_VERSION = 1;
+static const uint32 MAP_TILE_INFO_VERSION = 1;
 
 
 void ServerAllWorldsState::readFromDisk(const std::string& path)
@@ -87,6 +89,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	size_t num_auctions = 0;
 	size_t num_screenshots = 0;
 	size_t num_sub_eth_transactions = 0;
+	size_t num_tiles_read = 0;
 	while(1)
 	{
 		const uint32 chunk = stream.readUInt32();
@@ -206,6 +209,37 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			this->last_parcel_sale_update_day = stream.readInt32();
 			this->last_parcel_sale_update_year = stream.readInt32();
 		}
+		else if(chunk == MAP_TILE_INFO_CHUNK)
+		{
+			const uint32 map_tile_info_version = stream.readInt32();
+			if(map_tile_info_version != MAP_TILE_INFO_VERSION)
+				throw glare::Exception("invalid map_tile_info_version: " + toString(map_tile_info_version));
+
+			const int num_tiles = stream.readInt32();
+			for(int i=0; i<num_tiles; ++i)
+			{
+				const int x = stream.readInt32();
+				const int y = stream.readInt32();
+				const int z = stream.readInt32();
+				
+				TileInfo tile_info;
+				const bool cur_tile_screenshot_non_null = stream.readInt32() != 0;
+				if(cur_tile_screenshot_non_null)
+				{
+					tile_info.cur_tile_screenshot = new Screenshot();
+					readFromStream(stream, *tile_info.cur_tile_screenshot);
+				}
+				const bool prev_tile_screenshot_non_null = stream.readInt32() != 0;
+				if(prev_tile_screenshot_non_null)
+				{
+					tile_info.prev_tile_screenshot = new Screenshot();
+					readFromStream(stream, *tile_info.prev_tile_screenshot);
+				}
+
+				map_tile_info[Vec3<int>(x, y, z)] = tile_info; // Insert
+			}
+			num_tiles_read = num_tiles;
+		}
 		else if(chunk == EOS_CHUNK)
 		{
 			break;
@@ -288,7 +322,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
-		toString(num_sub_eth_transactions) + " sub eth transaction(s) in " + timer.elapsedStringNSigFigs(4));
+		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles in " + timer.elapsedStringNSigFigs(4));
 }
 
 
@@ -359,6 +393,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 		size_t num_auctions = 0;
 		size_t num_screenshots = 0;
 		size_t num_sub_eth_transactions = 0;
+		size_t num_tiles_written = 0;
 
 		const std::string temp_path = path + "_temp";
 		{
@@ -469,6 +504,32 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 				}
 			}
 
+			// Write MAP_TILE_INFO_CHUNK
+			{
+				stream.writeUInt32(MAP_TILE_INFO_CHUNK);
+				stream.writeUInt32(MAP_TILE_INFO_VERSION);
+				stream.writeInt32((int)map_tile_info.size());
+				for(auto it=map_tile_info.begin(); it != map_tile_info.end(); ++it)
+				{
+					Vec3<int> v = it->first;
+					const TileInfo& tile_info = it->second;
+
+					stream.writeInt32(v.x);
+					stream.writeInt32(v.y);
+					stream.writeInt32(v.z);
+
+					stream.writeInt32(tile_info.cur_tile_screenshot.nonNull() ? 1 : 0);
+					if(tile_info.cur_tile_screenshot.nonNull())
+						writeToStream(*tile_info.cur_tile_screenshot, stream);
+
+					stream.writeInt32(tile_info.prev_tile_screenshot.nonNull() ? 1 : 0);
+					if(tile_info.prev_tile_screenshot.nonNull())
+						writeToStream(*tile_info.prev_tile_screenshot, stream);
+				}
+
+				num_tiles_written = map_tile_info.size();
+			}
+
 			// Write LAST_PARCEL_SALE_UPDATE_CHUNK
 			{
 				stream.writeUInt32(LAST_PARCEL_SALE_UPDATE_CHUNK);
@@ -486,7 +547,7 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 			toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " +
-			toString(num_sub_eth_transactions) + " sub eth transction(s) in " + timer.elapsedStringNSigFigs(4));
+			toString(num_sub_eth_transactions) + " sub eth transction(s), " + toString(num_tiles_written) + " tiles in " + timer.elapsedStringNSigFigs(4));
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{
