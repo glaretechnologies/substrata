@@ -168,6 +168,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleDeleteTransactionPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_regen_map_tiles_post")
+		{
+			AdminHandlers::handleRegenMapTilesPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
@@ -304,6 +308,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/admin_sub_eth_transactions")
 		{
 			AdminHandlers::renderSubEthTransactionsPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_map")
+		{
+			AdminHandlers::renderMapPage(*this->world_state, request, reply_info);
 		}
 		else if(::hasPrefix(request.path, "/admin_create_parcel_auction/")) // parcel ID follows in URL
 		{

@@ -29,7 +29,7 @@ std::string sharedAdminHeader(ServerAllWorldsState& world_state, const web::Requ
 	std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Admin");
 
 	page_out += "<p><a href=\"/admin\">Main admin page</a> | <a href=\"/admin_users\">Users</a> | <a href=\"/admin_parcels\">Parcels</a> | ";
-	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a></p>";
+	page_out += "<a href=\"/admin_parcel_auctions\">Parcel Auctions</a> | <a href=\"/admin_orders\">Orders</a> | <a href=\"/admin_sub_eth_transactions\">Eth Transactions</a> | <a href=\"/admin_map\">Map</a></p>";
 
 	return page_out;
 }
@@ -45,7 +45,7 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 
 	std::string page_out = sharedAdminHeader(world_state, request_info);
 
-	page_out += "Welcome!";
+	page_out += "<p>Welcome!</p>";
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
@@ -316,6 +316,42 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 				page_out += "<input type=\"submit\" value=\"Set transaction state to new\" onclick=\"return confirm('Are you sure you want to set the transaction state to new?');\" >";
 				page_out += "</form>";
 			}
+
+			page_out += "<br/>";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderMapPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	page_out += "<form action=\"/admin_regen_map_tiles_post\" method=\"post\">";
+	page_out += "<input type=\"submit\" value=\"Regen map tiles\">";
+	page_out += "</form>";
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		page_out += "<h2>Map Info</h2>\n";
+
+		for(auto it = world_state.map_tile_info.begin(); it != world_state.map_tile_info.end(); ++it)
+		{
+			Vec3<int> v = it->first;
+			const TileInfo& info = it->second;
+
+			page_out += "Tile Coords: " + v.toString();
+			if(info.cur_tile_screenshot.nonNull())
+				page_out += std::string(" state: ") + ((info.cur_tile_screenshot->state == Screenshot::ScreenshotState_notdone) ? "Not done" : "Done");
 
 			page_out += "<br/>";
 		}
@@ -957,6 +993,43 @@ void handleTerminateParcelAuction(ServerAllWorldsState& world_state, const web::
 		} // End lock scope
 
 		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_auction/" + toString(parcel_auction_id));
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRegenMapTilesPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Mark all tile sceenshots as not done.
+			for(auto it = world_state.map_tile_info.begin(); it != world_state.map_tile_info.end(); ++it)
+			{
+				TileInfo& tile_info = it->second;
+				if(tile_info.cur_tile_screenshot.nonNull())
+					tile_info.cur_tile_screenshot->state = Screenshot::ScreenshotState_notdone;
+			}
+
+			world_state.markAsChanged();
+			//world_state.setUserWebMessage("Regenerating map tiles.");
+
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_map");
 	}
 	catch(glare::Exception& e)
 	{
