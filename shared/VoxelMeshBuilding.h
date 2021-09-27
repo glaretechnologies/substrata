@@ -7,9 +7,8 @@ Copyright Glare Technologies Limited 2020 -
 
 
 #include <dll/include/IndigoMesh.h>
-
+#include <maths/vec3.h>
 class VoxelGroup;
-//namespace Indigo { class TaskManager; }
 
 
 /*=====================================================================
@@ -21,7 +20,7 @@ so it can be used in LightMapperBot as well as gui_client.
 class VoxelMeshBuilding
 {
 public:
-	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group);
+	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, Vec3<int>& minpos_out, Vec3<int>& maxpos_out);
 
 	static void test();
 };

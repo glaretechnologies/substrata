@@ -1300,31 +1300,18 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, const Matrix4f& ob_to_world, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
-	// TEMP NEW:
 	//Timer timer;
 
-	// Iterate over voxels and get voxel position bounds
-	Vec3<int> minpos( 1000000000);
-	Vec3<int> maxpos(-1000000000);
-	for(size_t i=0; i<voxel_group.voxels.size(); ++i)
-	{
-		minpos = minpos.min(voxel_group.voxels[i].pos);
-		maxpos = maxpos.max(voxel_group.voxels[i].pos);
-	}
-
-	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group);
+	Vec3<int> minpos, maxpos; // Min and max voxel coords
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, minpos, maxpos);
 
 	// UV unwrap it:
 	StandardPrintOutput print_output;
 	
-	Indigo::AABB<float> mesh_aabb_os;
-	indigo_mesh->getBoundingBox(mesh_aabb_os);
-
 	const js::AABBox aabb_os(
-		Vec4f(mesh_aabb_os.bound[0].x, mesh_aabb_os.bound[0].y, mesh_aabb_os.bound[0].z, 1),
-		Vec4f(mesh_aabb_os.bound[1].x, mesh_aabb_os.bound[1].y, mesh_aabb_os.bound[1].z, 1)
+		Vec4f((float) minpos[0]     , (float) minpos[1]     , (float)minpos[2]      , 1.f),
+		Vec4f((float)(maxpos[0] + 1), (float)(maxpos[1] + 1), (float)(maxpos[2] + 1), 1.f)
 	);
-
 	const js::AABBox aabb_ws = aabb_os.transformedAABB(ob_to_world);
 
 	const int clamped_side_res = WorldObject::getLightMapSideResForAABBWS(aabb_ws);
@@ -1333,15 +1320,15 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	UVUnwrapper::build(*indigo_mesh, ob_to_world, print_output, normed_margin); // Adds UV set to indigo_mesh.
 
 
-	//----------------- Convert indigo mesh to voxel data -------------
+	// Convert Indigo mesh to opengl data
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh, minpos, maxpos);
-	//----------------- End Convert indigo mesh to voxel data -------------
 
 
-	// Build RayMesh from our batched mesh (used for physics + picking)
+	// Build RayMesh from our indigo mesh (used for physics + picking)
 	raymesh_out = new RayMesh("mesh", /*enable_shading_normals=*/false);
 	raymesh_out->fromIndigoMesh(*indigo_mesh);
 
+	// Build acceleration structure
 	Geometry::BuildOptions options;
 	DummyShouldCancelCallback should_cancel_callback;
 	raymesh_out->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
@@ -1390,6 +1377,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 void ModelLoading::test()
 {
+	conPrint("ModelLoading::test()");
+
 	glare::TaskManager task_manager;
 
 
@@ -1488,7 +1477,7 @@ void ModelLoading::test()
 	}
 
 	// Performance test
-	if(true)
+	if(false)
 	{
 		PCG32 rng(1);
 		VoxelGroup group;
@@ -1509,6 +1498,8 @@ void ModelLoading::test()
 			conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
 		}
 	}
+
+	conPrint("ModelLoading::test() done.");
 }
 
 

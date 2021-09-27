@@ -451,7 +451,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 }
 
 
-Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group)
+Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, Vec3<int>& minpos_out, Vec3<int>& maxpos_out)
 {
 	const size_t num_voxels = voxel_group.voxels.size();
 	assert(num_voxels > 0);
@@ -461,13 +461,22 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const Vox
 	const Vec3<int> empty_key(std::numeric_limits<int>::max());
 	HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc> voxel_hash(/*empty key=*/empty_key, /*expected_num_items=*/num_voxels);
 
+	Vec3<int> minpos( 1000000000);
+	Vec3<int> maxpos(-1000000000);
+
 	int max_mat_index = 0;
 	for(int v = 0; v < (int)num_voxels; ++v)
 	{
 		max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
 		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, voxel_group.voxels[v].mat_index));
+
+		minpos = minpos.min(voxel_group.voxels[v].pos);
+		maxpos = maxpos.max(voxel_group.voxels[v].pos);
 	}
 	const size_t num_mats = (size_t)max_mat_index + 1;
+
+	minpos_out = minpos;
+	maxpos_out = maxpos;
 
 	//-------------- Sort voxels by material --------------------
 	std::vector<Voxel> voxels(num_voxels);
@@ -487,10 +496,11 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const Vox
 
 void VoxelMeshBuilding::test()
 {
+	conPrint("VoxelMeshBuilding::test()");
+
 	glare::TaskManager task_manager;
 
-#if 0
-	// Test two adjacent voxels with different materials.  All faces should be added.
+
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -500,60 +510,73 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(40, 0, 1), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(50, 0, 1), 1));
 
-		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Vec3<int> minpos, maxpos;
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
 
-		testAssert(data->batches.size() == 2);
-		testAssert(raymesh->getTriangles().size() == 6 * 6 * 2);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(50, 0, 1));
+		testAssert(data->num_materials_referenced == 2);
+		testAssert(data->triangles.size() == 6 * 6 * 2);
 	}
 
-
-	
 	// Test a single voxel
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 
-		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Vec3<int> minpos, maxpos;
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
 
-		testAssert(raymesh->getTriangles().size() == 6 * 2);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 0));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
 	}
 
-	// Test two adjacent voxels with same material.  Two cube faces on each voxel should be missing.
+	// Test two adjacent voxels with same material.  Greedy meshing should result in just 6 quad faces (12 tris)
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 
-		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Vec3<int> minpos, maxpos;
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
 
-		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(1, 0, 0));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
 	}
 
-	// Test two adjacent voxels (along y axis) with same material.  Two cube faces on each voxel should be missing.
+	// Test two adjacent voxels (along y axis) with same material.  Greedy meshing should result in just 6 quad faces (12 tris)
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 0));
 
-		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
 
-		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+		Vec3<int> minpos, maxpos;
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 1, 0));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
 	}
 
-	// Test two adjacent voxels (along z axis) with same material.  Two cube faces on each voxel should be missing.
+	// Test two adjacent voxels (along z axis) with same material.  Greedy meshing should result in just 6 quad faces (12 tris)
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
 
-		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Vec3<int> minpos, maxpos;
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
 
-		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 1));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
 	}
 
 	// Test two adjacent voxels with different materials.  All faces should be added.
@@ -562,10 +585,13 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
 
-		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Vec3<int> minpos, maxpos;
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
 
-		testAssert(raymesh->getTriangles().size() == 2 * 6 * 2);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 1));
+		testAssert(data->num_materials_referenced == 2);
+		testAssert(data->triangles.size() == 2 * 6 * 2);
 	}
 
 	// Performance test
@@ -577,15 +603,18 @@ void VoxelMeshBuilding::test()
 				for(int x=0; x<10; ++x)
 					group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
 
+
 		Timer timer;
-		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+		Vec3<int> minpos, maxpos;
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
 
 		conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
-		conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
+		conPrint("Resulting num tris: " + toString(data->triangles.size()));
 	}
-#endif
+
+	conPrint("VoxelMeshBuilding::test() done.");
 }
 
 
-#endif
+#endif // BUILD_TESTS
