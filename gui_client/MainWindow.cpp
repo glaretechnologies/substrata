@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "MainOptionsDialog.h"
 #include "FindObjectDialog.h"
 #include "ModelLoading.h"
+#include "TestSuite.h"
 #include "CredentialManager.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
@@ -95,6 +96,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../simpleraytracer/ray.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
+#include "../graphics/FormatDecoderGLTF.h"
 //#include "../opengl/EnvMapProcessing.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/IndigoStringUtils.h"
@@ -112,27 +114,6 @@ Copyright Glare Technologies Limited 2020 -
 #include <zlib.h>
 #include <tls.h>
 
-#include "../physics/TreeTest.h" // Just for testing
-#include "../utils/VectorUnitTests.h" // Just for testing
-#include "../utils/ReferenceTest.h" // Just for testing
-#include "../utils/JSONParser.h" // Just for testing
-#include "../utils/PoolAllocator.h" // Just for testing
-//#include "../utils/ManagerWithCache.h" // Just for testing
-#include "../opengl/OpenGLEngineTests.h" // Just for testing
-#include "../graphics/FormatDecoderGLTF.h" // Just for testing
-#include "../graphics/GifDecoder.h" // Just for testing
-#include "../graphics/PNGDecoder.h" // Just for testing
-#include "../graphics/FormatDecoderVox.h" // Just for testing
-#include "../graphics/BatchedMeshTests.h" // Just for testing
-#include "../graphics/KTXDecoder.h" // Just for testing
-#include "../graphics/ImageMapSequence.h" // Just for testing
-#include "../graphics/NoiseTests.h" // Just for testing
-#include "../graphics/MeshSimplification.h" // Just for testing
-#include "../opengl/TextureLoadingTests.h" // Just for testing
-//#include "../opengl/EnvMapProcessing.h" // Just for testing
-#include "../indigo/UVUnwrapper.h" // Just for testing
-#include "../utils/TestUtils.h" // Just for testing
-#include "../audio/AudioFileReader.h" // Just for testing
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -8155,94 +8136,13 @@ int main(int argc, char *argv[])
 
 		ArgumentParser parsed_args(args, syntax);
 
-#if BUILD_TESTS
 		if(parsed_args.isArgPresent("--test"))
 		{
-			//TLSSocketTests::test();
-			//URLParser::test();
-			//testManagerWithCache();
-			//GIFDecoder::test();
-			///BitUtils::test();
-			//MeshSimplification::test();
-			//EnvMapProcessing::run(cyberspace_base_dir_path);
-			//NoiseTests::test();
-			//OpenGLEngineTests::buildData();
-			//Matrix4f::test();
-			
-			//UVUnwrapper::test();
-			//quaternionTests();
-			//FormatDecoderGLTF::test();
-			//BatchedMeshTests::test();
-			//Matrix3f::test();
-			//glare::AudioEngine::test();
-			//circularBufferTest();
-			//glare::testPoolAllocator();
-			AudioFileReader::test();
-			//WMFVideoReader::test();
-			//TextureLoadingTests::test();
-			//KTXDecoder::test();
-			//BatchedMeshTests::test();
-			//FormatDecoderVox::test();
-			//ModelLoading::test();
-			//HTTPClient::test();
-			//GIFDecoder::test();
-			//PNGDecoder::test();
-			//FileUtils::doUnitTests();
-			//StringUtils::test();
-			//HTTPClient::test();
-			//return 0;
-			//GIFDecoder::test();
-			//TLSSocketTests::test();
-#if 0	
-			StringUtils::test();
-			return 0;
-			ModelLoading::test();
-			//return 0;
-			// Download with HTTP client
-			//const std::string url = "https://www.justcolor.net/wp-content/uploads/sites/1/nggallery/mandalas/coloring-page-mandala-big-flower.jpg";
-			// 564,031 bytes
-
-			// https://gateway.ipfs.io/ipfs/QmQCYpCD3UYsftDBVy2BbGfMXG7jA2Pfo26VRzQwsogchw
-
-			// https://s-media-cache-ak0.pinimg.com/originals/c8/a3/38/c8a3387e38465e99432eeb5e0e4de231.jpg   301 redirect
-
-			const std::string url = "https://s-media-cache-ak0.pinimg.com/originals/c8/a3/38/c8a3387e38465e99432eeb5e0e4de231.jpg";
-
-			HTTPClient client;
-			std::string data;
-			HTTPClient::ResponseInfo response_info = client.downloadFile(url, data);
-			if(response_info.response_code != 200)
-				throw glare::Exception("HTTP Download failed: (code: " + toString(response_info.response_code) + "): " + response_info.response_message);
-
-			//conPrint(data);
-			FileUtils::writeEntireFile("image.jpg", data);
-
-			URLParser::test();
-			//TextureLoading::test();
-			//js::Triangle::test();
-			//Timer::test();
-			//IPAddress::test();
-			//FormatDecoderGLTF::test();
-			//JSONParser::test();
-			//OpenGLEngineTests::test(cyberspace_base_dir_path);
-			//StringUtils::test();
-			//URL::test();
-			//HTTPClient::test();
-			//EnvMapProcessing::run(cyberspace_base_dir_path);
-			//SMTPClient::test();
-			//js::VectorUnitTests::test();
-			//js::TreeTest::doTests(appdata_path);
-			//Vec4f::test();
-			//js::AABBox::test();
-			//Matrix4f::test();
-			//ReferenceTest::run();
-			//Matrix4f::test();
-			//CameraController::test();
-#endif
+			TestSuite::test(appdata_path);
 			return 0;
 		}
-#endif
-		// Extract animation data from a GLTF file, as at an output path.
+
+		// Extract animation data from a GLTF file.
 		if(parsed_args.isArgPresent("--extractanims"))
 		{
 			// E.g. --extractanims "D:\models\readyplayerme_avatar_animation_17.glb" "D:\models\extracted_avatar_anim.bin"

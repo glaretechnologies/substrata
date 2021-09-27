@@ -282,15 +282,8 @@ public:
 			const VoxelGroup& voxel_group = ob->getDecompressedVoxelGroup();
 
 			// Iterate over voxels and get voxel position bounds
-			Vec3<int> minpos(1000000000);
-			Vec3<int> maxpos(-1000000000);
-			for(size_t i = 0; i < voxel_group.voxels.size(); ++i)
-			{
-				minpos = minpos.min(voxel_group.voxels[i].pos);
-				maxpos = maxpos.max(voxel_group.voxels[i].pos);
-			}
-
-			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group);
+			Vec3<int> minpos, maxpos;
+			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, minpos, maxpos);
 			use_shading_normals = false;
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
