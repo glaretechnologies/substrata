@@ -38,7 +38,12 @@ for (var i = 0; i < parcel_ids.length; i++) {
         poly_coords[vert_i + 1],
         poly_coords[vert_i + 2],
         poly_coords[vert_i + 3],
-    ]).addTo(mymap);
+    ], {
+        weight: 2, // line width in pixels
+        //color: '#777',
+        //fillColor: '#777',
+        fillOpacity: 0.05
+    }).addTo(mymap);
 
     polygon.bindPopup("<a href=\"/parcel/" + parcel_ids[i].toString() + "\">Parcel " + parcel_ids[i].toString() + "</a>");
 }
