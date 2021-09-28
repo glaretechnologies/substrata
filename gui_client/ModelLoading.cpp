@@ -500,7 +500,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
 		Reference<RayMesh> raymesh;
-		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), ob->ob_to_world_matrix, task_manager, /*do opengl stuff=*/true, raymesh);
+		const int subsample_factor = 1;
+		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), subsample_factor, ob->ob_to_world_matrix, task_manager, /*do opengl stuff=*/true, raymesh);
 
 		ob->materials.resize(loaded_object_out.materials.size());
 		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
@@ -1298,19 +1299,19 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, const Matrix4f& ob_to_world, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
+Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
 	//Timer timer;
 
 	Vec3<int> minpos, maxpos; // Min and max voxel coords
-	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, minpos, maxpos);
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, minpos, maxpos);
 
 	// UV unwrap it:
 	StandardPrintOutput print_output;
 	
 	const js::AABBox aabb_os(
-		Vec4f((float) minpos[0]     , (float) minpos[1]     , (float)minpos[2]      , 1.f),
-		Vec4f((float)(maxpos[0] + 1), (float)(maxpos[1] + 1), (float)(maxpos[2] + 1), 1.f)
+		Vec4f(indigo_mesh->aabb_os.bound[0].x, indigo_mesh->aabb_os.bound[0].y, indigo_mesh->aabb_os.bound[0].z, 1.f),
+		Vec4f(indigo_mesh->aabb_os.bound[1].x, indigo_mesh->aabb_os.bound[1].y, indigo_mesh->aabb_os.bound[1].z, 1.f)
 	);
 	const js::AABBox aabb_ws = aabb_os.transformedAABB(ob_to_world);
 
@@ -1381,7 +1382,6 @@ void ModelLoading::test()
 
 	glare::TaskManager task_manager;
 
-
 	// Test two adjacent voxels with different materials.  All faces should be added.
 	//{
 	//	VoxelGroup group;
@@ -1399,7 +1399,6 @@ void ModelLoading::test()
 	//	testAssert(raymesh->getTriangles().size() == 6 * 6 * 2);
 	//}
 
-
 	
 	// Test a single voxel
 	{
@@ -1407,7 +1406,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1422,7 +1421,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1437,7 +1436,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1453,7 +1452,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1468,7 +1467,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 		testEqual(data->getNumVerts(), (size_t)(2 * 4 + 8 * 4));
 		testAssert(raymesh->getNumVerts() == 4 * 3);
@@ -1492,7 +1491,7 @@ void ModelLoading::test()
 			Timer timer;
 
 			Reference<RayMesh> raymesh;
-			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
 
 			conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 			conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
@@ -1503,4 +1502,4 @@ void ModelLoading::test()
 }
 
 
-#endif
+#endif // BUILD_TESTS

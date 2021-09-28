@@ -1121,7 +1121,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
 			Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-			load_model_task->model_lod_level = 0;
+			load_model_task->model_lod_level = ob_model_lod_level;
 			load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 			load_model_task->main_window = this;
 			load_model_task->mesh_manager = &mesh_manager;
@@ -2297,8 +2297,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			if(selected_ob->opengl_engine_ob.nonNull())
 			{
 				msg += 
-					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + "\n" + 
-					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + "\n";
+					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
+					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n";
 			}
 		}
 
@@ -2563,41 +2563,37 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						// Handle loading a voxel group
 						WorldObjectRef message_ob = message->ob;
-						const std::string loaded_base_model_url = message->base_model_url;
 
 						removeAndDeleteGLAndPhysicsObjectsForOb(*message_ob); // Remove placeholder model if using one.
 
 						if(proximity_loader.isObjectInLoadProximity(message_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
 						{
-							// TODO: LOD level stuff for voxels
+							message_ob->opengl_engine_ob = message->opengl_ob;
+							message_ob->physics_object = message->physics_ob;
+
+							if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
+
+							// Add this object to the GL engine and physics engine.
+							if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
 							{
-								message_ob->opengl_engine_ob = message->opengl_ob;
-								message_ob->physics_object = message->physics_ob;
+								assignedLoadedOpenGLTexturesToMats(message_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 
-								if(message->opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*message->opengl_ob->mesh_data); // Load mesh data into OpenGL
+								ui->glWidget->addObject(message_ob->opengl_engine_ob);
 
-								// Add this object to the GL engine and physics engine.
-								if(!ui->glWidget->opengl_engine->isObjectAdded(message_ob->opengl_engine_ob))
-								{
-									assignedLoadedOpenGLTexturesToMats(message_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
+								physics_world->addObject(message_ob->physics_object);
+								physics_world->rebuild(task_manager, print_output);
 
-									ui->glWidget->addObject(message_ob->opengl_engine_ob);
+								ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
 
-									physics_world->addObject(message_ob->physics_object);
-									physics_world->rebuild(task_manager, print_output);
-
-									ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
-
-									loadScriptForObject(message_ob.ptr()); // Load any script for the object.
-								}
-
-								message_ob->loaded_model_lod_level = message->model_lod_level;
-
-								// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-								if(this->selected_ob == message_ob)
-									ui->glWidget->opengl_engine->selectObject(message_ob->opengl_engine_ob);
+								loadScriptForObject(message_ob.ptr()); // Load any script for the object.
 							}
+
+							message_ob->loaded_model_lod_level = message->model_lod_level;
+
+							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+							if(this->selected_ob == message_ob)
+								ui->glWidget->opengl_engine->selectObject(message_ob->opengl_engine_ob);
 						} // End proximity_loader.isObjectInLoadProximity()
 					}
 
@@ -4740,6 +4736,7 @@ void MainWindow::on_actionAddObject_triggered()
 				new_world_object->getDecompressedVoxels() = d.loaded_object->getDecompressedVoxels();
 				new_world_object->compressVoxels();
 				new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
+				new_world_object->max_model_lod_level = (new_world_object->getDecompressedVoxels().size() > 256) ? 2 : 0;
 
 				aabb_os = new_world_object->getDecompressedVoxelGroup().getAABB();
 			}
@@ -6809,7 +6806,8 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 		// Add updated model!
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), ob_to_world, task_manager, /*do_opengl_stuff=*/true, raymesh);
+		const int subsample_factor = 1;
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, /*do_opengl_stuff=*/true, raymesh);
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;

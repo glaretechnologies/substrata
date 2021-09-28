@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "ModelLoading.h"
 #include "../shared/VoxelMeshBuilding.h"
+#include "../shared/LODGeneration.h"
 #include "../physics/TreeTest.h"
 #include "../opengl/OpenGLEngineTests.h"
 #include "../graphics/FormatDecoderGLTF.h"
@@ -88,6 +89,8 @@ void TestSuite::test(const std::string& appdata_path)
 	conPrint("==============Doing Substrata unit tests ====================");
 
 	Timer timer;
+
+	runTest([&]() { LODGeneration::test(); });
 
 	runTest([&]() { VoxelMeshBuilding::test(); });
 	
