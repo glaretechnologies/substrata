@@ -447,11 +447,12 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 	}
 
 	mesh->endOfModel();
+	assert(isFinite(mesh->aabb_os.bound[0].x));
 	return mesh;
 }
 
 
-Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, Vec3<int>& minpos_out, Vec3<int>& maxpos_out)
+Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, Vec3<int>& minpos_out, Vec3<int>& maxpos_out)
 {
 	const size_t num_voxels = voxel_group.voxels.size();
 	assert(num_voxels > 0);
@@ -464,25 +465,60 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const Vox
 	Vec3<int> minpos( 1000000000);
 	Vec3<int> maxpos(-1000000000);
 
-	int max_mat_index = 0;
-	for(int v = 0; v < (int)num_voxels; ++v)
+	if(subsample_factor == 1)
 	{
-		max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
-		voxel_hash.insert(std::make_pair(voxel_group.voxels[v].pos, voxel_group.voxels[v].mat_index));
+		int max_mat_index = 0;
+		for(int v = 0; v < (int)num_voxels; ++v)
+		{
+			const Vec3<int> voxelpos = voxel_group.voxels[v].pos;
 
-		minpos = minpos.min(voxel_group.voxels[v].pos);
-		maxpos = maxpos.max(voxel_group.voxels[v].pos);
+			max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
+			voxel_hash.insert(std::make_pair(voxelpos, voxel_group.voxels[v].mat_index));
+
+			minpos = minpos.min(voxelpos);
+			maxpos = maxpos.max(voxelpos);
+		}
+		const size_t num_mats = (size_t)max_mat_index + 1;
+
+		minpos_out = minpos;
+		maxpos_out = maxpos;
+
+		//-------------- Sort voxels by material --------------------
+		std::vector<Voxel> voxels(num_voxels);
+		Sort::serialCountingSortWithNumBuckets(/*in=*/voxel_group.voxels.data(), /*out=*/voxels.data(), /*size=*/voxel_group.voxels.size(), num_mats, GetMatIndex());
+
+		return doMakeIndigoMeshForVoxelGroup(voxels, num_mats, voxel_hash);
 	}
-	const size_t num_mats = (size_t)max_mat_index + 1;
+	else
+	{
+		VoxelGroup downsized_voxels;
+		downsized_voxels.voxels.reserve(num_voxels);
 
-	minpos_out = minpos;
-	maxpos_out = maxpos;
+		int max_mat_index = 0;
+		for(int v = 0; v < (int)num_voxels; ++v)
+		{
+			const Vec3<int> voxelpos = voxel_group.voxels[v].pos;
+			const Vec3<int> downsized_pos(voxelpos.x / subsample_factor, voxelpos.y / subsample_factor, voxelpos.z / subsample_factor);
 
-	//-------------- Sort voxels by material --------------------
-	std::vector<Voxel> voxels(num_voxels);
-	Sort::serialCountingSortWithNumBuckets(/*in=*/voxel_group.voxels.data(), /*out=*/voxels.data(), voxel_group.voxels.size(), num_mats, GetMatIndex());
+			max_mat_index = myMax(max_mat_index, voxel_group.voxels[v].mat_index);
+			auto res = voxel_hash.insert(std::make_pair(downsized_pos, voxel_group.voxels[v].mat_index));
+			if(res.second) // If was inserted and nothing there already:
+				downsized_voxels.voxels.push_back(Voxel(downsized_pos, voxel_group.voxels[v].mat_index));
 
-	return doMakeIndigoMeshForVoxelGroup(voxels, num_mats, voxel_hash);
+			minpos = minpos.min(downsized_pos);
+			maxpos = maxpos.max(downsized_pos);
+		}
+		const size_t num_mats = (size_t)max_mat_index + 1;
+
+		minpos_out = minpos;
+		maxpos_out = maxpos;
+
+		//-------------- Sort voxels by material --------------------
+		std::vector<Voxel> voxels(downsized_voxels.voxels.size());
+		Sort::serialCountingSortWithNumBuckets(/*in=*/downsized_voxels.voxels.data(), /*out=*/voxels.data(), /*size=*/downsized_voxels.voxels.size(), num_mats, GetMatIndex());
+
+		return doMakeIndigoMeshForVoxelGroup(voxels, num_mats, voxel_hash);
+	}
 }
 
 
@@ -511,10 +547,17 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(50, 0, 1), 1));
 
 		Vec3<int> minpos, maxpos;
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, minpos, maxpos);
 
 		testAssert(minpos == Vec3<int>(0, 0, 0));
 		testAssert(maxpos == Vec3<int>(50, 0, 1));
+		testAssert(data->num_materials_referenced == 2);
+		testAssert(data->triangles.size() == 6 * 6 * 2);
+
+		// Test with subsampling
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, minpos, maxpos);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(50/4, 0, 1/4));
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 6 * 6 * 2);
 	}
@@ -525,8 +568,15 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 
 		Vec3<int> minpos, maxpos;
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, minpos, maxpos);
 
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 0));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
+
+		// Test with subsampling
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, minpos, maxpos);
 		testAssert(minpos == Vec3<int>(0, 0, 0));
 		testAssert(maxpos == Vec3<int>(0, 0, 0));
 		testAssert(data->num_materials_referenced == 1);
@@ -540,10 +590,17 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 
 		Vec3<int> minpos, maxpos;
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, minpos, maxpos);
 
 		testAssert(minpos == Vec3<int>(0, 0, 0));
 		testAssert(maxpos == Vec3<int>(1, 0, 0));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
+
+		// Test with subsampling
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, minpos, maxpos);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 0));
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -556,10 +613,17 @@ void VoxelMeshBuilding::test()
 
 
 		Vec3<int> minpos, maxpos;
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, minpos, maxpos);
 
 		testAssert(minpos == Vec3<int>(0, 0, 0));
 		testAssert(maxpos == Vec3<int>(0, 1, 0));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
+
+		// Test with subsampling
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, minpos, maxpos);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 0));
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -571,10 +635,17 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
 
 		Vec3<int> minpos, maxpos;
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, minpos, maxpos);
 
 		testAssert(minpos == Vec3<int>(0, 0, 0));
 		testAssert(maxpos == Vec3<int>(0, 0, 1));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
+
+		// Test with subsampling
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, minpos, maxpos);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 0));
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -586,12 +657,19 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
 
 		Vec3<int> minpos, maxpos;
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, minpos, maxpos);
 
 		testAssert(minpos == Vec3<int>(0, 0, 0));
 		testAssert(maxpos == Vec3<int>(0, 0, 1));
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 2 * 6 * 2);
+
+		// Test with subsampling
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, minpos, maxpos);
+		testAssert(minpos == Vec3<int>(0, 0, 0));
+		testAssert(maxpos == Vec3<int>(0, 0, 0));
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
 	}
 
 	// Performance test
@@ -607,7 +685,7 @@ void VoxelMeshBuilding::test()
 		Timer timer;
 
 		Vec3<int> minpos, maxpos;
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, minpos, maxpos);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, minpos, maxpos);
 
 		conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 		conPrint("Resulting num tris: " + toString(data->triangles.size()));

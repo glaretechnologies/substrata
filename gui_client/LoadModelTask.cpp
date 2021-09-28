@@ -94,12 +94,25 @@ void LoadModelTask::run(size_t thread_index)
 					VoxelGroup voxel_group;
 					WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
 
+					const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
+					const int use_lod_level = myMin(model_lod_level, max_model_lod_level);
+
+					int subsample_factor = 1;
+					if(use_lod_level == 1)
+						subsample_factor = 2;
+					else if(use_lod_level == 2)
+						subsample_factor = 4;
+
+					// conPrint("Loading vox model for LOD level " + toString(use_lod_level) + ", using subsample_factor " + toString(subsample_factor));
+
 					Reference<RayMesh> raymesh;
-					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, ob_to_world_matrix, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+
+					const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix(subsample_factor);
 
 					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 					physics_ob->geometry = raymesh;
-					physics_ob->ob_to_world = ob_to_world_matrix;
+					physics_ob->ob_to_world = use_ob_to_world_matrix;
 
 					opengl_ob = new GLObject();
 					opengl_ob->mesh_data = gl_meshdata;
@@ -110,7 +123,7 @@ void LoadModelTask::run(size_t thread_index)
 						opengl_ob->materials[i].gen_planar_uvs = true;
 					}
 
-					opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+					opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
 				}
 
 				loaded_voxels = true;

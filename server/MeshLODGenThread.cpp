@@ -134,7 +134,7 @@ void MeshLODGenThread::doRun()
 
 			// Iterate over objects.
 			// Set object world space AABB.
-			// Set object max_lod_level if it is a generic model.
+			// Set object max_lod_level if it is a generic model or a voxel model.
 			// Compute list of LOD meshes we need to generate.
 			//
 			// Note that we will do this without holding the world lock, since we are calling loadModel which is slow.
@@ -177,6 +177,12 @@ void MeshLODGenThread::doRun()
 								VoxelGroup voxel_group;
 								WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
 								aabb_os = voxel_group.getAABB();
+
+								const int new_max_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
+								if(new_max_lod_level != ob->max_model_lod_level)
+									made_change = true;
+								
+								ob->max_model_lod_level = new_max_lod_level;
 							}
 							catch(glare::Exception& e)
 							{
@@ -221,6 +227,34 @@ void MeshLODGenThread::doRun()
 													mesh_to_gen.lod_URL = lod_URL;
 													mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
 													meshes_to_gen.push_back(mesh_to_gen);
+												}
+												else // Else if LOD model is present on disk:
+												{
+													if(lvl == 1)
+													{
+														try
+														{
+															BatchedMeshRef lod1_mesh = LODGeneration::loadModel(lod_path);
+															if((batched_mesh->numVerts() > 1024) && // If this is a med/large mesh
+																((float)lod1_mesh->numVerts() > (batched_mesh->numVerts() / 4.f))) // If we acheived less than a 4x reduction in the number of vertices, try again with sloppy simplification
+															{
+																conPrint("Mesh '" + lod_URL + "' was not simplified enough, recomputed LOD 1 mesh.");
+																
+																// Generate the model
+																LODMeshToGen mesh_to_gen;
+																mesh_to_gen.lod_level = lvl;
+																mesh_to_gen.model_path = model_path;
+																mesh_to_gen.LOD_model_path = lod_path;
+																mesh_to_gen.lod_URL = lod_URL;
+																mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
+																meshes_to_gen.push_back(mesh_to_gen);
+															}
+														}
+														catch(glare::Exception& e)
+														{
+															conPrint("Error while trying to load LOD 1 mesh: " + e.what());
+														}
+													}
 												}
 											}
 										}

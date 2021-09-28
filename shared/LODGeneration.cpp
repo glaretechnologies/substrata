@@ -93,6 +93,13 @@ void generateLODModel(BatchedMeshRef batched_mesh, int lod_level, const std::str
 	if(lod_level == 1)
 	{
 		simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/10.f, /*target_error=*/0.02f, /*sloppy=*/false);
+		
+		// If we acheived less than a 4x reduction in the number of vertices (and this is a med/large mesh), try again with sloppy simplification
+		if((batched_mesh->numVerts() > 1024) && // if this is a med/large mesh
+			((float)simplified_mesh->numVerts() > (batched_mesh->numVerts() / 4.f)))
+		{
+			simplified_mesh = MeshSimplification::buildSimplifiedMesh(*batched_mesh, /*target_reduction_ratio=*/10.f, /*target_error=*/0.02f, /*sloppy=*/true);
+		}
 	}
 	else
 	{
@@ -139,7 +146,7 @@ bool textureHasAlphaChannel(const std::string& tex_path, Map2DRef map)
 void generateLODTexture(const std::string& base_tex_path, int lod_level, const std::string& LOD_tex_path, glare::TaskManager& task_manager)
 {
 	const int new_max_w_h = (lod_level == 1) ? 256 : 64;
-	const int min_w_h = 4;
+	const int min_w_h = 1;
 
 	Reference<Map2D> map;
 	if(hasExtension(base_tex_path, "gif"))
@@ -263,3 +270,35 @@ void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& 
 
 
 } // end namespace LODGeneration
+
+
+#ifdef BUILD_TESTS
+
+
+#include "../utils/TestUtils.h"
+#include "../utils/FileUtils.h"
+#include "../utils/ConPrint.h"
+#include "../utils/PlatformUtils.h"
+#include "../utils/Exception.h"
+#include "../utils/Timer.h"
+
+
+void LODGeneration::test()
+{
+	{
+		BatchedMeshRef original_mesh = loadModel(TestUtils::getTestReposDir() + "/testfiles/bmesh/voxcarROTATE_glb_9223594900774194301.bmesh");
+		printVar(original_mesh->numVerts());
+		printVar(original_mesh->numIndices());
+
+		const std::string lod_model_path = "D:\\tempfiles\\car_lod1.bmesh"; // PlatformUtils::getTempDirPath() + "/lod.bmesh";
+		generateLODModel(original_mesh, /*lod level=*/1, lod_model_path);
+
+
+		BatchedMeshRef lod_mesh = loadModel(lod_model_path);
+		printVar(lod_mesh->numVerts());
+		printVar(lod_mesh->numIndices());
+	}
+}
+
+
+#endif // BUILD_TESTS

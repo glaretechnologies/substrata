@@ -36,4 +36,6 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 // Generate LOD textures for materials, if not already present on disk.
 void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, glare::TaskManager& task_manager);
 
+void test();
+
 }
