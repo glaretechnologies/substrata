@@ -372,9 +372,8 @@ public:
 	StandardPrintOutput print_output;
 	glare::TaskManager task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff.
 	
-	glare::TaskManager model_loader_task_manager; // Contains LoadModelTask objects.
+	glare::TaskManager model_and_texture_loader_task_manager;
 public:
-	glare::TaskManager texture_loader_task_manager; // Contains LoadTextureTask objects.
 private:
 	glare::TaskManager model_building_subsidary_task_manager; // Just for use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
 public:

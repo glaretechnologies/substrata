@@ -48,10 +48,37 @@ void ScalarVal::convertLocalPathsToURLS(ResourceManager& resource_manager)
 }
 
 
+std::string WorldMaterial::getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha) const
+{
+	const int min_lod_level = this->minLODLevel();
+
+	if(level <= min_lod_level)
+		return base_texture_url;
+	else
+	{
+		// Don't do LOD on mp4 (video) textures (for now).
+		// Also don't do LOD with http URLs
+		if(::hasExtensionStringView(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
+			return base_texture_url; 
+
+		// Gifs LOD textures are always gifs.
+		// Other image formats get converted to jpg if they don't have alpha, and png if they do.
+		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
+
+		if(level == 0)
+			return removeDotAndExtension(base_texture_url) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+		else if(level == 1)
+			return removeDotAndExtension(base_texture_url) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+		else
+			return removeDotAndExtension(base_texture_url) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+	}
+}
+
+
 void WorldMaterial::appendDependencyURLs(int lod_level, std::vector<std::string>& paths_out)
 {
 	if(!colour_texture_url.empty())
-		paths_out.push_back(WorldObject::getLODTextureURLForLevel(colour_texture_url, lod_level, this->colourTexHasAlpha()));
+		paths_out.push_back(getLODTextureURLForLevel(colour_texture_url, lod_level, this->colourTexHasAlpha()));
 
 	roughness.appendDependencyURLs(paths_out);
 	metallic_fraction.appendDependencyURLs(paths_out);
@@ -63,10 +90,10 @@ void WorldMaterial::appendDependencyURLsAllLODLevels(std::vector<std::string>& p
 {
 	if(!colour_texture_url.empty())
 	{
+		const int min_lod_level = this->minLODLevel();
 		paths_out.push_back(colour_texture_url);
-
-		paths_out.push_back(WorldObject::getLODTextureURLForLevel(colour_texture_url, 1, this->colourTexHasAlpha()));
-		paths_out.push_back(WorldObject::getLODTextureURLForLevel(colour_texture_url, 2, this->colourTexHasAlpha()));
+		for(int i=min_lod_level+1; i <=2; ++i)
+			paths_out.push_back(getLODTextureURLForLevel(colour_texture_url, i, this->colourTexHasAlpha()));
 	}
 
 	roughness.appendDependencyURLs(paths_out);
