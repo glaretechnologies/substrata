@@ -6448,11 +6448,9 @@ Vec4f MainWindow::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws
 	const Vec4f cam_right  = cam_controller.getRightVec().toVec4fVector();
 
 	const float sensor_width = GlWidget::sensorWidth();
-	const float sensor_height = sensor_width / ui->glWidget->viewport_aspect_ratio;
 	const float lens_sensor_dist = GlWidget::lensSensorDist();
 
 	const float gl_w = (float)ui->glWidget->geometry().width();
-	const float gl_h = (float)ui->glWidget->geometry().height();
 
 	const Vec4f a = p_a_ws;
 	const Vec4f b = normalise(p_b_ws - p_a_ws);
@@ -7098,7 +7096,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		const Vec4f camforw_ws = cam_controller.getForwardsVec().toVec4fVector();
 		Planef plane(origin + camforw_ws * 0.1f, -camforw_ws);
 		const bool visible = clipLineToPlaneBackHalfSpace(plane, use_line_start, use_line_end);
-		assert(visible);
+		assertOrDeclareUsed(visible);
 
 		// Project 3d world space line segment into 2d pixel space.
 		bool start_visible = getPixelForPoint(use_line_start, start_pixelpos);

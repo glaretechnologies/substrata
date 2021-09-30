@@ -46,7 +46,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "WorldState.h"
 
 
-static const bool DO_REALTIME_VIEW = false;
+//static const bool DO_REALTIME_VIEW = false;
 
 
 #if INDIGO_SUPPORT

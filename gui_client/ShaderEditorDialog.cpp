@@ -48,7 +48,7 @@ ShaderEditorDialog::ShaderEditorDialog(QWidget* parent, std::string base_dir_pat
 
 	highlighter = new ISLSyntaxHighlighter(shaderEdit->document());
 
-	int tab_size = this->shaderEdit->fontMetrics().width("eval");
+	int tab_size = this->shaderEdit->fontMetrics().horizontalAdvance("eval");
 	this->shaderEdit->setTabStopDistance(tab_size);
 }
 
