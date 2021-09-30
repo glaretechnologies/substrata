@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>Shader Editor</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -37,9 +37,6 @@
       </property>
       <property name="lineWrapMode">
        <enum>QTextEdit::NoWrap</enum>
-      </property>
-      <property name="tabStopWidth">
-       <number>48</number>
       </property>
      </widget>
     </item>
