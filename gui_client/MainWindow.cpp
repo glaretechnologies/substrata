@@ -7519,7 +7519,7 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 {
 	if(this->selected_ob.nonNull())
 	{
-		this->selection_vec_cs[1] *= (1.0f + e->delta() * 0.0005f);
+		this->selection_vec_cs[1] *= (1.0f + e->angleDelta().y() * 0.0005f);
 	}
 }
 
