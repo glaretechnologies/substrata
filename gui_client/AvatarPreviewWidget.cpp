@@ -268,7 +268,7 @@ void AvatarPreviewWidget::wheelEvent(QWheelEvent* ev)
 {
 	// Make change proportional to distance value.
 	// Mouse wheel scroll up reduces distance.
-	cam_dist = myClamp<float>(cam_dist - (cam_dist * ev->delta() * 0.002f), 0.01f, 20.f);
+	cam_dist = myClamp<float>(cam_dist - (cam_dist * ev->angleDelta().y() * 0.002f), 0.01f, 20.f);
 
 	ev->accept(); // We want to kill the event now.
 	this->setFocus(); // otherwise this loses focus for some reason.

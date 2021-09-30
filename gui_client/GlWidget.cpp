@@ -211,7 +211,6 @@ void GlWidget::paintGL()
 
 		const Matrix4f world_to_camera_space_matrix = Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::translationMatrix(-(cam_pos.toVec4fVector()));
 
-		const float render_aspect_ratio = viewport_aspect_ratio;
 		opengl_engine->setViewport(viewport_w, viewport_h);
 		opengl_engine->setNearDrawDistance(near_draw_dist);
 		opengl_engine->setMaxDrawDistance(300);//max_draw_dist);
