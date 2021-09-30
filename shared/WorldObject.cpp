@@ -45,8 +45,8 @@ WorldObject::WorldObject()
 	loaded = false;
 	lightmap_baking = false;
 	current_lod_level = 0;
-	loaded_model_lod_level = -1;
-	loaded_lod_level = -1;
+	loaded_model_lod_level = -10;
+	loaded_lod_level = -10;
 #endif
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
@@ -75,7 +75,7 @@ WorldObject::~WorldObject()
 
 std::string WorldObject::getLODModelURLForLevel(const std::string& base_model_url, int level)
 {
-	if(level == 0)
+	if(level <= 0)
 		return base_model_url;
 	else
 	{
@@ -90,35 +90,14 @@ std::string WorldObject::getLODModelURLForLevel(const std::string& base_model_ur
 }
 
 
-std::string WorldObject::getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha)
-{
-	if(level == 0)
-		return base_texture_url;
-	else
-	{
-		// Don't do LOD on mp4 (video) textures (for now).
-		// Also don't do LOD with http URLs
-		if(::hasExtensionStringView(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
-			return base_texture_url; 
-
-		// Gifs LOD textures are always gifs.
-		// Other image formats get converted to jpg if they don't have alpha, and png if they do.
-		const bool is_gif = ::hasExtensionStringView(base_texture_url, "gif");
-
-		if(level == 1)
-			return removeDotAndExtension(base_texture_url) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
-		else
-			return removeDotAndExtension(base_texture_url) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
-	}
-}
-
-
 int WorldObject::getLODLevel(const Vec3d& campos) const
 {
 	const float dist = campos.toVec4fVector().getDist(this->pos.toVec4fVector());
 	const float proj_len = aabb_ws.longestLength() / dist;
 
-	if(proj_len > 0.16)
+	if(proj_len > 0.6)
+		return -1;
+	else if(proj_len > 0.16)
 		return 0;
 	else if(proj_len > 0.03)
 		return 1;
@@ -132,7 +111,7 @@ int WorldObject::getModelLODLevel(const Vec3d& campos) const // getLODLevel() cl
 	if(max_model_lod_level == 0)
 		return 0;
 
-	return getLODLevel(campos);
+	return myMax(0, getLODLevel(campos));
 }
 
 
@@ -143,7 +122,7 @@ std::string WorldObject::getLODModelURL(const Vec3d& campos) const
 		return this->model_url;
 
 	const int ob_lod_level = getLODLevel(campos);
-	const int ob_model_lod_level = myMin(ob_lod_level, this->max_model_lod_level);
+	const int ob_model_lod_level = myClamp(ob_lod_level, 0, this->max_model_lod_level);
 	return getLODModelURLForLevel(this->model_url, ob_model_lod_level);
 }
 
@@ -152,7 +131,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<std::string
 {
 	if(!model_url.empty())
 	{
-		const int ob_model_lod_level = myMin(ob_lod_level, this->max_model_lod_level);
+		const int ob_model_lod_level =  myClamp(ob_lod_level, 0, this->max_model_lod_level);
 		URLs_out.push_back(getLODModelURLForLevel(model_url, ob_model_lod_level));
 	}
 

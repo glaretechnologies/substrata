@@ -175,15 +175,13 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 #endif
 	force_new_undo_edit(false),
 	log_window(NULL),
-	model_loader_task_manager("model loader task manager"),
-	texture_loader_task_manager("texture loader task manager"),
+	model_and_texture_loader_task_manager("model and texture loader task manager"),
 	model_building_subsidary_task_manager("model building subsidary task manager"),
 	url_parcel_uid(-1),
 	running_destructor(false)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
-	texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
-	model_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
+	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	QGamepadManager::instance();
 
@@ -511,11 +509,9 @@ MainWindow::~MainWindow()
 	//model_building_task_manager.removeQueuedTasks();
 	//model_building_task_manager.waitForTasksToComplete();
 
-	model_loader_task_manager.removeQueuedTasks();
-	model_loader_task_manager.waitForTasksToComplete();
+	model_and_texture_loader_task_manager.removeQueuedTasks();
+	model_and_texture_loader_task_manager.waitForTasksToComplete();
 
-	texture_loader_task_manager.removeQueuedTasks();
-	texture_loader_task_manager.waitForTasksToComplete();
 
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
@@ -557,11 +553,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 	model_loaded_messages_to_process.clear();
 
-	model_loader_task_manager.removeQueuedTasks();
-	model_loader_task_manager.waitForTasksToComplete();
+	model_and_texture_loader_task_manager.removeQueuedTasks();
+	model_and_texture_loader_task_manager.waitForTasksToComplete();
 
-	texture_loader_task_manager.removeQueuedTasks();
-	texture_loader_task_manager.waitForTasksToComplete();
 
 	texture_loaded_messages_to_process.clear();
 
@@ -738,14 +732,14 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	{
 		if(!ob.materials[i]->colour_texture_url.empty())
 		{
-			const std::string lod_tex_url = WorldObject::getLODTextureURLForLevel(ob.materials[i]->colour_texture_url, ob_lod_level, ob.materials[i]->colourTexHasAlpha());
+			const std::string lod_tex_url = ob.materials[i]->getLODTextureURLForLevel(ob.materials[i]->colour_texture_url, ob_lod_level, ob.materials[i]->colourTexHasAlpha());
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
 				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
 				!this->isTextureProcessed(tex_path)) // and not being loaded already:
 			{
-				this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
 			}
 		}
 	}
@@ -760,7 +754,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
 			!this->isTextureProcessed(tex_path)) // and not being loaded already:
 		{
-			this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+			this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
 		}
 	}
 }
@@ -773,14 +767,14 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 	{
 		if(!ob.avatar_settings.materials[i]->colour_texture_url.empty())
 		{
-			const std::string lod_tex_url = WorldObject::getLODTextureURLForLevel(ob.avatar_settings.materials[i]->colour_texture_url, ob_lod_level, ob.avatar_settings.materials[i]->colourTexHasAlpha());
+			const std::string lod_tex_url = ob.avatar_settings.materials[i]->getLODTextureURLForLevel(ob.avatar_settings.materials[i]->colour_texture_url, ob_lod_level, ob.avatar_settings.materials[i]->colourTexHasAlpha());
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
 				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
 				!this->isTextureProcessed(tex_path)) // and not being loaded already:
 			{
-				this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
 			}
 		}
 	}
@@ -938,11 +932,11 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 
 // For when the desired texture LOD is not loaded, pick another texture LOD that is loaded (if it exists).
 // Prefer lower LOD levels (more detail).
-static Reference<OpenGLTexture> getBestTextureLOD(const std::string& base_tex_path, bool tex_has_alpha, OpenGLEngine& opengl_engine)
+static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const std::string& base_tex_path, bool tex_has_alpha, OpenGLEngine& opengl_engine)
 {
-	for(int lvl=0; lvl<=2; ++lvl)
+	for(int lvl=-1; lvl<=2; ++lvl)
 	{
-		const std::string tex_lod_path = WorldObject::getLODTextureURLForLevel(base_tex_path, lvl, tex_has_alpha);
+		const std::string tex_lod_path = world_mat.getLODTextureURLForLevel(base_tex_path, lvl, tex_has_alpha);
 		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
 		if(tex.nonNull())
 			return tex;
@@ -956,17 +950,18 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 {
 	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
 	{
-		if(!ob->opengl_engine_ob->materials[z].tex_path.empty())
+		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
+		if(!opengl_mat.tex_path.empty())
 		{
-			ob->opengl_engine_ob->materials[z].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].tex_path));
+			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
 
-			if(ob->opengl_engine_ob->materials[z].albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 			{
 				if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
 				{
 					// Try and use a different LOD level of the texture, that is actually loaded.
-					ob->opengl_engine_ob->materials[z].albedo_texture = getBestTextureLOD(resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), opengl_engine);
-					ob->opengl_engine_ob->materials[z].albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+					opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), opengl_engine);
+					opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
 				}
 			}
 		}
@@ -987,17 +982,18 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 
 	for(size_t z=0; z<gl_ob->materials.size(); ++z)
 	{
-		if(!gl_ob->materials[z].tex_path.empty())
+		OpenGLMaterial& opengl_mat = gl_ob->materials[z];
+		if(!opengl_mat.tex_path.empty())
 		{
-			gl_ob->materials[z].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(gl_ob->materials[z].tex_path));
+			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
 
-			if(gl_ob->materials[z].albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 			{
 				if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
 				{
 					// Try and use a different LOD level of the texture, that is actually loaded.
-					gl_ob->materials[z].albedo_texture = getBestTextureLOD(resource_manager.pathForURL(av->avatar_settings.materials[z]->colour_texture_url), av->avatar_settings.materials[z]->colourTexHasAlpha(), opengl_engine);
-					gl_ob->materials[z].albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+					opengl_mat.albedo_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->colour_texture_url), av->avatar_settings.materials[z]->colourTexHasAlpha(), opengl_engine);
+					opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
 				}
 			}
 		}
@@ -1012,7 +1008,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 void MainWindow::loadModelForObject(WorldObject* ob)
 {
 	const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-	const int ob_model_lod_level = myMin(ob_lod_level, ob->max_model_lod_level);
+	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->loaded_lod_level == ob_lod_level))
@@ -1129,7 +1125,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			load_model_task->ob = ob;
 			load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-			model_loader_task_manager.addTask(load_model_task);
+			model_and_texture_loader_task_manager.addTask(load_model_task);
 
 			load_placeholder = ob->getCompressedVoxels().size() != 0;
 		}
@@ -1164,7 +1160,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						load_model_task->ob = ob;
 						load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-						model_loader_task_manager.addTask(load_model_task);
+						model_and_texture_loader_task_manager.addTask(load_model_task);
 
 						load_placeholder = true;
 					}
@@ -1330,7 +1326,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 				load_model_task->avatar = avatar;
 				load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-				model_loader_task_manager.addTask(load_model_task);
+				model_and_texture_loader_task_manager.addTask(load_model_task);
 
 				load_placeholder = true;
 			}
@@ -1587,7 +1583,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 						load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
 						load_audio_task->main_window = this;
 
-						model_loader_task_manager.addTask(load_audio_task);
+						model_and_texture_loader_task_manager.addTask(load_audio_task);
 					}
 
 					//ob->loaded_audio_source_url = ob->audio_source_url;
@@ -2299,7 +2295,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				msg += 
 					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
 					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n";
+
+				if(!selected_ob->opengl_engine_ob->materials.empty())
+				{
+					OpenGLMaterial& mat0 = selected_ob->opengl_engine_ob->materials[0];
+					if(mat0.albedo_texture.nonNull())
+					{
+						if(!selected_ob->materials.empty() && selected_ob->materials[0].nonNull())
+							msg += "mat0 min lod level: " + toString(selected_ob->materials[0]->minLODLevel()) + "\n";
+						msg += "mat0 tex: " + toString(mat0.albedo_texture->xRes()) + "x" + toString(mat0.albedo_texture->yRes()) + " (" + getNiceByteSize(mat0.albedo_texture->getByteSize()) + ")\n";
+					}
+				}
 			}
+
 		}
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
@@ -2340,9 +2348,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	ui->glWidget->makeCurrent();
 
 	// Set current animation frame for objects with animated textures
+	//double animated_tex_time = 0;
 	if(world_state.nonNull())
 	{
-		//Timer timer;
+		Timer timer;
 		//Timer tex_upload_timer;
 		//tex_upload_timer.pause();
 
@@ -2358,7 +2367,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
 		}
 
-		//conPrint("processing animated textures took " + timer.elapsedString() + " (tex_upload_time: " + tex_upload_timer.elapsedString() + ")");
+		//animated_tex_time = timer.elapsed();
 	}
 
 
@@ -2376,21 +2385,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
 
 		conPrint("---------------Waiting for loading to be done for screenshot ---------------");
-		const size_t num_model_tasks = model_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
-		const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks() + texture_loaded_messages_to_process.size();
-		
+		const size_t num_model_and_tex_tasks = model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
+	
 
 		printVar(num_obs);
-		printVar(num_model_tasks);
-		printVar(num_tex_tasks);
+		printVar(num_model_and_tex_tasks);
 		printVar(num_non_net_resources_downloading);
 		printVar(num_net_resources_downloading);
 
 		const bool loaded_all =
 			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
 			(total_timer.elapsed() >= 8) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
-			(num_model_tasks == 0) &&
-			(num_tex_tasks == 0) &&
+			(num_model_and_tex_tasks == 0) &&
 			(num_non_net_resources_downloading == 0) &&
 			(num_net_resources_downloading == 0);
 
@@ -2534,7 +2540,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		fps_display_timer.reset();
 	}
 	
-
+	//double frame_loading_time = 0;
+	//std::vector<std::string> loading_times; // TEMP just for profiling/debugging
 	if(world_state.nonNull())
 	{
 		// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
@@ -2553,6 +2560,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
 				model_loaded_messages_to_process.pop_front();
+
+				//Timer load_item_timer;
+				//const std::string loading_item = message->loaded_voxels ? "voxels" : message->lod_model_url;
 
 				// conPrint("Handling model loaded message, model_url: " + message->model_url);
 				num_models_loaded++;
@@ -2746,10 +2756,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				{
 					print("Error while loading model: " + e.what());
 				}
+
+				//loading_times.push_back(loading_item + ": " + doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 4) + " ms");
 			}
 
 			if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
 			{
+				//Timer load_item_timer;
+
 				// Process any loaded textures
 				const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
 				texture_loaded_messages_to_process.pop_front();
@@ -2776,6 +2790,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					print("Error while loading texture: " + e.what());
 				}
 				//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
+
+				//loading_times.push_back("Texture " + message->tex_key + ": " + doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 4) + " ms");
 			}
 
 			process_model_loaded_next = !process_model_loaded_next;
@@ -2783,6 +2799,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		//if(num_models_loaded > 0 || num_textures_loaded > 0)
 		//	conPrint("Done loading, num_textures_loaded: " + toString(num_textures_loaded) + ", num_models_loaded: " + toString(num_models_loaded) + ", elapsed: " + loading_timer.elapsedStringNPlaces(4));
+
+		//frame_loading_time = loading_timer.elapsed();
 	}
 	
 	// Handle any messages (chat messages etc..)
@@ -3253,7 +3271,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
 							!this->isTextureProcessed(tex_path)) // and not being loaded already:
 						{
-							this->texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+							this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
 						}
 					}
 					else if(hasAudioFileExtension(URL))
@@ -4123,6 +4141,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	last_timerEvent_CPU_work_elapsed = time_since_last_timer_ev.elapsed();
 
+
+	/*if(last_timerEvent_CPU_work_elapsed > 0.010)
+	{
+		conPrint("Frame CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1.0e3, 4) + " ms");
+		conPrint("\tloading time: " + doubleToStringNSigFigs(frame_loading_time * 1.0e3, 4) + " ms");
+		for(size_t i=0; i<loading_times.size(); ++i)
+			conPrint("\t\t" + loading_times[i]);
+		conPrint("\tprocessing animated textures took " + doubleToStringNSigFigs(animated_tex_time * 1.0e3, 4) + " ms");
+	}*/
+
 	ui->glWidget->makeCurrent();
 	ui->glWidget->updateGL();
 
@@ -4324,13 +4352,9 @@ void MainWindow::updateStatusBar()
 	if(num_resources_uploading > 0)
 		status += " | Uploading " + toString(num_resources_uploading) + ((num_resources_uploading == 1) ? " resource..." : " resources...");
 
-	const size_t num_tex_tasks = texture_loader_task_manager.getNumUnfinishedTasks() + texture_loaded_messages_to_process.size();
-	if(num_tex_tasks > 0)
-		status += " | Loading " + toString(num_tex_tasks) + ((num_tex_tasks == 1) ? " texture..." : " textures...");
-
-	const size_t num_model_tasks = model_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
-	if(num_model_tasks > 0)
-		status += " | Loading " + toString(num_model_tasks) + ((num_model_tasks == 1) ? " model..." : " models...");
+	const size_t num_model_and_tex_tasks = model_and_texture_loader_task_manager.getNumUnfinishedTasks() + (model_loaded_messages_to_process.size() + texture_loaded_messages_to_process.size());
+	if(num_model_and_tex_tasks > 0)
+		status += " | Loading " + toString(num_model_and_tex_tasks) + ((num_model_and_tex_tasks == 1) ? " model or texture..." : " models and textures...");
 
 	this->statusBar()->showMessage(QtUtils::toQString(status));
 }
@@ -5812,8 +5836,13 @@ void MainWindow::objectEditedSlot()
 					{
 						const std::string local_tex_path = mat->colour_texture_url;
 						Map2DRef tex = texture_server->getTexForPath(base_dir_path, local_tex_path); // Get from texture server so it's cached.
+
 						const bool has_alpha = LODGeneration::textureHasAlphaChannel(local_tex_path, tex);
 						BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
+
+						// If the texture is very high res, set minimum texture lod level to -1.  Lod level 0 will be the texture resized to 1024x1024 or below.
+						const bool is_hi_res = tex->getMapWidth() > 1024 || tex->getMapHeight() > 1024;
+						BitUtils::setOrZeroBit(mat->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, is_hi_res);
 					}
 				}
 			}

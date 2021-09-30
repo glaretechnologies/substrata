@@ -57,12 +57,17 @@ public:
 
 	float emission_lum_flux;
 
-	static const uint32 COLOUR_TEX_HAS_ALPHA_FLAG = 1; // Does the texture referenced by colour_texture_url have an alpha channel?
+	static const uint32 COLOUR_TEX_HAS_ALPHA_FLAG   = 1; // Does the texture referenced by colour_texture_url have an alpha channel?
 	// Used to determine the file format of LOD level textures, e.g. will be a PNG if this flag is set.
+	static const uint32 MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
 
 	uint32 flags;
+	
 
 	inline bool colourTexHasAlpha() const { return BitUtils::isBitSet(flags, COLOUR_TEX_HAS_ALPHA_FLAG); }
+
+	inline int minLODLevel() const { return BitUtils::isBitSet(flags, MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0; }
+
 
 	Reference<WorldMaterial> clone() const
 	{
@@ -76,6 +81,8 @@ public:
 		m->tex_matrix = tex_matrix;
 		return m;
 	}
+
+	std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha) const;
 
 	void appendDependencyURLs(int lod_level, std::vector<std::string>& paths_out);
 

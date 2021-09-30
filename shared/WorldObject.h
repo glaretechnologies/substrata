@@ -69,10 +69,9 @@ public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
 	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
-	static std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha);
 
 	int getLODLevel(const Vec3d& campos) const;
-	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level
+	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	std::string getLODModelURL(const Vec3d& campos) const; // Using lod level clamped to max_model_lod_level
 
 	void appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out);
@@ -240,7 +239,6 @@ public:
 private:
 	VoxelGroup voxel_group;
 	js::Vector<uint8, 16> compressed_voxels;
-
 };
 
 

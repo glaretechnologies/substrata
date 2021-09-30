@@ -55,7 +55,7 @@ void LoadAudioTask::run(size_t thread_index)
 		else
 			throw glare::Exception("Unhandled num channels " + toString(content.num_channels));
 
-		conPrint("Loaded audio data '" + audio_source_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
+		// conPrint("Loaded audio data '" + audio_source_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
 
 		main_window->msg_queue.enqueue(msg);
 	}

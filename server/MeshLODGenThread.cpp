@@ -42,16 +42,9 @@ MeshLODGenThread::~MeshLODGenThread()
 }
 
 
-static bool textureHasAlphaChannel(const std::string& tex_path)
+static bool textureHasAlphaChannel(Reference<Map2D>& map)
 {
-	if(hasExtension(tex_path, "gif") || hasExtension(tex_path, "mp4") || hasExtension(tex_path, "jpg")) // We don't support alpha in GIF and MP4 currently.
-		return false;
-	else
-	{
-		Reference<Map2D> map = ImFormatDecoder::decodeImage(".", tex_path); // Load texture from disk and decode it.
-
-		return map->hasAlphaChannel() && !map->isAlphaChannelAllWhite();
-	}
+	return map->hasAlphaChannel() && !map->isAlphaChannelAllWhite();
 }
 
 
@@ -75,29 +68,11 @@ struct LODTextureToGen
 };
 
 
-// Look up from cache or recompute.
-// returns false if could not load tex.
-static bool texHasAlpha(const std::string& tex_path, std::map<std::string, bool>& tex_has_alpha)
+struct MeshLODGenThreadTexInfo
 {
-	if(tex_has_alpha.find(tex_path) != tex_has_alpha.end())
-	{
-		return tex_has_alpha[tex_path];
-	}
-	else
-	{
-		bool has_alpha = false;
-		try
-		{
-			has_alpha = textureHasAlphaChannel(tex_path);
-		}
-		catch(glare::Exception& e)
-		{
-			conPrint("Excep while calling textureHasAlphaChannel(): " + e.what());
-		}
-		tex_has_alpha[tex_path] = has_alpha;
-		return has_alpha;
-	}
-}
+	bool has_alpha;
+	bool is_hi_res;
+};
 
 
 void MeshLODGenThread::doRun()
@@ -141,7 +116,7 @@ void MeshLODGenThread::doRun()
 			std::vector<LODMeshToGen> meshes_to_gen;
 			std::vector<LODTextureToGen> textures_to_gen;
 			std::unordered_set<std::string> lod_URLs_considered;
-			std::map<std::string, bool> tex_has_alpha; // map from tex path to if it has alpha.
+			std::map<std::string, MeshLODGenThreadTexInfo> tex_info; // Cached info about textures
 			bool made_change = false;
 
 			conPrint("MeshLODGenThread: Iterating over objects...");
@@ -238,7 +213,7 @@ void MeshLODGenThread::doRun()
 															if((batched_mesh->numVerts() > 1024) && // If this is a med/large mesh
 																((float)lod1_mesh->numVerts() > (batched_mesh->numVerts() / 4.f))) // If we acheived less than a 4x reduction in the number of vertices, try again with sloppy simplification
 															{
-																conPrint("Mesh '" + lod_URL + "' was not simplified enough, recomputed LOD 1 mesh.");
+																conPrint("Mesh '" + lod_URL + "' was not simplified enough, recomputing LOD 1 mesh...");
 																
 																// Generate the model
 																LODMeshToGen mesh_to_gen;
@@ -290,79 +265,116 @@ void MeshLODGenThread::doRun()
 
 
 						// Process textures
-						for(int lvl = 1; lvl <= 2; ++lvl)
+						// Process lightmap
+						// if(false) // TEMP NO LIGHTMAP LOD  !ob->lightmap_url.empty())
+						// {
+						// 	ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(ob->lightmap_url);
+						// 	if(base_resource.nonNull())
+						// 	{
+						// 		const std::string tex_path = base_resource->getLocalPath();
+						// 		const std::string lod_URL  = WorldObject::getLODTextureURLForLevel(ob->lightmap_url, lvl, /*has alpha=*/false);
+						// 		const std::string lod_path = world_state->resource_manager->pathForURL(lod_URL);
+						// 
+						// 		if(lod_URLs_considered.count(lod_URL) == 0)
+						// 		{
+						// 			lod_URLs_considered.insert(lod_URL);
+						// 
+						// 			if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+						// 			{
+						// 				// Generate the texture
+						// 				LODTextureToGen tex_to_gen;
+						// 				tex_to_gen.lod_level = lvl;
+						// 				tex_to_gen.tex_path = tex_path;
+						// 				tex_to_gen.LOD_tex_path = lod_path;
+						// 				tex_to_gen.lod_URL = lod_URL;
+						// 				tex_to_gen.owner_id = base_resource->owner_id;
+						// 				textures_to_gen.push_back(tex_to_gen);
+						// 			}
+						// 		}
+						// 	}
+						// }
+
+						// Process material textures
+						for(size_t z=0; z<ob->materials.size(); ++z)
 						{
-							// Process lightmap
-							if(false) // TEMP NO LIGHTMAP LOD  !ob->lightmap_url.empty())
+							WorldMaterial* mat = ob->materials[z].ptr();
+							if(mat)
 							{
-								ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(ob->lightmap_url);
-								if(base_resource.nonNull())
+								if(!mat->colour_texture_url.empty())
 								{
-									const std::string tex_path = base_resource->getLocalPath();
-									const std::string lod_URL  = WorldObject::getLODTextureURLForLevel(ob->lightmap_url, lvl, /*has alpha=*/false);
-									const std::string lod_path = world_state->resource_manager->pathForURL(lod_URL);
-
-									if(lod_URLs_considered.count(lod_URL) == 0)
+									ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(mat->colour_texture_url);
+									if(base_resource.nonNull())
 									{
-										lod_URLs_considered.insert(lod_URL);
+										const std::string tex_path = base_resource->getLocalPath();
 
-										if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+										if(hasExtension(tex_path, "mp4"))
 										{
-											// Generate the texture
-											LODTextureToGen tex_to_gen;
-											tex_to_gen.lod_level = lvl;
-											tex_to_gen.tex_path = tex_path;
-											tex_to_gen.LOD_tex_path = lod_path;
-											tex_to_gen.lod_URL = lod_URL;
-											tex_to_gen.owner_id = base_resource->owner_id;
-											textures_to_gen.push_back(tex_to_gen);
+											// Don't generate LOD for mp4 currently.
 										}
-									}
-								}
-							}
-
-							// Process material textures
-							for(size_t z=0; z<ob->materials.size(); ++z)
-							{
-								WorldMaterial* mat = ob->materials[z].ptr();
-								if(mat)
-								{
-									if(!mat->colour_texture_url.empty())
-									{
-										ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(mat->colour_texture_url);
-										if(base_resource.nonNull())
+										else
 										{
-											const std::string tex_path = base_resource->getLocalPath();
-
 											const uint32 old_flags = mat->flags;
 
-											const bool has_alpha = texHasAlpha(tex_path, tex_has_alpha);
-											BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
-
-											made_change = made_change || (mat->flags != old_flags);
-
-											const std::string lod_URL  = WorldObject::getLODTextureURLForLevel(mat->colour_texture_url, lvl, has_alpha);
-											
-											if(lod_URL != mat->colour_texture_url) // We don't do LOD for some texture types.
+											try
 											{
-												const std::string lod_path = world_state->resource_manager->pathForURL(lod_URL);
-
-												if(lod_URLs_considered.count(lod_URL) == 0)
+												// Compute has_alpha and is_high_res for the texture if we haven't already.
+												auto res = tex_info.find(tex_path);
+												if(res == tex_info.end())
 												{
-													lod_URLs_considered.insert(lod_URL);
+													Reference<Map2D> map = ImFormatDecoder::decodeImage(".", tex_path); // Load texture from disk and decode it.
+													const bool is_hi_res = map->getMapWidth() > 1024 || map->getMapHeight() > 1024;
+													const bool has_alpha = textureHasAlphaChannel(map);
 
-													if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+													tex_info[tex_path].has_alpha = has_alpha;
+													tex_info[tex_path].is_hi_res = is_hi_res;
+												}
+
+												// If the texture is very high res, set minimum texture lod level to -1.  Lod level 0 will be the texture resized to 1024x1024 or below.
+
+												const bool is_high_res = tex_info[tex_path].is_hi_res;
+												const bool has_alpha   = tex_info[tex_path].has_alpha;
+
+												// conPrint("tex " + tex_path + " is_hi_res: " + boolToString(is_high_res));
+
+												BitUtils::setOrZeroBit(mat->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, is_high_res);
+												BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG,   has_alpha);
+
+												made_change = made_change || (mat->flags != old_flags);
+
+												if(made_change)
+													conPrint("Updated mat flags: (for mat with tex " + tex_path + "): is_hi_res: " + boolToString(is_high_res));
+
+												const int start_lod_level = mat->minLODLevel() + 1;
+												for(int lvl = start_lod_level; lvl <= 2; ++lvl)
+												{
+													const std::string lod_URL = mat->getLODTextureURLForLevel(mat->colour_texture_url, lvl, has_alpha);
+											
+													if(lod_URL != mat->colour_texture_url) // We don't do LOD for some texture types.
 													{
-														// Generate the texture
-														LODTextureToGen tex_to_gen;
-														tex_to_gen.lod_level = lvl;
-														tex_to_gen.tex_path = tex_path;
-														tex_to_gen.LOD_tex_path = lod_path;
-														tex_to_gen.lod_URL = lod_URL;
-														tex_to_gen.owner_id = base_resource->owner_id;
-														textures_to_gen.push_back(tex_to_gen);
+														const std::string lod_path = world_state->resource_manager->pathForURL(lod_URL);
+
+														if(lod_URLs_considered.count(lod_URL) == 0)
+														{
+															lod_URLs_considered.insert(lod_URL);
+
+															if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
+															{
+																// Generate the texture
+																LODTextureToGen tex_to_gen;
+																tex_to_gen.lod_level = lvl;
+																tex_to_gen.tex_path = tex_path;
+																tex_to_gen.LOD_tex_path = lod_path;
+																tex_to_gen.lod_URL = lod_URL;
+																tex_to_gen.owner_id = base_resource->owner_id;
+																textures_to_gen.push_back(tex_to_gen);
+															}
+														}
 													}
 												}
+											}
+											catch(glare::Exception& e)
+											{
+												conPrint("Excep while loading texture: " + e.what());
 											}
 										}
 									}

@@ -145,7 +145,7 @@ bool textureHasAlphaChannel(const std::string& tex_path, Map2DRef map)
 
 void generateLODTexture(const std::string& base_tex_path, int lod_level, const std::string& LOD_tex_path, glare::TaskManager& task_manager)
 {
-	const int new_max_w_h = (lod_level == 1) ? 256 : 64;
+	const int new_max_w_h = (lod_level == 0) ? 1024 : ((lod_level == 1) ? 256 : 64);
 	const int min_w_h = 1;
 
 	Reference<Map2D> map;
@@ -242,9 +242,11 @@ void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& 
 		{
 			const std::string& base_tex_URL = mat->colour_texture_url;
 
-			for(int lvl = 1; lvl <= 2; ++lvl)
+			const int start_lod_level = mat->minLODLevel() + 1;
+
+			for(int lvl = start_lod_level; lvl <= 2; ++lvl)
 			{
-				const std::string lod_URL = WorldObject::getLODTextureURLForLevel(base_tex_URL, lvl, mat->colourTexHasAlpha());
+				const std::string lod_URL = mat->getLODTextureURLForLevel(base_tex_URL, lvl, mat->colourTexHasAlpha());
 
 				if((lod_URL != base_tex_URL) && !resource_manager.isFileForURLPresent(lod_URL))
 				{

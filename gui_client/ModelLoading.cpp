@@ -108,7 +108,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;
 	if(!mat.colour_texture_url.empty())
-		opengl_mat.tex_path = toLocalPath(WorldObject::getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
+		opengl_mat.tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
 	else
 		opengl_mat.tex_path.clear();
 
