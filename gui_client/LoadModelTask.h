@@ -56,6 +56,7 @@ public:
 	virtual void run(size_t thread_index);
 
 	std::string base_model_url;
+	int ob_lod_level;
 	int model_lod_level;
 	std::string lod_model_url;
 	WorldObjectRef ob; // Either ob or avatar will be non-null

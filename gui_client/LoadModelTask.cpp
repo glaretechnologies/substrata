@@ -40,7 +40,7 @@ void LoadModelTask::run(size_t thread_index)
 			{
 				// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
 				Reference<RayMesh> raymesh;
-				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, this->model_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *this->resource_manager, *this->mesh_manager, 
+				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, this->ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *this->resource_manager, *this->mesh_manager, 
 					*model_building_task_manager, ob_to_world_matrix,
 					true, // skip_opengl_calls - we need to do these on the main thread.
 					raymesh);
@@ -95,12 +95,12 @@ void LoadModelTask::run(size_t thread_index)
 					WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
 
 					const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
-					const int use_lod_level = myMin(model_lod_level, max_model_lod_level);
+					const int use_model_lod_level = myMin(model_lod_level, max_model_lod_level);
 
 					int subsample_factor = 1;
-					if(use_lod_level == 1)
+					if(use_model_lod_level == 1)
 						subsample_factor = 2;
-					else if(use_lod_level == 2)
+					else if(use_model_lod_level == 2)
 						subsample_factor = 4;
 
 					// conPrint("Loading vox model for LOD level " + toString(use_lod_level) + ", using subsample_factor " + toString(subsample_factor));
@@ -119,7 +119,7 @@ void LoadModelTask::run(size_t thread_index)
 					opengl_ob->materials.resize(ob->materials.size());
 					for(uint32 i=0; i<ob->materials.size(); ++i)
 					{
-						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], this->model_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], this->ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 						opengl_ob->materials[i].gen_planar_uvs = true;
 					}
 
@@ -138,7 +138,7 @@ void LoadModelTask::run(size_t thread_index)
 				{
 					// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
 					Reference<RayMesh> raymesh;
-					opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, this->model_lod_level, ob->materials, ob->lightmap_url, *this->resource_manager, *this->mesh_manager, 
+					opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, this->ob_lod_level, ob->materials, ob->lightmap_url, *this->resource_manager, *this->mesh_manager, 
 						*model_building_task_manager, ob_to_world_matrix,
 						true, // skip_opengl_calls - we need to do these on the main thread.
 						raymesh);
