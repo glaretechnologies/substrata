@@ -113,8 +113,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 		opengl_mat.tex_path.clear();
 
 	if(!lightmap_url.empty())
-		//opengl_mat.lightmap_path = toLocalPath(WorldObject::getLODTextureURLForLevel(lightmap_url, ob_lod_level, /*has alpha=*/false), resource_manager); // TEMP No LOD for lightmaps
-		opengl_mat.lightmap_path = toLocalPath(lightmap_url, resource_manager);
+		opengl_mat.lightmap_path = toLocalPath(WorldObject::getLODLightmapURL(lightmap_url, lod_level), resource_manager);
 	else
 		opengl_mat.lightmap_path.clear();
 

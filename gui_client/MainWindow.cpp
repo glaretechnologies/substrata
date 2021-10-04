@@ -747,7 +747,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	// Start loading lightmap
 	if(!ob.lightmap_url.empty())
 	{
-		const std::string lod_tex_url = ob.lightmap_url; // TEMP no LOD for lightmaps   WorldObject::getLODTextureURLForLevel(ob.lightmap_url, ob_lod_level, /*has alpha=*/false);
+		const std::string lod_tex_url = WorldObject::getLODLightmapURL(ob.lightmap_url, ob_lod_level);
 		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 		if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
@@ -946,6 +946,20 @@ static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat
 }
 
 
+static Reference<OpenGLTexture> getBestLightmapLOD(const std::string& base_lightmap_path, OpenGLEngine& opengl_engine)
+{
+	for(int lvl=0; lvl<=2; ++lvl)
+	{
+		const std::string tex_lod_path = WorldObject::getLODLightmapURL(base_lightmap_path, lvl);
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
+		if(tex.nonNull())
+			return tex;
+	}
+
+	return Reference<OpenGLTexture>();
+}
+
+
 static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
 	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
@@ -966,14 +980,23 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			}
 		}
 
-		if(!ob->opengl_engine_ob->materials[z].lightmap_path.empty())
-			ob->opengl_engine_ob->materials[z].lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(ob->opengl_engine_ob->materials[z].lightmap_path));
+		if(!opengl_mat.lightmap_path.empty())
+		{
+			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
+
+			if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			{
+				// Try and use a different LOD level of the lightmap, that is actually loaded.
+				opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine);
+			}
+		}
 		else
-			ob->opengl_engine_ob->materials[z].lightmap_texture = NULL;
+			opengl_mat.lightmap_texture = NULL;
 	}
 }
 
 
+// For avatars
 static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
 	GLObject* gl_ob = av->graphics.skinned_gl_ob.ptr();
@@ -2305,9 +2328,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							msg += "mat0 min lod level: " + toString(selected_ob->materials[0]->minLODLevel()) + "\n";
 						msg += "mat0 tex: " + toString(mat0.albedo_texture->xRes()) + "x" + toString(mat0.albedo_texture->yRes()) + " (" + getNiceByteSize(mat0.albedo_texture->getByteSize()) + ")\n";
 					}
+
+					if(mat0.lightmap_texture.nonNull())
+					{
+						msg += "\n";
+						msg += "lightmap: " + toString(mat0.lightmap_texture->xRes()) + "x" + toString(mat0.lightmap_texture->yRes()) + " (" + getNiceByteSize(mat0.lightmap_texture->getByteSize()) + ")\n";
+					}
 				}
 			}
-
 		}
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
@@ -3440,6 +3468,44 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
 	const Quatf q = z_axis_rot_q * x_axis_rot_q;
 	audio_engine.setHeadTransform(campos, q);
+
+
+	// Set audio source occlusions
+	/*{
+		Lock lock(audio_engine.mutex);
+		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
+		{
+			glare::AudioSource* source = it->ptr();
+			//Vec4f start = source->pos;
+			//const Vec4f end = campos;
+
+			const float dist = source->pos.getDist(campos); // Dist from camera to source position
+			if(dist < 60.0) // Only do tracing for nearby objects
+			{
+				const Vec4f trace_dir = normalise(source->pos - campos); // Trace from camera to source position
+
+				const float use_dist = myMax(0.f, dist - 1.f);
+				//printVar(use_dist);
+
+				const Vec4f trace_start = campos;
+
+				RayTraceResult results;
+				physics_world->traceRay(trace_start, trace_dir, use_dist, thread_context, results);
+				if(results.hit_object)
+				{
+					//conPrint("hit aabb: " + results.hit_object->aabb_ws.toStringNSigFigs(4));
+					//printVar(results.hit_object->userdata_type);
+					source->num_occlusions = 1;
+				}
+				else
+					source->num_occlusions = 0;
+
+				//printVar(source->num_occlusions);
+
+				audio_engine.sourceNumOcclusionsUpdated(*source);
+			}
+		}
+	}*/
 
 
 	// Update avatar graphics
