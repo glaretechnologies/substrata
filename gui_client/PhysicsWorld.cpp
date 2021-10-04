@@ -100,7 +100,7 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 		const PhysicsObject* object = it->ptr();
 
 		RayTraceResult ob_results;
-		object->traceRay(ray, 1.0e30f, ob_results);
+		object->traceRay(ray, max_t, ob_results);
 		if(ob_results.hit_object && ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
 		{
 			results_out = ob_results;
