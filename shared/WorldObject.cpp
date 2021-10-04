@@ -127,6 +127,18 @@ std::string WorldObject::getLODModelURL(const Vec3d& campos) const
 }
 
 
+std::string WorldObject::getLODLightmapURL(const std::string& base_lightmap_url, int level)
+{
+	assert(level >= -1 && level <= 2);
+	if(level <= 0)
+		return base_lightmap_url;
+	else if(level == 1)
+		return removeDotAndExtension(base_lightmap_url) + "_lod1.ktx2";
+	else
+		return removeDotAndExtension(base_lightmap_url) + "_lod2.ktx2";
+}
+
+
 void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out)
 {
 	if(!model_url.empty())
@@ -136,7 +148,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<std::string
 	}
 
 	if(!lightmap_url.empty())
-		URLs_out.push_back(lightmap_url); // TEMP NO LIGHTMAP LOD   getLODTextureURLForLevel(lightmap_url, ob_lod_level, /*has alpha=*/false));
+		URLs_out.push_back(getLODLightmapURL(lightmap_url, ob_lod_level));
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
@@ -159,7 +171,8 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<std::string>& 
 	}
 
 	if(!lightmap_url.empty())
-		URLs_out.push_back(lightmap_url);
+		for(int lvl=0; lvl<=2; ++lvl)
+			URLs_out.push_back(getLODLightmapURL(lightmap_url, lvl));
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLsAllLODLevels(URLs_out);

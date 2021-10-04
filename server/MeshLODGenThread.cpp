@@ -341,7 +341,7 @@ void MeshLODGenThread::doRun()
 
 												made_change = made_change || (mat->flags != old_flags);
 
-												if(made_change)
+												if(mat->flags != old_flags)
 													conPrint("Updated mat flags: (for mat with tex " + tex_path + "): is_hi_res: " + boolToString(is_high_res));
 
 												const int start_lod_level = mat->minLODLevel() + 1;

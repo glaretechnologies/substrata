@@ -69,6 +69,7 @@ public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
 	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
+	static std::string getLODLightmapURL(const std::string& base_lightmap_url, int level);
 
 	int getLODLevel(const Vec3d& campos) const;
 	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.

@@ -42,6 +42,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <simpleraytracer/raymesh.h>
 #include <graphics/BatchedMesh.h>
 #include <graphics/KTXDecoder.h>
+#include <graphics/EXRDecoder.h>
 #include <indigo/UVUnwrapper.h>
 #include <tls.h>
 #include "../gui_client/IndigoConversion.h"
@@ -283,7 +284,7 @@ public:
 
 			// Iterate over voxels and get voxel position bounds
 			Vec3<int> minpos, maxpos;
-			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, minpos, maxpos);
+			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, /*subsample factor=*/1, minpos, maxpos);
 			use_shading_normals = false;
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
@@ -763,11 +764,11 @@ public:
 					Indigo::SceneNodeMeshRef mesh_node = new Indigo::SceneNodeMesh(mesh);
 					mesh_node->setName("Ground Mesh");
 
-					//==================== Create the ground material. See See MainWindow::updateGroundPlane() =========================
+					//==================== Create the ground material. See MainWindow::updateGroundPlane() =========================
 					Indigo::Texture tex;
 					tex.path = toIndigoString(base_dir_path + "/resources/obstacle.png");
 					tex.tex_coord_generation = new Indigo::UVTexCoordGenerator();
-					tex.b = 0.9f;
+					tex.b = std::pow(0.9f, 2.2); // 0.9 RGB colour converted to linear scale.
 
 					Indigo::DiffuseMaterialRef diffuse = new Indigo::DiffuseMaterial(
 						new Indigo::TextureWavelengthDependentParam(tex) // albedo param
@@ -803,6 +804,7 @@ public:
 				//settings_node->image_save_period.setValue(2); // Save often for progressive rendering and uploads
 				settings_node->save_png.setValue(false);
 				settings_node->merging.setValue(false); // Needed for now
+				settings_node->vignetting.setValue(false); // Should have no effect on the lightmap, but useful for comparing in non-lightmap baking mode.
 
 				settings_node->optimise_for_denoising.setValue(true);
 				settings_node->denoise.setValue(true);
@@ -853,7 +855,8 @@ public:
 			} // Release world state lock
 
 
-			const std::string lightmap_exr_path = PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmap.exr";
+			const std::string lightmap_exr_path = PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmaps/ob_" + ob_uid.toString() + "_lightmap.exr";
+			FileUtils::createDirIfDoesNotExist(PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmaps");
 			int lightmap_index = 0;
 			if(true)
 			{
@@ -942,74 +945,124 @@ public:
 
 	void compressAndUploadLightmap(const std::string& lightmap_exr_path, UID ob_uid, int& lightmap_index)
 	{
-		const std::string                 lightmap_ktx_path = ::removeDotAndExtension(lightmap_exr_path) + "_" + toString(lightmap_index) + ".ktx2";
-		const std::string supercompressed_lightmap_ktx_path = ::removeDotAndExtension(lightmap_exr_path) + "_" + toString(lightmap_index) + "_su.ktx2";  // supercompressed
-		lightmap_index++;
+		uint64 lightmap_base_hash = 0;
 
-		//================== Run Compressonator to compress the lightmap EXR with BC6 compression into a KTX file. ========================
+		//TEMP: test saving EXR in DWAB format to see its size.
+		/*{
+			Reference<Map2D> map = EXRDecoder::decode(lightmap_exr_path); // Load texture from disk and decode it.
+			Reference<ImageMapFloat> image_map_float = map.downcast<ImageMapFloat>();
+			EXRDecoder::SaveOptions options;
+			options.compression_method = EXRDecoder::CompressionMethod_DWAB;
+			EXRDecoder::saveImageToEXR(*image_map_float, ::removeDotAndExtension(lightmap_exr_path) + "_DWAB.exr", "", options);
+		}*/
+
+		for(int lvl = 0; lvl <= 2; ++lvl)
 		{
-			const std::string compressonator_path = PlatformUtils::findProgramOnPath("CompressonatorCLI.exe");
-			std::vector<std::string> command_line_args;
-			command_line_args.push_back(compressonator_path);
-			command_line_args.push_back("-fd"); // Specifies the destination texture format to use
-			command_line_args.push_back("BC6H"); // BC6H = High-Dynamic Range compression format (https://docs.microsoft.com/en-us/windows/win32/direct3d11/bc6h-format)
-			command_line_args.push_back("-mipsize");
-			command_line_args.push_back("1");
-			command_line_args.push_back(lightmap_exr_path); // input path
-			command_line_args.push_back(lightmap_ktx_path); // output path
-			glare::Process compressonator_process(compressonator_path, command_line_args);
+			const std::string lod_suffix = (lvl == 0) ? "" : ("_lod" + toString(lvl));
 
-			Timer timer;
-			while(1)
+			const std::string                 lightmap_ktx_path = ::removeDotAndExtension(lightmap_exr_path) + "_" + toString(lightmap_index) + lod_suffix + ".ktx2";
+			const std::string supercompressed_lightmap_ktx_path = ::removeDotAndExtension(lightmap_exr_path) + "_" + toString(lightmap_index) + lod_suffix + "_su.ktx2";  // supercompressed
+			
+			// Resize image if we are doing LOD level 1 or 2.
+			const std::string resized_exr_path = ::removeDotAndExtension(lightmap_exr_path) + lod_suffix + ".exr";
+			if(lvl == 1)
 			{
-				while(compressonator_process.isStdOutReadable())
-				{
-					const std::string output = compressonator_process.readStdOut();
-					std::vector<std::string> lines = ::split(output, '\n');
-					for(size_t i=0; i<lines.size(); ++i)
-					{
-						//conPrint("COMPRESS> " + lines[i]);
-					}
-				}
+				Reference<Map2D> map = EXRDecoder::decode(lightmap_exr_path); // Load texture from disk and decode it.
 
-				if(!compressonator_process.isProcessAlive())
-					break;
+				const int new_w = (int)map->getMapWidth()  / 4;
+				const int new_h = (int)map->getMapHeight() / 4;
+				
+				Reference<Map2D> resized_map = map->resizeMidQuality(new_w, new_h, task_manager);
 
-				PlatformUtils::Sleep(1);
+				Reference<ImageMapFloat> image_map_float = resized_map.downcast<ImageMapFloat>();
+				EXRDecoder::saveImageToEXR(*image_map_float, resized_exr_path, "", EXRDecoder::SaveOptions());
+			}
+			else if(lvl == 2)
+			{
+				Reference<Map2D> map = EXRDecoder::decode(lightmap_exr_path); // Load texture from disk and decode it.
+
+				const int new_w = (int)map->getMapWidth()  / 16;
+				const int new_h = (int)map->getMapHeight() / 16;
+
+				Reference<Map2D> resized_map = map->resizeMidQuality(new_w, new_h, task_manager);
+
+				Reference<ImageMapFloat> image_map_float = resized_map.downcast<ImageMapFloat>();
+				EXRDecoder::saveImageToEXR(*image_map_float, resized_exr_path, "", EXRDecoder::SaveOptions());
 			}
 
-			std::string output, err_output;
-			compressonator_process.readAllRemainingStdOutAndStdErr(output, err_output);
-			//conPrint("COMPRESS> " + output);
-			if(!isAllWhitespace(err_output))
-				conPrint("COMPRESS error output> " + err_output);
+			//================== Run Compressonator to compress the lightmap EXR with BC6 compression into a KTX file. ========================
+			{
+				const std::string compressonator_path = PlatformUtils::findProgramOnPath("CompressonatorCLI.exe");
+				std::vector<std::string> command_line_args;
+				command_line_args.push_back(compressonator_path);
+				command_line_args.push_back("-fd"); // Specifies the destination texture format to use
+				command_line_args.push_back("BC6H"); // BC6H = High-Dynamic Range compression format (https://docs.microsoft.com/en-us/windows/win32/direct3d11/bc6h-format)
+				command_line_args.push_back("-mipsize");
+				command_line_args.push_back("1");
+				command_line_args.push_back(resized_exr_path); // input path
+				command_line_args.push_back(lightmap_ktx_path); // output path
+				glare::Process compressonator_process(compressonator_path, command_line_args);
 
-			if(compressonator_process.getExitCode() != 0)
-				throw glare::Exception("compressonator execution returned a non-zero code: " + toString(compressonator_process.getExitCode()));
+				Timer timer;
+				while(1)
+				{
+					while(compressonator_process.isStdOutReadable())
+					{
+						const std::string output = compressonator_process.readStdOut();
+						std::vector<std::string> lines = ::split(output, '\n');
+						for(size_t i=0; i<lines.size(); ++i)
+						{
+							//conPrint("COMPRESS> " + lines[i]);
+						}
+					}
 
-			//conPrint("Compressonator finished.");
+					if(!compressonator_process.isProcessAlive())
+						break;
+
+					PlatformUtils::Sleep(1);
+				}
+
+				std::string output, err_output;
+				compressonator_process.readAllRemainingStdOutAndStdErr(output, err_output);
+				//conPrint("COMPRESS> " + output);
+				if(!isAllWhitespace(err_output))
+					conPrint("COMPRESS error output> " + err_output);
+
+				if(compressonator_process.getExitCode() != 0)
+					throw glare::Exception("compressonator execution returned a non-zero code: " + toString(compressonator_process.getExitCode()));
+
+				//conPrint("Compressonator finished.");
+			}
+
+			// Supercompress ktx file - apply ZStd compression to it.
+			KTXDecoder::supercompressKTX2File(lightmap_ktx_path, supercompressed_lightmap_ktx_path);
+
+			// Compute hash over lightmap
+			const uint64 lightmap_hash = FileChecksum::fileChecksum(supercompressed_lightmap_ktx_path);
+			if(lvl == 0)
+				lightmap_base_hash = lightmap_hash;
+
+			//const std::string base_lightmap_URL = ResourceManager::URLForNameAndExtensionAndHash(eatExtension(lightmap_exr_path), "ktx2", lightmap_hash);
+			const std::string lightmap_URL = ::removeDotAndExtension(FileUtils::getFilename(lightmap_exr_path)) + "_" + toString(lightmap_base_hash) + lod_suffix + ".ktx2";
+
+			// Enqueue ObjectLightmapURLChanged (just for level 0 tho)
+			if(lvl == 0)
+			{
+				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				packet.writeUInt32(Protocol::ObjectLightmapURLChanged);
+				writeToStream(ob_uid, packet);
+				packet.writeStringLengthFirst(lightmap_URL);
+
+				this->client_thread->enqueueDataToSend(packet);
+			}
+
+			// Spawn an UploadResourceThread to upload the new lightmap
+			conPrint("Uploading lightmap '" + supercompressed_lightmap_ktx_path + "' to the server with URL '" + lightmap_URL + "'...");
+			resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, supercompressed_lightmap_ktx_path, lightmap_URL, server_hostname, server_port, 
+				username, password, client_tls_config, &num_resources_uploading));
 		}
 
-		// Supercompress ktx file - apply ZStd compression to it.
-		KTXDecoder::supercompressKTX2File(lightmap_ktx_path, supercompressed_lightmap_ktx_path);
-
-		// Compute hash over lightmap
-		const uint64 lightmap_hash = FileChecksum::fileChecksum(supercompressed_lightmap_ktx_path);
-
-		const std::string lightmap_URL = ResourceManager::URLForNameAndExtensionAndHash("lightmap", ::getExtension(supercompressed_lightmap_ktx_path), lightmap_hash);
-
-		// Enqueue ObjectLightmapURLChanged
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::ObjectLightmapURLChanged);
-		writeToStream(ob_uid, packet);
-		packet.writeStringLengthFirst(lightmap_URL);
-
-		this->client_thread->enqueueDataToSend(packet);
-
-		// Spawn an UploadResourceThread to upload the new lightmap
-		conPrint("Uploading lightmap '" + lightmap_ktx_path + "' to the server with URL '" + lightmap_URL + "'...");
-		resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, supercompressed_lightmap_ktx_path, lightmap_URL, server_hostname, server_port, 
-			username, password, client_tls_config, &num_resources_uploading));
+		lightmap_index++;
 	}
 
 
