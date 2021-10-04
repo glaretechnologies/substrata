@@ -982,8 +982,10 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 
 		if(!opengl_mat.lightmap_path.empty())
 		{
+			//conPrint("Trying to use " + opengl_mat.lightmap_path);
 			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
 
+			//printVar(opengl_mat.lightmap_texture.isNull());
 			if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 			{
 				// Try and use a different LOD level of the lightmap, that is actually loaded.
@@ -1140,6 +1142,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
 			Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
+			load_model_task->ob_lod_level = ob_lod_level;
 			load_model_task->model_lod_level = ob_model_lod_level;
 			load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 			load_model_task->main_window = this;
@@ -1174,6 +1177,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
 						load_model_task->base_model_url = ob->model_url;
+						load_model_task->ob_lod_level = ob_lod_level;
 						load_model_task->model_lod_level = ob_model_lod_level;
 						load_model_task->lod_model_url = lod_model_url;
 						load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
@@ -1340,7 +1344,8 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 				Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
 				load_model_task->base_model_url = avatar->avatar_settings.model_url;
-				load_model_task->model_lod_level = ob_lod_level;
+				load_model_task->ob_lod_level = ob_lod_level;
+				load_model_task->model_lod_level = ob_model_lod_level;
 				load_model_task->lod_model_url = lod_model_url;
 				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 				load_model_task->main_window = this;
