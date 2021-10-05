@@ -266,8 +266,10 @@ public:
 	// If batched mesh (bmesh), convert to indigo mesh
 	// If indigo mesh, can use directly.
 	// If voxel group, mesh it.
-	Indigo::SceneNodeMeshRef makeSceneNodeMeshForOb(WorldObject* ob)
+	Indigo::SceneNodeMeshRef makeSceneNodeMeshForOb(WorldObject* ob, bool& mesh_had_skeletal_anim_out)
 	{
+		mesh_had_skeletal_anim_out = false;
+
 		// Construct Indigo Mesh
 		Indigo::MeshRef indigo_mesh;
 		bool use_shading_normals = true;
@@ -352,6 +354,8 @@ public:
 				BatchedMeshRef batched_mesh = new BatchedMesh();
 				BatchedMesh::readFromFile(model_path, *batched_mesh);
 
+				mesh_had_skeletal_anim_out = !batched_mesh->animation_data.animations.empty();
+
 				indigo_mesh = new Indigo::Mesh();
 				batched_mesh->buildIndigoMesh(*indigo_mesh);
 			}
@@ -369,7 +373,8 @@ public:
 
 	Indigo::SceneNodeModelRef makeModelNodeForWorldObject(WorldObject* ob)
 	{
-		Indigo::SceneNodeMeshRef mesh_node = makeSceneNodeMeshForOb(ob);
+		bool mesh_had_skeletal_anim;
+		Indigo::SceneNodeMeshRef mesh_node = makeSceneNodeMeshForOb(ob, mesh_had_skeletal_anim);
 
 		if(ob->object_type == WorldObject::ObjectType_Spotlight)
 		{
@@ -505,7 +510,7 @@ public:
 					BitUtils::zeroBit(ob_to_lightmap->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
 					BitUtils::zeroBit(ob_to_lightmap->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
 
-					// Enqueue ObjectFlagsChanged
+					// Enqueue ObjectFlagsChanged message
 					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 					packet.writeUInt32(Protocol::ObjectFlagsChanged);
 					writeToStream(ob_to_lightmap->uid, packet);
@@ -619,7 +624,11 @@ public:
 				printVar(clamped_side_res);
 
 
-				Indigo::SceneNodeMeshRef ob_to_lightmap_mesh_node = makeSceneNodeMeshForOb(ob_to_lightmap);
+				bool mesh_had_skeletal_anim;
+				Indigo::SceneNodeMeshRef ob_to_lightmap_mesh_node = makeSceneNodeMeshForOb(ob_to_lightmap, mesh_had_skeletal_anim);
+				if(mesh_had_skeletal_anim)
+					throw glare::Exception("Not doing lightmapping, mesh had skeletal animation");
+
 				{
 					Indigo::MeshRef ob_to_lightmap_indigo_mesh = ob_to_lightmap_mesh_node->mesh;
 				
