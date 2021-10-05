@@ -5797,9 +5797,19 @@ void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 				
 				if(cur_parcel->pointInParcel(ob->pos) && objectModificationAllowed(*ob))
 				{
-					BitUtils::setBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
-					objs_with_lightmap_rebuild_needed.insert(ob);
-					num_lightmaps_to_bake++;
+					// Don't bake lightmap for objects with only transparent materials, as the lightmap won't be used.
+					bool has_non_transparent_mat = false;
+					for(size_t i=0; i<ob->materials.size(); ++i)
+						if(ob->materials[i].nonNull())
+							if(ob->materials[i]->opacity.val == 1.f)
+								has_non_transparent_mat = true;
+
+					if(has_non_transparent_mat)
+					{
+						BitUtils::setBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+						objs_with_lightmap_rebuild_needed.insert(ob);
+						num_lightmaps_to_bake++;
+					}
 				}
 			}
 		}
