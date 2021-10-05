@@ -5794,21 +5794,28 @@ void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 			for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
 			{
 				WorldObject* ob = it->second.ptr();
-				
+
 				if(cur_parcel->pointInParcel(ob->pos) && objectModificationAllowed(*ob))
 				{
-					// Don't bake lightmap for objects with only transparent materials, as the lightmap won't be used.
-					bool has_non_transparent_mat = false;
-					for(size_t i=0; i<ob->materials.size(); ++i)
-						if(ob->materials[i].nonNull())
-							if(ob->materials[i]->opacity.val == 1.f)
-								has_non_transparent_mat = true;
+					// Don't bake lightmaps for objects with sketal animation for now (creating second UV set removes joints and weights).
+					const bool has_skeletal_anim = ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->mesh_data.nonNull() &&
+						!ob->opengl_engine_ob->mesh_data->animation_data.animations.empty();
 
-					if(has_non_transparent_mat)
+					if(!has_skeletal_anim)
 					{
-						BitUtils::setBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
-						objs_with_lightmap_rebuild_needed.insert(ob);
-						num_lightmaps_to_bake++;
+						// Don't bake lightmap for objects with only transparent materials, as the lightmap won't be used.
+						bool has_non_transparent_mat = false;
+						for(size_t i=0; i<ob->materials.size(); ++i)
+							if(ob->materials[i].nonNull())
+								if(ob->materials[i]->opacity.val == 1.f)
+									has_non_transparent_mat = true;
+
+						if(has_non_transparent_mat)
+						{
+							BitUtils::setBit(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+							objs_with_lightmap_rebuild_needed.insert(ob);
+							num_lightmaps_to_bake++;
+						}
 					}
 				}
 			}
@@ -6085,11 +6092,22 @@ void MainWindow::bakeObjectLightmapSlot()
 {
 	if(this->selected_ob.nonNull())
 	{
-		this->selected_ob->lightmap_baking = true;
+		// Don't bake lightmaps for objects with sketal animation for now (creating second UV set removes joints and weights).
+		const bool has_skeletal_anim = this->selected_ob->opengl_engine_ob.nonNull() && this->selected_ob->opengl_engine_ob->mesh_data.nonNull() &&
+			!this->selected_ob->opengl_engine_ob->mesh_data->animation_data.animations.empty();
 
-		BitUtils::setBit(this->selected_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
-		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-		lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
+		if(has_skeletal_anim)
+		{
+			showErrorNotification("You cannot currently bake lightmaps for objects with skeletal animation.");
+		}
+		else
+		{
+			this->selected_ob->lightmap_baking = true;
+
+			BitUtils::setBit(this->selected_ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG);
+			objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+			lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
+		}
 	}
 }
 
@@ -6098,11 +6116,22 @@ void MainWindow::bakeObjectLightmapHighQualSlot()
 {
 	if(this->selected_ob.nonNull())
 	{
-		this->selected_ob->lightmap_baking = true;
+		// Don't bake lightmaps for objects with sketal animation for now (creating second UV set removes joints and weights).
+		const bool has_skeletal_anim = this->selected_ob->opengl_engine_ob.nonNull() && this->selected_ob->opengl_engine_ob->mesh_data.nonNull() &&
+			!this->selected_ob->opengl_engine_ob->mesh_data->animation_data.animations.empty();
 
-		BitUtils::setBit(this->selected_ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
-		objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-		lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
+		if(has_skeletal_anim)
+		{
+			showErrorNotification("You cannot currently bake lightmaps for objects with skeletal animation.");
+		}
+		else
+		{
+			this->selected_ob->lightmap_baking = true;
+
+			BitUtils::setBit(this->selected_ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
+			objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+			lightmap_flag_timer->start(/*msec=*/20); // Trigger sending update-lightmap update flag message later.
+		}
 	}
 }
 
