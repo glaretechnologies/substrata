@@ -795,6 +795,7 @@ public:
 				settings_node->untonemapped_scale.setValue(1.0e-9);
 				settings_node->width.setValue(clamped_side_res);
 				settings_node->height.setValue(clamped_side_res);
+				settings_node->super_sample_factor.setValue(1); // Seems to be required for the denoising to work well
 				settings_node->bidirectional.setValue(false);
 				settings_node->metropolis.setValue(false);
 				settings_node->gpu.setValue(true);
@@ -808,6 +809,8 @@ public:
 
 				settings_node->optimise_for_denoising.setValue(true);
 				settings_node->denoise.setValue(true);
+
+				settings_node->render_env_caustics.setValue(false);
 
 				// See SkyModel2Generator::makeSkyEnvMap() for the details of the whitepoint we chose.
 				settings_node->setWhitePoint(Indigo::Vec2d(0.3225750029085, 0.338224992156));
