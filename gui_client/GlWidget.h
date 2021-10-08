@@ -100,7 +100,6 @@ private:
 
 	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down;
 	Timer timer;
-	Timer forwards_pressed_timer;
 	float current_time;
 	bool cam_rot_on_mouse_move_enabled;
 

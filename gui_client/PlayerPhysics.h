@@ -52,8 +52,6 @@ public:
 	
 	bool onGround() const { return onground; }
 	bool isRunPressed() const { return last_runpressed; }
-
-	float forwards_pressed_time; // Time for which the forwards key(s) (W etc..) have been pressed.
 private:
 	Vec3f vel;
 	Vec3f lastvel;
@@ -73,5 +71,3 @@ private:
 
 	std::vector<SpringSphereSet> springspheresets;
 };
-
-
