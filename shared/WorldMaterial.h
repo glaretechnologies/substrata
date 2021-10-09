@@ -62,6 +62,8 @@ public:
 	static const uint32 MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
 
 	uint32 flags;
+
+	// NOTE: If adding new member variables, make sure to add to clone() below.
 	
 
 	inline bool colourTexHasAlpha() const { return BitUtils::isBitSet(flags, COLOUR_TEX_HAS_ALPHA_FLAG); }
@@ -79,6 +81,8 @@ public:
 		m->metallic_fraction = metallic_fraction;
 		m->opacity = opacity;
 		m->tex_matrix = tex_matrix;
+		m->emission_lum_flux = emission_lum_flux;
+		m->flags = flags;
 		return m;
 	}
 
