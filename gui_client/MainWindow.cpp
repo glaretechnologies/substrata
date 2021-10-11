@@ -3899,20 +3899,31 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						if(::hasPrefix(ob->content, "biome:"))
 						{
+							if(!resource_manager->isFileForURLPresent("elm_RT_glb_3393252396927074015.bmesh"))
+								resource_manager->copyLocalFileToResourceDir(base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh", "elm_RT_glb_3393252396927074015.bmesh");
+							if(!resource_manager->isFileForURLPresent("Quad_obj_17249492137259942610.bmesh"))
+								resource_manager->copyLocalFileToResourceDir(base_dir_path + "/resources/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
+
+							//TEMP: start manually loading needed textures
+							{
+								const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
+								if(resource_manager->isFileForURLPresent(URL))
+									this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
+								else
+									startDownloadingResource(URL);
+							}
+							{
+								const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
+								if(resource_manager->isFileForURLPresent(URL))
+									this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
+								else
+									startDownloadingResource(URL);
+							}
+
 							if(biome_manager->elm_imposters_tex.isNull())
 								biome_manager->elm_imposters_tex = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
 
 							biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
-
-							//TEMP: start manually loading needed textures
-							{
-								const std::string tex_path = resource_manager->pathForURL("GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"); // Tree trunk texture
-								this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
-							}
-							{
-								const std::string tex_path = resource_manager->pathForURL("elm_leaf_new_png_17162787394814938526.png");
-								this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
-							}
 						}
 					}
 				}
