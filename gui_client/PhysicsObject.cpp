@@ -10,11 +10,12 @@ Copyright Glare Technologies Limited 2016 -
 #include "../utils/StringUtils.h"
 #include "../simpleraytracer/ray.h"
 #include "../physics/jscol_boundingsphere.h"
+#include "indigo/DiscreteDistribution.h"
 #include "../utils/ConPrint.h"
 
 
 PhysicsObject::PhysicsObject(bool collidable_)
-:	userdata(NULL), userdata_type(0), collidable(collidable_)
+:	userdata(NULL), userdata_type(0), collidable(collidable_), uniform_dist(NULL), total_surface_area(0)
 {
 }
 
@@ -116,4 +117,52 @@ void PhysicsObject::appendCollPoints(const js::BoundingSphere& sphere_ws, const 
 size_t PhysicsObject::getTotalMemUsage() const
 {
 	return sizeof(ob_to_world) + sizeof(world_to_ob) + sizeof(aabb_ws) + geometry->getTotalMemUsage();
+}
+
+
+// From Object::buildUniformSampler from indigo source
+void PhysicsObject::buildUniformSampler()
+{
+	if(uniform_dist != NULL) // If already built:
+		return;
+
+	std::vector<float> local_sub_elem_surface_areas;
+	geometry->getSubElementSurfaceAreas(
+		ob_to_world, // A_inverse,
+		local_sub_elem_surface_areas
+	);
+
+	double A = 0;
+	for(size_t i=0; i<local_sub_elem_surface_areas.size(); ++i)
+		A += local_sub_elem_surface_areas[i];
+
+	//this->recip_total_surface_area = (float)(1 / A);
+	this->total_surface_area = (float)A;
+
+	delete uniform_dist;
+	uniform_dist = new DiscreteDistribution(local_sub_elem_surface_areas);
+}
+
+
+void PhysicsObject::sampleSurfaceUniformly(float sample, const Vec2f& samples, SampleSurfaceResults& results) const
+{
+	assert(this->uniform_dist);
+
+	// Pick sub-element
+	float sub_elem_prob;
+	results.hitinfo.sub_elem_index = uniform_dist->sample(sample, sub_elem_prob);
+
+	Vec4f pos_os, N_g_os;
+	unsigned int material_index;
+	Vec2f uv0;
+	geometry->sampleSubElement(results.hitinfo.sub_elem_index, samples, pos_os, N_g_os, results.hitinfo, material_index, uv0);
+
+	// Compute results.pd: is just 1 / total surface area as we are sampling uniformly.
+	// NOTE TODO: not actually correct for sphere.
+	//results.pd = this->recip_total_surface_area;
+
+	//float ob_to_world_det;
+	results.N_g_os = normalise(N_g_os);
+	results.N_g_ws = normalise(world_to_ob.transposeMult3Vector(N_g_os));
+	results.pos = ob_to_world * pos_os;
 }

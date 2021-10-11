@@ -13,7 +13,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "simpleraytracer/raymesh.h"
 namespace js { class BoundingSphere; }
 class RayTraceResult;
-
+class DiscreteDistribution;
 
 
 /*=====================================================================
@@ -43,6 +43,19 @@ public:
 
 	const js::AABBox& getAABBoxWS() const { return aabb_ws; }
 
+	void buildUniformSampler();
+
+	class SampleSurfaceResults
+	{
+	public:
+		Vec4f pos;
+		Vec4f N_g_ws;
+		Vec4f N_g_os;
+		HitInfo hitinfo;
+		//PDType pd;
+	};
+	void sampleSurfaceUniformly(float sample, const Vec2f& samples, SampleSurfaceResults& results) const;
+
 	size_t getTotalMemUsage() const;
 
 	Matrix4f ob_to_world;
@@ -55,6 +68,9 @@ public:
 
 	void* userdata;
 	int userdata_type;
+
+	DiscreteDistribution* uniform_dist; // Used for sampling a point on the object surface uniformly wrt. surface area. Built by buildUniformSampler()
+	float total_surface_area; // Built when uniform_dist is built.
 private:
 	
 };

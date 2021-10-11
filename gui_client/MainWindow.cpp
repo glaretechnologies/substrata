@@ -41,6 +41,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "LoadAudioTask.h"
 #include "SaveResourcesDBThread.h"
 #include "CameraController.h"
+#include "BiomeManager.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -178,7 +179,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	model_and_texture_loader_task_manager("model and texture loader task manager"),
 	model_building_subsidary_task_manager("model building subsidary task manager"),
 	url_parcel_uid(-1),
-	running_destructor(false)
+	running_destructor(false),
+	biome_manager(NULL)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
@@ -314,6 +316,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	{
 		conPrint(e.what());
 	}
+
+	biome_manager = new BiomeManager();
 }
 
 
@@ -466,6 +470,8 @@ void MainWindow::afterGLInitInitialise()
 MainWindow::~MainWindow()
 {
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
+
+	if(biome_manager) delete biome_manager;
 
 	gesture_ui.destroy();
 
@@ -3890,6 +3896,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 
 						loadAudioForObject(ob);
+
+						if(::hasPrefix(ob->content, "biome:"))
+						{
+							if(biome_manager->elm_imposters_tex.isNull())
+								biome_manager->elm_imposters_tex = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
+
+							biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
+
+							//TEMP: start manually loading needed textures
+							{
+								const std::string tex_path = resource_manager->pathForURL("GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"); // Tree trunk texture
+								this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+							}
+							{
+								const std::string tex_path = resource_manager->pathForURL("elm_leaf_new_png_17162787394814938526.png");
+								this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path));
+							}
+						}
 					}
 				}
 				else if(ob->from_remote_lightmap_url_dirty)
@@ -5603,6 +5627,31 @@ void MainWindow::on_actionFind_Object_triggered()
 void MainWindow::on_actionExport_view_to_Indigo_triggered()
 {
 	ui->indigoView->saveSceneToDisk();
+}
+
+
+void MainWindow::on_actionTake_Screenshot_triggered()
+{
+	QImage framebuffer = ui->glWidget->grabFrameBuffer(/*with alpha=*/false);
+
+	const std::string path = this->appdata_path + "/screenshots/screenshot_" + toString((uint64)Clock::getSecsSince1970()) + ".png";
+	try
+	{
+		FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
+	
+		const bool res = framebuffer.save(QtUtils::toQString(path), "png");
+		if(res)
+			showInfoNotification("Saved screenshot to " + path);
+		else
+			throw glare::Exception("Saving failed.");
+	}
+	catch(glare::Exception& e)
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Error");
+		msgBox.setText(QtUtils::toQString("Saving screenshot to '" + path + "' failed: " + e.what()));
+		msgBox.exec();
+	}
 }
 
 
