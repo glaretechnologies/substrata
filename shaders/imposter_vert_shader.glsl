@@ -17,8 +17,6 @@ out vec3 shadow_tex_coords[NUM_DEPTH_TEXTURES];
 #endif
 out vec3 cam_to_pos_ws;
 
-uniform mat4 imposter_rot_matrix;
-
 layout (std140) uniform SharedVertUniforms
 {
 	mat4 proj_matrix; // same for all objects
@@ -39,7 +37,7 @@ layout (std140) uniform PerObjectVertUniforms
 void main()
 {
 #if INSTANCE_MATRICES
-	gl_Position = proj_matrix * (view_matrix * (instance_matrix_in * (/*imposter_rot_matrix **/ vec4(position_in, 1.0))));
+	gl_Position = proj_matrix * (view_matrix * (instance_matrix_in * vec4(position_in, 1.0)));
 
 	pos_ws = (instance_matrix_in * vec4(position_in, 1.0)).xyz;
 	cam_to_pos_ws = pos_ws - campos_ws;
@@ -60,7 +58,7 @@ void main()
 	model_skin_matrix = model_matrix;
 	normal_skin_matrix = normal_matrix;
 
-	gl_Position = proj_matrix * (view_matrix * (model_skin_matrix * (/*imposter_rot_matrix **/ vec4(position_in, 1.0))));
+	gl_Position = proj_matrix * (view_matrix * (model_skin_matrix * vec4(position_in, 1.0)));
 
 	pos_ws = (model_skin_matrix  * vec4(position_in, 1.0)).xyz;
 	cam_to_pos_ws = pos_ws - campos_ws;

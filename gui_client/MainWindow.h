@@ -54,6 +54,7 @@ class TextureLoadedThreadMessage;
 struct tls_config;
 class SubstrataVideoReaderCallback;
 struct CreateVidReaderTask;
+class BiomeManager;
 
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
@@ -110,6 +111,7 @@ private slots:;
 	void on_actionGo_to_Parcel_triggered();
 	void on_actionFind_Object_triggered();
 	void on_actionExport_view_to_Indigo_triggered();
+	void on_actionTake_Screenshot_triggered();
 	void on_actionAbout_Substrata_triggered();
 	void on_actionOptions_triggered();
 	void on_actionUndo_triggered();
@@ -477,4 +479,6 @@ public:
 	GestureUI gesture_ui;
 
 	bool running_destructor;
+
+	BiomeManager* biome_manager;
 };

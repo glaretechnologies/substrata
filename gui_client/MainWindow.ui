@@ -86,7 +86,7 @@
     <property name="title">
      <string>Tools</string>
     </property>
-    <addaction name="actionExport_view_to_Indigo"/>
+    <addaction name="actionTake_Screenshot"/>
     <addaction name="actionShow_Log"/>
     <addaction name="actionOptions"/>
    </widget>
@@ -538,6 +538,11 @@
   <action name="actionAdd_Audio_Source">
    <property name="text">
     <string>Add Audio Source</string>
+   </property>
+  </action>
+  <action name="actionTake_Screenshot">
+   <property name="text">
+    <string>Take Screenshot</string>
    </property>
   </action>
  </widget>

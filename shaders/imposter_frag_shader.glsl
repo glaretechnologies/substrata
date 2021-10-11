@@ -167,22 +167,16 @@ void main()
 		}
 	}
 
-
 	float sprite_a_x = 0.25f * sprite_a + use_texture_coords.x * 0.25f;
 	float sprite_b_x = 0.25f * sprite_b + use_texture_coords.x * 0.25f;
-
-	//float sprite_blend_frac = 0.5f;
-	
 
 	vec4 texture_diffuse_col;
 	if(have_texture != 0)
 	{
-		//texture_diffuse_col = texture(diffuse_tex, (texture_matrix * vec3(sprite_a_x, use_texture_coords.y, 1.0)).xy);
 		vec4 col_a = texture(diffuse_tex, (texture_matrix * vec3(sprite_a_x, use_texture_coords.y, 1.0)).xy);
 		vec4 col_b = texture(diffuse_tex, (texture_matrix * vec3(sprite_b_x, use_texture_coords.y, 1.0)).xy);
 
 		texture_diffuse_col = mix(col_a, col_b, sprite_blend_frac);
-
 
 #if CONVERT_ALBEDO_FROM_SRGB
 		// Texture value is in non-linear sRGB, convert to linear sRGB.
@@ -195,7 +189,8 @@ void main()
 	else
 		texture_diffuse_col = vec4(1.f);
 
-	vec4 diffuse_col = texture_diffuse_col * diffuse_colour * 1.0f; // diffuse_colour is linear sRGB already.
+	vec4 diffuse_col = texture_diffuse_col * diffuse_colour; // diffuse_colour is linear sRGB already.
+	diffuse_col.xyz *= 0.8f; // Just a hack scale to make the brightnesses look similar
 
 	int pixel_index = int((gl_FragCoord.y * 1920.0 + gl_FragCoord.x));
 	float pixel_hash = float(ha(uint(pixel_index))) * (1.f / 4294967296.0f);
@@ -208,9 +203,6 @@ void main()
 		discard;
 #endif
 
-	//float shadow_factor = smoothstep(-0.3, 0, dot(sundir_cs.xyz, unit_normal_cs));
-	//specular *= shadow_factor;
-
 	// Shadow mapping
 	float sun_vis_factor;
 #if SHADOW_MAPPING
@@ -220,7 +212,7 @@ void main()
 	float samples_scale = 1.f;
 
 	//int pixel_index = int((gl_FragCoord.y * 1920.0 + gl_FragCoord.x));
-	float pattern_theta = float(float(ha(uint(pixel_index))) * (6.283185307179586 / 4294967296.0));
+	float pattern_theta = pixel_hash * 6.283185307179586;
 	mat2 R = mat2(cos(pattern_theta), sin(pattern_theta), -sin(pattern_theta), cos(pattern_theta));
 
 	sun_vis_factor = 0.0;
