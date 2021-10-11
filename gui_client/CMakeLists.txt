@@ -173,6 +173,8 @@ SET(shared_files
 SET(client_indigo_files
 ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.cpp
 ${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.h
+${INDIGO_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.cpp
+${INDIGO_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.h
 )
 
 SET(website_core_files
