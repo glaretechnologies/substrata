@@ -1456,7 +1456,17 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 		else
 		{
 			if(ob->script == ob->loaded_script)
+			{
+				// If the opengl ob has been recreated, we need to recreate the instance_matrices VBO
+				if(ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
+				{
+					ob->opengl_engine_ob->enableInstancing(new VBO(ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size()));
+
+					ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
+				}
+
 				return;
+			}
 
 			ob->loaded_script = ob->script;
 			try
