@@ -138,8 +138,7 @@ finished_looping:
 		all_instances_aabb_ws.enlargeToHoldAABBox(prototype_ob->mesh_data->aabb_os.transformedAABBFast(instance.to_world));
 	}
 
-	const size_t num_instances_added = instances.size() - initial_num_instances;
-
+	// const size_t num_instances_added = instances.size() - initial_num_instances;
 	// conPrint("Added " + toString(num_instances_added) + " out of " + toString(N) + " candidate points");
 
 	instances_aabb_ws_in_out.enlargeToHoldAABBox(all_instances_aabb_ws);
@@ -156,6 +155,7 @@ static GLObjectRef makeElmTreeOb(MeshManager& mesh_manager, glare::TaskManager& 
 	materials[1] = new WorldMaterial();
 	materials[1]->colour_rgb = Colour3f(1.f); // TEMP different
 	materials[1]->colour_texture_url = "elm_leaf_new_png_17162787394814938526.png";
+	materials[1]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coords need to be flipped on leaf texture for some reason.
 
 	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("elm_RT_glb_3393252396927074015.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
 		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh_out);
