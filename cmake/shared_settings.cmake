@@ -410,6 +410,8 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
 
 ../shaders/parcel_frag_shader.glsl
 ../shaders/parcel_vert_shader.glsl
+../shaders/imposter_frag_shader.glsl
+../shaders/imposter_vert_shader.glsl
 )
 
 
