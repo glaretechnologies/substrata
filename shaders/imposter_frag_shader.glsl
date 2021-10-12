@@ -183,7 +183,7 @@ void main()
 
 	float pixel_hash = texture(blue_noise_tex, gl_FragCoord.xy * (1 / 128.f)).x;
 	float dist_alpha_factor = smoothstep(100.f, 120.f,  /*dist=*/-pos_cs.z);
-	if(dist_alpha_factor < pixel_hash) // Draw imposter only when dist_alpha_factor >= pixel_hash, draw real object when dist_alpha_factor < pixel_hash
+	if(dist_alpha_factor < pixel_hash) // Draw imposter only when dist_alpha_factor >= pixel_hash, draw real object when dist_alpha_factor <= pixel_hash
 		discard;
 
 #if ALPHA_TEST
