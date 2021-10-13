@@ -720,7 +720,7 @@ int main(int argc, char *argv[])
 #ifdef WIN32
 				Map2DRef road_map = PNGDecoder::decode("D:\\art\\substrata\\parcels\\roads.png");
 #else
-				Map2DRef road_map = PNGDecoder::decode("/var/www/cyberspace/roads.png");
+				Map2DRef road_map = PNGDecoder::decode("/home/nick/substrata/roads.png");
 #endif
 
 				for(int i=0; i<300; ++i)
