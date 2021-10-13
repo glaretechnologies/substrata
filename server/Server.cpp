@@ -29,8 +29,11 @@ Copyright Glare Technologies Limited 2016 -
 #include <PCG32.h>
 #include <Matrix4f.h>
 #include <Quat.h>
+#include <Rect2.h>
 #include <OpenSSL.h>
 #include <Keccak256.h>
+#include <graphics/PNGDecoder.h>
+#include <graphics/Map2D.h>
 #include <tls.h>
 #include <networking/HTTPClient.h>//TEMP for testing
 #include "../webserver/WebServerRequestHandler.h"
@@ -79,6 +82,101 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 		world_state->parcels[parcel_id] = test_parcel;
 	}
 }
+
+
+static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_topright, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state, Map2DRef road_map,
+	float base_w, float rng_width, float base_h, float rng_h)
+{
+	for(int i=0; i<100; ++i)
+	{
+		const float max_z = base_h + (rng.unitRandom() * rng.unitRandom() * rng.unitRandom() * rng_h);
+
+		const float w = base_w + rng.unitRandom() * rng.unitRandom() * rng_width;
+		const float h = base_w + rng.unitRandom() * rng.unitRandom() * rng_width;
+		const Vec2d botleft = Vec2d(
+			region_botleft.x + rng.unitRandom() * (region_topright.x - region_botleft.x), 
+			region_botleft.y + rng.unitRandom() * (region_topright.y - region_botleft.y));
+
+		const Vec2d topright = botleft + Vec2d(w, h);
+
+		const Rect2d bounds(botleft, topright);
+
+		// Invalid if extends out of region
+		if(topright.x > region_topright.x || topright.y > region_topright.y)
+			continue;
+			
+
+		bool valid_parcel = true;
+		// Check against road map
+		if(road_map.nonNull())
+		{
+			const int RES = 8;
+			for(int x=0; x<RES; ++x)
+			for(int y=0; y<RES; ++y)
+			{
+				// Point in parcel
+				const Vec2d p(
+					botleft.x + (topright.x - botleft.x) * ((float)x / (RES-1)),
+					botleft.y + (topright.y - botleft.y) * ((float)y / (RES-1))
+				);
+
+				const Vec2d impos(
+					(p.x - region_botleft.x) / (region_topright.x - region_botleft.x),
+					(p.y - region_botleft.y) / (region_topright.y - region_botleft.y));
+				const float val = road_map->sampleSingleChannelTiled((float)impos.x, (float)impos.y, 0);
+				if(val < 0.5f)
+				{
+					// We are interesecting a road
+					valid_parcel = false;
+					break;
+				}
+			}
+
+			if(!valid_parcel)
+				continue;
+		}
+		 
+		// Check against existing parcels.
+		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+		{
+			const Parcel* p = it->second.ptr();
+
+			const Rect2d other_bounds(Vec2d(p->aabb_min.x, p->aabb_min.y), Vec2d(p->aabb_max.x, p->aabb_max.y));
+
+			if(bounds.intersectsRect2(other_bounds))
+			{
+				valid_parcel = false;
+				break;
+			}
+		}
+
+		if(valid_parcel)
+		{
+			const ParcelID parcel_id(next_id++);
+			ParcelRef test_parcel = new Parcel();
+			test_parcel->state = Parcel::State_Alive;
+			test_parcel->id = parcel_id;
+			test_parcel->owner_id = UserID(0);
+			test_parcel->admin_ids.push_back(UserID(0));
+			test_parcel->writer_ids.push_back(UserID(0));
+			test_parcel->created_time = TimeStamp::currentTime();
+			test_parcel->zbounds = Vec2d(-1, max_z);
+
+			test_parcel->verts[0] = botleft;
+			test_parcel->verts[1] = Vec2d(topright.x, botleft.y);
+			test_parcel->verts[2] = topright;
+			test_parcel->verts[3] = Vec2d(botleft.x, topright.y);
+
+			test_parcel->build();
+
+			world_state->parcels[parcel_id] = test_parcel;
+			return;
+		}
+	}
+
+	conPrint("Reached max iters without finding parcel position.");
+}
+
 
 
 static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state)
@@ -586,6 +684,71 @@ int main(int argc, char *argv[])
 				parcel->verts[3] = centre - Vec2d(-30, 30);
 
 				server.world_state->getRootWorldState()->parcels[parcel_id] = parcel;
+			}
+		}
+
+		
+		// Delete parcels newer than id 429.
+		/*for(auto it = server.world_state->getRootWorldState()->parcels.begin(); it != server.world_state->getRootWorldState()->parcels.end();)
+		{
+			if(it->first.value() > 429)
+				it = server.world_state->getRootWorldState()->parcels.erase(it);
+			else
+				it++;
+		}*/
+		
+
+		// Recompute max_parcel_id
+		max_parcel_id = ParcelID(0);
+		for(auto it = server.world_state->getRootWorldState()->parcels.begin(); it != server.world_state->getRootWorldState()->parcels.end(); ++it)
+		{
+			const Parcel* parcel = it->second.ptr();
+			max_parcel_id = myMax(max_parcel_id, parcel->id);
+		}
+
+
+		if(max_parcel_id.value() == 429)
+		{
+			// Make market and random east district
+			const int start_id = (int)max_parcel_id.value() + 1;
+			int next_id = start_id;
+
+			// Make market district
+			{
+				PCG32 rng(1);
+
+#ifdef WIN32
+				Map2DRef road_map = PNGDecoder::decode("D:\\art\\substrata\\parcels\\roads.png");
+#else
+				Map2DRef road_map = PNGDecoder::decode("/var/www/cyberspace/roads.png");
+#endif
+
+				for(int i=0; i<300; ++i)
+					makeRandomParcel(/*region botleft=*/Vec2d(335.f, 75), /*region topright=*/Vec2d(335.f + 130.f, 205.f), rng, next_id, server.world_state->getRootWorldState(), road_map,
+						/*base width=*/3, /*rng width=*/4, /*base_h=*/4, /*rng_h=*/4);
+
+				conPrint("Made market district, parcel ids " + toString(start_id) + " to " + toString(next_id - 1));
+			}
+
+			// Make random east district
+			{
+				const int east_district_start_id = next_id;
+
+				PCG32 rng(1);
+
+				for(int x = 0; x<4; ++x)
+				for(int y = 0; y<4; ++y)
+				{
+					Vec2d offset(x * 70, y * 70);
+					for(int i=0; i<100; ++i)
+					{
+						const Vec2d botleft = Vec2d(335.f, -275) + offset;
+						makeRandomParcel(/*region botleft=*/botleft, /*region topright=*/botleft + Vec2d(60, 60), rng, next_id, server.world_state->getRootWorldState(), NULL/*road_map*/,
+									/*base width=*/8, /*rng width=*/40, /*base_h=*/8, /*rng_h=*/20);
+					}
+				}
+
+				conPrint("Made random east district, parcel ids " + toString(east_district_start_id) + " to " + toString(next_id - 1));
 			}
 		}
 
@@ -1134,13 +1297,14 @@ int main(int argc, char *argv[])
 
 				const bool initial_listing = server.world_state->last_parcel_sale_update_year == 0;
 
+				/* TEMP NO AUTO PARCEL LISTINGS
 				if(initial_listing || different_day)
 				{
 					updateParcelSales(*server.world_state);
 					server.world_state->last_parcel_sale_update_hour = hour;
 					server.world_state->last_parcel_sale_update_day = day;
 					server.world_state->last_parcel_sale_update_year = year;
-				}
+				}*/
 			}
 
 
