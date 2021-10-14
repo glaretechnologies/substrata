@@ -137,7 +137,13 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 				page += "<a href=\"/edit_parcel_description?parcel_id=" + parcel->id.toString() + "\">Edit description</a>";
 
 			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
-			page += "<p>Dimensions: " + toString(span.x) + " m x " + toString(span.y) + " m x " + toString(span.z) + " m.</p>   \n";
+			const double area = span.x * span.y;
+			page += "<p>Dimensions: " + doubleToStringNSigFigs(span.x, 3) + " m x " + doubleToStringNSigFigs(span.y, 3) + " m (area: " + 
+				doubleToStringNSigFigs(area, 3) + " m<sup>2</sup>), height: " + doubleToStringNSigFigs(parcel->aabb_max.z, 3) + " m.</p>   \n";
+
+
+			if(parcel->id.value() >= 430 && parcel->id.value() <= 726) // If this is a market parcel:
+				page += "<p><b>This is a small parcel in the market region. (e.g. a market stall)</b></p>";
 
 			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
 			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
