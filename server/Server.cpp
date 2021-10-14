@@ -319,8 +319,18 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				// Make a parcel auction for this parcel
 
 				const int auction_duration_hours = 48;
-				const double auction_start_price = 4000; // EUR
-				const double auction_end_price = 800; // EUR
+
+				double auction_start_price, auction_end_price;
+				if(parcel->id.value() >= 430 && parcel->id.value() <= 726) // If this is a market parcel:
+				{
+					auction_start_price = 2000;
+					auction_end_price = 50;
+				}
+				else
+				{
+					auction_start_price = 4000; // EUR
+					auction_end_price = 400; // EUR
+				}
 
 				//TEMP: scan over all ParcelAuctions and find highest used ID.
 				uint32 highest_auction_id = 0;
@@ -1297,14 +1307,13 @@ int main(int argc, char *argv[])
 
 				const bool initial_listing = server.world_state->last_parcel_sale_update_year == 0;
 
-				/* TEMP NO AUTO PARCEL LISTINGS
 				if(initial_listing || different_day)
 				{
 					updateParcelSales(*server.world_state);
 					server.world_state->last_parcel_sale_update_hour = hour;
 					server.world_state->last_parcel_sale_update_day = day;
 					server.world_state->last_parcel_sale_update_year = year;
-				}*/
+				}
 			}
 
 
