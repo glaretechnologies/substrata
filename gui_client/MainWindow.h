@@ -440,6 +440,10 @@ public:
 	int screenshot_highlight_parcel_id;
 	std::string screenshot_output_path;
 	bool done_screenshot_setup;
+	bool run_as_screenshot_slave;
+	bool taking_map_screenshot;
+	MySocketRef screenshot_command_socket;
+	Timer time_since_last_screenshot;
 
 private:
 	struct tls_config* client_tls_config;

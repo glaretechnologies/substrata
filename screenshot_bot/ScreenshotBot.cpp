@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <networking/networking.h>
 #include <networking/TLSSocket.h>
 #include <networking/url.h>
+#include <utils/SocketBufferOutStream.h>
 #include <PlatformUtils.h>
 #include <Clock.h>
 #include <Timer.h>
@@ -89,137 +90,188 @@ int main(int argc, char* argv[])
 			else
 				throw glare::Exception("Invalid protocol version response from server: " + toString(protocol_response));
 
+			
+			glare::Process* process = NULL;
+			MySocketRef to_gui_socket;
+			Timer time_since_last_shot_request;
+
 			while(1)
 			{
-				conPrint("Waiting for ScreenShotRequest...");
+				conPrint("Waiting for ScreenShotRequest message from '" + server_hostname + "'...");
 
-				const uint32 request_type = socket->readUInt32();
-				if(request_type == Protocol::ScreenShotRequest || request_type == Protocol::TileScreenShotRequest)
+				if(socket->readable(/*timeout_s=*/5.0))
 				{
-					// Get screenshot request
-					if(request_type == Protocol::ScreenShotRequest)
-						conPrint("Received screenshot request from server.");
-					else
-						conPrint("Received map tile screenshot request from server.");
-
-					const int NUM_BYTES = 16;
-					uint8 data[NUM_BYTES];
-					CryptoRNG::getRandomBytes(data, NUM_BYTES);
-
-					const std::string gui_client_path = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/gui_client.exe";
-
-					std::vector<std::string> command_line_args;
-
-					std::string screenshot_path;
-
-					if(request_type == Protocol::ScreenShotRequest)
+					const uint32 request_type = socket->readUInt32();
+					if(request_type == Protocol::ScreenShotRequest || request_type == Protocol::TileScreenShotRequest)
 					{
-						// Read cam position
-						const double cam_x = socket->readDouble();
-						const double cam_y = socket->readDouble();
-						const double cam_z = socket->readDouble();
+						// Get screenshot request
+						if(request_type == Protocol::ScreenShotRequest)
+							conPrint("Received screenshot request from server.");
+						else
+							conPrint("Received map tile screenshot request from server.");
+						
+						// Generate some random bytes for the screenshot path
+						const int NUM_BYTES = 16;
+						uint8 data[NUM_BYTES];
+						CryptoRNG::getRandomBytes(data, NUM_BYTES);
 
-						// Read cam angles
-						const double angles_0 = socket->readDouble();
-						const double angles_1 = socket->readDouble();
-						const double angles_2 = socket->readDouble();
+						std::string screenshot_path;
 
-						const int32 screenshot_width_px = socket->readInt32();
-						const int32 highlight_parcel_id = socket->readInt32();
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder); // We will write the command to the GUI process in this.
 
-						//conPrint("highlight_parcel_id: " + toString(highlight_parcel_id));
-
-						const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
-						screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
-
-						command_line_args.push_back(gui_client_path);
-						command_line_args.push_back("-h");
-						command_line_args.push_back(server_hostname);
-						command_line_args.push_back("--takescreenshot");
-						command_line_args.push_back(toString(cam_x));
-						command_line_args.push_back(toString(cam_y));
-						command_line_args.push_back(toString(cam_z));
-						command_line_args.push_back(toString(angles_0));
-						command_line_args.push_back(toString(angles_1));
-						command_line_args.push_back(toString(angles_2));
-						command_line_args.push_back(toString(screenshot_width_px));
-						command_line_args.push_back(toString(highlight_parcel_id));
-						command_line_args.push_back(screenshot_path);
-					}
-					else if(request_type == Protocol::TileScreenShotRequest)
-					{
-						const int tile_x = socket->readInt32();
-						const int tile_y = socket->readInt32();
-						const int tile_z = socket->readInt32();
-
-						conPrint("tile: (" + toString(tile_x) + ", " + toString(tile_y) + ", " + toString(tile_z) + ")");
-
-						const std::string screenshot_filename = "tile_" + toString(tile_x) + "_" + toString(tile_y) + "_" + toString(tile_z) + "_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
-						screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
-
-						command_line_args.push_back(gui_client_path);
-						command_line_args.push_back("-h");
-						command_line_args.push_back(server_hostname);
-						command_line_args.push_back("--takemapscreenshot");
-						command_line_args.push_back(toString(tile_x));
-						command_line_args.push_back(toString(tile_y));
-						command_line_args.push_back(toString(tile_z));
-						command_line_args.push_back(screenshot_path);
-					}
-					else
-						throw glare::Exception("invalid request type.");
-
-					// Command a gui_client process to take the screenshot
-					glare::Process process(gui_client_path, command_line_args);
-
-					Timer timer;
-					while(1)
-					{
-						while(process.isStdOutReadable())
+						if(request_type == Protocol::ScreenShotRequest)
 						{
-							const std::string output = process.readStdOut();
-							std::vector<std::string> lines = ::split(output, '\n');
-							for(size_t i=0; i<lines.size(); ++i)
-								if(!isAllWhitespace(lines[i]))
-									conPrint("GUI_CLIENT> " + lines[i]);
+							// Read cam position
+							const double cam_x = socket->readDouble();
+							const double cam_y = socket->readDouble();
+							const double cam_z = socket->readDouble();
+
+							// Read cam angles
+							const double angles_0 = socket->readDouble();
+							const double angles_1 = socket->readDouble();
+							const double angles_2 = socket->readDouble();
+
+							const int32 screenshot_width_px = socket->readInt32();
+							const int32 highlight_parcel_id = socket->readInt32();
+
+							//conPrint("highlight_parcel_id: " + toString(highlight_parcel_id));
+
+							const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
+							screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
+
+							packet.writeStringLengthFirst("takescreenshot");
+							packet.writeDouble(cam_x);
+							packet.writeDouble(cam_y);
+							packet.writeDouble(cam_z);
+							packet.writeDouble(angles_0);
+							packet.writeDouble(angles_1);
+							packet.writeDouble(angles_2);
+							packet.writeInt32(screenshot_width_px);
+							packet.writeInt32(highlight_parcel_id);
+							packet.writeStringLengthFirst(screenshot_path);
+						}
+						else if(request_type == Protocol::TileScreenShotRequest)
+						{
+							const int tile_x = socket->readInt32();
+							const int tile_y = socket->readInt32();
+							const int tile_z = socket->readInt32();
+
+							conPrint("tile: (" + toString(tile_x) + ", " + toString(tile_y) + ", " + toString(tile_z) + ")");
+
+							const std::string screenshot_filename = "tile_" + toString(tile_x) + "_" + toString(tile_y) + "_" + toString(tile_z) + "_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
+							screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
+
+							packet.writeStringLengthFirst("takemapscreenshot");
+							packet.writeInt32(tile_x);
+							packet.writeInt32(tile_y);
+							packet.writeInt32(tile_z);
+							packet.writeStringLengthFirst(screenshot_path);
+						}
+						else
+							throw glare::Exception("invalid request type.");
+						
+						time_since_last_shot_request.reset();
+
+						if(process == NULL)
+						{
+							// Command a gui_client process to take the screenshot
+
+							const std::string gui_client_path = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/gui_client.exe";
+
+							std::vector<std::string> command_line_args;
+							command_line_args.push_back(gui_client_path);
+							command_line_args.push_back("-h");
+							command_line_args.push_back(server_hostname);
+							command_line_args.push_back("--screenshotslave");
+
+							process = new glare::Process(gui_client_path, command_line_args);
+
+							conPrint("Connecting to gui via socket...");
+
+							// Establish socket connection to gui process
+							while(1)
+							{
+								try
+								{
+									to_gui_socket = new MySocket("localhost", 34534);
+									break;
+								}
+								catch(glare::Exception& e)
+								{
+									conPrint("Excep while connecting to local GUI process: " + e.what());
+									PlatformUtils::Sleep(1000);
+								}
+							}
+
+							conPrint("Connected to gui via socket.");
 						}
 
-						if(!process.isProcessAlive())
-							break;
+						to_gui_socket->write(packet.buf.data(), packet.buf.size());
 
-						PlatformUtils::Sleep(10);
-
-						if(timer.elapsed() > 100)
+						// Wait for response from GUI (will be send when screenshot is done)
+						while(1)
 						{
-							conPrint("gui client process seems stuck, terminating it...");
-							process.terminateProcess();
-							break;
+							if(to_gui_socket->readable(1.0))
+							{
+								const int result = to_gui_socket->readInt32(); // 0 = success
+								if(result != 0)
+									throw glare::Exception("Received non-zero result from GUI client.");
+								break;
+							}
+
+							// Print out any stdout from GUI client
+							while(process->isStdOutReadable())
+							{
+								const std::string output = process->readStdOut();
+								//std::vector<std::string> lines = ::split(output, '\n');
+								//for(size_t i=0; i<lines.size(); ++i)
+								//	if(!isAllWhitespace(lines[i]))
+								//		conPrint("GUI_CLIENT> " + lines[i]);
+							}
 						}
+
+						// Load generated screenshot
+						const std::string screenshot_data = FileUtils::readEntireFile(screenshot_path);
+
+						socket->writeUInt32(Protocol::ScreenShotSucceeded);
+
+						// Send it to the server
+						conPrint("Sending screenshot " + screenshot_path + " to server.");
+						socket->writeUInt64(screenshot_data.length());
+						socket->writeData(screenshot_data.data(), screenshot_data.length());
 					}
+					else
+					{
+						throw glare::Exception("unknown request type: " + toString(request_type));
+					}
+				} // end if socket was readable
 
-					std::string output, err_output;
-					process.readAllRemainingStdOutAndStdErr(output, err_output);
-					conPrint("GUI_CLIENT> " + output);
-					conPrint("GUI_CLIENT> " + err_output);
-					conPrint("Gui client process terminated.");
-
-					if(process.getExitCode() != 0)
-						throw glare::Exception("Return code from gui_client was non-zero: " + toString(process.getExitCode()));
-
-					// Load generated screenshot
-					const std::string screenshot_data = FileUtils::readEntireFile(screenshot_path);
-
-					socket->writeUInt32(Protocol::ScreenShotSucceeded);
-
-					// Send it to the server
-					socket->writeUInt64(screenshot_data.length());
-					socket->writeData(screenshot_data.data(), screenshot_data.length());
-				}
-				else
+				// If it has been a while since we got a screenshot request from the server, terminate the GUI process and close the socket connection to it.
+				if(time_since_last_shot_request.elapsed() > 30.0)
 				{
-					throw glare::Exception("unknown request type: " + toString(request_type));
+					if(process != NULL)
+					{
+						conPrint("A while has elapsed since receiving a screenshot command, terminating GUI process.");
+
+						conPrint("Closing socket..");
+						to_gui_socket->ungracefulShutdown();
+						to_gui_socket = NULL;
+						conPrint("Closed socket..");
+
+						conPrint("Terminating GUI process..");
+						process->terminateProcess();
+						
+						std::string output, err_output;
+						process->readAllRemainingStdOutAndStdErr(output, err_output);
+						//conPrint("GUI_CLIENT> " + output);
+						//conPrint("GUI_CLIENT> " + err_output);
+						conPrint("Gui client process terminated.");
+
+						delete process;
+						process = NULL;
+					}
 				}
-			}
+			} // End while(1) loop
 		}
 		catch(glare::Exception& e)
 		{
@@ -227,7 +279,7 @@ int main(int argc, char* argv[])
 			conPrint("Error: " + e.what());
 			PlatformUtils::Sleep(1000);
 		}
-	}
+	} // End while screenshot bot should keep running:
 
 	return 0;
 }
