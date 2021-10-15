@@ -165,6 +165,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	selected_ob_picked_up(false),
 	process_model_loaded_next(true),
 	done_screenshot_setup(false),
+	taking_map_screenshot(false),
+	run_as_screenshot_slave(false),
 	proximity_loader(/*load distance=*/ob_load_distance),
 	client_tls_config(NULL),
 	last_foostep_side(0),
@@ -418,6 +420,17 @@ void MainWindow::initialise()
 
 		audio_engine.addSource(test_srcs[i]);
 	}
+
+	if(run_as_screenshot_slave)
+	{
+		conPrint("Waiting for screenshot command connection...");
+		MySocketRef listener = new MySocket();
+		listener->bindAndListen(34534);
+
+		screenshot_command_socket = listener->acceptConnection(); // Blocks
+		screenshot_command_socket->setUseNetworkByteOrder(false);
+		conPrint("Got screenshot command connection.");
+	}
 }
 
 
@@ -440,19 +453,6 @@ void MainWindow::afterGLInitInitialise()
 
 	//OpenGLEngineTests::doTextureLoadingTests(*ui->glWidget->opengl_engine);
 
-	if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
-	{
-		this->cam_controller.setPosition(screenshot_campos);
-		this->cam_controller.setAngles(screenshot_camangles);
-		
-		// Enable fly mode so we don't just fall to the ground
-		ui->actionFly_Mode->setChecked(true);
-		this->player_physics.setFlyModeEnabled(true);
-		this->cam_controller.setThirdPersonEnabled(false);
-		ui->actionThird_Person_Camera->setChecked(false);
-	}
-
-	
 #ifdef _WIN32
 	// Prepare for D3D interoperability with opengl
 	wgl_funcs.init();
@@ -2046,8 +2046,7 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 
 void MainWindow::setUpForScreenshot()
 {
-	const bool rendering_map_tile = parsed_args.isArgPresent("--takemapscreenshot");
-	if(rendering_map_tile)
+	if(taking_map_screenshot)
 		removeParcelObjects();
 
 	// Highlight requested parcel_id
@@ -2058,6 +2057,9 @@ void MainWindow::setUpForScreenshot()
 		auto res = world_state->parcels.find(ParcelID(screenshot_highlight_parcel_id));
 		if(res != world_state->parcels.end())
 		{
+			// Deselect any existing gl objects
+			ui->glWidget->opengl_engine->deselectAllObjects();
+
 			this->selected_parcel = res->second;
 			ui->glWidget->opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
 			ui->glWidget->opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
@@ -2065,7 +2067,7 @@ void MainWindow::setUpForScreenshot()
 	}
 
 	ui->glWidget->near_draw_dist = 0.7f; // Increase near draw distance, to reduce z-fighting.  Hope there are no nearby objects!
-	ui->glWidget->take_map_screenshot = true;
+	ui->glWidget->take_map_screenshot = taking_map_screenshot;
 
 	gesture_ui.destroy();
 
@@ -2419,16 +2421,84 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//animated_tex_time = timer.elapsed();
 	}
 
+	if(run_as_screenshot_slave)
+	{
+		if(screenshot_output_path.empty()) // If we don't have a screenshot command we are currently executing:
+		{
+			try
+			{
+				if(screenshot_command_socket->readable(/*timeout (s)=*/0.01))
+				{
+					const std::string command = screenshot_command_socket->readStringLengthFirst(1000);
+					if(command == "takescreenshot")
+					{
+						screenshot_campos.x = screenshot_command_socket->readDouble();
+						screenshot_campos.y = screenshot_command_socket->readDouble();
+						screenshot_campos.z = screenshot_command_socket->readDouble();
+						screenshot_camangles.x = screenshot_command_socket->readDouble();
+						screenshot_camangles.y = screenshot_command_socket->readDouble();
+						screenshot_camangles.z = screenshot_command_socket->readDouble();
+						screenshot_width_px = screenshot_command_socket->readInt32();
+						screenshot_highlight_parcel_id = screenshot_command_socket->readInt32();
+						screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+						taking_map_screenshot = false;
+					}
+					else if(command == "takemapscreenshot")
+					{
+						const int tile_x = screenshot_command_socket->readInt32();
+						const int tile_y = screenshot_command_socket->readInt32();
+						const int tile_z = screenshot_command_socket->readInt32();
+						screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
 
+						const int TILE_WIDTH_PX = 256; // Works the easiest with leaflet.js
+						const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
+						screenshot_campos = Vec3d(
+							(tile_x + 0.5) * TILE_WIDTH_M,
+							(tile_y + 0.5) * TILE_WIDTH_M,
+							150.0
+						);
+						screenshot_camangles = Vec3d(
+							0, // Heading
+							3.14, // pitch
+							0 // roll
+						);
+						screenshot_ortho_sensor_width_m = TILE_WIDTH_M;
+						screenshot_width_px = TILE_WIDTH_PX;
+						screenshot_highlight_parcel_id = -1;
+						taking_map_screenshot = true;
+					}
+					else
+						throw glare::Exception("received invalid screenshot command.");
+				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what());
+				exit(1);
+			}
+		}
+	}
 	if(!screenshot_output_path.empty() && world_state.nonNull())
 	{
+		if(!screenshot_output_path.empty()) // If we are in screenshot-taking mode:
+		{
+			this->cam_controller.setPosition(screenshot_campos);
+			this->cam_controller.setAngles(screenshot_camangles);
+
+			// Enable fly mode so we don't just fall to the ground
+			ui->actionFly_Mode->setChecked(true);
+			this->player_physics.setFlyModeEnabled(true);
+			this->cam_controller.setThirdPersonEnabled(false);
+			ui->actionThird_Person_Camera->setChecked(false);
+		}
+
 		size_t num_obs;
 		{
 			Lock lock(this->world_state->mutex);
 			num_obs = world_state->objects.size();
 		}
 
-		const bool map_screenshot = parsed_args.isArgPresent("--takemapscreenshot");
+		const bool map_screenshot = taking_map_screenshot;//parsed_args.isArgPresent("--takemapscreenshot");
 
 		ui->glWidget->take_map_screenshot = map_screenshot;
 		ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
@@ -2443,6 +2513,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		printVar(num_net_resources_downloading);
 
 		const bool loaded_all =
+			(time_since_last_screenshot.elapsed() > 4.0) && // Bit of a hack to allow time for the shadow mapping to render properly
 			(num_obs > 0 || total_timer.elapsed() >= 15) && // Wait until we have downloaded some objects from the server, or (if the world is empty) X seconds have elapsed.
 			(total_timer.elapsed() >= 8) && // Bit of a hack to allow time for the shadow mapping to render properly, also for the initial object query responses to arrive
 			(num_model_and_tex_tasks == 0) &&
@@ -2484,7 +2555,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			else
 			{
 				saveScreenshot();
-				close();
+
+				// Reset screenshot state
+				screenshot_output_path.clear();
+				done_screenshot_setup = false;
+
+				time_since_last_screenshot.reset();
+
+				screenshot_command_socket->writeInt32(0); // Write success msg
 			}
 		}
 	}
@@ -4266,6 +4344,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			conPrint("\t\t" + loading_times[i]);
 		conPrint("\tprocessing animated textures took " + doubleToStringNSigFigs(animated_tex_time * 1.0e3, 4) + " ms");
 	}*/
+
+	// If we are airborne, increase near draw distance, to reduce z-fighting.  Hope there are no nearby objects!  A hack.
+	if(cam_controller.getPosition().z > 100)
+	{
+		if(cam_controller.getPosition().z > 300)
+			ui->glWidget->near_draw_dist = 0.7f; 
+		else
+			ui->glWidget->near_draw_dist = 0.5f;
+	}
+	else
+		ui->glWidget->near_draw_dist = 0.22f;
 
 	ui->glWidget->makeCurrent();
 	ui->glWidget->updateGL();
@@ -8310,31 +8399,7 @@ int main(int argc, char *argv[])
 		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
 		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string);
-
-		std::vector<ArgumentParser::ArgumentType> takescreenshot_args;
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_x
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_y
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// cam_z
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// angles_0
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// angles_1
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_double);	// angles_2
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// screenshot_width_px
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// screenshot_highlight_parcel_id
-		takescreenshot_args.push_back(ArgumentParser::ArgumentType_string); // screenshot_path
-		syntax["--takescreenshot"] = takescreenshot_args;
-
-		// e.g. --takescreenshot 100 200 300 0 3.1 0 800 15 screenshot1.jpg
-
-		std::vector<ArgumentParser::ArgumentType> takemapscreenshot_args;
-		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// tile x
-		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// tile y
-		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_int);	// tile z
-		takemapscreenshot_args.push_back(ArgumentParser::ArgumentType_string); // screenshot_path
-		syntax["--takemapscreenshot"] = takemapscreenshot_args;
-
-		// e.g. --takemapscreenshot 0 0 4 tile_0_0.jpg
-
-		
+		syntax["--screenshotslave"] = std::vector<ArgumentParser::ArgumentType>();
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it
@@ -8445,46 +8510,8 @@ int main(int argc, char *argv[])
 			mw.texture_server = &texture_server;
 			mw.ui->glWidget->texture_server_ptr = &texture_server; // Set texture server pointer before GlWidget::initializeGL() gets called, as it passes texture server pointer to the openglengine.
 
-			if(parsed_args.isArgPresent("--takescreenshot"))
-			{
-				mw.screenshot_campos = Vec3d(
-					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/0),
-					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/1),
-					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/2)
-				);
-				mw.screenshot_camangles = Vec3d(
-					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/3),
-					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/4),
-					parsed_args.getArgDoubleValue("--takescreenshot", /*index=*/5)
-				);
-				mw.screenshot_width_px = parsed_args.getArgIntValue("--takescreenshot", /*index=*/6),
-				mw.screenshot_highlight_parcel_id = parsed_args.getArgIntValue("--takescreenshot", /*index=*/7),
-				mw.screenshot_output_path = parsed_args.getArgStringValue("--takescreenshot", /*index=*/8);
-			}
-
-			if(parsed_args.isArgPresent("--takemapscreenshot"))
-			{
-				const int tile_x = parsed_args.getArgIntValue("--takemapscreenshot", 0);
-				const int tile_y = parsed_args.getArgIntValue("--takemapscreenshot", 1);
-				const int tile_z = parsed_args.getArgIntValue("--takemapscreenshot", 2);
-
-				const int TILE_WIDTH_PX = 256; // Works the easiest with leaflet.js
-				const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
-				mw.screenshot_campos = Vec3d(
-					(tile_x + 0.5) * TILE_WIDTH_M,
-					(tile_y + 0.5) * TILE_WIDTH_M,
-					150.0
-				);
-				mw.screenshot_camangles = Vec3d(
-					0, // Heading
-					3.14, // pitch
-					0 // roll
-				);
-				mw.screenshot_ortho_sensor_width_m = TILE_WIDTH_M;
-				mw.screenshot_width_px = TILE_WIDTH_PX;
-				mw.screenshot_highlight_parcel_id = -1;
-				mw.screenshot_output_path = parsed_args.getArgStringValue("--takemapscreenshot", /*index=*/3);
-			}
+			if(parsed_args.isArgPresent("--screenshotslave"))
+				mw.run_as_screenshot_slave = true;
 
 			mw.initialise();
 

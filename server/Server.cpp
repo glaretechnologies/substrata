@@ -416,6 +416,7 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 			//const float TILE_WIDTH_M = 2560.f/*5120.f*/ / (1 << z); //TILE_WIDTH_PX * metres_per_pixel;
 
 			const int span = (int)std::ceil(300 / TILE_WIDTH_M);
+			const int plus_x_span = (int)std::ceil(700 / TILE_WIDTH_M);  // NOTE: pushing out positive x span here to encompass east districts
 
 
 			// We want zoom level 3 to have (half) span 2 = 2^1.
@@ -429,7 +430,7 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 			//const int span = 1 << myMax(0, z - 2); // 2^(z-2)
 
 			const int x_begin = -span;
-			const int x_end = span;
+			const int x_end = plus_x_span;
 			const int y_begin = -span;
 			const int y_end = span;
 
