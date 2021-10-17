@@ -79,13 +79,38 @@ bool Parcel::AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb
 }
 
 
+
 bool Parcel::isAxisAlignedBox() const
 {
+	// Work out which corner, if any, vert 0 is, and therefore the index of the vert at the lower left (min x and min y)
+	// NOTE: this assume counter-clockwise vertex ordering which is not actually the case for some central parcels. (they were mirrored)
+	int lower_left_vert_i;
+	if(verts[0].x == aabb_min.x)
+	{
+		if(verts[0].y == aabb_min.y)
+			lower_left_vert_i = 0;
+		else if(verts[0].y == aabb_max.y) // vert 0 is at top left
+			lower_left_vert_i = 1;
+		else
+			return false; // Vert 0 is not in a corner.
+	}
+	else if(verts[0].x == aabb_max.x)
+	{
+		if(verts[0].y == aabb_min.y) // vert 0 is at bot right
+			lower_left_vert_i = 3;
+		else if(verts[0].y == aabb_max.y) // vert 0 is at top right
+			lower_left_vert_i = 2;
+		else
+			return false; // Vert 0 is not in a corner.
+	}
+	else
+		return false; // Vert 0 is not in a corner.
+
 	return
-		verts[0].x == aabb_min.x && verts[0].y == aabb_min.y &&
-		verts[1].x == aabb_max.x && verts[1].y == aabb_min.y &&
-		verts[2].x == aabb_max.x && verts[2].y == aabb_max.y &&
-		verts[3].x == aabb_min.x && verts[3].y == aabb_max.y;
+		verts[lower_left_vert_i + 0].x == aabb_min.x && verts[lower_left_vert_i + 0].y == aabb_min.y &&
+		verts[lower_left_vert_i + 1].x == aabb_max.x && verts[lower_left_vert_i + 1].y == aabb_min.y &&
+		verts[lower_left_vert_i + 2].x == aabb_max.x && verts[lower_left_vert_i + 2].y == aabb_max.y &&
+		verts[lower_left_vert_i + 3].x == aabb_min.x && verts[lower_left_vert_i + 3].y == aabb_max.y;
 }
 
 
