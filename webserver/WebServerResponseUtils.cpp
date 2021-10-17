@@ -6,6 +6,10 @@ Copyright Glare Technologies Limited 2021 -
 #include "WebServerResponseUtils.h"
 
 
+#include "../server/ServerWorldState.h"
+#include "RequestInfo.h"
+#include "Escaping.h"
+#include "LoginHandlers.h"
 #include <ConPrint.h>
 #include <Clock.h>
 #include <AESEncryption.h>
@@ -18,9 +22,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <KillThreadMessage.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
-#include "RequestInfo.h"
-#include "Escaping.h"
-#include "LoginHandlers.h"
+#include <maths/Rect2.h>
 
 
 namespace WebServerResponseUtils
@@ -89,6 +91,9 @@ const std::string standardHeader(ServerAllWorldsState& world_state, const web::R
 	{
 		page_out += "You are logged in as <a href=\"/account\">" + logged_in_username.HTMLEscaped() + "</a>";
 
+		if(logged_in_username == "Ono-Sendai")
+			page_out += " | <a href=\"/admin\">Admin page</a>\n";
+
 		// Add logout button
 		page_out += "<form action=\"/logout_post\" method=\"post\">\n";
 		page_out += "<input class=\"link-button\" type=\"submit\" value=\"Log out\">\n";
@@ -123,6 +128,119 @@ const std::string standardFooter(const web::RequestInfo& request_info, bool incl
 		"</html>																						\n";
 
 	return page_out;
+}
+
+
+const std::string getMapHeaderTags()
+{
+	return "<link rel=\"stylesheet\" href=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.css\"\
+		integrity=\"sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==\"\
+		crossorigin=\"\"/>";
+}
+
+
+const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID highlighted_parcel_id)
+{
+	std::string page;
+	page += 
+		"<script src=\"https://unpkg.com/leaflet@1.7.1/dist/leaflet.js\"\
+		integrity=\"sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==\"\
+		crossorigin=\"\"></script>";
+
+	page += "<a name=\"map\"></a>";
+	page += "<div style=\"height: 650px\" id=\"mapid\"></div>";
+
+	// Get parcel polygon boundaries
+	std::vector<Vec2d> poly_verts;
+	std::vector<int> poly_parcel_ids;
+
+	std::vector<Rect2d> rect_bounds;
+	std::vector<int> rect_parcel_ids;
+
+	{ // lock scope
+		Lock lock(world_state.mutex);
+
+		ServerWorldState* root_world = world_state.getRootWorldState().ptr();
+
+
+		poly_verts.reserve(4 * 4);
+		poly_parcel_ids.reserve(4);
+
+		rect_bounds.reserve(root_world->parcels.size());
+		rect_parcel_ids.reserve(root_world->parcels.size());
+
+		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
+		{
+			const Parcel* parcel = it->second.ptr();
+			if(parcel->id.value() == 20)
+				int a = 0;
+			if(parcel->isAxisAlignedBox())
+			{
+				rect_bounds.push_back(Rect2d(Vec2d(parcel->aabb_min.x, parcel->aabb_min.y), Vec2d(parcel->aabb_max.x, parcel->aabb_max.y)));
+				rect_parcel_ids.push_back(parcel->id.value());
+			}
+			else
+			{
+				for(int i=0; i<4; ++i)
+					poly_verts.push_back(parcel->verts[i]);
+
+				poly_parcel_ids.push_back(parcel->id.value());
+			}
+		}
+	} // End lock scope
+
+	const double scale = 1.0 / 20; // Not totally sure where this scale comes from, but somehow from const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
+	std::string var_js;
+	var_js.reserve(rect_parcel_ids.size() * 80); // Reserve 80 chars per parcel (only use about 70 in practice).
+	var_js += "<script>poly_coords = [";
+	for(size_t i=0; i<poly_verts.size(); ++i)
+	{
+		var_js += "[" + doubleToStringMaxNDecimalPlaces(poly_verts[i].y * scale, 2) + ", " + doubleToStringMaxNDecimalPlaces(poly_verts[i].x * scale, 2) + "]";
+		if(i + 1 < poly_verts.size())
+			var_js += ",\n";
+	}
+	var_js += "];\n";
+
+	var_js += "poly_parcel_ids = [";
+	for(size_t i=0; i<poly_parcel_ids.size(); ++i)
+	{
+		var_js += toString(poly_parcel_ids[i]);
+		if(i + 1 < poly_parcel_ids.size())
+			var_js += ", ";
+	}
+
+	var_js += "];\n";
+	var_js += "rect_bound_coords = [";
+	for(size_t i=0; i<rect_bounds.size(); ++i)
+	{
+		var_js += 
+			doubleToStringMaxNDecimalPlaces(rect_bounds[i].getMin().y * scale, 2) + ", " + doubleToStringMaxNDecimalPlaces(rect_bounds[i].getMin().x * scale, 2) + "," + 
+			doubleToStringMaxNDecimalPlaces(rect_bounds[i].getMax().y * scale, 2) + ", " + doubleToStringMaxNDecimalPlaces(rect_bounds[i].getMax().x * scale, 2);
+
+		if(i + 1 < rect_bounds.size())
+			var_js += ",\n";
+	}
+	var_js += "];\n";
+
+	var_js += "rect_parcel_ids = [";
+	for(size_t i=0; i<rect_parcel_ids.size(); ++i)
+	{
+		var_js += toString(rect_parcel_ids[i]);
+		if(i + 1 < rect_parcel_ids.size())
+			var_js += ", ";
+	}
+
+	var_js += "];\n";
+
+	var_js += "highlight_parcel_id = " + toString(highlighted_parcel_id.value()) + ";";
+
+	var_js += "</script>";
+
+	page += var_js;
+
+	page += "<script src=\"/files/map.js\"></script>";
+
+	return page;
 }
 
 

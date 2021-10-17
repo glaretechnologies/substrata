@@ -31,7 +31,10 @@ L.gridLayer.gridDebug = function (opts) {
 
 mymap.addLayer(L.gridLayer.gridDebug());*/
 
-for (var i = 0; i < parcel_ids.length; i++) {
+for (var i = 0; i < poly_parcel_ids.length; i++) {
+
+    var is_highlighted_parcel = rect_parcel_ids[i] == highlight_parcel_id;
+
     var vert_i = i * 4;
     var polygon = L.polygon([
         poly_coords[vert_i + 0],
@@ -40,10 +43,34 @@ for (var i = 0; i < parcel_ids.length; i++) {
         poly_coords[vert_i + 3],
     ], {
         weight: 2, // line width in pixels
-        //color: '#777',
+        color: (is_highlighted_parcel ? '#ef9518' : '#3388ff'),
         //fillColor: '#777',
         fillOpacity: 0.05
     }).addTo(mymap);
 
-    polygon.bindPopup("<a href=\"/parcel/" + parcel_ids[i].toString() + "\">Parcel " + parcel_ids[i].toString() + "</a>");
+    var popup = polygon.bindPopup("<a href=\"/parcel/" + poly_parcel_ids[i].toString() + "\">Parcel " + poly_parcel_ids[i].toString() + "</a>");
+
+    if (is_highlighted_parcel)
+        popup.openPopup();
 }
+
+for (var i = 0; i < rect_parcel_ids.length; i++) {
+
+    var is_highlighted_parcel = rect_parcel_ids[i] == highlight_parcel_id;
+
+    var coord_i = i * 4;
+    var polygon = L.rectangle(
+        [[rect_bound_coords[coord_i + 0], rect_bound_coords[coord_i + 1]], [rect_bound_coords[coord_i + 2], rect_bound_coords[coord_i + 3]]],
+        {
+        weight: 2, // line width in pixels
+        color: (is_highlighted_parcel ? '#ef9518' : '#3388ff'),
+        //fillColor: '#777',
+        fillOpacity: 0.05
+    }).addTo(mymap);
+    
+    var popup = polygon.bindPopup("<a href=\"/parcel/" + rect_parcel_ids[i].toString() + "\">Parcel " + rect_parcel_ids[i].toString() + "</a>");
+
+    if (is_highlighted_parcel)
+        popup.openPopup();
+}
+

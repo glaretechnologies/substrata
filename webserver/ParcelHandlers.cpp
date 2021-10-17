@@ -43,7 +43,9 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 		if(!parser.parseUnsignedInt(parcel_id))
 			throw glare::Exception("Failed to parse parcel id");
 
-		std::string page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Parcel #" + toString(parcel_id) + "");
+		const std::string extra_header_tags = WebServerResponseUtils::getMapHeaderTags();
+
+		std::string page = WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/"Parcel #" + toString(parcel_id) + "", extra_header_tags);
 		page += "<div class=\"main\">   \n";
 
 		{ // lock scope
@@ -150,6 +152,8 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			page += "<p>Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin)</p>  \n";
 
+
+			page += WebServerResponseUtils::getMapEmbedCode(world_state, /*highlighted_parcel_id=*/parcel->id);
 
 			// Show NFT status
 			page += "<h2>NFT status</h2>         \n";
@@ -450,7 +454,7 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 
 			std::string descrip;
 			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
-			descrip += "Dimensions: " + toString(span.x) + " m x " + toString(span.y) + " m x " + toString(span.z) + " m.  "; // Two spaces make a linebreak in markdown (maybe)  "\n" doesn't work on OpenSea at least
+			descrip += "Dimensions: " + doubleToStringNSigFigs(span.x, 3) + " m x " + doubleToStringNSigFigs(span.y, 3) + " m x " + doubleToStringNSigFigs(span.z, 3) + " m.  "; // Two spaces make a linebreak in markdown (maybe)  "\n" doesn't work on OpenSea at least
 
 			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
 			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
