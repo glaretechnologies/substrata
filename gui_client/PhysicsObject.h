@@ -35,7 +35,7 @@ public:
 	~PhysicsObject();
 
 
-	void traceRay(const Ray& ray, float max_t, RayTraceResult& results_out) const;
+	void traceRay(const Ray& ray, RayTraceResult& results_out) const;
 
 	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, const js::AABBox& spherepath_aabb_ws, RayTraceResult& results_out) const;
 
