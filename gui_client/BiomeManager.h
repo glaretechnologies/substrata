@@ -39,7 +39,27 @@ public:
 		ResourceManager& resource_manager);
 
 	OpenGLTextureRef elm_imposters_tex;
+	OpenGLTextureRef grass_tex;
 
-private:
-	
+	void update(const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine);
+
+	struct Patch;
+	void updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w, const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine);
+
+	GLObjectRef grass_ob;
+
+	struct Patch
+	{
+		std::vector<GLObjectRef> opengl_obs;
+		bool in_new_set;
+	};
+	std::map<Vec2i, Patch> patches_a;
+	std::map<Vec2i, Patch> patches_b;
+	std::map<Vec2i, Patch> patches_c;
+
+	std::vector<Reference<PhysicsObject>> park_biome_physics_objects;
+
+	js::Vector<PhysicsObject*, 8> physics_obs;
+
+	js::Vector<Matrix4f, 16> instance_matrices_temp;
 };
