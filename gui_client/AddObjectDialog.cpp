@@ -22,6 +22,7 @@ Code By Nicholas Chapman.
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/FileChecksum.h"
+#include "../indigo/TextureServer.h"
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
@@ -579,7 +580,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			loaded_mesh = new BatchedMesh();
 			loaded_mesh->buildFromIndigoMesh(*mesh);
 		}
-		else
+		else // Else is not an image or an MP4 file:
 		{
 			preview_gl_ob = ModelLoading::makeGLObjectForModelFile(task_manager, local_path,
 				this->loaded_mesh, // mesh out
@@ -593,6 +594,11 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			if(!preview_gl_ob->materials[i].tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].tex_path, "mp4"))
 			{
 				preview_gl_ob->materials[i].albedo_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].tex_path);
+
+				Reference<Map2D> map = this->objectPreviewGLWidget->texture_server_ptr->getTexForPath(".", preview_gl_ob->materials[i].tex_path); // Hopefully is arleady loaded
+
+				const bool has_alpha = LODGeneration::textureHasAlphaChannel(preview_gl_ob->materials[i].tex_path, map);// preview_gl_ob->materials[i].albedo_texture->hasAlpha();// && !preview_gl_ob->materials[i].albedo_texture->isAlphaChannelAllWhite();
+				BitUtils::setOrZeroBit(loaded_object->materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
 			}
 		}
 
