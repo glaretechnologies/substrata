@@ -962,7 +962,7 @@ void WorkerThread::doRun()
 					}
 				case Protocol::ObjectTransformUpdate:
 					{
-						//conPrint("ObjectTransformUpdate");
+						//conPrint("received ObjectTransformUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
 						const Vec3d pos = readVec3FromStream<double>(*socket);
 						const Vec3f axis = readVec3FromStream<float>(*socket);
@@ -1008,7 +1008,7 @@ void WorkerThread::doRun()
 					}
 				case Protocol::ObjectFullUpdate:
 					{
-						//conPrint("ObjectFullUpdate");
+						//conPrint("received ObjectFullUpdate");
 						const UID object_uid = readUIDFromStream(*socket);
 
 						WorldObject temp_ob;
