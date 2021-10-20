@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "ModelLoading.h"
 #include "../shared/ResourceManager.h"
 #include "simpleraytracer/raymesh.h"
+#include "simpleraytracer/ray.h"
 #include "physics/HashedGrid.h"
 #include "maths/PCG32.h"
 #include <Exception.h>
@@ -44,6 +45,8 @@ static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, 
 	js::Vector<BiomeObInstance, 16>& instances, js::AABBox& instances_aabb_ws_in_out)
 {
 	world_ob.physics_object->buildUniformSampler(); // Check built.
+
+	Timer timer;
 
 	const float surface_area = world_ob.physics_object->total_surface_area * 0.5f; // NOTE: assuming cube, ignoring underfaces.
 
@@ -139,9 +142,39 @@ finished_looping:
 	}
 
 	// const size_t num_instances_added = instances.size() - initial_num_instances;
-	// conPrint("Added " + toString(num_instances_added) + " out of " + toString(N) + " candidate points");
+	// conPrint("Added " + toString(num_instances_added) + " out of " + toString(N) + " candidate points (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 
 	instances_aabb_ws_in_out.enlargeToHoldAABBox(all_instances_aabb_ws);
+}
+
+
+static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef grass_tex)
+{
+	std::vector<WorldMaterialRef> materials(1);
+	materials[0] = new WorldMaterial();
+	materials[0]->colour_rgb = Colour3f(1.f);
+	materials[0]->roughness.val = 0.8f;
+	materials[0]->flags = WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG;
+
+	RayMeshRef raymesh;
+	GLObjectRef grass_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("Quad_obj_17249492137259942610.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
+		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh);
+
+	for(size_t i=0; i<grass_ob->materials.size(); ++i)
+	{
+		grass_ob->materials[i].imposterable = true; // Fade out with distance
+		grass_ob->materials[i].begin_fade_out_distance = 45.f;
+		grass_ob->materials[i].end_fade_out_distance = 60.f;
+	}
+
+	if(grass_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*grass_ob->mesh_data); // Load mesh data into OpenGL
+
+	grass_ob->materials[0].albedo_texture = grass_tex;
+	//grass_ob->is_imposter = true;
+	//grass_ob->is_instanced_ob_with_imposters = true;
+
+	return grass_ob;
 }
 
 
@@ -149,11 +182,12 @@ static GLObjectRef makeElmTreeOb(MeshManager& mesh_manager, glare::TaskManager& 
 {
 	std::vector<WorldMaterialRef> materials(2);
 	materials[0] = new WorldMaterial();
-	materials[0]->colour_rgb = Colour3f(0.7f);
+	materials[0]->colour_rgb = Colour3f(162/256.f);
 	materials[0]->colour_texture_url = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg";
-	materials[0]->roughness.val = 0.f;
+	materials[0]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
+	materials[0]->roughness.val = 1.f;
 	materials[1] = new WorldMaterial();
-	materials[1]->colour_rgb = Colour3f(1.f); // TEMP different
+	materials[1]->colour_rgb = Colour3f(162/256.f); // TEMP different
 	materials[1]->colour_texture_url = "elm_leaf_new_png_17162787394814938526.png";
 	materials[1]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
 
@@ -173,12 +207,11 @@ static GLObjectRef makeElmTreeOb(MeshManager& mesh_manager, glare::TaskManager& 
 }
 
 
-static GLObjectRef makeElmTreeImposterOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef back_lit_tex)
+static GLObjectRef makeElmTreeImposterOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef elm_imposters_tex)
 {
 	std::vector<WorldMaterialRef> materials(1);
 	materials[0] = new WorldMaterial();
-	materials[0]->colour_rgb = Colour3f(1.f);
-	materials[0]->colour_texture_url = "left_lit_png_3976582748380884323.png";
+	materials[0]->colour_rgb = Colour3f(162/256.f);
 	materials[0]->roughness.val = 0.f;
 	materials[0]->flags = WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG;
 
@@ -192,7 +225,7 @@ static GLObjectRef makeElmTreeImposterOb(MeshManager& mesh_manager, glare::TaskM
 	if(tree_imposter_opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
 		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*tree_imposter_opengl_ob->mesh_data); // Load mesh data into OpenGL
 
-	tree_imposter_opengl_ob->materials[0].albedo_texture = back_lit_tex;
+	tree_imposter_opengl_ob->materials[0].albedo_texture = elm_imposters_tex;
 	tree_imposter_opengl_ob->is_imposter = true;
 	tree_imposter_opengl_ob->is_instanced_ob_with_imposters = true;
 
@@ -203,12 +236,20 @@ static GLObjectRef makeElmTreeImposterOb(MeshManager& mesh_manager, glare::TaskM
 void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager)
 {
+	if(grass_ob.isNull())
+		grass_ob = makeGrassOb(mesh_manager, task_manager, resource_manager, grass_tex);
+
 	if(world_ob.physics_object.isNull())
 		return;
 
 	if(world_ob.content == "biome: park")
 	{
+		park_biome_physics_objects.push_back(world_ob.physics_object);
+
 		world_ob.physics_object->buildUniformSampler(); // Check built.
+
+		if(true) // Scatter trees:
+		{
 
 		RayMeshRef tree_raymesh;
 		GLObjectRef tree_opengl_ob = makeElmTreeOb(mesh_manager, task_manager, resource_manager, tree_raymesh);
@@ -262,6 +303,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 		opengl_engine.addObject(tree_imposter_opengl_ob);
 		tree_imposter_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
+		}
 	}
 	//else if(false)//world_ob.content == "biome: grass")
 	//{
@@ -295,3 +337,160 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 	//}
 }
 
+
+void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w, const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine)
+{
+	const int cur_x = Maths::floorToInt(campos[0] / patch_w);
+	const int cur_y = Maths::floorToInt(campos[1] / patch_w);
+
+	const int r = 2;
+	const int NUM_NEW_QUADS = (1 + 2*r)*(1 + 2*r);
+	Vec2i new_quads[NUM_NEW_QUADS];
+	int qi=0;
+	for(int x=cur_x - r; x <= cur_x + r; ++x)
+		for(int y=cur_y - r; y <= cur_y + r; ++y)
+		{
+			new_quads[qi++] = Vec2i(x, y);
+		}
+	assert(qi == NUM_NEW_QUADS);
+
+	PCG32 rng(1);
+	const int N = 2000; // Max num scattered instances per patch
+	instance_matrices_temp.resize(N);
+
+	// We will do a mark and sweep to garbage collect old patches :)
+	for(auto it = patches.begin(); it != patches.end(); ++it)
+		it->second.in_new_set = false;
+
+	// Add any new quad not in ground_quads.
+	for(size_t z=0; z<NUM_NEW_QUADS; ++z)
+	{
+		const Vec2i new_quad = new_quads[z];
+		auto res = patches.find(new_quad); // Look up new quad in map
+		if(res != patches.end()) // If present:
+			res->second.in_new_set = true; // Mark patch as being in new set
+		else
+		{
+			Timer timer;
+
+			// Make new patch
+			Patch patch;
+
+			const float z_range = 5.f; // Distance above and below camera to consider putting grass objects on
+
+			// Get list of meshes intersecting this patch
+			js::AABBox patch_consider_aabb = js::AABBox(
+				Vec4f(new_quad.x *       patch_w, new_quad.y *       patch_w, -100, 1),
+				Vec4f((new_quad.x + 1) * patch_w, (new_quad.y + 1) * patch_w, 400, 1)
+			);
+			physics_obs.resize(0);
+			for(size_t q=0; q<park_biome_physics_objects.size(); ++q)
+				if(patch_consider_aabb.intersectsAABB(park_biome_physics_objects[q]->aabb_ws))
+					physics_obs.push_back(park_biome_physics_objects[q].ptr());
+
+			if(!physics_obs.empty())
+			{
+				// Scatter over extent of new patch
+				const Vec3f base_scale(1.f, 1.f, 0.5f);
+				const Vec3f scale_variation(0.5f);
+			
+				js::AABBox all_instances_aabb = js::AABBox::emptyAABBox();
+				const js::AABBox instance_aabb_os = this->grass_ob->mesh_data->aabb_os;
+				int num_scatter_points = 0;
+				for(int i=0; i<N; ++i)
+				{
+					const float u = rng.unitRandom();
+					const float v = rng.unitRandom();
+
+					const Vec4f ray_trace_start_pos = Vec4f((new_quad.x + u) * patch_w, (new_quad.y + v) * patch_w, campos[2] + z_range, 1);
+					const Vec4f trace_dir = Vec4f(1.0e-4f,1.0e-4f,-1,0);
+					// Trace ray down and get point on geometry
+					for(size_t q=0; q<physics_obs.size(); ++q)
+					{
+						const PhysicsObject* const physics_ob = physics_obs[q];
+						RayTraceResult result;
+						physics_ob->traceRay(Ray(/*startpos=*/ray_trace_start_pos, /*unitdir=*/trace_dir, /*min_t=*/0, /*max_t=*/10000), result);
+						if(result.hit_object != NULL)
+						{
+							const Vec4f hitpos_ws = ray_trace_start_pos + trace_dir * result.hitdist_ws;
+							const float rot_z = Maths::get2Pi<float>() * rng.unitRandom();
+							const Vec3f scale = base_scale + (rng.unitRandom() * rng.unitRandom() * rng.unitRandom()) * scale_variation;
+							instance_matrices_temp[num_scatter_points] = instanceObToWorldMatrix(hitpos_ws, rot_z, scale) * Matrix4f::translationMatrix(0,0,0.5f);
+
+							all_instances_aabb.enlargeToHoldAABBox(instance_aabb_os.transformedAABBFast(instance_matrices_temp[num_scatter_points]));
+
+							num_scatter_points++;
+							break;
+						}
+					}
+				}
+			
+				if(num_scatter_points > 0)
+				{
+					GLObjectRef gl_ob = new GLObject();
+					gl_ob->materials.resize(1);
+					gl_ob->materials[0] = this->grass_ob->materials[0];
+					gl_ob->materials[0].begin_fade_out_distance = patch_w * 1.5f;
+					gl_ob->materials[0].end_fade_out_distance = patch_w * 2.f;
+
+					gl_ob->ob_to_world_matrix.setToTranslationMatrix(new_quad.x * patch_w, new_quad.y * patch_w, 0);
+					gl_ob->mesh_data = this->grass_ob->mesh_data;
+
+					gl_ob->enableInstancing(new VBO(instance_matrices_temp.data(), sizeof(Matrix4f) * num_scatter_points));
+
+					opengl_engine.addObject(gl_ob);
+					
+					gl_ob->aabb_ws = all_instances_aabb; // Override AABB with an AABB that contains all instances.
+
+					patch.opengl_obs.push_back(gl_ob);
+				}
+
+				// TEMP: add debug AABB object around patch
+				//GLObjectRef debug_aabb = opengl_engine.makeAABBObject(patch_consider_aabb.min_, patch_consider_aabb.max_, Colour4f(1,patch_w / 150.f,0,0.5f));
+				//opengl_engine.addObject(debug_aabb);
+				//patch.opengl_obs.push_back(debug_aabb);
+			} // end if(!physics_obs.empty())
+
+			patches.insert(std::make_pair(new_quad, patch));
+
+			// conPrint("Added patch (" + toString(new_quad.x) + ", " + toString(new_quad.y) + ") Elapsed: " + timer.elapsedStringNSigFigs(4));
+		} // end if patch not already added
+	} // end for each new patch
+
+	// Remove any stale patches. (patches not in new set)
+	for(auto it = patches.begin(); it != patches.end();)
+	{
+		Patch& patch = it->second;
+		if(patch.in_new_set)
+			++it;
+		else
+		{
+			// Patch was not in new_quads, so remove it
+			// conPrint("Removed ground quad (" + toString(it->first.x) + ", " + toString(it->first.y) + ")");
+			
+			// Remove opengl objects on the patch
+			for(int t=0; t<patch.opengl_obs.size(); ++t)
+				opengl_engine.removeObject(patch.opengl_obs[t]);
+
+			it = patches.erase(it); // Erase patch from map, set iterator to next item in map
+		}
+	}
+}
+
+
+void BiomeManager::update(const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine)
+{
+	try
+	{
+		if(grass_ob.isNull())
+			return;
+
+		updatePatchSet(patches_a, 10.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
+		updatePatchSet(patches_b, 30.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
+		updatePatchSet(patches_c, 90.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("BiomeManager::update() error: " + e.what());
+	}
+}

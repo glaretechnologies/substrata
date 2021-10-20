@@ -1865,7 +1865,7 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		RayTraceResult trace_results;
 		Vec4f start_trace_pos = new_aabb_ws.centroid();
 		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
-		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e30f), 1.0e30f, trace_results);
+		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e30f), trace_results);
 		const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
@@ -2306,6 +2306,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	time_since_last_timer_ev.reset();
 
 
+	if(biome_manager)
+		biome_manager->update(cam_controller.getPosition().toVec4fPoint(), cam_controller.getForwardsVec().toVec4fVector(), cam_controller.getRightVec().toVec4fVector(), 
+			ui->glWidget->opengl_engine->getSunDir(), *ui->glWidget->opengl_engine);
+
 	checkForLODChanges();
 
 	gesture_ui.think();
@@ -2351,12 +2355,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							msg += "mat0 min lod level: " + toString(selected_ob->materials[0]->minLODLevel()) + "\n";
 						msg += "mat0 tex: " + toString(mat0.albedo_texture->xRes()) + "x" + toString(mat0.albedo_texture->yRes()) + " (" + getNiceByteSize(mat0.albedo_texture->getByteSize()) + ")\n";
 					}
+					msg += "mat0 colourTexHasAlpha(): " + toString(selected_ob->materials[0]->colourTexHasAlpha()) + "\n";
 
 					if(mat0.lightmap_texture.nonNull())
 					{
 						msg += "\n";
 						msg += "lightmap: " + toString(mat0.lightmap_texture->xRes()) + "x" + toString(mat0.lightmap_texture->yRes()) + " (" + getNiceByteSize(mat0.lightmap_texture->getByteSize()) + ")\n";
 					}
+				}
+				if(selected_ob->opengl_engine_ob->materials.size() >= 2)
+				{
+					msg += "mat1 colourTexHasAlpha(): " + toString(selected_ob->materials[1]->colourTexHasAlpha()) + "\n";
 				}
 			}
 		}
@@ -2748,7 +2757,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(proximity_loader.isObjectInLoadProximity(ob))
 							{
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-								const int ob_model_lod_level = myMin(ob->max_model_lod_level, ob_lod_level);
+								const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 								
 								if(ob->model_url == loaded_base_model_url && ob_model_lod_level == message->model_lod_level) // If we have just loaded the model with the LOD level this object needs:
 								{
@@ -4010,6 +4019,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							if(biome_manager->elm_imposters_tex.isNull())
 								biome_manager->elm_imposters_tex = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
+
+							if(biome_manager->grass_tex.isNull())
+								biome_manager->grass_tex = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/sgrass5-1_modified3.png");
 
 							biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
 						}
@@ -7949,11 +7961,13 @@ void MainWindow::updateGroundPlane()
 		new_quads[3] = Vec2i(adj_x, adj_y);
 
 		// Add any new quad not in ground_quads.
-		for(auto it = new_quads.begin(); it != new_quads.end(); ++it)
-			if(ground_quads.count(*it) == 0)
+		for(size_t i=0; i<4; ++i)
+		{
+			const Vec2i new_quad = new_quads[i];
+			if(ground_quads.count(new_quad) == 0)
 			{
 				// Make new quad
-				//conPrint("Added ground quad (" + toString(it->x) + ", " + toString(it->y) + ")");
+				//conPrint("Added ground quad (" + toString(new_quad.x) + ", " + toString(new_quad.y) + ")");
 
 				GLObjectRef gl_ob = new GLObject();
 				gl_ob->materials.resize(1);
@@ -7971,7 +7985,7 @@ void MainWindow::updateGroundPlane()
 				gl_ob->materials[0].roughness = 0.8f;
 				gl_ob->materials[0].fresnel_scale = 0.5f;
 
-				gl_ob->ob_to_world_matrix.setToTranslationMatrix(it->x * (float)ground_quad_w, it->y * (float)ground_quad_w, 0);
+				gl_ob->ob_to_world_matrix.setToTranslationMatrix(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0);
 				gl_ob->mesh_data = ground_quad_mesh_opengl_data;
 
 				ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
@@ -7986,8 +8000,9 @@ void MainWindow::updateGroundPlane()
 				ground_quad.gl_ob = gl_ob;
 				ground_quad.phy_ob = phy_ob;
 
-				ground_quads.insert(std::make_pair(*it, ground_quad));
+				ground_quads.insert(std::make_pair(new_quad, ground_quad));
 			}
+		}
 
 		// Remove any stale ground quads.
 		for(auto it = ground_quads.begin(); it != ground_quads.end();)
