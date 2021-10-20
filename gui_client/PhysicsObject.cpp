@@ -25,9 +25,10 @@ PhysicsObject::~PhysicsObject()
 }
 
 
-void PhysicsObject::traceRay(const Ray& ray, float max_t, RayTraceResult& results_out) const
+void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 {
 	results_out.hitdist_ws = -1;
+	results_out.hit_object = NULL;
 
 	const Vec4f dir_os = this->world_to_ob.mul3Vector(ray.unitDirF());
 	const Vec4f pos_os = this->world_to_ob * ray.startPosF();
@@ -36,7 +37,7 @@ void PhysicsObject::traceRay(const Ray& ray, float max_t, RayTraceResult& result
 		pos_os, // origin
 		dir_os, // direction
 		ray.minT(), // min_t - Use the world space ray min_t.
-		max_t
+		ray.maxT()
 	);
 
 	HitInfo hitinfo;
