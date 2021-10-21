@@ -1235,6 +1235,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 							loadScriptForObject(ob); // Load any script for the object.
 
+							doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
+
 							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 							if(this->selected_ob == ob)
 								ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
@@ -1565,6 +1567,38 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 	catch(glare::Exception& e)
 	{
 		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+	}
+}
+
+
+// Object model has been loaded, now do biome scattering over it
+void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
+{
+	assert(!ob->using_placeholder_model);
+		
+	//biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
+
+	if(::hasPrefix(ob->content, "biome:"))
+	{
+		biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager);
+
+		//TEMP: start manually loading needed textures
+		{
+			const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
+			if(resource_manager->isFileForURLPresent(URL))
+				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
+			else
+				startDownloadingResource(URL);
+		}
+		{
+			const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
+			if(resource_manager->isFileForURLPresent(URL))
+				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
+			else
+				startDownloadingResource(URL);
+		}
+
+		biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
 	}
 }
 
@@ -1914,7 +1948,8 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 				use_aabb_ws.enlargeToHoldAABBox(opengl_ob->mesh_data->aabb_os.transformedAABBFast(use_to_world));
 			}
 
-		const float control_scale = use_aabb_ws.axisLength(use_aabb_ws.longestAxis());
+		const float max_control_scale = (float)this->selected_ob->pos.getDist(cam_controller.getPosition()) * 0.5f;
+		const float control_scale = myMin(max_control_scale, use_aabb_ws.axisLength(use_aabb_ws.longestAxis()));
 
 		const float arrow_len = myMax(1.f, control_scale * 0.85f);
 
@@ -2733,6 +2768,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ui->indigoView->objectAdded(*message_ob, *this->resource_manager);
 
 								loadScriptForObject(message_ob.ptr()); // Load any script for the object.
+
+								doBiomeScatteringForObject(message_ob.ptr()); // Scatter any biome stuff over it
 							}
 
 							message_ob->loaded_model_lod_level = message->model_lod_level;
@@ -2810,6 +2847,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
 											loadScriptForObject(ob); // Load any script for the object.
+
+											doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
 										}
 
 										// If we replaced the model for selected_ob, reselect it in the OpenGL engine
@@ -3804,7 +3843,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 
 					// Update selected object beam for the avatar, if it has an object selected
-					if(avatar->selected_object_uid.valid())
+					// TEMP: Disabled this code as it was messing with objects being edited.
+					/*if(avatar->selected_object_uid.valid())
 					{
 						auto selected_it = world_state->objects.find(avatar->selected_object_uid);
 						if(selected_it != world_state->objects.end())
@@ -3833,7 +3873,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					else
 					{
 						avatar->graphics.hideSelectedObBeam(*ui->glWidget->opengl_engine);
-					}
+					}*/
 
 					avatar->other_dirty = false;
 					avatar->transform_dirty = false;
@@ -3993,38 +4033,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 
 						loadAudioForObject(ob);
-
-						if(::hasPrefix(ob->content, "biome:"))
-						{
-							if(!resource_manager->isFileForURLPresent("elm_RT_glb_3393252396927074015.bmesh"))
-								resource_manager->copyLocalFileToResourceDir(base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh", "elm_RT_glb_3393252396927074015.bmesh");
-							if(!resource_manager->isFileForURLPresent("Quad_obj_17249492137259942610.bmesh"))
-								resource_manager->copyLocalFileToResourceDir(base_dir_path + "/resources/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
-
-							//TEMP: start manually loading needed textures
-							{
-								const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
-								if(resource_manager->isFileForURLPresent(URL))
-									this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
-								else
-									startDownloadingResource(URL);
-							}
-							{
-								const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
-								if(resource_manager->isFileForURLPresent(URL))
-									this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
-								else
-									startDownloadingResource(URL);
-							}
-
-							if(biome_manager->elm_imposters_tex.isNull())
-								biome_manager->elm_imposters_tex = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
-
-							if(biome_manager->grass_tex.isNull())
-								biome_manager->grass_tex = ui->glWidget->opengl_engine->getTexture(base_dir_path + "/resources/sgrass5-1_modified3.png");
-
-							biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
-						}
 					}
 				}
 				else if(ob->from_remote_lightmap_url_dirty)
@@ -6158,7 +6166,7 @@ void MainWindow::objectEditedSlot()
 			if(valid)
 			{
 				new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
-				selected_ob->setPosAndHistory(new_ob_pos);
+				selected_ob->setTransformAndHistory(new_ob_pos, this->selected_ob->axis, this->selected_ob->angle);
 
 				// Update in opengl engine.
 				if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
@@ -6234,6 +6242,8 @@ void MainWindow::objectEditedSlot()
 				}
 
 				loadScriptForObject(this->selected_ob.ptr());
+
+				doBiomeScatteringForObject(this->selected_ob.ptr()); // Scatter any biome stuff over it
 
 				// Update any instanced copies of object
 				updateInstancedCopiesOfObject(this->selected_ob.ptr());

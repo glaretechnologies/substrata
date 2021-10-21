@@ -35,6 +35,8 @@ class BiomeManager
 public:
 	BiomeManager();
 
+	void initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager);
+
 	void addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
 		ResourceManager& resource_manager);
 
