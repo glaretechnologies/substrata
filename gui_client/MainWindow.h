@@ -161,6 +161,7 @@ private:
 	void loadModelForObject(WorldObject* ob);
 	void loadModelForAvatar(Avatar* ob);
 	void loadScriptForObject(WorldObject* ob);
+	void doBiomeScatteringForObject(WorldObject* ob);
 	void loadAudioForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
 	void showInfoNotification(const std::string& message);

@@ -23,6 +23,23 @@ BiomeManager::BiomeManager()
 }
 
 
+void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
+{
+	if(!resource_manager.isFileForURLPresent("elm_RT_glb_3393252396927074015.bmesh"))
+		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh", "elm_RT_glb_3393252396927074015.bmesh");
+	if(!resource_manager.isFileForURLPresent("Quad_obj_17249492137259942610.bmesh"))
+		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
+	if(!resource_manager.isFileForURLPresent("grass_2819211535648845788.bmesh"))
+		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/grass_2819211535648845788.bmesh", "grass_2819211535648845788.bmesh");
+
+	if(elm_imposters_tex.isNull())
+		elm_imposters_tex = opengl_engine.getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
+
+	if(grass_tex.isNull())
+		grass_tex = opengl_engine.getTexture(base_dir_path + "/resources/grass.png");
+}
+
+
 static const Matrix4f instanceObToWorldMatrix(const Vec4f& pos, float rot_z, const Vec3f& scale)
 {
 	// Equivalent to
@@ -155,9 +172,10 @@ static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& ta
 	materials[0]->colour_rgb = Colour3f(1.f);
 	materials[0]->roughness.val = 0.8f;
 	materials[0]->flags = WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG;
+	materials[0]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
 
 	RayMeshRef raymesh;
-	GLObjectRef grass_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("Quad_obj_17249492137259942610.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
+	GLObjectRef grass_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("grass_2819211535648845788.bmesh"/*"Quad_obj_17249492137259942610.bmesh"*/, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
 		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh);
 
 	for(size_t i=0; i<grass_ob->materials.size(); ++i)
@@ -391,8 +409,8 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 			if(!physics_obs.empty())
 			{
 				// Scatter over extent of new patch
-				const Vec3f base_scale(1.f, 1.f, 0.5f);
-				const Vec3f scale_variation(0.5f);
+				const Vec3f base_scale(0.2f);
+				const Vec3f scale_variation(0.0f);
 			
 				js::AABBox all_instances_aabb = js::AABBox::emptyAABBox();
 				const js::AABBox instance_aabb_os = this->grass_ob->mesh_data->aabb_os;
@@ -403,7 +421,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 					const float v = rng.unitRandom();
 
 					const Vec4f ray_trace_start_pos = Vec4f((new_quad.x + u) * patch_w, (new_quad.y + v) * patch_w, campos[2] + z_range, 1);
-					const Vec4f trace_dir = Vec4f(1.0e-4f,1.0e-4f,-1,0);
+					const Vec4f trace_dir = Vec4f(0, 0,-1,0);
 					// Trace ray down and get point on geometry
 					for(size_t q=0; q<physics_obs.size(); ++q)
 					{
@@ -415,7 +433,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 							const Vec4f hitpos_ws = ray_trace_start_pos + trace_dir * result.hitdist_ws;
 							const float rot_z = Maths::get2Pi<float>() * rng.unitRandom();
 							const Vec3f scale = base_scale + (rng.unitRandom() * rng.unitRandom() * rng.unitRandom()) * scale_variation;
-							instance_matrices_temp[num_scatter_points] = instanceObToWorldMatrix(hitpos_ws, rot_z, scale) * Matrix4f::translationMatrix(0,0,0.5f);
+							instance_matrices_temp[num_scatter_points] = instanceObToWorldMatrix(hitpos_ws, rot_z, scale) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>())
 
 							all_instances_aabb.enlargeToHoldAABBox(instance_aabb_os.transformedAABBFast(instance_matrices_temp[num_scatter_points]));
 
