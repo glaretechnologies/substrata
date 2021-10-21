@@ -35,6 +35,9 @@ class BiomeManager
 public:
 	BiomeManager();
 
+	// Remove all biome opengl and physics objects from the opengl and physics engines.
+	void clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_world);
+
 	void initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager);
 
 	void addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
@@ -61,7 +64,10 @@ public:
 
 	std::vector<Reference<PhysicsObject>> park_biome_physics_objects;
 
-	js::Vector<PhysicsObject*, 8> physics_obs;
+	js::Vector<PhysicsObject*, 8> physics_obs; // scratch buffer
 
-	js::Vector<Matrix4f, 16> instance_matrices_temp;
+	js::Vector<Matrix4f, 16> instance_matrices_temp; // scratch buffer
+
+
+	std::vector<GLObjectRef> opengl_obs; // Tree obs (not from patches) that have been added to the opengl engine.
 };

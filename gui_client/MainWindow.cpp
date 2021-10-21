@@ -6517,6 +6517,10 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	}
 
 	//-------------------------------- Do disconnect process --------------------------------
+	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete(); 
+	model_loaded_messages_to_process.clear();
+	texture_loaded_messages_to_process.clear();
+	
 	// Kill any existing threads connected to the server
 	resource_download_thread_manager.killThreadsBlocking();
 	resource_upload_thread_manager.killThreadsBlocking();
@@ -6568,6 +6572,9 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 			avatar->graphics.destroy(*ui->glWidget->opengl_engine);
 		}
 	}
+
+	if(biome_manager)
+		biome_manager->clear(*ui->glWidget->opengl_engine, *physics_world);
 
 	active_objects.clear();
 	obs_with_animated_tex.clear();
