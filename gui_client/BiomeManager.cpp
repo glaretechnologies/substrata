@@ -23,6 +23,34 @@ BiomeManager::BiomeManager()
 }
 
 
+void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_world)
+{
+	for(size_t i=0; i<opengl_obs.size(); ++i)
+		opengl_engine.removeObject(opengl_obs[i]);
+	opengl_obs.clear();
+
+	for(auto it = park_biome_physics_objects.begin(); it != park_biome_physics_objects.end(); ++it)
+		physics_world.removeObject(*it);
+	park_biome_physics_objects.clear();
+
+
+	for(auto it = patches_a.begin(); it != patches_a.end(); ++it)
+		for(int t=0; t<it->second.opengl_obs.size(); ++t)
+			opengl_engine.removeObject(it->second.opengl_obs[t]);
+	patches_a.clear();
+
+	for(auto it = patches_b.begin(); it != patches_b.end(); ++it)
+		for(int t=0; t<it->second.opengl_obs.size(); ++t)
+			opengl_engine.removeObject(it->second.opengl_obs[t]);
+	patches_b.clear();
+
+	for(auto it = patches_c.begin(); it != patches_c.end(); ++it)
+		for(int t=0; t<it->second.opengl_obs.size(); ++t)
+			opengl_engine.removeObject(it->second.opengl_obs[t]);
+	patches_c.clear();
+}
+
+
 void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
 	if(!resource_manager.isFileForURLPresent("elm_RT_glb_3393252396927074015.bmesh"))
@@ -321,6 +349,10 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 		opengl_engine.addObject(tree_imposter_opengl_ob);
 		tree_imposter_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
+
+
+		this->opengl_obs.push_back(tree_opengl_ob);
+		this->opengl_obs.push_back(tree_imposter_opengl_ob);
 		}
 	}
 	//else if(false)//world_ob.content == "biome: grass")
@@ -433,7 +465,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 							const Vec4f hitpos_ws = ray_trace_start_pos + trace_dir * result.hitdist_ws;
 							const float rot_z = Maths::get2Pi<float>() * rng.unitRandom();
 							const Vec3f scale = base_scale + (rng.unitRandom() * rng.unitRandom() * rng.unitRandom()) * scale_variation;
-							instance_matrices_temp[num_scatter_points] = instanceObToWorldMatrix(hitpos_ws, rot_z, scale) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>())
+							instance_matrices_temp[num_scatter_points] = instanceObToWorldMatrix(hitpos_ws, rot_z, scale) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
 
 							all_instances_aabb.enlargeToHoldAABBox(instance_aabb_os.transformedAABBFast(instance_matrices_temp[num_scatter_points]));
 
