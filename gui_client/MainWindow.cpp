@@ -1571,7 +1571,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 }
 
 
-// Object model has been loaded, now do biome scattering over it
+// Object model has been loaded, now do biome scattering over it, if not done already for this object
 void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 {
 	assert(!ob->using_placeholder_model);
@@ -1580,25 +1580,28 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 
 	if(::hasPrefix(ob->content, "biome:"))
 	{
-		biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager);
-
-		//TEMP: start manually loading needed textures
+		if(!biome_manager->isObjectInBiome(ob))
 		{
-			const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
-			if(resource_manager->isFileForURLPresent(URL))
-				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
-			else
-				startDownloadingResource(URL);
-		}
-		{
-			const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
-			if(resource_manager->isFileForURLPresent(URL))
-				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
-			else
-				startDownloadingResource(URL);
-		}
+			biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager);
 
-		biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
+			//TEMP: start manually loading needed textures
+			{
+				const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
+				if(resource_manager->isFileForURLPresent(URL))
+					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
+				else
+					startDownloadingResource(URL);
+			}
+			//{
+			//	const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
+			//	if(resource_manager->isFileForURLPresent(URL))
+			//		this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
+			//	else
+			//		startDownloadingResource(URL);
+			//}
+
+			biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
+		}
 	}
 }
 
@@ -6573,7 +6576,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 		}
 	}
 
-	if(biome_manager)
+	if(biome_manager && ui->glWidget->opengl_engine.nonNull() && physics_world.nonNull())
 		biome_manager->clear(*ui->glWidget->opengl_engine, *physics_world);
 
 	active_objects.clear();

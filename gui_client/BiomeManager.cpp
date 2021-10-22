@@ -25,12 +25,26 @@ BiomeManager::BiomeManager()
 
 void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_world)
 {
-	for(size_t i=0; i<opengl_obs.size(); ++i)
-		opengl_engine.removeObject(opengl_obs[i]);
-	opengl_obs.clear();
+	for(auto it = ob_to_biome_data.begin(); it != ob_to_biome_data.end(); ++it)
+	{
+		Reference<ObBiomeData> data = it->second;
 
-	for(auto it = park_biome_physics_objects.begin(); it != park_biome_physics_objects.end(); ++it)
-		physics_world.removeObject(*it);
+		for(int i=0; i<data->opengl_obs.size(); ++i)
+			opengl_engine.removeObject(data->opengl_obs[i]);
+
+		for(int i=0; i<data->physics_objects.size(); ++i)
+			physics_world.removeObject(data->physics_objects[i]);
+	}
+
+	ob_to_biome_data.clear();
+
+
+	//for(size_t i=0; i<opengl_obs.size(); ++i)
+	//	opengl_engine.removeObject(opengl_obs[i]);
+	//opengl_obs.clear();
+	//
+	//for(auto it = park_biome_physics_objects.begin(); it != park_biome_physics_objects.end(); ++it)
+	//	physics_world.removeObject(*it);
 	park_biome_physics_objects.clear();
 
 
@@ -62,6 +76,15 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 
 	if(elm_imposters_tex.isNull())
 		elm_imposters_tex = opengl_engine.getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
+	
+	if(elm_leaf_tex.isNull())
+		elm_leaf_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_frontface.png");
+	
+	if(elm_leaf_backface_tex.isNull())
+		elm_leaf_backface_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_backface.png");
+
+	if(elm_leaf_transmission_tex.isNull())
+		elm_leaf_transmission_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_transmission.png");
 
 	if(grass_tex.isNull())
 		grass_tex = opengl_engine.getTexture(base_dir_path + "/resources/grass.png");
@@ -211,12 +234,15 @@ static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& ta
 		grass_ob->materials[i].imposterable = true; // Fade out with distance
 		grass_ob->materials[i].begin_fade_out_distance = 45.f;
 		grass_ob->materials[i].end_fade_out_distance = 60.f;
+		grass_ob->materials[i].double_sided = true;
 	}
 
 	if(grass_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
 		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*grass_ob->mesh_data); // Load mesh data into OpenGL
 
 	grass_ob->materials[0].albedo_texture = grass_tex;
+	grass_ob->materials[0].backface_albedo_texture = grass_tex;
+	grass_ob->materials[0].transmission_texture = grass_tex;
 	//grass_ob->is_imposter = true;
 	//grass_ob->is_instanced_ob_with_imposters = true;
 
@@ -224,7 +250,7 @@ static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& ta
 }
 
 
-static GLObjectRef makeElmTreeOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
+GLObjectRef BiomeManager::makeElmTreeOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
 {
 	std::vector<WorldMaterialRef> materials(2);
 	materials[0] = new WorldMaterial();
@@ -242,6 +268,11 @@ static GLObjectRef makeElmTreeOb(MeshManager& mesh_manager, glare::TaskManager& 
 
 	for(size_t i=0; i<tree_opengl_ob->materials.size(); ++i)
 		tree_opengl_ob->materials[i].imposterable = true; // Mark mats as imposterable so they can smoothly blend out
+
+	tree_opengl_ob->materials[1].double_sided = true;
+	tree_opengl_ob->materials[1].albedo_texture = elm_leaf_tex;
+	tree_opengl_ob->materials[1].backface_albedo_texture = elm_leaf_backface_tex;
+	tree_opengl_ob->materials[1].transmission_texture = elm_leaf_transmission_tex;
 
 
 	if(tree_opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
@@ -291,6 +322,8 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 	if(world_ob.content == "biome: park")
 	{
 		park_biome_physics_objects.push_back(world_ob.physics_object);
+		Reference<ObBiomeData> ob_biome_date = new ObBiomeData();
+		ob_to_biome_data[&world_ob] = ob_biome_date;
 
 		world_ob.physics_object->buildUniformSampler(); // Check built.
 
@@ -350,9 +383,10 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 		opengl_engine.addObject(tree_imposter_opengl_ob);
 		tree_imposter_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
 
-
-		this->opengl_obs.push_back(tree_opengl_ob);
-		this->opengl_obs.push_back(tree_imposter_opengl_ob);
+		ob_biome_date->opengl_obs.push_back(tree_opengl_ob);
+		ob_biome_date->opengl_obs.push_back(tree_imposter_opengl_ob);
+		//this->opengl_obs.push_back(tree_opengl_ob);
+		//this->opengl_obs.push_back(tree_imposter_opengl_ob);
 		}
 	}
 	//else if(false)//world_ob.content == "biome: grass")
