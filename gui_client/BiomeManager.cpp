@@ -235,6 +235,7 @@ static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& ta
 		grass_ob->materials[i].begin_fade_out_distance = 45.f;
 		grass_ob->materials[i].end_fade_out_distance = 60.f;
 		grass_ob->materials[i].double_sided = true;
+		grass_ob->materials[i].use_wind_vert_shader = true;
 	}
 
 	if(grass_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
@@ -267,7 +268,10 @@ GLObjectRef BiomeManager::makeElmTreeOb(MeshManager& mesh_manager, glare::TaskMa
 		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh_out);
 
 	for(size_t i=0; i<tree_opengl_ob->materials.size(); ++i)
+	{
 		tree_opengl_ob->materials[i].imposterable = true; // Mark mats as imposterable so they can smoothly blend out
+		tree_opengl_ob->materials[i].use_wind_vert_shader = true;
+	}
 
 	tree_opengl_ob->materials[1].double_sided = true;
 	tree_opengl_ob->materials[1].albedo_texture = elm_leaf_tex;
