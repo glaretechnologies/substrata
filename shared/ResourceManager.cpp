@@ -167,6 +167,30 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 }
 
 
+std::string ResourceManager::copyLocalFileToResourceDir(const std::string& local_path) // Threadsafe
+{
+	try
+	{
+		const uint64 hash = FileChecksum::fileChecksum(local_path);
+		const std::string URL = ResourceManager::URLForPathAndHash(local_path, hash);
+
+		FileUtils::copyFile(local_path, this->pathForURL(URL));
+
+		Lock lock(mutex);
+		ResourceRef res = getOrCreateResourceForURL(URL);
+		res->setState(Resource::State_Present);
+
+		this->changed = 1;
+
+		return URL;
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		throw glare::Exception(e.what());
+	}
+}
+
+
 void ResourceManager::setResourceAsLocallyPresentForURL(const std::string& URL) // Threadsafe
 {
 	try
