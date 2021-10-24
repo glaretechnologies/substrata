@@ -172,8 +172,6 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
 		{
 			const Parcel* parcel = it->second.ptr();
-			if(parcel->id.value() == 20)
-				int a = 0;
 			if(parcel->isAxisAlignedBox())
 			{
 				rect_bounds.push_back(Rect2d(Vec2d(parcel->aabb_min.x, parcel->aabb_min.y), Vec2d(parcel->aabb_max.x, parcel->aabb_max.y)));
