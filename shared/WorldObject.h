@@ -114,10 +114,10 @@ public:
 
 	enum ObjectType
 	{
-		ObjectType_Generic,
-		ObjectType_Hypercard,
-		ObjectType_VoxelGroup,
-		ObjectType_Spotlight
+		ObjectType_Generic = 0,
+		ObjectType_Hypercard = 1,
+		ObjectType_VoxelGroup = 2,
+		ObjectType_Spotlight = 3
 	};
 
 	static std::string objectTypeString(ObjectType t);

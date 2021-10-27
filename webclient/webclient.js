@@ -11,9 +11,14 @@ var protocol_state = 0;
 
 const CyberspaceHello = 1357924680;
 const ClientProtocolOK = 10000;
+const QueryObjects = 3020; // Client wants to query objects in certain grid cells
+const ObjectInitialSend = 3021;
 const ParcelCreated = 3100;
 const TimeSyncMessage = 9000;
 
+const WorldObject_ObjectType_VoxelGroup = 2;
+
+let WORLD_MATERIAL_SERIALISATION_VERSION = 6
 
 // from https://gist.github.com/joni/3760795
 function toUTF8Array(str) {
@@ -90,12 +95,6 @@ function writeStringToWebSocket(ws, str)
 ws.onopen = function () {
 	console.log("onopen()");
 
-	//const obj = { hello: 'world' };
-	//const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
-
-	//ws.send(blob);
-
-	
 	ws.send(new Uint32Array([CyberspaceHello]));
 
 	var CyberspaceProtocolVersion = 30;
@@ -104,10 +103,9 @@ ws.onopen = function () {
 	var ConnectionTypeUpdates = 500;
 	ws.send(new Uint32Array([ConnectionTypeUpdates]));
 
-    writeStringToWebSocket(ws, "");
+    writeStringToWebSocket(ws, ""); // World to connect to
 
-	//ws.send("Ping");
-	//return false;
+    sendQueryObjectsMessage();
 };
 
 
@@ -121,10 +119,22 @@ class BufferIn {
     endOfStream() {
         return this.read_index >= this.array_buffer.byteLength;
     }
+
+    readData(len) {
+        var res = this.array_buffer.slice(this.read_index, this.read_index + len);
+        this.read_index += len;
+        return res;
+    }
+}
+
+function readInt32(buffer_in) {
+    var x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    buffer_in.read_index += 4;
+    return x;
 }
 
 function readUInt32(buffer_in) {
-    var x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    var x = buffer_in.data_view.getUint32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 4;
     return x;
 }
@@ -132,6 +142,12 @@ function readUInt32(buffer_in) {
 function readUInt64(buffer_in) {
     var x = buffer_in.data_view.getBigUint64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 8;
+    return x;
+}
+
+function readFloat(buffer_in) {
+    var x = buffer_in.data_view.getFloat32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    buffer_in.read_index += 4;
     return x;
 }
 
@@ -154,12 +170,72 @@ class Vec2d {
     }
 }
 
+class Vec3f {
+    constructor(x_, y_, z_) {
+        this.x = x_;
+        this.y = y_;
+        this.z = z_;
+    }
+}
+
+class Matrix2f {
+    constructor(x_, y_, z_, w_) {
+        this.x = x_;
+        this.y = y_;
+        this.z = z_;
+        this.w = w_;
+    }
+}
+class Colour3f {
+    constructor(x_, y_, z_) {
+        this.r = x_;
+        this.g = y_;
+        this.b = z_;
+    }
+}
+
+class Vec3d {
+    constructor(x_, y_, z_) {
+        this.x = x_;
+        this.y = y_;
+        this.z = z_;
+    }
+}
+
 function readVec2dFromStream(buffer_in) {
     var x = readDouble(buffer_in);
     var y = readDouble(buffer_in);
     return new Vec2d(x, y);
 }
 
+function readVec3fFromStream(buffer_in) {
+    var x = readFloat(buffer_in);
+    var y = readFloat(buffer_in);
+    var z = readFloat(buffer_in);
+    return new Vec3f(x, y, z);
+}
+
+function readVec3dFromStream(buffer_in) {
+    var x = readDouble(buffer_in);
+    var y = readDouble(buffer_in);
+    var z = readDouble(buffer_in);
+    return new Vec3d(x, y, z);
+}
+
+function readColour3fFromStream(buffer_in) {
+    var x = readFloat(buffer_in);
+    var y = readFloat(buffer_in);
+    var z = readFloat(buffer_in);
+    return new Colour3f(x, y, z);
+}
+
+function readMatrix2fFromStream(buffer_in) {
+    var x = readFloat(buffer_in);
+    var y = readFloat(buffer_in);
+    var z = readFloat(buffer_in);
+    var w = readFloat(buffer_in);
+    return new Matrix2f(x, y, z, w);
+}
 
 function readStringFromStream(buffer_in) {
     var len = readUInt32(buffer_in); // Read length in bytes
@@ -192,6 +268,9 @@ function readTimeStampFromStream(buffer_in) {
 
     return readUInt64(buffer_in);
 }
+
+
+
 
 class Parcel {
 
@@ -298,6 +377,110 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
     return parcel;
 }
 
+
+class WorldObject {
+
+}
+
+class WorldMaterial {
+
+}
+
+class ScalarVal {
+    constructor(val_, texture_url_) {
+        this.val = val_;
+        this.texture_url = texture_url_;
+    }
+}
+
+function readScalarValFromStream(buffer_in) {
+    let val = readFloat(buffer_in);
+    let texture_url = readStringFromStream(buffer_in);
+    return new ScalarVal(val, texture_url);
+}
+
+function readWorldMaterialFromStream(buffer_in) {
+    let mat = new WorldMaterial();
+
+    let version = readUInt32(buffer_in);
+    if (version > WORLD_MATERIAL_SERIALISATION_VERSION)
+        throw "Unsupported version " + toString(v) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".";
+
+    mat.colour_rgb = readColour3fFromStream(buffer_in);
+    mat.colour_texture_url = readStringFromStream(buffer_in);
+
+    mat.roughness = readScalarValFromStream(buffer_in);
+    mat.metallic_fraction = readScalarValFromStream(buffer_in);
+    mat.opacity = readScalarValFromStream(buffer_in);
+
+    mat.tex_matrix = readMatrix2fFromStream(buffer_in);
+
+    mat.emission_lum_flux = readFloat(buffer_in);
+
+    mat.flags = readUInt32(buffer_in);
+
+    return mat;
+}
+
+
+function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
+    let ob = new WorldObject();
+
+    console.log("ob: ", ob)
+
+    ob.object_type = readUInt32(buffer_in);
+    ob.model_url = readStringFromStream(buffer_in);
+    // Read num_mats
+    {
+        let num = readUInt32(buffer_in);
+        if (num > 10000)
+            throw "Too many mats: " + toString(num);
+        ob.mats = []
+        for (let i = 0; i < num; ++i)
+            ob.mats.push(readWorldMaterialFromStream(buffer_in));
+    }
+
+    ob.lightmap_url = readStringFromStream(buffer_in);
+
+    ob.script = readStringFromStream(buffer_in);
+    ob.content = readStringFromStream(buffer_in);
+    ob.target_url = readStringFromStream(buffer_in);
+
+    ob.audio_source_url = readStringFromStream(buffer_in);
+    ob.audio_volume = readFloat(buffer_in);
+
+    ob.pos = readVec3dFromStream(buffer_in);
+    ob.axis = readVec3fFromStream(buffer_in);
+    ob.angle = readFloat(buffer_in);
+
+    ob.scale = readVec3fFromStream(buffer_in);
+
+    ob.created_time = readTimeStampFromStream(buffer_in);
+    ob.creator_id = readUserIDFromStream(buffer_in);
+
+    ob.flags = readUInt32(buffer_in);
+
+    ob.creator_name = readStringFromStream(buffer_in);
+
+    ob.aabb_ws_min = readVec3fFromStream(buffer_in);
+    ob.aabb_ws_max = readVec3fFromStream(buffer_in);
+
+    ob.max_model_lod_level = readInt32(buffer_in);
+
+    if (ob.object_type == WorldObject_ObjectType_VoxelGroup)
+    {
+        // Read compressed voxel data
+        let voxel_data_size = readUInt32(buffer_in);
+        if (voxel_data_size > 1000000)
+            throw "Invalid voxel_data_size (too large): " + toString(voxel_data_size);
+
+        // Read voxel data
+        ob.compressed_voxels = buffer_in.readData(voxel_data_size);
+    }
+
+    return ob;
+}
+
 //function readUInt32(data, read_index) {
 //    if (data instanceof ArrayBuffer) {
 //        const view = new DataView(data);
@@ -308,7 +491,92 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
 //}
 
 
+class BufferOut {
+    //constructor() {
+    //    this.data = [];//new Uint8Array([]);
+    //}
+
+    //writeUInt32(x) {
+    //    buf = new ArrayBuffer(4)
+    //    const dataView = new DataView(buf);
+    //    dataView.setUint32(/*byte offset=*/0, x, /*little endian=*/false);
+    //    this.data.push(dataView.getUint8(0));
+    //    this.data.push(dataView.getUint8(1));
+    //    this.data.push(dataView.getUint8(2));
+    //    this.data.push(dataView.getUint8(3));
+    //}
+
+    constructor() {
+        this.data = new ArrayBuffer(/*length=*/1000);//  new Uint8Array(/*length=*/32);
+        this.data_view = new DataView(this.data);
+        this.size = 0;
+    }
+
+    checkForResize(newsize) {
+        if (newsize > this.data.byteLength) {
+            // Resize data
+            //let newdata = new Uint8Array(/*length=*/this.data.byteLength * 2); // alloc new array
+            let newdata = new ArrayBuffer(/*length=*/this.data.byteLength * 2); // alloc new array
+
+            // copy old data to new data
+            for (let i = 0; i < this.data.byteLength; ++i)
+                newdata[i] = this.data[i];
+
+            this.data = newdata;
+            this.data_view = new DataView(this.data);
+        }
+    }
+
+    writeInt32(x) {
+        this.checkForResize(/*newsize=*/this.size + 4);
+
+        this.data_view.setInt32(/*byte offset=*/this.size, x, /*little endian=*/true);
+        this.size += 4;
+    }
+
+    writeUInt32(x) {
+        this.checkForResize(/*newsize=*/this.size + 4);
+        
+        this.data_view.setUint32(/*byte offset=*/this.size, x, /*little endian=*/true);
+        this.size += 4;
+    }
+
+    writeToWebSocket(web_socket) {
+
+        // Trim buffer down to actual used part
+        //let newdata = new Uint8Array(/*length=*/this.size); // alloc new array
+        //for (let i = 0; i < this.size; ++i)
+        //    newdata[i] = this.data[i];
+
+
+        console.log("writeToWebSocket(): this.size:" + this.size)
+
+        let trimmed = this.data.slice(0, this.size);
+
+       // web_socket.send(newdata);
+        web_socket.send(trimmed);
+    }
+}
+
+
+function sendQueryObjectsMessage() {
+
+    let buffer_out = new BufferOut();
+    buffer_out.writeUInt32(QueryObjects);
+    let r = 4;
+    buffer_out.writeUInt32((2 * r + 1) * (2 * r + 1)); // Num cells to query
+   
+    for (let x = -r; x <= r; ++x)
+    for (let y = -r; y <= r; ++y) {
+        buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(0);
+    }
+
+    buffer_out.writeToWebSocket(ws);
+}
+
+
 var parcels = {};
+var world_objects = {};
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
@@ -362,10 +630,22 @@ ws.onmessage = function (event) {
 
                 parcels[parcel_id] = parcel;
 
-                console.log("Read ParcelCreated msg, parcel_id: " + parcel_id);
+                //console.log("Read ParcelCreated msg, parcel_id: " + parcel_id);
 
-                addParcelGraphics(parcel)
+                //addParcelGraphics(parcel)
             }
+            else if (msg_type == ObjectInitialSend) {
+                console.log("received ObjectInitialSend...");
+
+                let object_uid = readUIDFromStream(buffer);
+
+                let world_ob = readWorldObjectFromNetworkStreamGivenUID(buffer);
+
+                addWorldObjectGraphics(world_ob);
+
+                world_objects[object_uid] = world_ob;
+                console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
+            }  
             else
                 throw "Unhandled message type " + msg_type;
         }
@@ -565,6 +845,20 @@ function addParcelGraphics(parcel) {
     customMesh.receiveShadows = true;
 }
 
+
+function addWorldObjectGraphics(world_ob) {
+
+    let xspan = world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x;
+    let yspan = world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y;
+    let zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
+
+    const box = BABYLON.MeshBuilder.CreateBox("box", { height: zspan, width: xspan, depth: yspan }, scene);
+
+    box.position = toYUp(new BABYLON.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
+
+    shadowGenerator.addShadowCaster(box);
+    box.receiveShadows = true;
+}
 
 
 
