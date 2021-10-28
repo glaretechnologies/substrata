@@ -37,7 +37,7 @@ static const bool VERBOSE = false;
 static const int MAX_STRING_LEN = 10000;
 
 
-WorkerThread::WorkerThread(int thread_id_, const Reference<SocketInterface>& socket_, Server* server_)
+WorkerThread::WorkerThread(const Reference<SocketInterface>& socket_, Server* server_)
 :	socket(socket_),
 	server(server_)
 {
@@ -494,8 +494,7 @@ void WorkerThread::handleEthBotConnection()
 				}
 			} // End lock scope
 
-			const uint64 MIN_NONCE = 2; // To reflect any existing transactions on account
-			const uint64 next_nonce = myMax(MIN_NONCE, largest_nonce_used) + 1;
+			const uint64 next_nonce = myMax((uint64)server->world_state->min_next_nonce, largest_nonce_used + 1); // min_next_nonce is to reflect any existing transactions on account
 
 			if(trans.nonNull()) // If there is a transaction to submit:
 			{
@@ -1289,6 +1288,7 @@ void WorkerThread::doRun()
 					} // End lock scope
 
 					socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+//					socket->flush();
 
 					//conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
 

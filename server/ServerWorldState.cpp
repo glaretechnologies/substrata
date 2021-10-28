@@ -33,6 +33,8 @@ ServerAllWorldsState::ServerAllWorldsState()
 
 	BTC_per_EUR = 0;
 	ETH_per_EUR = 0;
+
+	min_next_nonce = 352; // TODO: start this at zero, make UI for setting it.
 }
 
 
@@ -55,11 +57,13 @@ static const uint32 SCREENSHOT_CHUNK = 107;
 static const uint32 SUB_ETH_TRANSACTIONS_CHUNK = 108;
 static const uint32 LAST_PARCEL_SALE_UPDATE_CHUNK = 109;
 static const uint32 MAP_TILE_INFO_CHUNK = 110;
+static const uint32 ETH_INFO_CHUNK = 111;
 static const uint32 EOS_CHUNK = 1000;
 
 
 static const uint32 PARCEL_SALE_UPDATE_VERSION = 1;
 static const uint32 MAP_TILE_INFO_VERSION = 1;
+static const uint32 ETH_INFO_CHUNK_VERSION = 1;
 
 
 void ServerAllWorldsState::readFromDisk(const std::string& path)
@@ -200,6 +204,14 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			sub_eth_transactions[trans->id] = trans;
 			num_sub_eth_transactions++;
 		}
+		else if(chunk == ETH_INFO_CHUNK)
+		{
+			const uint32 eth_info_v = stream.readInt32();
+			if(eth_info_v != ETH_INFO_CHUNK_VERSION)
+				throw glare::Exception("invalid eth_info version: " + toString(eth_info_v));
+
+			this->min_next_nonce = stream.readInt32();
+		}
 		else if(chunk == LAST_PARCEL_SALE_UPDATE_CHUNK)
 		{
 			const uint32 update_v = stream.readInt32();
@@ -318,7 +330,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	}
 
 
-
+	conPrint("min_next_nonce: " + toString(min_next_nonce));
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
@@ -537,6 +549,13 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 				stream.writeInt32(this->last_parcel_sale_update_hour);
 				stream.writeInt32(this->last_parcel_sale_update_day);
 				stream.writeInt32(this->last_parcel_sale_update_year);
+			}
+
+			// Write ETH_INFO_CHUNK
+			{
+				stream.writeUInt32(ETH_INFO_CHUNK);
+				stream.writeUInt32(ETH_INFO_CHUNK_VERSION);
+				stream.writeInt32(this->min_next_nonce);
 			}
 
 			stream.writeUInt32(EOS_CHUNK); // Write end-of-stream chunk
