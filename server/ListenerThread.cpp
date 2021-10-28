@@ -73,7 +73,6 @@ void ListenerThread::doRun()
 				throw glare::Exception("tls_configure failed: " + getTLSErrorString(tls_context));
 		}
 
-		int next_thread_id = 0;
 		while(1)
 		{
 			MySocketRef plain_worker_sock = sock->acceptConnection(); // Blocks
@@ -95,13 +94,10 @@ void ListenerThread::doRun()
 			
 			// Handle the connection in a worker thread.
 			Reference<WorkerThread> worker_thread = new WorkerThread(
-				next_thread_id,
 				use_socket,
 				server
 			);
 
-			next_thread_id++;
-			
 			try
 			{
 				//thread_manager.addThread(worker_thread);
