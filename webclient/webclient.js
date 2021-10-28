@@ -426,7 +426,7 @@ function readWorldMaterialFromStream(buffer_in) {
 function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
     let ob = new WorldObject();
 
-    console.log("ob: ", ob)
+    //console.log("ob: ", ob)
 
     ob.object_type = readUInt32(buffer_in);
     ob.model_url = readStringFromStream(buffer_in);
@@ -507,23 +507,30 @@ class BufferOut {
     //}
 
     constructor() {
-        this.data = new ArrayBuffer(/*length=*/1000);//  new Uint8Array(/*length=*/32);
+        this.data = new ArrayBuffer(/*length=*/256);//  new Uint8Array(/*length=*/32);
         this.data_view = new DataView(this.data);
         this.size = 0;
     }
 
     checkForResize(newsize) {
         if (newsize > this.data.byteLength) {
+            //console.log("BufferOut: resizing data to size " + this.data.byteLength * 2 + " B")
             // Resize data
             //let newdata = new Uint8Array(/*length=*/this.data.byteLength * 2); // alloc new array
+            let olddata = this.data;
             let newdata = new ArrayBuffer(/*length=*/this.data.byteLength * 2); // alloc new array
 
             // copy old data to new data
-            for (let i = 0; i < this.data.byteLength; ++i)
-                newdata[i] = this.data[i];
+            //for (let i = 0; i < this.data.byteLength; ++i)
+           //     newdata[i] = this.data[i];
 
             this.data = newdata;
             this.data_view = new DataView(this.data);
+
+            let old_data_view = new DataView(olddata);
+
+            for (let i = 0; i < olddata.byteLength; ++i)
+                this.data_view.setUint8(i, old_data_view.getInt8(i));
         }
     }
 
@@ -561,17 +568,20 @@ class BufferOut {
 
 function sendQueryObjectsMessage() {
 
-    let buffer_out = new BufferOut();
-    buffer_out.writeUInt32(QueryObjects);
-    let r = 4;
-    buffer_out.writeUInt32((2 * r + 1) * (2 * r + 1)); // Num cells to query
-   
-    for (let x = -r; x <= r; ++x)
-    for (let y = -r; y <= r; ++y) {
-        buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(0);
-    }
+    {
+        let buffer_out = new BufferOut();
+        buffer_out.writeUInt32(QueryObjects);
+        let r = 4;
+        buffer_out.writeUInt32(2 * (2 * r + 1) * (2 * r + 1)); // Num cells to query
 
-    buffer_out.writeToWebSocket(ws);
+        for (let x = -r; x <= r; ++x)
+            for (let y = -r; y <= r; ++y) {
+                buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(0);
+                buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(-1);
+            }
+
+        buffer_out.writeToWebSocket(ws);
+    }
 }
 
 
@@ -616,7 +626,7 @@ ws.onmessage = function (event) {
         }
         else if (protocol_state == STATE_READ_CLIENT_AVATAR_UID) {
             var msg_type = readUInt32(buffer);
-            console.log("Read msg_type: " + msg_type);
+            //console.log("Read msg_type: " + msg_type);
 
             if (msg_type == TimeSyncMessage) {
                 var global_time = readDouble(buffer);
@@ -635,7 +645,7 @@ ws.onmessage = function (event) {
                 //addParcelGraphics(parcel)
             }
             else if (msg_type == ObjectInitialSend) {
-                console.log("received ObjectInitialSend...");
+               // console.log("received ObjectInitialSend...");
 
                 let object_uid = readUIDFromStream(buffer);
 
@@ -644,7 +654,7 @@ ws.onmessage = function (event) {
                 addWorldObjectGraphics(world_ob);
 
                 world_objects[object_uid] = world_ob;
-                console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
+                //console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
             }  
             else
                 throw "Unhandled message type " + msg_type;
@@ -678,49 +688,50 @@ ws.onerror = function (event) {
 //Sending a simple string message
 //ws.send("HelloHelloIsThereAnyoneThere");
 
-const canvas = document.getElementById("renderCanvas"); // Get the canvas element
-const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
+//const canvas = document.getElementById("renderCanvas"); // Get the canvas element
+//const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
 
 
 var shadowGenerator;
 
 // Add your code here matching the playground format
-const createScene = function () {
+//const createScene = function () {
 
-    const scene = new BABYLON.Scene(engine);
+//    const scene = new BABYLON.Scene(engine);
 
-    //BABYLON.SceneLoader.ImportMeshAsync("", "https://assets.babylonjs.com/meshes/", "box.babylon");
-    //BABYLON.SceneLoader.ImportMeshAsync("", "D: \\models\\readyplayerme_avatar_animation_18.glb", "box.babylon");
+//    //BABYLON.SceneLoader.ImportMeshAsync("", "https://assets.babylonjs.com/meshes/", "box.babylon");
+//    //BABYLON.SceneLoader.ImportMeshAsync("", "D: \\models\\readyplayerme_avatar_animation_18.glb", "box.babylon");
 
-    const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 15, new BABYLON.Vector3(0, 0, 0));
-    camera.attachControl(canvas, true);
-   // const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0));
-    var light = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -1, -1), scene);
-    light.intensity  = 0.6;
+//    const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 15, new BABYLON.Vector3(0, 0, 0));
+//    camera.attachControl(canvas, true);
+//   // const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0));
+//    var light = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -1, -1), scene);
+//    light.intensity  = 0.6;
 
 
-    var ambient_light = new BABYLON.HemisphericLight("HemiLight", new BABYLON.Vector3(0, 1, 0), scene);
-    ambient_light.intensity = 0.5;
-    ambient_light.groundColor = new BABYLON.Color3(0.3, 0.4, 0.5);
-    shadowGenerator = new BABYLON.ShadowGenerator(2048, light);
-    shadowGenerator.useBlurExponentialShadowMap = true;
+//    var ambient_light = new BABYLON.HemisphericLight("HemiLight", new BABYLON.Vector3(0, 1, 0), scene);
+//    ambient_light.intensity = 0.5;
+//    ambient_light.groundColor = new BABYLON.Color3(0.3, 0.4, 0.5);
+//    shadowGenerator = new BABYLON.ShadowGenerator(2048, light);
+//    shadowGenerator.useBlurExponentialShadowMap = true;
 
-    const plane = BABYLON.MeshBuilder.CreatePlane("plane", { width: 2000, height: 2000}, scene);
-    plane.rotation.x = Math.PI / 2;
-    plane.receiveShadows = true;
+//    const plane = BABYLON.MeshBuilder.CreatePlane("plane", { width: 2000, height: 2000}, scene);
+//    plane.rotation.x = Math.PI / 2;
+//    plane.receiveShadows = true;
 
     
 
-    return scene;
-};
+//    return scene;
+//};
 
 // Add your code here matching the playground format
 
-const scene = createScene(); // Call the createScene function
+//const scene = createScene(); // Call the createScene function
 
 
 function toYUp(v) {
-    return new BABYLON.Vector3(-v.x, v.z, -v.y);
+    return new THREE.Vector3(v.x, v.z, -v.y);
+   // return v;
 }
 
 
@@ -819,7 +830,7 @@ function addParcelGraphics(parcel) {
     }
 
 
-    var customMesh = new BABYLON.Mesh("custom", scene);
+   /* var customMesh = new BABYLON.Mesh("custom", scene);
 
     //var uvs = [0, 1, 0, 0, 1, 0];
 
@@ -842,7 +853,7 @@ function addParcelGraphics(parcel) {
 
 
     shadowGenerator.addShadowCaster(customMesh);
-    customMesh.receiveShadows = true;
+    customMesh.receiveShadows = true;*/
 }
 
 
@@ -852,22 +863,79 @@ function addWorldObjectGraphics(world_ob) {
     let yspan = world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y;
     let zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
 
-    const box = BABYLON.MeshBuilder.CreateBox("box", { height: zspan, width: xspan, depth: yspan }, scene);
+    /*const box = BABYLON.MeshBuilder.CreateBox("box", { height: zspan, width: xspan, depth: yspan }, scene);
 
     box.position = toYUp(new BABYLON.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
 
     shadowGenerator.addShadowCaster(box);
-    box.receiveShadows = true;
+    box.receiveShadows = true;*/
+
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+    const cube = new THREE.Mesh(geometry, material);
+    cube.position.copy(toYUp(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2)));
+    cube.scale.copy(toYUp(new THREE.Vector3(xspan, yspan, zspan)));
+    //cube.updateMatrix();
+    scene.add(cube);
+    //cube.updateMatrix();
 }
 
 
 
 // Register a render loop to repeatedly render the scene
-engine.runRenderLoop(function () {
-	scene.render();
-});
+//engine.runRenderLoop(function () {
+//	scene.render();
+//});
 
-// Watch for browser/canvas resize events
-window.addEventListener("resize", function () {
-	engine.resize();
-});
+//// Watch for browser/canvas resize events
+//window.addEventListener("resize", function () {
+//	engine.resize();
+//});
+
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+//const geometry = new THREE.BoxGeometry();
+//const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+//const cube = new THREE.Mesh(geometry, material);
+//scene.add(cube);
+
+camera.position.set(100, 100, 200);
+camera.lookAt(0, 0, 0);
+
+
+const hemiLight = new THREE.HemisphereLight(0xaaffff, 0x444444);
+hemiLight.position.set(0, 20, 0);
+scene.add(hemiLight);
+
+const dirLight = new THREE.DirectionalLight(0xffaaff, 0.5);
+dirLight.position.set(3, 10, 10);
+//dirLight.castShadow = true;
+//dirLight.shadow.camera.top = 2;
+//dirLight.shadow.camera.bottom = - 2;
+//dirLight.shadow.camera.left = - 2;
+//dirLight.shadow.camera.right = 2;
+//dirLight.shadow.camera.near = 0.1;
+//dirLight.shadow.camera.far = 40;
+scene.add(dirLight);
+
+//const controls = new OrbitControls(camera, renderer.domElement);
+//controls.enablePan = false;
+//controls.enableZoom = false;
+//controls.target.set(0, 1, 0);
+//controls.update();
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    //cube.rotation.x += 0.01;
+   // cube.rotation.y += 0.01;
+
+    renderer.render(scene, camera);
+}
+animate();
