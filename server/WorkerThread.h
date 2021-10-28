@@ -29,7 +29,7 @@ class WorkerThread : public MessageableThread
 {
 public:
 	// May throw glare::Exception from constructor if EventFD init fails.
-	WorkerThread(int thread_id, const Reference<SocketInterface>& socket, Server* server);
+	WorkerThread(const Reference<SocketInterface>& socket, Server* server);
 	virtual ~WorkerThread();
 
 	virtual void doRun();
