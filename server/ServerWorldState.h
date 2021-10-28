@@ -96,6 +96,8 @@ public:
 
 	std::map<uint64, SubEthTransactionRef> sub_eth_transactions; // SubEthTransaction id to SubEthTransaction
 
+	int min_next_nonce;
+
 	// For the map:
 	std::map<Vec3<int>, TileInfo> map_tile_info;
 
