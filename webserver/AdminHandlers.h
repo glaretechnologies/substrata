@@ -63,4 +63,6 @@ namespace AdminHandlers
 	void handleTerminateParcelAuction(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
 	void handleRegenMapTilesPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+
+	void handleSetMinNextNoncePost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 } 

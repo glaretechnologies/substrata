@@ -267,6 +267,13 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 	{ // Lock scope
 		Lock lock(world_state.mutex);
 
+
+		page_out += "<form action=\"/admin_set_min_next_nonce_post\" method=\"post\">";
+		page_out += "<input type=\"number\" name=\"min_next_nonce\" value=\"" + toString(world_state.min_next_nonce) + "\">";
+		page_out += "<input type=\"submit\" value=\"Set min next nonce\" onclick=\"return confirm('Are you sure you want set the min next nonce?');\" >";
+		page_out += "</form>";
+
+
 		page_out += "<h2>Substrata Ethereum Transactions</h2>\n";
 
 		for(auto it = world_state.sub_eth_transactions.begin(); it != world_state.sub_eth_transactions.end(); ++it)
@@ -1030,6 +1037,36 @@ void handleRegenMapTilesPost(ServerAllWorldsState& world_state, const web::Reque
 		} // End lock scope
 
 		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_map");
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleSetMinNextNoncePost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			world_state.min_next_nonce = request.getPostIntField("min_next_nonce");
+			
+			world_state.markAsChanged();
+
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transactions");
 	}
 	catch(glare::Exception& e)
 	{

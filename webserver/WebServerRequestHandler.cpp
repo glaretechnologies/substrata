@@ -15,13 +15,15 @@ Copyright Glare Technologies Limited 2021 -
 #include "AccountHandlers.h"
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
+#include "ResourceHandlers.h"
 #include "PayPalHandlers.h"
 #include "CoinbaseHandlers.h"
 #include "AuctionHandlers.h"
 #include "ScreenshotHandlers.h"
 #include "OrderHandlers.h"
 #include "ParcelHandlers.h"
-#include "ResourceHandlers.h"
+#include "../server/WorkerThread.h"
+#include "../server/Server.h"
 #include <StringUtils.h>
 #include <Parser.h>
 #include <MemMappedFile.h>
@@ -29,6 +31,9 @@ Copyright Glare Technologies Limited 2021 -
 #include <FileUtils.h>
 #include <Exception.h>
 #include <Lock.h>
+#include <BufferInStream.h>
+#include <BufferOutStream.h>
+#include <WebSocket.h>
 
 
 WebServerRequestHandler::WebServerRequestHandler()
@@ -171,6 +176,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/admin_regen_map_tiles_post")
 		{
 			AdminHandlers::handleRegenMapTilesPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_set_min_next_nonce_post")
+		{
+			AdminHandlers::handleSetMinNextNoncePost(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
@@ -438,6 +447,73 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ResourceHandlers::handleResourceRequest(*this->world_state, request, reply_info);
 		}
+#if 0
+		else if(request.path == "/webclient") // TEMP HACK
+		{
+			try
+			{
+				std::string contents;
+				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\client.html", contents);
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents);
+			}
+			catch(FileUtils::FileUtilsExcep& e)
+			{
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
+			}
+		}
+		else if(request.path == "/three.js") // TEMP HACK
+		{
+			try
+			{
+				std::string contents;
+				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\three.js", contents);
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
+			}
+			catch(FileUtils::FileUtilsExcep& e)
+			{
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
+			}
+		}
+		else if(request.path == "/webclient.js")// TEMP HACK
+		{
+			try
+			{
+				std::string contents;
+				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\webclient.js", contents);
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
+			}
+			catch(FileUtils::FileUtilsExcep& e)
+			{
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
+			}
+		}
+		else if(request.path == "/examples/jsm/loaders/GLTFLoader.js")// TEMP HACK
+		{
+			try
+			{
+				std::string contents;
+				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\examples/jsm/loaders/GLTFLoader.js", contents);
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
+			}
+			catch(FileUtils::FileUtilsExcep& e)
+			{
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
+			}
+		}
+		else if(request.path == "/build/three.module.js")// TEMP HACK
+		{
+			try
+			{
+				std::string contents;
+				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\build/three.module.js", contents);
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
+			}
+			catch(FileUtils::FileUtilsExcep& e)
+			{
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
+			}
+		}
+#endif
 		else
 		{
 			std::string page = "Unknown page";
@@ -450,6 +526,55 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 void WebServerRequestHandler::handleWebsocketTextMessage(const std::string& msg, Reference<SocketInterface>& socket, const Reference<WorkerThread>& worker_thread)
 {}
 
+#if 0
+bool WebServerRequestHandler::handleWebSocketConnection(Reference<SocketInterface>& socket)
+{
+	// Wrap socket in a websocket
+	WebSocketRef websocket = new WebSocket(socket);
+
+	// Handle the connection in a worker thread.
+	Reference<WorkerThread> worker_thread = new WorkerThread(websocket, server);
+
+	try
+	{
+		server->worker_thread_manager.addThread(worker_thread);
+	}
+	catch(MyThreadExcep& e)
+	{
+		// Will get this when thread creation fails.
+		conPrint("ListenerThread failed to launch worker thread: " + e.what());
+	}
+
+	return true; // We do want to handle this connection completely.
+}
+
+
+void WebServerRequestHandler::handleWebsocketTextMessage(const std::string& msg, /*Reference<SocketInterface>& socket*/web::ReplyInfo& reply_info, const Reference<WorkerThread>& worker_thread)
+{
+	//socket->writeData(msg.data(), msg.size());
+	//web::ReplyInfo reply_info;
+	//reply_info.socket = socket.ptr();
+	web::ResponseUtils::writeWebsocketTextMessage(reply_info, "YO");
+}
+
+
+void WebServerRequestHandler::handleWebsocketBinaryMessage(const uint8* data, size_t len, /*Reference<SocketInterface>& socket*/web::ReplyInfo& reply_info, const Reference<WorkerThread>& worker_thread)
+{
+	/*BufferInStream buffer_in_stream;
+	buffer_in_stream.buf.resize(len);
+	std::memcpy(buffer_in_stream.buf.data(), data, len);
+
+	BufferOutStream buffer_out_stream;
+	buffer_out_stream;
+	
+	// Process request, writing into buffer_out_stream
+	bool logged_in_user_is_lightmapper_bot = false;
+	WorkerThread::handleMessage(server, connected_world_name, world_state, cur_world_state, client_user, client_avatar_uid, logged_in_user_is_lightmapper_bot, &buffer_in_stream, buffer_out_stream);
+
+	// Write contents of buffer_out_stream back over websocket.
+	web::ResponseUtils::writeWebsocketBinaryMessage(reply_info, buffer_out_stream.buf.data(), buffer_out_stream.buf.size());*/
+}
+#endif
 
 void WebServerRequestHandler::websocketConnectionClosed(Reference<SocketInterface>& socket, const Reference<WorkerThread>& worker_thread)
 {}
