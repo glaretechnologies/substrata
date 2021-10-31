@@ -5,7 +5,7 @@ Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #pragma once
 
-
+#include "../audio/AudioEngine.h"
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <string>
@@ -18,7 +18,7 @@ class AudioLoadedThreadMessage : public ThreadMessage
 public:
 	std::string audio_source_url;
 
-	std::vector<float> data;
+	glare::AudioBufferRef audio_buffer;
 };
 
 

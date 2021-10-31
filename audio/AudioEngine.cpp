@@ -189,31 +189,63 @@ public:
 
 						if(source->type == AudioSource::SourceType_Looping)
 						{
-							if(source->cur_read_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
+							if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
 							{
-								const float* bufptr = &source->buffer[0]/*source->buffer.data()*/ + source->cur_read_i; // NOTE: bit of a hack here, assuming layout of circular buffer (e.g. no wrapping)
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								if(source->cur_read_i + frames_per_buffer <= source->shared_buffer->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
+								{
+									const float* bufptr = &source->shared_buffer->buffer[source->cur_read_i];
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 
-								source->cur_read_i += frames_per_buffer;
-								if(source->cur_read_i == source->buffer.size()) // If reach end of buf:
-									source->cur_read_i = 0; // wrap
+									source->cur_read_i += frames_per_buffer;
+									if(source->cur_read_i == source->shared_buffer->buffer.size()) // If reach end of buf:
+										source->cur_read_i = 0; // wrap
+								}
+								else
+								{
+									// Copy data to a temporary contiguous buffer
+									size_t cur_i = source->cur_read_i;
+
+									for(size_t i=0; i<frames_per_buffer; ++i)
+									{
+										buf[i] = source->shared_buffer->buffer[cur_i++];
+										if(cur_i == source->shared_buffer->buffer.size()) // If reach end of buf:
+											cur_i = 0; // TODO: optimise
+									}
+
+									source->cur_read_i = cur_i;
+
+									const float* bufptr = buf;
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								}
 							}
 							else
 							{
-								// Copy data to a temporary contiguous buffer
-								size_t cur_i = source->cur_read_i;
-
-								for(size_t i=0; i<frames_per_buffer; ++i)
+								if(source->cur_read_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
 								{
-									buf[i] = source->buffer[cur_i++];
-									if(cur_i == source->buffer.size()) // If reach end of buf:
-										cur_i = 0; // TODO: optimise
+									const float* bufptr = &source->buffer[0]/*source->buffer.data()*/ + source->cur_read_i; // NOTE: bit of a hack here, assuming layout of circular buffer (e.g. no wrapping)
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+
+									source->cur_read_i += frames_per_buffer;
+									if(source->cur_read_i == source->buffer.size()) // If reach end of buf:
+										source->cur_read_i = 0; // wrap
 								}
+								else
+								{
+									// Copy data to a temporary contiguous buffer
+									size_t cur_i = source->cur_read_i;
 
-								source->cur_read_i = cur_i;
+									for(size_t i=0; i<frames_per_buffer; ++i)
+									{
+										buf[i] = source->buffer[cur_i++];
+										if(cur_i == source->buffer.size()) // If reach end of buf:
+											cur_i = 0; // TODO: optimise
+									}
 
-								const float* bufptr = buf;
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+									source->cur_read_i = cur_i;
+
+									const float* bufptr = buf;
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								}
 							}
 						}
 						if(source->type == AudioSource::SourceType_OneShot)
@@ -390,6 +422,33 @@ void AudioEngine::init()
 		sample_rate // sample rate, hz
 	);
 
+	/*vraudio::ReflectionProperties refl_props;
+
+	// (7.6, 51.8, 0),   (22.5, 69.2, 5.4)
+	refl_props.room_dimensions[0] = 22.5f - 7.6f;
+	refl_props.room_dimensions[1] = 69.2f - 51.8f;
+	refl_props.room_dimensions[2] = 5.4f;
+
+	
+	refl_props.room_position[0] = (7.6f + 22.5f)/2;
+	refl_props.room_position[1] = (51.8f + 69.2f)/2;
+	refl_props.room_position[2] = (5.4f)/2;
+
+	for(int i=0; i<6; ++i)
+		refl_props.coefficients[i] = 0.8f;
+	refl_props.coefficients[5] = 0.2f;
+	refl_props.coefficients[2] = 0.3f;
+	refl_props.gain = 0.7f;
+	resonance->SetReflectionProperties(refl_props);
+
+	vraudio::ReverbProperties reverb_props;
+	reverb_props.gain = 0.02f;
+	for(int i=0; i<9; ++i)
+		reverb_props.rt60_values[i] = 0.5f;
+	resonance->SetReverbProperties(reverb_props);
+
+	resonance->EnableRoomEffects(true);*/
+
 	callback_data.resonance = resonance;
 
 	Reference<ResonanceThread> t = new ResonanceThread();
@@ -465,6 +524,12 @@ void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 {
 	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
 	resonance->SetSourceVolume(source.resonance_handle, source.volume);
+}
+
+
+void AudioEngine::sourceNumOcclusionsUpdated(AudioSource& source)
+{
+	resonance->SetSoundObjectOcclusionIntensity(source.resonance_handle, source.num_occlusions);
 }
 
 
