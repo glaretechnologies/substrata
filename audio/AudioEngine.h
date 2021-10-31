@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/CircularBuffer.h>
 #include <utils/Mutex.h>
 #include <utils/ThreadManager.h>
+#include <utils/Vector.h>
 #include <vector>
 #include <set>
 #include <map>
@@ -29,6 +30,13 @@ namespace glare
 class AudioEngine;
 
 
+struct AudioBuffer : public ThreadSafeRefCounted
+{
+	js::Vector<float, 16> buffer;
+};
+typedef Reference<AudioBuffer> AudioBufferRef;
+
+
 class AudioSource : public ThreadSafeRefCounted
 {
 public:
@@ -41,12 +49,16 @@ public:
 		SourceType_Streaming
 	};
 
-	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), pos(0,0,0,1) {}
+	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), pos(0,0,0,1), num_occlusions(0) {}
 	
 	int resonance_handle; // Set in AudioEngine::addSource().
-	//std::vector<float> buffer;
+	
 	size_t cur_read_i;
+
+	// Audio data can either be in buffer or shared_buffer.
 	CircularBuffer<float> buffer; // Read from front, enqueue to back.
+
+	AudioBufferRef shared_buffer;
 
 	SourceType type;
 	bool remove_on_finish; // for SourceType_OneShot
@@ -54,14 +66,10 @@ public:
 	float volume; // 1 = default
 
 	Vec4f pos;
+
+	float num_occlusions;
 };
 typedef Reference<AudioSource> AudioSourceRef;
-
-
-struct AudioBuffer : public ThreadSafeRefCounted
-{
-	std::vector<float> buf;
-};
 
 
 struct AudioCallbackData
@@ -111,6 +119,8 @@ public:
 	void sourcePositionUpdated(AudioSource& source);
 
 	void sourceVolumeUpdated(AudioSource& source);
+
+	void sourceNumOcclusionsUpdated(AudioSource& source);
 
 	void setHeadTransform(const Vec4f& head_pos, const Quatf& head_rot);
 

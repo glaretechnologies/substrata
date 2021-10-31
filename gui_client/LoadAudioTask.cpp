@@ -40,17 +40,24 @@ void LoadAudioTask::run(size_t thread_index)
 		if(content.num_channels == 1)
 		{
 			const size_t num_mono_samples = content.data.size();
-			msg->data.resize(num_mono_samples);
+
+			glare::AudioBufferRef buffer = new glare::AudioBuffer();
+			msg->audio_buffer = buffer;
+			buffer->buffer.resize(num_mono_samples);
+
 			for(size_t i=0; i<num_mono_samples; ++i)
-				msg->data[i] = (float)content.data[i] * (1.f / 32768.f);
+				buffer->buffer[i] = (float)content.data[i] * (1.f / 32768.f);
 		}
 		else if(content.num_channels == 2)
 		{
 			const size_t num_mono_samples = content.data.size() / 2;
-			msg->data.resize(num_mono_samples);
+
+			glare::AudioBufferRef buffer = new glare::AudioBuffer();
+			msg->audio_buffer = buffer;
+			buffer->buffer.resize(num_mono_samples);
 
 			for(size_t i=0; i<num_mono_samples; ++i)
-				msg->data[i] = ((float)content.data[i*2 + 0] + (float)content.data[i*2 + 1]) * (0.5f / 32768.f); // Take average, scale to [-1, 1].
+				buffer->buffer[i] = ((float)content.data[i*2 + 0] + (float)content.data[i*2 + 1]) * (0.5f / 32768.f); // Take average, scale to [-1, 1].
 		}
 		else
 			throw glare::Exception("Unhandled num channels " + toString(content.num_channels));

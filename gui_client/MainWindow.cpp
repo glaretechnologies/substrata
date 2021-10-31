@@ -3028,21 +3028,22 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							if(ob->audio_source_url == loaded_msg->audio_source_url)
 							{
-								if(loaded_msg->data.size() > 0) // Avoid divide by zero.
+								if(loaded_msg->audio_buffer->buffer.size() > 0) // Avoid divide by zero.
 								{
+									// Timer timer;
 									ob->audio_source = new glare::AudioSource();
-									ob->audio_source->buffer.pushBackNItems(loaded_msg->data.data(), loaded_msg->data.size());
+									ob->audio_source->shared_buffer = loaded_msg->audio_buffer;
 									ob->audio_source->pos = ob->aabb_ws.centroid();
 									ob->audio_source->volume = ob->audio_volume;
-									const double audio_len_s = loaded_msg->data.size() / 44100.0; // TEMP HACK
+									const double audio_len_s = loaded_msg->audio_buffer->buffer.size() / 44100.0; // TEMP HACK
 									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
-									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->data.size());
+									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->audio_buffer->buffer.size());
 									audio_engine.addSource(ob->audio_source);
 
 									ob->audio_state = WorldObject::AudioState_Loaded;
 									//ob->loaded_audio_source_url = ob->audio_source_url;
 
-									// conPrint("Added AudioSource " + loaded_msg->audio_source_url);
+									// conPrint("Added AudioSource " + loaded_msg->audio_source_url + ".  loaded_msg->data.size(): " + toString(loaded_msg->audio_buffer->buffer.size()) + " (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 								}
 							}
 
@@ -9149,18 +9150,36 @@ int main(int argc, char *argv[])
 
 				if(false)
 				{
+					const std::string path = "D:\\models\\zomb_elm\\elm_LOD0.glb";
+
+					WorldObjectRef proto_world_object = new WorldObject();
 					BatchedMeshRef mesh;
-					WorldObjectRef world_object = new WorldObject();
-
-					const std::string path = "C:\\Users\\nick\\Downloads\\cemetery_angel_-_miller\\scene.gltf";
-
 					glare::TaskManager task_manager;
 					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
 						mesh,
-						*world_object
+						*proto_world_object
 					);
 
-					mw.ui->glWidget->addObject(ob);
+					for(int x=0; x<20; ++x)
+					for(int y=0; y<20; ++y)
+					{
+						/*WorldObjectRef world_object = new WorldObject();
+						world_object->pos = Vec3d(x*5, y*5, 2);
+						world_object->scale = Vec3f(1.f);
+						world_object->axis = Vec3f(1.f, 0, 0);
+						world_object->angle = Maths::pi<float>() / 2;
+						world_object->model_url = FileUtils::getFilename(path);
+						world_object->max_model_lod_level = 0;
+						world_object->g*/
+
+						GLObjectRef new_ob = new GLObject();
+						new_ob->mesh_data = ob->mesh_data;
+						new_ob->ob_to_world_matrix = Matrix4f::translationMatrix(x*5, 5 + y*5, 0) * Matrix4f::uniformScaleMatrix(0.02f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+						new_ob->materials = ob->materials;
+
+						
+						mw.ui->glWidget->addObject(new_ob);
+					}
 
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}
