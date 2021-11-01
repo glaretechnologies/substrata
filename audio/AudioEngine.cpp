@@ -470,6 +470,34 @@ void AudioEngine::init()
 }
 
 
+void AudioEngine::setRoomEffectsEnabled(bool enabled)
+{
+	resonance->EnableRoomEffects(enabled);
+}
+
+
+void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
+{
+	vraudio::ReflectionProperties refl_props;
+
+	refl_props.room_dimensions[0] = room_aabb.axisLength(0);
+	refl_props.room_dimensions[1] = room_aabb.axisLength(1);
+	refl_props.room_dimensions[2] = room_aabb.axisLength(2);
+
+
+	refl_props.room_position[0] = room_aabb.centroid()[0];
+	refl_props.room_position[1] = room_aabb.centroid()[1];
+	refl_props.room_position[2] = room_aabb.centroid()[2];
+
+	for(int i=0; i<6; ++i)
+		refl_props.coefficients[i] = 0.8f;
+	refl_props.coefficients[5] = 0.2f;
+	refl_props.coefficients[2] = 0.3f;
+	refl_props.gain = 0.7f;
+	resonance->SetReflectionProperties(refl_props);
+}
+
+
 void AudioEngine::shutdown()
 {
 	resonance_thread_manager.killThreadsBlocking();
