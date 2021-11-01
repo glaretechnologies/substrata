@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../maths/vec2.h"
 #include "../maths/matrix3.h"
 #include "../maths/Quat.h"
+#include "../physics/jscol_aabbox.h"
 #include <utils/CircularBuffer.h>
 #include <utils/Mutex.h>
 #include <utils/ThreadManager.h>
@@ -126,6 +127,8 @@ public:
 
 	void playOneShotSound(const std::string& sound_file_path, const Vec4f& pos);
 
+	void setRoomEffectsEnabled(bool enabled);
+	void setCurentRoomDimensions(const js::AABBox& room_aabb);
 	
 
 	static void test();

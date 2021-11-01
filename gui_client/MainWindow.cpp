@@ -3028,6 +3028,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							if(ob->audio_source_url == loaded_msg->audio_source_url)
 							{
+								// Remove any existing audio source for the object
+								if(ob->audio_source.nonNull())
+								{
+									audio_engine.removeSource(ob->audio_source);
+									ob->audio_source = NULL;
+								}
+
 								if(loaded_msg->audio_buffer->buffer.size() > 0) // Avoid divide by zero.
 								{
 									// Timer timer;
@@ -3622,21 +3629,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	// Set audio source occlusions
-	/*{
+	{
 		Lock lock(audio_engine.mutex);
 		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
 		{
 			glare::AudioSource* source = it->ptr();
-			//Vec4f start = source->pos;
-			//const Vec4f end = campos;
 
-			const float dist = source->pos.getDist(campos); // Dist from camera to source position
-			if(dist < 60.0) // Only do tracing for nearby objects
+			const float dist2 = source->pos.getDist2(campos); // Dist from camera to source position
+			if(dist2 < Maths::square(MAX_AUDIO_DIST)) // Only do tracing for nearby objects
 			{
+				const float dist = std::sqrt(dist2);
 				const Vec4f trace_dir = normalise(source->pos - campos); // Trace from camera to source position
 
-				const float use_dist = myMax(0.f, dist - 1.f);
-				//printVar(use_dist);
+				const float use_dist = myMax(0.f, dist - 1.f); // Ignore intersections with x metres of the source.  This is so meshes that contain the source (e.g. speaker models)
+				// don't occlude the source.
 
 				const Vec4f trace_start = campos;
 
@@ -3651,12 +3657,43 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				else
 					source->num_occlusions = 0;
 
-				//printVar(source->num_occlusions);
+				// printVar(source->num_occlusions);
 
 				audio_engine.sourceNumOcclusionsUpdated(*source);
 			}
 		}
-	}*/
+	}
+
+	// Set audio source room effects
+
+	// Find out which parcel we are in, if any.  
+	if(world_state.nonNull())
+	{
+		//Timer timer;
+		bool in_parcel = false;
+		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
+		Lock lock(world_state->mutex);
+		for(auto& it : world_state->parcels) // NOTE: fixme, crappy linear scan
+		{
+			const Parcel* parcel = it.second.ptr();
+
+			if(parcel->pointInParcel(campos_vec3d))
+			{
+				audio_engine.setCurentRoomDimensions(js::AABBox(
+					Vec4f((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.f),
+					Vec4f((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.f)));
+
+				in_parcel = true;
+				break;
+			}
+		}
+
+		audio_engine.setRoomEffectsEnabled(in_parcel);
+
+		//conPrint("Setting room effects took " + timer.elapsedStringNSigFigs(4));
+	}
+
+
 
 
 	// Update avatar graphics
