@@ -258,9 +258,17 @@ void MeshLODGenThread::doRun()
 
 							const js::AABBox new_aabb_ws = aabb_os.transformedAABB(to_world);
 
-							made_change = made_change || !(new_aabb_ws == ob->aabb_ws);
+							const bool updating_aabb_ws = new_aabb_ws != ob->aabb_ws;
 
-							ob->aabb_ws = aabb_os.transformedAABB(to_world);
+							if(updating_aabb_ws)
+							{
+								conPrint("Updating voxel ob AABB:");
+								conPrint("Old AABB: "+ ob->aabb_ws.toString());
+								conPrint("New AABB: "+ new_aabb_ws.toString());
+
+								ob->aabb_ws = new_aabb_ws;
+								made_change = true;
+							}
 						}
 
 
