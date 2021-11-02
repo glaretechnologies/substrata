@@ -287,6 +287,10 @@ void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& 
 
 void LODGeneration::test()
 {
+	glare::TaskManager task_manager;
+	{
+		generateLODTexture("C:\\Users\\nick\\Downloads\\front_lit.png", 1, "C:\\Users\\nick\\Downloads\\front_lit_lod1.png", task_manager);
+	}
 	{
 		BatchedMeshRef original_mesh = loadModel(TestUtils::getTestReposDir() + "/testfiles/bmesh/voxcarROTATE_glb_9223594900774194301.bmesh");
 		printVar(original_mesh->numVerts());
