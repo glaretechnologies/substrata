@@ -175,6 +175,7 @@ void GlWidget::initializeGL()
 	engine_settings.shadow_mapping = shadows;
 	engine_settings.compress_textures = true;
 	engine_settings.depth_fog = true;
+	engine_settings.use_logarithmic_depth_buffer = true;
 	opengl_engine = new OpenGLEngine(engine_settings);
 
 
