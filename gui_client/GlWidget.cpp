@@ -44,7 +44,8 @@ static QGLFormat makeFormat()
 	format.setVersion(3, 2);
 #endif
 	format.setProfile(QGLFormat::CoreProfile);
-	format.setSampleBuffers(true);
+	format.setSampleBuffers(true); // Enable multisampling
+
 	return format;
 }
 
