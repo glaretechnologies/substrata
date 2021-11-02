@@ -1,3 +1,81 @@
+0.74
+====
+Added biome stuff.
+Added park biome with Elm trees.
+Added take screenshot action.
+Improved flying physics.  Can now fly fast backwards etc. as well as forwards.
+Added lightmap LOD support.
+Improved lightmap brightness.
+Fixed lightmap/texture lod levels on voxel objects.
+
+0.73
+====
+Added Edit > Add Audio Source command.
+Added voxel LOD with subsampling/downsizing.
+Printing out vert and index mem usage in diagnostics for selected mesh.
+Made tri mesh LOD level 1 simplification more aggressive in some cases.
+Added a new LOD level for high res textures, avoids loading the full res texture until you are close by.
+Setting min_w_h = 1 for texture LOD generation.
+
+0.71, 0.72
+==========
+Added initial audio support for objects.
+
+0.70
+====
+Added gesture support and buttons.
+Added selfie mode.
+
+0.69
+====
+Improved procedural avatar head and eye movement - head and eyes will follow the camera direction.
+Added support for the VRM format for avatars.
+
+0.66
+====
+Added loading and display of animations of skinned GLTF/GLB meshes.
+When loading a gltf model, instead of transforming verts to z-up, setting an axis angle rotation on the object.
+Objects added to the world will not be oriented towards user any more.
+GLTF loading: Added support for base64 data embedded in data URLs.
+GLTF loading: Added support for meshes without explicit indices.
+Added LRU cache for textures in the 3D Engine.
+
+0.65
+====
+Added program icons.
+if 3d rot/move controls aren't shown, make them not grabbable.
+
+0.64
+====
+Added handling of URLs with parcels like sub://substrata.info/parcel/10
+Added "sub" as a URL scheme, added handling on Windows and Mac, so clicking on sub://substrata.info/parcel/10 links in a browser etc.. opens up Substrata.
+Removed 2 sec delay pressing bake lightmap buttons.
+Changed lightmap whitepoint to bring in line with new sky model
+Added "Bake Lightmaps for all objects in parcel" commands.
+
+0.63
+====
+Added initial support for texture LOD.
+Only download mp4s if we are near them.
+Added Edit > Find Object (find by UID) command.
+Added shadows option in options dialog.
+
+0.62
+====
+Made placeholder object use aabb_ws.
+Fixed occasional crash decompressing voxels
+Added editing of parcel writer list and parcel description on website
+Allowing editing/deletion of objects owned by other people, if they are in a parcel you own.
+
+0.61
+====
+Added clouds and cloud shadows.
+Regenerated sky data.
+Fixed issue on some macs which resulted in way too much GPU RAM being used for textures.
+Added gamepad movement support.
+Handling animated gifs with delay time zero.
+GLTF loader: just ignore primitives that do not have triangles mode.
+
 0.60
 ====
 Fixed black screen on Mac.
