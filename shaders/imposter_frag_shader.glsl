@@ -9,6 +9,9 @@ in vec2 texture_coords;
 in vec3 shadow_tex_coords[NUM_DEPTH_TEXTURES];
 #endif
 in vec3 cam_to_pos_ws;
+#if USE_LOGARITHMIC_DEPTH_BUFFER
+in float flogz;
+#endif
 
 uniform sampler2D diffuse_tex;
 uniform sampler2DShadow dynamic_depth_tex;
@@ -28,6 +31,8 @@ layout (std140) uniform PhongUniforms
 	float fresnel_scale;
 	float metallic_frac;
 	float time;
+	float begin_fade_out_distance;
+	float end_fade_out_distance;
 };
 
 
@@ -298,6 +303,7 @@ void main()
 			vec3 shadow_cds = shadow_tex_coords[static_depth_tex_index + NUM_DYNAMIC_DEPTH_TEXTURES];
 			sun_vis_factor = sampleStaticDepthMap(R, shadow_cds); // NOTE: had cap and bias
 
+#if DO_STATIC_SHADOW_MAP_CASCADE_BLENDING
 			if(static_depth_tex_index < NUM_STATIC_DEPTH_TEXTURES - 1)
 			{
 				float edge_dist = 0.7f * cascade_end_dist;
@@ -314,6 +320,7 @@ void main()
 					sun_vis_factor = mix(sun_vis_factor, next_sun_vis_factor, blend_factor);
 				}
 			}
+#endif
 
 #if VISUALISE_CASCADES
 			diffuse_col.xz *= float(static_depth_tex_index) / NUM_STATIC_DEPTH_TEXTURES;
@@ -370,4 +377,11 @@ void main()
 
 	colour_out = vec4(toNonLinear(col.xyz), 1);
 	colour_out.w = diffuse_col.a;
+
+#if USE_LOGARITHMIC_DEPTH_BUFFER
+	float farplane = 10000.0;
+	float Fcoef = 2.0 / log2(farplane + 1.0);
+	float Fcoef_half = 0.5 * Fcoef;
+	gl_FragDepth = log2(flogz) * Fcoef_half;
+#endif
 }

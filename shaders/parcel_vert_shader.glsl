@@ -9,6 +9,9 @@ out vec3 normal_ws; // world space
 out vec3 pos_cs;
 out vec3 pos_ws;
 out vec2 texture_coords;
+#if USE_LOGARITHMIC_DEPTH_BUFFER
+out float flogz;
+#endif
 
 uniform mat4 proj_matrix;
 uniform mat4 model_matrix;
@@ -31,4 +34,12 @@ void main()
 	normal_cs = (view_matrix * normal_ws_vec4).xyz;
 
 	texture_coords = texture_coords_0_in;
+
+#if USE_LOGARITHMIC_DEPTH_BUFFER
+	float farplane = 10000.0;
+	float Fcoef = 2.0 / log2(farplane + 1.0);
+	gl_Position.z = log2(max(1e-6, 1.0 + gl_Position.w)) * Fcoef - 1.0;
+
+	flogz = 1.0 + gl_Position.w;
+#endif
 }

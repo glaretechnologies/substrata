@@ -8990,10 +8990,12 @@ int main(int argc, char *argv[])
 			// Make shader for parcels
 			{
 				const std::string use_shader_dir = cyberspace_base_dir_path + "/data/shaders";
+
+				const std::string preprocessor_defines = mw.ui->glWidget->opengl_engine->getPreprocessorDefines();
 				mw.parcel_shader_prog = new OpenGLProgram(
 					"parcel hologram prog",
-					new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", "", GL_VERTEX_SHADER),
-					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", "", GL_FRAGMENT_SHADER)
+					new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", preprocessor_defines, GL_VERTEX_SHADER),
+					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", preprocessor_defines, GL_FRAGMENT_SHADER)
 				);
 				// Let any glare::Exception thrown fall through to below.
 			}
