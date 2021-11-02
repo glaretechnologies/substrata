@@ -25,6 +25,7 @@ layout (std140) uniform SharedVertUniforms
 	mat4 shadow_texture_matrix[5]; // same for all objects
 	//#endif
 	vec3 campos_ws; // same for all objects
+	float vert_uniforms_time;
 };
 
 layout (std140) uniform PerObjectVertUniforms
