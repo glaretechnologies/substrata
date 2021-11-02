@@ -495,7 +495,7 @@ void ClientThread::doRun()
 						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
 
 						// TEMP HACK: set a smaller max loading distance for CV features
-						const std::string feature_prefix = "CryptoVoxels Feature, uuid: ";
+						const char* feature_prefix = "CryptoVoxels Feature, uuid: ";
 						if(hasPrefix(ob->content, feature_prefix))
 							ob->max_load_dist2 = Maths::square(100.f);
 
