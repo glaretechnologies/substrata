@@ -86,6 +86,15 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 	if(elm_leaf_transmission_tex.isNull())
 		elm_leaf_transmission_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_leaf_transmission.png");
 
+	/*if(elm_leaf_tex.isNull())
+		elm_leaf_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_branch_backface.png");
+
+	if(elm_leaf_backface_tex.isNull())
+		elm_leaf_backface_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_branch_basecolor.png"); // NOTE: tor seems to have switched these
+
+	if(elm_leaf_transmission_tex.isNull())
+		elm_leaf_transmission_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_branch_transmission.png");*/
+
 	if(grass_tex.isNull())
 		grass_tex = opengl_engine.getTexture(base_dir_path + "/resources/grass.png");
 }
@@ -144,8 +153,7 @@ static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, 
 	// Compute AABB over all instances of the object
 	js::AABBox all_instances_aabb_ws = js::AABBox::emptyAABBox();
 
-	//int instance_i = 0;
-	const size_t initial_num_instances = instances.size();
+	//const size_t initial_num_instances = instances.size();
 	for(int i=0; i<N; ++i)
 	{
 		const float u1 = rng.unitRandom();
@@ -188,8 +196,8 @@ finished_looping:
 		const Vec4f pos = results.pos + Vec4f(0, 0, z_offset, 0);
 		const float rot_z = Maths::get2Pi<float>() * rng.unitRandom();
 		const Vec3f scale = base_scale + (rng.unitRandom() * rng.unitRandom() * rng.unitRandom()) * scale_variation;
-		instance.to_world = instanceObToWorldMatrix(pos, rot_z, scale);
-		instance.to_world_no_rot = instanceObToWorldMatrix(pos, 0.f, scale);
+		instance.to_world = instanceObToWorldMatrix(pos, rot_z, scale);// * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+		instance.to_world_no_rot = instanceObToWorldMatrix(pos, 0.f, scale);// * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
 
 		instances.push_back(instance);
 
@@ -573,9 +581,9 @@ void BiomeManager::update(const Vec4f& campos, const Vec4f& cam_forwards_ws, con
 		if(grass_ob.isNull())
 			return;
 
-		updatePatchSet(patches_a, 10.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
-		updatePatchSet(patches_b, 30.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
-		updatePatchSet(patches_c, 90.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
+		// updatePatchSet(patches_a, 10.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
+		// updatePatchSet(patches_b, 30.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
+		// updatePatchSet(patches_c, 90.f, campos, cam_forwards_ws, cam_right_ws, sundir, opengl_engine);
 	}
 	catch(glare::Exception& e)
 	{
