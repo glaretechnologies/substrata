@@ -7,8 +7,12 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include <RequestHandler.h>
+#include "../shared/UID.h"
+#include "../server/User.h"
 class WebDataStore;
 class ServerAllWorldsState;
+class ServerWorldState;
+class Server;
 
 
 class WebServerRequestHandler : public web::RequestHandler
@@ -17,13 +21,12 @@ public:
 	WebServerRequestHandler();
 	virtual ~WebServerRequestHandler();
 
-	virtual void handleRequest(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+	virtual void handleRequest(const web::RequestInfo& request_info, web::ReplyInfo& reply_info) override;
 
-	virtual void handleWebsocketTextMessage(const std::string& msg, Reference<SocketInterface>& socket, const Reference<WorkerThread>& worker_thread);
-
-	virtual void websocketConnectionClosed(Reference<SocketInterface>& socket, const Reference<WorkerThread>& worker_thread);
+	virtual bool handleWebSocketConnection(Reference<SocketInterface>& socket) override;
 
 	WebDataStore* data_store;
+	Server* server;
 	ServerAllWorldsState* world_state;
 private:
 };
@@ -37,13 +40,15 @@ public:
 
 	virtual Reference<web::RequestHandler> getOrMakeRequestHandler() // Factory method for request handler.
 	{
-		WebServerRequestHandler* h = new WebServerRequestHandler();
+		Reference<WebServerRequestHandler> h = new WebServerRequestHandler();
 		h->data_store = data_store;
+		h->server = server;
 		h->world_state = world_state;
 		return h;
 	}
 
 	WebDataStore* data_store;
+	Server* server;
 	ServerAllWorldsState* world_state;
 private:
 };
