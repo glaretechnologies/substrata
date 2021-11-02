@@ -733,6 +733,7 @@ void WorkerThread::doRun()
 				} // End lock scope
 
 				socket->writeData(packet.buf.data(), packet.buf.size());
+				socket->flush();
 			}
 
 			// Send a message saying we have sent all initial state
@@ -1288,7 +1289,7 @@ void WorkerThread::doRun()
 					} // End lock scope
 
 					socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-//					socket->flush();
+					socket->flush();
 
 					//conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
 
