@@ -342,7 +342,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				auction->parcel_id = parcel->id;
 				auction->auction_state = ParcelAuction::AuctionState_ForSale;
 				auction->auction_start_time  = now;
-				auction->auction_end_time    = TimeStamp((uint64)(now.time + auction_duration_hours * 3600));
+				auction->auction_end_time    = TimeStamp((uint64)(now.time + auction_duration_hours * 3600 - 60)); // Make the auction end slightly before the regen time, for if parcels hit the reserve price.
 				auction->auction_start_price = auction_start_price;
 				auction->auction_end_price   = auction_end_price;
 
@@ -995,6 +995,7 @@ int main(int argc, char *argv[])
 
 		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
 		shared_request_handler->data_store = web_data_store.ptr();
+		shared_request_handler->server = &server;
 		shared_request_handler->world_state = server.world_state.ptr();
 
 		ThreadManager web_thread_manager;
