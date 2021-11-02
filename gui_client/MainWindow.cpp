@@ -874,7 +874,7 @@ static void checkTransformOK(const WorldObject* ob)
 
 static bool hasAudioFileExtension(const std::string& url)
 {
-	return hasExtensionStringView(url, "mp3") || hasExtensionStringView(url, "wav") || hasExtensionStringView(url, "aac") || hasExtensionStringView(url, "flac");
+	return hasExtensionStringView(url, "mp3") || hasExtensionStringView(url, "m4a") || hasExtensionStringView(url, "wav") || hasExtensionStringView(url, "aac") || hasExtensionStringView(url, "flac");
 }
 
 
@@ -1630,7 +1630,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 		}
 		else
 		{
-			if(ob->audio_state == WorldObject::AudioState_NotLoaded)
+			if(ob->audio_state == WorldObject::AudioState_NotLoaded || ob->audio_state == WorldObject::AudioState_Loading)
 			{
 				//if(ob->loaded_audio_source_url == ob->audio_source_url) // If the audio file is already loaded, (e.g. ob->loaded_audio_source_url == ob->audio_source_url), then do nothing.
 				//	return;
