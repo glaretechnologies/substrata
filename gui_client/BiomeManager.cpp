@@ -71,8 +71,8 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/elm_RT_glb_3393252396927074015.bmesh", "elm_RT_glb_3393252396927074015.bmesh");
 	if(!resource_manager.isFileForURLPresent("Quad_obj_17249492137259942610.bmesh"))
 		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/Quad_obj_17249492137259942610.bmesh", "Quad_obj_17249492137259942610.bmesh");
-	if(!resource_manager.isFileForURLPresent("grass_2819211535648845788.bmesh"))
-		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/grass_2819211535648845788.bmesh", "grass_2819211535648845788.bmesh");
+//	if(!resource_manager.isFileForURLPresent("grass_2819211535648845788.bmesh"))
+//		resource_manager.copyLocalFileToResourceDir(base_dir_path + "/resources/grass_2819211535648845788.bmesh", "grass_2819211535648845788.bmesh");
 
 	if(elm_imposters_tex.isNull())
 		elm_imposters_tex = opengl_engine.getTexture(base_dir_path + "/resources/imposters/elm_imposters.png");
@@ -95,8 +95,8 @@ void BiomeManager::initTexturesAndModels(const std::string& base_dir_path, OpenG
 	if(elm_leaf_transmission_tex.isNull())
 		elm_leaf_transmission_tex = opengl_engine.getTexture(base_dir_path + "/resources/elm_branch_transmission.png");*/
 
-	if(grass_tex.isNull())
-		grass_tex = opengl_engine.getTexture(base_dir_path + "/resources/grass.png");
+//	if(grass_tex.isNull())
+//		grass_tex = opengl_engine.getTexture(base_dir_path + "/resources/grass.png");
 }
 
 
@@ -325,8 +325,8 @@ static GLObjectRef makeElmTreeImposterOb(MeshManager& mesh_manager, glare::TaskM
 void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager)
 {
-	if(grass_ob.isNull())
-		grass_ob = makeGrassOb(mesh_manager, task_manager, resource_manager, grass_tex);
+	//if(grass_ob.isNull())
+	//	grass_ob = makeGrassOb(mesh_manager, task_manager, resource_manager, grass_tex);
 
 	if(world_ob.physics_object.isNull())
 		return;
