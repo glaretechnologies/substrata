@@ -1,3 +1,17 @@
+0.75
+====
+Fixed audio not loading when audio file is first downloaded.
+Hopefully fixed bug where audio continues to play > 60m away from source in some circumstances.
+Fixed stutter when loading large audio files.
+Enabled wind shader on biome trees (WIP)
+Added initial double-sided material support for biome tree. (WIP)
+Fixed reloading of objects into biome.
+Fixed biome scattering to wait until object is loaded in.
+Improved cancelling of loading models and textures when disconnecting from server.
+Putting max size on move/rotate controls.
+Fixed object rotation being reset when object is picked up.
+Fixed texture LOD levels not being transparent upon creation in some cases.
+
 0.74
 ====
 Added biome stuff.
