@@ -1,13 +1,13 @@
 /*=====================================================================
 DownloadResourcesThread.h
--------------------
-Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-16 22:59:23 +1300
+-------------------------
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #pragma once
 
 
 #include "../shared/ResourceManager.h"
+#include "DownloadingResourceQueue.h"
 #include "WorldState.h"
 #include <MessageableThread.h>
 #include <Platform.h>
@@ -23,16 +23,7 @@ class ThreadMessageSink;
 class Server;
 namespace glare { class AtomicInt; }
 struct tls_config;
-
-
-class DownloadResourceMessage : public ThreadMessage
-{
-public:
-	DownloadResourceMessage(const std::string& URL_) : URL(URL_) {}
-	std::string URL;
-
-	glare::AtomicInt processed; // zero if not processed (being downloaded) yet.
-};
+class DownloadingResourceQueue;
 
 
 class ResourceDownloadedMessage : public ThreadMessage
@@ -41,14 +32,6 @@ public:
 	ResourceDownloadedMessage(const std::string& URL_) : URL(URL_) {}
 	std::string URL;
 };
-
-
-//class ResourceDownloadingStatus : public ThreadMessage
-//{
-//public:
-//	ResourceDownloadingStatus(size_t num) : total_to_download(num) {}
-//	size_t total_to_download;
-//};
 
 
 /*=====================================================================
@@ -62,7 +45,7 @@ class DownloadResourcesThread : public MessageableThread
 {
 public:
 	DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<ResourceManager> resource_manager, const std::string& hostname, int port,
-		glare::AtomicInt* num_resources_downloading_, struct tls_config* config);
+		glare::AtomicInt* num_resources_downloading_, struct tls_config* config, DownloadingResourceQueue* download_queue_);
 	virtual ~DownloadResourcesThread();
 
 	virtual void doRun();
@@ -71,8 +54,11 @@ private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	Reference<ResourceManager> resource_manager;
 	std::string hostname;
-	//std::string resources_dir;
 	int port;
 	glare::AtomicInt* num_resources_downloading;
 	struct tls_config* config;
+
+	DownloadingResourceQueue* download_queue;
+
+	std::vector<DownloadQueueItem> queue_items; // scratch buffer
 };

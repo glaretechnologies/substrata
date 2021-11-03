@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "UndoBuffer.h"
 #include "LogWindow.h"
 #include "GestureUI.h"
+#include "DownloadingResourceQueue.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/WGL.h"
@@ -167,7 +168,7 @@ private:
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level);
-	void startDownloadingResource(const std::string& url); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
+	void startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void evalObjectScript(WorldObject* ob, float use_global_time);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
@@ -486,4 +487,7 @@ public:
 	bool running_destructor;
 
 	BiomeManager* biome_manager;
+
+	DownloadingResourceQueue download_queue;
+	Timer download_queue_sort_timer;
 };

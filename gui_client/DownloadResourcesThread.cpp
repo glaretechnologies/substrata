@@ -1,12 +1,12 @@
 /*=====================================================================
 DownloadResourcesThread.cpp
--------------------
-Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-16 22:59:23 +1300
+---------------------------
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #include "DownloadResourcesThread.h"
 
 
+#include "DownloadingResourceQueue.h"
 #include "../shared/Protocol.h"
 #include <MySocket.h>
 #include <TLSSocket.h>
@@ -21,14 +21,14 @@ Generated at 2016-01-16 22:59:23 +1300
 
 
 DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_, const std::string& hostname_, int port_, 
-	glare::AtomicInt* num_resources_downloading_, struct tls_config* config_)
+	glare::AtomicInt* num_resources_downloading_, struct tls_config* config_, DownloadingResourceQueue* download_queue_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
-	//resources_dir(resources_dir_),
 	resource_manager(resource_manager_),
 	port(port_),
 	num_resources_downloading(num_resources_downloading_),
-	config(config_)
+	config(config_),
+	download_queue(download_queue_)
 {}
 
 
@@ -37,7 +37,7 @@ DownloadResourcesThread::~DownloadResourcesThread()
 
 
 // Returns true if kill message received
-static bool checkMessageQueue(ThreadSafeQueue<Reference<ThreadMessage> >& queue, std::set<std::string>& URLs_to_get)
+static bool checkMessageQueue(ThreadSafeQueue<Reference<ThreadMessage> >& queue)
 {
 	// Get any more messages from the queue while we're woken up.
 	Lock lock(queue.getMutex());
@@ -46,14 +46,8 @@ static bool checkMessageQueue(ThreadSafeQueue<Reference<ThreadMessage> >& queue,
 		ThreadMessageRef msg;
 		queue.unlockedDequeue(msg);
 
-		if(dynamic_cast<DownloadResourceMessage*>(msg.getPointer()))
-		{
-			URLs_to_get.insert(msg.downcastToPtr<DownloadResourceMessage>()->URL);
-		}
-		else if(dynamic_cast<KillThreadMessage*>(msg.getPointer()))
-		{
+		if(dynamic_cast<KillThreadMessage*>(msg.getPointer()))
 			return true;
-		}
 	}
 	return false;
 }
@@ -117,18 +111,16 @@ void DownloadResourcesThread::doRun()
 		{
 			if(URLs_to_get.empty())
 			{
-				// Wait on the message queue until we have something to download, or we get a kill-thread message.
-				ThreadMessageRef msg;
-				getMessageQueue().dequeue(msg);
+				// Wait until we have something to download, or we get a kill-thread message.
 
-				if(dynamic_cast<DownloadResourceMessage*>(msg.getPointer()))
-					URLs_to_get.insert(msg.downcastToPtr<DownloadResourceMessage>()->URL);
-				else if(dynamic_cast<KillThreadMessage*>(msg.getPointer()))
-					return;
+				download_queue->dequeueItemsWithTimeOut(/*wait_time_s=*/0.1, /*max_num_items=*/10, queue_items);
+				for(size_t i=0; i<queue_items.size(); ++i)
+					URLs_to_get.insert(queue_items[i].URL);
+
 
 				// Get any more messages from the queue while we're woken up.
-				if(checkMessageQueue(getMessageQueue(), URLs_to_get))
-					return;
+				if(checkMessageQueue(getMessageQueue())) 
+					return; // if got kill message, return.
 			}
 			else
 			{
