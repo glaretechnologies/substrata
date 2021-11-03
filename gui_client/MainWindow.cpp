@@ -654,7 +654,7 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 }*/
 
 
-void MainWindow::startDownloadingResource(const std::string& url)
+void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws)
 {
 	//conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
 	//if(shouldStreamResourceViaHTTP(url))
@@ -677,7 +677,13 @@ void MainWindow::startDownloadingResource(const std::string& url)
 			num_net_resources_downloading++;
 		}
 		else
-			this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
+		{
+			DownloadQueueItem item;
+			item.pos = ob_aabb_ws.centroid();
+			item.size_factor = DownloadQueueItem::sizeFactorForAABBWS(ob_aabb_ws);
+			item.URL = url;
+			this->download_queue.enqueueItem(item);
+		}
 	}
 	catch(glare::Exception& e)
 	{
@@ -908,7 +914,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 		}
 
 		if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
-			startDownloadingResource(url);
+			startDownloadingResource(url, ob->pos.toVec4fPoint(), ob->aabb_ws);
 	}
 }
 
@@ -931,7 +937,13 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 		}
 
 		if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
-			startDownloadingResource(url);
+		{
+			const js::AABBox aabb_ws( // approx AABB
+				ob->pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, -2.f, 0),
+				ob->pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
+			);
+			startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws);
+		}
 	}
 }
 
@@ -1590,7 +1602,7 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 				if(resource_manager->isFileForURLPresent(URL))
 					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL)));
 				else
-					startDownloadingResource(URL);
+					startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->aabb_ws);
 			}
 			//{
 			//	const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
@@ -2343,6 +2355,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
+	// Sort download queue every now and then
+	if(download_queue_sort_timer.elapsed() > 2.0)
+	{
+		this->download_queue.sortQueue(cam_controller.getPosition());
+		download_queue_sort_timer.reset();
+	}
 
 	if(biome_manager)
 		biome_manager->update(cam_controller.getPosition().toVec4fPoint(), cam_controller.getForwardsVec().toVec4fVector(), cam_controller.getRightVec().toVec4fVector(), 
@@ -6666,7 +6684,8 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
-	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config));
+	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
+		&this->download_queue));
 
 	if(physics_world.isNull())
 		physics_world = new PhysicsWorld();
@@ -9213,7 +9232,7 @@ int main(int argc, char *argv[])
 
 						GLObjectRef new_ob = new GLObject();
 						new_ob->mesh_data = ob->mesh_data;
-						new_ob->ob_to_world_matrix = Matrix4f::translationMatrix(x*5, 5 + y*5, 0) * Matrix4f::uniformScaleMatrix(0.02f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+						new_ob->ob_to_world_matrix = Matrix4f::translationMatrix(x*5.f, 5 + y*5.f, 0) * Matrix4f::uniformScaleMatrix(0.02f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
 						new_ob->materials = ob->materials;
 
 						

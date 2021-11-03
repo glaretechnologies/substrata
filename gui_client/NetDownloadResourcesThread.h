@@ -26,6 +26,16 @@ class Server;
 class HTTPClient;
 
 
+class DownloadResourceMessage : public ThreadMessage
+{
+public:
+	DownloadResourceMessage(const std::string& URL_) : URL(URL_) {}
+	std::string URL;
+
+	glare::AtomicInt processed; // zero if not processed (being downloaded) yet.
+};
+
+
 /*=====================================================================
 NetDownloadResourcesThread
 --------------------------

@@ -1,7 +1,14 @@
+0.76
+====
+Added logarithmic depth buffer support.
+Fixed shadow issue leading to white screen on some Intel GPUs
+
 0.75
 ====
 Fixed audio not loading when audio file is first downloaded.
 Hopefully fixed bug where audio continues to play > 60m away from source in some circumstances.
+Added audio source occlusion.
+Added audio room effects.
 Fixed stutter when loading large audio files.
 Enabled wind shader on biome trees (WIP)
 Added initial double-sided material support for biome tree. (WIP)
@@ -11,6 +18,7 @@ Improved cancelling of loading models and textures when disconnecting from serve
 Putting max size on move/rotate controls.
 Fixed object rotation being reset when object is picked up.
 Fixed texture LOD levels not being transparent upon creation in some cases.
+Improved shadow map quality
 
 0.74
 ====
