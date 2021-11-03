@@ -52,12 +52,14 @@ public:
 
 	void enqueueItem(const DownloadQueueItem& item);
 
+	size_t size() const;
+
 	void sortQueue(const Vec3d& campos); // Sort queue (by item distance to camera)
 
 	void dequeueItemsWithTimeOut(double wait_time_s, size_t max_num_items, std::vector<DownloadQueueItem>& items_out); // Blocks for up to wait_time_s
 private:
 
-	Mutex mutex;
+	mutable Mutex mutex;
 	Condition nonempty;
 	size_t begin_i;
 	js::Vector<DownloadQueueItem, 16> items;

@@ -34,6 +34,13 @@ void DownloadingResourceQueue::enqueueItem(const DownloadQueueItem& item/*const 
 }
 
 
+size_t DownloadingResourceQueue::size() const
+{
+	Lock lock(mutex);
+	return items.size() - begin_i;
+}
+
+
 struct QueueItemDistComparator
 {
 	bool operator () (const DownloadQueueItem& a, const DownloadQueueItem& b)

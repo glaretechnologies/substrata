@@ -56,8 +56,15 @@ static bool checkMessageQueue(ThreadSafeQueue<Reference<ThreadMessage> >& queue)
 // Make sure num_resources_downloading gets decremented even in the presence of exceptions.
 struct NumNonNetResourcesDownloadingDecrementor
 {
-	~NumNonNetResourcesDownloadingDecrementor() { (*num_resources_downloading)--; }
+	NumNonNetResourcesDownloadingDecrementor() : num_decrements(0) {}
+	~NumNonNetResourcesDownloadingDecrementor()
+	{
+		// Do any remaining decrements
+		(*num_resources_downloading) -= (max_decrements - num_decrements);
+	}
 	glare::AtomicInt* num_resources_downloading;
+	int max_decrements;
+	int num_decrements;
 };
 
 // Some resources, such as MP4 videos, shouldn't be downloaded fully before displaying, but instead can be streamed and displayed when only part of the stream is downloaded.
@@ -113,7 +120,7 @@ void DownloadResourcesThread::doRun()
 			{
 				// Wait until we have something to download, or we get a kill-thread message.
 
-				download_queue->dequeueItemsWithTimeOut(/*wait_time_s=*/0.1, /*max_num_items=*/10, queue_items);
+				download_queue->dequeueItemsWithTimeOut(/*wait_time_s=*/0.1, /*max_num_items=*/4, queue_items);
 				for(size_t i=0; i<queue_items.size(); ++i)
 					URLs_to_get.insert(queue_items[i].URL);
 
@@ -140,7 +147,10 @@ void DownloadResourcesThread::doRun()
 					}
 				}
 
-				*this->num_resources_downloading = URLs_to_get.size();
+				(*this->num_resources_downloading) += URLs_to_get.size();
+				NumNonNetResourcesDownloadingDecrementor decrementor;
+				decrementor.num_resources_downloading = this->num_resources_downloading;
+				decrementor.max_decrements = (int)URLs_to_get.size();
 
 				if(!URLs_to_get.empty())
 				{
@@ -158,9 +168,6 @@ void DownloadResourcesThread::doRun()
 					// Read reply, which has an error code for each resource download.
 					for(auto it = URLs_to_get.begin(); it != URLs_to_get.end(); ++it)
 					{
-						NumNonNetResourcesDownloadingDecrementor d;
-						d.num_resources_downloading = this->num_resources_downloading;
-
 						const std::string URL = *it;
 						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
@@ -251,11 +258,13 @@ void DownloadResourcesThread::doRun()
 							resource->setState(Resource::State_NotPresent);
 							conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "' (Result=" + toString(result) + ")");
 						}
-					}
+
+						(*this->num_resources_downloading)--;
+						decrementor.num_decrements++;
+					} // End for each URL
 				}
 
 				URLs_to_get.clear();
-				*this->num_resources_downloading = URLs_to_get.size();
 			}
 		}
 	}
