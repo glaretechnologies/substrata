@@ -69,7 +69,7 @@ void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 			conPrint("item " + toString(i) + ": " + items[i].URL + ", (" + doubleToStringNSigFigs(items[i].pos.getDist(campos), 3) + " m away)");
 		}*/
 
-		conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4));
+		// conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4));
 	}
 }
 
