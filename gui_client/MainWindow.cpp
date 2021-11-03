@@ -500,7 +500,7 @@ MainWindow::~MainWindow()
 	this->client_thread_manager.killThreadsBlocking();
 	print("killed ClientThread");
 
-	ui->glWidget->makeCurrent();
+	//ui->glWidget->makeCurrent(); // This crashes on Mac
 
 	// Kill various threads before we start destroying members of MainWindow they may depend on.
 	save_resources_db_thread_manager.killThreadsBlocking();
