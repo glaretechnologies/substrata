@@ -4627,8 +4627,9 @@ void MainWindow::updateStatusBar()
 		break;
 	}
 
-	if(num_non_net_resources_downloading > 0)
-		status += " | Downloading " + toString(num_non_net_resources_downloading) + ((num_non_net_resources_downloading == 1) ? " resource..." : " resources...");
+	const int total_num_non_net_resources_downloading = (int)num_non_net_resources_downloading + (int)this->download_queue.size();
+	if(total_num_non_net_resources_downloading > 0)
+		status += " | Downloading " + toString(total_num_non_net_resources_downloading) + ((total_num_non_net_resources_downloading == 1) ? " resource..." : " resources...");
 
 	if(num_net_resources_downloading > 0)
 		status += " | Downloading " + toString(num_net_resources_downloading) + ((num_net_resources_downloading == 1) ? " web resource..." : " web resources...");
@@ -6684,8 +6685,9 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 
-	resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
-		&this->download_queue));
+	for(int z=0; z<4; ++z)
+		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
+			&this->download_queue));
 
 	if(physics_world.isNull())
 		physics_world = new PhysicsWorld();
