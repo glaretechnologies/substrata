@@ -1,3 +1,12 @@
+0.78
+====
+Indicating to the system that we want to run on a dedicated GPU if present, on Windows.
+
+0.77
+====
+Downloading objects closer to camera first.
+Fixed crash on Mac on close.
+
 0.76
 ====
 Added logarithmic depth buffer support.
