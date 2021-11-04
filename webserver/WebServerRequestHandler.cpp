@@ -445,6 +445,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ResourceHandlers::handleResourceRequest(*this->world_state, request, reply_info);
 		}
+		else if(request.path ==  "/list_resources")
+		{
+			ResourceHandlers::listResources(*this->world_state, request, reply_info);
+		}
 #if 0
 		else if(request.path == "/webclient") // TEMP HACK
 		{
