@@ -15,12 +15,15 @@ Copyright Glare Technologies Limited 2021 -
 #include "WebServerResponseUtils.h"
 #include "../server/ServerWorldState.h"
 #include "../server/Order.h"
+#include <graphics/FormatDecoderGLTF.h>
+#include <graphics/BatchedMesh.h>
 #include <ConPrint.h>
 #include <Exception.h>
 #include <Lock.h>
 #include <StringUtils.h>
 #include <PlatformUtils.h>
 #include <MemMappedFile.h>
+#include <FileUtils.h>
 
 
 namespace ResourceHandlers
@@ -34,9 +37,9 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 		const std::string resource_URL = web::Escaping::URLUnescape(::eatPrefix(request.path, "/resource/"));
 
 		// TEMP: print out request and headers
-		conPrint("handleResourceRequest: resource_URL: " + resource_URL);
-		for(size_t i=0; i<request.headers.size(); ++i)
-			conPrint("\theader: " + request.headers[i].key + " : " + request.headers[i].value);
+		//conPrint("handleResourceRequest: resource_URL: " + resource_URL);
+		//for(size_t i=0; i<request.headers.size(); ++i)
+		//	conPrint("\theader: " + request.headers[i].key + " : " + request.headers[i].value);
 		
 
 		// Lookup resource manager to see if we have a resource for this URL.  If so, set local_path to the local path of the resource.
@@ -55,12 +58,59 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 			}
 		} // End lock scope
 
+		// TEMP: always rebuild gltf
+#if 0
+		if(/*local_path.empty() && */hasExtension(resource_URL, "glb")) // If the resource was not found, and a glb was requested:
+		{
+			const std::string URL_without_glb_ext = ::removeDotAndExtension(resource_URL); // Remove ".glb" suffix
+
+			if(hasExtension(URL_without_glb_ext, "bmesh")) // If we have a xx.bmesh.glb request:
+			{
+				// See if the bmesh file is present
+				std::string local_bmesh_path;
+				{
+					Lock lock(world_state.resource_manager->getMutex());
+
+					auto res = world_state.resource_manager->getResourcesForURL().find(URL_without_glb_ext);
+					if(res != world_state.resource_manager->getResourcesForURL().end())
+					{
+						ResourceRef resource = res->second;
+						if(resource->getState() == Resource::State_Present)
+							local_bmesh_path = resource->getLocalPath();
+					}
+				}
+
+				// Convert the bmesh file to GLB, if the bmesh file is present
+				std::string local_GLB_path = local_bmesh_path + ".glb";
+				try
+				{
+					conPrint("Converting '" + local_bmesh_path + "' to '" + local_GLB_path + "'...");
+
+					BatchedMeshRef mesh = new BatchedMesh();
+					mesh->readFromFile(local_bmesh_path, *mesh);
+					FormatDecoderGLTF::writeBatchedMeshToGLBFile(*mesh, local_GLB_path, GLTFWriteOptions());
+
+					// Add to resource manager
+					ResourceRef new_resource = new Resource(resource_URL, local_GLB_path, Resource::State_Present, /*owner id=*/UserID(0));
+					world_state.resource_manager->addResource(new_resource);
+
+					local_path = local_GLB_path;
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Error while converting bmesh to GLB: " + e.what());
+					throw e;
+				}
+			}
+		}
+#endif
+
 		if(!local_path.empty())
 		{
 			// Resource is present, send it
 			try
 			{
-				// Since resources have content hashes in URLs, they content for a given resource doesn't change.
+				// Since resources have content hashes in URLs, the content for a given resource doesn't change.
 				// Therefore we can always return HTTP 304 not modified responses.
 				for(size_t i=0; i<request.headers.size(); ++i)
 					if(StringUtils::equalCaseInsensitive(request.headers[i].key, "if-modified-since"))
@@ -150,7 +200,46 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 	{
 		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error while returning resource.");
 	}
+	catch(std::exception&)
+	{
+		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error while returning resource.");
+	}
 }
+
+
+void listResources(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		std::vector<std::string> URL_and_filenames;
+		{
+			Lock lock(world_state.resource_manager->getMutex());
+
+			for(auto it = world_state.resource_manager->getResourcesForURL().begin(); it != world_state.resource_manager->getResourcesForURL().end(); ++it)
+			{
+				ResourceRef resource = it->second;
+				
+				if(resource->getState() == Resource::State_Present)
+				{
+					URL_and_filenames.push_back(resource->URL);
+					URL_and_filenames.push_back(FileUtils::getFilename(resource->getLocalPath()));
+				}
+			}
+		} // End lock scope
+
+		const std::string reply = StringUtils::join(URL_and_filenames, "\n");
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, reply);
+	}
+	catch(glare::Exception&)
+	{
+		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error while returning resource.");
+	}
+	catch(std::exception&)
+	{
+		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error while returning resource.");
+	}
+}
+
 
 
 } // end namespace ResourceHandlers
