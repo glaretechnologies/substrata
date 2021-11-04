@@ -33,6 +33,17 @@ Copyright Glare Technologies Limited 2018 -
 #include <algorithm>
 
 
+// Export some symbols to indicate to the system that we want to run on a dedicated GPU if present.
+// See https://stackoverflow.com/a/39047129
+#if defined(_WIN32)
+extern "C"
+{
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+#endif
+
+
 // https://wiki.qt.io/How_to_use_OpenGL_Core_Profile_with_Qt
 // https://developer.apple.com/opengl/capabilities/GLInfo_1085_Core.html
 static QGLFormat makeFormat()
