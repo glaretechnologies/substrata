@@ -3774,6 +3774,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						loadModelForAvatar(avatar);
 
 						// Add nametag object for avatar
+						if(!our_avatar)
 						{
 							avatar->opengl_engine_nametag_ob = makeNameTagGLObject(avatar->name);
 
