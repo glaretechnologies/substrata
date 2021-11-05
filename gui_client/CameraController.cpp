@@ -42,6 +42,8 @@ CameraController::CameraController()
 	start_transition_time = -2;
 	end_transition_time = -1;
 
+	third_person_cam_dist = 3.f;
+
 
 	// NOTE: Call initialise after the member variables above have been initialised.
 	initialise(Vec3d(0.0), Vec3d(0, 1, 0), Vec3d(0, 0, 1), 0.03, 0, 0);
@@ -380,6 +382,17 @@ void CameraController::getAxisAngleForAngles(const Vec3d& euler_angles_in, Vec3d
 void CameraController::setTargetPos(const Vec3d& p)
 { 
 	target_pos = p;
+}
+
+
+void CameraController::handleScrollWheelEvent(float delta_y)
+{
+	if(thirdPersonEnabled())
+	{
+		// Make change proportional to distance value.
+		// Mouse wheel scroll up reduces distance.
+		third_person_cam_dist = myClamp<float>(third_person_cam_dist - (third_person_cam_dist * delta_y * 0.002f), 0.5f, 20.f);
+	}
 }
 
 

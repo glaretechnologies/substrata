@@ -3822,13 +3822,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								const float target_lerp_frac = myMin(0.2f, (float)dt * 20);
 								cam_controller.current_third_person_target_pos = cam_controller.current_third_person_target_pos * (1 - target_lerp_frac) + Vec3d(use_target_pos) * target_lerp_frac;
 
-								cam_back_dir = (cam_controller.getForwardsVec() * 3.0).toVec4fVector();
+								cam_back_dir = (cam_controller.getForwardsVec() * cam_controller.getThirdPersonCamDist()).toVec4fVector();
 							}
 							else
 							{
 								cam_controller.current_third_person_target_pos = Vec3d(use_target_pos);
 
-								cam_back_dir = (cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2).toVec4fVector();
+								cam_back_dir = (cam_controller.getForwardsVec() * -cam_controller.getThirdPersonCamDist() + cam_controller.getUpVec() * 0.2).toVec4fVector();
 							}
 
 
@@ -7878,6 +7878,10 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 	if(this->selected_ob.nonNull())
 	{
 		this->selection_vec_cs[1] *= (1.0f + e->angleDelta().y() * 0.0005f);
+	}
+	else if(cam_controller.thirdPersonEnabled())
+	{
+		cam_controller.handleScrollWheelEvent(e->angleDelta().y());
 	}
 }
 
