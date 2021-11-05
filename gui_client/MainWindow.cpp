@@ -3773,20 +3773,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						loadModelForAvatar(avatar);
 
-						// Add nametag object for avatar
 						if(!our_avatar)
 						{
+							// Add nametag object for avatar
 							avatar->opengl_engine_nametag_ob = makeNameTagGLObject(avatar->name);
 
 							// Set transform to be above avatar.  This transform will be updated later.
 							avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
 
 							ui->glWidget->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
+
+							// Play entry teleport sound
+							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
 						}
-
-						// Play entry teleport sound
-						audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
-
 					} // End if reload_opengl_model
 
 
