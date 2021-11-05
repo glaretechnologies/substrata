@@ -67,6 +67,10 @@ public:
 	//void setThirdPersonCamTranslation(const Vec3d& v) { third_person_cam_translation = v; }
 	//Vec3d thirdPersonCamTranslation() const { return third_person_cam_translation; }
 
+	float getThirdPersonCamDist() const { return third_person_cam_dist; }
+
+	void handleScrollWheelEvent(float delta_y);
+
 	void setSelfieModeEnabled(double cur_time, bool enabled);
 	bool selfieModeEnabled() const { return selfie_mode; }
 	float getCurrentCamRotZ(double cur_time) const;
@@ -105,6 +109,8 @@ private:
 	float end_cam_rot_z;
 	double start_transition_time;
 	double end_transition_time;
+
+	float third_person_cam_dist;
 public:
 	//Vec3d third_person_cam_translation;
 	Vec3d third_person_cam_position;
