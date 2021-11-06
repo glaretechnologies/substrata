@@ -31,7 +31,8 @@ PlayerPhysics::PlayerPhysics()
 	jumptimeremaining(0),
 	onground(false),
 	flymode(false),
-	last_runpressed(false)
+	last_runpressed(false),
+	time_since_on_ground(0)
 {
 }
 
@@ -340,6 +341,11 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 				onground = true;
 		}
 	}
+
+	if(!onground)
+		time_since_on_ground += dtime;
+	else
+		time_since_on_ground = 0;
 		
 	campos_in_out = campos.toVec4fPoint();
 

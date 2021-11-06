@@ -50,7 +50,7 @@ public:
 	void setFlyModeEnabled(bool enabled);
 	bool flyModeEnabled() const { return flymode; }
 	
-	bool onGround() const { return onground; }
+	bool onGroundRecently() const { return time_since_on_ground < 0.02f; }
 	bool isRunPressed() const { return last_runpressed; }
 private:
 	Vec3f vel;
@@ -67,6 +67,8 @@ private:
 	bool last_runpressed;
 
 	bool flymode;
+
+	float time_since_on_ground;
 	
 
 	std::vector<SpringSphereSet> springspheresets;

@@ -577,7 +577,9 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 					const float right_comp = 0.3f * (-0.5f + rng.unitRandom());
 					const float up_comp    = 0.1f * (-0.5f + rng.unitRandom());
 
-					next_eye_target_os = last_head_pos_os + cam_forwards_os * forwards_comp + cam_right_os * right_comp + cam_up_os * up_comp;
+					Vec4f eye_midpoint_os = last_head_pos_os;// + cam_up_os * 0.076f;
+
+					next_eye_target_os = eye_midpoint_os + cam_forwards_os * forwards_comp + cam_right_os * right_comp + cam_up_os * up_comp;
 
 					// Check constraints
 					//const float up_dot = dot(normalise(next_eye_target_os), last_head_up_os);
@@ -726,7 +728,7 @@ Vec4f AvatarGraphics::getLastHeadPosition()
 	if(skinned_gl_ob.nonNull())
 	{
 		if(head_node_i >= 0 && head_node_i < (int)skinned_gl_ob->anim_node_data.size())
-			return skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[head_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1);
+			return skinned_gl_ob->ob_to_world_matrix * skinned_gl_ob->anim_node_data[head_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1) + Vec4f(0,0,0.076f,0); // eyes are roughly 7.6 cm above head node in RPM models.
 		else
 			return skinned_gl_ob->ob_to_world_matrix * Vec4f(0,0,0,1);
 	}
