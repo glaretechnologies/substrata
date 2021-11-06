@@ -3607,7 +3607,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			const float walk_cycle_period = AvatarGraphics::walkCyclePeriod() * 0.5f;
 			const float walk_run_cycle_period = player_physics.isRunPressed() ? (walk_cycle_period * 0.5f) : walk_cycle_period;
-			if(player_physics.onGround() && (last_footstep_timer.elapsed() > walk_run_cycle_period))
+			if(player_physics.onGroundRecently() && (last_footstep_timer.elapsed() > walk_run_cycle_period))
 			{
 				last_foostep_side = (last_foostep_side + 1) % 2;
 
@@ -3811,7 +3811,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						//rotation = Vec3f(0, 0, 0); // just for testing
 						//pos = Vec3d(0,0,1.7);
 
-						avatar->anim_state = (player_physics.onGround() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
+						avatar->anim_state = (player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
 
 						if(cam_controller.thirdPersonEnabled())
 						{
@@ -4357,7 +4357,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			conPrint("axis: " + axis.toString());
 			conPrint("angle: " + toString(angle));*/
 
-			const uint32 anim_state = (player_physics.onGround() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
+			const uint32 anim_state = (player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
 
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::AvatarTransformUpdate);
@@ -7881,7 +7881,7 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 	}
 	else if(cam_controller.thirdPersonEnabled())
 	{
-		cam_controller.handleScrollWheelEvent(e->angleDelta().y());
+		cam_controller.handleScrollWheelEvent((float)e->angleDelta().y());
 	}
 }
 
