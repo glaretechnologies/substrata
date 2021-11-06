@@ -75,38 +75,38 @@ void ListenerThread::doRun()
 
 		while(1)
 		{
-			MySocketRef plain_worker_sock = sock->acceptConnection(); // Blocks
-			plain_worker_sock->setUseNetworkByteOrder(false);
-
-			conPrint("Client connected from " + IPAddress::formatIPAddressAndPort(plain_worker_sock->getOtherEndIPAddress(), plain_worker_sock->getOtherEndPort()));
-
-			// Create TLSSocket (tls_context) for worker thread/socket if this is configured as a TLS connection.
-			SocketInterfaceRef use_socket = plain_worker_sock;
-			if(tls_context)
-			{
-				struct tls* worker_tls_context = NULL;
-				if(tls_accept_socket(tls_context, &worker_tls_context, (int)plain_worker_sock->getSocketHandle()) != 0)
-					throw glare::Exception("tls_accept_socket failed: " + getTLSErrorString(tls_context));
-
-				TLSSocketRef worker_tls_socket = new TLSSocket(plain_worker_sock, worker_tls_context);
-				use_socket = worker_tls_socket; // use_socket will be a TLS socket after this.
-			}
-			
-			// Handle the connection in a worker thread.
-			Reference<WorkerThread> worker_thread = new WorkerThread(
-				use_socket,
-				server
-			);
-
 			try
 			{
-				//thread_manager.addThread(worker_thread);
+				MySocketRef plain_worker_sock = sock->acceptConnection(); // Blocks
+				plain_worker_sock->setUseNetworkByteOrder(false);
+
+				conPrint("Client connected from " + IPAddress::formatIPAddressAndPort(plain_worker_sock->getOtherEndIPAddress(), plain_worker_sock->getOtherEndPort()));
+
+				plain_worker_sock->enableTCPKeepAlive(30.f); // Some connections seem to get stuck doing nothing for long periods, so enable keepalive to kill them.
+
+				// Create TLSSocket (tls_context) for worker thread/socket if this is configured as a TLS connection.
+				SocketInterfaceRef use_socket = plain_worker_sock;
+				if(tls_context)
+				{
+					struct tls* worker_tls_context = NULL;
+					if(tls_accept_socket(tls_context, &worker_tls_context, (int)plain_worker_sock->getSocketHandle()) != 0)
+						throw glare::Exception("tls_accept_socket failed: " + getTLSErrorString(tls_context));
+
+					TLSSocketRef worker_tls_socket = new TLSSocket(plain_worker_sock, worker_tls_context);
+					use_socket = worker_tls_socket; // use_socket will be a TLS socket after this.
+				}
+			
+				// Handle the connection in a worker thread.
+				Reference<WorkerThread> worker_thread = new WorkerThread(
+					use_socket,
+					server
+				);
+
 				server->worker_thread_manager.addThread(worker_thread);
 			}
-			catch(MyThreadExcep& e)
+			catch(glare::Exception& e)
 			{
-				// Will get this when thread creation fails.
-				conPrint("ListenerThread failed to launch worker thread: " + e.what());
+				conPrint("ListenerThread: caught exception: " + e.what());
 			}
 		}
 	}
