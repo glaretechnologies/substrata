@@ -167,6 +167,14 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetTransactionStateToNewPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_transaction_state_hash")
+		{
+			AdminHandlers::handleSetTransactionHashPost(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/admin_set_transaction_nonce")
+		{
+			AdminHandlers::handleSetTransactionNoncePost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_delete_transaction_post")
 		{
 			AdminHandlers::handleDeleteTransactionPost(*this->world_state, request, reply_info);
@@ -315,6 +323,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/admin_sub_eth_transactions")
 		{
 			AdminHandlers::renderSubEthTransactionsPage(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/admin_sub_eth_transaction/"))
+		{
+			AdminHandlers::renderAdminSubEthTransactionPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/admin_map")
 		{
