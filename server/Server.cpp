@@ -323,7 +323,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				double auction_start_price, auction_end_price;
 				if(parcel->id.value() >= 430 && parcel->id.value() <= 726) // If this is a market parcel:
 				{
-					auction_start_price = 2000;
+					auction_start_price = 1000;
 					auction_end_price = 50;
 				}
 				else
