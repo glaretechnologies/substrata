@@ -288,6 +288,76 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 			else
 				username = user_res->second->name;
 
+			page_out += "<h3><a href=\"/admin_sub_eth_transaction/" + toString(trans->id) + "\">Transaction " + toString(trans->id) + "</a></h3>";
+			page_out += "<p>\n";
+			page_out += 
+				"initiating user: " + web::Escaping::HTMLEscape(username) + "<br/>" +
+				"user_eth_address: <a href=\"https://etherscan.io/address/" + web::Escaping::HTMLEscape(trans->user_eth_address) + "\">" + web::Escaping::HTMLEscape(trans->user_eth_address) + "</a><br/>" +
+				"parcel: <a href=\"/parcel/" + trans->parcel_id.toString() + "\">" + trans->parcel_id.toString() + "</a>, " + "<br/>" +
+				"created_time: " + trans->created_time.RFC822FormatedString() + "(" + trans->created_time.timeAgoDescription() + ")<br/>" +
+				"state: " + web::Escaping::HTMLEscape(SubEthTransaction::statestring(trans->state)) + "<br/>";
+			if(trans->state != SubEthTransaction::State_New)
+			{
+				page_out += "submitted_time: " + trans->submitted_time.RFC822FormatedString() + "(" + trans->created_time.timeAgoDescription() + ")<br/>";
+				page_out += "txn hash: <a href=\"https://etherscan.io/tx/0x" + trans->transaction_hash.toHexString() + "\">" + web::Escaping::HTMLEscape(trans->transaction_hash.toHexString()) + "</a><br/>";
+				page_out += "error msg: " + web::Escaping::HTMLEscape(trans->submission_error_message) + "<br/>";
+			}
+
+			page_out +=
+				"nonce: " + toString(trans->nonce) + "<br/>";
+
+			page_out += "</p>    \n";
+
+			page_out += "<br/>";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminSubEthTransactionPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	// Parse order id from request path
+	Parser parser(request.path.c_str(), request.path.size());
+	if(!parser.parseString("/admin_sub_eth_transaction/"))
+		throw glare::Exception("Failed to parse /admin_sub_eth_transactions/");
+
+	uint32 transaction_id;
+	if(!parser.parseUnsignedInt(transaction_id))
+		throw glare::Exception("Failed to parse transaction_id");
+
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		page_out += "<h2>Eth transaction " + toString(transaction_id) + "</h2>\n";
+
+		auto res = world_state.sub_eth_transactions.find(transaction_id);
+		if(res == world_state.sub_eth_transactions.end())
+		{
+			page_out += "No transaction with that id found.";
+		}
+		else
+		{
+			const SubEthTransaction* trans = res->second.ptr();
+
+			// Look up user who initiated the transaction
+			std::string username;
+			auto user_res = world_state.user_id_to_users.find(trans->initiating_user_id);
+			if(user_res == world_state.user_id_to_users.end())
+				username = "[No user found]";
+			else
+				username = user_res->second->name;
+
 			page_out += "<h3>Transaction " + toString(trans->id) + "</h3>";
 			page_out += "<p>\n";
 			page_out += 
@@ -323,6 +393,22 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 				page_out += "<input type=\"submit\" value=\"Set transaction state to new\" onclick=\"return confirm('Are you sure you want to set the transaction state to new?');\" >";
 				page_out += "</form>";
 			}
+
+			page_out += "<br/>";
+
+			page_out += "<form action=\"/admin_set_transaction_state_hash\" method=\"post\">";
+			page_out += "<input type=\"hidden\" name=\"transaction_id\" value=\"" + toString(trans->id) + "\">";
+			page_out += "<input type=\"text\" name=\"hash\" value=\"" + trans->transaction_hash.toHexString() + "\">";
+			page_out += "<input type=\"submit\" value=\"Set hash\" onclick=\"return confirm('Are you sure you want to update the transaction hash?');\" >";
+			page_out += "</form>";
+
+			page_out += "<br/>";
+
+			page_out += "<form action=\"/admin_set_transaction_nonce\" method=\"post\">";
+			page_out += "<input type=\"hidden\" name=\"transaction_id\" value=\"" + toString(trans->id) + "\">";
+			page_out += "<input type=\"number\" name=\"nonce\" value=\"" + toString(trans->nonce) + "\">";
+			page_out += "<input type=\"submit\" value=\"Set nonce\" onclick=\"return confirm('Are you sure you want to update the transaction nonce?');\" >";
+			page_out += "</form>";
 
 			page_out += "<br/>";
 		}
@@ -831,7 +917,85 @@ void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const
 
 				world_state.markAsChanged();
 
-				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transactions");
+				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSetTransactionStateToNewPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleSetTransactionHashPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int transaction_id = request.getPostIntField("transaction_id");
+		const web::UnsafeString hash_str = request.getPostField("hash");
+
+		const UInt256 hash = UInt256::parseFromHexString(hash_str.str());
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			// Lookup transaction
+			const auto res = world_state.sub_eth_transactions.find(transaction_id);
+			if(res != world_state.sub_eth_transactions.end())
+			{
+				SubEthTransaction* transaction = res->second.ptr();
+
+				transaction->transaction_hash = hash;
+
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSetTransactionStateToNewPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleSetTransactionNoncePost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int transaction_id = request.getPostIntField("transaction_id");
+		const int nonce = request.getPostIntField("nonce");
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			// Lookup transaction
+			const auto res = world_state.sub_eth_transactions.find(transaction_id);
+			if(res != world_state.sub_eth_transactions.end())
+			{
+				SubEthTransaction* transaction = res->second.ptr();
+
+				transaction->nonce = (uint64)nonce;
+
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
 			}
 		} // End lock scope
 	}
