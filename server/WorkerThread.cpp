@@ -544,6 +544,8 @@ void WorkerThread::handleEthBotConnection()
 			}
 			else
 			{
+				socket->writeUInt32(Protocol::KeepAlive); // Send a keepalive message just to check the socket is still connected.
+
 				// There is no current transaction to process, sleep for a while
 				PlatformUtils::Sleep(10000);
 			}
