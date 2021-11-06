@@ -122,5 +122,7 @@ const uint32 SubmitEthTransactionRequest		= 12001;
 const uint32 EthTransactionSubmitted			= 12002;
 const uint32 EthTransactionSubmissionFailed		= 12003;
 
+const uint32 KeepAlive				= 13000; // A message that doesn't do anything apart from provide a means for the client or server to check a connection is still working by making a socket call.
+
 
 } // end namespace Protocol
