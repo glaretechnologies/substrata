@@ -490,4 +490,6 @@ public:
 
 	DownloadingResourceQueue download_queue;
 	Timer download_queue_sort_timer;
+
+	SocketBufferOutStream scratch_packet;
 };

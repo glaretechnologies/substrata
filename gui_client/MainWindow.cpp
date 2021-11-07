@@ -182,7 +182,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	model_building_subsidary_task_manager("model building subsidary task manager"),
 	url_parcel_uid(-1),
 	running_destructor(false),
-	biome_manager(NULL)
+	biome_manager(NULL),
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
@@ -2160,19 +2161,46 @@ void MainWindow::unloadObject(WorldObjectRef ob)
 }
 
 
+static void updatePacketLengthField(SocketBufferOutStream& packet)
+{
+	// length field is second uint32
+	assert(packet.buf.size() >= sizeof(uint32) * 2);
+	if(packet.buf.size() >= sizeof(uint32) * 2)
+	{
+		const uint32 len = (uint32)packet.buf.size();
+		std::memcpy(&packet.buf[4], &len, 4);
+	}
+}
+
+
+static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
+{
+	scratch_packet.buf.resize(sizeof(uint32) * 2);
+	std::memcpy(&scratch_packet.buf[0], &message_id, sizeof(uint32));
+	std::memset(&scratch_packet.buf[4], 0, sizeof(uint32)); // Write dummy message length, will be updated later when size of message is known.
+}
+
+
+static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStream& packet)
+{
+	updatePacketLengthField(packet);
+
+	client_thread.enqueueDataToSend(packet);
+}
+
+
 void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 {
 	if(this->client_thread.nonNull())
 	{
 		// Make QueryObjects packet and enqueue to send to server
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::QueryObjects);
-		packet.writeUInt32(1); // Num cells to query
-		packet.writeInt32(cell_coords.x);
-		packet.writeInt32(cell_coords.y);
-		packet.writeInt32(cell_coords.z);
+		initPacket(scratch_packet, Protocol::QueryObjects);
+		scratch_packet.writeUInt32(1); // Num cells to query
+		scratch_packet.writeInt32(cell_coords.x);
+		scratch_packet.writeInt32(cell_coords.y);
+		scratch_packet.writeInt32(cell_coords.z);
 
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 }
 
@@ -3107,28 +3135,26 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const std::string password = manager.getDecryptedPasswordForDomain(server_hostname);
 
 						// Make LogInMessage packet and enqueue to send
-						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-						packet.writeUInt32(Protocol::LogInMessage);
-						packet.writeStringLengthFirst(username);
-						packet.writeStringLengthFirst(password);
+						initPacket(scratch_packet, Protocol::LogInMessage);
+						scratch_packet.writeStringLengthFirst(username);
+						scratch_packet.writeStringLengthFirst(password);
 
-						this->client_thread->enqueueDataToSend(packet);
+						enqueueMessageToSend(*this->client_thread, scratch_packet);
 					}
 				}
 				
 				// Send CreateAvatar packet for this client's avatar
 				{
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::CreateAvatar);
+					initPacket(scratch_packet, Protocol::CreateAvatar);
 
 					const Vec3d cam_angles = this->cam_controller.getAngles();
 					Avatar avatar;
 					avatar.uid = this->client_thread->client_avatar_uid;
 					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 					avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-					writeToNetworkStream(avatar, packet);
+					writeToNetworkStream(avatar, scratch_packet);
 
-					this->client_thread->enqueueDataToSend(packet);
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
 
 				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
@@ -3284,11 +3310,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.avatar_settings = m->avatar_settings;
 				avatar.name = m->username;
 
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				packet.writeUInt32(Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, packet);
-
-				this->client_thread->enqueueDataToSend(packet);
+				initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+				writeToNetworkStream(avatar, scratch_packet);
+				
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 			else if(dynamic_cast<const LoggedOutMessage*>(msg.getPointer()))
 			{
@@ -3307,11 +3332,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.avatar_settings.model_url = "";
 				avatar.name = "Anonymous";
 
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				packet.writeUInt32(Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, packet);
+				initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+				writeToNetworkStream(avatar, scratch_packet);
 
-				this->client_thread->enqueueDataToSend(packet);
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 			else if(dynamic_cast<const SignedUpMessage*>(msg.getPointer()))
 			{
@@ -3334,11 +3358,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.avatar_settings.model_url = "";
 				avatar.name = m->username;
 
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				packet.writeUInt32(Protocol::AvatarFullUpdate);
-				writeToNetworkStream(avatar, packet);
+				initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+				writeToNetworkStream(avatar, scratch_packet);
 
-				this->client_thread->enqueueDataToSend(packet);
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
 			{
@@ -4359,14 +4382,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			const uint32 anim_state = (player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
 
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::AvatarTransformUpdate);
-			writeToStream(this->client_thread->client_avatar_uid, packet);
-			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), packet);
-			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), packet);
-			packet.writeUInt32(anim_state);
+			initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
+			writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
+			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
+			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), scratch_packet);
+			scratch_packet.writeUInt32(anim_state);
 
-			this->client_thread->enqueueDataToSend(packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
 
 		//============ Send any object updates needed ===========
@@ -4380,11 +4402,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(world_ob->from_local_other_dirty)
 				{
 					// Enqueue ObjectFullUpdate
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::ObjectFullUpdate);
-					world_ob->writeToNetworkStream(packet);
+					initPacket(scratch_packet, Protocol::ObjectFullUpdate);
+					world_ob->writeToNetworkStream(scratch_packet);
 
-					this->client_thread->enqueueDataToSend(packet);
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 					world_ob->from_local_other_dirty = false;
 					world_ob->from_local_transform_dirty = false; // We sent all information, including transform, so transform is no longer dirty.
@@ -4392,14 +4413,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				else if(world_ob->from_local_transform_dirty)
 				{
 					// Enqueue ObjectTransformUpdate
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					packet.writeUInt32(Protocol::ObjectTransformUpdate);
-					writeToStream(world_ob->uid, packet);
-					writeToStream(Vec3d(world_ob->pos), packet);
-					writeToStream(Vec3f(world_ob->axis), packet);
-					packet.writeFloat(world_ob->angle);
+					initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
+					writeToStream(world_ob->uid, scratch_packet);
+					writeToStream(Vec3d(world_ob->pos), scratch_packet);
+					writeToStream(Vec3f(world_ob->axis), scratch_packet);
+					scratch_packet.writeFloat(world_ob->angle);
 
-					this->client_thread->enqueueDataToSend(packet);
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 					world_ob->from_local_transform_dirty = false;
 				}
@@ -4734,11 +4754,10 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *resource_manager, task_manager);
 
 			// Send AvatarFullUpdate message to server
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::AvatarFullUpdate);
-			writeToNetworkStream(avatar, packet);
+			initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+			writeToNetworkStream(avatar, scratch_packet);
 
-			this->client_thread->enqueueDataToSend(packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 			showInfoNotification("Updated avatar.");
 		}
@@ -5085,12 +5104,10 @@ void MainWindow::on_actionAddObject_triggered()
 
 			// Send CreateObject message to server
 			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				initPacket(scratch_packet, Protocol::CreateObject);
+				new_world_object->writeToNetworkStream(scratch_packet);
 
-				packet.writeUInt32(Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(packet);
-
-				this->client_thread->enqueueDataToSend(packet);
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 
 			showInfoNotification("Object created.");
@@ -5156,12 +5173,10 @@ void MainWindow::on_actionAddHypercard_triggered()
 
 	// Send CreateObject message to server
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
 
-		packet.writeUInt32(Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(packet);
-
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 
 	showInfoNotification("Added hypercard.");
@@ -5202,12 +5217,10 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 
 	// Send CreateObject message to server
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
 
-		packet.writeUInt32(Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(packet);
-
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 
 	showInfoNotification("Added spotlight.");
@@ -5295,12 +5308,10 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 
 			// Send CreateObject message to server
 			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+				initPacket(scratch_packet, Protocol::CreateObject);
+				new_world_object->writeToNetworkStream(scratch_packet);
 
-				packet.writeUInt32(Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(packet);
-
-				this->client_thread->enqueueDataToSend(packet);
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
 			}
 
 			showInfoNotification("Added audio source.");
@@ -5349,12 +5360,10 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 
 	// Send CreateObject message to server
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+		initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
 
-		packet.writeUInt32(Protocol::CreateObject);
-		new_world_object->writeToNetworkStream(packet);
-
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 
 	showInfoNotification("Voxel Object created.");
@@ -5413,12 +5422,10 @@ void MainWindow::on_actionCloneObject_triggered()
 
 		// Send CreateObject message to server
 		{
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+			initPacket(scratch_packet, Protocol::CreateObject);
+			new_world_object->writeToNetworkStream(scratch_packet);
 
-			packet.writeUInt32(Protocol::CreateObject);
-			new_world_object->writeToNetworkStream(packet);
-
-			this->client_thread->enqueueDataToSend(packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
 
 		// Deselect any currently selected object
@@ -5505,11 +5512,11 @@ void MainWindow::on_actionLogIn_triggered()
 		//this->last_login_username = username;
 
 		// Make LogInMessage packet and enqueue to send
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::LogInMessage);
-		packet.writeStringLengthFirst(username);
-		packet.writeStringLengthFirst(password);
-		this->client_thread->enqueueDataToSend(packet);
+		initPacket(scratch_packet, Protocol::LogInMessage);
+		scratch_packet.writeStringLengthFirst(username);
+		scratch_packet.writeStringLengthFirst(password);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 }
 
@@ -5517,9 +5524,8 @@ void MainWindow::on_actionLogIn_triggered()
 void MainWindow::on_actionLogOut_triggered()
 {
 	// Make message packet and enqueue to send
-	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-	packet.writeUInt32(Protocol::LogOutMessage);
-	this->client_thread->enqueueDataToSend(packet);
+	initPacket(scratch_packet, Protocol::LogOutMessage);
+	enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 	settings->setValue("LoginDialog/auto_login", false); // Don't log in automatically next start.
 }
@@ -5550,13 +5556,12 @@ void MainWindow::on_actionSignUp_triggered()
 		//this->last_login_username = username;
 
 		// Make message packet and enqueue to send
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::SignUpMessage);
-		packet.writeStringLengthFirst(username);
-		packet.writeStringLengthFirst(email);
-		packet.writeStringLengthFirst(password);
+		initPacket(scratch_packet, Protocol::SignUpMessage);
+		scratch_packet.writeStringLengthFirst(username);
+		scratch_packet.writeStringLengthFirst(email);
+		scratch_packet.writeStringLengthFirst(password);
 
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 }
 
@@ -5957,14 +5962,12 @@ void MainWindow::applyUndoOrRedoObject(const Reference<WorldObject>& restored_ob
 				// Note that the recreated object will have a different ID.
 				// To apply more undo edits to the recreated object, use recreated_ob_uid to map from edit UID to recreated object UID.
 				{
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-
-					packet.writeUInt32(Protocol::CreateObject);
-					restored_ob->writeToNetworkStream(packet);
+					initPacket(scratch_packet, Protocol::CreateObject);
+					restored_ob->writeToNetworkStream(scratch_packet);
 
 					this->last_restored_ob_uid_in_edit = restored_ob->uid; // Store edit UID, will be used when receiving new object to add entry to recreated_ob_uid map.
 
-					this->client_thread->enqueueDataToSend(packet);
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
 				}
 			}
 		}
@@ -6091,11 +6094,10 @@ void MainWindow::sendChatMessageSlot()
 	const std::string message = QtUtils::toIndString(ui->chatMessageLineEdit->text());
 
 	// Make message packet and enqueue to send
-	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-	packet.writeUInt32(Protocol::ChatMessageID);
-	packet.writeStringLengthFirst(message);
+	initPacket(scratch_packet, Protocol::ChatMessageID);
+	scratch_packet.writeStringLengthFirst(message);
 
-	this->client_thread->enqueueDataToSend(packet);
+	enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 	ui->chatMessageLineEdit->clear();
 }
@@ -6479,12 +6481,11 @@ void MainWindow::sendLightmapNeededFlagsSlot()
 		WorldObjectRef ob = *it;
 
 		// Enqueue ObjectFlagsChanged
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::ObjectFlagsChanged);
-		writeToStream(ob->uid, packet);
-		packet.writeUInt32(ob->flags);
+		initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
+		writeToStream(ob->uid, scratch_packet);
+		scratch_packet.writeUInt32(ob->flags);
 
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 
 	objs_with_lightmap_rebuild_needed.clear();
@@ -6699,17 +6700,16 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	// Send QueryObjects for initial cells to server
 	{
 		// Make QueryObjects packet and enqueue to send
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::QueryObjects);
-		packet.writeUInt32((uint32)initial_cells.size()); // Num cells to query
+		initPacket(scratch_packet, Protocol::QueryObjects);
+		scratch_packet.writeUInt32((uint32)initial_cells.size()); // Num cells to query
 		for(size_t i=0; i<initial_cells.size(); ++i)
 		{
-			packet.writeInt32(initial_cells[i].x);
-			packet.writeInt32(initial_cells[i].y);
-			packet.writeInt32(initial_cells[i].z);
+			scratch_packet.writeInt32(initial_cells[i].x);
+			scratch_packet.writeInt32(initial_cells[i].y);
+			scratch_packet.writeInt32(initial_cells[i].z);
 		}
 
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 
 	updateGroundPlane();
@@ -7257,10 +7257,9 @@ void MainWindow::pickUpSelectedObject()
 			ui->glWidget->opengl_engine->setSelectionOutlineColour(PICKED_UP_OUTLINE_COLOUR);
 
 			// Send UserSelectedObject message to server
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::UserSelectedObject);
-			writeToStream(selected_ob->uid, packet);
-			this->client_thread->enqueueDataToSend(packet);
+			initPacket(scratch_packet, Protocol::UserSelectedObject);
+			writeToStream(selected_ob->uid, scratch_packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 			showInfoNotification("Picked up object.");
 
@@ -7283,10 +7282,10 @@ void MainWindow::dropSelectedObject()
 	if(selected_ob.nonNull() && selected_ob_picked_up)
 	{
 		// Send UserDeselectedObject message to server
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::UserDeselectedObject);
-		writeToStream(selected_ob->uid, packet);
-		this->client_thread->enqueueDataToSend(packet);
+		initPacket(scratch_packet, Protocol::UserDeselectedObject);
+		writeToStream(selected_ob->uid, scratch_packet);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 		ui->glWidget->opengl_engine->setSelectionOutlineColour(DEFAULT_OUTLINE_COLOUR);
 
@@ -7629,11 +7628,10 @@ void MainWindow::deleteSelectedObject()
 			undo_buffer.finishWorldObjectEdit(*selected_ob);
 
 			// Send DestroyObject packet
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::DestroyObject);
-			writeToStream(selected_ob->uid, packet);
+			initPacket(scratch_packet, Protocol::DestroyObject);
+			writeToStream(selected_ob->uid, scratch_packet);
 
-			this->client_thread->enqueueDataToSend(packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 			deselectObject();
 
@@ -8312,12 +8310,11 @@ void MainWindow::performGestureClicked(const std::string& gesture_name, bool ani
 
 	// Send AvatarPerformGesture message
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::AvatarPerformGesture);
-		writeToStream(this->client_thread->client_avatar_uid, packet);
-		packet.writeStringLengthFirst(gesture_name);
+		initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+		writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
+		scratch_packet.writeStringLengthFirst(gesture_name);
 
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 }
 
@@ -8343,11 +8340,10 @@ void MainWindow::stopGestureClicked(const std::string& gesture_name)
 
 	// Send AvatarStopGesture message
 	{
-		SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-		packet.writeUInt32(Protocol::AvatarStopGesture);
-		writeToStream(this->client_thread->client_avatar_uid, packet);
+		initPacket(scratch_packet, Protocol::AvatarStopGesture);
+		writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
 
-		this->client_thread->enqueueDataToSend(packet);
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
 }
 

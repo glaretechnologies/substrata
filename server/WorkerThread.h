@@ -11,13 +11,14 @@ Copyright Glare Technologies Limited 2018 -
 #include <MyThread.h>
 #include <EventFD.h>
 #include <MySocket.h>
+#include <SocketBufferOutStream.h>
 #include <Vector.h>
+#include <BufferInStream.h>
 #include <string>
 class WorkUnit;
 class PrintOutput;
 class ThreadMessageSink;
 class Server;
-class SocketBufferOutStream;
 
 
 /*=====================================================================
@@ -53,4 +54,8 @@ private:
 	Mutex data_to_send_mutex;
 	js::Vector<uint8, 16> data_to_send;
 	js::Vector<uint8, 16> temp_data_to_send;
+
+	SocketBufferOutStream scratch_packet;
+
+	BufferInStream msg_buffer;
 };
