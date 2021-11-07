@@ -1,3 +1,7 @@
+import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from './build/three.module.js';
+import { Sky } from './examples/jsm/objects/Sky.js';
+
 var ws = new WebSocket("ws://localhost", "echo-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
@@ -9,8 +13,11 @@ const STATE_READ_CLIENT_AVATAR_UID = 3;
 
 var protocol_state = 0;
 
+const CyberspaceProtocolVersion = 31;
 const CyberspaceHello = 1357924680;
 const ClientProtocolOK = 10000;
+const ClientProtocolTooOld = 10001;
+const ClientProtocolTooNew = 10002;
 const QueryObjects = 3020; // Client wants to query objects in certain grid cells
 const ObjectInitialSend = 3021;
 const ParcelCreated = 3100;
@@ -83,7 +90,7 @@ function fromUTF8Array(data) { // array of bytes
 
 function writeStringToWebSocket(ws, str)
 {
-    utf8_array = toUTF8Array(str)
+    let utf8_array = toUTF8Array(str)
 
     ws.send(new Uint32Array([utf8_array.length]));
     ws.send(new Uint8Array(utf8_array));
@@ -93,11 +100,17 @@ function writeStringToWebSocket(ws, str)
 
 // Then you can send a message
 ws.onopen = function () {
-	console.log("onopen()");
+    console.log("onopen()");
+
+    //TEMP:
+    //let a = new Uint8Array(10000);
+    //for (let i = 0; i < a.length; ++i)
+    //    a[i] = i % 256;
+    //ws.send(a);
 
 	ws.send(new Uint32Array([CyberspaceHello]));
 
-	var CyberspaceProtocolVersion = 30;
+	
 	ws.send(new Uint32Array([CyberspaceProtocolVersion]));
 
 	var ConnectionTypeUpdates = 500;
@@ -382,8 +395,18 @@ class WorldObject {
 
 }
 
+const COLOUR_TEX_HAS_ALPHA_FLAG = 1;
+const MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
+
 class WorldMaterial {
 
+    colourTexHasAlpha() {
+        return (this.flags & COLOUR_TEX_HAS_ALPHA_FLAG) != 0;
+    }
+
+    minLODLevel() {
+        return (this.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
+    }
 }
 
 class ScalarVal {
@@ -548,6 +571,10 @@ class BufferOut {
         this.size += 4;
     }
 
+    updateMessageLengthField() {
+        this.data_view.setUint32(/*byte offset=*/4, /*value=*/this.size, /*little endian=*/true);
+    }
+
     writeToWebSocket(web_socket) {
 
         // Trim buffer down to actual used part
@@ -571,6 +598,7 @@ function sendQueryObjectsMessage() {
     {
         let buffer_out = new BufferOut();
         buffer_out.writeUInt32(QueryObjects);
+        buffer_out.writeUInt32(0); // message length - to be updated.
         let r = 4;
         buffer_out.writeUInt32(2 * (2 * r + 1) * (2 * r + 1)); // Num cells to query
 
@@ -580,6 +608,7 @@ function sendQueryObjectsMessage() {
                 buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(-1);
             }
 
+        buffer_out.updateMessageLengthField();
         buffer_out.writeToWebSocket(ws);
     }
 }
@@ -590,11 +619,24 @@ var world_objects = {};
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
-    //console.log("onmessage()");
-    //console.log("From Server:" + event.data + ", event.data.byteLength: " + event.data.byteLength);
+    console.log("onmessage()");
+    console.log("From Server:" + event.data + ", event.data.byteLength: " + event.data.byteLength);
+
+
+    //TEMP:
+    /*let a = new Uint8Array(event.data);
+    console.log("read Uint8Array:", a);
+    if (a.length != 10000)
+        throw "incorrect a length: " + a.length;
+    for (let i = 0; i < a.length; ++i)
+        if (a[i] != i % 256)
+            throw "a[i] is wrong.";
+    console.log("Uint8Array a was correct");
+    return;*/
+
 
     let z = 0;
-    buffer = new BufferIn(event.data);
+    let buffer = new BufferIn(event.data);
     while (!buffer.endOfStream()) {
 
         //console.log("Reading, buffer.read_index: " + buffer.read_index);
@@ -611,7 +653,14 @@ ws.onmessage = function (event) {
         else if (protocol_state == STATE_READ_HELLO_RESPONSE) {
             // Read protocol_response
             var protocol_response = readUInt32(buffer);
-            if (protocol_response != ClientProtocolOK)
+            if (protocol_response == ClientProtocolOK) { }
+            else if (protocol_response == ClientProtocolTooOld) {
+                throw 'client protocol version is too old'
+            }
+            else if (protocol_response == ClientProtocolTooNew) {
+                throw 'client protocol version is too new'
+            }
+            else
                 throw 'protocol_response was invalid: ' + protocol_response.toString();
 
             //console.log("Read protocol_response from server.");
@@ -625,8 +674,10 @@ ws.onmessage = function (event) {
             protocol_state = STATE_READ_CLIENT_AVATAR_UID;
         }
         else if (protocol_state == STATE_READ_CLIENT_AVATAR_UID) {
+
             var msg_type = readUInt32(buffer);
-            //console.log("Read msg_type: " + msg_type);
+            var msg_len = readUInt32(buffer);
+            console.log("Read msg_type: " + msg_type + ", len: " + msg_len);
 
             if (msg_type == TimeSyncMessage) {
                 var global_time = readDouble(buffer);
@@ -645,19 +696,23 @@ ws.onmessage = function (event) {
                 //addParcelGraphics(parcel)
             }
             else if (msg_type == ObjectInitialSend) {
-               // console.log("received ObjectInitialSend...");
+                // console.log("received ObjectInitialSend...");
 
                 let object_uid = readUIDFromStream(buffer);
 
                 let world_ob = readWorldObjectFromNetworkStreamGivenUID(buffer);
+                world_ob.uid = object_uid;
 
                 addWorldObjectGraphics(world_ob);
 
                 world_objects[object_uid] = world_ob;
                 //console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
-            }  
-            else
-                throw "Unhandled message type " + msg_type;
+            }
+            else {
+                // Unhandled message type, skip over it.
+                console.log("Unhandled message type " + msg_type);
+                buffer.read_index += msg_len - 8; // We have already read the type and len (uint32 * 2), skip over remaining data in msg.
+            }
         }
         else
             throw "invalid protocol_state";
@@ -730,7 +785,8 @@ var shadowGenerator;
 
 
 function toYUp(v) {
-    return new THREE.Vector3(v.x, v.z, -v.y);
+    //return new THREE.Vector3(v.x, v.z, -v.y);
+    return new THREE.Vector3(v.x, v.y, v.z);
    // return v;
 }
 
@@ -857,27 +913,249 @@ function addParcelGraphics(parcel) {
 }
 
 
+// https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
+function filenameExtension(filename) {
+    return filename.split('.').pop();
+}
+
+function hasExtension(filename, ext) {
+    return filenameExtension(filename).toLowerCase() === ext.toLowerCase();
+}
+
+function AABBLongestLength(world_ob) {
+    return Math.max(
+        world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x,
+        world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y,
+        world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z
+    );
+}
+
+function getLODLevel(world_ob, campos) {
+
+    let dist = new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z).distanceTo(campos);
+    let proj_len = AABBLongestLength(world_ob) / dist;
+
+    if (proj_len > 0.6)
+        return -1;
+    else if (proj_len > 0.16)
+        return 0;
+    else if (proj_len > 0.03)
+        return 1;
+    else
+        return 2;
+}
+
+
+
+function getModelLODLevel(world_ob, campos) { // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
+    if (world_ob.max_model_lod_level == 0)
+        return 0;
+
+    return Math.max(0, getLODLevel(world_ob, campos));
+}
+
+
+// https://stackoverflow.com/questions/4250364/how-to-trim-a-file-extension-from-a-string-in-javascript
+function removeDotAndExtension(filename) {
+   return filename.split('.').slice(0, -1).join('.')
+}
+
+function hasPrefix(s, prefix) {
+    return s.startsWith(prefix);
+}
+
+function getLODModelURLForLevel(base_model_url, level)
+{
+    if (level <= 0)
+        return base_model_url;
+    else {
+        if (base_model_url.startsWith("http:") || base_model_url.startsWith("https:"))
+            return base_model_url;
+
+        if (level == 1)
+            return removeDotAndExtension(base_model_url) + "_lod1.bmesh"; // LOD models are always saved in BatchedMesh (bmesh) format.
+        else
+            return removeDotAndExtension(base_model_url) + "_lod2.bmesh";
+    }
+}
+
+
+//function worldMaterialMinLODLevel(world_mat) {
+//    const MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
+//    return (world_mat.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
+//}
+
+function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha) {
+    let min_lod_level = world_mat.minLODLevel();
+
+    if (level <= min_lod_level)
+        return base_texture_url;
+    else {
+        // Don't do LOD on mp4 (video) textures (for now).
+        // Also don't do LOD with http URLs
+        if (hasExtension(base_texture_url, "mp4") || hasPrefix(base_texture_url, "http:") || hasPrefix(base_texture_url, "https:"))
+         return base_texture_url;
+
+        // Gifs LOD textures are always gifs.
+        // Other image formats get converted to jpg if they don't have alpha, and png if they do.
+        let is_gif = hasExtension(base_texture_url, "gif");
+
+        if (level == 0)
+            return removeDotAndExtension(base_texture_url) + "_lod0." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+        else if (level == 1)
+            return removeDotAndExtension(base_texture_url) + "_lod1." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+        else
+            return removeDotAndExtension(base_texture_url) + "_lod2." + (is_gif ? "gif" : (has_alpha ? "png" : "jpg"));
+    }
+}
+
 function addWorldObjectGraphics(world_ob) {
 
-    let xspan = world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x;
-    let yspan = world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y;
-    let zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
+    if (world_ob.model_url === "")
+        return;
 
-    /*const box = BABYLON.MeshBuilder.CreateBox("box", { height: zspan, width: xspan, depth: yspan }, scene);
+    //return;
+    //if (world_ob.uid == 148313) {
+    if (true) {
 
-    box.position = toYUp(new BABYLON.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
+        console.log("addWorldObjectGraphics")
 
-    shadowGenerator.addShadowCaster(box);
-    box.receiveShadows = true;*/
+        let ob_lod_level = getLODLevel(world_ob, camera.position);
+        let model_lod_level = getModelLODLevel(world_ob, camera.position);
+        console.log("model_lod_level: " + model_lod_level)
 
-    const geometry = new THREE.BoxGeometry();
-    const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
-    const cube = new THREE.Mesh(geometry, material);
-    cube.position.copy(toYUp(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2)));
-    cube.scale.copy(toYUp(new THREE.Vector3(xspan, yspan, zspan)));
-    //cube.updateMatrix();
-    scene.add(cube);
-    //cube.updateMatrix();
+
+
+        let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
+
+
+        console.log("LOD model URL: " + url);
+
+        if (filenameExtension(url) != "glb")
+            url += ".glb";
+
+        /* let encoded_url = encodeURIComponent(url);
+ 
+         var oReq = new XMLHttpRequest();
+         oReq.open("GET", "/resource/" + encoded_url, true);
+         oReq.responseType = "arraybuffer";
+ 
+ 
+         oReq.onload = function (oEvent) {
+             var arrayBuffer = oReq.response; // Note: not oReq.responseText
+             if (arrayBuffer) {
+ 
+                 console.log("Downloaded the file: '" + url + "'!");
+ 
+ 
+             }
+         };
+ 
+         oReq.send(null);*/
+
+        const loader = new GLTFLoader();
+
+        loader.load("/resource/" + url, function (gltf) {
+
+            console.log("GLTF file loaded, adding to scene..");
+
+            gltf.scene.position.copy(toYUp(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z)));
+            gltf.scene.scale.copy(toYUp(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z)));
+
+            let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+            axis.normalize();
+            let q = new THREE.Quaternion();
+            q.setFromAxisAngle(axis, world_ob.angle);
+            gltf.scene.setRotationFromQuaternion(q);
+
+            console.log("Traversing...");
+
+            let mat_index = 0;
+            gltf.scene.traverse(function (child) { // NOTE: is this traversal in the right order?
+                if (child instanceof THREE.Mesh) {
+
+                    console.log("Found child mesh");
+                    let world_mat = world_ob.mats[mat_index];
+                    if (world_mat) {
+
+                        child.material.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
+                        child.material.metalness = world_mat.metallic_fraction.val;
+                        child.material.roughness = world_mat.roughness.val;
+
+                        // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
+                        console.log("world_mat.flags: " + world_mat.flags);
+                        console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
+                        let lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, world_mat.colourTexHasAlpha());
+
+                        console.log("lod_texture_URL: " + lod_texture_URL);
+                        //child.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
+
+                        let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.wrapT = THREE.RepeatWrapping;
+                        child.material.map = texture;
+
+                        child.material.map.matrixAutoUpdate = false;
+                        console.log("world_mat.tex_matrix: ", world_mat.tex_matrix);
+                        child.material.map.matrix.set(
+                            world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
+                            world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
+                            0, 0, 1
+                            //1, 0, 0,
+                            //0, 1, 0,
+                            //0, 0, 1
+                        );
+                        console.log("child.material.map.matrix: ", child.material.map.matrix);
+
+                        child.material.needsUpdate = true;
+                    }
+                   
+
+                    mat_index++;
+                }
+                //if (child instanceof THREE.Mesh) {
+
+                //    mat = world_ob.mats[mat_index];
+                //    // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
+
+
+                //    child.material.map = THREE.ImageUtils.loadTexture("resource/" + world_ob.mats[0].colour_texture_url);
+                //    child.material.needsUpdate = true;
+
+                //    mat_index++;
+                //}
+            });
+
+            scene.add(gltf.scene);
+            },
+            undefined,
+            function (error) {
+
+            console.error(error);
+        });
+    }
+    else {
+
+        let xspan = world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x;
+        let yspan = world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y;
+        let zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
+
+        /*const box = BABYLON.MeshBuilder.CreateBox("box", { height: zspan, width: xspan, depth: yspan }, scene);
+
+        box.position = toYUp(new BABYLON.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
+
+        shadowGenerator.addShadowCaster(box);
+        box.receiveShadows = true;*/
+
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.copy(toYUp(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2)));
+        cube.scale.copy(toYUp(new THREE.Vector3(xspan, yspan, zspan)));
+        //cube.updateMatrix();
+        scene.add(cube);
+        //cube.updateMatrix();
+    }
 }
 
 
@@ -893,6 +1171,8 @@ function addWorldObjectGraphics(world_ob) {
 //});
 
 
+THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
+
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
@@ -905,16 +1185,20 @@ document.body.appendChild(renderer.domElement);
 //const cube = new THREE.Mesh(geometry, material);
 //scene.add(cube);
 
-camera.position.set(100, 100, 200);
-camera.lookAt(0, 0, 0);
+camera.position.set(-4, 12, 3);
+camera.up = new THREE.Vector3(0, 0, 1);
+//camera.position.set(-50, -100, 45);
+
+//let target = ;
+camera.lookAt(camera.position.clone().add(new THREE.Vector3(0, 1, 0)));
 
 
-const hemiLight = new THREE.HemisphereLight(0xaaffff, 0x444444);
-hemiLight.position.set(0, 20, 0);
+const hemiLight = new THREE.HemisphereLight(/*sky colour=*/0xeeeeff, /*groundColor =*/0x776666);
+hemiLight.position.set(0, 20, 20);
 scene.add(hemiLight);
 
-const dirLight = new THREE.DirectionalLight(0xffaaff, 0.5);
-dirLight.position.set(3, 10, 10);
+const dirLight = new THREE.DirectionalLight(0xbbaaaa, 0.9);
+dirLight.position.set(3, -10, 10);
 //dirLight.castShadow = true;
 //dirLight.shadow.camera.top = 2;
 //dirLight.shadow.camera.bottom = - 2;
@@ -924,18 +1208,50 @@ dirLight.position.set(3, 10, 10);
 //dirLight.shadow.camera.far = 40;
 scene.add(dirLight);
 
+
+// Add Sky
+let sky = new Sky();
+sky.scale.setScalar(450000);
+scene.add(sky);
+
+const uniforms = sky.material.uniforms;
+uniforms['turbidity'].value = 0.1
+uniforms['rayleigh'].value = 0.5
+uniforms['mieCoefficient'].value = 0.1
+uniforms['mieDirectionalG'].value = 0.5
+uniforms['up'].value.copy(new THREE.Vector3(0,0,1));
+
+const phi = THREE.MathUtils.degToRad(90 - 45);
+const theta = THREE.MathUtils.degToRad(45);
+
+let sun = new THREE.Vector3();
+sun.setFromSphericalCoords(1, phi, theta);
+
+uniforms['sunPosition'].value.copy(sun);
+
+
 //const controls = new OrbitControls(camera, renderer.domElement);
 //controls.enablePan = false;
 //controls.enableZoom = false;
 //controls.target.set(0, 1, 0);
 //controls.update();
 
+const geometry = new THREE.PlaneGeometry(1000, 1000);
+const material = new THREE.MeshBasicMaterial({ color: 0x999999, side: THREE.DoubleSide });
+const plane = new THREE.Mesh(geometry, material);
+scene.add(plane);
+
 function animate() {
     requestAnimationFrame(animate);
 
+    camera.position.x += 0.003;
     //cube.rotation.x += 0.01;
    // cube.rotation.y += 0.01;
+
+    //camera.lookAt(0, 15, 2);
 
     renderer.render(scene, camera);
 }
 animate();
+
+

@@ -119,6 +119,7 @@ static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::str
 	updatePacketLengthField(packet);
 
 	socket->writeData(packet.buf.data(), packet.buf.size());
+	socket->flush();
 }
 
 
@@ -798,6 +799,7 @@ void WorkerThread::doRun()
 			if(temp_data_to_send.nonEmpty() && (connection_type == Protocol::ConnectionTypeUpdates))
 			{
 				socket->writeData(temp_data_to_send.data(), temp_data_to_send.size());
+				socket->flush();
 				temp_data_to_send.clear();
 			}
 
@@ -1188,6 +1190,7 @@ void WorkerThread::doRun()
 							scratch_packet.writeStringLengthFirst("You must be logged in to create an object.");
 							updatePacketLengthField(scratch_packet);
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
 						}
 						else
 						{
@@ -1281,6 +1284,7 @@ void WorkerThread::doRun()
 					temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 
 					socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
+					socket->flush();
 
 					break;
 				}
@@ -1366,6 +1370,7 @@ void WorkerThread::doRun()
 						}
 						updatePacketLengthField(scratch_packet);
 						socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
+						socket->flush();
 						break;
 					}
 				case Protocol::ParcelFullUpdate: // Client wants to update a parcel
@@ -1504,6 +1509,7 @@ void WorkerThread::doRun()
 							updatePacketLengthField(scratch_packet);
 
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
 						}
 						else
 						{
@@ -1513,6 +1519,7 @@ void WorkerThread::doRun()
 							updatePacketLengthField(scratch_packet);
 
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
 						}
 					
 						break;
@@ -1528,7 +1535,7 @@ void WorkerThread::doRun()
 						updatePacketLengthField(scratch_packet);
 
 						socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-						
+						socket->flush();
 						break;
 					}
 				case Protocol::SignUpMessage:
@@ -1597,6 +1604,7 @@ void WorkerThread::doRun()
 								updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+								socket->flush();
 							}
 							else
 							{
@@ -1608,6 +1616,7 @@ void WorkerThread::doRun()
 								updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+								socket->flush();
 							}
 						}
 						catch(glare::Exception& e)
@@ -1620,6 +1629,7 @@ void WorkerThread::doRun()
 							updatePacketLengthField(scratch_packet);
 
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
 						}
 
 						break;
