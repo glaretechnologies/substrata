@@ -16,6 +16,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <ThreadManager.h>
 #include <MySocket.h>
 #include <Vector.h>
+#include <BufferInStream.h>
 #include <set>
 #include <string>
 class WorkUnit;
@@ -200,4 +201,6 @@ private:
 	Mutex data_to_send_mutex;
 	js::Vector<uint8, 16> data_to_send;
 	js::Vector<uint8, 16> temp_data_to_send;
+
+	BufferInStream msg_buffer;
 };

@@ -142,8 +142,23 @@ void ClientThread::doRun()
 			if(socket->readable(event_fd)) // Block until either the socket is readable or the event fd is signalled, which means we have data to write.
 #endif
 			{
-				// Read msg type
-				const uint32 msg_type = socket->readUInt32();
+				// Read msg type and length
+				uint32 msg_type_and_len[2];
+				socket->readData(msg_type_and_len, sizeof(uint32) * 2);
+				const uint32 msg_type = msg_type_and_len[0];
+				const uint32 msg_len = msg_type_and_len[1];
+				
+				// conPrint("ClientThread: Read message header: id: " + toString(msg_type) + ", len: " + toString(msg_len));
+
+				if((msg_len < sizeof(uint32) * 2) || (msg_len > 1000000))
+					throw glare::Exception("Invalid message size: " + toString(msg_len));
+
+				// Read entire message
+				msg_buffer.buf.resizeNoCopy(msg_len);
+				msg_buffer.read_index = sizeof(uint32) * 2;
+
+				socket->readData(msg_buffer.buf.data() + sizeof(uint32) * 2, msg_len - sizeof(uint32) * 2); // Read rest of message, store in msg_buffer.
+
 				switch(msg_type)
 				{
 				case Protocol::AllObjectsSent:
@@ -156,10 +171,10 @@ void ClientThread::doRun()
 				case Protocol::AvatarTransformUpdate:
 					{
 						//conPrint("AvatarTransformUpdate");
-						const UID avatar_uid = readUIDFromStream(*socket);
-						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f rotation = readVec3FromStream<float>(*socket);
-						const uint32 anim_state = socket->readUInt32();
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+						const Vec3f rotation = readVec3FromStream<float>(msg_buffer);
+						const uint32 anim_state = msg_buffer.readUInt32();
 
 						// Look up existing avatar in world state
 						{
@@ -188,10 +203,10 @@ void ClientThread::doRun()
 					{
 						conPrint("received Protocol::AvatarFullUpdate");
 
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(*socket, temp_avatar); // Read message data before grabbing lock
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -211,9 +226,9 @@ void ClientThread::doRun()
 					{
 						conPrint("received Protocol::AvatarIsHere");
 
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(*socket, temp_avatar); // Read message data before grabbing lock
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -241,9 +256,9 @@ void ClientThread::doRun()
 					{
 						conPrint("received Protocol::AvatarCreated");
 
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(*socket, temp_avatar); // Read message data before grabbing lock
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -270,7 +285,7 @@ void ClientThread::doRun()
 				case Protocol::AvatarDestroyed:
 					{
 						conPrint("AvatarDestroyed");
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						// Mark avatar as dead
 						{
@@ -288,8 +303,8 @@ void ClientThread::doRun()
 				case Protocol::AvatarPerformGesture:
 					{
 						//conPrint("AvatarPerformGesture");
-						const UID avatar_uid = readUIDFromStream(*socket);
-						const std::string gesture_name = socket->readStringLengthFirst(10000);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
 
 						//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
 
@@ -300,7 +315,7 @@ void ClientThread::doRun()
 				case Protocol::AvatarStopGesture:
 					{
 						//conPrint("AvatarStopGesture");
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						out_msg_queue->enqueue(new AvatarStopGestureMessage(avatar_uid));
 
@@ -309,10 +324,10 @@ void ClientThread::doRun()
 				case Protocol::ObjectTransformUpdate:
 					{
 						//conPrint("ObjectTransformUpdate");
-						const UID object_uid = readUIDFromStream(*socket);
-						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+						const Vec3f axis = readVec3FromStream<float>(msg_buffer);
+						const float angle = msg_buffer.readFloat();
 
 						// Look up existing object in world state
 						{
@@ -353,7 +368,7 @@ void ClientThread::doRun()
 				case Protocol::ObjectFullUpdate:
 					{
 						//conPrint("ObjectFullUpdate");
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Look up existing object in world state
 						{
@@ -367,7 +382,7 @@ void ClientThread::doRun()
 								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
 #endif
 								{
-									readFromNetworkStreamGivenUID(*socket, *ob);
+									readFromNetworkStreamGivenUID(msg_buffer, *ob);
 									read = true;
 									ob->from_remote_other_dirty = true;
 									world_state->dirty_from_remote_objects.insert(ob);
@@ -378,7 +393,7 @@ void ClientThread::doRun()
 							if(!read)
 							{
 								WorldObject dummy;
-								readFromNetworkStreamGivenUID(*socket, dummy);
+								readFromNetworkStreamGivenUID(msg_buffer, dummy);
 							}
 
 						}
@@ -387,8 +402,8 @@ void ClientThread::doRun()
 				case Protocol::ObjectLightmapURLChanged:
 					{
 						//conPrint("ObjectLightmapURLChanged");
-						const UID object_uid = readUIDFromStream(*socket);
-						const std::string new_lightmap_url = socket->readStringLengthFirst(10000);
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(10000);
 						//conPrint("new_lightmap_url: " + new_lightmap_url);
 
 						// Look up existing object in world state
@@ -410,8 +425,8 @@ void ClientThread::doRun()
 				case Protocol::ObjectModelURLChanged:
 					{
 						//conPrint("ObjectModelURLChanged");
-						const UID object_uid = readUIDFromStream(*socket);
-						const std::string new_model_url = socket->readStringLengthFirst(10000);
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const std::string new_model_url = msg_buffer.readStringLengthFirst(10000);
 						//conPrint("new_model_url: " + new_model_url);
 
 						// Look up existing object in world state
@@ -432,8 +447,8 @@ void ClientThread::doRun()
 					}
 				case Protocol::ObjectFlagsChanged:
 					{
-						const UID object_uid = readUIDFromStream(*socket);
-						const uint32 flags = socket->readUInt32();
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const uint32 flags = msg_buffer.readUInt32();
 						//conPrint("ObjectFlagsChanged: read flags " + toString(flags) + " for ob with UID " + object_uid.toString());
 
 						// Look up existing object in world state
@@ -454,12 +469,12 @@ void ClientThread::doRun()
 				case Protocol::ObjectCreated:
 					{
 						//conPrint("ObjectCreated");
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Read from network
 						WorldObjectRef ob = new WorldObject();
 						ob->uid = object_uid;
-						readFromNetworkStreamGivenUID(*socket, *ob);
+						readFromNetworkStreamGivenUID(msg_buffer, *ob);
 
 						ob->state = WorldObject::State_JustCreated;
 						ob->from_remote_other_dirty = true;
@@ -480,12 +495,12 @@ void ClientThread::doRun()
 					{
 						// NOTE: currently same code/semantics as ObjectCreated
 						//conPrint("ObjectInitialSend");
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Read from network
 						WorldObjectRef ob = new WorldObject();
 						ob->uid = object_uid;
-						readFromNetworkStreamGivenUID(*socket, *ob);
+						readFromNetworkStreamGivenUID(msg_buffer, *ob);
 
 						if(!isFinite(ob->angle))
 							ob->angle = 0;
@@ -513,7 +528,7 @@ void ClientThread::doRun()
 				case Protocol::ObjectDestroyed:
 					{
 						conPrint("ObjectDestroyed");
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Mark object as dead
 						{
@@ -532,8 +547,8 @@ void ClientThread::doRun()
 				case Protocol::ParcelCreated:
 					{
 						ParcelRef parcel = new Parcel();
-						const ParcelID parcel_id = readParcelIDFromStream(*socket);
-						readFromNetworkStreamGivenID(*socket, *parcel);
+						const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
+						readFromNetworkStreamGivenID(msg_buffer, *parcel);
 						parcel->id = parcel_id;
 						parcel->state = Parcel::State_JustCreated;
 						parcel->from_remote_dirty = true;
@@ -548,7 +563,7 @@ void ClientThread::doRun()
 				case Protocol::ParcelDestroyed:
 					{
 						conPrint("ParcelDestroyed");
-						const ParcelID parcel_id = readParcelIDFromStream(*socket);
+						const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
 						// Mark parcel as dead
 						{
@@ -567,7 +582,7 @@ void ClientThread::doRun()
 				case Protocol::ParcelFullUpdate:
 					{
 						conPrint("ParcelFullUpdate");
-						const ParcelID parcel_id = readParcelIDFromStream(*socket);
+						const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
 						// Look up existing parcel in world state
 						{
@@ -577,7 +592,7 @@ void ClientThread::doRun()
 							if(res != world_state->parcels.end())
 							{
 								Parcel* parcel = res->second.getPointer();
-								readFromNetworkStreamGivenID(*socket, *parcel);
+								readFromNetworkStreamGivenID(msg_buffer, *parcel);
 								read = true;
 								parcel->from_remote_dirty = true;
 								world_state->dirty_from_remote_parcels.insert(parcel);
@@ -587,7 +602,7 @@ void ClientThread::doRun()
 							if(!read)
 							{
 								Parcel dummy;
-								readFromNetworkStreamGivenID(*socket, dummy);
+								readFromNetworkStreamGivenID(msg_buffer, dummy);
 							}
 						}
 						break;
@@ -595,7 +610,7 @@ void ClientThread::doRun()
 				case Protocol::GetFile:
 					{
 						conPrint("Received GetFile message from server.");
-						const std::string model_url = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string model_url = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						conPrint("model_url: '" + model_url + "'");
 
 						out_msg_queue->enqueue(new GetFileMessage(model_url));
@@ -604,7 +619,7 @@ void ClientThread::doRun()
 				case Protocol::NewResourceOnServer:
 					{
 						//conPrint("Received NewResourceOnServer message from server.");
-						const std::string url = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string url = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						//conPrint("url: '" + url + "'");
 
 						out_msg_queue->enqueue(new NewResourceOnServerMessage(url));
@@ -613,49 +628,49 @@ void ClientThread::doRun()
 				case Protocol::ChatMessageID:
 					{
 						conPrint("ChatMessage");
-						const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
-						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string name = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						out_msg_queue->enqueue(new ChatMessage(name, msg));
 						break;
 					}
 				case Protocol::UserSelectedObject:
 					{
 						//conPrint("Received UserSelectedObject msg.");
-						const UID avatar_uid = readUIDFromStream(*socket);
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 						out_msg_queue->enqueue(new UserSelectedObjectMessage(avatar_uid, object_uid));
 						break;
 					}
 				case Protocol::UserDeselectedObject:
 					{
 						//conPrint("Received UserDeselectedObject msg.");
-						const UID avatar_uid = readUIDFromStream(*socket);
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 						out_msg_queue->enqueue(new UserDeselectedObjectMessage(avatar_uid, object_uid));
 						break;
 					}
 				case Protocol::InfoMessageID:
 					{
 						//conPrint("Received InfoMessage msg.");
-						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						out_msg_queue->enqueue(new InfoMessage(msg));
 						break;
 					}
 				case Protocol::ErrorMessageID:
 					{
 						//conPrint("Received ErrorMessage msg.");
-						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						out_msg_queue->enqueue(new ErrorMessage(msg));
 						break;
 					}
 				case Protocol::LoggedInMessageID:
 					{
 						conPrint("Received LoggedInMessageID msg.");
-						const UserID logged_in_user_id = readUserIDFromStream(*socket); 
-						const std::string logged_in_username = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const UserID logged_in_user_id = readUserIDFromStream(msg_buffer); 
+						const std::string logged_in_username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						Reference<LoggedInMessage> msg = new LoggedInMessage(logged_in_user_id, logged_in_username);
 						
-						readFromStream(*socket, msg->avatar_settings);
+						readFromStream(msg_buffer, msg->avatar_settings);
 
 						out_msg_queue->enqueue(msg);
 
@@ -670,14 +685,14 @@ void ClientThread::doRun()
 				case Protocol::SignedUpMessageID:
 					{
 						//conPrint("Received SignedUpMessageID msg.");
-						const UserID user_id = readUserIDFromStream(*socket);
-						const std::string signed_up_username = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const UserID user_id = readUserIDFromStream(msg_buffer);
+						const std::string signed_up_username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 						out_msg_queue->enqueue(new SignedUpMessage(user_id, signed_up_username));
 						break;
 					}
 				case Protocol::TimeSyncMessage:
 					{
-						const double global_time = socket->readDouble();
+						const double global_time = msg_buffer.readDouble();
 						world_state->updateWithGlobalTimeReceived(global_time);
 						break;
 					}

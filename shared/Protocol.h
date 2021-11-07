@@ -21,13 +21,14 @@ CyberspaceProtocolVersion
 28: Added pre_ob_to_world_matrix, materials to Avatar
 29: Added AvatarPerformGesture, AvatarStopGesture
 30: Added audio_source_url to WorldObject
+31: Added length prefixing to messages.
 */
 namespace Protocol
 {
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 30;
+const uint32 CyberspaceProtocolVersion = 31;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;

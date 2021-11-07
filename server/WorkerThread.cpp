@@ -39,7 +39,8 @@ static const int MAX_STRING_LEN = 10000;
 
 WorkerThread::WorkerThread(const Reference<SocketInterface>& socket_, Server* server_)
 :	socket(socket_),
-	server(server_)
+	server(server_),
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
 {
 	//if(VERBOSE) print("event_fd.efd: " + toString(event_fd.efd));
 }
@@ -47,6 +48,26 @@ WorkerThread::WorkerThread(const Reference<SocketInterface>& socket_, Server* se
 
 WorkerThread::~WorkerThread()
 {
+}
+
+
+static void updatePacketLengthField(SocketBufferOutStream& packet)
+{
+	// length field is second uint32
+	assert(packet.buf.size() >= sizeof(uint32) * 2);
+	if(packet.buf.size() >= sizeof(uint32) * 2)
+	{
+		const uint32 len = (uint32)packet.buf.size();
+		std::memcpy(&packet.buf[4], &len, 4);
+	}
+}
+
+
+static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
+{
+	scratch_packet.buf.resize(sizeof(uint32) * 2);
+	std::memcpy(&scratch_packet.buf[0], &message_id, sizeof(uint32));
+	std::memset(&scratch_packet.buf[4], 0, sizeof(uint32)); // Write dummy message length, will be updated later when size of message is known.
 }
 
 
@@ -80,11 +101,11 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 
 			// We need the file from the client.
 			// Send the client a 'get file' message
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::GetFile);
-			packet.writeStringLengthFirst(resource_URL);
+			initPacket(scratch_packet, Protocol::GetFile);
+			scratch_packet.writeStringLengthFirst(resource_URL);
+			updatePacketLengthField(scratch_packet);
 
-			this->enqueueDataToSend(packet);
+			this->enqueueDataToSend(scratch_packet);
 		}
 	}
 }
@@ -93,8 +114,10 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::string& msg)
 {
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-	packet.writeUInt32(Protocol::ErrorMessageID);
+	initPacket(packet, Protocol::ErrorMessageID);
 	packet.writeStringLengthFirst(msg);
+	updatePacketLengthField(packet);
+
 	socket->writeData(packet.buf.data(), packet.buf.size());
 }
 
@@ -141,8 +164,10 @@ void WorkerThread::handleResourceUploadConnection()
 		if(client_user.isNull())
 		{
 			conPrint("\tLogin failed.");
-			socket->writeUInt32(Protocol::LogInFailure);
+			socket->writeUInt32(Protocol::LogInFailure); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("Login failed.");
+
+			socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 			return;
 		}
 
@@ -167,7 +192,7 @@ void WorkerThread::handleResourceUploadConnection()
 		{
 			if(resource->owner_id != client_user->id) // If this resource already exists and was created by someone else:
 			{
-				socket->writeUInt32(Protocol::NoWritePermissions);
+				socket->writeUInt32(Protocol::NoWritePermissions); // Note that this is not a framed message.
 				socket->writeStringLengthFirst("Not allowed to upload resource to URL '" + URL + ", someone else created a resource at this URL already.");
 				return;
 			}
@@ -180,7 +205,7 @@ void WorkerThread::handleResourceUploadConnection()
 		conPrint("\tfile_len: " + toString(file_len) + " B");
 		if(file_len == 0)
 		{
-			socket->writeUInt32(Protocol::InvalidFileSize);
+			socket->writeUInt32(Protocol::InvalidFileSize); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("Invalid file len of zero.");
 			return;
 		}
@@ -188,7 +213,7 @@ void WorkerThread::handleResourceUploadConnection()
 		// TODO: cap length in a better way
 		if(file_len > 1000000000)
 		{
-			socket->writeUInt32(Protocol::InvalidFileSize);
+			socket->writeUInt32(Protocol::InvalidFileSize); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("uploaded file too large.");
 			return;
 		}
@@ -217,11 +242,11 @@ void WorkerThread::handleResourceUploadConnection()
 
 		// Send NewResourceOnServer message to connected clients
 		{
-			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-			packet.writeUInt32(Protocol::NewResourceOnServer);
-			packet.writeStringLengthFirst(URL);
+			initPacket(scratch_packet, Protocol::NewResourceOnServer);
+			scratch_packet.writeStringLengthFirst(URL);
+			updatePacketLengthField(scratch_packet);
 
-			enqueuePacketToBroadcast(packet, server);
+			enqueuePacketToBroadcast(scratch_packet, server);
 		}
 
 		// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
@@ -509,7 +534,7 @@ void WorkerThread::handleEthBotConnection()
 				const uint32 result = socket->readUInt32();
 				if(result == Protocol::EthTransactionSubmitted)
 				{
-					const UInt256 transaction_hash = readUInt256FromStream(*socket);
+					const UInt256 transaction_hash = readUInt256FromStream(msg_buffer);
 
 					conPrint("Transaction was submitted.");
 
@@ -678,10 +703,10 @@ void WorkerThread::doRun()
 
 			// Send TimeSyncMessage packet to client
 			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				packet.writeUInt32(Protocol::TimeSyncMessage);
-				packet.writeDouble(server->getCurrentGlobalTime());
-				socket->writeData(packet.buf.data(), packet.buf.size());
+				initPacket(scratch_packet, Protocol::TimeSyncMessage);
+				scratch_packet.writeDouble(server->getCurrentGlobalTime());
+				updatePacketLengthField(scratch_packet);
+				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 			}
 
 			// Send all current avatar state data to client
@@ -695,8 +720,11 @@ void WorkerThread::doRun()
 						const Avatar* avatar = it->second.getPointer();
 
 						// Write AvatarIsHere message
-						packet.writeUInt32(Protocol::AvatarIsHere);
-						writeToNetworkStream(*avatar, packet);
+						initPacket(scratch_packet, Protocol::AvatarIsHere);
+						writeToNetworkStream(*avatar, scratch_packet);
+						updatePacketLengthField(scratch_packet);
+
+						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 					}
 				} // End lock scope
 
@@ -729,8 +757,11 @@ void WorkerThread::doRun()
 						const Parcel* parcel = it->second.getPointer();
 
 						// Send ParcelCreated message
-						packet.writeUInt32(Protocol::ParcelCreated);
-						writeToNetworkStream(*parcel, packet);
+						initPacket(scratch_packet, Protocol::ParcelCreated);
+						writeToNetworkStream(*parcel, scratch_packet);
+						updatePacketLengthField(scratch_packet);
+
+						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 					}
 				} // End lock scope
 
@@ -781,17 +812,32 @@ void WorkerThread::doRun()
 			if(socket->readable(event_fd)) // Block until either the socket is readable or the event fd is signalled, which means we have data to write.
 #endif
 			{
-				// Read msg type
-				const uint32 msg_type = socket->readUInt32();
+				// Read msg type and length
+				uint32 msg_type_and_len[2];
+				socket->readData(msg_type_and_len, sizeof(uint32) * 2);
+				const uint32 msg_type = msg_type_and_len[0];
+				const uint32 msg_len = msg_type_and_len[1];
+
+				if((msg_len < sizeof(uint32) * 2) || (msg_len > 1000000))
+					throw glare::Exception("Invalid message size: " + toString(msg_len));
+
+				// conPrint("WorkerThread: Read message header: id: " + toString(msg_type) + ", len: " + toString(msg_len));
+
+				// Read entire message
+				msg_buffer.buf.resizeNoCopy(msg_len);
+				msg_buffer.read_index = sizeof(uint32) * 2;
+
+				socket->readData(msg_buffer.buf.data() + sizeof(uint32) * 2, msg_len - sizeof(uint32) * 2); // Read rest of message, store in msg_buffer.
+
 				switch(msg_type)
 				{
 				case Protocol::AvatarTransformUpdate:
 					{
 						//conPrint("AvatarTransformUpdate");
-						const UID avatar_uid = readUIDFromStream(*socket);
-						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f rotation = readVec3FromStream<float>(*socket);
-						const uint32 anim_state = socket->readUInt32();
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+						const Vec3f rotation = readVec3FromStream<float>(msg_buffer);
+						const uint32 anim_state = msg_buffer.readUInt32();
 
 						// Look up existing avatar in world state
 						{
@@ -813,8 +859,8 @@ void WorkerThread::doRun()
 				case Protocol::AvatarPerformGesture:
 					{
 						//conPrint("AvatarPerformGesture");
-						const UID avatar_uid = readUIDFromStream(*socket);
-						const std::string gesture_name = socket->readStringLengthFirst(10000);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
 
 						//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
 
@@ -825,19 +871,19 @@ void WorkerThread::doRun()
 						else
 						{
 							// Enqueue AvatarPerformGesture messages to worker threads to send
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::AvatarPerformGesture);
-							writeToStream(avatar_uid, packet);
-							packet.writeStringLengthFirst(gesture_name);
+							initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+							writeToStream(avatar_uid, scratch_packet);
+							scratch_packet.writeStringLengthFirst(gesture_name);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, server);
+							enqueuePacketToBroadcast(scratch_packet, server);
 						}
 						break;
 					}
 				case Protocol::AvatarStopGesture:
 					{
 						//conPrint("AvatarStopGesture");
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						if(client_user.isNull())
 						{
@@ -846,21 +892,21 @@ void WorkerThread::doRun()
 						else
 						{
 							// Enqueue AvatarStopGesture messages to worker threads to send
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::AvatarStopGesture);
-							writeToStream(avatar_uid, packet);
+							initPacket(scratch_packet, Protocol::AvatarStopGesture);
+							writeToStream(avatar_uid, scratch_packet);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, server);
+							enqueuePacketToBroadcast(scratch_packet, server);
 						}
 						break;
 				}
 				case Protocol::AvatarFullUpdate:
 					{
 						conPrint("Protocol::AvatarFullUpdate");
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(*socket, temp_avatar); // Read message data before grabbing lock
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						// Look up existing avatar in world state
 						{
@@ -905,8 +951,8 @@ void WorkerThread::doRun()
 						// will use the client_avatar_uid that we assigned to the client
 						
 						Avatar temp_avatar;
-						temp_avatar.uid = readUIDFromStream(*socket); // Will be replaced.
-						readFromNetworkStreamGivenUID(*socket, temp_avatar); // Read message data before grabbing lock
+						temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
+						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
 						temp_avatar.name = client_user.isNull() ? "Anonymous" : client_user->name;
 
@@ -947,7 +993,7 @@ void WorkerThread::doRun()
 				case Protocol::AvatarDestroyed:
 					{
 						conPrint("AvatarDestroyed");
-						const UID avatar_uid = readUIDFromStream(*socket);
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 						// Mark avatar as dead
 						{
@@ -965,10 +1011,10 @@ void WorkerThread::doRun()
 				case Protocol::ObjectTransformUpdate:
 					{
 						//conPrint("received ObjectTransformUpdate");
-						const UID object_uid = readUIDFromStream(*socket);
-						const Vec3d pos = readVec3FromStream<double>(*socket);
-						const Vec3f axis = readVec3FromStream<float>(*socket);
-						const float angle = socket->readFloat();
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+						const Vec3f axis = readVec3FromStream<float>(msg_buffer);
+						const float angle = msg_buffer.readFloat();
 
 						// If client is not logged in, refuse object modification.
 						if(client_user.isNull())
@@ -1011,10 +1057,10 @@ void WorkerThread::doRun()
 				case Protocol::ObjectFullUpdate:
 					{
 						//conPrint("received ObjectFullUpdate");
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						WorldObject temp_ob;
-						readFromNetworkStreamGivenUID(*socket, temp_ob); // Read rest of ObjectFullUpdate message.
+						readFromNetworkStreamGivenUID(msg_buffer, temp_ob); // Read rest of ObjectFullUpdate message.
 
 						// If client is not logged in, refuse object modification.
 						if(client_user.isNull())
@@ -1061,8 +1107,8 @@ void WorkerThread::doRun()
 				case Protocol::ObjectLightmapURLChanged:
 					{
 						//conPrint("ObjectLightmapURLChanged");
-						const UID object_uid = readUIDFromStream(*socket);
-						const std::string new_lightmap_url = socket->readStringLengthFirst(10000);
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(10000);
 
 						// Look up existing object in world state
 						{
@@ -1083,8 +1129,8 @@ void WorkerThread::doRun()
 				case Protocol::ObjectModelURLChanged:
 					{
 						//conPrint("ObjectModelURLChanged");
-						const UID object_uid = readUIDFromStream(*socket);
-						const std::string new_model_url = socket->readStringLengthFirst(10000);
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const std::string new_model_url = msg_buffer.readStringLengthFirst(10000);
 
 						// Look up existing object in world state
 						{
@@ -1105,8 +1151,8 @@ void WorkerThread::doRun()
 				case Protocol::ObjectFlagsChanged:
 					{
 						//conPrint("ObjectFlagsChanged");
-						const UID object_uid = readUIDFromStream(*socket);
-						const uint32 flags = socket->readUInt32();
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const uint32 flags = msg_buffer.readUInt32();
 
 						// Look up existing object in world state
 						{
@@ -1129,8 +1175,8 @@ void WorkerThread::doRun()
 						conPrint("CreateObject");
 
 						WorldObjectRef new_ob = new WorldObject();
-						new_ob->uid = readUIDFromStream(*socket); // Read dummy UID
-						readFromNetworkStreamGivenUID(*socket, *new_ob);
+						new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
+						readFromNetworkStreamGivenUID(msg_buffer, *new_ob);
 
 						conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 
@@ -1138,10 +1184,10 @@ void WorkerThread::doRun()
 						if(client_user.isNull())
 						{
 							conPrint("Creation denied, user was not logged in.");
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ErrorMessageID);
-							packet.writeStringLengthFirst("You must be logged in to create an object.");
-							socket->writeData(packet.buf.data(), packet.buf.size());
+							initPacket(scratch_packet, Protocol::ErrorMessageID);
+							scratch_packet.writeStringLengthFirst("You must be logged in to create an object.");
+							updatePacketLengthField(scratch_packet);
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 						}
 						else
 						{
@@ -1172,7 +1218,7 @@ void WorkerThread::doRun()
 				case Protocol::DestroyObject: // Client wants to destroy an object.
 					{
 						conPrint("DestroyObject");
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// If client is not logged in, refuse object modification.
 						if(client_user.isNull())
@@ -1212,7 +1258,7 @@ void WorkerThread::doRun()
 				{
 					conPrint("GetAllObjects");
 
-					SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder);
+					SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder); // Will contain several messages
 
 					{
 						Lock lock(world_state->mutex);
@@ -1220,13 +1266,19 @@ void WorkerThread::doRun()
 						{
 							const WorldObject* ob = it->second.getPointer();
 
-							// Send ObjectInitialSend message
-							temp_buf.writeUInt32(Protocol::ObjectInitialSend);
-							ob->writeToNetworkStream(temp_buf);
+							// Build ObjectInitialSend message
+							initPacket(scratch_packet, Protocol::ObjectInitialSend);
+							ob->writeToNetworkStream(scratch_packet);
+							updatePacketLengthField(scratch_packet);
+
+							temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 						}
 					}
 
-					temp_buf.writeUInt32(Protocol::AllObjectsSent); // Terminate the buffer with a AllObjectsSent message.
+					initPacket(scratch_packet, Protocol::ObjectInitialSend);
+					scratch_packet.writeUInt32(Protocol::AllObjectsSent); // Terminate the buffer with a AllObjectsSent message.
+					updatePacketLengthField(scratch_packet);
+					temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 
 					socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
 
@@ -1234,7 +1286,7 @@ void WorkerThread::doRun()
 				}
 				case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
 				{
-					const uint32 num_cells = socket->readUInt32();
+					const uint32 num_cells = msg_buffer.readUInt32();
 					if(num_cells > 100000)
 						throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
 
@@ -1246,9 +1298,9 @@ void WorkerThread::doRun()
 					js::Vector<js::AABBox, 16> cell_aabbs(num_cells);
 					for(uint32 i=0; i<num_cells; ++i)
 					{
-						const int x = socket->readInt32();
-						const int y = socket->readInt32();
-						const int z = socket->readInt32();
+						const int x = msg_buffer.readInt32();
+						const int y = msg_buffer.readInt32();
+						const int z = msg_buffer.readInt32();
 
 						//if(i < 10)
 						//	conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
@@ -1283,8 +1335,12 @@ void WorkerThread::doRun()
 							if(in_cell)
 							{
 								// Send ObjectInitialSend packet
-								packet.writeUInt32(Protocol::ObjectInitialSend);
-								ob->writeToNetworkStream(packet);
+								initPacket(scratch_packet, Protocol::ObjectInitialSend);
+								ob->writeToNetworkStream(scratch_packet);
+								updatePacketLengthField(scratch_packet);
+
+								packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
+
 								num_obs_written++;
 							}
 						}
@@ -1301,23 +1357,21 @@ void WorkerThread::doRun()
 					{
 						conPrint("QueryParcels");
 						// Send all current parcel data to client
-						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-						packet.writeUInt32(Protocol::ParcelList); // Write message ID
-						
+						initPacket(scratch_packet, Protocol::ParcelList);
 						{
 							Lock lock(world_state->mutex);
-							packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
+							scratch_packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
 							for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
-								writeToNetworkStream(*it->second, packet); // Write parcel
+								writeToNetworkStream(*it->second, scratch_packet); // Write parcel
 						}
-
-						socket->writeData(packet.buf.data(), packet.buf.size()); // Send the data
+						updatePacketLengthField(scratch_packet);
+						socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
 						break;
 					}
 				case Protocol::ParcelFullUpdate: // Client wants to update a parcel
 					{
 						conPrint("ParcelFullUpdate");
-						const ParcelID parcel_id = readParcelIDFromStream(*socket);
+						const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
 						// Look up existing parcel in world state
 						{
@@ -1335,7 +1389,7 @@ void WorkerThread::doRun()
 									// TODO: Check if this client has permissions to update the parcel information.
 
 									Parcel* parcel = res->second.getPointer();
-									readFromNetworkStreamGivenID(*socket, *parcel);
+									readFromNetworkStreamGivenID(msg_buffer, *parcel);
 									read = true;
 									parcel->from_remote_dirty = true;
 								}
@@ -1345,15 +1399,15 @@ void WorkerThread::doRun()
 							if(!read)
 							{
 								Parcel dummy;
-								readFromNetworkStreamGivenID(*socket, dummy);
+								readFromNetworkStreamGivenID(msg_buffer, dummy);
 							}
 						}
 						break;
 					}
 				case Protocol::ChatMessageID:
 					{
-						//const std::string name = socket->readStringLengthFirst(MAX_STRING_LEN);
-						const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
+						//const std::string name = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
 						conPrint("Received chat message: '" + msg + "'");
 
@@ -1365,12 +1419,12 @@ void WorkerThread::doRun()
 						{
 							// Enqueue chat messages to worker threads to send
 							// Send ChatMessageID packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ChatMessageID);
-							packet.writeStringLengthFirst(client_user->name);
-							packet.writeStringLengthFirst(msg);
+							initPacket(scratch_packet, Protocol::ChatMessageID);
+							scratch_packet.writeStringLengthFirst(client_user->name);
+							scratch_packet.writeStringLengthFirst(msg);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, server);
+							enqueuePacketToBroadcast(scratch_packet, server);
 						}
 						break;
 					}
@@ -1378,16 +1432,16 @@ void WorkerThread::doRun()
 					{
 						//conPrint("Received UserSelectedObject msg.");
 
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Send message to connected clients
 						{
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::UserSelectedObject);
-							writeToStream(client_avatar_uid, packet);
-							writeToStream(object_uid, packet);
+							initPacket(scratch_packet, Protocol::UserSelectedObject);
+							writeToStream(client_avatar_uid, scratch_packet);
+							writeToStream(object_uid, scratch_packet);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, server);
+							enqueuePacketToBroadcast(scratch_packet, server);
 						}
 						break;
 					}
@@ -1395,16 +1449,16 @@ void WorkerThread::doRun()
 					{
 						//conPrint("Received UserDeselectedObject msg.");
 
-						const UID object_uid = readUIDFromStream(*socket);
+						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Send message to connected clients
 						{
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::UserDeselectedObject);
-							writeToStream(client_avatar_uid, packet);
-							writeToStream(object_uid, packet);
+							initPacket(scratch_packet, Protocol::UserDeselectedObject);
+							writeToStream(client_avatar_uid, scratch_packet);
+							writeToStream(object_uid, scratch_packet);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, server);
+							enqueuePacketToBroadcast(scratch_packet, server);
 						}
 						break;
 					}
@@ -1412,8 +1466,8 @@ void WorkerThread::doRun()
 					{
 						conPrint("LogInMessage");
 
-						const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
-						const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						const std::string password = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
 						conPrint("username: '" + username + "'");
 						
@@ -1443,21 +1497,22 @@ void WorkerThread::doRun()
 								logged_in_user_is_lightmapper_bot = true;
 
 							// Send logged-in message to client
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::LoggedInMessageID);
-							writeToStream(client_user->id, packet);
-							packet.writeStringLengthFirst(username);
-							writeToStream(client_user->avatar_settings, packet);
+							initPacket(scratch_packet, Protocol::LoggedInMessageID);
+							writeToStream(client_user->id, scratch_packet);
+							scratch_packet.writeStringLengthFirst(username);
+							writeToStream(client_user->avatar_settings, scratch_packet);
+							updatePacketLengthField(scratch_packet);
 
-							socket->writeData(packet.buf.data(), packet.buf.size());
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 						}
 						else
 						{
 							// Login failed.  Send error message back to client
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ErrorMessageID);
-							packet.writeStringLengthFirst("Login failed: username or password incorrect.");
-							socket->writeData(packet.buf.data(), packet.buf.size());
+							initPacket(scratch_packet, Protocol::ErrorMessageID);
+							scratch_packet.writeStringLengthFirst("Login failed: username or password incorrect.");
+							updatePacketLengthField(scratch_packet);
+
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 						}
 					
 						break;
@@ -1469,9 +1524,10 @@ void WorkerThread::doRun()
 						client_user = NULL; // Mark the client as not logged in.
 
 						// Send logged-out message to client
-						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-						packet.writeUInt32(Protocol::LoggedOutMessageID);
-						socket->writeData(packet.buf.data(), packet.buf.size());
+						initPacket(scratch_packet, Protocol::LoggedOutMessageID);
+						updatePacketLengthField(scratch_packet);
+
+						socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 						
 						break;
 					}
@@ -1479,9 +1535,9 @@ void WorkerThread::doRun()
 					{
 						conPrint("SignUpMessage");
 
-						const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
-						const std::string email    = socket->readStringLengthFirst(MAX_STRING_LEN);
-						const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						const std::string password = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
 						try
 						{
@@ -1535,21 +1591,23 @@ void WorkerThread::doRun()
 							{
 								conPrint("Sign up successful");
 								// Send signed-up message to client
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::SignedUpMessageID);
-								writeToStream(client_user->id, packet);
-								packet.writeStringLengthFirst(username);
-								socket->writeData(packet.buf.data(), packet.buf.size());
+								initPacket(scratch_packet, Protocol::SignedUpMessageID);
+								writeToStream(client_user->id, scratch_packet);
+								scratch_packet.writeStringLengthFirst(username);
+								updatePacketLengthField(scratch_packet);
+
+								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 							}
 							else
 							{
 								conPrint("Sign up failed.");
 
 								// signup failed.  Send error message back to client
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::ErrorMessageID);
-								packet.writeStringLengthFirst(msg_to_client);
-								socket->writeData(packet.buf.data(), packet.buf.size());
+								initPacket(scratch_packet, Protocol::ErrorMessageID);
+								scratch_packet.writeStringLengthFirst(msg_to_client);
+								updatePacketLengthField(scratch_packet);
+
+								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 							}
 						}
 						catch(glare::Exception& e)
@@ -1557,10 +1615,11 @@ void WorkerThread::doRun()
 							conPrint("Sign up failed, internal error: " + e.what());
 
 							// signup failed.  Send error message back to client
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ErrorMessageID);
-							packet.writeStringLengthFirst("Signup failed: internal error.");
-							socket->writeData(packet.buf.data(), packet.buf.size());
+							initPacket(scratch_packet, Protocol::ErrorMessageID);
+							scratch_packet.writeStringLengthFirst("Signup failed: internal error.");
+							updatePacketLengthField(scratch_packet);
+
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 						}
 
 						break;
@@ -1569,7 +1628,7 @@ void WorkerThread::doRun()
 					{
 						conPrint("RequestPasswordReset");
 
-						const std::string email    = socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
 						// NOTE: This stuff is done via the website now instead.
 
@@ -1602,9 +1661,9 @@ void WorkerThread::doRun()
 					{
 						conPrint("ChangePasswordWithResetToken");
 						
-						const std::string email			= socket->readStringLengthFirst(MAX_STRING_LEN);
-						const std::string reset_token	= socket->readStringLengthFirst(MAX_STRING_LEN);
-						const std::string new_password	= socket->readStringLengthFirst(MAX_STRING_LEN);
+						const std::string email			= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						const std::string reset_token	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						const std::string new_password	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
 						// NOTE: This stuff is done via the website now instead.
 						// 

@@ -474,8 +474,22 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 }
 
 
-static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
+static void updatePacketLengthField(SocketBufferOutStream& packet)
 {
+	// length field is second uint32
+	assert(packet.buf.size() >= sizeof(uint32) * 2);
+	if(packet.buf.size() >= sizeof(uint32) * 2)
+	{
+		const uint32 len = (uint32)packet.buf.size();
+		std::memcpy(&packet.buf[4], &len, 4);
+	}
+}
+
+
+static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
+{
+	updatePacketLengthField(packet_buffer);
+
 	if(packet_buffer.buf.size() > 0)
 	{
 		std::string packet_string(packet_buffer.buf.size(), '\0');
@@ -484,6 +498,14 @@ static void enqueuePacketToBroadcast(SocketBufferOutStream& packet_buffer, std::
 
 		broadcast_packets.push_back(packet_string);
 	}
+}
+
+
+static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
+{
+	scratch_packet.buf.resize(sizeof(uint32) * 2);
+	std::memcpy(&scratch_packet.buf[0], &message_id, sizeof(uint32));
+	std::memset(&scratch_packet.buf[4], 0, sizeof(uint32)); // Write dummy message length, will be updated later when size of message is known.
 }
 
 
@@ -1049,6 +1071,8 @@ int main(int argc, char *argv[])
 		{
 			PlatformUtils::Sleep(100);
 
+			SocketBufferOutStream scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+
 			//broadcast_packets.clear();
 
 			{ // Begin scope for world_state->mutex lock
@@ -1070,11 +1094,10 @@ int main(int argc, char *argv[])
 							if(avatar->state == Avatar::State_Alive)
 							{
 								// Send AvatarFullUpdate packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::AvatarFullUpdate);
-								writeToNetworkStream(*avatar, packet);
+								initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+								writeToNetworkStream(*avatar, scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								avatar->other_dirty = false;
 								avatar->transform_dirty = false;
@@ -1083,11 +1106,11 @@ int main(int argc, char *argv[])
 							else if(avatar->state == Avatar::State_JustCreated)
 							{
 								// Send AvatarCreated packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::AvatarCreated);
-								writeToNetworkStream(*avatar, packet);
+								initPacket(scratch_packet, Protocol::AvatarCreated);
+								writeToNetworkStream(*avatar, scratch_packet);
+								updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								avatar->state = Avatar::State_Alive;
 								avatar->other_dirty = false;
@@ -1098,11 +1121,11 @@ int main(int argc, char *argv[])
 							else if(avatar->state == Avatar::State_Dead)
 							{
 								// Send AvatarDestroyed packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::AvatarDestroyed);
-								writeToStream(avatar->uid, packet);
+								initPacket(scratch_packet, Protocol::AvatarDestroyed);
+								writeToStream(avatar->uid, scratch_packet);
+								updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								// Remove avatar from avatar map
 								auto old_avatar_iterator = i;
@@ -1121,14 +1144,14 @@ int main(int argc, char *argv[])
 							if(avatar->state == Avatar::State_Alive)
 							{
 								// Send AvatarTransformUpdate packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::AvatarTransformUpdate);
-								writeToStream(avatar->uid, packet);
-								writeToStream(avatar->pos, packet);
-								writeToStream(avatar->rotation, packet);
-								packet.writeUInt32(avatar->anim_state);
+								initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
+								writeToStream(avatar->uid, scratch_packet);
+								writeToStream(avatar->pos, scratch_packet);
+								writeToStream(avatar->rotation, scratch_packet);
+								scratch_packet.writeUInt32(avatar->anim_state);
+								updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								avatar->transform_dirty = false;
 							}
@@ -1152,11 +1175,11 @@ int main(int argc, char *argv[])
 							if(ob->state == WorldObject::State_Alive)
 							{
 								// Send ObjectFullUpdate packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::ObjectFullUpdate);
-								ob->writeToNetworkStream(packet);
+								initPacket(scratch_packet, Protocol::ObjectFullUpdate);
+								ob->writeToNetworkStream(scratch_packet);
+								updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								ob->from_remote_other_dirty = false;
 								ob->from_remote_transform_dirty = false; // transform is sent in full packet also.
@@ -1165,11 +1188,11 @@ int main(int argc, char *argv[])
 							else if(ob->state == WorldObject::State_JustCreated)
 							{
 								// Send ObjectCreated packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::ObjectCreated);
-								ob->writeToNetworkStream(packet);
+								initPacket(scratch_packet, Protocol::ObjectCreated);
+								ob->writeToNetworkStream(scratch_packet);
+								updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								ob->state = WorldObject::State_Alive;
 								ob->from_remote_other_dirty = false;
@@ -1178,11 +1201,11 @@ int main(int argc, char *argv[])
 							else if(ob->state == WorldObject::State_Dead)
 							{
 								// Send ObjectDestroyed packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::ObjectDestroyed);
-								writeToStream(ob->uid, packet);
+								initPacket(scratch_packet, Protocol::ObjectDestroyed);
+								writeToStream(ob->uid, scratch_packet);
+								updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								// Remove ob from object map
 								world_state->objects.erase(ob->uid);
@@ -1203,14 +1226,14 @@ int main(int argc, char *argv[])
 							if(ob->state == WorldObject::State_Alive)
 							{
 								// Send ObjectTransformUpdate packet
-								SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-								packet.writeUInt32(Protocol::ObjectTransformUpdate);
-								writeToStream(ob->uid, packet);
-								writeToStream(ob->pos, packet);
-								writeToStream(ob->axis, packet);
-								packet.writeFloat(ob->angle);
+								initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
+								writeToStream(ob->uid, scratch_packet);
+								writeToStream(ob->pos, scratch_packet);
+								writeToStream(ob->axis, scratch_packet);
+								scratch_packet.writeFloat(ob->angle);
+								updatePacketLengthField(scratch_packet);
 
-								enqueuePacketToBroadcast(packet, world_packets);
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								ob->from_remote_transform_dirty = false;
 								server.world_state->markAsChanged();
@@ -1219,12 +1242,12 @@ int main(int argc, char *argv[])
 						else if(ob->from_remote_lightmap_url_dirty)
 						{
 							// Send ObjectLightmapURLChanged packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectLightmapURLChanged);
-							writeToStream(ob->uid, packet);
-							packet.writeStringLengthFirst(ob->lightmap_url);
+							initPacket(scratch_packet, Protocol::ObjectLightmapURLChanged);
+							writeToStream(ob->uid, scratch_packet);
+							scratch_packet.writeStringLengthFirst(ob->lightmap_url);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, world_packets);
+							enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 							ob->from_remote_lightmap_url_dirty = false;
 							server.world_state->markAsChanged();
@@ -1232,12 +1255,12 @@ int main(int argc, char *argv[])
 						else if(ob->from_remote_model_url_dirty)
 						{
 							// Send ObjectModelURLChanged packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectModelURLChanged);
-							writeToStream(ob->uid, packet);
-							packet.writeStringLengthFirst(ob->model_url);
+							initPacket(scratch_packet, Protocol::ObjectModelURLChanged);
+							writeToStream(ob->uid, scratch_packet);
+							scratch_packet.writeStringLengthFirst(ob->model_url);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, world_packets);
+							enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 							ob->from_remote_model_url_dirty = false;
 							server.world_state->markAsChanged();
@@ -1245,12 +1268,12 @@ int main(int argc, char *argv[])
 						else if(ob->from_remote_flags_dirty)
 						{
 							// Send ObjectFlagsChanged packet
-							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							packet.writeUInt32(Protocol::ObjectFlagsChanged);
-							writeToStream(ob->uid, packet);
-							packet.writeUInt32(ob->flags);
+							initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
+							writeToStream(ob->uid, scratch_packet);
+							scratch_packet.writeUInt32(ob->flags);
+							updatePacketLengthField(scratch_packet);
 
-							enqueuePacketToBroadcast(packet, world_packets);
+							enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 							ob->from_remote_flags_dirty = false;
 							server.world_state->markAsChanged();
@@ -1284,15 +1307,15 @@ int main(int argc, char *argv[])
 			if((loop_iter % 40) == 0) // Approx every 4 s.
 			{
 				// Send out TimeSyncMessage packets to clients
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				packet.writeUInt32(Protocol::TimeSyncMessage);
-				packet.writeDouble(server.getCurrentGlobalTime());
+				initPacket(scratch_packet, Protocol::TimeSyncMessage);
+				scratch_packet.writeDouble(server.getCurrentGlobalTime());
+				updatePacketLengthField(scratch_packet);
 
 				Lock lock3(server.worker_thread_manager.getMutex());
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
 				{
 					assert(dynamic_cast<WorkerThread*>(i->getPointer()));
-					static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(packet);
+					static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(scratch_packet);
 				}
 			}
 
