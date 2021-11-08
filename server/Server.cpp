@@ -1062,16 +1062,28 @@ int main(int argc, char *argv[])
 			throw glare::Exception("tls_config_set_key_file failed.");
 #else
 		// For now just use our web Let's Encrypt cert and private key.
-		if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
-			throw glare::Exception("tls_config_set_cert_file failed.");
-
-		if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed.");
+		if(FileUtils::fileExists("/etc/letsencrypt/live/substrata.info"))
+		{
+			if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+				throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
+			if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
+				throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(tls_configuration));
+		}
+		else if(FileUtils::fileExists("/etc/letsencrypt/live/test.substrata.info"))
+		{
+			if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/test.substrata.info/cert.pem") != 0)
+				throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
+			if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/test.substrata.info/privkey.pem") != 0) // set private key
+				throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(tls_configuration));
+		}
 #endif
+		conPrint("Launching ListenerThread...");
 
 		ThreadManager thread_manager;
 		thread_manager.addThread(new ListenerThread(listen_port, &server, tls_configuration));
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
+
+		conPrint("Done."):
 
 		thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
 
