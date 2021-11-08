@@ -1083,7 +1083,7 @@ int main(int argc, char *argv[])
 		thread_manager.addThread(new ListenerThread(listen_port, &server, tls_configuration));
 		//thread_manager.addThread(new DataStoreSavingThread(data_store));
 
-		conPrint("Done."):
+		conPrint("Done.");
 
 		thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
 
