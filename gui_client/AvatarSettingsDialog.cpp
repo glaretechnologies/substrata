@@ -162,6 +162,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		// TEMP: Load animation data for ready-player-me type avatars
 		//float eye_height_adjustment = 0;
 		float foot_bottom_height = original_toe_pos[1] - 0.0362269469; // Should be ~= 0
+		//printVar(foot_bottom_height);
 		if(true)
 		{
 			FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
@@ -171,9 +172,9 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 			//eye_height_adjustment = -1.67 + original_left_eye_pos[1];
 
 			Vec4f new_toe_pos = preview_gl_ob->mesh_data->animation_data.getNodePositionModelSpace("LeftToe_End", /*use_retarget_adjustment=*/true);
-			conPrint("new_toe_pos: " + new_toe_pos.toString());
+			conPrint("new_toe_pos: " + new_toe_pos.toStringNSigFigs(4));
 
-			foot_bottom_height = new_toe_pos[1] - 0.05; // Height of foot bottom for avatar with retargetted animation, off ground.
+			foot_bottom_height = new_toe_pos[1] - 0.03; // Height of foot bottom for avatar with retargetted animation, off ground.
 
 			conPrint("foot_bottom_height: " + doubleToStringNSigFigs(foot_bottom_height, 4));
 		}
