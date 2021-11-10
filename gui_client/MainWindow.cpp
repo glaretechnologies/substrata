@@ -339,6 +339,12 @@ static std::string computeWindowTitle()
 }
 
 
+static const char* default_help_info_message = "Use the W/A/S/D keys and arrow keys to move and look around.\n"
+	"Click and drag the mouse on the 3D view to look around.\n"
+	"Space key: jump\n"
+	"Double-click an object to select it.";
+
+
 void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
@@ -361,12 +367,7 @@ void MainWindow::initialise()
 	setUIForSelectedObject();
 
 	// Update help text
-	this->ui->helpInfoLabel->setText("Use the W/A/S/D keys and arrow keys to move and look around.\n"
-		"Click and drag the mouse on the 3D view to look around.\n"
-		"Space key: jump\n"
-		"Double-click an object to select it."
-	);
-	this->ui->helpInfoDockWidget->show();
+	this->ui->helpInfoLabel->setText(default_help_info_message);
 
 	if(!settings->contains("mainwindow/geometry"))
 		need_help_info_dock_widget_position = true;
@@ -7725,7 +7726,6 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_tri_index)
 			"Esc key: deselect object.";
 
 		this->ui->helpInfoLabel->setText(text);
-		this->ui->helpInfoDockWidget->show();
 	}
 }
 
@@ -7772,7 +7772,7 @@ void MainWindow::deselectObject()
 
 		this->shown_object_modification_error_msg = false;
 
-		this->ui->helpInfoDockWidget->hide();
+		this->ui->helpInfoLabel->setText(default_help_info_message);
 
 		setUIForSelectedObject();
 	}
@@ -7792,7 +7792,7 @@ void MainWindow::deselectParcel()
 
 		//this->shown_object_modification_error_msg = false;
 
-		this->ui->helpInfoDockWidget->hide();
+		this->ui->helpInfoLabel->setText(default_help_info_message);
 	}
 }
 
