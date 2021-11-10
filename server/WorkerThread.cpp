@@ -465,6 +465,8 @@ void WorkerThread::handleScreenshotBotConnection()
 			}
 			else
 			{
+				socket->writeUInt32(Protocol::KeepAlive); // Send a keepalive message just to check the socket is still connected.
+
 				// There is no current screenshot request, sleep for a while
 				PlatformUtils::Sleep(10000);
 			}
@@ -1278,8 +1280,7 @@ void WorkerThread::doRun()
 						}
 					}
 
-					initPacket(scratch_packet, Protocol::ObjectInitialSend);
-					scratch_packet.writeUInt32(Protocol::AllObjectsSent); // Terminate the buffer with a AllObjectsSent message.
+					initPacket(scratch_packet, Protocol::AllObjectsSent);// Terminate the buffer with an AllObjectsSent message.
 					updatePacketLengthField(scratch_packet);
 					temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 

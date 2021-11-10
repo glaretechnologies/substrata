@@ -240,6 +240,10 @@ int main(int argc, char* argv[])
 						socket->writeUInt64(screenshot_data.length());
 						socket->writeData(screenshot_data.data(), screenshot_data.length());
 					}
+					else if(request_type == Protocol::KeepAlive)
+					{
+						conPrint("Received keepalive");
+					}
 					else
 					{
 						throw glare::Exception("unknown request type: " + toString(request_type));
