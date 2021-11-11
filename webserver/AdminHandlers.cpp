@@ -394,6 +394,14 @@ void renderAdminSubEthTransactionPage(ServerAllWorldsState& world_state, const w
 				page_out += "</form>";
 			}
 
+			if(trans->state != SubEthTransaction::State_Completed)
+			{
+				page_out += "<form action=\"/admin_set_transaction_state_to_completed_post\" method=\"post\">";
+				page_out += "<input type=\"hidden\" name=\"transaction_id\" value=\"" + toString(trans->id) + "\">";
+				page_out += "<input type=\"submit\" value=\"Set transaction state to completed\" onclick=\"return confirm('Are you sure you want to set the transaction state to completed?');\" >";
+				page_out += "</form>";
+			}
+
 			page_out += "<br/>";
 
 			page_out += "<form action=\"/admin_set_transaction_state_hash\" method=\"post\">";
@@ -892,7 +900,7 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 }
 
 
-// Sets the state of a minting transction to new.
+// Sets the state of a minting transaction to new.
 void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
@@ -924,6 +932,43 @@ void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const
 	catch(glare::Exception& e)
 	{
 		conPrint("handleSetTransactionStateToNewPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+// Sets the state of a minting transaction to completed.
+void handleSetTransactionStateToCompletedPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int transaction_id = request.getPostIntField("transaction_id");
+
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+
+			// Lookup transaction
+			const auto res = world_state.sub_eth_transactions.find(transaction_id);
+			if(res != world_state.sub_eth_transactions.end())
+			{
+				SubEthTransaction* transaction = res->second.ptr();
+				transaction->state = SubEthTransaction::State_Completed;
+
+				world_state.markAsChanged();
+
+				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
+			}
+		} // End lock scope
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSetTransactionStateToCompletedPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
