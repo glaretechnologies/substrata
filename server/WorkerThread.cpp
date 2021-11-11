@@ -537,7 +537,7 @@ void WorkerThread::handleEthBotConnection()
 				const uint32 result = socket->readUInt32();
 				if(result == Protocol::EthTransactionSubmitted)
 				{
-					const UInt256 transaction_hash = readUInt256FromStream(msg_buffer);
+					const UInt256 transaction_hash = readUInt256FromStream(*socket);
 
 					conPrint("Transaction was submitted.");
 
