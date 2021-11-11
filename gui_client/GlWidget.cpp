@@ -410,6 +410,7 @@ void GlWidget::playerPhyicsThink(float dt)
 	// TODO: Find an equivalent solution to GetAsyncKeyState on Mac/Linux.
 
 	bool cam_changed = false;
+	bool move_key_pressed = false;
 
 	// Handle gamepad input
 	double gamepad_strafe_leftright = 0;
@@ -446,19 +447,19 @@ void GlWidget::playerPhyicsThink(float dt)
 		const float selfie_move_factor = cam_controller->selfieModeEnabled() ? -1.f : 1.f;
 
 		if(GetAsyncKeyState('W') || GetAsyncKeyState(VK_UP))
-		{	this->player_physics->processMoveForwards(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveForwards(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 		if(GetAsyncKeyState('S') || GetAsyncKeyState(VK_DOWN))
-		{	this->player_physics->processMoveForwards(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveForwards(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 		if(GetAsyncKeyState('A'))
-		{	this->player_physics->processStrafeRight(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processStrafeRight(-1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 		if(GetAsyncKeyState('D'))
-		{	this->player_physics->processStrafeRight(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processStrafeRight(1.f * selfie_move_factor, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 		// Move vertically up or down in flymode.
 		if(GetAsyncKeyState(' '))
-		{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 		if(GetAsyncKeyState('C'))
-		{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 		// Turn left or right
 		const float base_rotate_speed = 200;
@@ -473,19 +474,19 @@ void GlWidget::playerPhyicsThink(float dt)
 #else
 
 	if(W_down)
-	{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+	{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 	if(S_down)
-	{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+	{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 	if(A_down)
-	{	this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+	{	this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 	if(D_down)
-	{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+	{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 	// Move vertically up or down in flymode.
 	if(space_down)
-	{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+	{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 	if(C_down)
-	{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; }
+	{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 	// Turn left or right
 	const float base_rotate_speed = 200;
@@ -503,16 +504,16 @@ void GlWidget::playerPhyicsThink(float dt)
 
 		// Move vertically up or down in flymode.
 		if(gamepad->buttonR2() != 0)
-		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * pow(gamepad->buttonR2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * pow(gamepad->buttonR2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 		if(gamepad->buttonL2() != 0)
-		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * -pow(gamepad->buttonL2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveUp(gamepad_move_speed_factor * -pow(gamepad->buttonL2(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 		if(gamepad->axisLeftX() != 0)
-		{	this->player_physics->processStrafeRight(gamepad_move_speed_factor * pow(gamepad->axisLeftX(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processStrafeRight(gamepad_move_speed_factor * pow(gamepad->axisLeftX(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 		if(gamepad->axisLeftY() != 0)
-		{	this->player_physics->processMoveForwards(gamepad_move_speed_factor * -pow(gamepad->axisLeftY(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; }
+		{	this->player_physics->processMoveForwards(gamepad_move_speed_factor * -pow(gamepad->axisLeftY(), 3.f), SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 		if(gamepad->axisRightX() != 0)
 		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * gamepad_rotate_speed * pow(gamepad->axisRightX(), 3.0f))); cam_changed = true; }
@@ -524,6 +525,9 @@ void GlWidget::playerPhyicsThink(float dt)
 
 	if(cam_changed)
 		emit cameraUpdated();
+
+	if(move_key_pressed)
+		emit playerMoveKeyPressed();
 }
 
 

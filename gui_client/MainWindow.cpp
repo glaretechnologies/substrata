@@ -270,6 +270,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(keyReleased(QKeyEvent*)), this, SLOT(glWidgetkeyReleased(QKeyEvent*)));
 	connect(ui->glWidget, SIGNAL(mouseWheelSignal(QWheelEvent*)), this, SLOT(glWidgetMouseWheelEvent(QWheelEvent*)));
 	connect(ui->glWidget, SIGNAL(cameraUpdated()), this, SLOT(cameraUpdated()));
+	connect(ui->glWidget, SIGNAL(playerMoveKeyPressed()), this, SLOT(playerMoveKeyPressed()));
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
@@ -1414,6 +1415,19 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 					avatar->graphics.loaded_lod_level = ob_lod_level;
 
 					ui->glWidget->addObject(avatar->graphics.skinned_gl_ob);
+
+					// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
+					const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+					if(our_avatar)
+					{
+						std::string gesture_name;
+						bool animate_head, loop_anim;
+						if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+						{
+							const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+							avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
+						}
+					}
 				}
 				else
 				{
@@ -2966,6 +2980,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											assignedLoadedOpenGLTexturesToMats(av, *ui->glWidget->opengl_engine, *resource_manager);
 
 											ui->glWidget->addObject(av->graphics.skinned_gl_ob);
+										}
+
+										// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
+										if(our_avatar)
+										{
+											std::string gesture_name;
+											bool animate_head, loop_anim;
+											if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+											{
+												av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
+											}
 										}
 									}
 									catch(glare::Exception& e)
@@ -7896,6 +7921,14 @@ void MainWindow::cameraUpdated()
 }
 
 
+void MainWindow::playerMoveKeyPressed()
+{
+	stopGesture();
+
+	gesture_ui.stopAnyGesturePlaying();
+}
+
+
 GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 {
 	const int W = 512;
@@ -8293,6 +8326,10 @@ void MainWindow::performGestureClicked(const std::string& gesture_name, bool ani
 {
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
+	// Change camera view to third person if it's not already, so we can see the gesture
+	if(!ui->actionThird_Person_Camera->isChecked())
+		ui->actionThird_Person_Camera->trigger();
+
 	{
 		Lock lock(this->world_state->mutex);
 
@@ -8319,7 +8356,7 @@ void MainWindow::performGestureClicked(const std::string& gesture_name, bool ani
 }
 
 
-void MainWindow::stopGestureClicked(const std::string& gesture_name)
+void MainWindow::stopGesture()
 {
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 
@@ -8345,6 +8382,12 @@ void MainWindow::stopGestureClicked(const std::string& gesture_name)
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
+}
+
+
+void MainWindow::stopGestureClicked(const std::string& gesture_name)
+{
+	stopGesture();
 }
 
 

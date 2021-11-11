@@ -38,6 +38,11 @@ public:
 
 	virtual OpenGLTextureRef makeToolTipTexture(const std::string& text) override; // From GLUITextRendererCallback
 
+	// Get the current gesture being performed, according to the UI state (i.e. which button is toggled).
+	// Returns true if a gesture is being performed, false otherwise.
+	bool getCurrentGesturePlaying(std::string& gesture_name_out, bool& animate_head_out, bool& loop_out);
+
+	void stopAnyGesturePlaying();
 
 	static bool animateHead(const std::string& gesture);
 	static bool loopAnim(const std::string& gesture);
