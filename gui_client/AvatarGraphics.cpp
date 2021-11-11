@@ -788,13 +788,17 @@ void AvatarGraphics::performGesture(double cur_time, const std::string& gesture_
 
 void AvatarGraphics::stopGesture(double cur_time/*, const std::string& gesture_name*/)
 {
-	this->gesture_anim.play_end_time = cur_time + 0.3;
-
-	if(skinned_gl_ob.nonNull())
+	const double tentative_end_time = cur_time + 0.3;
+	if(this->gesture_anim.play_end_time > tentative_end_time)
 	{
-		skinned_gl_ob->transition_start_time = cur_time;
-		skinned_gl_ob->transition_end_time = cur_time + 0.3;
-		skinned_gl_ob->next_anim_i = idle_anim_i;
+		this->gesture_anim.play_end_time = cur_time + 0.3;
+
+		if(skinned_gl_ob.nonNull())
+		{
+			skinned_gl_ob->transition_start_time = cur_time;
+			skinned_gl_ob->transition_end_time = cur_time + 0.3;
+			skinned_gl_ob->next_anim_i = idle_anim_i;
+		}
 	}
 }
 

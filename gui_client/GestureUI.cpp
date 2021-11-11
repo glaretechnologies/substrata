@@ -291,6 +291,46 @@ void GestureUI::eventOccurred(GLUICallbackEvent& event)
 }
 
 
+bool GestureUI::getCurrentGesturePlaying(std::string& gesture_name_out, bool& animate_head_out, bool& loop_out)
+{
+	for(size_t z=0; z<gesture_buttons.size(); ++z)
+	{
+		if(gesture_buttons[z]->toggled)
+		{
+			const std::string button_gesture_name = gesture_buttons[z]->client_data;
+
+			// Find matching gesture
+			for(size_t i=0; i<staticArrayNumElems(gestures); i += NUM_GESTURE_FIELDS)
+			{
+				const std::string gesture_name = gestures[i];
+				if(button_gesture_name == gesture_name)
+				{
+					const bool animate_head = std::string(gestures[i+1]) == "AnimHead";
+					const bool loop			= std::string(gestures[i+2]) == "Loop";
+
+					gesture_name_out = gesture_name;
+					animate_head_out = animate_head;
+					loop_out = loop;
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+
+void GestureUI::stopAnyGesturePlaying()
+{
+	// Untoggle any toggled buttons.
+	for(size_t z=0; z<gesture_buttons.size(); ++z)
+		gesture_buttons[z]->setToggled(false);
+
+	untoggle_button_time = -1;
+}
+
+
 OpenGLTextureRef GestureUI::makeToolTipTexture(const std::string& text)
 {
 	if(main_window)

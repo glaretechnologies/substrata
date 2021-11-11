@@ -134,6 +134,7 @@ private slots:;
 	void glWidgetMouseWheelEvent(QWheelEvent* e);
 	void glWidgetViewportResized(int w, int h);
 	void cameraUpdated();
+	void playerMoveKeyPressed();
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
 	void objectEditedSlot();
@@ -245,6 +246,7 @@ public:
 
 	void performGestureClicked(const std::string& gesture_name, bool animate_head, bool loop_anim);
 	void stopGestureClicked(const std::string& gesture_name);
+	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
