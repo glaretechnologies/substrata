@@ -7077,9 +7077,14 @@ static Vec2f GLCoordsForGLWidgetPos(MainWindow* main_window, const Vec2f widget_
 {
 	const int vp_width  = main_window->ui->glWidget->opengl_engine->getViewPortWidth();
 	const int vp_height = main_window->ui->glWidget->opengl_engine->getViewPortHeight();
+
+	const int device_pixel_ratio = main_window->ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
+	const int use_vp_width  = vp_width  / device_pixel_ratio;
+	const int use_vp_height = vp_height / device_pixel_ratio;
+
 	return Vec2f(
-		 (widget_pos.x - vp_width /2) / (vp_width /2),
-		-(widget_pos.y - vp_height/2) / (vp_height/2)
+		 (widget_pos.x - use_vp_width /2) / (use_vp_width /2),
+		-(widget_pos.y - use_vp_height/2) / (use_vp_height/2)
 	);
 }
 
