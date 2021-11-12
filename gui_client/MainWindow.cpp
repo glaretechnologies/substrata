@@ -7093,20 +7093,8 @@ static Vec2f GLCoordsForGLWidgetPos(MainWindow* main_window, const Vec2f widget_
 void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 {
 	{
-		const int vp_width  = ui->glWidget->opengl_engine->getViewPortWidth();
-		const int vp_height = ui->glWidget->opengl_engine->getViewPortHeight();
-
-		logMessage("vp_width: " + toString(vp_width));
-		logMessage("vp_height: " + toString(vp_height));
-
-
 		const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
 		const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
-
-		logMessage("widget_pos: " + widget_pos.toString());
-		logMessage("gl_coords: " + gl_coords.toString());
-
-		
 
 		const bool accepted = gesture_ui.handleMouseClick(gl_coords);
 		if(accepted)
