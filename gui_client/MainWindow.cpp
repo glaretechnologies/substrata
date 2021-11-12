@@ -533,7 +533,7 @@ MainWindow::~MainWindow()
 	if(this->interop_device_handle)
 	{
 		const BOOL res = wgl_funcs.wglDXCloseDeviceNV(this->interop_device_handle); // close interoperability with opengl
-		assert(res);
+		assertOrDeclareUsed(res);
 	}
 #endif
 
@@ -2132,7 +2132,6 @@ void MainWindow::setUpForScreenshot()
 		}
 	}
 
-	ui->glWidget->near_draw_dist = 0.7f; // Increase near draw distance, to reduce z-fighting.  Hope there are no nearby objects!
 	ui->glWidget->take_map_screenshot = taking_map_screenshot;
 
 	gesture_ui.destroy();
@@ -2150,7 +2149,7 @@ void MainWindow::saveScreenshot()
 	QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
 
 	const bool res = scaled_img.save(QtUtils::toQString(screenshot_output_path), "jpg", /*qquality=*/95);
-	assert(res);
+	assertOrDeclareUsed(res);
 }
 
 
@@ -2535,9 +2534,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			try
 			{
-				if(screenshot_command_socket->readable(/*timeout (s)=*/0.01))
+				const bool TESTING = false;
+				if(TESTING || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
 				{
-					const std::string command = screenshot_command_socket->readStringLengthFirst(1000);
+					const std::string command = TESTING ? "takemapscreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
 					if(command == "takescreenshot")
 					{
 						screenshot_campos.x = screenshot_command_socket->readDouble();
@@ -2553,10 +2553,21 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 					else if(command == "takemapscreenshot")
 					{
-						const int tile_x = screenshot_command_socket->readInt32();
-						const int tile_y = screenshot_command_socket->readInt32();
-						const int tile_z = screenshot_command_socket->readInt32();
-						screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+						int tile_x, tile_y, tile_z;
+						if(TESTING)
+						{
+							tile_x = 0;
+							tile_y = 0;
+							tile_z = 5;
+							screenshot_output_path = "test_screenshot.jpg";
+						}
+						else
+						{
+							tile_x = screenshot_command_socket->readInt32();
+							tile_y = screenshot_command_socket->readInt32();
+							tile_z = screenshot_command_socket->readInt32();
+							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+						}
 
 						const int TILE_WIDTH_PX = 256; // Works the easiest with leaflet.js
 						const float TILE_WIDTH_M = 5120.f / (1 << tile_z);
@@ -2670,7 +2681,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				time_since_last_screenshot.reset();
 
-				screenshot_command_socket->writeInt32(0); // Write success msg
+				if(screenshot_command_socket.nonNull())
+					screenshot_command_socket->writeInt32(0); // Write success msg
 			}
 		}
 	}
@@ -4470,17 +4482,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		conPrint("\tprocessing animated textures took " + doubleToStringNSigFigs(animated_tex_time * 1.0e3, 4) + " ms");
 	}*/
 
-	// If we are airborne, increase near draw distance, to reduce z-fighting.  Hope there are no nearby objects!  A hack.
-	if(cam_controller.getPosition().z > 100)
-	{
-		if(cam_controller.getPosition().z > 300)
-			ui->glWidget->near_draw_dist = 0.7f; 
-		else
-			ui->glWidget->near_draw_dist = 0.5f;
-	}
-	else
-		ui->glWidget->near_draw_dist = 0.22f;
-
 	ui->glWidget->makeCurrent();
 	ui->glWidget->updateGL();
 
@@ -5871,6 +5872,24 @@ void MainWindow::on_actionTake_Screenshot_triggered()
 		QMessageBox msgBox;
 		msgBox.setWindowTitle("Error");
 		msgBox.setText(QtUtils::toQString("Saving screenshot to '" + path + "' failed: " + e.what()));
+		msgBox.exec();
+	}
+}
+
+
+void MainWindow::on_actionShow_Screenshot_Folder_triggered()
+{
+	try
+	{
+		const std::string path = this->appdata_path + "/screenshots/";
+
+		PlatformUtils::openFileBrowserWindowAtLocation(path);
+	}
+	catch(glare::Exception& e)
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Error");
+		msgBox.setText(QtUtils::toQString(e.what()));
 		msgBox.exec();
 	}
 }

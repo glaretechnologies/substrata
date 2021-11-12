@@ -87,6 +87,7 @@
      <string>Tools</string>
     </property>
     <addaction name="actionTake_Screenshot"/>
+    <addaction name="actionShow_Screenshot_Folder"/>
     <addaction name="actionShow_Log"/>
     <addaction name="actionOptions"/>
    </widget>
@@ -540,6 +541,11 @@
   <action name="actionTake_Screenshot">
    <property name="text">
     <string>Take Screenshot</string>
+   </property>
+  </action>
+  <action name="actionShow_Screenshot_Folder">
+   <property name="text">
+    <string>Show Screenshot Folder</string>
    </property>
   </action>
  </widget>

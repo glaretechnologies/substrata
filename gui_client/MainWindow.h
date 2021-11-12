@@ -113,6 +113,7 @@ private slots:;
 	void on_actionFind_Object_triggered();
 	void on_actionExport_view_to_Indigo_triggered();
 	void on_actionTake_Screenshot_triggered();
+	void on_actionShow_Screenshot_Folder_triggered();
 	void on_actionAbout_Substrata_triggered();
 	void on_actionOptions_triggered();
 	void on_actionUndo_triggered();
