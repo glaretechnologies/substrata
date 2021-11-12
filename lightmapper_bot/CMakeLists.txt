@@ -21,6 +21,8 @@ SET(gui_client_files
 ../gui_client/UploadResourceThread.h
 ../gui_client/IndigoConversion.cpp
 ../gui_client/IndigoConversion.h
+../gui_client/DownloadingResourceQueue.cpp
+../gui_client/DownloadingResourceQueue.h
 #../gui_client/ModelLoading.cpp
 #../gui_client/ModelLoading.h
 )

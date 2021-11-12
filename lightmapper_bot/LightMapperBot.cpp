@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../gui_client/NetDownloadResourcesThread.h"
 #include "../gui_client/UploadResourceThread.h"
 #include "../gui_client/ModelLoading.h"
+#include "../gui_client/DownloadingResourceQueue.h"
 #include <networking/Networking.h>
 #include <networking/TLSSocket.h>
 #include <PlatformUtils.h>
@@ -83,7 +84,7 @@ public:
 	LightMapperBot(const std::string& server_hostname_, int server_port_, ResourceManagerRef& resource_manager_, struct tls_config* client_tls_config_)
 	:	server_hostname(server_hostname_), server_port(server_port_), resource_manager(resource_manager_), client_tls_config(client_tls_config_)
 	{
-		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, client_tls_config));
+		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, client_tls_config, &download_queue));
 
 		for(int i=0; i<4; ++i)
 			net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
@@ -1204,6 +1205,8 @@ public:
 	struct tls_config* client_tls_config;
 
 	std::string base_dir_path;
+
+	DownloadingResourceQueue download_queue;
 };
 
 
