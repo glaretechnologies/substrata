@@ -7848,6 +7848,8 @@ void MainWindow::deselectParcel()
 
 void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 {
+	logMessage("MainWindow::glWidgetKeyPressed: e->key(): " + toString(e->key()));
+
 	if(e->key() == Qt::Key::Key_Escape)
 	{
 		if(this->selected_ob.nonNull())
@@ -7858,6 +7860,8 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	}
 	else if(e->key() == Qt::Key::Key_Delete)
 	{
+		logMessage("Qt::Key::Key_Delete pressed");
+
 		if(this->selected_ob.nonNull())
 		{
 			deleteSelectedObject();
