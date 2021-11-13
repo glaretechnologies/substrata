@@ -7846,10 +7846,21 @@ void MainWindow::deselectParcel()
 }
 
 
+// On Mac laptops, the delete key sends a Key_Backspace keycode for some reason.  So check for that as well.
+static bool keyIsDeleteKey(int keycode)
+{
+#if defined(OSX)
+	return 
+		keycode == Qt::Key::Key_Backspace || 
+		keycode == Qt::Key::Key_Delete;
+#else
+	return keycode == Qt::Key::Key_Delete;
+#endif
+}
+
+
 void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 {
-	logMessage("MainWindow::glWidgetKeyPressed: e->key(): " + toString(e->key()));
-
 	if(e->key() == Qt::Key::Key_Escape)
 	{
 		if(this->selected_ob.nonNull())
@@ -7858,10 +7869,8 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		if(this->selected_parcel.nonNull())
 			deselectParcel();
 	}
-	else if(e->key() == Qt::Key::Key_Delete)
+	else if(keyIsDeleteKey(e->key()))
 	{
-		logMessage("Qt::Key::Key_Delete pressed");
-
 		if(this->selected_ob.nonNull())
 		{
 			deleteSelectedObject();
