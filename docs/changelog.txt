@@ -1,3 +1,22 @@
+0.80
+====
+Fixed gesture buttons not being clickable on Macs with retina screens.
+When a gesture button is pressed, change camera to third-person view.
+Stopping playing any gestures when moving the avatar.
+Made it so that help info window doesn't pop up if you have closed it already.
+Fixed delete key not deleting objects on Mac.
+Updated avatar animations: sitting pose should be on ground now.  
+Sitting talking animation is shorter.
+
+0.79
+====
+Made mouse scroll wheel zoom in/out in third person camera view.
+Not showing nametag above user's avatar in 3rd person camera mode.
+Not playing entry teleport sound when changing to 3rd person view.
+Testing if on ground recently instead of on last frame only, for avatar animation.
+Made third person cam target eye midpoint instead of head node.
+Made the protocol messages length-prefixed.
+
 0.78
 ====
 Indicating to the system that we want to run on a dedicated GPU if present, on Windows.
