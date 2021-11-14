@@ -21,6 +21,7 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 
 	SignalBlocker::setValue(this->loadDistanceDoubleSpinBox, settings->value(objectLoadDistanceKey(), /*default val=*/500.0).toDouble());
 	SignalBlocker::setChecked(this->shadowsCheckBox, settings->value(shadowsKey(), /*default val=*/true).toBool());
+	SignalBlocker::setChecked(this->MSAACheckBox, settings->value(MSAAKey(), /*default val=*/true).toBool());
 }
 
 
@@ -32,4 +33,5 @@ void MainOptionsDialog::accepted()
 {
 	settings->setValue(objectLoadDistanceKey(), this->loadDistanceDoubleSpinBox->value());
 	settings->setValue(shadowsKey(), this->shadowsCheckBox->isChecked());
+	settings->setValue(MSAAKey(), this->MSAACheckBox->isChecked());
 }

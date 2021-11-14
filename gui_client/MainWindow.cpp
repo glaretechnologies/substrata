@@ -212,10 +212,10 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
 	ui->objectEditor->base_dir_path = base_dir_path;
 
-	// Add a space to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
+	// Add a spacer to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
 	QWidget* spacer = new QWidget();
-	spacer->setMinimumWidth(200);
-	spacer->setMaximumWidth(200);
+	spacer->setMinimumWidth(60);
+	spacer->setMaximumWidth(60);
 	//spacer->setGeometry(QRect()
 	//spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	ui->toolBar->addWidget(spacer);
@@ -467,6 +467,26 @@ void MainWindow::afterGLInitInitialise()
 
 
 	gesture_ui.create(ui->glWidget->opengl_engine, this);
+
+
+	// Do auto-setting of graphics options, if they have not been set.
+	if(!settings->contains(MainOptionsDialog::MSAAKey())) // If the MSAA key has not been set:
+	{
+		const int device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
+		const bool is_retina = device_pixel_ratio > 1;
+
+		// We won't use MSAA by default in two cases:
+		// 1) Intel drivers - which implies an integrated Intel GPU which is probably not very powerful.
+		// 2) A retina monitor - the majority of which correspond to Mac laptops, which will look hopefully look alright without MSAA, and run slowly with MSAA.
+		const bool is_Intel = ui->glWidget->opengl_engine->openglDriverVendorIsIntel();
+		const bool no_MSAA = is_Intel || is_retina;
+		const bool MSAA = !no_MSAA;
+		ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
+
+		settings->setValue(MainOptionsDialog::MSAAKey(), MSAA); // Save MSAA setting
+
+		logMessage("Auto-setting MSAA: is_retina: " + boolToString(is_retina) + ", is_Intel: " + boolToString(is_Intel) + ", MSAA: " + boolToString(MSAA));
+	}
 }
 
 
@@ -5911,6 +5931,8 @@ void MainWindow::on_actionOptions_triggered()
 		const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble();
 		this->proximity_loader.setLoadDistance(dist);
 		ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
+
+		ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 	}
 }
 

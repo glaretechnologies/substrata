@@ -93,6 +93,13 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <item>
+           <widget class="QCheckBox" name="MSAACheckBox">
+            <property name="text">
+             <string>Multisample anti-aliasing (MSAA)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QCheckBox" name="shadowsCheckBox">
             <property name="text">
              <string>Shadows (restart Substrata to apply)</string>
