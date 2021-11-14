@@ -29,6 +29,8 @@ public:
 
 	static const QString shadowsKey() { return "setting/shadows"; }
 
+	static const QString MSAAKey() { return "setting/MSAA"; }
+
 private slots:;
 	void accepted();
 
