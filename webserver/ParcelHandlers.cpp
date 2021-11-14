@@ -529,6 +529,17 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 						if(shot_res != world_state.screenshots.end())
 						{
 							Screenshot* shot = shot_res->second.ptr();
+
+							// Update pos and angles
+							if(shot->cam_pos.z < 100) // If this is the close-in shot.  NOTE: bit of a hack
+							{
+								parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+							}
+							else
+							{
+								parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+							}
+
 							shot->state = Screenshot::ScreenshotState_notdone;
 						}
 					}
