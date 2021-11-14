@@ -456,7 +456,7 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
 			const double area = span.x * span.y;
 			descrip += "Dimensions: " + doubleToStringNSigFigs(span.x, 3) + " m x " + doubleToStringNSigFigs(span.y, 3) + " m (area: " + 
-				doubleToStringNSigFigs(area, 3) + " m^2), height: " + doubleToStringNSigFigs(parcel->aabb_max.z, 3) + " m.   \n";
+				doubleToStringNSigFigs(area, 3) + " m^2), height: " + doubleToStringNSigFigs(parcel->aabb_max.z, 3) + " m.  ";
 
 			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
 			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
