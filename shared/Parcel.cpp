@@ -199,6 +199,19 @@ bool Parcel::isAdjacentTo(const Parcel& other) const
 }
 
 
+std::string Parcel::districtName() const
+{
+	if(id.value() <= 425)
+		return "Central";
+	else if(id.value() <= 726)
+		return "Market";
+	else if(id.value() <= 953)
+		return "East";
+	else
+		return "Other";
+}
+
+
 bool Parcel::userIsParcelAdmin(const UserID user_id) const
 {
 	return ContainerUtils::contains(admin_ids, user_id);

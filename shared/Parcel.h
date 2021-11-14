@@ -46,6 +46,7 @@ public:
 	void getFarScreenShotPosAndAngles(Vec3d& pos_out, Vec3d& angles_out) const;
 	Vec3d getVisitPosition() const;
 	bool isAdjacentTo(const Parcel& other) const;
+	std::string districtName() const;
 
 	bool userIsParcelAdmin(const UserID user_id) const;
 	bool userIsParcelWriter(const UserID user_id) const;

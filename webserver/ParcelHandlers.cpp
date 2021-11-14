@@ -454,7 +454,9 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 
 			std::string descrip;
 			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
-			descrip += "Dimensions: " + doubleToStringNSigFigs(span.x, 3) + " m x " + doubleToStringNSigFigs(span.y, 3) + " m x " + doubleToStringNSigFigs(span.z, 3) + " m.  "; // Two spaces make a linebreak in markdown (maybe)  "\n" doesn't work on OpenSea at least
+			const double area = span.x * span.y;
+			descrip += "Dimensions: " + doubleToStringNSigFigs(span.x, 3) + " m x " + doubleToStringNSigFigs(span.y, 3) + " m (area: " + 
+				doubleToStringNSigFigs(area, 3) + " m^2), height: " + doubleToStringNSigFigs(parcel->aabb_max.z, 3) + " m.   \n";
 
 			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
 			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
@@ -462,8 +464,33 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 			descrip += "Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin).";
 			descrip += "  Visit https://substrata.info/parcel/" + toString(parcel_id) + " for more info.";
 
-			page += "\"description\":\"" + web::Escaping::JSONEscape(descrip) + "\"" // "A human readable description of the item. Markdown is supported."
-				"}";
+			page += "\"description\":\"" + web::Escaping::JSONEscape(descrip) + "\","; // "A human readable description of the item. Markdown is supported."
+
+			page += 
+				"  \"attributes\": [  			  \n"
+				"  {								  \n"
+				"    \"trait_type\": \"District\", \n"
+				"    \"value\": \"" + parcel->districtName() + "\"		  \n"
+				"  }, 								  \n"
+				"  {								  \n"
+				"    \"display_type\": \"number\",    \n"
+				"    \"trait_type\": \"Area (m^2)\",		\n"
+				"    \"value\": \"" + doubleToStringNSigFigs(area, 3) + "\"   \n"
+				"  }, 								  \n"
+				"  {								  \n"
+				"    \"display_type\": \"number\",    \n"
+				"    \"trait_type\": \"Height (m)\",		\n"
+				"    \"value\": \"" + doubleToStringNSigFigs(parcel->aabb_max.z, 3) + "\"   \n"
+				"  }, 								  \n"
+				"  {								  \n"
+				"    \"display_type\": \"number\",    \n"
+				"    \"trait_type\": \"Distance from origin (m)\",		\n"
+				"    \"value\": \"" + doubleToStringNSigFigs(dist_from_orig, 2) + "\"   \n"
+				"  } 								  \n"
+				"  ] 								  \n";
+
+			page += "}\n";
+
 		} // end lock scope
 
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page.c_str(), page.size(), "application/json");
