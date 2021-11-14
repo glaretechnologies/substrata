@@ -135,7 +135,7 @@ void Parcel::getFarScreenShotPosAndAngles(Vec3d& pos_out, Vec3d& angles_out) con
 
 	pos_out = parcel_centre + Vec3d(-0.1, -0.1, 500);
 
-	angles_out = Vec3d(/*heading=*/0, /*pitch=*/Maths::pi<double>() - 0.001, /*roll=*/0);
+	angles_out = Vec3d(/*heading=*/Maths::pi_2<double>(), /*pitch=*/Maths::pi<double>() - 0.001, /*roll=*/0);
 }
 
 
