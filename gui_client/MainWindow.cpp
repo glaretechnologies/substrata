@@ -2464,7 +2464,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
 					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n";
 
-				if(!selected_ob->opengl_engine_ob->materials.empty())
+				if(!selected_ob->opengl_engine_ob->materials.empty() && !selected_ob->materials.empty())
 				{
 					OpenGLMaterial& mat0 = selected_ob->opengl_engine_ob->materials[0];
 					if(mat0.albedo_texture.nonNull())
@@ -2481,7 +2481,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						msg += "lightmap: " + toString(mat0.lightmap_texture->xRes()) + "x" + toString(mat0.lightmap_texture->yRes()) + " (" + getNiceByteSize(mat0.lightmap_texture->getByteSize()) + ")\n";
 					}
 				}
-				if(selected_ob->opengl_engine_ob->materials.size() >= 2)
+				if(selected_ob->materials.size() >= 2)
 				{
 					msg += "mat1 colourTexHasAlpha(): " + toString(selected_ob->materials[1]->colourTexHasAlpha()) + "\n";
 				}
