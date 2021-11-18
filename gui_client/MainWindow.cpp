@@ -469,7 +469,7 @@ void MainWindow::afterGLInitInitialise()
 	gesture_ui.create(ui->glWidget->opengl_engine, this);
 
 
-	// Do auto-setting of graphics options, if they have not been set.
+	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
 	if(!settings->contains(MainOptionsDialog::MSAAKey())) // If the MSAA key has not been set:
 	{
 		const int device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
@@ -486,6 +486,13 @@ void MainWindow::afterGLInitInitialise()
 		settings->setValue(MainOptionsDialog::MSAAKey(), MSAA); // Save MSAA setting
 
 		logMessage("Auto-setting MSAA: is_retina: " + boolToString(is_retina) + ", is_Intel: " + boolToString(is_Intel) + ", MSAA: " + boolToString(MSAA));
+	}
+	else
+	{
+		// Else MSAA setting is present.
+		const bool MSAA = settings->value(MainOptionsDialog::MSAAKey(), /*default=*/true).toBool();
+		logMessage("Setting MSAA to " + boolToString(MSAA));
+		ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
 	}
 }
 
