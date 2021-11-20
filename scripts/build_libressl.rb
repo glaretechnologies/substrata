@@ -16,7 +16,7 @@ LibreSSL build
 "
 
 
-$libressl_version = "3.3.3"
+$libressl_version = "3.3.5"
 # $vs_version = 2019 # comes from config-lib.rb.
 $configurations = [ :release, :debug ]
 $forcerebuild = false
