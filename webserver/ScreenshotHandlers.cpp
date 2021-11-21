@@ -92,8 +92,8 @@ void handleMapTileRequest(ServerAllWorldsState& world_state, WebDataStore& datas
 		{ // lock scope
 			Lock lock(world_state.mutex);
 
-			auto res = world_state.map_tile_info.find(Vec3<int>(x, y, z));
-			if(res == world_state.map_tile_info.end())
+			auto res = world_state.map_tile_info.info.find(Vec3<int>(x, y, z));
+			if(res == world_state.map_tile_info.info.end())
 				throw glare::Exception("Couldn't find map tile");
 
 			const TileInfo& info = res->second;
