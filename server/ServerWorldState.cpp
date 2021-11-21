@@ -493,9 +493,13 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	}
 
 
+	// If we were loading the old pre-database format:
 	if(is_pre_database_format)
 	{
 		database.openAndMakeOrClearDatabase(path);
+
+		// Add everything to dirty sets so it gets saved to the DB initially.
+		addEverythingToDirtySets();
 	}
 
 
@@ -574,6 +578,42 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 
 		toString(num_sub_eth_transactions) + " sub eth transaction(s), " + toString(num_tiles_read) + " tiles in " + timer.elapsedStringNSigFigs(4));
+}
+
+
+void ServerAllWorldsState::addEverythingToDirtySets()
+{
+	for(auto it = resource_manager->getResourcesForURL().begin(); it != resource_manager->getResourcesForURL().end(); ++it)
+		db_dirty_resources.insert(it->second);
+
+	for(auto it = user_id_to_users.begin(); it != user_id_to_users.end(); ++it)
+		db_dirty_users.insert(it->second);
+
+	for(auto it = orders.begin(); it != orders.end(); ++it)
+		db_dirty_orders.insert(it->second);
+
+	for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
+	{
+		Reference<ServerWorldState> world_state = world_it->second;
+
+		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+			world_state->db_dirty_world_objects.insert(it->second);
+
+		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+			world_state->db_dirty_parcels.insert(it->second);
+	}
+
+	for(auto it = user_web_sessions.begin(); it != user_web_sessions.end(); ++it)
+		db_dirty_userwebsessions.insert(it->second);
+
+	for(auto it = parcel_auctions.begin(); it != parcel_auctions.end(); ++it)
+		db_dirty_parcel_auctions.insert(it->second);
+
+	for(auto it = screenshots.begin(); it != screenshots.end(); ++it)
+		db_dirty_screenshots.insert(it->second);
+
+	for(auto it = sub_eth_transactions.begin(); it != sub_eth_transactions.end(); ++it)
+		db_dirty_sub_eth_transactions.insert(it->second);
 }
 
 

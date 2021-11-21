@@ -126,6 +126,8 @@ public:
 	void addUserWebSessionAsDBDirty(const UserWebSessionRef screenshot) { db_dirty_userwebsessions.insert(screenshot); changed = 1; }
 	void addScreenshotAsDBDirty(const ScreenshotRef screenshot) { db_dirty_screenshots.insert(screenshot); changed = 1; }
 	void addUserAsDBDirty(const UserRef user) { db_dirty_users.insert(user); changed = 1; }
+
+	void addEverythingToDirtySets();
 	
 	Reference<ResourceManager> resource_manager;
 
