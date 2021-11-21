@@ -517,6 +517,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 	}
 
 	//TEMP: create screenshots for parcels if not already done.
+#if 0
 	{
 		//TEMP: scan over all screenshots and find highest used ID. 
 		uint64 highest_shot_id = 0;
@@ -565,6 +566,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 			}
 		}
 	}
+#endif
 
 
 	conPrint("min_next_nonce: " + toString(eth_info.min_next_nonce));

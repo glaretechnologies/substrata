@@ -1244,6 +1244,9 @@ int main(int argc, char *argv[])
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
+								// Remove from dirty-set, so it's not updated in DB.
+								world_state->db_dirty_world_objects.erase(ob);
+
 								// Add DB record to list of records to be deleted.
 								server.world_state->db_records_to_delete.insert(ob->database_key);
 

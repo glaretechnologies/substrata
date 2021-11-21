@@ -424,6 +424,7 @@ void MeshLODGenThread::doRun()
 							mesh_to_gen.owner_id
 						);
 
+						world_state->addResourcesAsDBDirty(resource);
 						world_state->resource_manager->addResource(resource);
 						
 						made_change = true;
@@ -462,6 +463,7 @@ void MeshLODGenThread::doRun()
 							tex_to_gen.owner_id
 						);
 
+						world_state->addResourcesAsDBDirty(resource);
 						world_state->resource_manager->addResource(resource);
 
 						made_change = true;

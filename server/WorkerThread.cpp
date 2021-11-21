@@ -1248,7 +1248,6 @@ void WorkerThread::doRun()
 							{
 								::Lock lock(world_state->mutex);
 
-								// Object for UID not already created, create it now.
 								new_ob->uid = world_state->getNextObjectUID();
 								new_ob->state = WorldObject::State_JustCreated;
 								new_ob->from_remote_other_dirty = true;

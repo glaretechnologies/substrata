@@ -619,8 +619,8 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 					shot->highlight_parcel_id = (int)parcel_id;
 					shot->created_time = TimeStamp::currentTime();
 					shot->state = Screenshot::ScreenshotState_notdone;
+					
 					world_state.addScreenshotAsDBDirty(shot);
-
 					world_state.screenshots[shot->id] = shot;
 
 					auction->screenshot_ids.push_back(shot->id);
@@ -634,20 +634,19 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 					shot->highlight_parcel_id = (int)parcel_id;
 					shot->created_time = TimeStamp::currentTime();
 					shot->state = Screenshot::ScreenshotState_notdone;
+					
 					world_state.addScreenshotAsDBDirty(shot);
-
 					world_state.screenshots[shot->id] = shot;
 
 					auction->screenshot_ids.push_back(shot->id);
 				}
 
-				
-				conPrint("Created screenshot for auction");
+				conPrint("Created screenshots for auction");
 				
 				parcel->parcel_auction_ids.push_back(auction->id);
-				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
-				world_state.markAsChanged();
+				world_state.addParcelAuctionAsDBDirty(auction);
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 				web::ResponseUtils::writeRedirectTo(reply_info, "/parcel_auction/" + toString(auction->id));
 			}
@@ -1081,6 +1080,8 @@ void handleDeleteTransactionPost(ServerAllWorldsState& world_state, const web::R
 			if(res != world_state.sub_eth_transactions.end())
 			{
 				SubEthTransaction* trans = res->second.ptr();
+
+				world_state.db_dirty_sub_eth_transactions.erase(trans); // Remove from dirty set so it doesn't get written to the DB
 
 				world_state.db_records_to_delete.insert(trans->database_key);
 
