@@ -20,6 +20,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <ThreadSafeRefCounted.h>
 #include <Platform.h>
 #include <Mutex.h>
+#include <Database.h>
 #include <map>
 #include <unordered_set>
 
@@ -32,6 +33,12 @@ public:
 
 	std::map<UID, WorldObjectRef> objects;
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects;
+
+	std::unordered_set<ParcelRef, ParcelRefHash> db_dirty_parcels;
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> db_dirty_world_objects;
+
+	void addParcelAsDBDirty(const ParcelRef parcel) { db_dirty_parcels.insert(parcel); }
+	void addWorldObjectAsDBDirty(const WorldObjectRef ob) { db_dirty_world_objects.insert(ob); }
 
 	std::map<ParcelID, ParcelRef> parcels;
 };
@@ -47,6 +54,39 @@ struct TileInfo
 {
 	ScreenshotRef cur_tile_screenshot;
 	ScreenshotRef prev_tile_screenshot;
+};
+
+
+struct LastParcelUpdateInfo
+{
+	LastParcelUpdateInfo() : db_dirty(false) {}
+
+	int last_parcel_sale_update_hour;
+	int last_parcel_sale_update_day;
+	int last_parcel_sale_update_year;
+
+	DatabaseKey database_key;
+	bool db_dirty; // If true, there is a change that has not been saved to the DB.
+};
+
+
+struct EthInfo
+{
+	EthInfo() : db_dirty(false) {}
+
+	int min_next_nonce;
+	DatabaseKey database_key;
+	bool db_dirty; // If true, there is a change that has not been saved to the DB.
+};
+
+
+struct MapTileInfo
+{
+	MapTileInfo() : db_dirty(false) {}
+
+	std::map<Vec3<int>, TileInfo> info;
+	DatabaseKey database_key;
+	bool db_dirty; // If true, there is a change that has not been saved to the DB.
 };
 
 
@@ -77,8 +117,16 @@ public:
 	void setUserWebMessage(const UserID& user_id, const std::string& s);
 	std::string getAndRemoveUserWebMessage(const UserID& user_id); // returns empty string if no message or user
 
-	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; } // Guaranteed to be return a non-null reference
+	Reference<ServerWorldState> getRootWorldState() { return world_states[""]; } // Guaranteed to return a non-null reference
 
+	void addResourcesAsDBDirty(const ResourceRef resource) { db_dirty_resources.insert(resource); changed = 1; }
+	void addSubEthTransactionAsDBDirty(const SubEthTransactionRef trans) { db_dirty_sub_eth_transactions.insert(trans); changed = 1; }
+	void addOrderAsDBDirty(const OrderRef order) { db_dirty_orders.insert(order); changed = 1; }
+	void addParcelAuctionAsDBDirty(const ParcelAuctionRef parcel_auction) { db_dirty_parcel_auctions.insert(parcel_auction); changed = 1; }
+	void addUserWebSessionAsDBDirty(const UserWebSessionRef screenshot) { db_dirty_userwebsessions.insert(screenshot); changed = 1; }
+	void addScreenshotAsDBDirty(const ScreenshotRef screenshot) { db_dirty_screenshots.insert(screenshot); changed = 1; }
+	void addUserAsDBDirty(const UserRef user) { db_dirty_users.insert(user); changed = 1; }
+	
 	Reference<ResourceManager> resource_manager;
 
 	std::map<UserID, Reference<User>> user_id_to_users;  // User id to user
@@ -96,15 +144,14 @@ public:
 
 	std::map<uint64, SubEthTransactionRef> sub_eth_transactions; // SubEthTransaction id to SubEthTransaction
 
-	int min_next_nonce;
 
 	// For the map:
-	std::map<Vec3<int>, TileInfo> map_tile_info;
+	MapTileInfo map_tile_info;
 
-	int last_parcel_sale_update_hour;
-	int last_parcel_sale_update_day;
-	int last_parcel_sale_update_year;
+	
+	LastParcelUpdateInfo last_parcel_update_info;
 
+	EthInfo eth_info;
 
 	// Ephemeral state that is not serialised to disk.  Set by CoinbasePollerThread.
 	double BTC_per_EUR;
@@ -119,6 +166,16 @@ public:
 
 	std::map<UserID, std::string> user_web_messages; // For displaying an informational or error message on the next webpage served to a user.
 
+	std::unordered_set<ResourceRef, ResourceRefHash> db_dirty_resources;
+	std::unordered_set<SubEthTransactionRef, SubEthTransactionRefHash> db_dirty_sub_eth_transactions;
+	std::unordered_set<OrderRef, OrderRefHash> db_dirty_orders;
+	std::unordered_set<ParcelAuctionRef, ParcelAuctionRefHash> db_dirty_parcel_auctions;
+	std::unordered_set<UserWebSessionRef, UserWebSessionRefHash> db_dirty_userwebsessions;
+	std::unordered_set<ScreenshotRef, ScreenshotRefHash> db_dirty_screenshots;
+	std::unordered_set<UserRef, UserRefHash> db_dirty_users;
+
+	std::unordered_set<DatabaseKey, DatabaseKeyHash> db_records_to_delete;
+
 	::Mutex mutex;
 private:
 	GLARE_DISABLE_COPY(ServerAllWorldsState);
@@ -129,4 +186,6 @@ private:
 	UID next_avatar_uid;
 	uint64 next_order_uid;
 	uint64 next_sub_eth_transaction_uid;
+
+	Database database;
 };

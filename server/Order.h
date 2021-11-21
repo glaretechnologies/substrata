@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Reference.h>
 #include <OutStream.h>
 #include <InStream.h>
+#include <DatabaseKey.h>
 
 
 /*=====================================================================
@@ -46,6 +47,8 @@ public:
 	std::string coinbase_status; // One of NEW, PENDING, COMPLETED etc.., or empty string if this is not a Coinbase order.
 
 	bool confirmed; // Has payment been confirmed?
+
+	DatabaseKey database_key;
 };
 
 
@@ -54,3 +57,12 @@ typedef Reference<Order> OrderRef;
 
 void writeToStream(const Order& order, OutStream& stream);
 void readFromStream(InStream& stream, Order& order);
+
+
+struct OrderRefHash
+{
+	size_t operator() (const OrderRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

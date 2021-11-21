@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <string>
 #include <utils/Vector.h>
 #include <utils/Mutex.h>
+#include <utils/DatabaseKey.h>
 #include <set>
 
 
@@ -61,6 +62,8 @@ public:
 	js::Vector<uint8, 16> buffer; // Streamed files will be downloaded to this buffer first, then saved to disk.
 	int64 num_buffer_readers; // If num_buffer_readers > 0, then the buffer won't be cleared when the resource has been fully downloaded.
 	//std::set<Reference<ResourceDownloadListener>> listeners;
+
+	DatabaseKey database_key;
 private:
 	State state; // May be protected by mutex soon.
 	std::string local_path; // path on local disk.
@@ -74,3 +77,12 @@ void readFromStream(InStream& stream, Resource& resource);
 
 //void writeToNetworkStream(const Resource& resource, OutStream& stream); // write without version
 //void readFromNetworkStream/*GivenID*/(InStream& stream, Resource& resource);
+
+
+struct ResourceRefHash
+{
+	size_t operator() (const ResourceRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

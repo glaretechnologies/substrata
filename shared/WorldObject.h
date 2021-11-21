@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <Vector.h>
+#include <DatabaseKey.h>
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
 #include "vec3.h"
@@ -186,6 +187,8 @@ public:
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
 	WorldObject* prototype_object; // for instances - this is the object this object is a copy of.
 	std::vector<Reference<WorldObject>> instances;
+
+	DatabaseKey database_key;
 
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;

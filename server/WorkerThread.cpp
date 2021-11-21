@@ -185,6 +185,12 @@ void WorkerThread::handleResourceUploadConnection()
 
 		// See if we have a resource in the ResourceManager already
 		ResourceRef resource = server->world_state->resource_manager->getOrCreateResourceForURL(URL); // Will create a new Resource ob if not already inserted.
+
+		{
+			Lock lock(server->world_state->mutex);
+			server->world_state->addResourcesAsDBDirty(resource);
+		}
+
 		if(resource->owner_id == UserID::invalidUserID())
 		{
 			// No such resource existed before, client may create this resource.
@@ -238,8 +244,11 @@ void WorkerThread::handleResourceUploadConnection()
 
 		resource->owner_id = client_user->id;
 		resource->setState(Resource::State_Present);
-		server->world_state->markAsChanged();
 
+		{
+			Lock lock(server->world_state->mutex);
+			server->world_state->addResourcesAsDBDirty(resource);
+		}
 
 		// Send NewResourceOnServer message to connected clients
 		{
@@ -392,7 +401,7 @@ void WorkerThread::handleScreenshotBotConnection()
 				if(screenshot.isNull())
 				{
 					// Find first screenshot in map_tile_info map in ScreenshotState_notdone state.  NOTE: slow linear scan.
-					for(auto it = server->world_state->map_tile_info.begin(); it != server->world_state->map_tile_info.end(); ++it)
+					for(auto it = server->world_state->map_tile_info.info.begin(); it != server->world_state->map_tile_info.info.end(); ++it)
 					{
 						TileInfo& tile_info = it->second;
 						if(tile_info.cur_tile_screenshot.nonNull() && tile_info.cur_tile_screenshot->state == Screenshot::ScreenshotState_notdone)
@@ -457,8 +466,7 @@ void WorkerThread::handleScreenshotBotConnection()
 
 					screenshot->state = Screenshot::ScreenshotState_done;
 					screenshot->local_path = screenshot_path;
-
-					server->world_state->markAsChanged();
+					server->world_state->addScreenshotAsDBDirty(screenshot);
 				}
 				else
 					throw glare::Exception("Client reported screenshot taking failed.");
@@ -522,14 +530,21 @@ void WorkerThread::handleEthBotConnection()
 				}
 			} // End lock scope
 
-			const uint64 next_nonce = myMax((uint64)server->world_state->min_next_nonce, largest_nonce_used + 1); // min_next_nonce is to reflect any existing transactions on account
+			const uint64 next_nonce = myMax((uint64)server->world_state->eth_info.min_next_nonce, largest_nonce_used + 1); // min_next_nonce is to reflect any existing transactions on account
 
 			if(trans.nonNull()) // If there is a transaction to submit:
 			{
 				socket->writeUInt32(Protocol::SubmitEthTransactionRequest);
 
-				trans->nonce = next_nonce; // Update transaction nonce
-				trans->submitted_time = TimeStamp::currentTime();
+				// Update transaction nonce and submitted_time
+				{ // lock scope
+					Lock lock(server->world_state->mutex);
+
+					trans->nonce = next_nonce; 
+					trans->submitted_time = TimeStamp::currentTime();
+
+					server->world_state->addSubEthTransactionAsDBDirty(trans);
+				}
 				
 				writeToStream(*trans, *socket);
 
@@ -541,34 +556,43 @@ void WorkerThread::handleEthBotConnection()
 
 					conPrint("Transaction was submitted.");
 
-					trans->state = SubEthTransaction::State_Completed; // State_Submitted;
-					trans->transaction_hash = transaction_hash;
-
 					// Mark parcel as minted as an NFT
 					{ // lock scope
 						Lock lock(server->world_state->mutex);
+
+						trans->state = SubEthTransaction::State_Completed; // State_Submitted;
+						trans->transaction_hash = transaction_hash;
+
+						server->world_state->addSubEthTransactionAsDBDirty(trans);
 
 						auto parcel_res = server->world_state->getRootWorldState()->parcels.find(trans->parcel_id);
 						if(parcel_res != server->world_state->getRootWorldState()->parcels.end())
 						{
 							Parcel* parcel = parcel_res->second.ptr();
 							parcel->nft_status = Parcel::NFTStatus_MintedNFT;
+							server->world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+							server->world_state->markAsChanged();
 						}
 					} // End lock scope
-
 				}
 				else if(result == Protocol::EthTransactionSubmissionFailed)
 				{
 					conPrint("Transaction submission failed.");
 
-					trans->state = SubEthTransaction::State_Submitted;
-					trans->transaction_hash = UInt256(0);
-					trans->submission_error_message = socket->readStringLengthFirst(10000);
+					const std::string submission_error_message = socket->readStringLengthFirst(10000);
+
+					{ // lock scope
+						Lock lock(server->world_state->mutex);
+
+						trans->state = SubEthTransaction::State_Submitted;
+						trans->transaction_hash = UInt256(0);
+						trans->submission_error_message = submission_error_message;
+
+						server->world_state->addSubEthTransactionAsDBDirty(trans);
+					}
 				}
 				else
 					throw glare::Exception("Client reported transaction submission failed.");
-
-				server->world_state->markAsChanged();
 			}
 			else
 			{
@@ -928,7 +952,7 @@ void WorkerThread::doRun()
 								{
 									client_user->avatar_settings = avatar->avatar_settings;
 
-									server->world_state->markAsChanged(); // TODO: only do this if avatar settings actually changed.
+									world_state->addUserAsDBDirty(client_user); // TODO: only do this if avatar settings actually changed.
 
 									conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
 								}
@@ -1045,7 +1069,10 @@ void WorkerThread::doRun()
 										ob->axis = axis;
 										ob->angle = angle;
 										ob->from_remote_transform_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(ob);
 										cur_world_state->dirty_from_remote_objects.insert(ob);
+
+										world_state->markAsChanged();
 									}
 
 									//conPrint("updated object transform");
@@ -1092,7 +1119,10 @@ void WorkerThread::doRun()
 										ob->copyNetworkStateFrom(temp_ob);
 
 										ob->from_remote_other_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(ob);
 										cur_world_state->dirty_from_remote_objects.insert(ob);
+
+										world_state->markAsChanged();
 
 										// Process resources
 										std::set<std::string> URLs;
@@ -1125,7 +1155,10 @@ void WorkerThread::doRun()
 								ob->lightmap_url = new_lightmap_url;
 
 								ob->from_remote_lightmap_url_dirty = true;
+								cur_world_state->addWorldObjectAsDBDirty(ob);
 								cur_world_state->dirty_from_remote_objects.insert(ob);
+
+								world_state->markAsChanged();
 							}
 						}
 						break;
@@ -1147,7 +1180,10 @@ void WorkerThread::doRun()
 								ob->model_url = new_model_url;
 
 								ob->from_remote_model_url_dirty = true;
+								cur_world_state->addWorldObjectAsDBDirty(ob);
 								cur_world_state->dirty_from_remote_objects.insert(ob);
+
+								world_state->markAsChanged();
 							}
 						}
 						break;
@@ -1169,7 +1205,10 @@ void WorkerThread::doRun()
 								ob->flags = flags; // Copy flags
 
 								ob->from_remote_flags_dirty = true;
+								cur_world_state->addWorldObjectAsDBDirty(ob);
 								cur_world_state->dirty_from_remote_objects.insert(ob);
+
+								world_state->markAsChanged();
 							}
 						}
 						break;
@@ -1213,8 +1252,11 @@ void WorkerThread::doRun()
 								new_ob->uid = world_state->getNextObjectUID();
 								new_ob->state = WorldObject::State_JustCreated;
 								new_ob->from_remote_other_dirty = true;
+								cur_world_state->addWorldObjectAsDBDirty(new_ob);
 								cur_world_state->dirty_from_remote_objects.insert(new_ob);
 								cur_world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
+
+								world_state->markAsChanged();
 							}
 						}
 
@@ -1249,7 +1291,10 @@ void WorkerThread::doRun()
 										// Mark object as dead
 										ob->state = WorldObject::State_Dead;
 										ob->from_remote_other_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(ob);
 										cur_world_state->dirty_from_remote_objects.insert(ob);
+
+										world_state->markAsChanged();
 									}
 								}
 							} // End lock scope
@@ -1398,6 +1443,7 @@ void WorkerThread::doRun()
 									readFromNetworkStreamGivenID(msg_buffer, *parcel);
 									read = true;
 									parcel->from_remote_dirty = true;
+									cur_world_state->addParcelAsDBDirty(parcel);
 								}
 							}
 
@@ -1582,6 +1628,8 @@ void WorkerThread::doRun()
 
 										new_user->password_hash_salt = user_salt;
 										new_user->hashed_password = User::computePasswordHash(password, user_salt);
+
+										world_state->addUserAsDBDirty(new_user);
 
 										// Add new user to world state
 										world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));

@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Reference.h>
 #include <OutStream.h>
 #include <InStream.h>
+#include <DatabaseKey.h>
 
 
 /*=====================================================================
@@ -66,6 +67,8 @@ public:
 	uint64 lock_duration;
 
 	std::vector<uint64> screenshot_ids;
+
+	DatabaseKey database_key;
 };
 
 
@@ -74,3 +77,13 @@ typedef Reference<ParcelAuction> ParcelAuctionRef;
 
 void writeToStream(const ParcelAuction& a, OutStream& stream);
 void readFromStream(InStream& stream, ParcelAuction& a);
+
+
+struct ParcelAuctionRefHash
+{
+	size_t operator() (const ParcelAuctionRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};
+
