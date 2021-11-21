@@ -558,7 +558,10 @@ void handleSetNewPasswordPost(ServerAllWorldsState& world_state, const web::Requ
 				{
 					password_reset = user->resetPasswordWithTokenHash(token_hash, new_password);
 					if(password_reset)
+					{
+						world_state.addUserAsDBDirty(user);
 						break;
+					}
 				}
 			}
 		}
