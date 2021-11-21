@@ -190,6 +190,8 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 					session->id = UserWebSession::generateRandomKey();
 					session->user_id = user.id;
 					session->created_time = TimeStamp::currentTime();
+					
+					world_state.addUserWebSessionAsDBDirty(session);
 
 					world_state.user_web_sessions[session->id] = session;
 					world_state.markAsChanged();
@@ -322,14 +324,15 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 			world_state.user_id_to_users.insert(std::make_pair(new_user->id,   new_user));
 			world_state.name_to_users   .insert(std::make_pair(username.str(), new_user));
 
+			world_state.addUserAsDBDirty(new_user);
+
 
 			UserWebSessionRef session = new UserWebSession();
 			session->id = UserWebSession::generateRandomKey();
 			session->user_id = new_user->id;
 			session->created_time = TimeStamp::currentTime();
+			world_state.addUserWebSessionAsDBDirty(session);
 			world_state.user_web_sessions[session->id] = session;
-
-			world_state.markAsChanged(); // Mark as changed so gets saved to disk.
 
 			reply += "HTTP/1.1 302 Redirect" + CRLF;
 			reply += "Location: " + return_URL + CRLF;
@@ -422,6 +425,7 @@ void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::Reque
 			try
 			{
 				matching_user->sendPasswordResetEmail();
+				world_state.addUserAsDBDirty(matching_user);
 				
 				conPrint("Sent user password reset email to '" + matching_user->email_address + ", username '" + matching_user->name + "'");
 			}

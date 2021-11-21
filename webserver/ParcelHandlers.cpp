@@ -541,10 +541,9 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 							}
 
 							shot->state = Screenshot::ScreenshotState_notdone;
+							world_state.addScreenshotAsDBDirty(shot);
 						}
 					}
-
-					world_state.markAsChanged();
 				}
 			}
 		} // End lock scope
@@ -580,6 +579,7 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 				if(logged_in_user && parcel->owner_id == logged_in_user->id) // If the user is logged in and owns this parcel:
 				{
 					parcel->description = new_descrip.str();
+					world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 					world_state.markAsChanged();
 
@@ -633,6 +633,7 @@ void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::Req
 						{
 							added_writer = true;
 							parcel->writer_ids.push_back(new_writer_user->id);
+							world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 							message = "Added user as writer.";
 						}
 						else
@@ -694,6 +695,8 @@ void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::
 						world_state.setUserWebMessage(logged_in_user->id, "removed user as writer");
 					else
 						world_state.setUserWebMessage(logged_in_user->id, "User was not a writer.");
+
+					world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 					world_state.denormaliseData(); // Update parcel writer names
 					world_state.markAsChanged();

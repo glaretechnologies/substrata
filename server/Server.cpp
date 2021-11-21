@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <Base64.h>
 #include <CryptoRNG.h>
 #include <SHA256.h> //TEMP for testing
+#include <DatabaseTests.h> //TEMP for testing
 #include <ArgumentParser.h>
 #include <SocketBufferOutStream.h>
 #include <TLSSocket.h>
@@ -368,6 +369,8 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 					world_state.screenshots[shot->id] = shot;
 
 					auction->screenshot_ids.push_back(shot->id);
+
+					world_state.addScreenshotAsDBDirty(shot);
 				}
 				// Zoomed-out screenshot
 				{
@@ -382,11 +385,15 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 					world_state.screenshots[shot->id] = shot;
 
 					auction->screenshot_ids.push_back(shot->id);
+
+					world_state.addScreenshotAsDBDirty(shot);
 				}
 
 				parcel->parcel_auction_ids.push_back(auction->id);
 
-				world_state.markAsChanged();
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+
+				world_state.addParcelAuctionAsDBDirty(auction);
 			}
 
 			conPrint("updateParcelSales(): Put " + toString(num_to_add) + " parcels up for auction.");
@@ -441,7 +448,7 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 			{
 				const Vec3<int> v(x, y, z);
 
-				if(world_state.map_tile_info.count(v) == 0)
+				if(world_state.map_tile_info.info.count(v) == 0)
 				{
 
 					TileInfo info;
@@ -454,11 +461,13 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 					info.cur_tile_screenshot->tile_y = y;
 					info.cur_tile_screenshot->tile_z = z;
 
-					world_state.map_tile_info[v] = info;
+					world_state.map_tile_info.info[v] = info;
 
 					conPrint("Added map tile screenshot: " + v.toString());
 
 					world_state.markAsChanged();
+
+					world_state.map_tile_info.db_dirty = true;
 				}
 			}
 		}
@@ -563,6 +572,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			DatabaseTests::test();
 			StringUtils::test();
 			//SHA256::test();
 			//RLP::test();
@@ -1234,6 +1244,9 @@ int main(int argc, char *argv[])
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
+								// Add DB record to list of records to be deleted.
+								server.world_state->db_records_to_delete.insert(ob->database_key);
+
 								// Remove ob from object map
 								world_state->objects.erase(ob->uid);
 
@@ -1354,17 +1367,17 @@ int main(int argc, char *argv[])
 				Clock::getHourDayOfYearAndYear(Clock::getSecsSince1970(), hour, day, year);
 
 				const bool different_day = 
-					server.world_state->last_parcel_sale_update_year != year ||
-					server.world_state->last_parcel_sale_update_day != day;
+					server.world_state->last_parcel_update_info.last_parcel_sale_update_year != year ||
+					server.world_state->last_parcel_update_info.last_parcel_sale_update_day != day;
 
-				const bool initial_listing = server.world_state->last_parcel_sale_update_year == 0;
+				const bool initial_listing = server.world_state->last_parcel_update_info.last_parcel_sale_update_year == 0;
 
 				if(initial_listing || different_day)
 				{
 					updateParcelSales(*server.world_state);
-					server.world_state->last_parcel_sale_update_hour = hour;
-					server.world_state->last_parcel_sale_update_day = day;
-					server.world_state->last_parcel_sale_update_year = year;
+					server.world_state->last_parcel_update_info.last_parcel_sale_update_hour = hour;
+					server.world_state->last_parcel_update_info.last_parcel_sale_update_day = day;
+					server.world_state->last_parcel_update_info.last_parcel_sale_update_year = year;
 				}
 			}
 

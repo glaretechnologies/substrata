@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Reference.h>
 #include <OutStream.h>
 #include <InStream.h>
+#include <DatabaseKey.h>
 
 
 /*=====================================================================
@@ -53,6 +54,8 @@ public:
 	// For minting transaction:
 	ParcelID parcel_id;
 	std::string user_eth_address; // Address that token ownership will be assigned to.  In hex form with 0x prefix.
+
+	DatabaseKey database_key;
 };
 
 
@@ -61,3 +64,12 @@ typedef Reference<SubEthTransaction> SubEthTransactionRef;
 
 void writeToStream(const SubEthTransaction& t, OutStream& stream);
 void readFromStream(InStream& stream, SubEthTransaction& t);
+
+
+struct SubEthTransactionRefHash
+{
+	size_t operator() (const SubEthTransactionRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

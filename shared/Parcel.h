@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <string>
 #include <OutStream.h>
 #include <InStream.h>
+#include <DatabaseKey.h>
 struct GLObject;
 class PhysicsObject;
 class OpenGLEngine;
@@ -115,6 +116,7 @@ public:
 	void setColourForPerms(bool write_privileges);
 #endif
 
+	DatabaseKey database_key;
 };
 
 

@@ -269,7 +269,7 @@ void renderSubEthTransactionsPage(ServerAllWorldsState& world_state, const web::
 
 
 		page_out += "<form action=\"/admin_set_min_next_nonce_post\" method=\"post\">";
-		page_out += "<input type=\"number\" name=\"min_next_nonce\" value=\"" + toString(world_state.min_next_nonce) + "\">";
+		page_out += "<input type=\"number\" name=\"min_next_nonce\" value=\"" + toString(world_state.eth_info.min_next_nonce) + "\">";
 		page_out += "<input type=\"submit\" value=\"Set min next nonce\" onclick=\"return confirm('Are you sure you want set the min next nonce?');\" >";
 		page_out += "</form>";
 
@@ -445,7 +445,7 @@ void renderMapPage(ServerAllWorldsState& world_state, const web::RequestInfo& re
 
 		page_out += "<h2>Map Info</h2>\n";
 
-		for(auto it = world_state.map_tile_info.begin(); it != world_state.map_tile_info.end(); ++it)
+		for(auto it = world_state.map_tile_info.info.begin(); it != world_state.map_tile_info.info.end(); ++it)
 		{
 			Vec3<int> v = it->first;
 			const TileInfo& info = it->second;
@@ -619,6 +619,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 					shot->highlight_parcel_id = (int)parcel_id;
 					shot->created_time = TimeStamp::currentTime();
 					shot->state = Screenshot::ScreenshotState_notdone;
+					world_state.addScreenshotAsDBDirty(shot);
 
 					world_state.screenshots[shot->id] = shot;
 
@@ -633,6 +634,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 					shot->highlight_parcel_id = (int)parcel_id;
 					shot->created_time = TimeStamp::currentTime();
 					shot->state = Screenshot::ScreenshotState_notdone;
+					world_state.addScreenshotAsDBDirty(shot);
 
 					world_state.screenshots[shot->id] = shot;
 
@@ -643,6 +645,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 				conPrint("Created screenshot for auction");
 				
 				parcel->parcel_auction_ids.push_back(auction->id);
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 				world_state.markAsChanged();
 
@@ -745,6 +748,7 @@ void handleSetParcelOwnerPost(ServerAllWorldsState& world_state, const web::Requ
 				// Set parcel admins and writers to the new user as well.
 				parcel->admin_ids  = std::vector<UserID>(1, UserID(new_owner_id));
 				parcel->writer_ids = std::vector<UserID>(1, UserID(new_owner_id));
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 				world_state.denormaliseData(); // Update denormalised data which includes parcel owner name
 
@@ -821,6 +825,7 @@ void handleMarkParcelAsNotNFTPost(ServerAllWorldsState& world_state, const web::
 			{
 				Parcel* parcel = res->second.ptr();
 				parcel->nft_status = Parcel::NFTStatus_NotNFT;
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 				world_state.markAsChanged();
 
@@ -881,8 +886,11 @@ void handleRetryParcelMintPost(ServerAllWorldsState& world_state, const web::Req
 				transaction->initiating_user_id = logged_in_user->id;
 				transaction->parcel_id = parcel->id;
 				transaction->user_eth_address = last_trans->user_eth_address;
+				world_state.addSubEthTransactionAsDBDirty(transaction);
 
 				parcel->minting_transaction_id = transaction->id;
+				
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 				world_state.sub_eth_transactions[transaction->id] = transaction;
 
@@ -922,8 +930,8 @@ void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const
 			{
 				SubEthTransaction* transaction = res->second.ptr();
 				transaction->state = SubEthTransaction::State_New;
-
-				world_state.markAsChanged();
+				
+				world_state.addSubEthTransactionAsDBDirty(transaction);
 
 				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
 			}
@@ -959,8 +967,8 @@ void handleSetTransactionStateToCompletedPost(ServerAllWorldsState& world_state,
 			{
 				SubEthTransaction* transaction = res->second.ptr();
 				transaction->state = SubEthTransaction::State_Completed;
-
-				world_state.markAsChanged();
+				
+				world_state.addSubEthTransactionAsDBDirty(transaction);
 
 				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
 			}
@@ -999,8 +1007,8 @@ void handleSetTransactionHashPost(ServerAllWorldsState& world_state, const web::
 				SubEthTransaction* transaction = res->second.ptr();
 
 				transaction->transaction_hash = hash;
-
-				world_state.markAsChanged();
+				
+				world_state.addSubEthTransactionAsDBDirty(transaction);
 
 				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
 			}
@@ -1037,8 +1045,8 @@ void handleSetTransactionNoncePost(ServerAllWorldsState& world_state, const web:
 				SubEthTransaction* transaction = res->second.ptr();
 
 				transaction->nonce = (uint64)nonce;
-
-				world_state.markAsChanged();
+				
+				world_state.addSubEthTransactionAsDBDirty(transaction);
 
 				web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transaction/" + toString(transaction_id));
 			}
@@ -1069,9 +1077,17 @@ void handleDeleteTransactionPost(ServerAllWorldsState& world_state, const web::R
 			Lock lock(world_state.mutex);
 
 			// Lookup transaction
-			world_state.sub_eth_transactions.erase(transaction_id);
+			auto res = world_state.sub_eth_transactions.find(transaction_id);
+			if(res != world_state.sub_eth_transactions.end())
+			{
+				SubEthTransaction* trans = res->second.ptr();
 
-			world_state.markAsChanged();
+				world_state.db_records_to_delete.insert(trans->database_key);
+
+				world_state.sub_eth_transactions.erase(transaction_id);
+
+				world_state.markAsChanged();
+			}
 		} // End lock scope
 
 		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transactions");
@@ -1115,10 +1131,9 @@ void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state,
 					{
 						Screenshot* shot = shot_res->second.ptr();
 						shot->state = Screenshot::ScreenshotState_notdone;
+						world_state.addScreenshotAsDBDirty(shot);
 					}
 				}
-
-				world_state.markAsChanged();
 			}
 		} // End lock scope
 
@@ -1163,10 +1178,9 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 					{
 						Screenshot* shot = shot_res->second.ptr();
 						shot->state = Screenshot::ScreenshotState_notdone;
+						world_state.addScreenshotAsDBDirty(shot);
 					}
 				}
-
-				world_state.markAsChanged();
 			}
 		} // End lock scope
 
@@ -1203,8 +1217,8 @@ void handleTerminateParcelAuction(ServerAllWorldsState& world_state, const web::
 				ParcelAuction* auction = res->second.ptr();
 
 				auction->auction_end_time = TimeStamp::currentTime(); // Just mark the end time as now
-
-				world_state.markAsChanged();
+				
+				world_state.addParcelAuctionAsDBDirty(auction);
 			}
 		} // End lock scope
 
@@ -1233,13 +1247,16 @@ void handleRegenMapTilesPost(ServerAllWorldsState& world_state, const web::Reque
 			Lock lock(world_state.mutex);
 
 			// Mark all tile sceenshots as not done.
-			for(auto it = world_state.map_tile_info.begin(); it != world_state.map_tile_info.end(); ++it)
+			for(auto it = world_state.map_tile_info.info.begin(); it != world_state.map_tile_info.info.end(); ++it)
 			{
 				TileInfo& tile_info = it->second;
 				if(tile_info.cur_tile_screenshot.nonNull())
+				{
 					tile_info.cur_tile_screenshot->state = Screenshot::ScreenshotState_notdone;
+				}
 			}
 
+			world_state.map_tile_info.db_dirty = true;
 			world_state.markAsChanged();
 			//world_state.setUserWebMessage("Regenerating map tiles.");
 
@@ -1269,7 +1286,8 @@ void handleSetMinNextNoncePost(ServerAllWorldsState& world_state, const web::Req
 
 			Lock lock(world_state.mutex);
 
-			world_state.min_next_nonce = request.getPostIntField("min_next_nonce");
+			world_state.eth_info.min_next_nonce = request.getPostIntField("min_next_nonce");
+			world_state.eth_info.db_dirty = true;
 			
 			world_state.markAsChanged();
 

@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2017 -
 #include <string>
 #include <OutStream.h>
 #include <InStream.h>
+#include <DatabaseKey.h>
 
 
 /*=====================================================================
@@ -58,6 +59,8 @@ public:
 	std::vector<PasswordReset> password_resets; // pending password reset tokens
 
 	AvatarSettings avatar_settings;
+
+	DatabaseKey database_key;
 };
 
 
@@ -66,3 +69,12 @@ typedef Reference<User> UserRef;
 
 void writeToStream(const User& user, OutStream& stream);
 void readFromStream(InStream& stream, User& userob);
+
+
+struct UserRefHash
+{
+	size_t operator() (const UserRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

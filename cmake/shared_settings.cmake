@@ -275,6 +275,10 @@ ${INDIGO_UTILS_DIR}/TestUtils.cpp
 ${INDIGO_UTILS_DIR}/TestUtils.h
 ${INDIGO_UTILS_DIR}/ManagerWithCache.cpp
 ${INDIGO_UTILS_DIR}/ManagerWithCache.h
+${INDIGO_UTILS_DIR}/Database.cpp
+${INDIGO_UTILS_DIR}/Database.h
+${INDIGO_UTILS_DIR}/DatabaseTests.cpp
+${INDIGO_UTILS_DIR}/DatabaseTests.h
 )
 
 

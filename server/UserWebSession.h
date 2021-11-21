@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Reference.h>
 #include <OutStream.h>
 #include <InStream.h>
+#include <DatabaseKey.h>
 
 
 /*=====================================================================
@@ -33,6 +34,8 @@ public:
 	UserID user_id;
 
 	TimeStamp created_time;
+
+	DatabaseKey database_key;
 };
 
 
@@ -41,3 +44,12 @@ typedef Reference<UserWebSession> UserWebSessionRef;
 
 void writeToStream(const UserWebSession& u, OutStream& stream);
 void readFromStream(InStream& stream, UserWebSession& u);
+
+
+struct UserWebSessionRefHash
+{
+	size_t operator() (const UserWebSessionRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

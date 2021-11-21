@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Reference.h>
 #include <OutStream.h>
 #include <InStream.h>
+#include <DatabaseKey.h>
 
 
 /*=====================================================================
@@ -48,6 +49,8 @@ public:
 	};
 
 	ScreenshotState state;
+
+	DatabaseKey database_key;
 };
 
 
@@ -56,3 +59,12 @@ typedef Reference<Screenshot> ScreenshotRef;
 
 void writeToStream(const Screenshot& s, OutStream& stream);
 void readFromStream(InStream& stream, Screenshot& s);
+
+
+struct ScreenshotRefHash
+{
+	size_t operator() (const ScreenshotRef& ob) const
+	{
+		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
+	}
+};

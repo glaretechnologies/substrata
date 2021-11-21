@@ -266,7 +266,7 @@ void handleEthSignMessagePost(ServerAllWorldsState& world_state, const web::Requ
 				 // The user has proved that they control the account with the given address.
 
 				 logged_in_user->controlled_eth_address = recovered_address.toHexStringWith0xPrefix();
-				 world_state.markAsChanged();
+				 world_state.addUserAsDBDirty(logged_in_user);
 
 				 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Congrats, you have sucessfully proven you control the Ethereum address " + recovered_address.toHexStringWith0xPrefix() + 
 					 ". You will now be redirected to your account page.\", \"redirect_URL\":\"/account\"}");
@@ -501,8 +501,10 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 		transaction->initiating_user_id = logged_in_user->id;
 		transaction->parcel_id = parcel->id;
 		transaction->user_eth_address = logged_in_user->controlled_eth_address;
+		world_state.addSubEthTransactionAsDBDirty(transaction);
 
 		parcel->minting_transaction_id = transaction->id;
+		world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 		world_state.sub_eth_transactions[transaction->id] = transaction;
 
@@ -602,6 +604,8 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 				// Set parcel admins and writers to the new user as well.
 				parcel->admin_ids  = std::vector<UserID>(1, UserID(logged_in_user->id));
 				parcel->writer_ids = std::vector<UserID>(1, UserID(logged_in_user->id));
+				
+				world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
 
 				// TODO: Log ownership change?
 
