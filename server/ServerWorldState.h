@@ -150,7 +150,6 @@ public:
 	// For the map:
 	MapTileInfo map_tile_info;
 
-	
 	LastParcelUpdateInfo last_parcel_update_info;
 
 	EthInfo eth_info;
@@ -162,12 +161,14 @@ public:
 	// Ephemeral state that is not serialised to disk.  Set by OpenSeaPollerThread.
 	std::vector<OpenSeaParcelListing> opensea_parcel_listings;
 
+	// Ephemeral state
 	TimeStamp last_screenshot_bot_contact_time;
 	TimeStamp last_lightmapper_bot_contact_time;
 	TimeStamp last_eth_bot_contact_time;
 
 	std::map<UserID, std::string> user_web_messages; // For displaying an informational or error message on the next webpage served to a user.
 
+	// Sets of objects that should be written to (updated) in the database.
 	std::unordered_set<ResourceRef, ResourceRefHash> db_dirty_resources;
 	std::unordered_set<SubEthTransactionRef, SubEthTransactionRefHash> db_dirty_sub_eth_transactions;
 	std::unordered_set<OrderRef, OrderRefHash> db_dirty_orders;
