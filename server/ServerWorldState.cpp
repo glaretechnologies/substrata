@@ -614,6 +614,12 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 
 	for(auto it = sub_eth_transactions.begin(); it != sub_eth_transactions.end(); ++it)
 		db_dirty_sub_eth_transactions.insert(it->second);
+
+	map_tile_info.db_dirty = true;
+
+	last_parcel_update_info.db_dirty = true;
+
+	eth_info.db_dirty = true;
 }
 
 
