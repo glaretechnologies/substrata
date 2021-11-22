@@ -1364,7 +1364,7 @@ int main(int argc, char *argv[])
 			}
 
 
-			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 60.0))
+			if(server.world_state->hasChanged() && (save_state_timer.elapsed() > 10.0))
 			{
 				try
 				{

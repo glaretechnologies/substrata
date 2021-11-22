@@ -276,6 +276,33 @@ void AvatarSettings::copyNetworkStateFrom(const AvatarSettings& other)
 }
 
 
+static bool materialsEqual(const std::vector<WorldMaterialRef>& materials_a, const std::vector<WorldMaterialRef>& materials_b)
+{
+	if(materials_a.size() != materials_b.size())
+		return false;
+
+	for(size_t i=0; i<materials_a.size(); ++i)
+	{
+		if(materials_a[i].isNull() || materials_b[i].isNull())
+			return false;
+
+		if(!(*materials_a[i] == *materials_b[i]))
+			return false;
+	}
+
+	return true;
+}
+
+
+bool AvatarSettings::operator == (const AvatarSettings& other) const
+{
+	return 
+		model_url == other.model_url &&
+		materialsEqual(materials, other.materials) &&
+		pre_ob_to_world_matrix == other.pre_ob_to_world_matrix;
+}
+
+
 void writeToStream(const AvatarSettings& settings, OutStream& stream)
 {
 	stream.writeStringLengthFirst(settings.model_url);
