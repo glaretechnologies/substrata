@@ -1,7 +1,7 @@
 /*=====================================================================
 Server.cpp
----------------------
-Copyright Glare Technologies Limited 2016 -
+----------
+Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 #include "Server.h"
 
@@ -516,27 +516,6 @@ static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
 	std::memcpy(&scratch_packet.buf[0], &message_id, sizeof(uint32));
 	std::memset(&scratch_packet.buf[4], 0, sizeof(uint32)); // Write dummy message length, will be updated later when size of message is known.
 }
-
-
-/*static void assignParcelToUser(const Reference<ServerWorldState>& world_state, const ParcelID& parcel_id, const UserID& user_id)
-{
-	conPrint("Assigning parcel " + parcel_id.toString() + " to user " + user_id.toString());
-
-	if(world_state->parcels.count(parcel_id) != 0)
-	{
-		ParcelRef parcel = world_state->parcels.find(parcel_id)->second;
-
-		parcel->owner_id = user_id;
-		parcel->admin_ids = std::vector<UserID>(1, user_id);
-		parcel->writer_ids = std::vector<UserID>(1, user_id);
-
-		conPrint("\tDone.");
-	}
-	else
-	{
-		conPrint("\tFailed, parcel not found.");
-	}
-}*/
 
 
 int main(int argc, char *argv[])

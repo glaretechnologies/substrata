@@ -37,7 +37,7 @@ public:
 	// Does the password, when hashed, match the password disgest we have stored?
 	bool isPasswordValid(const std::string& password) const;
 
-
+	// Adds reset token to list of reset tokens for user.
 	void sendPasswordResetEmail(); // throws glare::Exception on error
 
 	bool isResetTokenHashValidForUser(const std::array<uint8, 32>& reset_token_hash) const;
