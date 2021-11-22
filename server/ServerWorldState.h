@@ -102,7 +102,7 @@ public:
 	~ServerAllWorldsState();
 
 	void readFromDisk(const std::string& path);
-	void serialiseToDisk(const std::string& path);
+	void serialiseToDisk(const std::string& path); // Write any changed data (objects in dirty set) to disk.
 	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.  Mutex should be locked already.
 
 	UID getNextObjectUID(); // Gets and then increments next_object_uid
@@ -136,7 +136,7 @@ public:
 
 	std::map<uint64, OrderRef> orders; // Order ID to order
 
-	std::map<std::string, Reference<ServerWorldState> > world_states;
+	std::map<std::string, Reference<ServerWorldState> > world_states; // ServerWorldState contains WorldObjects and Parcels
 
 	std::map<std::string, UserWebSessionRef> user_web_sessions; // Map from key to UserWebSession
 	

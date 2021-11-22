@@ -676,6 +676,7 @@ void ServerAllWorldsState::denormaliseData()
 }
 
 
+// Write any changed data (objects in dirty set) to disk.
 void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 {
 	conPrint("Saving world state to disk...");
@@ -965,6 +966,8 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 
 			eth_info.db_dirty = false;
 		}
+
+		database.flush();
 
 		conPrint("Saved " + toString(num_obs) + " object(s), " + toString(num_users) + " user(s), " +
 			toString(num_parcels) + " parcel(s), " + toString(num_resources) + " resource(s), " + toString(num_orders) + " order(s), " + 
