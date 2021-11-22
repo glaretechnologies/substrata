@@ -38,6 +38,8 @@ struct AvatarSettings
 	Matrix4f pre_ob_to_world_matrix; // For y-up to z-up transformation, and translating so feet are on ground etc..
 
 	void copyNetworkStateFrom(const AvatarSettings& other);
+
+	bool operator == (const AvatarSettings& other) const;
 };
 
 

@@ -951,11 +951,16 @@ void WorkerThread::doRun()
 								// Store avatar settings in the user data
 								if(client_user.nonNull())
 								{
-									client_user->avatar_settings = avatar->avatar_settings;
+									const bool avatar_settings_changed = !(client_user->avatar_settings == avatar->avatar_settings);
 
-									world_state->addUserAsDBDirty(client_user); // TODO: only do this if avatar settings actually changed.
+									if(avatar_settings_changed)
+									{
+										client_user->avatar_settings = avatar->avatar_settings;
 
-									conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+										world_state->addUserAsDBDirty(client_user);
+
+										conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+									}
 								}
 
 								//conPrint("updated avatar transform");

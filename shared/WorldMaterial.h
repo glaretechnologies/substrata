@@ -28,6 +28,13 @@ struct ScalarVal
 	void appendDependencyURLs(std::vector<std::string>& paths_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
+	bool operator == (const ScalarVal& b) const
+	{
+		return 
+			val == b.val &&
+			texture_url == b.texture_url;
+	}
+
 	float val;
 	std::string texture_url;
 };
@@ -63,7 +70,7 @@ public:
 
 	uint32 flags;
 
-	// NOTE: If adding new member variables, make sure to add to clone() below.
+	// NOTE: If adding new member variables, make sure to add to clone() and operator ==() below.
 	
 
 	inline bool colourTexHasAlpha() const { return BitUtils::isBitSet(flags, COLOUR_TEX_HAS_ALPHA_FLAG); }
@@ -84,6 +91,20 @@ public:
 		m->emission_lum_flux = emission_lum_flux;
 		m->flags = flags;
 		return m;
+	}
+
+	bool operator == (const WorldMaterial& b) const
+	{
+		return
+			name == b.name &&
+			colour_rgb == b.colour_rgb &&
+			colour_texture_url == b.colour_texture_url &&
+			roughness == b.roughness &&
+			metallic_fraction == b.metallic_fraction &&
+			opacity == b.opacity &&
+			tex_matrix == b.tex_matrix &&
+			emission_lum_flux == b.emission_lum_flux &&
+			flags == b.flags;
 	}
 
 	std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha) const;
