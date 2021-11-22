@@ -71,6 +71,7 @@ static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
 }
 
 
+// Checks if the resource is present on the server, if not, sends a GetFile message (or rather enqueues to send) to the client.
 void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 {
 	if(!ResourceManager::isValidURL(resource_URL))
@@ -78,7 +79,7 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 
 	try
 	{
-		URL parsed_url = URL::parseURL(resource_URL);
+		const URL parsed_url = URL::parseURL(resource_URL);
 
 		// If this is a web URL, then we don't need to get it from the client.
 		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
@@ -123,7 +124,7 @@ static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::str
 }
 
 
-// Enqueues packet to WorkerThreads to send to clients connected to the server.
+// Enqueues packet to all WorkerThreads to send to all clients connected to the server.
 static void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer, Server* server)
 {
 	assert(packet_buffer.buf.size() > 0);
@@ -844,7 +845,7 @@ void WorkerThread::doRun()
 				uint32 msg_type_and_len[2];
 				socket->readData(msg_type_and_len, sizeof(uint32) * 2);
 				const uint32 msg_type = msg_type_and_len[0];
-				const uint32 msg_len = msg_type_and_len[1];
+				const uint32 msg_len = msg_type_and_len[1]; // Length of message, including the message type and length fields.
 
 				if((msg_len < sizeof(uint32) * 2) || (msg_len > 1000000))
 					throw glare::Exception("Invalid message size: " + toString(msg_len));
@@ -1724,7 +1725,7 @@ void WorkerThread::doRun()
 						const std::string new_password	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
 						// NOTE: This stuff is done via the website now instead.
-						// 
+					
 						//conPrint("email: " + email);
 						//conPrint("reset_token: " + reset_token);
 						////conPrint("new_password: " + new_password);
