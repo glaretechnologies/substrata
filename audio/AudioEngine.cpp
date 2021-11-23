@@ -502,10 +502,22 @@ void AudioEngine::shutdown()
 {
 	resonance_thread_manager.killThreadsBlocking();
 	
-	if(audio)
+	try
 	{
-		audio->stopStream();
-		audio->closeStream();
+		if(audio)
+		{
+			if(audio->isStreamOpen())
+			{
+				if(audio->isStreamRunning())
+					audio->stopStream();
+
+				audio->closeStream();
+			}
+		}
+	}
+	catch(RtAudioError& e)
+	{
+		conPrint(std::string("AudioEngine::shutdown(): RtAudioError: ") + e.what());
 	}
 
 	delete resonance;
