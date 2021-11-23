@@ -1360,6 +1360,9 @@ int main(int argc, char *argv[])
 					server.world_state->last_parcel_update_info.last_parcel_sale_update_hour = hour;
 					server.world_state->last_parcel_update_info.last_parcel_sale_update_day = day;
 					server.world_state->last_parcel_update_info.last_parcel_sale_update_year = year;
+					
+					server.world_state->last_parcel_update_info.db_dirty = true; // Save to DB
+					server.world_state->markAsChanged();
 				}
 			}
 
