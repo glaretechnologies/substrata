@@ -422,7 +422,7 @@ void renderMakingParcelIntoNFT(ServerAllWorldsState& world_state, const web::Req
 	page += "<div class=\"main\">   \n";
 	page += "<p>The transaction to mint your parcel as an NFT is queued.</p>";
 
-	page += "<p>This may take a while to complete (10 minutes or more).</p>";
+	page += "<p>This may take a while to complete (Up to 24 hours).</p>";
 
 	page += "<p>Once the transaction is complete, the minting transaction will be shown on the <a href=\"/parcel/" + toString(parcel_id) + "\">parcel page</a>.</p>";
 
