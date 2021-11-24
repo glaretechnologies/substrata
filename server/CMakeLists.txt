@@ -4,7 +4,8 @@ set(CURRENT_TARGET server)
 
 include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
-include(../cmake/winter.cmake)
+#include(../cmake/winter.cmake)
+include_directories("${winterdir}") # Just put winter dir on include path so we can find wnt_SourceBuffer.h
 
 
 FILE(GLOB server "./*.cpp" "./*.h")
@@ -153,25 +154,6 @@ SOURCE_GROUP(ethereum FILES ${ethereum_files})
 add_definitions(-DECMULT_WINDOW_SIZE=8 -DECMULT_GEN_PREC_BITS=2 -DENABLE_MODULE_RECOVERY=1)
 
 
-if(WIN32)
-	SET(CMAKE_CXX_FLAGS_RELEASE			"${CMAKE_CXX_FLAGS_RELEASE}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
-
-	SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO	"${CMAKE_CXX_FLAGS_RELWITHDEBINFO}	/I\"${INDIGO_QT_INCLUDE_DIR}\"")
-
-	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/I\"${INDIGO_QT_INCLUDE_DIR}\"")
-
-	SET(CMAKE_CXX_FLAGS_SDKDEBUG		"${CMAKE_CXX_FLAGS_SDKDEBUG}		/I\"${INDIGO_QT_INCLUDE_DIR}\"")
-elseif(APPLE)
-	SET(CMAKE_CXX_FLAGS			"${CMAKE_CXX_FLAGS}			-F\"${INDIGO_QT_LIB_DIR}\"")
-else()# linux
-	SET(CMAKE_CXX_FLAGS			"${CMAKE_CXX_FLAGS}			-I\"${INDIGO_QT_INCLUDE_DIR}\"")
-endif()
-
-#link_directories(
-#${INDIGO_QT_LIB_DIR}
-#)
-
-
 add_executable(${CURRENT_TARGET}
 ${graphics}
 ${indigo_src}
@@ -185,7 +167,7 @@ ${simpleraytracer}
 ${sceneparser}
 ${utils}
 ${hdr}
-${winter}
+#${winter}
 ${server}
 ${webserver}
 ${website_core_files}
@@ -203,27 +185,47 @@ ${meshoptimizer}
 )
 
 
-include(../cmake/shared_target_settings.cmake)
+#include(../cmake/shared_target_settings.cmake) # This has too much stuff we don't want.  Cherry-pick stuff from it instead.
+include(../cmake/ssl.cmake)
 
 
 if(WIN32)
-	SET(QT_WIN32_LIBS)
+	SET(INDIGO_WIN32_LIBS 
+		Iphlpapi # For GetAdaptersInfo() in SystemInfo::getMACAddresses().
+		ws2_32 # Winsock
+	)
+		
+	target_link_libraries(${CURRENT_TARGET}
+		debug     "${jpegturbodir}-debug/lib/turbojpeg-static.lib"
+		optimized "${jpegturbodir}/lib/turbojpeg-static.lib"
+	)
 
-	# Disable ASLR (/DYNAMICBASE)
-	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
-	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} /DYNAMICBASE:NO")
 elseif(APPLE)
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework OpenGL -framework Security")
+	
+	target_link_libraries(${CURRENT_TARGET}
+		${jpegturbodir}/lib/libjpeg.a
+	)
+	
 else() # linux
-	SET(QT_LINUX_LIBS dl)
+	#SET(QT_LINUX_LIBS dl)
 
-	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
-	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN/lib'")
+	# Add required Sanitizer link flags
+	if(NOT INDIGO_USE_SANITIZER STREQUAL "")
+		SET(SANITIZER_LINK_FLAGS "-fsanitize=${INDIGO_USE_SANITIZER} -fno-omit-frame-pointer -g -pie")
+	endif()
+	
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib'")
+	
+	target_link_libraries(${CURRENT_TARGET}
+		${jpegturbodir}/lib/libjpeg.a
+	)
 endif()
 
 
 target_link_libraries(${CURRENT_TARGET}
-${QT_WIN32_LIBS}
-${QT_LINUX_LIBS}
+indigo_libs
+${INDIGO_WIN32_LIBS}
+#${LINUX_LIBS}
 )

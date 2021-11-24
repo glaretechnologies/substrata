@@ -21,7 +21,7 @@ if(WIN32)
 	SET(INDIGO_WIN32_LIBS odbc32
 		comctl32
 		rpcrt4
-		Iphlpapi
+		Iphlpapi  # For GetAdaptersInfo() in SystemInfo::getMACAddresses().
 		ws2_32 # Winsock
 		delayimp # for delay loading via command line, as 2008 generator doesn't seem to support the VS setting for it
 		)
