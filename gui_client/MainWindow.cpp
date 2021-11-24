@@ -2015,13 +2015,17 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		axis_arrow_segments[1] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, cam_to_ob[1] > 0 ? -arrow_len : arrow_len, 0, 0));
 		axis_arrow_segments[2] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, 0, cam_to_ob[2] > 0 ? -arrow_len : arrow_len, 0));
 
-		for(int i=0; i<3; ++i)
+		//axis_arrow_segments[3] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(arrow_len, 0, 0, 0)); // Put arrows on + or - x axis, facing towards camera.
+		//axis_arrow_segments[4] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, arrow_len, 0, 0));
+		//axis_arrow_segments[5] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, 0, arrow_len, 0));
+
+		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 		{
 			axis_arrow_objects[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(axis_arrow_segments[i].a, axis_arrow_segments[i].b, arrow_len);
 			ui->glWidget->opengl_engine->updateObjectTransformData(*axis_arrow_objects[i]);
 		}
 
-		// Add rotation control handle arcs
+		// Update rotation control handle arcs
 		
 		const Vec4f arc_centre = use_ob_origin;// opengl_ob->ob_to_world_matrix.getColumn(3);
 		const float arc_radius = myMax(0.7f, control_scale * 0.85f * 0.7f); // Make the arcs not stick out so far from the centre as the arrows.
@@ -2036,9 +2040,9 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 
 			// Position the rotation arc so its oriented towards the camera, unless the user is currently holding and dragging the arc.
 			float angle = to_cam_angle;
-			if(grabbed_axis >= 3)
+			if(grabbed_axis >= NUM_AXIS_ARROWS)
 			{
-				int grabbed_rot_axis = grabbed_axis - 3;
+				int grabbed_rot_axis = grabbed_axis - NUM_AXIS_ARROWS;
 				if(i == grabbed_rot_axis)
 					angle = grabbed_angle + grabbed_arc_angle_offset;
 			}
@@ -6475,7 +6479,7 @@ void MainWindow::posAndRot3DControlsToggledSlot()
 			// Add an object placement beam
 			if(have_edit_permissions)
 			{
-				for(int i = 0; i < 3; ++i)
+				for(int i = 0; i < NUM_AXIS_ARROWS; ++i)
 					ui->glWidget->opengl_engine->addObject(axis_arrow_objects[i]);
 
 				for(int i = 0; i < 3; ++i)
@@ -6487,7 +6491,7 @@ void MainWindow::posAndRot3DControlsToggledSlot()
 	}
 	else
 	{
-		for(int i = 0; i < 3; ++i)
+		for(int i = 0; i < NUM_AXIS_ARROWS; ++i)
 			ui->glWidget->opengl_engine->removeObject(this->axis_arrow_objects[i]);
 
 		for(int i = 0; i < 3; ++i)
@@ -6866,12 +6870,34 @@ so we get
 C = [D + dot(b * t, cam_right)] / [A + dot(b * t, cam_forw)]
 C = [D + dot(b, cam_right) * t] / [A + dot(b, cam_forw) * t]
 C = [D + E * t] / [A + B * t]
-C = [D + E * t] / [A + B * t]
 [A + B * t] C = D + E * t
 AC + BCt = D + Et
 BCt - Et = D - AC
 t(BC - E) = D - AC
 t = (D - AC) / (BC - E)
+
+
+For y (used when all x coordinates are ~ the same)
+pixel_y = gl_h * (R * -dot(a + b * t - cam_origin, cam_up) / dot(a + b * t - cam_origin, cam_forw) + 1/2)
+pixel_y/gl_h = R * -dot(a + b * t - cam_origin, cam_up) / dot(a + b * t - cam_origin, cam_forw) + 1/2
+pixel_y/gl_h = R * -[dot(a - cam_origin, cam_up) + dot(b * t, cam_up)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)] + 1/2
+pixel_x/gl_w - 1/2 = R  * -[dot(a - cam_origin, cam_up) + dot(b * t, cam_up)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)]
+(pixel_x/gl_w - 1/2) / R = -[dot(a - cam_origin, cam_right) + dot(b * t, cam_right)] / [dot(a - cam_origin, cam_forw) + dot(b * t, cam_forw)]
+
+let A = dot(a - cam_origin, cam_forw)
+let B = dot(b, cam_forw)
+let C = (pixel_y/gl_h - 1/2) / R
+let D = dot(a - cam_origin, cam_up)
+let E = dot(b, cam_up)
+
+C = -[D + dot(b * t, cam_up)] / [A + dot(b * t, cam_forw)]
+C = -[D + dot(b, cam_right) * t] / [A + dot(b, cam_forw) * t]
+C = -[D + E * t] / [A + B * t]
+[A + B * t] C = -[D + E * t]
+AC + BCt = -D - Et
+BCt + Et = -D - AC
+t(BC + E) = -D - AC
+t = (-D - AC) / (BC + E)
 
 */
 
@@ -6880,22 +6906,42 @@ Vec4f MainWindow::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws
 	const Vec4f cam_origin = cam_controller.getPosition().toVec4fPoint();
 	const Vec4f cam_forw   = cam_controller.getForwardsVec().toVec4fVector();
 	const Vec4f cam_right  = cam_controller.getRightVec().toVec4fVector();
+	const Vec4f cam_up     = cam_controller.getUpVec().toVec4fVector();
 
-	const float sensor_width = GlWidget::sensorWidth();
+	const float sensor_width  = GlWidget::sensorWidth();
+	const float sensor_height = sensor_width / ui->glWidget->viewport_aspect_ratio;
 	const float lens_sensor_dist = GlWidget::lensSensorDist();
 
 	const float gl_w = (float)ui->glWidget->geometry().width();
+	const float gl_h = (float)ui->glWidget->geometry().height();
 
 	const Vec4f a = p_a_ws;
 	const Vec4f b = normalise(p_b_ws - p_a_ws);
 
-	const float A = dot(a - cam_origin, cam_forw);
-	const float B = dot(b, cam_forw);
-	const float C = (pixel_coords.x/gl_w - 0.5f) * sensor_width / lens_sensor_dist;
-	const float D = dot(a - cam_origin, cam_right);
-	const float E = dot(b, cam_right);
+	float A = dot(a - cam_origin, cam_forw);
+	float B = dot(b, cam_forw);
+	float C = (pixel_coords.x/gl_w - 0.5f) * sensor_width / lens_sensor_dist;
+	float D = dot(a - cam_origin, cam_right);
+	float E = dot(b, cam_right);
 
-	const float t = (D - A*C) / (B*C - E);
+	const float denom = B*C - E;
+	float t;
+	if(fabs(denom) > 1.0e-4f)
+	{
+		t = (D - A*C) / denom;
+	}
+	else
+	{
+		// Work with y instead
+
+		float A = dot(a - cam_origin, cam_forw);
+		float B = dot(b, cam_forw);
+		float C = (pixel_coords.y/gl_h - 0.5f) * sensor_height / lens_sensor_dist;
+		float D = dot(a - cam_origin, cam_up);
+		float E = dot(b, cam_up);
+
+		t = (-D - A*C) / (B*C + E);
+	}
 
 	return a + b * t;
 }
@@ -6981,7 +7027,7 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 	const float max_selection_dist = 12;
 
 	// Test against axis arrows
-	for(int i=0; i<3; ++i)
+	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 	{
 		Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
 		bool start_visible = getPixelForPoint(axis_arrow_segments[i].a, start_pixelpos);
@@ -7024,10 +7070,10 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 					const Vec4f dir = getDirForPixelTrace((int)pixel_coords.x, (int)pixel_coords.y);
 					const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
 
-					closest_seg_point_ws_out = closestPointOnLineToRay(axis_arrow_segments[i], origin, dir);
+					closest_seg_point_ws_out = closestPointOnLineToRay(axis_arrow_segments[i], origin, dir); // NOTE: Seems wrong: using axis_arrow_segments
 
 					closest_dist = d;
-					closest_axis = 3 + i;
+					closest_axis = NUM_AXIS_ARROWS + i;
 				}
 			}
 		}
@@ -7054,23 +7100,24 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 
 		if(!mouse_trace_hit_selected_ob)
 		{
-			grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), this->grabbed_point_ws);
+			grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), /*closest_seg_point_ws_out=*/this->grabbed_point_ws);
 
 			if(grabbed_axis >= 0) // If we grabbed an arrow or rotation arc:
 			{
 				this->ob_origin_at_grab = this->selected_ob->pos.toVec4fPoint();
 
+				// Usually when the mouse button is held down, moving the mouse rotates the camera.
+				// But when we have grabbed an arrow or rotation arc, it moves the object instead.  So don't rotate the camera.
 				ui->glWidget->setCamRotationOnMouseMoveEnabled(false);
-
 
 				undo_buffer.startWorldObjectEdit(*this->selected_ob);
 			}
 
-			if(grabbed_axis >= 3) // If we grabbed a rotation arc:
+			if(grabbed_axis >= NUM_AXIS_ARROWS) // If we grabbed a rotation arc:
 			{
 				const Vec4f arc_centre = this->selected_ob->opengl_engine_ob->ob_to_world_matrix.getColumn(3);
 
-				const int rot_axis = grabbed_axis - 3;
+				const int rot_axis = grabbed_axis - NUM_AXIS_ARROWS;
 				const Vec4f basis_a = basis_vectors[rot_axis*2];
 				const Vec4f basis_b = basis_vectors[rot_axis*2 + 1];
 
@@ -7514,7 +7561,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 	}
 
 
-	if(selected_ob.nonNull() && grabbed_axis >= 0 && grabbed_axis < 3)
+	if(selected_ob.nonNull() && grabbed_axis >= 0 && grabbed_axis < NUM_AXIS_ARROWS)
 	{
 		// If we have have grabbed an axis and are moving it:
 		//conPrint("Grabbed axis " + toString(grabbed_axis));
@@ -7524,6 +7571,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 		Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
 
+		// Get line segment in world space along the grabbed axis, extended out in each direction for some distance.
 		const float MAX_MOVE_DIST = 100;
 		const Vec4f line_dir = normalise(axis_arrow_segments[grabbed_axis].b - axis_arrow_segments[grabbed_axis].a);
 		Vec4f use_line_start = axis_arrow_segments[grabbed_axis].a - line_dir * MAX_MOVE_DIST;
@@ -7554,6 +7602,8 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 			Vec4f delta_p = new_p - grabbed_point_ws; // Desired change in position from when we grabbed the object
 
+			assert(new_p.isFinite());
+
 			Vec4f tentative_new_ob_p = ob_origin_at_grab + delta_p;
 
 			if(tentative_new_ob_p.getDist(ob_origin_at_grab) > MAX_MOVE_DIST)
@@ -7576,11 +7626,11 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 			}
 		}
 	}
-	else if(selected_ob.nonNull() && grabbed_axis >= 3 && grabbed_axis < 6) // If we have grabbed a rotation arc and are moving it:
+	else if(selected_ob.nonNull() && grabbed_axis >= NUM_AXIS_ARROWS && grabbed_axis < (NUM_AXIS_ARROWS + 3)) // If we have grabbed a rotation arc and are moving it:
 	{
 		const Vec4f arc_centre = ob_origin_at_grab;// this->selected_ob->opengl_engine_ob->ob_to_world_matrix.getColumn(3);
 
-		const int rot_axis = grabbed_axis - 3;
+		const int rot_axis = grabbed_axis - NUM_AXIS_ARROWS;
 		const Vec4f basis_a = basis_vectors[rot_axis*2];
 		const Vec4f basis_b = basis_vectors[rot_axis*2 + 1];
 
@@ -7627,23 +7677,23 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		const Colour3f mouseover_cols[] = { Colour3f(1,0.45f,0.3f),   Colour3f(0.3f,1,0.3f),    Colour3f(0.3f,0.45f,1) };
 
 		// Set grab controls to default colours
+		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+			axis_arrow_objects[i]->materials[0].albedo_rgb = default_cols[i % 3];
+
 		for(int i=0; i<3; ++i)
-		{
-			axis_arrow_objects[i]->materials[0].albedo_rgb = default_cols[i];
 			rot_handle_arc_objects[i]->materials[0].albedo_rgb = default_cols[i];
-		}
 
 		if(!mouse_trace_hit_selected_ob)
 		{
 			Vec4f dummy_grabbed_point_ws;
 			const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), dummy_grabbed_point_ws);
 		
-			if(axis >= 0 && axis < 3)
-				axis_arrow_objects[axis]->materials[0].albedo_rgb = mouseover_cols[axis];
+			if(axis >= 0 && axis < NUM_AXIS_ARROWS)
+				axis_arrow_objects[axis]->materials[0].albedo_rgb = mouseover_cols[axis % 3];
 
-			if(axis >= 3 && axis < 6)
+			if(axis >= NUM_AXIS_ARROWS && axis < NUM_AXIS_ARROWS + 3)
 			{
-				const int grabbed_rot_axis = axis - 3;
+				const int grabbed_rot_axis = axis - NUM_AXIS_ARROWS;
 				rot_handle_arc_objects[grabbed_rot_axis]->materials[0].albedo_rgb = mouseover_cols[grabbed_rot_axis];
 			}
 		}
@@ -7760,7 +7810,7 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_tri_index)
 
 		if(ui->objectEditor->posAndRot3DControlsEnabled())
 		{
-			for(int i=0; i<3; ++i)
+			for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 				ui->glWidget->opengl_engine->addObject(axis_arrow_objects[i]);
 
 			for(int i=0; i<3; ++i)
@@ -7819,7 +7869,7 @@ void MainWindow::deselectObject()
 		ui->glWidget->opengl_engine->removeObject(this->ob_placement_beam);
 		ui->glWidget->opengl_engine->removeObject(this->ob_placement_marker);
 
-		for(int i=0; i<3; ++i)
+		for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 			ui->glWidget->opengl_engine->removeObject(this->axis_arrow_objects[i]);
 
 		for(int i=0; i<3; ++i)
@@ -8789,6 +8839,10 @@ int main(int argc, char *argv[])
 			mw.axis_arrow_objects[0] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
 			mw.axis_arrow_objects[1] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
 			mw.axis_arrow_objects[2] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin + Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
+
+			//mw.axis_arrow_objects[3] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(1, 0, 0, 0), Colour4f(0.6, 0.2, 0.2, 1.f), 1.f);
+			//mw.axis_arrow_objects[4] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
+			//mw.axis_arrow_objects[5] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 
 
 			for(int i=0; i<3; ++i)

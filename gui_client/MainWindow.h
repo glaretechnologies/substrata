@@ -360,8 +360,9 @@ public:
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
 
-	LineSegment4f axis_arrow_segments[3];
-	GLObjectRef axis_arrow_objects[3]; // For ob placement
+	static const int NUM_AXIS_ARROWS = 3;
+	LineSegment4f axis_arrow_segments[NUM_AXIS_ARROWS];
+	GLObjectRef axis_arrow_objects[NUM_AXIS_ARROWS]; // For ob placement
 
 	std::vector<LineSegment4f> rot_handle_lines[3];
 	GLObjectRef rot_handle_arc_objects[3];
