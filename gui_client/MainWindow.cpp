@@ -1984,8 +1984,6 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		const Vec4f use_ob_origin = opengl_ob->ob_to_world_matrix.getColumn(3);
 		const Vec4f arrow_origin = use_ob_origin;
 
-		const Vec4f cam_to_ob = new_aabb_ws.centroid() - cam_controller.getPosition().toVec4fPoint();
-
 		// Make arrow long enough so that it sticks out of the object, if the object is large.
 		// Try a bunch of different orientations of the object, computing the world space AABB for each orientation,
 		// take the union of all such AABBs.
@@ -2010,6 +2008,9 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		const float control_scale = myMin(max_control_scale, use_aabb_ws.axisLength(use_aabb_ws.longestAxis()));
 
 		const float arrow_len = myMax(1.f, control_scale * 0.85f);
+
+		const Vec4f ob_origin_ws = to_world * Vec4f(0,0,0,1);
+		const Vec4f cam_to_ob = ob_origin_ws - cam_controller.getPosition().toVec4fPoint();
 
 		axis_arrow_segments[0] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(cam_to_ob[0] > 0 ? -arrow_len : arrow_len, 0, 0, 0)); // Put arrows on + or - x axis, facing towards camera.
 		axis_arrow_segments[1] = LineSegment4f(arrow_origin, arrow_origin + Vec4f(0, cam_to_ob[1] > 0 ? -arrow_len : arrow_len, 0, 0));

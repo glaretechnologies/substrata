@@ -386,6 +386,25 @@ static void scaleMesh(Indigo::Mesh& mesh)
 }
 
 
+static float getScaleForVoxModel(const js::AABBox& aabb)
+{
+	// Automatically scale object down until it is < x m across
+	const float max_span = 2.0f;
+	float use_scale = 1.f;
+	float span = aabb.axisLength(aabb.longestAxis());
+	if(::isFinite(span))
+	{
+		while(span >= max_span)
+		{
+			use_scale *= 0.5f;
+			span *= 0.5f;
+		}
+	}
+
+	return use_scale;
+}
+
+
 // Rotate vertices around the y axis by half a turn, so that the figure faces in the positive z direction, similary to Mixamo animation data and readyplayerme avatars.
 static void rotateVRMMesh(BatchedMesh& mesh)
 {
@@ -470,11 +489,19 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		FormatDecoderVox::loadModel(model_path, vox_contents);
 
 		// Convert voxels
+		if(vox_contents.models.empty())
+			throw glare::Exception("No model in vox file.");
+
 		const VoxModel& model = vox_contents.models[0];
+
+		// We will offset the voxel positions so that the origin is in the middle at the bottom of the voxel AABB.
+		const int x_offset = -model.aabb.centroid()[0];
+		const int y_offset = -model.aabb.centroid()[1];
+
 		loaded_object_out.getDecompressedVoxels().resize(model.voxels.size());
 		for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
 		{
-			loaded_object_out.getDecompressedVoxels()[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
+			loaded_object_out.getDecompressedVoxels()[i].pos = Vec3<int>(model.voxels[i].x + x_offset, model.voxels[i].y + y_offset, model.voxels[i].z);
 			loaded_object_out.getDecompressedVoxels()[i].mat_index = model.voxels[i].mat_index;
 		}
 
@@ -492,7 +519,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		}
 
 		// Scale down voxels so model isn't too large.
-		const float use_scale = 0.1f;
+		const float use_scale = getScaleForVoxModel(model.aabb);
 
 		// Make opengl object
 		GLObjectRef ob = new GLObject();
