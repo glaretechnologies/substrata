@@ -6934,11 +6934,11 @@ Vec4f MainWindow::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws
 	{
 		// Work with y instead
 
-		float A = dot(a - cam_origin, cam_forw);
-		float B = dot(b, cam_forw);
-		float C = (pixel_coords.y/gl_h - 0.5f) * sensor_height / lens_sensor_dist;
-		float D = dot(a - cam_origin, cam_up);
-		float E = dot(b, cam_up);
+		A = dot(a - cam_origin, cam_forw);
+		B = dot(b, cam_forw);
+		C = (pixel_coords.y/gl_h - 0.5f) * sensor_height / lens_sensor_dist;
+		D = dot(a - cam_origin, cam_up);
+		E = dot(b, cam_up);
 
 		t = (-D - A*C) / (B*C + E);
 	}
