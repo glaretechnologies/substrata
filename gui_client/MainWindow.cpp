@@ -211,6 +211,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
 	ui->objectEditor->base_dir_path = base_dir_path;
+	ui->objectEditor->settings = settings;
 
 	// Add a spacer to right-align the UserDetailsWidget (see http://www.setnode.com/blog/right-aligning-a-button-in-a-qtoolbar/)
 	QWidget* spacer = new QWidget();
@@ -258,7 +259,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 		this->ui->diagnosticsDockWidget->hide();
 	}
 
-	ui->objectEditor->show3DControlsCheckBox->setChecked(settings->value("objectEditor/show3DControlsCheckBoxChecked", true).toBool());
+	ui->objectEditor->init();
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));

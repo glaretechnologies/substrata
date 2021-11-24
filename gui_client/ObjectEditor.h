@@ -29,6 +29,8 @@ public:
 	ObjectEditor(QWidget *parent = 0);
 	~ObjectEditor();
 
+	void init(); // settings should be set before this.
+
 	void setFromObject(const WorldObject& ob, int selected_mat_index);
 	void updateObjectPos(const WorldObject& ob);
 
@@ -51,6 +53,7 @@ public:
 
 	bool posAndRot3DControlsEnabled() { return show3DControlsCheckBox->isChecked(); }
 
+	QSettings* settings;
 	std::string base_dir_path;
 protected:
 
@@ -73,6 +76,10 @@ private slots:
 	void on_bakeLightmapHighQualPushButton_clicked(bool checked);
 	void on_removeLightmapPushButton_clicked(bool checked);
 	void editTimerTimeout();
+	void xScaleChanged(double val);
+	void yScaleChanged(double val);
+	void zScaleChanged(double val);
+	void linkScaleCheckBoxToggled(bool val);
 
 private:
 	// Store a cloned copy of the materials.
