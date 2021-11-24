@@ -34,7 +34,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 :	QWidget(parent),
 	selected_mat_index(0),
 	edit_timer(new QTimer(this)),
-	shader_editor(NULL)
+	shader_editor(NULL),
+	settings(NULL)
 {
 	setupUi(this);
 
@@ -62,9 +63,9 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->posYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->posZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
-	connect(this->scaleXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	connect(this->scaleYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	connect(this->scaleZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->scaleXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(xScaleChanged(double)));
+	connect(this->scaleYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(yScaleChanged(double)));
+	connect(this->scaleZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(zScaleChanged(double)));
 	
 	connect(this->rotAxisXDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 	connect(this->rotAxisYDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -76,6 +77,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 
 	connect(this->show3DControlsCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(posAndRot3DControlsToggled()));
 
+	connect(this->linkScaleCheckBox,		SIGNAL(toggled(bool)),				this, SLOT(linkScaleCheckBoxToggled(bool)));
+
 	this->visitURLLabel->hide();
 
 	// Set up script edit timer.
@@ -83,6 +86,13 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	edit_timer->setInterval(300);
 
 	connect(edit_timer, SIGNAL(timeout()), this, SLOT(editTimerTimeout()));
+}
+
+
+void ObjectEditor::init() // settings should be set before this.
+{
+	show3DControlsCheckBox->setChecked(settings->value("objectEditor/show3DControlsCheckBoxChecked", /*default val=*/true).toBool());
+	SignalBlocker::setChecked(linkScaleCheckBox, settings->value("objectEditor/linkScaleCheckBoxChecked", /*default val=*/true).toBool());
 }
 
 
@@ -523,4 +533,51 @@ void ObjectEditor::materialSelectedInBrowser(const std::string& path)
 		m.showMessage("Error while opening material: " + QtUtils::toQString(e.what()));
 		m.exec();
 	}
+}
+
+
+void ObjectEditor::xScaleChanged(double val)
+{
+	if(this->linkScaleCheckBox->isChecked())
+	{
+		// Set y and z scales
+		SignalBlocker::setValue(scaleYDoubleSpinBox, val);
+		SignalBlocker::setValue(scaleZDoubleSpinBox, val);
+	}
+
+	emit objectChanged();
+}
+
+
+void ObjectEditor::yScaleChanged(double val)
+{
+	if(this->linkScaleCheckBox->isChecked())
+	{
+		// Set x and z scales
+		SignalBlocker::setValue(scaleXDoubleSpinBox, val);
+		SignalBlocker::setValue(scaleZDoubleSpinBox, val);
+	}
+
+	emit objectChanged();
+}
+
+
+void ObjectEditor::zScaleChanged(double val)
+{
+	if(this->linkScaleCheckBox->isChecked())
+	{
+		// Set x and y scales
+		SignalBlocker::setValue(scaleXDoubleSpinBox, val);
+		SignalBlocker::setValue(scaleYDoubleSpinBox, val);
+	}
+
+	emit objectChanged();
+}
+
+
+void ObjectEditor::linkScaleCheckBoxToggled(bool val)
+{
+	assert(settings);
+	if(settings)
+		settings->setValue("objectEditor/linkScaleCheckBoxChecked", this->linkScaleCheckBox->isChecked());
 }
