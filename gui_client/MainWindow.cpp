@@ -7031,9 +7031,11 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 	// Test against axis arrows
 	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 	{
+		const LineSegment4f segment = axis_arrow_segments[i];
+
 		Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
-		bool start_visible = getPixelForPoint(axis_arrow_segments[i].a, start_pixelpos);
-		bool end_visible   = getPixelForPoint(axis_arrow_segments[i].b, end_pixelpos);
+		bool start_visible = getPixelForPoint(segment.a, start_pixelpos);
+		bool end_visible   = getPixelForPoint(segment.b, end_pixelpos);
 
 		if(start_visible && end_visible)
 		{
@@ -7044,7 +7046,7 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 				const Vec4f dir = getDirForPixelTrace((int)pixel_coords.x, (int)pixel_coords.y);
 				const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
 
-				closest_seg_point_ws_out = closestPointOnLineToRay(axis_arrow_segments[i], origin, dir);
+				closest_seg_point_ws_out = closestPointOnLineToRay(segment, origin, dir);
 
 				closest_dist = d;
 				closest_axis = i;
@@ -7057,11 +7059,11 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 	{
 		for(size_t z=0; z<rot_handle_lines[i].size(); ++z)
 		{
-			const LineSegment4f line = (rot_handle_lines[i])[z];
+			const LineSegment4f segment = (rot_handle_lines[i])[z];
 
 			Vec2f start_pixelpos, end_pixelpos; // pixel coords of line segment start and end.
-			bool start_visible = getPixelForPoint(line.a, start_pixelpos);
-			bool end_visible   = getPixelForPoint(line.b, end_pixelpos);
+			bool start_visible = getPixelForPoint(segment.a, start_pixelpos);
+			bool end_visible   = getPixelForPoint(segment.b, end_pixelpos);
 
 			if(start_visible && end_visible)
 			{
@@ -7072,7 +7074,7 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 					const Vec4f dir = getDirForPixelTrace((int)pixel_coords.x, (int)pixel_coords.y);
 					const Vec4f origin = cam_controller.getPosition().toVec4fPoint();
 
-					closest_seg_point_ws_out = closestPointOnLineToRay(axis_arrow_segments[i], origin, dir); // NOTE: Seems wrong: using axis_arrow_segments
+					closest_seg_point_ws_out = closestPointOnLineToRay(segment, origin, dir);
 
 					closest_dist = d;
 					closest_axis = NUM_AXIS_ARROWS + i;
@@ -7090,17 +7092,17 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 	if(this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull())
 	{
 		// Don't try and grab an axis etc.. when we are clicking on a voxel group to add/remove voxels.
-		bool mouse_trace_hit_selected_ob = false;
-		if(areEditingVoxels())
-		{
-			RayTraceResult results;
-			this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, thread_context, results);
-			
-			mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
-				static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
-		}
+		//bool mouse_trace_hit_selected_ob = false;
+		//if(areEditingVoxels())
+		//{
+		//	RayTraceResult results;
+		//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, thread_context, results);
+		//	
+		//	mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
+		//		static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
+		//}
 
-		if(!mouse_trace_hit_selected_ob)
+		//if(!mouse_trace_hit_selected_ob)
 		{
 			grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), /*closest_seg_point_ws_out=*/this->grabbed_point_ws);
 
@@ -7664,15 +7666,15 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 	else
 	{
 		// Don't try and grab an axis etc.. when we are clicking on a voxel group to add/remove voxels.
-		bool mouse_trace_hit_selected_ob = false;
-		if(areEditingVoxels())
-		{
-			RayTraceResult results;
-			this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, thread_context, results);
-
-			mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
-				static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
-		}
+		//bool mouse_trace_hit_selected_ob = false;
+		//if(areEditingVoxels())
+		//{
+		//	RayTraceResult results;
+		//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, thread_context, results);
+		//
+		//	mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
+		//		static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
+		//}
 
 		// Set mouseover colour if we have moused over a grabbable axis.
 		const Colour3f default_cols[]   = { Colour3f(0.6f,0.2f,0.2f), Colour3f(0.2f,0.6f,0.2f), Colour3f(0.2f,0.2f,0.6f) };
@@ -7685,7 +7687,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		for(int i=0; i<3; ++i)
 			rot_handle_arc_objects[i]->materials[0].albedo_rgb = default_cols[i];
 
-		if(!mouse_trace_hit_selected_ob)
+		//if(!mouse_trace_hit_selected_ob)
 		{
 			Vec4f dummy_grabbed_point_ws;
 			const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), dummy_grabbed_point_ws);
@@ -8846,6 +8848,9 @@ int main(int argc, char *argv[])
 			//mw.axis_arrow_objects[4] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(0, 1, 0, 0), Colour4f(0.2, 0.6, 0.2, 1.f), 1.f);
 			//mw.axis_arrow_objects[5] = mw.ui->glWidget->opengl_engine->makeArrowObject(arrow_origin, arrow_origin - Vec4f(0, 0, 1, 0), Colour4f(0.2, 0.2, 0.6, 1.f), 1.f);
 
+			for(int i=0; i<3; ++i)
+				mw.axis_arrow_objects[i]->always_visible = true;
+
 
 			for(int i=0; i<3; ++i)
 			{
@@ -8853,6 +8858,7 @@ int main(int argc, char *argv[])
 				ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)i * 3, 0, 2);
 				ob->mesh_data = makeRotationArcHandleMeshData(arc_handle_half_angle * 2);
 				ob->materials.resize(1);
+				ob->always_visible = true;
 				mw.rot_handle_arc_objects[i] = ob;
 
 				//mw.ui->glWidget->opengl_engine->addObject(ob);
