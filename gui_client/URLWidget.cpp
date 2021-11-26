@@ -8,6 +8,7 @@ URLWidget.cpp
 #include "../qt/QtUtils.h"
 #include "../qt/SignalBlocker.h"
 #include "../utils/ConPrint.h"
+#include "../utils/StringUtils.h"
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QPushButton>
@@ -69,4 +70,12 @@ void URLWidget::returnPressedSlot()
 	this->URLLineEdit->deselect();
 
 	emit URLChanged();
+}
+
+
+// When the user clicks in the URL lineedit, or selects some of the text, the URL shouldn't be updated.
+// Selecting some of the text requires no updates because it allows the user to right-click and copy the URL.
+bool URLWidget::shouldBeUpdated()
+{
+	return !has_focus && (URLLineEdit->selectionLength() == 0);
 }

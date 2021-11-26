@@ -2789,7 +2789,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	// Update URL Bar
-	if(!this->url_widget->hasFocus())
+	if(this->url_widget->shouldBeUpdated())
 		this->url_widget->setURL("sub://" + server_hostname + "/" + server_worldname +
 			"?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getFirstPersonPosition().x, 1) + 
 			"&y=" + doubleToStringNDecimalPlaces(this->cam_controller.getFirstPersonPosition().y, 1) +

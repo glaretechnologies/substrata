@@ -28,7 +28,9 @@ public:
 	void setURL(const std::string& new_URL);
 	const std::string getURL() const;
 
-	bool hasFocus() const { return has_focus; }
+	// When the user clicks in the URL lineedit, or selects some of the text, the URL shouldn't be updated.
+	// Selecting some of the text requires no updates because it allows the user to right-click and copy the URL.
+	bool shouldBeUpdated();
 
 	bool eventFilter(QObject *object, QEvent *event);
 
