@@ -495,8 +495,8 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		const VoxModel& model = vox_contents.models[0];
 
 		// We will offset the voxel positions so that the origin is in the middle at the bottom of the voxel AABB.
-		const int x_offset = -model.aabb.centroid()[0];
-		const int y_offset = -model.aabb.centroid()[1];
+		const int x_offset = (int)-model.aabb.centroid()[0];
+		const int y_offset = (int)-model.aabb.centroid()[1];
 
 		loaded_object_out.getDecompressedVoxels().resize(model.voxels.size());
 		for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
