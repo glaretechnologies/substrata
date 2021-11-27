@@ -984,24 +984,40 @@ int main(int argc, char *argv[])
 		if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str() /*"O:\\new_cyberspace\\trunk\\scripts\\key.pem"*/) != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #else
-		if(FileUtils::fileExists("/etc/letsencrypt/live/substrata.info"))
+		//const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
+		const std::string certdir = "/home/" + username + "/certs/substrata.info";
+		if(FileUtils::fileExists(certdir))
 		{
-			if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+			conPrint("Using godaddy certs");
+
+			if(tls_config_set_cert_file(web_tls_configuration, (certdir + "/godaddy-1da07c9956c94289.crt").c_str()) != 0)
 				throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-			if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
-				throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-		}
-		else if(FileUtils::fileExists("/etc/letsencrypt/live/test.substrata.info"))
-		{
-			if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/cert.pem") != 0)
-				throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-			if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/privkey.pem") != 0) // set private key
+			if(tls_config_set_key_file(web_tls_configuration, (certdir + "/godaddy-generated-private-key.txt").c_str()) != 0) // set private key
 				throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 		}
 		else
 		{
-			conPrint("No Lets-encrypt cert dir found, skipping loading cert.");
-			// We need to be able to start without a cert, so we can do the initial Lets-Encrypt challenge
+			conPrint("Using Lets-encrypt certs");
+
+			if(FileUtils::fileExists("/etc/letsencrypt/live/substrata.info"))
+			{
+				if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
+					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+				if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
+					throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+			}
+			else if(FileUtils::fileExists("/etc/letsencrypt/live/test.substrata.info"))
+			{
+				if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/cert.pem") != 0)
+					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+				if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/privkey.pem") != 0) // set private key
+					throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+			}
+			else
+			{
+				conPrint("No Lets-encrypt cert dir found, skipping loading cert.");
+				// We need to be able to start without a cert, so we can do the initial Lets-Encrypt challenge
+			}
 		}
 #endif
 
