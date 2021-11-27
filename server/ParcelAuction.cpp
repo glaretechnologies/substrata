@@ -60,18 +60,62 @@ TimeStamp ParcelAuction::getAuctionEndOrSoldTime() const
 static const uint64 PAYPAL_LOCK_TIME_S   = 60 * 5; // 5 mins
 static const uint64 COINBASE_LOCK_TIME_S = 60 * 8; // 8 mins
 
+static const int MAX_NUM_AUCTION_LOCKS_PER_USER = 2;
 
-void ParcelAuction::lockForPayPalBid()
+// Returns true if locked, false if user was not allowed to lock auction due to too many locks already.
+bool ParcelAuction::lockForPayPalBid(UserID locking_user_id)
 {
-	last_locked_time = TimeStamp::currentTime();
-	lock_duration = PAYPAL_LOCK_TIME_S;
+	// User is only allowed to lock the auction twice, to avoid repeatedly locking it.
+
+	// Count number of times the user has already locked this auction
+	int user_num_locks = 0;
+	for(size_t i=0; i<auction_locks.size(); ++i)
+		if(auction_locks[i].locking_user_id == locking_user_id)
+			user_num_locks++;
+
+	if(user_num_locks < MAX_NUM_AUCTION_LOCKS_PER_USER)
+	{
+		last_locked_time = TimeStamp::currentTime();
+		lock_duration = PAYPAL_LOCK_TIME_S;
+
+		AuctionLock auction_lock;
+		auction_lock.created_time = last_locked_time;
+		auction_lock.lock_duration = lock_duration;
+		auction_lock.locking_user_id = locking_user_id;
+
+		auction_locks.push_back(auction_lock);
+		return true;
+	}
+	else
+		return false;
 }
 
 
-void ParcelAuction::lockForCoinbaseBid()
+bool ParcelAuction::lockForCoinbaseBid(UserID locking_user_id)
 {
-	last_locked_time = TimeStamp::currentTime();
-	lock_duration = COINBASE_LOCK_TIME_S;
+	// User is only allowed to lock the auction twice, to avoid repeatedly locking it.
+
+	// Count number of times the user has already locked this auction
+	int user_num_locks = 0;
+	for(size_t i=0; i<auction_locks.size(); ++i)
+		if(auction_locks[i].locking_user_id == locking_user_id)
+			user_num_locks++;
+
+	if(user_num_locks < MAX_NUM_AUCTION_LOCKS_PER_USER)
+	{
+		last_locked_time = TimeStamp::currentTime();
+		lock_duration = COINBASE_LOCK_TIME_S;
+
+		AuctionLock auction_lock;
+		auction_lock.created_time = last_locked_time;
+		auction_lock.lock_duration = lock_duration;
+		auction_lock.locking_user_id = locking_user_id;
+
+		auction_locks.push_back(auction_lock);
+		return true;
+	}
+	else
+		return false;
 }
 
 
@@ -100,11 +144,12 @@ bool ParcelAuction::currentlyForSale(TimeStamp now) const
 }
 
 
-static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 5;
+static const uint32 PARCEL_AUCTION_SERIALISATION_VERSION = 6;
 // v2: added screenshot_id
 // v3: changed to screenshot_ids
 // v4: added sold_price, auction_sold_time, order_id
 // v5: added last_locked_time and lock_duration.
+// v6: added auction_locks
 
 
 void writeToStream(const ParcelAuction& a, OutStream& stream)
@@ -130,6 +175,10 @@ void writeToStream(const ParcelAuction& a, OutStream& stream)
 	stream.writeUInt64(a.screenshot_ids.size());
 	for(size_t i=0; i<a.screenshot_ids.size(); ++i)
 		stream.writeUInt64(a.screenshot_ids[i]);
+
+	stream.writeUInt32((uint32)a.auction_locks.size());
+	for(size_t i=0; i<a.auction_locks.size(); ++i)
+		writeToStream(a.auction_locks[i], stream);
 }
 
 
@@ -178,5 +227,16 @@ void readFromStream(InStream& stream, ParcelAuction& a)
 		a.screenshot_ids.resize(num);
 		for(size_t i=0; i<num; ++i)
 			a.screenshot_ids[i] = stream.readUInt64();
+	}
+
+	if(v >= 6)
+	{
+		// Read auction_locks
+		const uint32 num = stream.readUInt32();
+		if(num > 10000)
+			throw glare::Exception("invalid num auction_locks");
+		a.auction_locks.resize(num);
+		for(size_t i=0; i<num; ++i)
+			readFromStream(stream, a.auction_locks[i]);
 	}
 }

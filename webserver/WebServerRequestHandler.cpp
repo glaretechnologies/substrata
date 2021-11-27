@@ -320,6 +320,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::renderParcelAuctionsPage(*this->world_state, request, reply_info);
 		}
+		else if(::hasPrefix(request.path, "/admin_parcel_auction/"))
+		{
+			AdminHandlers::renderAdminParcelAuctionPage(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_orders")
 		{
 			AdminHandlers::renderOrdersPage(*this->world_state, request, reply_info);

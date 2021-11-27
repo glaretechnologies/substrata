@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
+#include "AuctionLock.h"
 #include "../shared/TimeStamp.h"
 #include "../shared/ParcelID.h"
 #include <ThreadSafeRefCounted.h>
@@ -32,8 +33,9 @@ public:
 	// Get the time the auction ended, or if it was sold, when it was sold.
 	TimeStamp getAuctionEndOrSoldTime() const;
 
-	void lockForPayPalBid();
-	void lockForCoinbaseBid();
+	// Returns true if locked, false if user was not allowed to lock auction due to too many locks already.
+	bool lockForPayPalBid(UserID locking_user_id);
+	bool lockForCoinbaseBid(UserID locking_user_id);
 
 	bool isLocked() const;
 
@@ -64,9 +66,11 @@ public:
 	uint64 order_id; // Order which bought the parcel. Set if state = AuctionState_Sold.
 
 	TimeStamp last_locked_time; // Most recent time when the auction was locked (due to a bid in progress), or 0 if never locked.
-	uint64 lock_duration;
+	uint64 lock_duration; // seconds
 
 	std::vector<uint64> screenshot_ids;
+
+	std::vector<AuctionLock> auction_locks; // History of locks
 
 	DatabaseKey database_key;
 };
