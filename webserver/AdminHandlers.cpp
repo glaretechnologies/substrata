@@ -174,6 +174,71 @@ void renderParcelAuctionsPage(ServerAllWorldsState& world_state, const web::Requ
 			const ParcelAuction* auction = it->second.ptr();
 
 			page_out += "<p>\n";
+			page_out += "<a href=\"/admin_parcel_auction/" + toString(auction->id) + "\">Parcel Auction " + toString(auction->id) + "</a><br/>" +
+				"parcel: <a href=\"/parcel/" + auction->parcel_id.toString() + "\">" + auction->parcel_id.toString() + "</a><br/>" + 
+				"state: ";
+
+			if(auction->auction_state == ParcelAuction::AuctionState_ForSale)
+			{
+				page_out += "for-sale";
+				if(!auction->currentlyForSale())
+					page_out += " [Expired]";
+			}
+			else if(auction->auction_state == ParcelAuction::AuctionState_Sold)
+				page_out += "sold";
+			//else if(auction->auction_state == ParcelAuction::AuctionState_NotSold)
+			//	page_out += "not-sold";
+			page_out += "<br/>";
+
+			const bool order_id_valid = auction->order_id != std::numeric_limits<uint64>::max();
+
+			page_out += 
+				"start time: " + auction->auction_start_time.RFC822FormatedString() + "(" + auction->auction_start_time.timeDescription() + ")<br/>" + 
+				"end time: " + auction->auction_end_time.RFC822FormatedString() + "(" + auction->auction_end_time.timeDescription() + ")<br/>" +
+				"start price: " + toString(auction->auction_start_price) + ", end price: " + toString(auction->auction_end_price) + "<br/>" +
+				"sold_price: " + toString(auction->sold_price) + "<br/>" +
+				"sold time: " + auction->auction_sold_time.RFC822FormatedString() + "(" + auction->auction_sold_time.timeDescription() + ")<br/>" +
+				(order_id_valid ? "order#: <a href=\"/admin_order/" + toString(auction->order_id) + "\">" + toString(auction->order_id) + "</a>" : "order: invalid (not set)") + "<br/>" + 
+				"num locks: " + toString(auction->auction_locks.size());
+
+			page_out += "</p>\n";
+		}
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminParcelAuctionPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	// Parse parcel auction id from request path
+	Parser parser(request.path.c_str(), request.path.size());
+	if(!parser.parseString("/admin_parcel_auction/"))
+		throw glare::Exception("Failed to parse /admin_parcel_auction/");
+
+	uint32 auction_id;
+	if(!parser.parseUnsignedInt(auction_id))
+		throw glare::Exception("Failed to parse auction id");
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		auto res = world_state.parcel_auctions.find(auction_id);
+		if(res != world_state.parcel_auctions.end())
+		{
+			const ParcelAuction* auction = res->second.ptr();
+
+			page_out += "<h2>Parcel Auction " + toString(auction_id) + "</h2>\n";
+
+			page_out += "<p>\n";
 			page_out += "<a href=\"/parcel_auction/" + toString(auction->id) + "\">Parcel Auction " + toString(auction->id) + "</a><br/>" +
 				"parcel: <a href=\"/parcel/" + auction->parcel_id.toString() + "\">" + auction->parcel_id.toString() + "</a><br/>" + 
 				"state: ";
@@ -196,7 +261,40 @@ void renderParcelAuctionsPage(ServerAllWorldsState& world_state, const web::Requ
 				"start price: " + toString(auction->auction_start_price) + ", end price: " + toString(auction->auction_end_price) + "<br/>" +
 				"sold_price: " + toString(auction->sold_price) + "<br/>" +
 				"sold time: " + auction->auction_sold_time.RFC822FormatedString() + "(" + auction->auction_sold_time.timeDescription() + ")<br/>" +
-				"order#: <a href=\"/admin_order/" + toString(auction->order_id) + "\">" + toString(auction->order_id) + "</a>";
+				"order#: <a href=\"/admin_order/" + toString(auction->order_id) + "\">" + toString(auction->order_id) + "</a><br/>";
+
+			if(auction->isLocked())
+			{
+				page_out += "Locked<br/>";
+			}
+			else
+			{
+				page_out += "Not locked<br/>";
+			}
+
+			page_out += "<h3>Locks</h3>";
+
+			for(size_t i=0; i<auction->auction_locks.size(); ++i)
+			{
+				const AuctionLock& auction_lock = auction->auction_locks[i];
+				page_out += "<p>";
+
+				// Look up user.
+				std::string locker_username;
+				auto user_res = world_state.user_id_to_users.find(auction_lock.locking_user_id);
+				if(user_res == world_state.user_id_to_users.end())
+					locker_username = "[No user found]";
+				else
+					locker_username = user_res->second->name;
+
+
+				page_out += "created_time: " + auction_lock.created_time.timeAgoDescription() + "</br>";
+				page_out += "lock_duration: " + toString(auction_lock.lock_duration) + " s</br>";
+				page_out += "locking_user_id: " + auction_lock.locking_user_id.toString() + " (" + locker_username + ")</br>";
+
+				page_out += "</p>";
+			}
+
 
 			page_out += "</p>\n";
 		}
