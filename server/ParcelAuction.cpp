@@ -27,10 +27,48 @@ ParcelAuction::~ParcelAuction()
 {}
 
 
-
+// Compute auction price at the given time
 double ParcelAuction::computeAuctionPrice(TimeStamp time) const
 {
-	const double t = ((double)time.time - (double)auction_start_time.time) / ((double)auction_end_time.time - (double)auction_start_time.time);
+	// Compute total unlocked time, from the auction start time to 'time', as price doesn't decrease while auction is locked.
+	// Locks are ordered by increasing time, and the lock periods are disjoint.
+
+	/*
+	
+	      |----------------|======================|-------------|=====================|-------------------|
+	start_time        lock_0_start           lock_0_end     lock_1_start         lock_1_end            time
+	
+	
+	or an example where the auction is locked at time 'time'
+	
+
+	     |----------------|======================|-------------|=====================|---------------|====================|
+	start_time        lock_0_start         lock_0_end      lock_1_start          lock_1_end       lock_2_start           time
+	*/
+
+	const double cur_time = (double)time.time;
+
+	double last_resume_time = auction_start_time.time; // end time of lock[i-1], or auction start time if i = 0.
+	double sum_unlocked_time = 0;
+	for(size_t i=0; i<auction_locks.size(); ++i)
+	{
+		const AuctionLock& lock = auction_locks[i];
+
+		if(lock.created_time.time > time.time) // If lock time value is in the future relative to 'time', we are done iterating over locks.
+			break;
+
+		// Add time from last_resume_time to when this lock started
+		sum_unlocked_time += (double)lock.created_time.time - last_resume_time;
+
+		last_resume_time = (double)(lock.created_time.time + lock.lock_duration);
+	}
+
+	// If the last lock expired before cur_time, add the time from the last lock expiry to cur_time.
+	if(last_resume_time < cur_time)
+		sum_unlocked_time += cur_time - last_resume_time;
+
+	const double t = sum_unlocked_time / ((double)auction_end_time.time - (double)auction_start_time.time); // Fraction of time through auction
+	//const double t = ((double)time.time - (double)auction_start_time.time) / ((double)auction_end_time.time - (double)auction_start_time.time);
 
 	const float A = 2.5;
 	const double current_price_exact = auction_end_price + (auction_start_price - auction_end_price) * (std::exp(-A * t) - std::exp(-A)) / (1 - std::exp(-A));
@@ -61,11 +99,14 @@ static const uint64 PAYPAL_LOCK_TIME_S   = 60 * 5; // 5 mins
 static const uint64 COINBASE_LOCK_TIME_S = 60 * 8; // 8 mins
 
 static const int MAX_NUM_AUCTION_LOCKS_PER_USER = 2;
+static const int MAX_TOTAL_NUM_AUCTION_LOCKS = 10;
+
 
 // Returns true if locked, false if user was not allowed to lock auction due to too many locks already.
 bool ParcelAuction::lockForPayPalBid(UserID locking_user_id)
 {
 	// User is only allowed to lock the auction twice, to avoid repeatedly locking it.
+	// We will also cap the total number of locks over all users, to avoid people creating new user accounts
 
 	// Count number of times the user has already locked this auction
 	int user_num_locks = 0;
@@ -73,7 +114,7 @@ bool ParcelAuction::lockForPayPalBid(UserID locking_user_id)
 		if(auction_locks[i].locking_user_id == locking_user_id)
 			user_num_locks++;
 
-	if(user_num_locks < MAX_NUM_AUCTION_LOCKS_PER_USER)
+	if((user_num_locks < MAX_NUM_AUCTION_LOCKS_PER_USER) && ((int)auction_locks.size() < MAX_TOTAL_NUM_AUCTION_LOCKS))
 	{
 		last_locked_time = TimeStamp::currentTime();
 		lock_duration = PAYPAL_LOCK_TIME_S;
@@ -101,7 +142,7 @@ bool ParcelAuction::lockForCoinbaseBid(UserID locking_user_id)
 		if(auction_locks[i].locking_user_id == locking_user_id)
 			user_num_locks++;
 
-	if(user_num_locks < MAX_NUM_AUCTION_LOCKS_PER_USER)
+	if((user_num_locks < MAX_NUM_AUCTION_LOCKS_PER_USER) && ((int)auction_locks.size() < MAX_TOTAL_NUM_AUCTION_LOCKS))
 	{
 		last_locked_time = TimeStamp::currentTime();
 		lock_duration = COINBASE_LOCK_TIME_S;
