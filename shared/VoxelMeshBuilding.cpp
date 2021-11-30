@@ -42,22 +42,6 @@ public:
 };
 
 
-struct VoxelBuildInfo
-{
-	int face_offset; // number of faces added before this voxel.
-	int num_faces; // num faces added for this voxel.
-};
-
-
-struct GetMatIndex
-{
-	size_t operator() (const Voxel& v)
-	{
-		return (size_t)v.mat_index;
-	}
-};
-
-
 struct VoxelBounds
 {
 	Vec3<int> min;
@@ -66,14 +50,12 @@ struct VoxelBounds
 
 
 // Does greedy meshing
-static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<Voxel>& voxels, const size_t num_mats, const HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc>& voxel_hash)
+static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const js::Vector<Voxel, 16>& voxels, const size_t num_mats, const HashMapInsertOnly2<Vec3<int>, int, VoxelHashFunc>& voxel_hash)
 {
-	const size_t num_voxels = voxels.size();
-
 	Reference<Indigo::Mesh> mesh = new Indigo::Mesh();
 
 	const Indigo::Vec3f vertpos_empty_key(std::numeric_limits<float>::max());
-	HashMapInsertOnly2<Indigo::Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/num_voxels);
+	HashMapInsertOnly2<Indigo::Vec3f, int, Vec3fHashFunc> vertpos_hash(/*empty key=*/vertpos_empty_key, /*expected_num_items=*/voxels.size());
 
 	mesh->vert_positions.reserve(voxels.size());
 	mesh->triangles.reserve(voxels.size());
@@ -370,70 +352,67 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							for(int x=start_x; x < end_x; ++x)
 								face_needed.elem(x - a_min, y - b_min) = false;
 
-						if(end_x > start_x && end_y > start_y)
-						{
-							const float quad_dim_coord = (float)(dim_coord + 1);
+						const float quad_dim_coord = (float)(dim_coord + 1);
 
-							// Add the greedy quad
-							unsigned int v_i[4]; // quad vert indices
-							Indigo::Vec3f v;
-							v[dim] = (float)quad_dim_coord;
-							{ // Add bot left vert
-								v[dim_a] = (float)start_x;
-								v[dim_b] = (float)start_y;
+						// Add the greedy quad
+						unsigned int v_i[4]; // quad vert indices
+						Indigo::Vec3f v;
+						v[dim] = (float)quad_dim_coord;
+						{ // Add bot left vert
+							v[dim_a] = (float)start_x;
+							v[dim_b] = (float)start_y;
 								
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							{ // bot right
-								v[dim_a] = (float)end_x;
-								v[dim_b] = (float)start_y;
-
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							{ // top right
-								v[dim_a] = (float)end_x;
-								v[dim_b] = (float)end_y;
-
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							{ // top left
-								v[dim_a] = (float)start_x;
-								v[dim_b] = (float)end_y;
-
-								const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-								v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
-								if(insert_res.second) // If inserted new value:
-									mesh->vert_positions.push_back(v);
-							}
-							
-							const size_t tri_start = mesh->triangles.size();
-							mesh->triangles.resize(tri_start + 2);
-							
-							mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
-							mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
-							mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
-							mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
-							mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
-							mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
-							mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
-
-							mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
-							mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
-							mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
-							mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
-							mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
-							mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
-							mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
+							v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
+							if(insert_res.second) // If inserted new value:
+								mesh->vert_positions.push_back(v);
 						}
+						{ // bot right
+							v[dim_a] = (float)end_x;
+							v[dim_b] = (float)start_y;
+
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
+							v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
+							if(insert_res.second) // If inserted new value:
+								mesh->vert_positions.push_back(v);
+						}
+						{ // top right
+							v[dim_a] = (float)end_x;
+							v[dim_b] = (float)end_y;
+
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
+							v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
+							if(insert_res.second) // If inserted new value:
+								mesh->vert_positions.push_back(v);
+						}
+						{ // top left
+							v[dim_a] = (float)start_x;
+							v[dim_b] = (float)end_y;
+
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
+							v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
+							if(insert_res.second) // If inserted new value:
+								mesh->vert_positions.push_back(v);
+						}
+							
+						const size_t tri_start = mesh->triangles.size();
+						mesh->triangles.resize(tri_start + 2);
+							
+						mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
+						mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
+						mesh->triangles[tri_start + 0].vertex_indices[2] = v_i[2];
+						mesh->triangles[tri_start + 0].uv_indices[0]     = 0;
+						mesh->triangles[tri_start + 0].uv_indices[1]     = 0;
+						mesh->triangles[tri_start + 0].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 0].tri_mat_index     = (uint32)mat_i;
+
+						mesh->triangles[tri_start + 1].vertex_indices[0] = v_i[0];
+						mesh->triangles[tri_start + 1].vertex_indices[1] = v_i[2];
+						mesh->triangles[tri_start + 1].vertex_indices[2] = v_i[3];
+						mesh->triangles[tri_start + 1].uv_indices[0]     = 0;
+						mesh->triangles[tri_start + 1].uv_indices[1]     = 0;
+						mesh->triangles[tri_start + 1].uv_indices[2]     = 0;
+						mesh->triangles[tri_start + 1].tri_mat_index     = (uint32)mat_i;
 					}
 				}
 			}
@@ -459,7 +438,7 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const Vox
 	if(subsample_factor == 1)
 	{
 		int max_mat_index = 0;
-		for(int v = 0; v < (int)num_voxels; ++v)
+		for(size_t v = 0; v < num_voxels; ++v)
 		{
 			const Vec3<int> voxelpos = voxel_group.voxels[v].pos;
 
@@ -468,11 +447,7 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const Vox
 		}
 		const size_t num_mats = (size_t)max_mat_index + 1;
 
-		//-------------- Sort voxels by material --------------------
-		std::vector<Voxel> voxels(num_voxels);
-		Sort::serialCountingSortWithNumBuckets(/*in=*/voxel_group.voxels.data(), /*out=*/voxels.data(), /*size=*/voxel_group.voxels.size(), num_mats, GetMatIndex());
-
-		return doMakeIndigoMeshForVoxelGroup(voxels, num_mats, voxel_hash);
+		return doMakeIndigoMeshForVoxelGroup(voxel_group.voxels, num_mats, voxel_hash);
 	}
 	else
 	{
@@ -480,7 +455,7 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const Vox
 		downsized_voxels.voxels.reserve(num_voxels);
 
 		int max_mat_index = 0;
-		for(int v = 0; v < (int)num_voxels; ++v)
+		for(size_t v = 0; v < num_voxels; ++v)
 		{
 			const Vec3<int> voxelpos = voxel_group.voxels[v].pos;
 			const Vec3<int> downsized_pos(voxelpos.x / subsample_factor, voxelpos.y / subsample_factor, voxelpos.z / subsample_factor);
@@ -492,11 +467,7 @@ Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const Vox
 		}
 		const size_t num_mats = (size_t)max_mat_index + 1;
 
-		//-------------- Sort voxels by material --------------------
-		std::vector<Voxel> voxels(downsized_voxels.voxels.size());
-		Sort::serialCountingSortWithNumBuckets(/*in=*/downsized_voxels.voxels.data(), /*out=*/voxels.data(), /*size=*/downsized_voxels.voxels.size(), num_mats, GetMatIndex());
-
-		return doMakeIndigoMeshForVoxelGroup(voxels, num_mats, voxel_hash);
+		return doMakeIndigoMeshForVoxelGroup(downsized_voxels.voxels, num_mats, voxel_hash);
 	}
 }
 
