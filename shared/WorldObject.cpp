@@ -887,6 +887,8 @@ void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t comp
 
 	//int num_mats;
 	//std::memcpy(&num_mats, &decompressed_data[read_i++], sizeof(int));
+
+	//NOTE: this could be optimised.  reserve space in group_out.voxels, reduce bounds checks etc..
 	Vec3<int> current_pos(0, 0, 0);
 
 	const int num_mats = instream.readInt32();
