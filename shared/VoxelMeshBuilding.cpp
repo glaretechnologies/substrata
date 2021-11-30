@@ -128,30 +128,36 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 			const int dim_min = mat_vox_bounds[mat_i].min[dim];
 			const int dim_end = mat_vox_bounds[mat_i].max[dim] + 1;
 
-			// Make a map to indicate processed voxel faces.  Processed = included in a greedy quad already.
+			// Make an array to indicate processed voxel faces.  Processed = included in a greedy quad already.
+			Array2D<bool> vox_present(a_end - a_min, b_end - b_min); // Memorize the voxel lookup to use for building upper faces
 			Array2D<bool> face_needed(a_end - a_min, b_end - b_min);
 
 			for(int dim_coord = dim_min; dim_coord < dim_end; ++dim_coord)
 			{
 				// Build face_needed data for this slice
+				Vec3<int> vox, adjacent_vox_pos;
+				vox[dim] = dim_coord;
+				adjacent_vox_pos[dim] = dim_coord - 1;
 				for(int y=b_min; y<b_end; ++y)
 				for(int x=a_min; x<a_end; ++x)
 				{
-					Vec3<int> vox;
-					vox[dim] = dim_coord;
 					vox[dim_a] = x;
 					vox[dim_b] = y;
 
 					bool this_face_needed = false;
+					bool this_vox_present = false;
 					auto res = voxel_hash.find(vox);
 					if((res != voxel_hash.end()) && (res->second == mat_i)) // If there is a voxel here with mat_i
 					{
-						Vec3<int> adjacent_vox_pos = vox;
-						adjacent_vox_pos[dim]--;
+						this_vox_present = true;
+
+						adjacent_vox_pos[dim_a] = x;
+						adjacent_vox_pos[dim_b] = y;
 						auto adjacent_res = voxel_hash.find(adjacent_vox_pos);
 						if((adjacent_res == voxel_hash.end()) || (adjacent_res->second != mat_i)) // If there is no adjacent voxel, or the adjacent voxel has a different material:
 							this_face_needed = true;
 					}
+					vox_present.elem(x - a_min, y - b_min) = this_vox_present;
 					face_needed.elem(x - a_min, y - b_min) = this_face_needed;
 				}
 
@@ -217,21 +223,22 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							face_needed.elem(x - a_min, y - b_min) = false;
 
 						// Add the greedy quad
-						unsigned int v_i[4];
+						unsigned int v_i[4]; // quad vert indices
+						Indigo::Vec3f v;
+						v[dim] = (float)dim_coord;
 						{
-							Indigo::Vec3f v; // bot left
-							v[dim] = (float)dim_coord;
+							// bot left
 							v[dim_a] = (float)start_x;
 							v[dim_b] = (float)start_y;
 
-							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
-							v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
+							// returns object of type std::pair<iterator, bool>
+							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size())); // Try and insert vertex
+							v_i[0] = insert_res.first->second; // Get existing or new item (insert_res.first) - a (vec3f, index) pair, then get the index.
 							if(insert_res.second) // If inserted new value:
 								mesh->vert_positions.push_back(v);
 						}
 						{
-							Indigo::Vec3f v; // top left
-							v[dim] = (float)dim_coord;
+							// top left
 							v[dim_a] = (float)start_x;
 							v[dim_b] = (float)end_y;
 
@@ -241,8 +248,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								mesh->vert_positions.push_back(v);
 						}
 						{
-							Indigo::Vec3f v; // top right
-							v[dim] = (float)dim_coord;
+							// top right
 							v[dim_a] = (float)end_x;
 							v[dim_b] = (float)end_y;
 
@@ -252,8 +258,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								mesh->vert_positions.push_back(v);
 						}
 						{
-							Indigo::Vec3f v; // bot right
-							v[dim] = (float)dim_coord;
+							// bot right
 							v[dim_a] = (float)end_x;
 							v[dim_b] = (float)start_y;
 
@@ -288,20 +293,15 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 
 				//================= Do upper faces along dim ==========================
 				// Build face_needed data for this slice
+				adjacent_vox_pos[dim] = dim_coord + 1;
 				for(int y=b_min; y<b_end; ++y)
 				for(int x=a_min; x<a_end; ++x)
 				{
-					Vec3<int> vox;
-					vox[dim] = dim_coord;
-					vox[dim_a] = x;
-					vox[dim_b] = y;
-
 					bool this_face_needed = false;
-					auto res = voxel_hash.find(vox);
-					if((res != voxel_hash.end()) && (res->second == mat_i)) // If there is a voxel here with mat_i
+					if(vox_present.elem(x - a_min, y - b_min)) // If there is a voxel here with mat_i
 					{
-						Vec3<int> adjacent_vox_pos = vox;
-						adjacent_vox_pos[dim]++;
+						adjacent_vox_pos[dim_a] = x;
+						adjacent_vox_pos[dim_b] = y;
 						auto adjacent_res = voxel_hash.find(adjacent_vox_pos);
 						if((adjacent_res == voxel_hash.end()) || (adjacent_res->second != mat_i)) // If there is no adjacent voxel, or the adjacent voxel has a different material:
 							this_face_needed = true;
@@ -375,10 +375,10 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 							const float quad_dim_coord = (float)(dim_coord + 1);
 
 							// Add the greedy quad
-							unsigned int v_i[4];
-							{
-								Indigo::Vec3f v; // bot left
-								v[dim] = (float)quad_dim_coord;
+							unsigned int v_i[4]; // quad vert indices
+							Indigo::Vec3f v;
+							v[dim] = (float)quad_dim_coord;
+							{ // Add bot left vert
 								v[dim_a] = (float)start_x;
 								v[dim_b] = (float)start_y;
 								
@@ -387,9 +387,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								if(insert_res.second) // If inserted new value:
 									mesh->vert_positions.push_back(v);
 							}
-							{
-								Indigo::Vec3f v; // bot right
-								v[dim] = (float)quad_dim_coord;
+							{ // bot right
 								v[dim_a] = (float)end_x;
 								v[dim_b] = (float)start_y;
 
@@ -398,9 +396,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								if(insert_res.second) // If inserted new value:
 									mesh->vert_positions.push_back(v);
 							}
-							{
-								Indigo::Vec3f v; // top right
-								v[dim] = (float)quad_dim_coord;
+							{ // top right
 								v[dim_a] = (float)end_x;
 								v[dim_b] = (float)end_y;
 
@@ -409,9 +405,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroup(const std::vector<V
 								if(insert_res.second) // If inserted new value:
 									mesh->vert_positions.push_back(v);
 							}
-							{
-								Indigo::Vec3f v; // top left
-								v[dim] = (float)quad_dim_coord;
+							{ // top left
 								v[dim_a] = (float)start_x;
 								v[dim_b] = (float)end_y;
 
