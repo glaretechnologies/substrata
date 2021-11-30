@@ -1030,11 +1030,9 @@ inline static void copyUInt32s(void* const dest, const void* const src, size_t s
 }
 
 
-static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Mesh& mesh_, const Vec3<int>& minpos, const Vec3<int>& maxpos)
+// TODO: can probably avoid sorting triangles by material in this method (should already be sorted)
+static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Mesh& mesh_/*, const Vec3<int>& min_vert_coords, const Vec3<int>& max_vert_coords*/)
 {
-	const int min_voxel_coord = myMin(minpos.x, minpos.y, minpos.z);
-	const int max_voxel_coord = myMax(maxpos.x, maxpos.y, maxpos.z) + 1;
-
 	const Indigo::Mesh* const mesh				= &mesh_;
 	const Indigo::Triangle* const tris			= mesh->triangles.data();
 	const size_t num_tris						= mesh->triangles.size();
@@ -1048,6 +1046,10 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	const uint32 num_uv_sets					= mesh->num_uv_mappings;
 
 	// If we have a UV set, it will be the lightmap UVs.
+
+	// Work out the min and max vertex coordinates, to see if we can store in an int8 or int16.
+	const int min_voxel_coord = myMin((int)mesh_.aabb_os.bound[0].x, (int)mesh_.aabb_os.bound[0].y, (int)mesh_.aabb_os.bound[0].z);
+	const int max_voxel_coord = myMax((int)mesh_.aabb_os.bound[1].x, (int)mesh_.aabb_os.bound[1].y, (int)mesh_.aabb_os.bound[1].z);
 
 	size_t pos_size;
 	GLenum pos_gl_type;
@@ -1317,8 +1319,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	}*/
 
 	mesh_data->aabb_os = js::AABBox(
-		Vec4f((float)minpos.x,       (float)minpos.y,       (float)minpos.z,       1.f),
-		Vec4f((float)(maxpos.x + 1), (float)(maxpos.y + 1), (float)(maxpos.z + 1), 1.f) // Add 1 to take into account extent of voxels.
+		Vec4f(mesh_.aabb_os.bound[0].x, mesh_.aabb_os.bound[0].y, mesh_.aabb_os.bound[0].z, 1.f),
+		Vec4f(mesh_.aabb_os.bound[1].x, mesh_.aabb_os.bound[1].y, mesh_.aabb_os.bound[1].z, 1.f)
 	);
 
 	return mesh_data;
@@ -1329,8 +1331,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 {
 	//Timer timer;
 
-	Vec3<int> minpos, maxpos; // Min and max voxel coords
-	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, minpos, maxpos);
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor);
 
 	// UV unwrap it:
 	StandardPrintOutput print_output;
@@ -1346,9 +1347,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	const float normed_margin = 2.f / clamped_side_res;
 	UVUnwrapper::build(*indigo_mesh, ob_to_world, print_output, normed_margin); // Adds UV set to indigo_mesh.
 
-
 	// Convert Indigo mesh to opengl data
-	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh, minpos, maxpos);
+	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh);
 
 
 	// Build RayMesh from our indigo mesh (used for physics + picking)
