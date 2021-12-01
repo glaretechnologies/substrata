@@ -1,4 +1,4 @@
-import * as fzstd from 'https://cdn.skypack.dev/fzstd?min';
+import * as fzstd from './fzstd.js'; // from 'https://cdn.skypack.dev/fzstd?min';
 import * as THREE from './build/three.module.js';
 
 
