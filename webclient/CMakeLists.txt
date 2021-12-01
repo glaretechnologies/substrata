@@ -2,7 +2,7 @@
 
 set(CURRENT_TARGET webclient)
 
-FILE(GLOB webclient "./*.js")
+FILE(GLOB webclient "./*.js" "./*.html")
 
 SOURCE_GROUP(webclient FILES ${webclient})
 
