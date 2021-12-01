@@ -1,6 +1,15 @@
+/*=====================================================================
+webclient.js
+------------
+Copyright Glare Technologies Limited 2021 -
+=====================================================================*/
+
 import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
 import * as THREE from './build/three.module.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
+//import * as fzstd from './fzstd.js';
+import * as fzstd from 'https://cdn.skypack.dev/fzstd?min';
+import * as voxelloading from './voxelloading.js';
 
 var ws = new WebSocket("ws://localhost", "echo-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
@@ -492,13 +501,32 @@ function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
 
     if (ob.object_type == WorldObject_ObjectType_VoxelGroup)
     {
+        console.log("got voxel ob!");
+        
+
         // Read compressed voxel data
         let voxel_data_size = readUInt32(buffer_in);
         if (voxel_data_size > 1000000)
             throw "Invalid voxel_data_size (too large): " + toString(voxel_data_size);
 
-        // Read voxel data
-        ob.compressed_voxels = buffer_in.readData(voxel_data_size);
+        console.log("voxel_data_size: " + voxel_data_size)
+        if(voxel_data_size > 0)
+        {
+            // Read voxel data
+            ob.compressed_voxels = buffer_in.readData(voxel_data_size);
+
+            // TEMP: decompress
+
+            console.log("ob.compressed_voxels:");
+            console.log(ob.compressed_voxels)
+            //
+            //let decompressed_voxels = fzstd.decompress(new Uint8Array(ob.compressed_voxels));
+            //
+            //console.log("decompressed_voxels: " + (typeof decompressed_voxels));
+            //console.log(decompressed_voxels)
+            //
+            //console.log("Decompressed voxel data, compressed size: " + voxel_data_size + ", decompressed size: " + decompressed_voxels.length)
+        }
     }
 
     return ob;
@@ -619,8 +647,8 @@ var world_objects = {};
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
-    console.log("onmessage()");
-    console.log("From Server:" + event.data + ", event.data.byteLength: " + event.data.byteLength);
+    //console.log("onmessage()");
+    //console.log("From Server:" + event.data + ", event.data.byteLength: " + event.data.byteLength);
 
 
     //TEMP:
@@ -677,7 +705,7 @@ ws.onmessage = function (event) {
 
             var msg_type = readUInt32(buffer);
             var msg_len = readUInt32(buffer);
-            console.log("Read msg_type: " + msg_type + ", len: " + msg_len);
+            //console.log("Read msg_type: " + msg_type + ", len: " + msg_len);
 
             if (msg_type == TimeSyncMessage) {
                 var global_time = readDouble(buffer);
@@ -710,7 +738,7 @@ ws.onmessage = function (event) {
             }
             else {
                 // Unhandled message type, skip over it.
-                console.log("Unhandled message type " + msg_type);
+                //console.log("Unhandled message type " + msg_type);
                 buffer.read_index += msg_len - 8; // We have already read the type and len (uint32 * 2), skip over remaining data in msg.
             }
         }
@@ -1009,130 +1037,234 @@ function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
     }
 }
 
+
+function decompressVoxels(compressed_voxels) {
+    return fzstd.decompress(new Uint8Array(compressed_voxels));
+
+    //console.log("decompressed_voxels: " + (typeof decompressed_voxels));
+    //console.log(decompressed_voxels)
+    //
+    //console.log("Decompressed voxel data, compressed size: " + voxel_data_size + ", decompressed size: " + decompressed_voxels.length)
+}
+
+
+function setThreeJSMaterial(three_mat, world_mat) {
+    three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
+    three_mat.metalness = world_mat.metallic_fraction.val;
+    three_mat.roughness = world_mat.roughness.val;
+}
+
+
 function addWorldObjectGraphics(world_ob) {
 
-    if (world_ob.model_url === "")
-        return;
+    //if (world_ob.model_url === "")
+    //    return;
 
     //return;
     //if (world_ob.uid == 148313) {
     if (true) {
 
-        console.log("addWorldObjectGraphics")
+        console.log("==================addWorldObjectGraphics (ob uid: " + world_ob.uid + ")=========================")
 
         let ob_lod_level = getLODLevel(world_ob, camera.position);
         let model_lod_level = getModelLODLevel(world_ob, camera.position);
-        console.log("model_lod_level: " + model_lod_level)
+        console.log("model_lod_level: " + model_lod_level);
 
+        console.log("world_ob.compressed_voxels:");
+        console.log(world_ob.compressed_voxels);
 
+        if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
+            // This is a voxel object
 
-        let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
+            let subsample_factor = 1;
+            let geometry = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, subsample_factor); // type THREE.BufferGeometry
+            geometry.computeVertexNormals();
 
+            let three_mats = []
+            for(let i=0; i<world_ob.mats.length; ++i)
+            {
+                let three_mat = new THREE.MeshStandardMaterial();
+                setThreeJSMaterial(three_mat, world_ob.mats[i]);
+                three_mats.push(three_mat);
+            }
 
-        console.log("LOD model URL: " + url);
-
-        if (filenameExtension(url) != "glb")
-            url += ".glb";
-
-        /* let encoded_url = encodeURIComponent(url);
- 
-         var oReq = new XMLHttpRequest();
-         oReq.open("GET", "/resource/" + encoded_url, true);
-         oReq.responseType = "arraybuffer";
- 
- 
-         oReq.onload = function (oEvent) {
-             var arrayBuffer = oReq.response; // Note: not oReq.responseText
-             if (arrayBuffer) {
- 
-                 console.log("Downloaded the file: '" + url + "'!");
- 
- 
-             }
-         };
- 
-         oReq.send(null);*/
-
-        const loader = new GLTFLoader();
-
-        loader.load("/resource/" + url, function (gltf) {
-
-            console.log("GLTF file loaded, adding to scene..");
-
-            gltf.scene.position.copy(toYUp(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z)));
-            gltf.scene.scale.copy(toYUp(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z)));
+            const mesh = new THREE.Mesh(geometry, three_mats);
+            mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+            mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
 
             let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
             axis.normalize();
             let q = new THREE.Quaternion();
             q.setFromAxisAngle(axis, world_ob.angle);
-            gltf.scene.setRotationFromQuaternion(q);
+            mesh.setRotationFromQuaternion(q);
 
-            console.log("Traversing...");
+            scene.add(mesh);
 
-            let mat_index = 0;
-            gltf.scene.traverse(function (child) { // NOTE: is this traversal in the right order?
-                if (child instanceof THREE.Mesh) {
+//            let decompressed_voxels_uint8 = decompressVoxels(world_ob.compressed_voxels);
+//            console.log("decompressed_voxels_uint8:");
+//            console.log(decompressed_voxels_uint8);
+//
+//            // A voxel is
+//            //Vec3<int> pos;
+//	        //int mat_index; // Index into materials
+//            //let voxel_ints = new Uint32Array(decompressed_voxels))
+//
+//            let voxel_data = new Int32Array(decompressed_voxels_uint8.buffer);
+//
+//            let voxels_out = []
+//
+//            console.log("voxel_data:");
+//            console.log(voxel_data);
+//
+//            let cur_x = 0;
+//            let cur_y = 0;
+//            let cur_z = 0;
+//
+//            let read_i = 0;
+//	        let num_mats = voxel_data[read_i++];
+//            if(num_mats > 2000)
+//                throw "Too many voxel materials";
+//	        
+//            for(let m=0; m<num_mats; ++m)
+//	        {
+//		        let count = voxel_data[read_i++];
+//		        for(let i=0; i<count; ++i)
+//		        {
+//			        //Vec3<int> relative_pos;
+//			       // instream.readData(&relative_pos, sizeof(Vec3<int>));
+//                    let rel_x = voxel_data[read_i++];
+//                    let rel_y = voxel_data[read_i++];
+//                    let rel_z = voxel_data[read_i++];
+//
+//			        //const Vec3<int> pos = current_pos + relative_pos;
+//                    let v_x = cur_x + rel_x;
+//                    let v_y = cur_y + rel_y;
+//                    let v_z = cur_z + rel_z;
+//
+//			        //group_out.voxels.push_back(Voxel(pos, m));
+//                    voxels_out.push(v_x);
+//                    voxels_out.push(v_y);
+//                    voxels_out.push(v_z);
+//                    voxels_out.push(m);
+//
+//                    console.log("Added voxel at " + v_x + ", " + v_y + ", " + v_z + " with mat " + m);
+//
+//			        cur_x = v_x;
+//                    cur_y = v_y;
+//                    cur_z = v_z;
+//		        }
+ //           }
 
-                    console.log("Found child mesh");
-                    let world_mat = world_ob.mats[mat_index];
-                    if (world_mat) {
+        }
+        else if(world_ob.model_url !== "") {
 
-                        child.material.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
-                        child.material.metalness = world_mat.metallic_fraction.val;
-                        child.material.roughness = world_mat.roughness.val;
+            let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
 
-                        // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
-                        console.log("world_mat.flags: " + world_mat.flags);
-                        console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
-                        let lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, world_mat.colourTexHasAlpha());
 
-                        console.log("lod_texture_URL: " + lod_texture_URL);
-                        //child.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
+            console.log("LOD model URL: " + url);
 
-                        let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
-                        texture.wrapS = THREE.RepeatWrapping;
-                        texture.wrapT = THREE.RepeatWrapping;
-                        child.material.map = texture;
+            if (filenameExtension(url) != "glb")
+                url += ".glb";
 
-                        child.material.map.matrixAutoUpdate = false;
-                        console.log("world_mat.tex_matrix: ", world_mat.tex_matrix);
-                        child.material.map.matrix.set(
-                            world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
-                            world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
-                            0, 0, 1
-                            //1, 0, 0,
-                            //0, 1, 0,
-                            //0, 0, 1
-                        );
-                        console.log("child.material.map.matrix: ", child.material.map.matrix);
+            /* let encoded_url = encodeURIComponent(url);
+ 
+             var oReq = new XMLHttpRequest();
+             oReq.open("GET", "/resource/" + encoded_url, true);
+             oReq.responseType = "arraybuffer";
+ 
+ 
+             oReq.onload = function (oEvent) {
+                 var arrayBuffer = oReq.response; // Note: not oReq.responseText
+                 if (arrayBuffer) {
+ 
+                     console.log("Downloaded the file: '" + url + "'!");
+ 
+ 
+                 }
+             };
+ 
+             oReq.send(null);*/
 
-                        child.material.needsUpdate = true;
-                    }
+            const loader = new GLTFLoader();
+
+            loader.load("/resource/" + url, function (gltf) {
+
+                console.log("GLTF file loaded, adding to scene..");
+
+                gltf.scene.position.copy(toYUp(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z)));
+                gltf.scene.scale.copy(toYUp(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z)));
+
+                let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+                axis.normalize();
+                let q = new THREE.Quaternion();
+                q.setFromAxisAngle(axis, world_ob.angle);
+                gltf.scene.setRotationFromQuaternion(q);
+
+                //console.log("Traversing...");
+
+                let mat_index = 0;
+                gltf.scene.traverse(function (child) { // NOTE: is this traversal in the right order?
+                    if (child instanceof THREE.Mesh) {
+
+                        //console.log("Found child mesh");
+                        let world_mat = world_ob.mats[mat_index];
+                        if (world_mat) {
+
+                            child.material.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
+                            child.material.metalness = world_mat.metallic_fraction.val;
+                            child.material.roughness = world_mat.roughness.val;
+
+                            if(world_mat.colour_texture_url.length > 0) {
+                                // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
+                                //console.log("world_mat.flags: " + world_mat.flags);
+                                //console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
+                                let lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, world_mat.colourTexHasAlpha());
+
+                                //console.log("lod_texture_URL: " + lod_texture_URL);
+                                //child.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
+
+                                let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
+                                texture.wrapS = THREE.RepeatWrapping;
+                                texture.wrapT = THREE.RepeatWrapping;
+                                child.material.map = texture;
+
+                                child.material.map.matrixAutoUpdate = false;
+                                //console.log("world_mat.tex_matrix: ", world_mat.tex_matrix);
+                                child.material.map.matrix.set(
+                                    world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
+                                    world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
+                                    0, 0, 1
+                                );
+                                //console.log("child.material.map.matrix: ", child.material.map.matrix);
+                            }
+
+                            child.material.needsUpdate = true;
+                        }
                    
 
-                    mat_index++;
-                }
-                //if (child instanceof THREE.Mesh) {
+                        mat_index++;
+                    }
+                    //if (child instanceof THREE.Mesh) {
 
-                //    mat = world_ob.mats[mat_index];
-                //    // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
+                    //    mat = world_ob.mats[mat_index];
+                    //    // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
 
 
-                //    child.material.map = THREE.ImageUtils.loadTexture("resource/" + world_ob.mats[0].colour_texture_url);
-                //    child.material.needsUpdate = true;
+                    //    child.material.map = THREE.ImageUtils.loadTexture("resource/" + world_ob.mats[0].colour_texture_url);
+                    //    child.material.needsUpdate = true;
 
-                //    mat_index++;
-                //}
+                    //    mat_index++;
+                    //}
+                });
+
+                scene.add(gltf.scene);
+                },
+                undefined,
+                function (error) {
+
+                console.error(error);
             });
-
-            scene.add(gltf.scene);
-            },
-            undefined,
-            function (error) {
-
-            console.error(error);
-        });
+        }
     }
     else {
 
@@ -1187,7 +1319,7 @@ document.body.appendChild(renderer.domElement);
 
 camera.position.set(-4, 12, 3);
 camera.up = new THREE.Vector3(0, 0, 1);
-//camera.position.set(-50, -100, 45);
+camera.position.set(-2, -2, 1);
 
 //let target = ;
 camera.lookAt(camera.position.clone().add(new THREE.Vector3(0, 1, 0)));
@@ -1241,10 +1373,110 @@ const material = new THREE.MeshBasicMaterial({ color: 0x999999, side: THREE.Doub
 const plane = new THREE.Mesh(geometry, material);
 scene.add(plane);
 
+
+
+let is_mouse_down = false;
+let heading = 0;
+let pitch = Math.PI / 2;
+let keys_down = new Set();
+
+function camForwardsVec() {
+    return new THREE.Vector3(Math.cos(heading) * Math.sin(pitch), Math.sin(heading) * Math.sin(pitch), Math.cos(pitch));
+}
+
+function camRightVec() {
+    //return new THREE.Vector3(Math.cos(heading - Math.PI / 2), Math.sin(heading - Math.PI / 2), 0);
+    return new THREE.Vector3(Math.sin(heading), -Math.cos(heading), 0);
+}
+
+function onDocumentMouseDown() {
+    //console.log("onDocumentMouseDown()");
+    is_mouse_down = true;
+}
+
+function onDocumentMouseUp() {
+    //console.log("onDocumentMouseUp()");
+    is_mouse_down = false;
+}
+
+function onDocumentMouseMove(e) {
+    //console.log("onDocumentMouseMove()");
+    //console.log(e.movementX);
+
+    if(is_mouse_down){
+        let rot_factor = 0.003;
+
+        heading += -e.movementX * rot_factor;
+        pitch = Math.max(1.0e-3, Math.min(pitch + e.movementY * rot_factor, Math.PI - 1.0e-3));
+    }
+
+    camera.lookAt(camera.position.clone().add(camForwardsVec()));
+}
+
+function onKeyDown(e) {
+    //console.log("onKeyDown()");
+    //console.log("e.code: " + e.code);
+    
+    keys_down.add(e.code);
+}
+
+function onKeyUp(e) {
+    //console.log("onKeyUp()");
+    //console.log("e.code: " + e.code);
+    
+    keys_down.delete(e.code);
+}
+
+
+
+document.addEventListener('mousedown', onDocumentMouseDown, false);
+document.addEventListener('mouseup', onDocumentMouseUp, false);
+document.addEventListener('mousemove', onDocumentMouseMove, false);
+document.addEventListener('keydown', onKeyDown, false);
+document.addEventListener('keyup', onKeyUp, false);
+
+
+
+function doCamMovement(dt){
+    //console.log("doCamMovement()");
+
+    let move_speed = 1.0;
+
+    if(keys_down.has('ShiftLeft')){
+        move_speed *= 5;
+    }
+
+    if(keys_down.has('KeyW')){
+        camera.position.addScaledVector(camForwardsVec(), dt * move_speed);
+    }
+    if(keys_down.has('KeyS')){
+        camera.position.addScaledVector(camForwardsVec(), -dt * move_speed);
+    }
+    if(keys_down.has('KeyA')){
+        camera.position.addScaledVector(camRightVec(), -dt * move_speed);
+    }
+    if(keys_down.has('KeyD')){
+        camera.position.addScaledVector(camRightVec(), dt * move_speed);
+    }
+    if(keys_down.has('Space')){
+        camera.position.addScaledVector(new THREE.Vector3(0,0,1), dt * move_speed);
+    }
+    if(keys_down.has('KeyC')){
+        camera.position.addScaledVector(new THREE.Vector3(0,0,1), -dt * move_speed);
+    }
+}
+
+
+let cur_time = window.performance.now();
+
 function animate() {
+    let dt = Math.min(0.03, window.performance.now() - cur_time);
+    cur_time = window.performance.now();
     requestAnimationFrame(animate);
 
-    camera.position.x += 0.003;
+    doCamMovement(dt);
+
+    //camera.position.x += 0.003;
     //cube.rotation.x += 0.01;
    // cube.rotation.y += 0.01;
 
@@ -1252,6 +1484,7 @@ function animate() {
 
     renderer.render(scene, camera);
 }
+
 animate();
 
 
