@@ -23,5 +23,6 @@ public:
 
 	std::string letsencrypt_webroot;
 	std::string public_files_dir;
+	std::string webclient_dir; // Dir that webclient files are in - client.html, webclient.js etc..
 	std::string screenshot_dir;
 };

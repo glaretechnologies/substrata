@@ -431,12 +431,12 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				}
 				catch(glare::Exception&)
 				{
-					web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load file '" + filename + "'.");
+					web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file '" + filename + "'.");
 				}
 			}
 			else
 			{
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "invalid/unsafe filename");
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "invalid/unsafe filename");
 				return;
 			}
 		}
@@ -469,86 +469,41 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ResourceHandlers::listResources(*this->world_state, request, reply_info);
 		}
-#if 0
-		else if(request.path == "/webclient") // TEMP HACK
+		else if(request.path == "/webclient")
 		{
 			try
 			{
 				std::string contents;
-				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\client.html", contents);
+				FileUtils::readEntireFile(data_store->webclient_dir + "/client.html", contents);
 				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents);
 			}
 			catch(FileUtils::FileUtilsExcep& e)
 			{
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
+				conPrint("Failed to load file /webclient: " + e.what());
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file /webclient");
 			}
 		}
-		else if(request.path == "/three.js") // TEMP HACK
+		else if(
+			request.path == "/fzstd.js" ||
+			request.path == "/voxelloading.js" ||
+			request.path == "/webclient.js" ||
+			request.path == "/examples/jsm/loaders/GLTFLoader.js" ||
+			request.path == "/examples/jsm/objects/Sky.js" ||
+			request.path == "/build/three.module.js"
+			)
 		{
 			try
 			{
 				std::string contents;
-				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\three.js", contents);
+				FileUtils::readEntireFile(data_store->webclient_dir + request.path, contents);
 				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
 			}
 			catch(FileUtils::FileUtilsExcep& e)
 			{
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
+				conPrint("Failed to load file: " + e.what());
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
 			}
 		}
-		else if(request.path == "/webclient.js")// TEMP HACK
-		{
-			try
-			{
-				std::string contents;
-				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\webclient.js", contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
-			}
-			catch(FileUtils::FileUtilsExcep& e)
-			{
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
-			}
-		}
-		else if(request.path == "/examples/jsm/loaders/GLTFLoader.js")// TEMP HACK
-		{
-			try
-			{
-				std::string contents;
-				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\examples/jsm/loaders/GLTFLoader.js", contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
-			}
-			catch(FileUtils::FileUtilsExcep& e)
-			{
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
-			}
-		}
-		else if(request.path == "/examples/jsm/objects/Sky.js")// TEMP HACK
-		{
-			try
-			{
-				std::string contents;
-				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\examples/jsm/objects/Sky.js", contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
-			}
-			catch(FileUtils::FileUtilsExcep& e)
-			{
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
-			}
-		}
-		else if(request.path == "/build/three.module.js")// TEMP HACK
-		{
-			try
-			{
-				std::string contents;
-				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\webclient\\build/three.module.js", contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
-			}
-			catch(FileUtils::FileUtilsExcep& e)
-			{
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, e.what());
-			}
-		}
-#endif
 		else
 		{
 			std::string page = "Unknown page";
