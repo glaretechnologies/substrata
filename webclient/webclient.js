@@ -7,8 +7,6 @@ Copyright Glare Technologies Limited 2021 -
 import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
 import * as THREE from './build/three.module.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
-//import * as fzstd from './fzstd.js';
-import * as fzstd from 'https://cdn.skypack.dev/fzstd?min';
 import * as voxelloading from './voxelloading.js';
 
 var ws = new WebSocket("ws://localhost", "echo-protocol");
@@ -1038,14 +1036,14 @@ function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
 }
 
 
-function decompressVoxels(compressed_voxels) {
-    return fzstd.decompress(new Uint8Array(compressed_voxels));
-
-    //console.log("decompressed_voxels: " + (typeof decompressed_voxels));
-    //console.log(decompressed_voxels)
-    //
-    //console.log("Decompressed voxel data, compressed size: " + voxel_data_size + ", decompressed size: " + decompressed_voxels.length)
-}
+//function decompressVoxels(compressed_voxels) {
+//    return fzstd.decompress(new Uint8Array(compressed_voxels));
+//
+//    //console.log("decompressed_voxels: " + (typeof decompressed_voxels));
+//    //console.log(decompressed_voxels)
+//    //
+//    //console.log("Decompressed voxel data, compressed size: " + voxel_data_size + ", decompressed size: " + decompressed_voxels.length)
+//}
 
 
 function setThreeJSMaterial(three_mat, world_mat) {
