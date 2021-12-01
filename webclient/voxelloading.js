@@ -4,21 +4,21 @@ import * as THREE from './build/three.module.js';
 
 function decompressVoxels(compressed_voxels) {
 	let decompressed_voxels_uint8 = fzstd.decompress(new Uint8Array(compressed_voxels));
-    console.log("decompressed_voxels_uint8:");
-    console.log(decompressed_voxels_uint8);
+    //console.log("decompressed_voxels_uint8:");
+    //console.log(decompressed_voxels_uint8);
 
     // A voxel is
     //Vec3<int> pos;
 	//int mat_index; // Index into materials
     //let voxel_ints = new Uint32Array(decompressed_voxels))
 
-	console.log("decompressed_voxels_uint8.buffer:")
-	console.log(decompressed_voxels_uint8.buffer)
+	//console.log("decompressed_voxels_uint8.buffer:")
+	//console.log(decompressed_voxels_uint8.buffer)
 
     let voxel_data = new Int32Array(decompressed_voxels_uint8.buffer, decompressed_voxels_uint8.byteOffset, decompressed_voxels_uint8.byteLength / 4);
 
-	console.log("voxel_data:");
-    console.log(voxel_data);
+	//console.log("voxel_data:");
+   // console.log(voxel_data);
 
     let voxels_out = []
 
@@ -30,14 +30,14 @@ function decompressVoxels(compressed_voxels) {
 
     let read_i = 0;
 	let num_mats = voxel_data[read_i++];
-	console.log("num_mats: " + num_mats)
+	//console.log("num_mats: " + num_mats)
     if(num_mats > 2000)
         throw "Too many voxel materials";
 	        
     for(let m=0; m<num_mats; ++m)
 	{
 		let count = voxel_data[read_i++];
-		console.log("mat: " + m + ", count: " + count)
+		//console.log("mat: " + m + ", count: " + count)
 		for(let i=0; i<count; ++i)
 		{
 			//Vec3<int> relative_pos;
@@ -57,7 +57,7 @@ function decompressVoxels(compressed_voxels) {
             voxels_out.push(v_z);
             voxels_out.push(m);
 
-            console.log("Added voxel at " + v_x + ", " + v_y + ", " + v_z + " with mat " + m);
+            //console.log("Added voxel at " + v_x + ", " + v_y + ", " + v_z + " with mat " + m);
 
 			cur_x = v_x;
             cur_y = v_y;
@@ -75,8 +75,8 @@ function doMakeMeshForVoxels(voxels, num_mats)
 {
 	let num_voxels = voxels.length / 4;
 
-	console.log("doMakeMeshForVoxels():");
-    console.log("num_voxels:" + num_voxels);
+	//console.log("doMakeMeshForVoxels():");
+    //console.log("num_voxels:" + num_voxels);
 
 	// Iterate over voxels, get voxel bounds for each material
 	let bounds = new Int32Array(6 * num_mats) // For each mat: (min_x, min_y, min_z, max_x, max_y, max_z)
@@ -125,8 +125,8 @@ function doMakeMeshForVoxels(voxels, num_mats)
 		largest_vol = Math.max(vol, largest_vol);
 	}*/
 
-	console.log("bounds:")
-	console.log(bounds)
+	//console.log("bounds:")
+	//console.log(bounds)
 
 	// Get overall min and max coords
 	let min_x = 1000000000;
@@ -152,12 +152,12 @@ function doMakeMeshForVoxels(voxels, num_mats)
 	let span_y = max_y - min_y + 1;
 	let span_z = max_z - min_z + 1;
 
-	console.log("span_x:")
-	console.log(span_x)
-	console.log("span_y:")
-	console.log(span_y)
-	console.log("span_z:")
-	console.log(span_z)
+	// console.log("span_x:")
+	// console.log(span_x)
+	// console.log("span_y:")
+	// console.log(span_y)
+	// console.log("span_z:")
+	// console.log(span_z)
 
 	// Make a 3d-array, which will hold 1 material index per voxel.
 	// Make the array big enough so it can hold the largest per-material voxel bounds
@@ -175,8 +175,8 @@ function doMakeMeshForVoxels(voxels, num_mats)
 		voxel_grid[(v_z - min_z) * (span_x * span_y) + (v_y - min_y) * span_x + (v_x - min_x)] = mat_i;
 	}
 
-	console.log("voxel_grid:");
-	console.log(voxel_grid);
+	//console.log("voxel_grid:");
+	//console.log(voxel_grid);
 
 	let geometry = new THREE.BufferGeometry();
 	let verts = []
@@ -184,7 +184,7 @@ function doMakeMeshForVoxels(voxels, num_mats)
 
 	for(let mat_i=0; mat_i<num_mats; ++mat_i) { // For each mat
 	
-		console.log("processing mat " + mat_i)
+		//console.log("processing mat " + mat_i)
 
 		let mat_vert_indices_start = tri_vert_indices.length;
 
@@ -194,7 +194,7 @@ function doMakeMeshForVoxels(voxels, num_mats)
 		// For each dimension (x, y, z)
 		for(let dim=0; dim<3; ++dim)
 		{
-			console.log("processing dim " + dim)
+			//console.log("processing dim " + dim)
 			
 			// Want the a_axis x b_axis = dim_axis
 			let dim_a = 0;
@@ -212,8 +212,8 @@ function doMakeMeshForVoxels(voxels, num_mats)
 				dim_b = 1;
 			}
 
-			console.log("dim_a: " + dim_a)
-			console.log("dim_b: " + dim_b)
+			//console.log("dim_a: " + dim_a)
+			//console.log("dim_b: " + dim_b)
 
 			// Get the extents along dim_a, dim_b
 			let a_min = bounds[mat_i * 6 + dim_a    ];
@@ -226,18 +226,18 @@ function doMakeMeshForVoxels(voxels, num_mats)
 			let dim_min = bounds[mat_i * 6 + dim    ];
 			let dim_end = bounds[mat_i * 6 + dim + 3] + 1;
 
-			console.log("a_min: " + a_min);
-			console.log("a_end: " + a_end);
-			console.log("b_min: " + b_min);
-			console.log("b_end: " + b_end);
-			console.log("dim_min: " + dim_min);
-			console.log("dim_end: " + dim_end);
+			//console.log("a_min: " + a_min);
+			//console.log("a_end: " + a_end);
+			//console.log("b_min: " + b_min);
+			//console.log("b_end: " + b_end);
+			//console.log("dim_min: " + dim_min);
+			//console.log("dim_end: " + dim_end);
 
 			// Make a map to indicate processed voxel faces.  Processed = included in a greedy quad already.
 			//Array2D<bool> face_needed(a_end - a_min, b_end - b_min);
 			let face_needed_x_span = (a_end - a_min);
 			let face_needed = new Uint8Array(face_needed_x_span * (b_end - b_min));
-			console.log("*********************************");
+			//console.log("*********************************");
 			//console.log("face_needed: ");
 			//console.log(face_needed);
 			//face_needed[0] = 123;
@@ -424,7 +424,7 @@ function doMakeMeshForVoxels(voxels, num_mats)
 				//================= Do upper faces along dim ==========================
 				// Build face_needed data for this slice
 
-				console.log("------------Building upper faces-----------");
+				//console.log("------------Building upper faces-----------");
 
 				vox[dim] = dim_coord;
 				adjacent_vox_pos[dim] = dim_coord + 1;
@@ -605,8 +605,8 @@ export function makeMeshForVoxelGroup(compressed_voxels, subsample_factor) {
 
 	let num_voxels = voxels.length / 4;
 
-	console.log("makeMeshForVoxelGroup");
-	console.log("num_voxels: " + num_voxels);
+	//console.log("makeMeshForVoxelGroup");
+	//console.log("num_voxels: " + num_voxels);
 
 	if(subsample_factor == 1)
 	{
