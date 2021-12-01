@@ -979,10 +979,17 @@ int main(int argc, char *argv[])
 		struct tls_config* web_tls_configuration = tls_config_new();
 
 #ifdef WIN32
-		if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()/*"O:\\new_cyberspace\\trunk\\scripts\\cert.pem"*/) != 0)
+		//if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()/*"O:\\new_cyberspace\\trunk\\scripts\\cert.pem"*/) != 0)
+		//	throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+		//if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str() /*"O:\\new_cyberspace\\trunk\\scripts\\key.pem"*/) != 0) // set private key
+		//	throw glare::Exception("tls_config_set_key_file failed.");
+
+		const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
+		if(tls_config_set_cert_file(web_tls_configuration, (certdir + "/godaddy-1da07c9956c94289.crt").c_str()) != 0)
 			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-		if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str() /*"O:\\new_cyberspace\\trunk\\scripts\\key.pem"*/) != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed.");
+		if(tls_config_set_key_file(web_tls_configuration, (certdir + "/godaddy-generated-private-key.txt").c_str()) != 0) // set private key
+			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+
 #else
 		//const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
 		const std::string certdir = "/home/" + username + "/certs/substrata.info";
@@ -1025,11 +1032,13 @@ int main(int argc, char *argv[])
 
 #ifdef WIN32		
 		web_data_store->public_files_dir = "N:\\new_cyberspace\\trunk\\webserver_public_files";
+		web_data_store->webclient_dir = "N:\\new_cyberspace\\trunk\\webclient";
 		//web_data_store->public_files_dir = "C:\\programming\\cyberspace\\webdata\\public_files";
 		//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
 		web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 #else
 		web_data_store->public_files_dir = "/var/www/cyberspace/public_html";
+		web_data_store->webclient_dir = "/var/www/cyberspace/webclient";
 		//web_data_store->resources_dir    = "/var/www/cyberspace/resources";
 		web_data_store->letsencrypt_webroot = "/var/www/cyberspace/letsencrypt_webroot";
 #endif
