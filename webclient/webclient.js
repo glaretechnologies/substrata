@@ -773,7 +773,7 @@ ws.onerror = function (event) {
 //const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
 
 
-var shadowGenerator;
+//var shadowGenerator;
 
 // Add your code here matching the playground format
 //const createScene = function () {
@@ -810,13 +810,6 @@ var shadowGenerator;
 //const scene = createScene(); // Call the createScene function
 
 
-function toYUp(v) {
-    //return new THREE.Vector3(v.x, v.z, -v.y);
-    return new THREE.Vector3(v.x, v.y, v.z);
-   // return v;
-}
-
-
 function addParcelGraphics(parcel) {
     //Polygon shape in XZ plane
 
@@ -840,10 +833,10 @@ function addParcelGraphics(parcel) {
         let v = parcel.verts[i];
         let next_v = parcel.verts[(i + 1) % 4];
 
-        let v0 = toYUp(new BABYLON.Vector3(v.x, v.y, parcel.zbounds.x));
-        let v1 = toYUp(new BABYLON.Vector3(next_v.x, next_v.y, parcel.zbounds.x));
-        let v2 = toYUp(new BABYLON.Vector3(next_v.x, next_v.y, parcel.zbounds.y));
-        let v3 = toYUp(new BABYLON.Vector3(v.x, v.y, parcel.zbounds.y));
+        let v0 = new BABYLON.Vector3(v.x, v.y, parcel.zbounds.x);
+        let v1 = new BABYLON.Vector3(next_v.x, next_v.y, parcel.zbounds.x);
+        let v2 = new BABYLON.Vector3(next_v.x, next_v.y, parcel.zbounds.y);
+        let v3 = new BABYLON.Vector3(v.x, v.y, parcel.zbounds.y);
 
         let face = i;
         vertices[face * 4 + 0] = v0;
@@ -862,10 +855,10 @@ function addParcelGraphics(parcel) {
 
     // Bottom
     {
-        let v0 = toYUp(new BABYLON.Vector3(parcel.verts[0].x, parcel.verts[0].y, parcel.zbounds.x));
-        let v1 = toYUp(new BABYLON.Vector3(parcel.verts[3].x, parcel.verts[3].y, parcel.zbounds.x));
-        let v2 = toYUp(new BABYLON.Vector3(parcel.verts[2].x, parcel.verts[2].y, parcel.zbounds.x));
-        let v3 = toYUp(new BABYLON.Vector3(parcel.verts[1].x, parcel.verts[1].y, parcel.zbounds.x));
+        let v0 = new BABYLON.Vector3(parcel.verts[0].x, parcel.verts[0].y, parcel.zbounds.x);
+        let v1 = new BABYLON.Vector3(parcel.verts[3].x, parcel.verts[3].y, parcel.zbounds.x);
+        let v2 = new BABYLON.Vector3(parcel.verts[2].x, parcel.verts[2].y, parcel.zbounds.x);
+        let v3 = new BABYLON.Vector3(parcel.verts[1].x, parcel.verts[1].y, parcel.zbounds.x);
 
         let face = 4;
         vertices[face * 4 + 0] = v0;
@@ -884,10 +877,10 @@ function addParcelGraphics(parcel) {
 
     // Top
     {
-        let v0 = toYUp(new BABYLON.Vector3(parcel.verts[0].x, parcel.verts[0].y, parcel.zbounds.y));
-        let v1 = toYUp(new BABYLON.Vector3(parcel.verts[1].x, parcel.verts[1].y, parcel.zbounds.y));
-        let v2 = toYUp(new BABYLON.Vector3(parcel.verts[2].x, parcel.verts[2].y, parcel.zbounds.y));
-        let v3 = toYUp(new BABYLON.Vector3(parcel.verts[3].x, parcel.verts[3].y, parcel.zbounds.y));
+        let v0 = new BABYLON.Vector3(parcel.verts[0].x, parcel.verts[0].y, parcel.zbounds.y);
+        let v1 = new BABYLON.Vector3(parcel.verts[1].x, parcel.verts[1].y, parcel.zbounds.y);
+        let v2 = new BABYLON.Vector3(parcel.verts[2].x, parcel.verts[2].y, parcel.zbounds.y);
+        let v3 = new BABYLON.Vector3(parcel.verts[3].x, parcel.verts[3].y, parcel.zbounds.y);
 
         let face = 5;
         vertices[face * 4 + 0] = v0;
@@ -1098,6 +1091,9 @@ function addWorldObjectGraphics(world_ob) {
 
             scene.add(mesh);
 
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
 //            let decompressed_voxels_uint8 = decompressVoxels(world_ob.compressed_voxels);
 //            console.log("decompressed_voxels_uint8:");
 //            console.log(decompressed_voxels_uint8);
@@ -1189,8 +1185,8 @@ function addWorldObjectGraphics(world_ob) {
 
                 console.log("GLTF file loaded, adding to scene..");
 
-                gltf.scene.position.copy(toYUp(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z)));
-                gltf.scene.scale.copy(toYUp(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z)));
+                gltf.scene.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+                gltf.scene.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
 
                 let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
                 axis.normalize();
@@ -1203,6 +1199,9 @@ function addWorldObjectGraphics(world_ob) {
                 let mat_index = 0;
                 gltf.scene.traverse(function (child) { // NOTE: is this traversal in the right order?
                     if (child instanceof THREE.Mesh) {
+
+                        child.castShadow = true;
+                        child.receiveShadow = true;
 
                         //console.log("Found child mesh");
                         let world_mat = world_ob.mats[mat_index];
@@ -1255,6 +1254,8 @@ function addWorldObjectGraphics(world_ob) {
                     //}
                 });
 
+               
+
                 scene.add(gltf.scene);
                 },
                 undefined,
@@ -1272,7 +1273,7 @@ function addWorldObjectGraphics(world_ob) {
 
         /*const box = BABYLON.MeshBuilder.CreateBox("box", { height: zspan, width: xspan, depth: yspan }, scene);
 
-        box.position = toYUp(new BABYLON.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
+        box.position = new BABYLON.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2);
 
         shadowGenerator.addShadowCaster(box);
         box.receiveShadows = true;*/
@@ -1280,14 +1281,13 @@ function addWorldObjectGraphics(world_ob) {
         const geometry = new THREE.BoxGeometry();
         const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
         const cube = new THREE.Mesh(geometry, material);
-        cube.position.copy(toYUp(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2)));
-        cube.scale.copy(toYUp(new THREE.Vector3(xspan, yspan, zspan)));
+        cube.position.copy(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
+        cube.scale.copy(new THREE.Vector3(xspan, yspan, zspan));
         //cube.updateMatrix();
         scene.add(cube);
         //cube.updateMatrix();
     }
 }
-
 
 
 // Register a render loop to repeatedly render the scene
@@ -1310,10 +1310,15 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
 //const geometry = new THREE.BoxGeometry();
 //const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
 //const cube = new THREE.Mesh(geometry, material);
 //scene.add(cube);
+
+
 
 camera.position.set(-4, 12, 3);
 camera.up = new THREE.Vector3(0, 0, 1);
@@ -1323,23 +1328,36 @@ camera.position.set(-2, -2, 1);
 camera.lookAt(camera.position.clone().add(new THREE.Vector3(0, 1, 0)));
 
 
-const hemiLight = new THREE.HemisphereLight(/*sky colour=*/0xeeeeff, /*groundColor =*/0x776666);
+const hemiLight = new THREE.HemisphereLight();
+hemiLight.color = new THREE.Color(0.4, 0.4, 0.45); // sky colour
+hemiLight.groundColor = new THREE.Color(0.5, 0.45, 0.4);
+hemiLight.intensity = 1.2;
+
 hemiLight.position.set(0, 20, 20);
 scene.add(hemiLight);
 
-const dirLight = new THREE.DirectionalLight(0xbbaaaa, 0.9);
-dirLight.position.set(3, -10, 10);
-//dirLight.castShadow = true;
-//dirLight.shadow.camera.top = 2;
-//dirLight.shadow.camera.bottom = - 2;
-//dirLight.shadow.camera.left = - 2;
-//dirLight.shadow.camera.right = 2;
+
+const sun_phi = 1.0;
+const sun_theta = Math.PI / 4;
+
+//===================== Add directional light =====================
+const dirLight = new THREE.DirectionalLight();
+dirLight.color = new THREE.Color(0.8, 0.8, 0.8);
+dirLight.position.setFromSphericalCoords(1, sun_phi, sun_theta);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.top = 20;
+dirLight.shadow.camera.bottom = - 20;
+dirLight.shadow.camera.left = - 20;
+dirLight.shadow.camera.right = 20;
 //dirLight.shadow.camera.near = 0.1;
 //dirLight.shadow.camera.far = 40;
+
 scene.add(dirLight);
 
 
-// Add Sky
+//===================== Add Sky =====================
 let sky = new Sky();
 sky.scale.setScalar(450000);
 scene.add(sky);
@@ -1351,25 +1369,41 @@ uniforms['mieCoefficient'].value = 0.1
 uniforms['mieDirectionalG'].value = 0.5
 uniforms['up'].value.copy(new THREE.Vector3(0,0,1));
 
-const phi = THREE.MathUtils.degToRad(90 - 45);
-const theta = THREE.MathUtils.degToRad(45);
-
 let sun = new THREE.Vector3();
-sun.setFromSphericalCoords(1, phi, theta);
+sun.setFromSphericalCoords(1, sun_phi, sun_theta);
 
 uniforms['sunPosition'].value.copy(sun);
 
 
-//const controls = new OrbitControls(camera, renderer.domElement);
-//controls.enablePan = false;
-//controls.enableZoom = false;
-//controls.target.set(0, 1, 0);
-//controls.update();
+//===================== Add ground plane =====================
+{
+    const geometry = new THREE.PlaneGeometry(1000, 1000);
+    //const material = new THREE.MeshBasicMaterial({ color: 0x999999, side: THREE.DoubleSide });
+    const material = new THREE.MeshStandardMaterial();
+    material.color = new THREE.Color(0.9, 0.9, 0.9);
 
-const geometry = new THREE.PlaneGeometry(1000, 1000);
-const material = new THREE.MeshBasicMaterial({ color: 0x999999, side: THREE.DoubleSide });
-const plane = new THREE.Mesh(geometry, material);
-scene.add(plane);
+    let texture = new THREE.TextureLoader().load("./obstacle.png");
+
+    texture.anisotropy = renderer.getMaxAnisotropy();
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+
+    texture.matrixAutoUpdate = false;
+    texture.matrix.set(
+        1000, 0, 0,
+        0, 1000, 0,
+        0, 0, 1
+    );
+   
+    material.map = texture;
+
+    const plane = new THREE.Mesh(geometry, material);
+
+    plane.castShadow = true;
+    plane.receiveShadow = true;
+    
+    scene.add(plane);
+}
 
 
 
