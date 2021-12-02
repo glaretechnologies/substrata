@@ -499,7 +499,7 @@ function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
 
     if (ob.object_type == WorldObject_ObjectType_VoxelGroup)
     {
-        console.log("got voxel ob!");
+        //console.log("got voxel ob!");
         
 
         // Read compressed voxel data
@@ -507,7 +507,7 @@ function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
         if (voxel_data_size > 1000000)
             throw "Invalid voxel_data_size (too large): " + toString(voxel_data_size);
 
-        console.log("voxel_data_size: " + voxel_data_size)
+        //console.log("voxel_data_size: " + voxel_data_size)
         if(voxel_data_size > 0)
         {
             // Read voxel data
@@ -515,8 +515,8 @@ function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
 
             // TEMP: decompress
 
-            console.log("ob.compressed_voxels:");
-            console.log(ob.compressed_voxels)
+            //console.log("ob.compressed_voxels:");
+            //console.log(ob.compressed_voxels)
             //
             //let decompressed_voxels = fzstd.decompress(new Uint8Array(ob.compressed_voxels));
             //
@@ -1055,14 +1055,14 @@ function addWorldObjectGraphics(world_ob) {
     //if (world_ob.uid == 148313) {
     if (true) {
 
-        console.log("==================addWorldObjectGraphics (ob uid: " + world_ob.uid + ")=========================")
+        //console.log("==================addWorldObjectGraphics (ob uid: " + world_ob.uid + ")=========================")
 
         let ob_lod_level = getLODLevel(world_ob, camera.position);
         let model_lod_level = getModelLODLevel(world_ob, camera.position);
-        console.log("model_lod_level: " + model_lod_level);
+        //console.log("model_lod_level: " + model_lod_level);
 
-        console.log("world_ob.compressed_voxels:");
-        console.log(world_ob.compressed_voxels);
+        //console.log("world_ob.compressed_voxels:");
+        //console.log(world_ob.compressed_voxels);
 
         if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
             // This is a voxel object
@@ -1183,7 +1183,7 @@ function addWorldObjectGraphics(world_ob) {
 
             loader.load("/resource/" + url, function (gltf) {
 
-                console.log("GLTF file loaded, adding to scene..");
+                //console.log("GLTF file loaded, adding to scene..");
 
                 gltf.scene.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
                 gltf.scene.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
@@ -1301,30 +1301,40 @@ function addWorldObjectGraphics(world_ob) {
 //});
 
 
+
+
+
+// Parse initial camera location from URL
+let initial_pos_x = 1;
+let initial_pos_y = 1;
+let initial_pos_z = 2;
+
+let params = new URLSearchParams(document.location.search);
+if(params.get("x"))
+    initial_pos_x = parseFloat(params.get("x"));
+if(params.get("y"))
+    initial_pos_y = parseFloat(params.get("y"));
+if(params.get("z"))
+    initial_pos_z = parseFloat(params.get("z"));
+
+
 THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-//const geometry = new THREE.BoxGeometry();
-//const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-//const cube = new THREE.Mesh(geometry, material);
-//scene.add(cube);
 
 
-
-camera.position.set(-4, 12, 3);
+camera.position.set(initial_pos_x, initial_pos_y, initial_pos_z);
 camera.up = new THREE.Vector3(0, 0, 1);
-camera.position.set(-2, -2, 1);
 
-//let target = ;
 camera.lookAt(camera.position.clone().add(new THREE.Vector3(0, 1, 0)));
 
 
@@ -1381,10 +1391,11 @@ uniforms['sunPosition'].value.copy(sun);
     //const material = new THREE.MeshBasicMaterial({ color: 0x999999, side: THREE.DoubleSide });
     const material = new THREE.MeshStandardMaterial();
     material.color = new THREE.Color(0.9, 0.9, 0.9);
+    //material.side = THREE.DoubleSide;
 
     let texture = new THREE.TextureLoader().load("./obstacle.png");
 
-    texture.anisotropy = renderer.getMaxAnisotropy();
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
 
@@ -1460,6 +1471,15 @@ function onKeyUp(e) {
 }
 
 
+// See https://stackoverflow.com/a/20434960
+window.addEventListener('resize', onWindowResize, false);
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
 
 document.addEventListener('mousedown', onDocumentMouseDown, false);
 document.addEventListener('mouseup', onDocumentMouseUp, false);
@@ -1472,16 +1492,18 @@ document.addEventListener('keyup', onKeyUp, false);
 function doCamMovement(dt){
     //console.log("doCamMovement()");
 
-    let move_speed = 1.0;
+    let move_speed = 3.0;
+    let turn_speed = 1.0;
 
     if(keys_down.has('ShiftLeft')){
         move_speed *= 5;
+        turn_speed *= 5;
     }
 
-    if(keys_down.has('KeyW')){
+    if(keys_down.has('KeyW') || keys_down.has('ArrowUp')){
         camera.position.addScaledVector(camForwardsVec(), dt * move_speed);
     }
-    if(keys_down.has('KeyS')){
+    if(keys_down.has('KeyS') || keys_down.has('ArrowDown')){
         camera.position.addScaledVector(camForwardsVec(), -dt * move_speed);
     }
     if(keys_down.has('KeyA')){
@@ -1496,26 +1518,48 @@ function doCamMovement(dt){
     if(keys_down.has('KeyC')){
         camera.position.addScaledVector(new THREE.Vector3(0,0,1), -dt * move_speed);
     }
+
+
+    if(keys_down.has('ArrowLeft')){
+        heading += dt * turn_speed;
+
+        camera.lookAt(camera.position.clone().add(camForwardsVec()));
+    }
+
+    if(keys_down.has('ArrowRight')){
+        heading -= dt * turn_speed;
+
+        camera.lookAt(camera.position.clone().add(camForwardsVec()));
+    }
 }
 
+function curTimeS() {
+    return window.performance.now() * 1.0e-3;
+}
 
-let cur_time = window.performance.now();
+let cur_time = curTimeS();
+
+let last_update_URL_time = curTimeS();
 
 function animate() {
-    let dt = Math.min(0.03, window.performance.now() - cur_time);
-    cur_time = window.performance.now();
+    let dt = Math.min(0.1, curTimeS() - cur_time);
+    cur_time = curTimeS();
     requestAnimationFrame(animate);
 
     doCamMovement(dt);
 
-    //camera.position.x += 0.003;
-    //cube.rotation.x += 0.01;
-   // cube.rotation.y += 0.01;
-
-    //camera.lookAt(0, 15, 2);
 
     renderer.render(scene, camera);
+
+
+    // Update URL with current camera position
+    if(cur_time > last_update_URL_time + 0.1) {
+        window.history.replaceState("object or string", "Title", "/webclient?x=" + camera.position.x.toFixed(1) + "&y=" + camera.position.y.toFixed(1) + "&z=" + camera.position.z.toFixed(1));
+        last_update_URL_time = cur_time;
+    }
 }
+
+
 
 animate();
 
