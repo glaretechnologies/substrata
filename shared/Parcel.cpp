@@ -465,6 +465,7 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 
 		mesh->buildTrisFromQuads();
 		Geometry::BuildOptions options;
+		options.compute_is_planar = false;
 		DummyShouldCancelCallback should_cancel_callback;
 		StandardPrintOutput print_output;
 		mesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
