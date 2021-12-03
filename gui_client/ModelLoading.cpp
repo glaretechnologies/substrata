@@ -918,6 +918,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		raymesh->fromBatchedMesh(*batched_mesh);
 
 		Geometry::BuildOptions options;
+		options.compute_is_planar = false;
 		DummyShouldCancelCallback should_cancel_callback;
 		StandardPrintOutput print_output;
 		raymesh->build(options, should_cancel_callback, print_output, false, task_manager);
@@ -1357,6 +1358,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 	// Build acceleration structure
 	Geometry::BuildOptions options;
+	options.compute_is_planar = false;
 	DummyShouldCancelCallback should_cancel_callback;
 	raymesh_out->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
 
