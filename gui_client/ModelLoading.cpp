@@ -1351,12 +1351,11 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Convert Indigo mesh to opengl data
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh);
 
-
 	// Build RayMesh from our indigo mesh (used for physics + picking)
 	raymesh_out = new RayMesh("mesh", /*enable_shading_normals=*/false);
-	raymesh_out->fromIndigoMesh(*indigo_mesh);
+	raymesh_out->fromIndigoMeshForPhysics(*indigo_mesh);
 
-	// Build acceleration structure
+	// Build raymesh acceleration structure
 	Geometry::BuildOptions options;
 	options.compute_is_planar = false;
 	DummyShouldCancelCallback should_cancel_callback;
