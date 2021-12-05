@@ -602,14 +602,24 @@ function doMakeMeshForVoxels(voxels, num_mats)
 
 // compressed_voxels is an ArrayBuffer 
 // subsample_factor is an integer >= 1
-// returns a THREE.BufferGeometry() object
-export function makeMeshForVoxelGroup(compressed_voxels, subsample_factor) {
+// returns [THREE.BufferGeometry(), subsample_factor]
+export function makeMeshForVoxelGroup(compressed_voxels, model_lod_level) {
 
 	let voxels = decompressVoxels(compressed_voxels);
 	// voxels is an Int32Array array of voxel data, with each voxel laid out as (pos_x, pos_y, pos_z, mat_index)
 
-
 	let num_voxels = voxels.length / 4;
+
+	// Work out subsample_factor to use
+	let max_model_lod_level = (num_voxels > 256) ? 2 : 0;
+	let use_model_lod_level = Math.min(model_lod_level, max_model_lod_level);
+
+	let subsample_factor = 1;
+	if (use_model_lod_level == 1)
+		subsample_factor = 2;
+	else if (use_model_lod_level == 2)
+		subsample_factor = 4;
+
 
 	//console.log("makeMeshForVoxelGroup");
 	//console.log("num_voxels: " + num_voxels);
@@ -624,29 +634,22 @@ export function makeMeshForVoxelGroup(compressed_voxels, subsample_factor) {
 		}
 		let num_mats = max_mat_index + 1;
 
-		return doMakeMeshForVoxels(voxels, num_mats);
+		return [doMakeMeshForVoxels(voxels, num_mats), subsample_factor];
 	}
 	else
 	{
-		let downsized_voxels = []
-
 		let max_mat_index = 0;
 		for(let v = 0; v < num_voxels; ++v)
 		{
-			let d_x = voxels[v * 4 + 0] / subsample_factor;
-			let d_y = voxels[v * 4 + 1] / subsample_factor;
-			let d_z = voxels[v * 4 + 2] / subsample_factor;
+			voxels[v * 4 + 0] = Math.floor(voxels[v * 4 + 0] / subsample_factor);
+			voxels[v * 4 + 1] = Math.floor(voxels[v * 4 + 1] / subsample_factor);
+			voxels[v * 4 + 2] = Math.floor(voxels[v * 4 + 2] / subsample_factor);
 			let mat_i = voxels[v*4 + 3];
-
-			downsized_voxels.push(d_x);
-			downsized_voxels.push(d_y);
-			downsized_voxels.push(d_z);
-			downsized_voxels.push(mat_i);
 
 			max_mat_index = Math.max(max_mat_index, mat_i);
 		}
 		let num_mats = max_mat_index + 1;
 
-		return doMakeMeshForVoxels(voxels, num_mats);
+		return [doMakeMeshForVoxels(voxels, num_mats), subsample_factor];
 	}
 }
