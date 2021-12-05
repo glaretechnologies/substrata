@@ -99,12 +99,6 @@ const ANIMATION_DATA_CHUNK = 10000;
 
 const FLAG_USE_COMPRESSION = 1;
 
-class IndicesBatch
-{
-	//uint32 indices_start;
-	//uint32 num_indices;
-	//uint32 material_index;
-}
 
 class VertAttribute {
 	//VertAttributeType type;
@@ -151,7 +145,7 @@ export function loadBatchedMesh(data) {
 
 	const geometry = new THREE.BufferGeometry();
 
-	console.log("---------------------------loadBatchedMesh()-----------------------------");
+	//console.log("---------------------------loadBatchedMesh()-----------------------------");
 
 	// Read header
 	let magic_number = buff.readUInt32();
@@ -208,30 +202,18 @@ export function loadBatchedMesh(data) {
 		vert_attributes.push(attr);
 	}
 
-	console.log("Loaded vert_attributes:");
-	console.log(vert_attributes);
-
-
-	
-
 
 	// Read batches
 	if (num_batches > MAX_NUM_BATCHES)
 		throw "Too many batches.";
 
-	let batches = []
 	for (let i = 0; i < num_batches; ++i) {
-		let batch = new IndicesBatch();
-		batch.indices_start = buff.readUInt32();
-		batch.num_indices = buff.readUInt32();
-		batch.material_index = buff.readUInt32();
-		batches.push(batch);
+		let indices_start = buff.readUInt32();
+		let num_indices = buff.readUInt32();
+		let material_index = buff.readUInt32();
 
-		geometry.addGroup(/*start index=*/batch.indices_start, /*count=*/batch.num_indices, batch.material_index);
+		geometry.addGroup(/*start index=*/indices_start, /*count=*/num_indices, material_index);
 	}
-
-	console.log("Loaded batches:");
-	console.log(batches);
 
 	
 	// Check header index type
@@ -242,9 +224,6 @@ export function loadBatchedMesh(data) {
 	if (index_data_size_B % componentTypeSize(index_type) != 0)
 		throw "Invalid index_data_size_B.";
 
-	//mesh_out.index_data.resize(index_data_size_B); // TODO: size check? 32-bit limit of index_data_size_B may be enough.
-	//let index_data = new Uint8Array(index_data_size_B);
-
 	// Check total vert data size is a multiple of each vertex size.  Note that vertexSize() should be > 0 since we have set mesh_out.vert_attributes and checked there is at least one attribute.
 	if (vertex_data_size_B % vertexSize(vert_attributes) != 0)
 		throw "Invalid vertex_data_size_B.";
@@ -252,27 +231,15 @@ export function loadBatchedMesh(data) {
 	//mesh_out.vertex_data.resize(header.vertex_data_size_B); // TODO: size check? 32-bit limit of vertex_data_size_B may be enough.
 	let vertex_data = new Uint8Array(vertex_data_size_B);
 
-	//let deinterleaved = null;
-
-	//mesh_out.aabb_os.min_ = Vec4f(header.aabb_min.x, header.aabb_min.y, header.aabb_min.z, 1.f);
-	//mesh_out.aabb_os.max_ = Vec4f(header.aabb_max.x, header.aabb_max.y, header.aabb_max.z, 1.f);
-	// TODO: require AABB values finite?
-
 	let vert_size = vertexSize(vert_attributes); // in bytes
-	//assert(vert_size % 4 == 0);
 	let num_verts = vertex_data_size_B / vert_size;
 
 	let index_data = null;
 
 	let compression = (flags & FLAG_USE_COMPRESSION) != 0;
 	if (compression) {
-		//js:: Vector < uint8, 16 > plaintext(myMax(header.index_data_size_B, header.vertex_data_size_B)); // Make sure large enough so we don't need to resize later.
-
 		{
-			//const uint64 index_data_compressed_size = file.readUInt64();
 			let index_data_compressed_size = Number(buff.readUInt64());
-
-			console.log("index_data_compressed_size: " + index_data_compressed_size);
 
 			if ((index_data_compressed_size >= buff.length()) || (buff.getReadIndex() + index_data_compressed_size > buff.length())) // Check index_data_compressed_size is valid, while taking care with wraparound
 				throw "index_data_compressed_size was invalid.";
@@ -281,29 +248,11 @@ export function loadBatchedMesh(data) {
 			let compressed_text = buff.readData(index_data_compressed_size);
 			let plaintext = fzstd.decompress(new Uint8Array(compressed_text));
 
-			console.log("plaintext:");
-			console.log(plaintext);
-
-			//const size_t res = ZSTD_decompress(plaintext.begin(), header.index_data_size_B, file.currentReadPtr(), index_data_compressed_size);
-			//if (ZSTD_isError(res))
-			//	throw "Decompression of index buffer failed: " + toString(res));
-			//if (res < (size_t)header.index_data_size_B)
-			//throw "Decompression of index buffer failed: not enough bytes in result";
-			//timer.pause();
-
-			
-
 			// Unfilter indices, place in mesh_out.index_data.
 			let num_indices = index_data_size_B / componentTypeSize(index_type);
 			if (index_type == ComponentType_UInt8) {
 				let last_index = 0;
-				//const int8* filtered_index_data_int8 = (const int8*)plaintext.data();
 				let filtered_index_data_int8 = new Int8Array(plaintext.buffer, plaintext.byteOffset, plaintext.length);
-
-				console.log("filtered_index_data_int8:");
-				console.log(filtered_index_data_int8);
-
-				//uint8 * index_data = (uint8 *)mesh_out.index_data.data();
 				index_data = new Uint8Array(index_data_size_B);
 				for (let i = 0; i < num_indices; ++i) {
 					let index = last_index + filtered_index_data_int8[i];
@@ -333,16 +282,8 @@ export function loadBatchedMesh(data) {
 			}
 			else
 				throw "Invalid index component type " + index_type;
-
-
-			
-			//file.setReadIndex(file.getReadIndex() + index_data_compressed_size);
 		}
 
-
-		
-
-		
 		// Decompress and de-filter vertex data.
 		{
 			let vertex_data_compressed_size = Number(buff.readUInt64());
@@ -352,16 +293,7 @@ export function loadBatchedMesh(data) {
 			// Decompress data into plaintext buffer.
 			let compressed_text = buff.readData(vertex_data_compressed_size);
 			let plaintext = fzstd.decompress(new Uint8Array(compressed_text));
-			//timer.unpause();
-			//const size_t res = ZSTD_decompress(plaintext.begin(), header.vertex_data_size_B, file.currentReadPtr(), vertex_data_compressed_size);
-			//if (ZSTD_isError(res))
-			//	throw "Decompression of index buffer failed: " + toString(res));
-			//if (res < (size_t)header.vertex_data_size_B)
-			//throw "Decompression of index buffer failed: not enough bytes in result");
-			//timer.pause();
-			// const double elapsed = timer.elapsed();
-			// conPrint("Decompression took   " + doubleToStringNSigFigs(elapsed, 4) + " (" + doubleToStringNSigFigs(((double)((size_t)header.index_data_size_B + header.vertex_data_size_B) / (1024ull*1024ull)) / elapsed, 4) + "MB/s)");
-
+			
 			/*
 			Read de-interleaved vertex data, and interleave it.
 		
@@ -369,13 +301,9 @@ export function loadBatchedMesh(data) {
 			=>
 			p0 n0 c0 p1 n1 c1 p2 n2 c2 p3 n3 c3 ... pN nN cN
 			*/
-			
-
-
 			let src = new Uint32Array(plaintext.buffer, plaintext.byteOffset, plaintext.length / 4);
 			let dst = new Uint32Array(vertex_data.buffer, vertex_data.byteOffset, vertex_data.length / 4);
 
-			//const uint8* src_ptr = plaintext.data();
 			let src_i = 0;
 			
 			let attr_offset_B = 0;
@@ -383,8 +311,6 @@ export function loadBatchedMesh(data) {
 			{
 				let attr_size_B = vertAttributeSize(vert_attributes[b]);
 				let attr_size_uint32s = attr_size_B / 4;
-				//assert(attr_size % 4 == 0);
-				//uint8 * dst_ptr = mesh_out.vertex_data.data() + attr_offset;
 				let dst_i = attr_offset_B / 4;
 
 				let vert_size_uint32s = vert_size / 4;
@@ -392,37 +318,23 @@ export function loadBatchedMesh(data) {
 				for (let i = 0; i < num_verts; ++i) // For each vertex
 				{
 					// Copy data for this attribute, for this vertex, to filtered_data
-					//assert(src_ptr + attr_size <= plaintext.data() + plaintext.size());
-					//assert(dst_ptr + attr_size <= mesh_out.vertex_data.data() + mesh_out.vertex_data.size());
-
-					//copyUInt32s(dst_ptr, src_ptr, attr_size);
 					for (let z = 0; z < attr_size_uint32s; ++z)
 						dst[dst_i + z] = src[src_i + z];
 
-					//src_ptr += attr_size;
 					src_i += attr_size_uint32s;
-					//dst_ptr += vert_size;
 					dst_i += vert_size_uint32s;
 				}
 
 				attr_offset_B += attr_size_B;
 			}
-
-			//file.setReadIndex(file.getReadIndex() + vertex_data_compressed_size);
 		}
 	}
 	else // else if !compression:
 	{
-//		file.readData(mesh_out.index_data.data(), mesh_out.index_data.dataSizeBytes());
-//		file.readData(mesh_out.vertex_data.data(), mesh_out.vertex_data.dataSizeBytes());
-		throw "bmeshes without compression not supported.";
+		throw "bmeshes without compression not currently supported.";
 	}
 
-	//console.log("index_data:");
-	//console.log(index_data);
-
 	geometry.setIndex(new THREE.BufferAttribute(index_data, 1));
-
 
 	// Convert and expand vertex data to something 3.js can handle
 
@@ -460,9 +372,6 @@ export function loadBatchedMesh(data) {
 	// Views on vertex_data
 	let deinterleaved_uint32 = new Uint32Array(vertex_data.buffer, vertex_data.byteOffset, vertex_data.length / 4);
 	let deinterleaved_float = new Float32Array(vertex_data.buffer, vertex_data.byteOffset, vertex_data.length / 4);
-
-	//console.log("vert_attributes:");
-	//console.log(vert_attributes);
 
 	// Do a pass over the attributes and vertex data to compute the expanded vertex data
 	let expanded_attr_offset_B = 0;
@@ -532,18 +441,4 @@ export function loadBatchedMesh(data) {
 	}
 
 	return geometry;
-
-	// Read animation data chunk if present
-//	if (file.getReadIndex() != file.fileSize()) {
-//		const uint32 chunk = file.readUInt32();
-////		if (chunk == ANIMATION_DATA_CHUNK) {
-////			// Timer timer;
-////			mesh_out.animation_data.readFromStream(file);
-////			// conPrint("Reading animation data took " + timer.elapsedStringNSigFigs(4));
-////		}
-////		else
-////			throw "invalid chunk value: " + toString(chunk));
-////	}
-//
-//	assert(file.getReadIndex() == file.fileSize());
 }
