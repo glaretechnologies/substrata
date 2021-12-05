@@ -9,25 +9,6 @@ import * as THREE from './build/three.module.js';
 import * as bufferin from './bufferin.js';
 
 
-/*
-struct BatchedMeshHeader
-{
-	uint32 magic_number;
-	uint32 format_version;
-	uint32 header_size;
-	uint32 flags;
-
-	uint32 num_vert_attributes;
-	uint32 num_batches;
-	uint32 index_type;
-	uint32 index_data_size_B;
-	uint32 vertex_data_size_B;
-
-	Vec3f aabb_min;
-	Vec3f aabb_max;
-};
-*/
-
 class Vec3f {
 	constructor(x_, y_, z_) {
 		this.x = x_;
@@ -44,17 +25,14 @@ function readVec3fFromStream(buffer_in) {
 }
 
 
-//enum ComponentType {
 const ComponentType_Float = 0;
 const ComponentType_Half = 1;
 const ComponentType_UInt8 = 2;
 const ComponentType_UInt16 = 3;
 const ComponentType_UInt32 = 4;
 const ComponentType_PackedNormal = 5; // GL_INT_2_10_10_10_REV
-//};
 const MAX_COMPONENT_TYPE_VALUE = 5;
 
-//enum VertAttributeType {
 const VertAttribute_Position = 0;
 const VertAttribute_Normal = 1;
 const VertAttribute_Colour = 2;
@@ -62,7 +40,6 @@ const VertAttribute_UV_0 = 3;
 const VertAttribute_UV_1 = 4;
 const VertAttribute_Joints = 5; // Indices of joint nodes for skinning
 const VertAttribute_Weights = 6; // weights for skinning
-//};
 const MAX_VERT_ATTRIBUTE_TYPE_VALUE = 6;
 
 function componentTypeSize(t)
@@ -115,7 +92,6 @@ function vertexSize(vert_attributes) // in bytes
 const MAX_NUM_VERT_ATTRIBUTES = 100;
 const MAX_NUM_BATCHES = 1000000;
 
-
 const MAGIC_NUMBER = 12456751;
 const FORMAT_VERSION = 1;
 
@@ -131,14 +107,9 @@ class IndicesBatch
 }
 
 class VertAttribute {
-	//VertAttribute() { }
-	//VertAttribute(VertAttributeType type_, ComponentType component_type_, size_t offset_B_) : type(type_), component_type(component_type_), offset_B(offset_B_) { }
-	//
 	//VertAttributeType type;
 	//ComponentType component_type;
 	//size_t offset_B; // Offset of attribute in vertex data, in bytes.
-	//
-	//bool operator == (const VertAttribute& other) const { return type == other.type && component_type == other.component_type && offset_B == other.offset_B;
 }
 
 
@@ -255,7 +226,6 @@ export function loadBatchedMesh(data) {
 		batch.num_indices = buff.readUInt32();
 		batch.material_index = buff.readUInt32();
 		batches.push(batch);
-
 
 		geometry.addGroup(/*start index=*/batch.indices_start, /*count=*/batch.num_indices, batch.material_index);
 	}
@@ -445,62 +415,27 @@ export function loadBatchedMesh(data) {
 	{
 //		file.readData(mesh_out.index_data.data(), mesh_out.index_data.dataSizeBytes());
 //		file.readData(mesh_out.vertex_data.data(), mesh_out.vertex_data.dataSizeBytes());
-		throw "!compression not supported.";
+		throw "bmeshes without compression not supported.";
 	}
 
-
-	//index_data = new Uint32Array(index_data);
-	console.log("index_data:");
-	console.log(index_data);
+	//console.log("index_data:");
+	//console.log(index_data);
 
 	geometry.setIndex(new THREE.BufferAttribute(index_data, 1));
 
-	//geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertex_data.buffer), /*itemSize=*/3));
 
-	/*
-	const VertAttribute_Position = 0;
-	const VertAttribute_Normal = 1;
-	const VertAttribute_Colour = 2;
-	const VertAttribute_UV_0 = 3;
-	const VertAttribute_UV_1 = 4;
-	const VertAttribute_Joints = 5; // Indices of joint nodes for skinning
-	const VertAttribute_Weights = 6; // weights for skinning
+	// Convert and expand vertex data to something 3.js can handle
 
-
-	const ComponentType_Float = 0;
-	const ComponentType_Half = 1;
-	const ComponentType_UInt8 = 2;
-	const ComponentType_UInt16 = 3;
-	const ComponentType_UInt32 = 4;
-	const ComponentType_PackedNormal = 5; // GL_INT_2_10_10_10_REV
-	*/
-
-
-	
-
-	// Convert and expand vertex data to something 3.js expects
-	let expanded_vert_size = 0;
+	// Do a pass over the attributes to get the expanded attribute size and total expanded vertex size.
+	let expanded_vert_size_B = 0;
 	let expanded_attr_sizes = []
 	for (let i = 0; i < vert_attributes.length; ++i) {
-		let name = null;
 
 		let attr = vert_attributes[i];
-		if (attr.type == VertAttribute_Position)
-			name == 'position';
-		else if (attr.type == VertAttribute_Normal)
-			name == 'normal';
-		else if (attr.type == VertAttribute_Colour)
-			name == 'color';
-		else if (attr.type == VertAttribute_UV_0)
-			name == 'uv';
-		else if (attr.type == VertAttribute_UV_1)
-			name == 'uv2';
-		else
-			throw "unhandled attribute type";
 
-		let num_components = vertAttributeTypeNumComponents(vert_attributes[i].type);
+		let num_components = vertAttributeTypeNumComponents(attr.type);
 
-
+		// Compute size, in bytes, of the attribute component type expanded to something 3.js can handle.
 		let expanded_comp_size = null;
 		if (attr.component_type == ComponentType_Float)
 			expanded_comp_size = 4;
@@ -517,21 +452,20 @@ export function loadBatchedMesh(data) {
 
 		let attr_size = num_components * expanded_comp_size;
 		expanded_attr_sizes.push(attr_size);
-		expanded_vert_size += attr_size;
+		expanded_vert_size_B += attr_size;
 	}
 
+	let expanded = new Float32Array(num_verts * expanded_vert_size_B / 4);
 
-	let expanded = new Float32Array(num_verts * expanded_vert_size / 4);
-
-
+	// Views on vertex_data
 	let deinterleaved_uint32 = new Uint32Array(vertex_data.buffer, vertex_data.byteOffset, vertex_data.length / 4);
 	let deinterleaved_float = new Float32Array(vertex_data.buffer, vertex_data.byteOffset, vertex_data.length / 4);
 
+	//console.log("vert_attributes:");
+	//console.log(vert_attributes);
 
-	
-
-	// Convert and expand vertex data to something 3.js can handle
-	let expanded_attr_offset = 0;
+	// Do a pass over the attributes and vertex data to compute the expanded vertex data
+	let expanded_attr_offset_B = 0;
 	for (let i = 0; i < vert_attributes.length; ++i) {
 
 		let attr = vert_attributes[i];
@@ -539,12 +473,12 @@ export function loadBatchedMesh(data) {
 		let attr_size_uint32s = expanded_attr_sizes[i] / 4;
 
 		let vert_size_uint32s = vert_size / 4;
-		let expanded_vert_size_uint32s = expanded_vert_size / 4;
+		let expanded_vert_size_uint32s = expanded_vert_size_B / 4;
 
-		let expanded_attr_offset_uint32s = expanded_attr_offset / 4;
+		let expanded_attr_offset_uint32s = expanded_attr_offset_B / 4;
 		let src_attr_offset_uint32s = attr.offset_B / 4;
 
-		if (attr.component_type == ComponentType_Float) {
+		if (attr.component_type == ComponentType_Float || attr.component_type == ComponentType_UInt16) {
 			for (let v = 0; v < num_verts; ++v) {
 				for (let q = 0; q < attr_size_uint32s; ++q) {
 					expanded[v * expanded_vert_size_uint32s + expanded_attr_offset_uint32s + q] = deinterleaved_float[v * vert_size_uint32s + src_attr_offset_uint32s + q];
@@ -553,63 +487,28 @@ export function loadBatchedMesh(data) {
 		}
 		else if (attr.component_type == ComponentType_PackedNormal) {
 			for (let v = 0; v < num_verts; ++v) {
-				let packed_normal = deinterleaved_uint32[v * vert_size_uint32s + src_attr_offset_uint32s];
-
-				let unpacked_normal = batchedMeshUnpackNormal(packed_normal);
-				expanded[v * expanded_vert_size_uint32s + expanded_attr_offset_uint32s + 0] = unpacked_normal.x;
+				let packed_normal = deinterleaved_uint32[v * vert_size_uint32s + src_attr_offset_uint32s]; // Read as a uint32
+				let unpacked_normal = batchedMeshUnpackNormal(packed_normal); // Unpack to a Vec3f
+				expanded[v * expanded_vert_size_uint32s + expanded_attr_offset_uint32s + 0] = unpacked_normal.x; // Write expanded components
 				expanded[v * expanded_vert_size_uint32s + expanded_attr_offset_uint32s + 1] = unpacked_normal.y;
 				expanded[v * expanded_vert_size_uint32s + expanded_attr_offset_uint32s + 2] = unpacked_normal.z;
 			}
 		}
 		else
-			throw "Unhandled attribute while expanding: " + attr.component_type;
+			throw "Unhandled attribute component_type while expanding: " + attr.component_type + ", attr.type: " + attr.type;
 
-		expanded_attr_offset += expanded_attr_sizes[i];
-
-
-		let name = null;
-
-		if (attr.type == VertAttribute_Position)
-			name == 'position';
-		else if (attr.type == VertAttribute_Normal)
-			name == 'normal';
-		else if (attr.type == VertAttribute_Colour)
-			name == 'color';
-		else if (attr.type == VertAttribute_UV_0)
-			name == 'uv';
-		else if (attr.type == VertAttribute_UV_1)
-			name == 'uv2';
-		else
-			throw "unhandled attribute type";
-
-		let num_components = vertAttributeTypeNumComponents(vert_attributes[i].type);
-
-		//let arr = null;
-		//if (attr.component_type == ComponentType_Float)
-		//	arr = new Float32Array(vertex_data.buffer);
-		//else if (attr.component_type == ComponentType_Half)
-		//	arr = new Float32Array(vertex_data.buffer);
-		//else if (attr.component_type == ComponentType_UInt8)
-		//	arr = new Uint8Array(vertex_data.buffer);
-		//else if (attr.component_type == ComponentType_UInt16)
-		//	arr = new Uint16Array(vertex_data.buffer);
-		//else if (attr.component_type == ComponentType_UInt32)
-		//	arr = new Uint32Array(vertex_data.buffer);
-		//else if (attr.component_type == ComponentType_PackedNormal)
-		//	arr = new Float32Array(vertex_data.buffer);
-
-		//geometry.setAttribute(name, new THREE.InterleavedBufferAttribute(interleaved_buffer, /*itemSize=*/num_components, /*offset=*/expanded_attr_offset_uint32s));
+		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
 
-	let interleaved_buffer = new THREE.InterleavedBuffer(expanded, /*vert stride in elems=*/expanded_vert_size / 4);
+	let interleaved_buffer = new THREE.InterleavedBuffer(expanded, /*vert stride in elems=*/expanded_vert_size_B / 4);
 
-	expanded_attr_offset = 0;
+	// Set the 3.js geometry vertex attributes
+	expanded_attr_offset_B = 0;
 	for (let i = 0; i < vert_attributes.length; ++i) {
 
 		let attr = vert_attributes[i];
-		let expanded_attr_offset_uint32s = expanded_attr_offset / 4;
+		let expanded_attr_offset_uint32s = expanded_attr_offset_B / 4;
 		
-
 		let name = null;
 		if (attr.type == VertAttribute_Position)
 			name = 'position';
@@ -622,22 +521,15 @@ export function loadBatchedMesh(data) {
 		else if (attr.type == VertAttribute_UV_1)
 			name = 'uv2';
 		else
-			throw "unhandled attribute type";
+			console.log("Note: ignoring attribute type " + attr.type);
 
-		let num_components = vertAttributeTypeNumComponents(vert_attributes[i].type);
+		if (name !== null) {
+			let num_components = vertAttributeTypeNumComponents(attr.type);
 
-		//if (name === 'position') {
-			
 			geometry.setAttribute(name, new THREE.InterleavedBufferAttribute(interleaved_buffer, /*itemSize=*/num_components, /*offset=*/expanded_attr_offset_uint32s));
-		//}
-
-		expanded_attr_offset += expanded_attr_sizes[i];
+		}
+		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
-
-
-	console.log("expanded: ");
-	console.log(expanded);
-
 
 	return geometry;
 

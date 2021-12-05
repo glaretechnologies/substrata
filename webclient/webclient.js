@@ -1042,13 +1042,35 @@ function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
 
 
 // three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
-function setThreeJSMaterial(three_mat, world_mat) {
+function setThreeJSMaterial(three_mat, world_mat, ob_lod_level) {
     three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
     three_mat.metalness = world_mat.metallic_fraction.val;
     three_mat.roughness = world_mat.roughness.val;
 
     three_mat.opacity = world_mat.opacity.val;
     three_mat.transparent = world_mat.opacity.val < 1.0;
+
+    if (world_mat.colour_texture_url.length > 0) {
+        // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
+        //console.log("world_mat.flags: " + world_mat.flags);
+        //console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
+        let lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, world_mat.colourTexHasAlpha());
+
+        //console.log("lod_texture_URL: " + lod_texture_URL);
+        //mesh.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
+
+        let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        three_mat.map = texture;
+
+        three_mat.map.matrixAutoUpdate = false;
+        three_mat.map.matrix.set(
+            world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
+            world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
+            0, 0, 1
+        );
+    }
 }
 
 
@@ -1084,7 +1106,7 @@ function addWorldObjectGraphics(world_ob) {
             for(let i=0; i<world_ob.mats.length; ++i)
             {
                 let three_mat = new THREE.MeshStandardMaterial();
-                setThreeJSMaterial(three_mat, world_ob.mats[i]);
+                setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
                 three_mats.push(three_mat);
             }
 
@@ -1131,7 +1153,7 @@ function addWorldObjectGraphics(world_ob) {
                      let three_mats = []
                      for (let i = 0; i < world_ob.mats.length; ++i) {
                          let three_mat = new THREE.MeshStandardMaterial();
-                         setThreeJSMaterial(three_mat, world_ob.mats[i]);
+                         setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
                          three_mats.push(three_mat);
                      }
 
