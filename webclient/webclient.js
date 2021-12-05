@@ -8,6 +8,8 @@ import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
 import * as THREE from './build/three.module.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
 import * as voxelloading from './voxelloading.js';
+import * as bufferin from './bufferin.js';
+import { loadBatchedMesh } from './bmeshloading.js';
 
 var ws = new WebSocket("ws://localhost", "echo-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
@@ -129,7 +131,7 @@ ws.onopen = function () {
 };
 
 
-class BufferIn {
+/*class BufferIn {
     constructor(array_buffer_) {
         this.array_buffer = array_buffer_;
         this.data_view = new DataView(array_buffer_);
@@ -145,7 +147,7 @@ class BufferIn {
         this.read_index += len;
         return res;
     }
-}
+}*/
 
 function readInt32(buffer_in) {
     var x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
@@ -662,7 +664,7 @@ ws.onmessage = function (event) {
 
 
     let z = 0;
-    let buffer = new BufferIn(event.data);
+    let buffer = new bufferin.BufferIn(event.data);
     while (!buffer.endOfStream()) {
 
         //console.log("Reading, buffer.read_index: " + buffer.read_index);
@@ -1039,10 +1041,14 @@ function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
 //}
 
 
+// three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
 function setThreeJSMaterial(three_mat, world_mat) {
     three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
     three_mat.metalness = world_mat.metallic_fraction.val;
     three_mat.roughness = world_mat.roughness.val;
+
+    three_mat.opacity = world_mat.opacity.val;
+    three_mat.transparent = world_mat.opacity.val < 1.0;
 }
 
 
@@ -1067,8 +1073,11 @@ function addWorldObjectGraphics(world_ob) {
         if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
             // This is a voxel object
 
-            let subsample_factor = 1;
-            let geometry = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, subsample_factor); // type THREE.BufferGeometry
+           
+           // let subsample_factor = 4;
+            let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level); // type THREE.BufferGeometry
+            let geometry = values[0];
+            let subsample_factor = values[1];
             geometry.computeVertexNormals();
 
             let three_mats = []
@@ -1081,7 +1090,7 @@ function addWorldObjectGraphics(world_ob) {
 
             const mesh = new THREE.Mesh(geometry, three_mats);
             mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-            mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
+            mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
 
             let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
             axis.normalize();
@@ -1093,62 +1102,6 @@ function addWorldObjectGraphics(world_ob) {
 
             mesh.castShadow = true;
             mesh.receiveShadow = true;
-
-//            let decompressed_voxels_uint8 = decompressVoxels(world_ob.compressed_voxels);
-//            console.log("decompressed_voxels_uint8:");
-//            console.log(decompressed_voxels_uint8);
-//
-//            // A voxel is
-//            //Vec3<int> pos;
-//	        //int mat_index; // Index into materials
-//            //let voxel_ints = new Uint32Array(decompressed_voxels))
-//
-//            let voxel_data = new Int32Array(decompressed_voxels_uint8.buffer);
-//
-//            let voxels_out = []
-//
-//            console.log("voxel_data:");
-//            console.log(voxel_data);
-//
-//            let cur_x = 0;
-//            let cur_y = 0;
-//            let cur_z = 0;
-//
-//            let read_i = 0;
-//	        let num_mats = voxel_data[read_i++];
-//            if(num_mats > 2000)
-//                throw "Too many voxel materials";
-//	        
-//            for(let m=0; m<num_mats; ++m)
-//	        {
-//		        let count = voxel_data[read_i++];
-//		        for(let i=0; i<count; ++i)
-//		        {
-//			        //Vec3<int> relative_pos;
-//			       // instream.readData(&relative_pos, sizeof(Vec3<int>));
-//                    let rel_x = voxel_data[read_i++];
-//                    let rel_y = voxel_data[read_i++];
-//                    let rel_z = voxel_data[read_i++];
-//
-//			        //const Vec3<int> pos = current_pos + relative_pos;
-//                    let v_x = cur_x + rel_x;
-//                    let v_y = cur_y + rel_y;
-//                    let v_z = cur_z + rel_z;
-//
-//			        //group_out.voxels.push_back(Voxel(pos, m));
-//                    voxels_out.push(v_x);
-//                    voxels_out.push(v_y);
-//                    voxels_out.push(v_z);
-//                    voxels_out.push(m);
-//
-//                    console.log("Added voxel at " + v_x + ", " + v_y + ", " + v_z + " with mat " + m);
-//
-//			        cur_x = v_x;
-//                    cur_y = v_y;
-//                    cur_z = v_z;
-//		        }
- //           }
-
         }
         else if(world_ob.model_url !== "") {
 
@@ -1157,10 +1110,10 @@ function addWorldObjectGraphics(world_ob) {
 
             console.log("LOD model URL: " + url);
 
-            if (filenameExtension(url) != "glb")
-                url += ".glb";
+            //if (filenameExtension(url) != "glb")
+            //    url += ".glb";
 
-            /* let encoded_url = encodeURIComponent(url);
+            let encoded_url = encodeURIComponent(url);
  
              var oReq = new XMLHttpRequest();
              oReq.open("GET", "/resource/" + encoded_url, true);
@@ -1168,101 +1121,43 @@ function addWorldObjectGraphics(world_ob) {
  
  
              oReq.onload = function (oEvent) {
-                 var arrayBuffer = oReq.response; // Note: not oReq.responseText
-                 if (arrayBuffer) {
+                 var array_buffer = oReq.response; // Note: not oReq.responseText
+                 if (array_buffer) {
  
                      console.log("Downloaded the file: '" + url + "'!");
- 
- 
+
+                     let geometry = loadBatchedMesh(array_buffer);
+
+                     let three_mats = []
+                     for (let i = 0; i < world_ob.mats.length; ++i) {
+                         let three_mat = new THREE.MeshStandardMaterial();
+                         setThreeJSMaterial(three_mat, world_ob.mats[i]);
+                         three_mats.push(three_mat);
+                     }
+
+                     const mesh = new THREE.Mesh(geometry, three_mats);
+                     mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+                     mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
+
+                     let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+                     axis.normalize();
+                     let q = new THREE.Quaternion();
+                     q.setFromAxisAngle(axis, world_ob.angle);
+                     mesh.setRotationFromQuaternion(q);
+
+                     console.log("Adding mesh to scene...");
+                     console.log("mesh:");
+                     console.log(mesh);
+
+
+                     scene.add(mesh);
+
+                     mesh.castShadow = true;
+                     mesh.receiveShadow = true;
                  }
              };
  
-             oReq.send(null);*/
-
-            const loader = new GLTFLoader();
-
-            loader.load("/resource/" + url, function (gltf) {
-
-                //console.log("GLTF file loaded, adding to scene..");
-
-                gltf.scene.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-                gltf.scene.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
-
-                let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-                axis.normalize();
-                let q = new THREE.Quaternion();
-                q.setFromAxisAngle(axis, world_ob.angle);
-                gltf.scene.setRotationFromQuaternion(q);
-
-                //console.log("Traversing...");
-
-                let mat_index = 0;
-                gltf.scene.traverse(function (child) { // NOTE: is this traversal in the right order?
-                    if (child instanceof THREE.Mesh) {
-
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        //console.log("Found child mesh");
-                        let world_mat = world_ob.mats[mat_index];
-                        if (world_mat) {
-
-                            child.material.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
-                            child.material.metalness = world_mat.metallic_fraction.val;
-                            child.material.roughness = world_mat.roughness.val;
-
-                            if(world_mat.colour_texture_url.length > 0) {
-                                // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
-                                //console.log("world_mat.flags: " + world_mat.flags);
-                                //console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
-                                let lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, world_mat.colourTexHasAlpha());
-
-                                //console.log("lod_texture_URL: " + lod_texture_URL);
-                                //child.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
-
-                                let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
-                                texture.wrapS = THREE.RepeatWrapping;
-                                texture.wrapT = THREE.RepeatWrapping;
-                                child.material.map = texture;
-
-                                child.material.map.matrixAutoUpdate = false;
-                                //console.log("world_mat.tex_matrix: ", world_mat.tex_matrix);
-                                child.material.map.matrix.set(
-                                    world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
-                                    world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
-                                    0, 0, 1
-                                );
-                                //console.log("child.material.map.matrix: ", child.material.map.matrix);
-                            }
-
-                            child.material.needsUpdate = true;
-                        }
-                   
-
-                        mat_index++;
-                    }
-                    //if (child instanceof THREE.Mesh) {
-
-                    //    mat = world_ob.mats[mat_index];
-                    //    // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
-
-
-                    //    child.material.map = THREE.ImageUtils.loadTexture("resource/" + world_ob.mats[0].colour_texture_url);
-                    //    child.material.needsUpdate = true;
-
-                    //    mat_index++;
-                    //}
-                });
-
-               
-
-                scene.add(gltf.scene);
-                },
-                undefined,
-                function (error) {
-
-                console.error(error);
-            });
+             oReq.send(null);
         }
     }
     else {
@@ -1419,7 +1314,7 @@ uniforms['sunPosition'].value.copy(sun);
 
 
 let is_mouse_down = false;
-let heading = 0;
+let heading = Math.PI / 2;
 let pitch = Math.PI / 2;
 let keys_down = new Set();
 

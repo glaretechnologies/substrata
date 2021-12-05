@@ -485,6 +485,8 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(
 			request.path == "/fzstd.js" ||
+			request.path == "/bufferin.js" ||
+			request.path == "/bmeshloading.js" ||
 			request.path == "/voxelloading.js" ||
 			request.path == "/webclient.js" ||
 			request.path == "/examples/jsm/loaders/GLTFLoader.js" ||
@@ -497,6 +499,20 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				std::string contents;
 				FileUtils::readEntireFile(data_store->webclient_dir + request.path, contents);
 				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
+			}
+			catch(FileUtils::FileUtilsExcep& e)
+			{
+				conPrint("Failed to load file: " + e.what());
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
+			}
+		}
+		else if(request.path == "/obstacle.png") // Data files used by the webclient
+		{
+			try
+			{
+				std::string contents;
+				FileUtils::readEntireFile(data_store->webclient_dir + request.path, contents);
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "image/png");
 			}
 			catch(FileUtils::FileUtilsExcep& e)
 			{
