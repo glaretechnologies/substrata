@@ -4,7 +4,7 @@ webclient.js
 Copyright Glare Technologies Limited 2021 -
 =====================================================================*/
 
-import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
+//import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
 import * as THREE from './build/three.module.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
 import * as voxelloading from './voxelloading.js';
