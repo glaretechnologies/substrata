@@ -413,6 +413,7 @@ export function loadBatchedMesh(data) {
 
 	// Set the 3.js geometry vertex attributes
 	expanded_attr_offset_B = 0;
+	let added_normals = false;
 	for (let i = 0; i < vert_attributes.length; ++i) {
 
 		let attr = vert_attributes[i];
@@ -421,8 +422,10 @@ export function loadBatchedMesh(data) {
 		let name = null;
 		if (attr.type == VertAttribute_Position)
 			name = 'position';
-		else if (attr.type == VertAttribute_Normal)
+		else if (attr.type == VertAttribute_Normal) {
 			name = 'normal';
+			added_normals = true;
+		}
 		else if (attr.type == VertAttribute_Colour)
 			name = 'color';
 		else if (attr.type == VertAttribute_UV_0)
@@ -436,10 +439,15 @@ export function loadBatchedMesh(data) {
 		if (name !== null) {
 			let num_components = vertAttributeTypeNumComponents(attr.type);
 
+			// console.log("Adding attribute " + name + "...");
+
 			geometry.setAttribute(name, new THREE.InterleavedBufferAttribute(interleaved_buffer, /*itemSize=*/num_components, /*offset=*/expanded_attr_offset_uint32s));
 		}
 		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
+
+	if (!added_normals)
+		geometry.computeVertexNormals();
 
 	return geometry;
 }
