@@ -429,8 +429,9 @@ export function loadBatchedMesh(data) {
 			name = 'uv';
 		else if (attr.type == VertAttribute_UV_1)
 			name = 'uv2';
-		else
-			console.log("Note: ignoring attribute type " + attr.type);
+		else {
+			// console.log("Note: ignoring attribute type " + attr.type);
+		}
 
 		if (name !== null) {
 			let num_components = vertAttributeTypeNumComponents(attr.type);

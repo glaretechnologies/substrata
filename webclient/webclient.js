@@ -11,7 +11,8 @@ import * as voxelloading from './voxelloading.js';
 import * as bufferin from './bufferin.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 
-var ws = new WebSocket("ws://localhost", "echo-protocol");
+var ws = new WebSocket("wss://substrata.info", "substrata-protocol");
+//var ws = new WebSocket("ws://localhost", "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
 
@@ -540,7 +541,7 @@ function sendQueryObjectsMessage() {
     let buffer_out = new BufferOut();
     buffer_out.writeUInt32(QueryObjects);
     buffer_out.writeUInt32(0); // message length - to be updated.
-    let r = 4;
+    let r = 1;
     buffer_out.writeUInt32(2 * (2 * r + 1) * (2 * r + 1)); // Num cells to query
 
     for (let x = -r; x <= r; ++x)
@@ -804,81 +805,102 @@ function addWorldObjectGraphics(world_ob) {
 
         if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
             // This is a voxel object
-           
-            // let subsample_factor = 4;
-            let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level); // type THREE.BufferGeometry
-            let geometry = values[0];
-            let subsample_factor = values[1];
-            geometry.computeVertexNormals();
 
-            let three_mats = []
-            for(let i=0; i<world_ob.mats.length; ++i)
-            {
-                let three_mat = new THREE.MeshStandardMaterial();
-                setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
-                three_mats.push(three_mat);
+            if (true) {
+
+                // let subsample_factor = 4;
+                let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level); // type THREE.BufferGeometry
+                let geometry = values[0];
+                let subsample_factor = values[1];
+                geometry.computeVertexNormals();
+
+                let three_mats = []
+                for (let i = 0; i < world_ob.mats.length; ++i) {
+                    let three_mat = new THREE.MeshStandardMaterial();
+                    setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
+                    three_mats.push(three_mat);
+                }
+
+                const mesh = new THREE.Mesh(geometry, three_mats);
+                mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+                mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
+
+                let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+                axis.normalize();
+                let q = new THREE.Quaternion();
+                q.setFromAxisAngle(axis, world_ob.angle);
+                mesh.setRotationFromQuaternion(q);
+
+                scene.add(mesh);
+
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
             }
-
-            const mesh = new THREE.Mesh(geometry, three_mats);
-            mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-            mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
-
-            let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-            axis.normalize();
-            let q = new THREE.Quaternion();
-            q.setFromAxisAngle(axis, world_ob.angle);
-            mesh.setRotationFromQuaternion(q);
-
-            scene.add(mesh);
-
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
         }
         else if(world_ob.model_url !== "") {
 
-            let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
+            //if (world_ob.model_url == "unwrapped_10085943970024035061_lod2.bmesh")
+            {
+                let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
 
-            //console.log("LOD model URL: " + url);
+                //console.log("LOD model URL: " + url);
 
-            let encoded_url = encodeURIComponent(url);
+                let encoded_url = encodeURIComponent(url);
  
-            var oReq = new XMLHttpRequest();
-            oReq.open("GET", "/resource/" + encoded_url, true);
-            oReq.responseType = "arraybuffer";
+                var request = new XMLHttpRequest();
+                request.open("GET", "/resource/" + encoded_url, true);
+                request.responseType = "arraybuffer";
  
-            oReq.onload = function (oEvent) {
-                var array_buffer = oReq.response; // Note: not oReq.responseText
-                if (array_buffer) {
- 
-                    // console.log("Downloaded the file: '" + url + "'!");
+                request.onload = function (oEvent) {
 
-                    let geometry = loadBatchedMesh(array_buffer);
+                    if (request.status >= 200 && request.status < 300) {
+                        var array_buffer = request.response;
+                        if (array_buffer) {
 
-                    let three_mats = []
-                    for (let i = 0; i < world_ob.mats.length; ++i) {
-                        let three_mat = new THREE.MeshStandardMaterial();
-                        setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
-                        three_mats.push(three_mat);
+                            // console.log("Downloaded the file: '" + url + "'!");
+                            //try {
+                            //console.log("request.status: " + request.status);
+                            //console.log("Loading batched mesh from '" + url + "'...");
+                            //console.log("array_buffer:");
+                            //console.log(array_buffer);
+                            let geometry = loadBatchedMesh(array_buffer);
+
+
+                            let three_mats = []
+                            for (let i = 0; i < world_ob.mats.length; ++i) {
+                                let three_mat = new THREE.MeshStandardMaterial();
+                                setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
+                                three_mats.push(three_mat);
+                            }
+
+                            const mesh = new THREE.Mesh(geometry, three_mats);
+                            mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+                            mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
+
+                            let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+                            axis.normalize();
+                            let q = new THREE.Quaternion();
+                            q.setFromAxisAngle(axis, world_ob.angle);
+                            mesh.setRotationFromQuaternion(q);
+
+                            scene.add(mesh);
+
+                            mesh.castShadow = true;
+                            mesh.receiveShadow = true;
+                            //}
+                            //catch (excep) {
+                            //    throw "Error while loading mesh with url '" + url + "': " + excep;
+                            //}
+                        }
                     }
-
-                    const mesh = new THREE.Mesh(geometry, three_mats);
-                    mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-                    mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
-
-                    let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-                    axis.normalize();
-                    let q = new THREE.Quaternion();
-                    q.setFromAxisAngle(axis, world_ob.angle);
-                    mesh.setRotationFromQuaternion(q);
-
-                    scene.add(mesh);
-
-                    mesh.castShadow = true;
-                    mesh.receiveShadow = true;
-                }
+                    else {
+                        console.log("Request for '" + url + "' returned a non-200 error code: " + request.status);
+                    }
             };
  
-            oReq.send(null);
+            request.send(null);
+
+            }
         }
     }
     else {
