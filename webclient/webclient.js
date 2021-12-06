@@ -106,20 +106,11 @@ function writeStringToWebSocket(ws, str)
 }
 
 
-
-// Then you can send a message
 ws.onopen = function () {
     console.log("onopen()");
 
-    //TEMP:
-    //let a = new Uint8Array(10000);
-    //for (let i = 0; i < a.length; ++i)
-    //    a[i] = i % 256;
-    //ws.send(a);
-
 	ws.send(new Uint32Array([CyberspaceHello]));
 
-	
 	ws.send(new Uint32Array([CyberspaceProtocolVersion]));
 
 	var ConnectionTypeUpdates = 500;
@@ -130,24 +121,6 @@ ws.onopen = function () {
     sendQueryObjectsMessage();
 };
 
-
-/*class BufferIn {
-    constructor(array_buffer_) {
-        this.array_buffer = array_buffer_;
-        this.data_view = new DataView(array_buffer_);
-        this.read_index = 0;
-    }
-
-    endOfStream() {
-        return this.read_index >= this.array_buffer.byteLength;
-    }
-
-    readData(len) {
-        var res = this.array_buffer.slice(this.read_index, this.read_index + len);
-        this.read_index += len;
-        return res;
-    }
-}*/
 
 function readInt32(buffer_in) {
     var x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
@@ -262,11 +235,7 @@ function readMatrix2fFromStream(buffer_in) {
 function readStringFromStream(buffer_in) {
     var len = readUInt32(buffer_in); // Read length in bytes
 
-    //console.log("readStringFromStream len: " + len)
-
     var utf8_array = new Int8Array(buffer_in.array_buffer, /*byteoffset=*/buffer_in.read_index, /*length=*/len);
-
-    //console.log("readStringFromStream utf8_array: " + utf8_array)
 
     buffer_in.read_index += len;
 
@@ -458,11 +427,9 @@ function readWorldMaterialFromStream(buffer_in) {
 function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
     let ob = new WorldObject();
 
-    //console.log("ob: ", ob)
-
     ob.object_type = readUInt32(buffer_in);
     ob.model_url = readStringFromStream(buffer_in);
-    // Read num_mats
+    // Read mats
     {
         let num = readUInt32(buffer_in);
         if (num > 10000)
@@ -501,64 +468,23 @@ function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
 
     if (ob.object_type == WorldObject_ObjectType_VoxelGroup)
     {
-        //console.log("got voxel ob!");
-        
-
         // Read compressed voxel data
         let voxel_data_size = readUInt32(buffer_in);
         if (voxel_data_size > 1000000)
             throw "Invalid voxel_data_size (too large): " + toString(voxel_data_size);
 
-        //console.log("voxel_data_size: " + voxel_data_size)
-        if(voxel_data_size > 0)
-        {
-            // Read voxel data
-            ob.compressed_voxels = buffer_in.readData(voxel_data_size);
-
-            // TEMP: decompress
-
-            //console.log("ob.compressed_voxels:");
-            //console.log(ob.compressed_voxels)
-            //
-            //let decompressed_voxels = fzstd.decompress(new Uint8Array(ob.compressed_voxels));
-            //
-            //console.log("decompressed_voxels: " + (typeof decompressed_voxels));
-            //console.log(decompressed_voxels)
-            //
-            //console.log("Decompressed voxel data, compressed size: " + voxel_data_size + ", decompressed size: " + decompressed_voxels.length)
+        if(voxel_data_size > 0) {
+            ob.compressed_voxels = buffer_in.readData(voxel_data_size); // Read voxel data
         }
     }
 
     return ob;
 }
 
-//function readUInt32(data, read_index) {
-//    if (data instanceof ArrayBuffer) {
-//        const view = new DataView(data);
-//        return view.getInt32(/*byte offset=*/0, /*little endian=*/true);
-//    }
-//    else
-//        throw "data was not an ArrayBuffer";
-//}
-
-
 class BufferOut {
-    //constructor() {
-    //    this.data = [];//new Uint8Array([]);
-    //}
-
-    //writeUInt32(x) {
-    //    buf = new ArrayBuffer(4)
-    //    const dataView = new DataView(buf);
-    //    dataView.setUint32(/*byte offset=*/0, x, /*little endian=*/false);
-    //    this.data.push(dataView.getUint8(0));
-    //    this.data.push(dataView.getUint8(1));
-    //    this.data.push(dataView.getUint8(2));
-    //    this.data.push(dataView.getUint8(3));
-    //}
-
+   
     constructor() {
-        this.data = new ArrayBuffer(/*length=*/256);//  new Uint8Array(/*length=*/32);
+        this.data = new ArrayBuffer(/*length=*/256);
         this.data_view = new DataView(this.data);
         this.size = 0;
     }
@@ -567,17 +493,13 @@ class BufferOut {
         if (newsize > this.data.byteLength) {
             //console.log("BufferOut: resizing data to size " + this.data.byteLength * 2 + " B")
             // Resize data
-            //let newdata = new Uint8Array(/*length=*/this.data.byteLength * 2); // alloc new array
             let olddata = this.data;
             let newdata = new ArrayBuffer(/*length=*/this.data.byteLength * 2); // alloc new array
-
-            // copy old data to new data
-            //for (let i = 0; i < this.data.byteLength; ++i)
-           //     newdata[i] = this.data[i];
 
             this.data = newdata;
             this.data_view = new DataView(this.data);
 
+            // copy old data to new data
             let old_data_view = new DataView(olddata);
 
             for (let i = 0; i < olddata.byteLength; ++i)
@@ -604,18 +526,10 @@ class BufferOut {
     }
 
     writeToWebSocket(web_socket) {
-
-        // Trim buffer down to actual used part
-        //let newdata = new Uint8Array(/*length=*/this.size); // alloc new array
-        //for (let i = 0; i < this.size; ++i)
-        //    newdata[i] = this.data[i];
-
-
-        console.log("writeToWebSocket(): this.size:" + this.size)
+        // console.log("writeToWebSocket(): this.size:" + this.size)
 
         let trimmed = this.data.slice(0, this.size);
 
-       // web_socket.send(newdata);
         web_socket.send(trimmed);
     }
 }
@@ -623,22 +537,20 @@ class BufferOut {
 
 function sendQueryObjectsMessage() {
 
-    {
-        let buffer_out = new BufferOut();
-        buffer_out.writeUInt32(QueryObjects);
-        buffer_out.writeUInt32(0); // message length - to be updated.
-        let r = 4;
-        buffer_out.writeUInt32(2 * (2 * r + 1) * (2 * r + 1)); // Num cells to query
+    let buffer_out = new BufferOut();
+    buffer_out.writeUInt32(QueryObjects);
+    buffer_out.writeUInt32(0); // message length - to be updated.
+    let r = 4;
+    buffer_out.writeUInt32(2 * (2 * r + 1) * (2 * r + 1)); // Num cells to query
 
-        for (let x = -r; x <= r; ++x)
-            for (let y = -r; y <= r; ++y) {
-                buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(0);
-                buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(-1);
-            }
+    for (let x = -r; x <= r; ++x)
+        for (let y = -r; y <= r; ++y) {
+            buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(0);
+            buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(-1);
+        }
 
-        buffer_out.updateMessageLengthField();
-        buffer_out.writeToWebSocket(ws);
-    }
+    buffer_out.updateMessageLengthField();
+    buffer_out.writeToWebSocket(ws);
 }
 
 
@@ -649,19 +561,6 @@ var world_objects = {};
 ws.onmessage = function (event) {
     //console.log("onmessage()");
     //console.log("From Server:" + event.data + ", event.data.byteLength: " + event.data.byteLength);
-
-
-    //TEMP:
-    /*let a = new Uint8Array(event.data);
-    console.log("read Uint8Array:", a);
-    if (a.length != 10000)
-        throw "incorrect a length: " + a.length;
-    for (let i = 0; i < a.length; ++i)
-        if (a[i] != i % 256)
-            throw "a[i] is wrong.";
-    console.log("Uint8Array a was correct");
-    return;*/
-
 
     let z = 0;
     let buffer = new bufferin.BufferIn(event.data);
@@ -745,7 +644,6 @@ ws.onmessage = function (event) {
         else
             throw "invalid protocol_state";
 
-        //console.log("ping, z:", z);
         z++;
         if (z > 100000) {
             throw 'oh no, infinite loop!';
@@ -762,176 +660,6 @@ ws.onclose = function (event) {
 ws.onerror = function (event) {
 	console.error("WebSocket error observed:", event);
 };
-
-//while (1) {
-
-//	console.log("boop");
-//}
-
-//Sending a simple string message
-//ws.send("HelloHelloIsThereAnyoneThere");
-
-//const canvas = document.getElementById("renderCanvas"); // Get the canvas element
-//const engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
-
-
-//var shadowGenerator;
-
-// Add your code here matching the playground format
-//const createScene = function () {
-
-//    const scene = new BABYLON.Scene(engine);
-
-//    //BABYLON.SceneLoader.ImportMeshAsync("", "https://assets.babylonjs.com/meshes/", "box.babylon");
-//    //BABYLON.SceneLoader.ImportMeshAsync("", "D: \\models\\readyplayerme_avatar_animation_18.glb", "box.babylon");
-
-//    const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2.5, 15, new BABYLON.Vector3(0, 0, 0));
-//    camera.attachControl(canvas, true);
-//   // const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(1, 1, 0));
-//    var light = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -1, -1), scene);
-//    light.intensity  = 0.6;
-
-
-//    var ambient_light = new BABYLON.HemisphericLight("HemiLight", new BABYLON.Vector3(0, 1, 0), scene);
-//    ambient_light.intensity = 0.5;
-//    ambient_light.groundColor = new BABYLON.Color3(0.3, 0.4, 0.5);
-//    shadowGenerator = new BABYLON.ShadowGenerator(2048, light);
-//    shadowGenerator.useBlurExponentialShadowMap = true;
-
-//    const plane = BABYLON.MeshBuilder.CreatePlane("plane", { width: 2000, height: 2000}, scene);
-//    plane.rotation.x = Math.PI / 2;
-//    plane.receiveShadows = true;
-
-    
-
-//    return scene;
-//};
-
-// Add your code here matching the playground format
-
-//const scene = createScene(); // Call the createScene function
-
-
-function addParcelGraphics(parcel) {
-    //Polygon shape in XZ plane
-
-    let min_y = parcel.zbounds.x; // babylon y = substrata z
-    let parcel_depth = parcel.zbounds.y - parcel.zbounds.x;
-    //const shape = [
-    //    new BABYLON.Vector3(4, min_y, -4),
-    //    new BABYLON.Vector3(2, min_y, 0),
-    //    new BABYLON.Vector3(5, min_y, 2),
-    //    new BABYLON.Vector3(1, min_y, 2),
-    //
-    //];
-
-    //const extrudedPolygon = BABYLON.MeshBuilder.ExtrudePolygon("polygon", { shape: shape, depth: parcel_depth, sideOrientation: BABYLON.Mesh.DOUBLESIDE });
-
-    vertices = []
-    indices = []
-
-    // Sides of parcel
-    for (let i = 0; i < 4; ++i) {
-        let v = parcel.verts[i];
-        let next_v = parcel.verts[(i + 1) % 4];
-
-        let v0 = new BABYLON.Vector3(v.x, v.y, parcel.zbounds.x);
-        let v1 = new BABYLON.Vector3(next_v.x, next_v.y, parcel.zbounds.x);
-        let v2 = new BABYLON.Vector3(next_v.x, next_v.y, parcel.zbounds.y);
-        let v3 = new BABYLON.Vector3(v.x, v.y, parcel.zbounds.y);
-
-        let face = i;
-        vertices[face * 4 + 0] = v0;
-        vertices[face * 4 + 1] = v1;
-        vertices[face * 4 + 2] = v2;
-        vertices[face * 4 + 3] = v3;
-
-        indices[face * 6 + 0] = face * 4 + 0;
-        indices[face * 6 + 1] = face * 4 + 1;
-        indices[face * 6 + 2] = face * 4 + 2;
-
-        indices[face * 6 + 3] = face * 4 + 0;
-        indices[face * 6 + 4] = face * 4 + 2;
-        indices[face * 6 + 5] = face * 4 + 3;
-    }
-
-    // Bottom
-    {
-        let v0 = new BABYLON.Vector3(parcel.verts[0].x, parcel.verts[0].y, parcel.zbounds.x);
-        let v1 = new BABYLON.Vector3(parcel.verts[3].x, parcel.verts[3].y, parcel.zbounds.x);
-        let v2 = new BABYLON.Vector3(parcel.verts[2].x, parcel.verts[2].y, parcel.zbounds.x);
-        let v3 = new BABYLON.Vector3(parcel.verts[1].x, parcel.verts[1].y, parcel.zbounds.x);
-
-        let face = 4;
-        vertices[face * 4 + 0] = v0;
-        vertices[face * 4 + 1] = v1;
-        vertices[face * 4 + 2] = v2;
-        vertices[face * 4 + 3] = v3;
-
-        indices[face * 6 + 0] = face * 4 + 0;
-        indices[face * 6 + 1] = face * 4 + 1;
-        indices[face * 6 + 2] = face * 4 + 2;
-
-        indices[face * 6 + 3] = face * 4 + 0;
-        indices[face * 6 + 4] = face * 4 + 2;
-        indices[face * 6 + 5] = face * 4 + 3;
-    }
-
-    // Top
-    {
-        let v0 = new BABYLON.Vector3(parcel.verts[0].x, parcel.verts[0].y, parcel.zbounds.y);
-        let v1 = new BABYLON.Vector3(parcel.verts[1].x, parcel.verts[1].y, parcel.zbounds.y);
-        let v2 = new BABYLON.Vector3(parcel.verts[2].x, parcel.verts[2].y, parcel.zbounds.y);
-        let v3 = new BABYLON.Vector3(parcel.verts[3].x, parcel.verts[3].y, parcel.zbounds.y);
-
-        let face = 5;
-        vertices[face * 4 + 0] = v0;
-        vertices[face * 4 + 1] = v1;
-        vertices[face * 4 + 2] = v2;
-        vertices[face * 4 + 3] = v3;
-
-        indices[face * 6 + 0] = face * 4 + 0;
-        indices[face * 6 + 1] = face * 4 + 1;
-        indices[face * 6 + 2] = face * 4 + 2;
-
-        indices[face * 6 + 3] = face * 4 + 0;
-        indices[face * 6 + 4] = face * 4 + 2;
-        indices[face * 6 + 5] = face * 4 + 3;
-    }
-
-    positions = []
-    for (let i = 0; i < vertices.length; ++i) {
-        positions.push(vertices[i].x);
-        positions.push(vertices[i].y);
-        positions.push(vertices[i].z);
-    }
-
-
-   /* var customMesh = new BABYLON.Mesh("custom", scene);
-
-    //var uvs = [0, 1, 0, 0, 1, 0];
-
-    var normals = [];
-    BABYLON.VertexData.ComputeNormals(positions, indices, normals);
-
-    var vertexData = new BABYLON.VertexData();
-
-    vertexData.positions = positions;
-    vertexData.indices = indices;
-    vertexData.normals = normals;
-    //vertexData.uvs = uvs;
-
-    vertexData.applyToMesh(customMesh);
-
-    var mat = new BABYLON.StandardMaterial("mat", scene);
-    mat.backFaceCulling = false;
-    mat.twoSidedLighting = true;
-    customMesh.material = mat;
-
-
-    shadowGenerator.addShadowCaster(customMesh);
-    customMesh.receiveShadows = true;*/
-}
 
 
 // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
@@ -1031,16 +759,6 @@ function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
 }
 
 
-//function decompressVoxels(compressed_voxels) {
-//    return fzstd.decompress(new Uint8Array(compressed_voxels));
-//
-//    //console.log("decompressed_voxels: " + (typeof decompressed_voxels));
-//    //console.log(decompressed_voxels)
-//    //
-//    //console.log("Decompressed voxel data, compressed size: " + voxel_data_size + ", decompressed size: " + decompressed_voxels.length)
-//}
-
-
 // three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
 function setThreeJSMaterial(three_mat, world_mat, ob_lod_level) {
     three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
@@ -1076,11 +794,6 @@ function setThreeJSMaterial(three_mat, world_mat, ob_lod_level) {
 
 function addWorldObjectGraphics(world_ob) {
 
-    //if (world_ob.model_url === "")
-    //    return;
-
-    //return;
-    //if (world_ob.uid == 148313) {
     if (true) {
 
         //console.log("==================addWorldObjectGraphics (ob uid: " + world_ob.uid + ")=========================")
@@ -1089,14 +802,10 @@ function addWorldObjectGraphics(world_ob) {
         let model_lod_level = getModelLODLevel(world_ob, camera.position);
         //console.log("model_lod_level: " + model_lod_level);
 
-        //console.log("world_ob.compressed_voxels:");
-        //console.log(world_ob.compressed_voxels);
-
         if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
             // This is a voxel object
-
            
-           // let subsample_factor = 4;
+            // let subsample_factor = 4;
             let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level); // type THREE.BufferGeometry
             let geometry = values[0];
             let subsample_factor = values[1];
@@ -1129,57 +838,47 @@ function addWorldObjectGraphics(world_ob) {
 
             let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
 
-
-            console.log("LOD model URL: " + url);
-
-            //if (filenameExtension(url) != "glb")
-            //    url += ".glb";
+            //console.log("LOD model URL: " + url);
 
             let encoded_url = encodeURIComponent(url);
  
-             var oReq = new XMLHttpRequest();
-             oReq.open("GET", "/resource/" + encoded_url, true);
-             oReq.responseType = "arraybuffer";
+            var oReq = new XMLHttpRequest();
+            oReq.open("GET", "/resource/" + encoded_url, true);
+            oReq.responseType = "arraybuffer";
  
+            oReq.onload = function (oEvent) {
+                var array_buffer = oReq.response; // Note: not oReq.responseText
+                if (array_buffer) {
  
-             oReq.onload = function (oEvent) {
-                 var array_buffer = oReq.response; // Note: not oReq.responseText
-                 if (array_buffer) {
+                    // console.log("Downloaded the file: '" + url + "'!");
+
+                    let geometry = loadBatchedMesh(array_buffer);
+
+                    let three_mats = []
+                    for (let i = 0; i < world_ob.mats.length; ++i) {
+                        let three_mat = new THREE.MeshStandardMaterial();
+                        setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
+                        three_mats.push(three_mat);
+                    }
+
+                    const mesh = new THREE.Mesh(geometry, three_mats);
+                    mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+                    mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
+
+                    let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+                    axis.normalize();
+                    let q = new THREE.Quaternion();
+                    q.setFromAxisAngle(axis, world_ob.angle);
+                    mesh.setRotationFromQuaternion(q);
+
+                    scene.add(mesh);
+
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                }
+            };
  
-                     console.log("Downloaded the file: '" + url + "'!");
-
-                     let geometry = loadBatchedMesh(array_buffer);
-
-                     let three_mats = []
-                     for (let i = 0; i < world_ob.mats.length; ++i) {
-                         let three_mat = new THREE.MeshStandardMaterial();
-                         setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
-                         three_mats.push(three_mat);
-                     }
-
-                     const mesh = new THREE.Mesh(geometry, three_mats);
-                     mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-                     mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
-
-                     let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-                     axis.normalize();
-                     let q = new THREE.Quaternion();
-                     q.setFromAxisAngle(axis, world_ob.angle);
-                     mesh.setRotationFromQuaternion(q);
-
-                     console.log("Adding mesh to scene...");
-                     console.log("mesh:");
-                     console.log(mesh);
-
-
-                     scene.add(mesh);
-
-                     mesh.castShadow = true;
-                     mesh.receiveShadow = true;
-                 }
-             };
- 
-             oReq.send(null);
+            oReq.send(null);
         }
     }
     else {
@@ -1188,37 +887,14 @@ function addWorldObjectGraphics(world_ob) {
         let yspan = world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y;
         let zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
 
-        /*const box = BABYLON.MeshBuilder.CreateBox("box", { height: zspan, width: xspan, depth: yspan }, scene);
-
-        box.position = new BABYLON.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2);
-
-        shadowGenerator.addShadowCaster(box);
-        box.receiveShadows = true;*/
-
         const geometry = new THREE.BoxGeometry();
         const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
         const cube = new THREE.Mesh(geometry, material);
         cube.position.copy(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
         cube.scale.copy(new THREE.Vector3(xspan, yspan, zspan));
-        //cube.updateMatrix();
         scene.add(cube);
-        //cube.updateMatrix();
     }
 }
-
-
-// Register a render loop to repeatedly render the scene
-//engine.runRenderLoop(function () {
-//	scene.render();
-//});
-
-//// Watch for browser/canvas resize events
-//window.addEventListener("resize", function () {
-//	engine.resize();
-//});
-
-
-
 
 
 // Parse initial camera location from URL
@@ -1305,7 +981,6 @@ uniforms['sunPosition'].value.copy(sun);
 //===================== Add ground plane =====================
 {
     const geometry = new THREE.PlaneGeometry(1000, 1000);
-    //const material = new THREE.MeshBasicMaterial({ color: 0x999999, side: THREE.DoubleSide });
     const material = new THREE.MeshStandardMaterial();
     material.color = new THREE.Color(0.9, 0.9, 0.9);
     //material.side = THREE.DoubleSide;
@@ -1345,7 +1020,6 @@ function camForwardsVec() {
 }
 
 function camRightVec() {
-    //return new THREE.Vector3(Math.cos(heading - Math.PI / 2), Math.sin(heading - Math.PI / 2), 0);
     return new THREE.Vector3(Math.sin(heading), -Math.cos(heading), 0);
 }
 
@@ -1407,7 +1081,6 @@ document.addEventListener('keyup', onKeyUp, false);
 
 
 function doCamMovement(dt){
-    //console.log("doCamMovement()");
 
     let move_speed = 3.0;
     let turn_speed = 1.0;
@@ -1468,7 +1141,6 @@ function animate() {
 
     renderer.render(scene, camera);
 
-
     // Update URL with current camera position
     if(cur_time > last_update_URL_time + 0.1) {
         window.history.replaceState("object or string", "Title", "/webclient?x=" + camera.position.x.toFixed(1) + "&y=" + camera.position.y.toFixed(1) + "&z=" + camera.position.z.toFixed(1));
@@ -1477,7 +1149,4 @@ function animate() {
 }
 
 
-
 animate();
-
-
