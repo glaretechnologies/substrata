@@ -486,6 +486,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(
 			request.path == "/fzstd.js" ||
 			request.path == "/bufferin.js" ||
+			request.path == "/bufferout.js" ||
 			request.path == "/bmeshloading.js" ||
 			request.path == "/voxelloading.js" ||
 			request.path == "/webclient.js" ||

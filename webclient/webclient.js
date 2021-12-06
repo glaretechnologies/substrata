@@ -9,6 +9,7 @@ import * as THREE from './build/three.module.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
 import * as voxelloading from './voxelloading.js';
 import * as bufferin from './bufferin.js';
+import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 
 var ws = new WebSocket("wss://substrata.info", "substrata-protocol");
@@ -28,6 +29,10 @@ const CyberspaceHello = 1357924680;
 const ClientProtocolOK = 10000;
 const ClientProtocolTooOld = 10001;
 const ClientProtocolTooNew = 10002;
+
+const AvatarTransformUpdate = 1002;
+const CreateAvatar = 1004;
+
 const QueryObjects = 3020; // Client wants to query objects in certain grid cells
 const ObjectInitialSend = 3021;
 const ParcelCreated = 3100;
@@ -119,6 +124,15 @@ ws.onopen = function () {
 
     writeStringToWebSocket(ws, ""); // World to connect to
 
+
+    // Send create avatar message
+    let av_buf = new bufferout.BufferOut();
+    av_buf.writeUInt32(CreateAvatar);
+    av_buf.writeUInt32(0); // will be updated with length
+    avatar.writeToStream(av_buf);
+    av_buf.updateMessageLengthField();
+    av_buf.writeToWebSocket(ws);
+
     sendQueryObjectsMessage();
 };
 
@@ -159,6 +173,11 @@ function readUIDFromStream(buffer_in) {
 }
 
 
+function writeUID(buffer_out, uid) {
+    buffer_out.writeUInt64(uid);
+}
+
+
 class Vec2d {
     constructor(x_, y_) {
         this.x = x_;
@@ -171,6 +190,12 @@ class Vec3f {
         this.x = x_;
         this.y = y_;
         this.z = z_;
+    }
+
+    writeToStream(buffer_out) {
+        buffer_out.writeFloat(this.x);
+        buffer_out.writeFloat(this.y);
+        buffer_out.writeFloat(this.z);
     }
 }
 
@@ -195,6 +220,12 @@ class Vec3d {
         this.x = x_;
         this.y = y_;
         this.z = z_;
+    }
+
+    writeToStream(buffer_out) {
+        buffer_out.writeDouble(this.x);
+        buffer_out.writeDouble(this.y);
+        buffer_out.writeDouble(this.z);
     }
 }
 
@@ -262,6 +293,71 @@ function readTimeStampFromStream(buffer_in) {
 }
 
 
+
+class AvatarSettings {
+    constructor() {
+        this.model_url = "";
+        this.materials = [];
+        this.pre_ob_to_world_matrix = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
+    }
+
+    writeToStream(stream) {
+        stream.writeStringLengthFirst(this.model_url);
+
+        // Write materials
+        stream.writeUInt32(this.materials.length)
+        for (let i = 0; i < this.materials.length; ++i)
+            this.materials.length[i].writeToStream(stream)
+
+        for (let i = 0; i < 16; ++i)
+            stream.writeFloat(this.pre_ob_to_world_matrix[i])
+    }
+
+
+    readFromStream(stream) {
+        this.uid = stream.readUInt64();
+
+        // Read materials
+        let num_mats = stream.readUInt32();
+        if (num_mats > 10000)
+            throw "Too many mats: " + num_mats
+        this.materials = [];
+        for (let i = 0; i < num_mats; ++i) {
+            let mat = new WorldMaterial();
+            mat.readFromStream(stream);
+            this.materials.push(mat);
+        }
+
+        for (let i = 0; i < 16; ++i)
+            this.pre_ob_to_world_matrix[i] = stream.readFloat();
+    }
+}
+
+class Avatar {
+    constructor() {
+        this.uid = 0; // uint64
+        this.name = "";
+        this.pos = new Vec3d(0, 0, 0);
+        this.rotation = new Vec3f(0, 0, 0);
+        this.avatar_settings = new AvatarSettings();
+    }
+
+    writeToStream(stream) {
+        stream.writeUInt64(this.uid);
+        stream.writeStringLengthFirst(this.name);
+        this.pos.writeToStream(stream);
+        this.rotation.writeToStream(stream);
+        this.avatar_settings.writeToStream(stream);
+    }
+
+    readFromStream(stream) {
+        this.uid = stream.readUInt64();
+        this.name = stream.readStringLengthFirst();
+        this.pos = readVec3dFromStream(stream);
+        this.rotation = readVec3fFromStream(stream);
+        this.avatar_settings.readFromStream(stream);
+    }
+}
 
 
 class Parcel {
@@ -482,63 +578,10 @@ function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
     return ob;
 }
 
-class BufferOut {
-   
-    constructor() {
-        this.data = new ArrayBuffer(/*length=*/256);
-        this.data_view = new DataView(this.data);
-        this.size = 0;
-    }
-
-    checkForResize(newsize) {
-        if (newsize > this.data.byteLength) {
-            //console.log("BufferOut: resizing data to size " + this.data.byteLength * 2 + " B")
-            // Resize data
-            let olddata = this.data;
-            let newdata = new ArrayBuffer(/*length=*/this.data.byteLength * 2); // alloc new array
-
-            this.data = newdata;
-            this.data_view = new DataView(this.data);
-
-            // copy old data to new data
-            let old_data_view = new DataView(olddata);
-
-            for (let i = 0; i < olddata.byteLength; ++i)
-                this.data_view.setUint8(i, old_data_view.getInt8(i));
-        }
-    }
-
-    writeInt32(x) {
-        this.checkForResize(/*newsize=*/this.size + 4);
-
-        this.data_view.setInt32(/*byte offset=*/this.size, x, /*little endian=*/true);
-        this.size += 4;
-    }
-
-    writeUInt32(x) {
-        this.checkForResize(/*newsize=*/this.size + 4);
-        
-        this.data_view.setUint32(/*byte offset=*/this.size, x, /*little endian=*/true);
-        this.size += 4;
-    }
-
-    updateMessageLengthField() {
-        this.data_view.setUint32(/*byte offset=*/4, /*value=*/this.size, /*little endian=*/true);
-    }
-
-    writeToWebSocket(web_socket) {
-        // console.log("writeToWebSocket(): this.size:" + this.size)
-
-        let trimmed = this.data.slice(0, this.size);
-
-        web_socket.send(trimmed);
-    }
-}
-
 
 function sendQueryObjectsMessage() {
 
-    let buffer_out = new BufferOut();
+    let buffer_out = new bufferout.BufferOut();
     buffer_out.writeUInt32(QueryObjects);
     buffer_out.writeUInt32(0); // message length - to be updated.
     let r = 1;
@@ -557,6 +600,7 @@ function sendQueryObjectsMessage() {
 
 var parcels = {};
 var world_objects = {};
+var client_avatar_uid = 0;
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
@@ -596,7 +640,7 @@ ws.onmessage = function (event) {
         }
         else if (protocol_state == STATE_READ_PROTOCOL_RESPONSE) {
             // Read client_avatar_uid
-            var client_avatar_uid = readUIDFromStream(buffer);
+            client_avatar_uid = readUIDFromStream(buffer);
 
             //console.log("Read client_avatar_uid from server: " + client_avatar_uid);
             protocol_state = STATE_READ_CLIENT_AVATAR_UID;
@@ -920,6 +964,9 @@ function addWorldObjectGraphics(world_ob) {
 }
 
 
+
+
+
 // Parse initial camera location from URL
 let initial_pos_x = 1;
 let initial_pos_y = 1;
@@ -932,6 +979,10 @@ if(params.get("y"))
     initial_pos_y = parseFloat(params.get("y"));
 if(params.get("z"))
     initial_pos_z = parseFloat(params.get("z"));
+
+
+let avatar = new Avatar();
+avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
 
 
 THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
@@ -1144,6 +1195,15 @@ function doCamMovement(dt){
 
         camera.lookAt(camera.position.clone().add(camForwardsVec()));
     }
+
+    avatar.pos.x = camera.position.x;
+    avatar.pos.y = camera.position.y;
+    avatar.pos.z = camera.position.z;
+
+    // rotation = (roll, pitch, heading)
+    avatar.rotation.x = 0;
+    avatar.rotation.y = pitch;
+    avatar.rotation.z = heading;
 }
 
 function curTimeS() {
@@ -1153,6 +1213,7 @@ function curTimeS() {
 let cur_time = curTimeS();
 
 let last_update_URL_time = curTimeS();
+let last_avatar_update_send_time = curTimeS();
 
 function animate() {
     let dt = Math.min(0.1, curTimeS() - cur_time);
@@ -1168,6 +1229,24 @@ function animate() {
     if(cur_time > last_update_URL_time + 0.1) {
         window.history.replaceState("object or string", "Title", "/webclient?x=" + camera.position.x.toFixed(1) + "&y=" + camera.position.y.toFixed(1) + "&z=" + camera.position.z.toFixed(1));
         last_update_URL_time = cur_time;
+    }
+
+
+    if (cur_time > last_avatar_update_send_time + 0.1) {
+        let anim_state = 0;
+
+        let buffer_out = new bufferout.BufferOut();
+        buffer_out.writeUInt32(AvatarTransformUpdate);
+        buffer_out.writeUInt32(0); // will be updated with length
+        writeUID(buffer_out, client_avatar_uid);
+        avatar.pos.writeToStream(buffer_out);
+        avatar.rotation.writeToStream(buffer_out);
+        buffer_out.writeUInt32(anim_state);
+        buffer_out.updateMessageLengthField();
+        buffer_out.writeToWebSocket(ws);
+        //console.log("Sending av update");
+
+        last_avatar_update_send_time = cur_time;
     }
 }
 
