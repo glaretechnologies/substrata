@@ -64,7 +64,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 		{
 			const std::string URL_without_glb_ext = ::removeDotAndExtension(resource_URL); // Remove ".glb" suffix
 
-			if(hasExtension(URL_without_glb_ext, "bmesh")) // If we have a xx.bmesh.glb request:
+			if(hasExtension(URL_without_glb_ext, "bmesh")) // If we have a xx.bmesh.glb request: (e.g. from web client)
 			{
 				// See if the bmesh file is present
 				std::string local_bmesh_path;
@@ -81,26 +81,31 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				}
 
 				// Convert the bmesh file to GLB, if the bmesh file is present
-				std::string local_GLB_path = local_bmesh_path + ".glb";
-				try
+				if(!local_bmesh_path.empty()) // If the bmesh file is present:
 				{
-					conPrint("Converting '" + local_bmesh_path + "' to '" + local_GLB_path + "'...");
+					std::string local_GLB_path = local_bmesh_path + ".glb";
+					try
+					{
+						conPrint("Converting '" + local_bmesh_path + "' to '" + local_GLB_path + "'...");
 
-					BatchedMeshRef mesh = new BatchedMesh();
-					mesh->readFromFile(local_bmesh_path, *mesh);
-					FormatDecoderGLTF::writeBatchedMeshToGLBFile(*mesh, local_GLB_path, GLTFWriteOptions());
+						BatchedMeshRef mesh = new BatchedMesh();
+						mesh->readFromFile(local_bmesh_path, *mesh); // Load bmesh file
+						FormatDecoderGLTF::writeBatchedMeshToGLBFile(*mesh, local_GLB_path, GLTFWriteOptions()); // Save as GLB
 
-					// Add to resource manager
-					ResourceRef new_resource = new Resource(resource_URL, local_GLB_path, Resource::State_Present, /*owner id=*/UserID(0));
-					world_state.resource_manager->addResource(new_resource);
+						// Add to resource manager
+						ResourceRef new_resource = new Resource(resource_URL, local_GLB_path, Resource::State_Present, /*owner id=*/UserID(0));
+						world_state.resource_manager->addResource(new_resource);
 
-					local_path = local_GLB_path;
+						local_path = local_GLB_path;
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("Error while converting bmesh to GLB: " + e.what());
+						throw e;
+					}
 				}
-				catch(glare::Exception& e)
-				{
-					conPrint("Error while converting bmesh to GLB: " + e.what());
-					throw e;
-				}
+				else
+					conPrint("BMesh file for URL '" + URL_without_glb_ext + "' not present.");
 			}
 		}
 #endif
@@ -181,7 +186,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				{
 					conPrint("\thandleResourceRequest: serving data (len: " + toString(file.fileSize()) + ")");
 
-					web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, file.fileData(), file.fileSize(), content_type.c_str());
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*max age(s)=*/100000000);
 
 					conPrint("\thandleResourceRequest: sent data. (len: " + toString(file.fileSize()) + ")");
 				}
