@@ -769,6 +769,7 @@ function setThreeJSMaterial(three_mat, world_mat, ob_lod_level) {
     three_mat.opacity = world_mat.opacity.val;
     three_mat.transparent = world_mat.opacity.val < 1.0;
 
+    //console.log("world_mat.colour_texture_url:" + world_mat.colour_texture_url);
     if (world_mat.colour_texture_url.length > 0) {
         // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
         //console.log("world_mat.flags: " + world_mat.flags);
