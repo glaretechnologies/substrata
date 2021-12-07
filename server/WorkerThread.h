@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2018 -
 #pragma once
 
 
+#include <RequestInfo.h>
 #include <MessageableThread.h>
 #include <Platform.h>
 #include <MyThread.h>
@@ -39,6 +40,8 @@ public:
 
 	void enqueueDataToSend(const std::string& data); // threadsafe
 	void enqueueDataToSend(const SocketBufferOutStream& packet); // threadsafe
+
+	web::RequestInfo websocket_request_info; // If the client connected via a websocket, this the HTTP request data.  Is used for accessing the login cookie.
 
 private:
 	void sendGetFileMessageIfNeeded(const std::string& resource_URL);

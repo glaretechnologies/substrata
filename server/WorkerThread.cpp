@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "Server.h"
 #include "Screenshot.h"
 #include "SubEthTransaction.h"
+#include "../webserver/LoginHandlers.h"
 #include "../shared/Protocol.h"
 #include "../shared/UID.h"
 #include "../shared/WorldObject.h"
@@ -728,6 +729,25 @@ void WorkerThread::doRun()
 			// Write avatar UID assigned to the connected client.
 			client_avatar_uid = world_state->getNextAvatarUID();
 			writeToStream(client_avatar_uid, *socket);
+
+
+
+			// If the client connected via a websocket, they can be logged in with a session cookie.
+			User* cookie_logged_in_user = LoginHandlers::getLoggedInUser(*world_state, this->websocket_request_info);
+			if(cookie_logged_in_user != NULL)
+			{
+				client_user = cookie_logged_in_user;
+
+				// Send logged-in message to client
+				initPacket(scratch_packet, Protocol::LoggedInMessageID);
+				writeToStream(client_user->id, scratch_packet);
+				scratch_packet.writeStringLengthFirst(client_user->name);
+				writeToStream(client_user->avatar_settings, scratch_packet);
+				updatePacketLengthField(scratch_packet);
+
+				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				socket->flush();
+			}
 
 			// Send TimeSyncMessage packet to client
 			{
