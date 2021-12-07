@@ -530,13 +530,15 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 }
 
 
-bool WebServerRequestHandler::handleWebSocketConnection(Reference<SocketInterface>& socket)
+bool WebServerRequestHandler::handleWebSocketConnection(const web::RequestInfo& request_info, Reference<SocketInterface>& socket)
 {
 	// Wrap socket in a websocket
 	WebSocketRef websocket = new WebSocket(socket);
 
 	// Handle the connection in a worker thread.
 	Reference<WorkerThread> worker_thread = new WorkerThread(websocket, server);
+
+	worker_thread->websocket_request_info = request_info;
 
 	try
 	{
