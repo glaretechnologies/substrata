@@ -1161,9 +1161,9 @@ THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
+let renderer_canvas_elem = document.getElementById('rendercanvas');
+const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
 renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
 
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1316,12 +1316,11 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-
-document.addEventListener('mousedown', onDocumentMouseDown, false);
-document.addEventListener('mouseup', onDocumentMouseUp, false);
-document.addEventListener('mousemove', onDocumentMouseMove, false);
-document.addEventListener('keydown', onKeyDown, false);
-document.addEventListener('keyup', onKeyUp, false);
+renderer_canvas_elem.addEventListener('mousedown', onDocumentMouseDown, false);
+renderer_canvas_elem.addEventListener('mouseup', onDocumentMouseUp, false);
+renderer_canvas_elem.addEventListener('mousemove', onDocumentMouseMove, false);
+renderer_canvas_elem.addEventListener('keydown', onKeyDown, false);
+renderer_canvas_elem.addEventListener('keyup', onKeyUp, false);
 
 
 

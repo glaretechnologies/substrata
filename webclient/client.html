@@ -58,12 +58,22 @@
             padding: 10px;
             background: rgb(200, 200, 200);
         }
+
+        #rendercanvas {
+            outline: none;
+        }
+
+        #rendercanvas:focus {
+            outline: none;
+        }
 	</style>
 
 </head>
 
 <body>
     <script type="module" src="webclient.js"></script>
+
+    <canvas id="rendercanvas" tabindex="1" width="350" height="200"> </canvas>
 
     <div id="onlineusers">
         Online users:
