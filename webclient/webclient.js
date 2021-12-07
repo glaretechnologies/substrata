@@ -30,17 +30,31 @@ const ClientProtocolOK = 10000;
 const ClientProtocolTooOld = 10001;
 const ClientProtocolTooNew = 10002;
 
+const AvatarCreated = 1000;
+const AvatarDestroyed = 1001;
 const AvatarTransformUpdate = 1002;
 const CreateAvatar = 1004;
+const AvatarIsHere = 1005;
+
+const ChatMessageID = 2000;
 
 const QueryObjects = 3020; // Client wants to query objects in certain grid cells
 const ObjectInitialSend = 3021;
 const ParcelCreated = 3100;
+
+const LogInMessage = 8000;
+const LoggedInMessageID = 8003;
+
 const TimeSyncMessage = 9000;
 
 const WorldObject_ObjectType_VoxelGroup = 2;
 
 let WORLD_MATERIAL_SERIALISATION_VERSION = 6
+
+
+const MESH_NOT_LOADED = 0;
+const MESH_LOADING = 1;
+const MESH_LOADED = 2;
 
 // from https://gist.github.com/joni/3760795
 function toUTF8Array(str) {
@@ -119,50 +133,41 @@ ws.onopen = function () {
 
 	ws.send(new Uint32Array([CyberspaceProtocolVersion]));
 
-	var ConnectionTypeUpdates = 500;
+	let ConnectionTypeUpdates = 500;
 	ws.send(new Uint32Array([ConnectionTypeUpdates]));
 
     writeStringToWebSocket(ws, ""); // World to connect to
-
-
-    // Send create avatar message
-    let av_buf = new bufferout.BufferOut();
-    av_buf.writeUInt32(CreateAvatar);
-    av_buf.writeUInt32(0); // will be updated with length
-    avatar.writeToStream(av_buf);
-    av_buf.updateMessageLengthField();
-    av_buf.writeToWebSocket(ws);
 
     sendQueryObjectsMessage();
 };
 
 
 function readInt32(buffer_in) {
-    var x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    let x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 4;
     return x;
 }
 
 function readUInt32(buffer_in) {
-    var x = buffer_in.data_view.getUint32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    let x = buffer_in.data_view.getUint32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 4;
     return x;
 }
 
 function readUInt64(buffer_in) {
-    var x = buffer_in.data_view.getBigUint64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    let x = buffer_in.data_view.getBigUint64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 8;
     return x;
 }
 
 function readFloat(buffer_in) {
-    var x = buffer_in.data_view.getFloat32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    let x = buffer_in.data_view.getFloat32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 4;
     return x;
 }
 
 function readDouble(buffer_in) {
-    var x = buffer_in.data_view.getFloat64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+    let x = buffer_in.data_view.getFloat64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 8;
     return x;
 }
@@ -206,12 +211,26 @@ class Matrix2f {
         this.z = z_;
         this.w = w_;
     }
+
+    writeToStream(buffer_out) {
+        buffer_out.writeFloat(this.x);
+        buffer_out.writeFloat(this.y);
+        buffer_out.writeFloat(this.z);
+        buffer_out.writeFloat(this.w);
+    }
 }
+
 class Colour3f {
     constructor(x_, y_, z_) {
         this.r = x_;
         this.g = y_;
         this.b = z_;
+    }
+
+    writeToStream(buffer_out) {
+        buffer_out.writeFloat(this.r);
+        buffer_out.writeFloat(this.g);
+        buffer_out.writeFloat(this.b);
     }
 }
 
@@ -230,44 +249,44 @@ class Vec3d {
 }
 
 function readVec2dFromStream(buffer_in) {
-    var x = readDouble(buffer_in);
-    var y = readDouble(buffer_in);
+    let x = readDouble(buffer_in);
+    let y = readDouble(buffer_in);
     return new Vec2d(x, y);
 }
 
 function readVec3fFromStream(buffer_in) {
-    var x = readFloat(buffer_in);
-    var y = readFloat(buffer_in);
-    var z = readFloat(buffer_in);
+    let x = readFloat(buffer_in);
+    let y = readFloat(buffer_in);
+    let z = readFloat(buffer_in);
     return new Vec3f(x, y, z);
 }
 
 function readVec3dFromStream(buffer_in) {
-    var x = readDouble(buffer_in);
-    var y = readDouble(buffer_in);
-    var z = readDouble(buffer_in);
+    let x = readDouble(buffer_in);
+    let y = readDouble(buffer_in);
+    let z = readDouble(buffer_in);
     return new Vec3d(x, y, z);
 }
 
 function readColour3fFromStream(buffer_in) {
-    var x = readFloat(buffer_in);
-    var y = readFloat(buffer_in);
-    var z = readFloat(buffer_in);
+    let x = readFloat(buffer_in);
+    let y = readFloat(buffer_in);
+    let z = readFloat(buffer_in);
     return new Colour3f(x, y, z);
 }
 
 function readMatrix2fFromStream(buffer_in) {
-    var x = readFloat(buffer_in);
-    var y = readFloat(buffer_in);
-    var z = readFloat(buffer_in);
-    var w = readFloat(buffer_in);
+    let x = readFloat(buffer_in);
+    let y = readFloat(buffer_in);
+    let z = readFloat(buffer_in);
+    let w = readFloat(buffer_in);
     return new Matrix2f(x, y, z, w);
 }
 
 function readStringFromStream(buffer_in) {
-    var len = readUInt32(buffer_in); // Read length in bytes
+    let len = readUInt32(buffer_in); // Read length in bytes
 
-    var utf8_array = new Int8Array(buffer_in.array_buffer, /*byteoffset=*/buffer_in.read_index, /*length=*/len);
+    let utf8_array = new Int8Array(buffer_in.array_buffer, /*byteoffset=*/buffer_in.read_index, /*length=*/len);
 
     buffer_in.read_index += len;
 
@@ -285,7 +304,7 @@ function readUserIDFromStream(buffer_in) {
 const TIMESTAMP_SERIALISATION_VERSION = 1;
 
 function readTimeStampFromStream(buffer_in) {
-    var version = readUInt32(buffer_in);
+    let version = readUInt32(buffer_in);
     if (version != TIMESTAMP_SERIALISATION_VERSION)
         throw "Unhandled version " + toString(version) + ", expected " + toString(TIMESTAMP_SERIALISATION_VERSION) + ".";
 
@@ -307,7 +326,7 @@ class AvatarSettings {
         // Write materials
         stream.writeUInt32(this.materials.length)
         for (let i = 0; i < this.materials.length; ++i)
-            this.materials.length[i].writeToStream(stream)
+            this.materials[i].writeToStream(stream)
 
         for (let i = 0; i < 16; ++i)
             stream.writeFloat(this.pre_ob_to_world_matrix[i])
@@ -315,7 +334,7 @@ class AvatarSettings {
 
 
     readFromStream(stream) {
-        this.uid = stream.readUInt64();
+        this.model_url = stream.readStringLengthFirst();
 
         // Read materials
         let num_mats = stream.readUInt32();
@@ -323,8 +342,7 @@ class AvatarSettings {
             throw "Too many mats: " + num_mats
         this.materials = [];
         for (let i = 0; i < num_mats; ++i) {
-            let mat = new WorldMaterial();
-            mat.readFromStream(stream);
+            let mat = readWorldMaterialFromStream(stream);
             this.materials.push(mat);
         }
 
@@ -340,6 +358,8 @@ class Avatar {
         this.pos = new Vec3d(0, 0, 0);
         this.rotation = new Vec3f(0, 0, 0);
         this.avatar_settings = new AvatarSettings();
+
+        this.mesh_state = MESH_NOT_LOADED;
     }
 
     writeToStream(stream) {
@@ -468,6 +488,9 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
 
 class WorldObject {
 
+    constructor() {
+        this.mesh_state = MESH_NOT_LOADED;
+    }
 }
 
 const COLOUR_TEX_HAS_ALPHA_FLAG = 1;
@@ -482,12 +505,34 @@ class WorldMaterial {
     minLODLevel() {
         return (this.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
     }
+
+    writeToStream(stream) {
+        stream.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
+
+        this.colour_rgb.writeToStream(stream);
+        stream.writeStringLengthFirst(this.colour_texture_url);
+
+        this.roughness.writeToStream(stream);
+        this.metallic_fraction.writeToStream(stream);
+        this.opacity.writeToStream(stream);
+
+        this.tex_matrix.writeToStream(stream);
+
+        stream.writeFloat(this.emission_lum_flux);
+
+        stream.writeUInt32(this.flags);
+    }
 }
 
 class ScalarVal {
     constructor(val_, texture_url_) {
         this.val = val_;
         this.texture_url = texture_url_;
+    }
+
+    writeToStream(stream) {
+        stream.writeFloat(this.val);
+        stream.writeStringLengthFirst(this.texture_url);
     }
 }
 
@@ -601,6 +646,7 @@ function sendQueryObjectsMessage() {
 var parcels = {};
 var world_objects = {};
 var client_avatar_uid = 0;
+var avatars = new Map();
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
@@ -652,13 +698,13 @@ ws.onmessage = function (event) {
             //console.log("Read msg_type: " + msg_type + ", len: " + msg_len);
 
             if (msg_type == TimeSyncMessage) {
-                var global_time = readDouble(buffer);
+                let global_time = readDouble(buffer);
                 //console.log("Read TimeSyncMessage with global time: " + global_time);
             }
             else if (msg_type == ParcelCreated) {
-                var parcel_id = readParcelIDFromStream(buffer);
+                let parcel_id = readParcelIDFromStream(buffer);
                 //console.log("parcel_id: ", parcel_id);
-                var parcel = readParcelFromNetworkStreamGivenID(buffer);
+                let parcel = readParcelFromNetworkStreamGivenID(buffer);
                 parcel.parcel_id = parcel_id;
 
                 parcels[parcel_id] = parcel;
@@ -679,6 +725,80 @@ ws.onmessage = function (event) {
 
                 world_objects[object_uid] = world_ob;
                 //console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
+            }
+            else if (msg_type == ChatMessageID) {
+                let name = readStringFromStream(buffer);
+                let msg = readStringFromStream(buffer);
+
+                console.log("Chat message: " + name + ": " + msg);
+
+                appendChatMessage(name + ": " + msg);
+            }
+            else if (msg_type == AvatarCreated) {
+
+                let av = new Avatar();
+                av.readFromStream(buffer);
+
+                avatars.set(av.uid, av);
+
+                console.log("Avatar " + av.name + " joined");
+
+                appendChatMessage(av.name + " joined");
+
+                updateOnlineUsersList();
+            }
+            else if (msg_type == AvatarIsHere) {
+            
+                let av = new Avatar();
+                av.readFromStream(buffer);
+                
+                avatars.set(av.uid, av);
+
+                console.log("Avatar " + av.name + " is here");
+
+                appendChatMessage(av.name + " is here");
+
+                updateOnlineUsersList();
+            }
+            else if (msg_type == AvatarDestroyed) {
+                const avatar_uid = readUIDFromStream(buffer);
+
+                avatars.delete(avatar_uid);
+
+                updateOnlineUsersList();
+            }
+            else if (msg_type == AvatarTransformUpdate) {
+
+                let avatar_uid = readUIDFromStream(buffer);
+                let pos = readVec3dFromStream(buffer);
+                let rotation = readVec3fFromStream(buffer);
+                let anim_state = buffer.readUInt32();
+
+
+                let avatar = avatars.get(avatar_uid);
+                if (avatar) {
+                    avatar.pos = pos;
+                    avatar.rotation = rotation;
+                    avatar.anim_state = anim_state;
+                }
+            }
+            else if (msg_type == LoggedInMessageID) {
+
+                const logged_in_user_id = readUserIDFromStream(buffer);
+                const logged_in_username = buffer.readStringLengthFirst();
+
+                console.log("Logged in as " + logged_in_username);
+
+                client_avatar.avatar_settings.readFromStream(buffer);
+
+
+                // Send create avatar message
+                let av_buf = new bufferout.BufferOut();
+                av_buf.writeUInt32(CreateAvatar);
+                av_buf.writeUInt32(0); // will be updated with length
+                client_avatar.writeToStream(av_buf);
+                av_buf.updateMessageLengthField();
+                av_buf.writeToWebSocket(ws);
             }
             else {
                 // Unhandled message type, skip over it.
@@ -706,6 +826,53 @@ ws.onerror = function (event) {
 	console.error("WebSocket error observed:", event);
 };
 
+
+function appendChatMessage(msg) {
+    let node = document.createElement("div");
+    node.textContent = msg;
+    document.getElementById("chatmessages").appendChild(node);
+
+    document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
+}
+
+
+function onChatSubmitted(event) {
+    console.log("Chat submitted");
+
+    let msg = event.target.elements.chat_message.value;
+    console.log("msg: " + msg)
+
+
+    let buffer_out = new bufferout.BufferOut();
+    buffer_out.writeUInt32(ChatMessageID);
+    buffer_out.writeUInt32(0); // will be updated with length
+    buffer_out.writeStringLengthFirst(msg); // message
+    buffer_out.updateMessageLengthField();
+    buffer_out.writeToWebSocket(ws);
+
+
+   // log.textContent = `Form Submitted! Time stamp: ${event.timeStamp}`;
+    event.preventDefault();
+
+    //document.getElementById('chat_message').textContent = ""; // Clear chat box
+    document.getElementById('chatform').reset(); // Clear chat box
+}
+
+const form = document.getElementById('form');
+document.getElementById('chatform').addEventListener('submit', onChatSubmitted);
+
+
+
+function updateOnlineUsersList() {
+
+    document.getElementById("onlineuserslist").textContent = ""; // clear div
+
+    for (const avatar of avatars.values()) {
+        let node = document.createElement("div");
+        node.textContent = avatar.name;
+        document.getElementById("onlineuserslist").appendChild(node);
+    }
+}
 
 // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
 function filenameExtension(filename) {
@@ -884,68 +1051,9 @@ function addWorldObjectGraphics(world_ob) {
         }
         else if(world_ob.model_url !== "") {
 
-            //if (world_ob.model_url == "unwrapped_10085943970024035061_lod2.bmesh")
-            {
-                let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
+            let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
 
-                //console.log("LOD model URL: " + url);
-
-                let encoded_url = encodeURIComponent(url);
- 
-                var request = new XMLHttpRequest();
-                request.open("GET", "/resource/" + encoded_url, true);
-                request.responseType = "arraybuffer";
- 
-                request.onload = function (oEvent) {
-
-                    if (request.status >= 200 && request.status < 300) {
-                        var array_buffer = request.response;
-                        if (array_buffer) {
-
-                            // console.log("Downloaded the file: '" + url + "'!");
-                            //try {
-                            //console.log("request.status: " + request.status);
-                            //console.log("Loading batched mesh from '" + url + "'...");
-                            //console.log("array_buffer:");
-                            //console.log(array_buffer);
-                            let geometry = loadBatchedMesh(array_buffer);
-
-
-                            let three_mats = []
-                            for (let i = 0; i < world_ob.mats.length; ++i) {
-                                let three_mat = new THREE.MeshStandardMaterial();
-                                setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
-                                three_mats.push(three_mat);
-                            }
-
-                            const mesh = new THREE.Mesh(geometry, three_mats);
-                            mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-                            mesh.scale.copy(new THREE.Vector3(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z));
-
-                            let axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-                            axis.normalize();
-                            let q = new THREE.Quaternion();
-                            q.setFromAxisAngle(axis, world_ob.angle);
-                            mesh.setRotationFromQuaternion(q);
-
-                            scene.add(mesh);
-
-                            mesh.castShadow = true;
-                            mesh.receiveShadow = true;
-                            //}
-                            //catch (excep) {
-                            //    throw "Error while loading mesh with url '" + url + "': " + excep;
-                            //}
-                        }
-                    }
-                    else {
-                        console.log("Request for '" + url + "' returned a non-200 error code: " + request.status);
-                    }
-            };
- 
-            request.send(null);
-
-            }
+            loadModelAndAddToScene(world_ob, url, ob_lod_level, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle);
         }
     }
     else {
@@ -965,6 +1073,69 @@ function addWorldObjectGraphics(world_ob) {
 
 
 
+function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_lod_level, mats, pos, scale, world_axis, angle) {
+
+    world_ob_or_avatar.mesh_state = MESH_LOADING;
+
+    let encoded_url = encodeURIComponent(model_url);
+
+    var request = new XMLHttpRequest();
+    request.open("GET", "/resource/" + encoded_url, true);
+    request.responseType = "arraybuffer";
+
+    request.onload = function (oEvent) {
+
+        if (request.status >= 200 && request.status < 300) {
+            var array_buffer = request.response;
+            if (array_buffer) {
+
+                // console.log("Downloaded the file: '" + url + "'!");
+                //try {
+                //console.log("request.status: " + request.status);
+                //console.log("Loading batched mesh from '" + url + "'...");
+                //console.log("array_buffer:");
+                //console.log(array_buffer);
+                let geometry = loadBatchedMesh(array_buffer);
+
+
+                let three_mats = []
+                for (let i = 0; i < mats.length; ++i) {
+                    let three_mat = new THREE.MeshStandardMaterial();
+                    setThreeJSMaterial(three_mat, mats[i], ob_lod_level);
+                    three_mats.push(three_mat);
+                }
+
+                const mesh = new THREE.Mesh(geometry, three_mats);
+                mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
+                mesh.scale.copy(new THREE.Vector3(scale.x, scale.y, scale.z));
+
+                let axis = new THREE.Vector3(world_axis.x, world_axis.y, world_axis.z);
+                axis.normalize();
+                let q = new THREE.Quaternion();
+                q.setFromAxisAngle(axis, angle);
+                mesh.setRotationFromQuaternion(q);
+
+                scene.add(mesh);
+
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                //}
+                //catch (excep) {
+                //    throw "Error while loading mesh with url '" + url + "': " + excep;
+                //}
+
+                world_ob_or_avatar.mesh = mesh;
+                world_ob_or_avatar.mesh_state = MESH_LOADED;
+            }
+        }
+        else {
+            console.log("Request for '" + model_url + "' returned a non-200 error code: " + request.status);
+        }
+    };
+
+    request.send(null);
+}
+
 
 
 // Parse initial camera location from URL
@@ -981,8 +1152,8 @@ if(params.get("z"))
     initial_pos_z = parseFloat(params.get("z"));
 
 
-let avatar = new Avatar();
-avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
+let client_avatar = new Avatar();
+client_avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
 
 
 THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
@@ -1196,14 +1367,14 @@ function doCamMovement(dt){
         camera.lookAt(camera.position.clone().add(camForwardsVec()));
     }
 
-    avatar.pos.x = camera.position.x;
-    avatar.pos.y = camera.position.y;
-    avatar.pos.z = camera.position.z;
+    client_avatar.pos.x = camera.position.x;
+    client_avatar.pos.y = camera.position.y;
+    client_avatar.pos.z = camera.position.z;
 
     // rotation = (roll, pitch, heading)
-    avatar.rotation.x = 0;
-    avatar.rotation.y = pitch;
-    avatar.rotation.z = heading;
+    client_avatar.rotation.x = 0;
+    client_avatar.rotation.y = pitch;
+    client_avatar.rotation.z = heading;
 }
 
 function curTimeS() {
@@ -1232,6 +1403,7 @@ function animate() {
     }
 
 
+    // Send AvatarTransformUpdate message to server
     if (cur_time > last_avatar_update_send_time + 0.1) {
         let anim_state = 0;
 
@@ -1239,15 +1411,67 @@ function animate() {
         buffer_out.writeUInt32(AvatarTransformUpdate);
         buffer_out.writeUInt32(0); // will be updated with length
         writeUID(buffer_out, client_avatar_uid);
-        avatar.pos.writeToStream(buffer_out);
-        avatar.rotation.writeToStream(buffer_out);
+        client_avatar.pos.writeToStream(buffer_out);
+        client_avatar.rotation.writeToStream(buffer_out);
         buffer_out.writeUInt32(anim_state);
         buffer_out.updateMessageLengthField();
         buffer_out.writeToWebSocket(ws);
-        //console.log("Sending av update");
+        //console.log("Sending avatar update");
 
         last_avatar_update_send_time = cur_time;
     }
+
+
+    // Update avatar positions
+    for (const avatar of avatars.values()) {
+
+        if (avatar.uid != client_avatar_uid) { // If this is our avatar, don't load it
+
+            if (avatar.mesh_state == MESH_NOT_LOADED) {
+
+                console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
+                let ob_lod_level = 0;
+                let world_axis = new Vec3f(0, 0, 1);
+                let angle = 0;
+                loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+            }
+            else if (avatar.mesh_state == MESH_LOADED) {
+
+                let av_z_rot = avatar.rotation.z + Math.PI / 2;
+
+                let mat = new THREE.Matrix4();
+                mat.makeRotationZ(av_z_rot);
+
+                // Set translation part of matrix
+                mat.elements[12] = avatar.pos.x;
+                mat.elements[13] = avatar.pos.y;
+                mat.elements[14] = avatar.pos.z;
+
+                //console.log("pos: " + avatar.pos.x + ", " + avatar.pos.y + ", " + avatar.pos.z);
+
+                let pre_ob_to_world_matrix = new THREE.Matrix4();
+
+                /*
+                0	4	8	12
+                1	5	9	13
+                2	6	10	14
+                3	7	11	15
+                */
+                let m = avatar.avatar_settings.pre_ob_to_world_matrix; // pre_ob_to_world_matrix is in column-major order, set() takes row-major order, so transpose.
+                pre_ob_to_world_matrix.set(
+                    m[0], m[4], m[8], m[12],
+                    m[1], m[5], m[9], m[13],
+                    m[2], m[6], m[10], m[14],
+                    m[3], m[7], m[11], m[15]
+                );
+
+                mat.multiply(pre_ob_to_world_matrix);
+
+                avatar.mesh.matrix.copy(mat);
+                avatar.mesh.matrixAutoUpdate = false;
+            }
+        }
+    };
 }
 
 

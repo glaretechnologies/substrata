@@ -6,25 +6,81 @@
 	<title>Substrata Web Client</title>
 
 	<style>
-		html, body {
-			overflow: hidden;
-			width: 100%;
-			height: 100%;
-			margin: 0;
-			padding: 0;
-		}
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Helvetica, Arial, Sans-Serif;
+        }
 
 		#renderCanvas {
 			width: 100%;
 			height: 100%;
 			touch-action: none;
 		}
+
+        #onlineusers {
+            position: absolute;
+            right: 40px;
+            bottom: 210px;
+            width: 200px;
+            height: 100px;
+            margin: 0;
+            padding: 10px;
+            background: rgb(200, 200, 200);
+        }
+
+        #chat {
+            position: absolute;
+            right: 40px;
+            bottom: 70px;
+            width: 200px;
+            height: 100px;
+            margin: 0;
+            padding: 10px;
+            background: rgb(200, 200, 200);
+            overflow-y: scroll;
+        }
+
+        #chatmessages {
+            
+        }
+
+        #chatbox {
+            position: absolute;
+            right: 40px;
+            bottom: 10px;
+            width: 200px;
+            height: 40px;
+            margin: 0;
+            padding: 10px;
+            background: rgb(200, 200, 200);
+        }
 	</style>
 
 </head>
 
 <body>
-	<script type="module" src="webclient.js"></script>
+    <script type="module" src="webclient.js"></script>
+
+    <div id="onlineusers">
+        Online users:
+        <div id="onlineuserslist">a</div>
+    </div>
+
+    <div id="chat">
+        <div id="chatmessages"></div>
+    </div>
+
+    <div id="chatbox">
+        <form id="chatform">
+            <input type="text" id="chat_message" name="chat_message"> <input type="submit" value="Chat">
+        </form>
+    </div>
+
+
 </body>
 
 </html>
