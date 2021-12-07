@@ -109,6 +109,8 @@ export class BufferOut {
 
         for (let i = 0; i < utf8_array.length; ++i)
             this.data_view.setUint8(write_i + i, utf8_array[i]);
+
+        this.size += utf8_array.length;
     }
 
 
