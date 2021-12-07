@@ -33,6 +33,7 @@ const ClientProtocolTooNew = 10002;
 const AvatarCreated = 1000;
 const AvatarDestroyed = 1001;
 const AvatarTransformUpdate = 1002;
+const AvatarFullUpdate = 1003;
 const CreateAvatar = 1004;
 const AvatarIsHere = 1005;
 
@@ -372,6 +373,10 @@ class Avatar {
 
     readFromStream(stream) {
         this.uid = stream.readUInt64();
+        this.readFromStreamGivenUID(stream);
+    }
+
+    readFromStreamGivenUID(stream) {
         this.name = stream.readStringLengthFirst();
         this.pos = readVec3dFromStream(stream);
         this.rotation = readVec3fFromStream(stream);
@@ -645,7 +650,7 @@ function sendQueryObjectsMessage() {
 
 var parcels = {};
 var world_objects = {};
-var client_avatar_uid = 0;
+var client_avatar_uid = null;
 var avatars = new Map();
 
 //Log the messages that are returned from the server
@@ -736,34 +741,56 @@ ws.onmessage = function (event) {
             }
             else if (msg_type == AvatarCreated) {
 
-                let av = new Avatar();
-                av.readFromStream(buffer);
+                let avatar = new Avatar();
+                avatar.readFromStream(buffer);
 
-                avatars.set(av.uid, av);
+                avatars.set(avatar.uid, avatar);
 
-                console.log("Avatar " + av.name + " joined");
+                console.log("Avatar " + avatar.name + " joined");
 
-                appendChatMessage(av.name + " joined");
+                appendChatMessage(avatar.name + " joined");
 
                 updateOnlineUsersList();
+
+                if (avatar.uid != client_avatar_uid) {
+                    console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
+                    let ob_lod_level = 0;
+                    let world_axis = new Vec3f(0, 0, 1);
+                    let angle = 0;
+                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                }
             }
             else if (msg_type == AvatarIsHere) {
             
-                let av = new Avatar();
-                av.readFromStream(buffer);
+                let avatar = new Avatar();
+                avatar.readFromStream(buffer);
                 
-                avatars.set(av.uid, av);
+                avatars.set(avatar.uid, avatar);
 
-                console.log("Avatar " + av.name + " is here");
+                console.log("Avatar " + avatar.name + " is here");
 
-                appendChatMessage(av.name + " is here");
+                appendChatMessage(avatar.name + " is here");
 
                 updateOnlineUsersList();
+
+                if (avatar.uid != client_avatar_uid) {
+                    console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
+                    let ob_lod_level = 0;
+                    let world_axis = new Vec3f(0, 0, 1);
+                    let angle = 0;
+                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                }
             }
             else if (msg_type == AvatarDestroyed) {
                 const avatar_uid = readUIDFromStream(buffer);
 
+                let avatar = avatars.get(avatar_uid);
                 avatars.delete(avatar_uid);
+
+                if (avatar) {
+                    // Remove avatar mesh
+                    scene.remove(avatar.mesh);
+                }
 
                 updateOnlineUsersList();
             }
@@ -780,6 +807,31 @@ ws.onmessage = function (event) {
                     avatar.pos = pos;
                     avatar.rotation = rotation;
                     avatar.anim_state = anim_state;
+                }
+            }
+            else if (msg_type == AvatarFullUpdate) {
+
+                console.log("AvatarFullUpdate");
+
+                let avatar_uid = readUIDFromStream(buffer);
+                let avatar = avatars.get(avatar_uid);
+                if (avatar) {
+                    avatar.readFromStreamGivenUID(buffer);
+                }
+                else {
+                    let avatar = new Avatar();
+                    avatar.readFromStreamGivenUID(buffer);
+                }
+
+                //avatars.set(avatar.uid, avatar);
+
+                if (avatar.uid != client_avatar_uid) {// && avatar.mesh_state != MESH_LOADED) {
+
+                    console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
+                    let ob_lod_level = 0;
+                    let world_axis = new Vec3f(0, 0, 1);
+                    let angle = 0;
+                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
                 }
             }
             else if (msg_type == LoggedInMessageID) {
@@ -832,14 +884,15 @@ function appendChatMessage(msg) {
     node.textContent = msg;
     document.getElementById("chatmessages").appendChild(node);
 
-    document.getElementById("chat").scrollTop = document.getElementById("chat").scrollHeight;
+    document.getElementById("chatmessages").scrollTop = document.getElementById("chatmessages").scrollHeight;
 }
 
 
 function onChatSubmitted(event) {
     console.log("Chat submitted");
 
-    let msg = event.target.elements.chat_message.value;
+    //let msg = event.target.elements.chat_message.value;
+    let msg = document.getElementById("chat_message").value;
     console.log("msg: " + msg)
 
 
@@ -862,16 +915,25 @@ const form = document.getElementById('form');
 document.getElementById('chatform').addEventListener('submit', onChatSubmitted);
 
 
+//document.getElementById("chat_message").addEventListener("keyup", function (event) {
+//    console.log("keyup");
+//    event.preventDefault();
+//    if (event.keyCode === 13) {
+//        onChatSubmitted(event);
+//    }
+//});
+
+
 
 function updateOnlineUsersList() {
 
-    document.getElementById("onlineuserslist").textContent = ""; // clear div
-
-    for (const avatar of avatars.values()) {
-        let node = document.createElement("div");
-        node.textContent = avatar.name;
-        document.getElementById("onlineuserslist").appendChild(node);
-    }
+    //document.getElementById("onlineuserslist").textContent = ""; // clear div
+    //
+    //for (const avatar of avatars.values()) {
+    //    let node = document.createElement("div");
+    //    node.textContent = avatar.name;
+    //    document.getElementById("onlineuserslist").appendChild(node);
+    //}
 }
 
 // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
@@ -1124,6 +1186,7 @@ function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_lod_level, mat
                 //    throw "Error while loading mesh with url '" + url + "': " + excep;
                 //}
 
+                //console.log("Loaded mesh '" + model_url + "'.");
                 world_ob_or_avatar.mesh = mesh;
                 world_ob_or_avatar.mesh_state = MESH_LOADED;
             }
@@ -1317,8 +1380,8 @@ function onWindowResize() {
 }
 
 renderer_canvas_elem.addEventListener('mousedown', onDocumentMouseDown, false);
-renderer_canvas_elem.addEventListener('mouseup', onDocumentMouseUp, false);
-renderer_canvas_elem.addEventListener('mousemove', onDocumentMouseMove, false);
+window.addEventListener('mouseup', onDocumentMouseUp, false);
+window.addEventListener('mousemove', onDocumentMouseMove, false);
 renderer_canvas_elem.addEventListener('keydown', onKeyDown, false);
 renderer_canvas_elem.addEventListener('keyup', onKeyUp, false);
 
@@ -1403,7 +1466,7 @@ function animate() {
 
 
     // Send AvatarTransformUpdate message to server
-    if (cur_time > last_avatar_update_send_time + 0.1) {
+    if ((client_avatar_uid !== null) &&  cur_time > last_avatar_update_send_time + 0.1) {
         let anim_state = 0;
 
         let buffer_out = new bufferout.BufferOut();
@@ -1428,11 +1491,11 @@ function animate() {
 
             if (avatar.mesh_state == MESH_NOT_LOADED) {
 
-                console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
-                let ob_lod_level = 0;
-                let world_axis = new Vec3f(0, 0, 1);
-                let angle = 0;
-                loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                //console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
+                //let ob_lod_level = 0;
+                //let world_axis = new Vec3f(0, 0, 1);
+                //let angle = 0;
+                //loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
             }
             else if (avatar.mesh_state == MESH_LOADED) {
 
