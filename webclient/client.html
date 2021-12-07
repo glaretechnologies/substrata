@@ -23,40 +23,62 @@
 
         #onlineusers {
             position: absolute;
-            right: 40px;
+            left: 20px;
             bottom: 210px;
-            width: 200px;
+            width: 250px;
             height: 100px;
             margin: 0;
             padding: 10px;
-            background: rgb(200, 200, 200);
+            background: rgba(0, 0, 0, 0.4);
+            color: rgb(240, 240, 240);
+            border-radius: 5px;
         }
 
         #chat {
             position: absolute;
-            right: 40px;
-            bottom: 70px;
-            width: 200px;
-            height: 100px;
+            left: 20px;
+            bottom: 20px;
+            width: 20%;
+            height: 140px;
             margin: 0;
             padding: 10px;
-            background: rgb(200, 200, 200);
-            overflow-y: scroll;
+            background: rgba(0, 0, 0, 0.4);
+            color: rgb(240, 240, 240);
+            border-radius: 5px;
         }
 
         #chatmessages {
-            
+            overflow-y: scroll;
+            /*overflow-x: clip;*/
+            overflow-wrap: break-word;
+            height: 110px;
         }
 
+        /* div around text entry box */
         #chatbox {
+            width: 90%;
+            /*padding-top: 20px;
+            padding-bottom: 20px;*/
             position: absolute;
-            right: 40px;
+            bottom: 10px;
+            /* right: 40px;
             bottom: 10px;
             width: 200px;
-            height: 40px;
+            height: 30px;
             margin: 0;
-            padding: 10px;
-            background: rgb(200, 200, 200);
+            padding: 0px;
+            */
+            /*background: rgba(0, 0, 0, 0.4);
+            color: rgb(240, 240, 240);
+            border-radius: 5px;*/
+            /* background: rgba(0, 0, 0, 0.4);*/
+        }
+
+        /* actual chat message box*/
+        #chat_message {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 5px;
         }
 
         #rendercanvas {
@@ -75,20 +97,22 @@
 
     <canvas id="rendercanvas" tabindex="1" width="350" height="200"> </canvas>
 
-    <div id="onlineusers">
+    <!--<div id="onlineusers">
         Online users:
-        <div id="onlineuserslist">a</div>
-    </div>
+        <div id="onlineuserslist"></div>
+    </div>-->
 
     <div id="chat">
         <div id="chatmessages"></div>
+
+        <div id="chatbox">
+            <form id="chatform">
+                <input type="text" id="chat_message" name="chat_message" /> <!--<input type="submit" value="Chat" />-->
+            </form>
+        </div>
     </div>
 
-    <div id="chatbox">
-        <form id="chatform">
-            <input type="text" id="chat_message" name="chat_message"> <input type="submit" value="Chat">
-        </form>
-    </div>
+    
 
 
 </body>
