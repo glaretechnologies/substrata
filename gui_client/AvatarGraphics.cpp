@@ -37,8 +37,6 @@ AvatarGraphics::AvatarGraphics()
 
 	turn_anim_end_time = -1;
 	turning = false;
-
-	initial_set_overall_transform = true;
 }
 
 
@@ -77,15 +75,6 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		debug_avatar_basis_ob->ob_to_world_matrix = Matrix4f::translationMatrix(1000, 0, 0);
 		engine.addObject(debug_avatar_basis_ob);
 	}
-
-	// If this is the first call to setOverallTransform(), initialise avatar_rotation to cam_rotation.
-	if(initial_set_overall_transform)
-	{
-		avatar_rotation = cam_rotation;
-		cur_head_rot_z = cam_rotation.z;
-		initial_set_overall_transform = false;
-	}
-
 
 	if(skinned_gl_ob.nonNull())
 	{
@@ -619,8 +608,13 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			}
 		}
 	}
-	else
+	else // else if skinned_gl_ob is NULL:
 	{
+		// While skinned_gl_ob is NULL, e.g. we are not showing the avatar, keep avatar_rotation etc. updated.  This is so when/if the avatar is made visible, it won't do a turning animation to bring
+		// avatar_rotation in line with the current cam_rotation.
+		avatar_rotation = cam_rotation;
+		cur_head_rot_z = cam_rotation.z;
+
 		//this->last_hand_pos = toVec3d(this->lower_arms[0].gl_ob->ob_to_world_matrix * Vec4f(0, 0, 1, 1)); // (0,0,1) in forearm cylinder object space is where the hand is.
 	}
 
@@ -667,6 +661,8 @@ void AvatarGraphics::build()
 	left_eye_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftEye");
 	right_eye_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightEye");
 	// left_foot_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftFoot");
+
+	skinned_gl_ob->current_anim_i = idle_anim_i; // current_anim_i will be 0 on GLObject creation, which is waving anim or something, set to idle anim.
 }
 
 

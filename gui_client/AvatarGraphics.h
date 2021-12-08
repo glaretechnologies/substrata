@@ -74,7 +74,7 @@ public:
 
 private:
 	Vec3f avatar_rotation_at_turn_start;
-	Vec3f avatar_rotation;
+	Vec3f avatar_rotation; // The avatar rotation is decoupled from the camera rotation.  The avatar will perform a turn animation when the difference becomes too large.
 	Vec3f last_cam_rotation;
 	Vec3d last_pos;
 	Vec3d last_vel;
@@ -126,8 +126,6 @@ private:
 	int left_eye_node_i;
 	int right_eye_node_i;
 	//int left_foot_node_i;
-
-	bool initial_set_overall_transform; // Will the next setOverallTransform() call be the first one?
 };
 
 

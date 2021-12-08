@@ -3853,7 +3853,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						updateOnlineUsersList();
 					}
 
-					if((cam_controller.thirdPersonEnabled() || !our_avatar) && reload_opengl_model) // Don't load graphics for our avatar
+					if((cam_controller.thirdPersonEnabled() || !our_avatar) && reload_opengl_model) // Don't load graphics for our avatar unless we are in third-person cam view mode
 					{
 						print("(Re)Loading avatar model. model URL: " + avatar->avatar_settings.model_url + ", Avatar name: " + avatar->name);
 
@@ -7963,6 +7963,11 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	{
 		ui->actionFly_Mode->toggle();
 		ui->actionFly_Mode->triggered(ui->actionFly_Mode->isChecked()); // Need to manually emit triggered signal, toggle doesn't do it.
+	}
+	else if(e->key() == Qt::Key::Key_V)
+	{
+		ui->actionThird_Person_Camera->toggle();
+		ui->actionThird_Person_Camera->triggered(ui->actionThird_Person_Camera->isChecked()); // Need to manually emit triggered signal, toggle doesn't do it.
 	}
 	
 	if(this->selected_ob.nonNull())
