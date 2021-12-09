@@ -648,10 +648,11 @@ function sendQueryObjectsMessage() {
 }
 
 
-var parcels = {};
-var world_objects = {};
-var client_avatar_uid = null;
+var parcels = new Map();
+var world_objects = new Map();
 var avatars = new Map();
+var client_avatar_uid = null;
+
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
@@ -712,7 +713,7 @@ ws.onmessage = function (event) {
                 let parcel = readParcelFromNetworkStreamGivenID(buffer);
                 parcel.parcel_id = parcel_id;
 
-                parcels[parcel_id] = parcel;
+                parcels.set(parcel_id, parcel);
 
                 //console.log("Read ParcelCreated msg, parcel_id: " + parcel_id);
 
@@ -728,7 +729,7 @@ ws.onmessage = function (event) {
 
                 addWorldObjectGraphics(world_ob);
 
-                world_objects[object_uid] = world_ob;
+                world_objects.set(object_uid, world_ob);
                 //console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
             }
             else if (msg_type == ChatMessageID) {
@@ -838,13 +839,11 @@ ws.onmessage = function (event) {
 
                 const logged_in_user_id = readUserIDFromStream(buffer);
                 const logged_in_username = buffer.readStringLengthFirst();
+                client_avatar.avatar_settings.readFromStream(buffer);
 
                 console.log("Logged in as " + logged_in_username);
 
-                client_avatar.avatar_settings.readFromStream(buffer);
-
-
-                // Send create avatar message
+                // Send create avatar message now that we have our avatar settings.
                 let av_buf = new bufferout.BufferOut();
                 av_buf.writeUInt32(CreateAvatar);
                 av_buf.writeUInt32(0); // will be updated with length
@@ -1134,69 +1133,128 @@ function addWorldObjectGraphics(world_ob) {
 }
 
 
+let url_to_geom_map = new Map(); // Map from model_url to 3.js geometry object.
 
+let loading_model_URL_set = new Set(); // set of URLS
+
+
+// Returns mesh
+function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob_lod_level) {
+    let three_mats = []
+    for (let i = 0; i < mats.length; ++i) {
+        let three_mat = new THREE.MeshStandardMaterial();
+        setThreeJSMaterial(three_mat, mats[i], ob_lod_level);
+        three_mats.push(three_mat);
+    }
+
+    const mesh = new THREE.Mesh(geometry, three_mats);
+    mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
+    mesh.scale.copy(new THREE.Vector3(scale.x, scale.y, scale.z));
+
+    let axis = new THREE.Vector3(world_axis.x, world_axis.y, world_axis.z);
+    axis.normalize();
+    let q = new THREE.Quaternion();
+    q.setFromAxisAngle(axis, angle);
+    mesh.setRotationFromQuaternion(q);
+
+    scene.add(mesh);
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
+}
+
+
+// model_url will have lod level in it, e.g. cube_lod2.bmesh
 function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_lod_level, mats, pos, scale, world_axis, angle) {
+
+    console.log("loadModelAndAddToScene(), model_url: " + model_url);
 
     world_ob_or_avatar.mesh_state = MESH_LOADING;
 
-    let encoded_url = encodeURIComponent(model_url);
+    let geom = url_to_geom_map.get(model_url);
+    if (geom) {
+        console.log("Found already loaded geom for " + model_url);
 
-    var request = new XMLHttpRequest();
-    request.open("GET", "/resource/" + encoded_url, true);
-    request.responseType = "arraybuffer";
+        let mesh = makeMeshAndAddToScene(geom, mats, pos, scale, world_axis, angle, ob_lod_level);
 
-    request.onload = function (oEvent) {
+        //console.log("Loaded mesh '" + model_url + "'.");
+        world_ob_or_avatar.mesh = mesh;
+        world_ob_or_avatar.mesh_state = MESH_LOADED;
+        return;
+    }
+    else {
+        if (loading_model_URL_set.has(model_url)) {
+            console.log("model is in loading set, returning.");
+            return;
+        }
 
-        if (request.status >= 200 && request.status < 300) {
-            var array_buffer = request.response;
-            if (array_buffer) {
+        let encoded_url = encodeURIComponent(model_url);
 
-                // console.log("Downloaded the file: '" + url + "'!");
-                //try {
-                //console.log("request.status: " + request.status);
-                //console.log("Loading batched mesh from '" + url + "'...");
-                //console.log("array_buffer:");
-                //console.log(array_buffer);
-                let geometry = loadBatchedMesh(array_buffer);
+        var request = new XMLHttpRequest();
+        request.open("GET", "/resource/" + encoded_url, true);
+        request.responseType = "arraybuffer";
+
+        request.onload = function (oEvent) {
+
+            if (request.status >= 200 && request.status < 300) {
+                var array_buffer = request.response;
+                if (array_buffer) {
+
+                    console.log("Downloaded the file: '" + model_url + "'!");
+                    //try {
+                    //console.log("request.status: " + request.status);
+                    //console.log("Loading batched mesh from '" + url + "'...");
+                    //console.log("array_buffer:");
+                    //console.log(array_buffer);
+                    let geometry = loadBatchedMesh(array_buffer);
+
+                    console.log("Inserting " + model_url + " into url_to_geom_map");
+                    url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
 
 
-                let three_mats = []
-                for (let i = 0; i < mats.length; ++i) {
-                    let three_mat = new THREE.MeshStandardMaterial();
-                    setThreeJSMaterial(three_mat, mats[i], ob_lod_level);
-                    three_mats.push(three_mat);
+                    // Iterate over all objects and avatars, assign this model to all of those
+                    for (const world_ob of world_objects.values()) {
+                        if (world_ob.model_url === model_url) {
+
+                            let use_ob_lod_level = getLODLevel(world_ob, camera.position); // Used for determining which texture LOD level to load
+                            //let use_model_lod_level = getModelLODLevel(world_ob, camera.position);
+                            let mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, use_ob_lod_level);
+
+                            console.log("Made mesh with '" + model_url + "', assigning to world_ob " + world_ob.uid);
+                            world_ob.mesh = mesh;
+                            world_ob.mesh_state = MESH_LOADED;
+                        }
+                    }
+
+                    for (const avatar of avatars.values()) {
+                        if (avatar.avatar_settings.model_url === model_url) {
+
+                            if (avatar.uid != client_avatar_uid) {
+                                let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1), /*angle=*/0, /*ob_lod_level=*/0);
+
+                                //console.log("Loaded mesh '" + model_url + "'.");
+                                avatar.mesh = mesh;
+                                avatar.mesh_state = MESH_LOADED;
+                            }
+                        }
+                    }
+
+
+                    
                 }
-
-                const mesh = new THREE.Mesh(geometry, three_mats);
-                mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
-                mesh.scale.copy(new THREE.Vector3(scale.x, scale.y, scale.z));
-
-                let axis = new THREE.Vector3(world_axis.x, world_axis.y, world_axis.z);
-                axis.normalize();
-                let q = new THREE.Quaternion();
-                q.setFromAxisAngle(axis, angle);
-                mesh.setRotationFromQuaternion(q);
-
-                scene.add(mesh);
-
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                //}
-                //catch (excep) {
-                //    throw "Error while loading mesh with url '" + url + "': " + excep;
-                //}
-
-                //console.log("Loaded mesh '" + model_url + "'.");
-                world_ob_or_avatar.mesh = mesh;
-                world_ob_or_avatar.mesh_state = MESH_LOADED;
             }
-        }
-        else {
-            console.log("Request for '" + model_url + "' returned a non-200 error code: " + request.status);
-        }
-    };
+            else {
+                console.log("Request for '" + model_url + "' returned a non-200 error code: " + request.status);
+            }
+        };
 
-    request.send(null);
+        request.send(null);
+
+        console.log("Inserting " + model_url + " into loading_model_URL_set");
+        loading_model_URL_set.add(model_url);
+    }
 }
 
 
@@ -1288,7 +1346,8 @@ uniforms['sunPosition'].value.copy(sun);
 
 //===================== Add ground plane =====================
 {
-    const geometry = new THREE.PlaneGeometry(1000, 1000);
+    let plane_w = 1000;
+    const geometry = new THREE.PlaneGeometry(plane_w, plane_w);
     const material = new THREE.MeshStandardMaterial();
     material.color = new THREE.Color(0.9, 0.9, 0.9);
     //material.side = THREE.DoubleSide;
@@ -1301,8 +1360,8 @@ uniforms['sunPosition'].value.copy(sun);
 
     texture.matrixAutoUpdate = false;
     texture.matrix.set(
-        1000, 0, 0,
-        0, 1000, 0,
+        plane_w, 0, 0,
+        0, plane_w, 0,
         0, 0, 1
     );
    
