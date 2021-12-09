@@ -2425,6 +2425,19 @@ void MainWindow::checkForLODChanges()
 }
 
 
+struct CloserToCamComparator
+{
+	CloserToCamComparator(const Vec4f& campos_) : campos(campos_) {}
+
+	bool operator () (const Vec4f& a, const Vec4f& b)
+	{
+		return a.getDist2(campos) < b.getDist2(campos);
+	}
+
+	Vec4f campos;
+};
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	const double dt = time_since_last_timer_ev.elapsed();
@@ -3809,6 +3822,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	// Update avatar graphics
+	js::Vector<Vec4f, 16> av_positions;
 	if(world_state.nonNull())
 	{
 		try
@@ -3956,7 +3970,23 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							const int rnd_src_i = rng.nextUInt(4);
 							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", anim_events.footstrike_pos.toVec4fPoint());
 						}
+
+						for(int i=0; i<anim_events.num_blobs; ++i)
+						{
+							av_positions.push_back(anim_events.blob_sphere_positions[i]); // 0.3m off ground: legs/feet 
+						}
 					}
+							
+
+
+
+					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f, 0)); // 0.3m off ground: legs/feet 
+					////av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 0.8f, 0)); // 0.3m off ground: legs/feet
+					////av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 1.3f, 0)); // torso
+
+					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 0.3f, 0)); // 0.3m off ground: legs/feet 
+					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 0.8f, 0)); // 0.3m off ground: legs/feet
+					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 1.3f, 0)); // torso
 
 					// Update nametag transform also
 					if(avatar->opengl_engine_nametag_ob.nonNull())
@@ -4034,6 +4064,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					++it;
 				}
 			} // end for each avatar
+
+			// Sort avatar positions based on distance from camera
+			CloserToCamComparator comparator(cam_controller.getPosition().toVec4fPoint());
+			std::sort(av_positions.begin(), av_positions.end(), comparator);
+
+			const size_t use_num_av_positions = myMin((size_t)8, av_positions.size());
+			ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations.resize(use_num_av_positions);
+			for(size_t i=0; i<use_num_av_positions; ++i)
+				ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations[i] = av_positions[i];
+
 		}
 		catch(glare::Exception& e)
 		{
