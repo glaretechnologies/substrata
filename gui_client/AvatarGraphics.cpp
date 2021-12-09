@@ -607,6 +607,36 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				skinned_gl_ob->anim_node_data[right_eye_node_i].procedural_transform = Matrix4f::identity();
 			}
 		}
+
+		anim_events_out.num_blobs = 0;
+		if(	left_knee_node_i >= 0  && left_knee_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+			right_knee_node_i >= 0 && right_knee_node_i < (int)skinned_gl_ob->anim_node_data.size())
+		{
+			printVar(left_knee_node_i);
+			printVar(right_knee_node_i);
+			printVar(skinned_gl_ob->anim_node_data.size());
+			Vec4f left_knee_pos  = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[left_knee_node_i ].node_hierarchical_to_object * Vec4f(0,0,0,1));
+			Vec4f right_knee_pos = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[right_knee_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1));
+
+			anim_events_out.blob_sphere_positions[anim_events_out.num_blobs++] = (left_knee_pos + right_knee_pos) * 0.5f;
+		}
+		if(	left_foot_node_i >= 0  && left_foot_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+			right_foot_node_i >= 0 && right_foot_node_i < (int)skinned_gl_ob->anim_node_data.size())
+		{
+			Vec4f left_foot_pos  = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[left_foot_node_i ].node_hierarchical_to_object * Vec4f(0,0,0,1));
+			Vec4f right_foot_pos = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[right_foot_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1));
+			anim_events_out.blob_sphere_positions[anim_events_out.num_blobs++] = (left_foot_pos + right_foot_pos) * 0.5f;
+		}
+		if(hips_node_i >= 0 && hips_node_i < (int)skinned_gl_ob->anim_node_data.size()) // Upper torso
+		{
+			Vec4f hips_pos = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[hips_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1));
+			anim_events_out.blob_sphere_positions[anim_events_out.num_blobs++] = hips_pos;
+		}
+		if(spine2_node_i >= 0 && spine2_node_i < (int)skinned_gl_ob->anim_node_data.size()) // Upper torso
+		{
+			Vec4f spine2_pos = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[spine2_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1));
+			anim_events_out.blob_sphere_positions[anim_events_out.num_blobs++] = spine2_pos;
+		}
 	}
 	else // else if skinned_gl_ob is NULL:
 	{
@@ -614,6 +644,8 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		// avatar_rotation in line with the current cam_rotation.
 		avatar_rotation = cam_rotation;
 		cur_head_rot_z = cam_rotation.z;
+
+		anim_events_out.num_blobs = 0;
 
 		//this->last_hand_pos = toVec3d(this->lower_arms[0].gl_ob->ob_to_world_matrix * Vec4f(0, 0, 1, 1)); // (0,0,1) in forearm cylinder object space is where the hand is.
 	}
@@ -660,7 +692,16 @@ void AvatarGraphics::build()
 	head_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Head");
 	left_eye_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftEye");
 	right_eye_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightEye");
-	// left_foot_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftFoot");
+	
+	left_foot_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftFoot");
+	right_foot_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightFoot");
+
+	// 
+	left_knee_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftLeg");
+	right_knee_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightLeg");
+
+	hips_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Hips");
+	spine2_node_i =  skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Spine2");
 
 	skinned_gl_ob->current_anim_i = idle_anim_i; // current_anim_i will be 0 on GLObject creation, which is waving anim or something, set to idle anim.
 }

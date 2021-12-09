@@ -24,6 +24,9 @@ struct AnimEvents
 	AnimEvents() : footstrike(false) {}
 	bool footstrike;
 	Vec3d footstrike_pos;
+
+	Vec4f blob_sphere_positions[4];
+	int num_blobs;
 };
 
 
@@ -125,7 +128,14 @@ private:
 	int head_node_i;
 	int left_eye_node_i;
 	int right_eye_node_i;
-	//int left_foot_node_i;
+	int left_foot_node_i;
+	int right_foot_node_i;
+	int left_knee_node_i;
+	int right_knee_node_i;
+
+	int hips_node_i;
+
+	int spine2_node_i;
 };
 
 
