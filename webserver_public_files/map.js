@@ -8,6 +8,34 @@ L.tileLayer('/tile?x={x}&y={y}&z={z}', {
 }).addTo(mymap);
 
 
+var info = L.control();
+
+info.onAdd = function (map) {
+    this._div = L.DomUtil.create('div', 'map-info'); // create a div with a class "info"
+    this.update();
+    return this._div;
+};
+
+
+const MRADMIN_COL = '#3388ff'; // blue
+const OTHER_OWNED_COL = '#0f9caa'; // cyan
+const FOR_AUCTION_COL = '#b40d96'; // purpleish
+const HIGHLIGHTED_COL = '#ef9518';
+
+
+// method that we will use to update the control based on feature properties passed
+info.update = function (props) {
+    this._div.innerHTML =
+        "<span style=\"color: " + MRADMIN_COL + "\">&#9632;</span> Owned by Substrata<br/>" +
+        "<span style=\"color: " + OTHER_OWNED_COL + "\">&#9632;</span> Owned by other<br/>" +
+        "<span style=\"color: " + FOR_AUCTION_COL + "\">&#9632;</span> Currently at auction";
+
+};
+
+info.addTo(mymap);
+
+
+
 /*mymap.on('click', function (e) {
     console.log("lat: " + e.latlng.lat);
     console.log("lng: " + e.latlng.lng);
@@ -32,10 +60,7 @@ L.gridLayer.gridDebug = function (opts) {
 mymap.addLayer(L.gridLayer.gridDebug());*/
 
 
-const MRADMIN_COL = '#3388ff'; // blue
-const FOR_AUCTION_COL = '#b40d96'; // purpleish
-const OTHER_OWNED_COL = '#0f9caa'; // cyan
-const HIGHLIGHTED_COL = '#ef9518';
+
 
 for (let i = 0; i < poly_parcel_ids.length; i++) {
 
