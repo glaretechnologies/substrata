@@ -1,4 +1,4 @@
-var mymap = L.map('mapid', { crs: L.CRS.Simple }).setView([0.0, 0.0], 4);
+let mymap = L.map('mapid', { crs: L.CRS.Simple }).setView([0.0, 0.0], 4);
 
 L.tileLayer('/tile?x={x}&y={y}&z={z}', {
     zoomOffset: 0,
@@ -31,49 +31,80 @@ L.gridLayer.gridDebug = function (opts) {
 
 mymap.addLayer(L.gridLayer.gridDebug());*/
 
-for (var i = 0; i < poly_parcel_ids.length; i++) {
 
-    var is_highlighted_parcel = poly_parcel_ids[i] == highlight_parcel_id;
+const MRADMIN_COL = '#3388ff'; // blue
+const FOR_AUCTION_COL = '#b40d96'; // purpleish
+const OTHER_OWNED_COL = '#0f9caa'; // cyan
+const HIGHLIGHTED_COL = '#ef9518';
 
-    var vert_i = i * 4;
-    var polygon = L.polygon([
+for (let i = 0; i < poly_parcel_ids.length; i++) {
+
+    let is_highlighted_parcel = poly_parcel_ids[i] == highlight_parcel_id;
+    let state = poly_parcel_state[i];
+
+    // 0 = owned by MrAdmin and not on auction, 1 = owned by MrAdmin and for auction, 2 = owned by someone else
+    let colour = null;
+    if (state == 0)
+        colour = MRADMIN_COL
+    else if (state == 1)
+        colour = FOR_AUCTION_COL
+    else
+        colour = OTHER_OWNED_COL
+
+    if (is_highlighted_parcel)
+        colour = HIGHLIGHTED_COL
+
+    let vert_i = i * 4;
+    let polygon = L.polygon([
         poly_coords[vert_i + 0],
         poly_coords[vert_i + 1],
         poly_coords[vert_i + 2],
         poly_coords[vert_i + 3],
     ], {
         weight: 2, // line width in pixels
-        color: (is_highlighted_parcel ? '#ef9518' : '#3388ff'),
+        color: colour,
         //fillColor: '#777',
         fillOpacity: (is_highlighted_parcel ? 0.2 : 0.05)
     }).addTo(mymap);
 
-    var popup = polygon.bindPopup("<a href=\"/parcel/" + poly_parcel_ids[i].toString() + "\">Parcel " + poly_parcel_ids[i].toString() + "</a>");
+    let popup = polygon.bindPopup("<a href=\"/parcel/" + poly_parcel_ids[i].toString() + "\">Parcel " + poly_parcel_ids[i].toString() + "</a>");
 
     if (is_highlighted_parcel)
         popup.openPopup();
 }
 
 
-for (var i = 0; i < rect_parcel_ids.length; i++) {
+for (let i = 0; i < rect_parcel_ids.length; i++) {
 
-    var is_highlighted_parcel = rect_parcel_ids[i] == highlight_parcel_id;
+    let is_highlighted_parcel = rect_parcel_ids[i] == highlight_parcel_id;
+    let state = rect_parcel_state[i];
 
     let margin = 0.01
 
-    var coord_i = i * 4;
-    var polygon = L.rectangle(
+    // 0 = owned by MrAdmin and not on auction, 1 = owned by MrAdmin and for auction, 2 = owned by someone else
+    let colour = null;
+    if (state == 0)
+        colour = MRADMIN_COL
+    else if (state == 1)
+        colour = FOR_AUCTION_COL
+    else
+        colour = OTHER_OWNED_COL
+
+    if (is_highlighted_parcel)
+        colour = HIGHLIGHTED_COL;
+
+    let coord_i = i * 4;
+    let polygon = L.rectangle(
         [[rect_bound_coords[coord_i + 0] + margin, rect_bound_coords[coord_i + 1] + margin], [rect_bound_coords[coord_i + 2] - margin, rect_bound_coords[coord_i + 3] - margin]],
         {
         weight: 2, // line width in pixels
-        color: (is_highlighted_parcel ? '#ef9518' : '#3388ff'),
+        color: colour,
         //fillColor: '#777',
         fillOpacity: (is_highlighted_parcel ? 0.2 : 0.05)
     }).addTo(mymap);
 
-    var popup = polygon.bindPopup("<a href=\"/parcel/" + rect_parcel_ids[i].toString() + "\">Parcel " + rect_parcel_ids[i].toString() + "</a>");
+    let popup = polygon.bindPopup("<a href=\"/parcel/" + rect_parcel_ids[i].toString() + "\">Parcel " + rect_parcel_ids[i].toString() + "</a>");
 
     if (is_highlighted_parcel)
         popup.openPopup();
 }
-

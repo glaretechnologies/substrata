@@ -150,12 +150,16 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 	page += "<a name=\"map\"></a>";
 	page += "<div style=\"height: 650px\" id=\"mapid\"></div>";
 
-	// Get parcel polygon boundaries
+	// Get parcel polygon boundaries.  Some parcels are rectangles, so we will handle those as a special case optimisation where we can just write a rectangle.
 	std::vector<Vec2d> poly_verts;
 	std::vector<int> poly_parcel_ids;
+	std::vector<int> poly_parcel_state; // 0 = owned by MrAdmin and not on auction, 1 = owned by MrAdmin and for auction, 2 = owned by someone else
 
 	std::vector<Rect2d> rect_bounds;
 	std::vector<int> rect_parcel_ids;
+	std::vector<int> rect_parcel_state;
+
+	const TimeStamp now = TimeStamp::currentTime();
 
 	{ // lock scope
 		Lock lock(world_state.mutex);
@@ -163,26 +167,52 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		ServerWorldState* root_world = world_state.getRootWorldState().ptr();
 
 
-		poly_verts.reserve(4 * 4);
-		poly_parcel_ids.reserve(4);
+		poly_verts.reserve(44 * 4);
+		poly_parcel_ids.reserve(44);
+		poly_parcel_state.reserve(44);
 
 		rect_bounds.reserve(root_world->parcels.size());
 		rect_parcel_ids.reserve(root_world->parcels.size());
+		rect_parcel_state.reserve(root_world->parcels.size());
 
 		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
 		{
 			const Parcel* parcel = it->second.ptr();
+
+			int state;
+			if(parcel->owner_id.value() == 0)
+			{
+				state = 0;
+				
+				// See if this parcel is currently up for auction
+				if(!parcel->parcel_auction_ids.empty())
+				{
+					const uint32 auction_id = parcel->parcel_auction_ids.back();
+					auto auction_res = world_state.parcel_auctions.find(auction_id);
+					if(auction_res != world_state.parcel_auctions.end())
+					{
+						const ParcelAuction* auction = auction_res->second.ptr();
+						if(auction->currentlyForSale(now)) // If auction is valid and running:
+							state = 1;
+					}
+				}
+			}
+			else
+				state = 2;
+
 			if(parcel->isAxisAlignedBox())
 			{
 				rect_bounds.push_back(Rect2d(Vec2d(parcel->aabb_min.x, parcel->aabb_min.y), Vec2d(parcel->aabb_max.x, parcel->aabb_max.y)));
-				rect_parcel_ids.push_back(parcel->id.value());
+				rect_parcel_ids.push_back((int)parcel->id.value());
+				rect_parcel_state.push_back(state);
 			}
 			else
 			{
 				for(int i=0; i<4; ++i)
 					poly_verts.push_back(parcel->verts[i]);
 
-				poly_parcel_ids.push_back(parcel->id.value());
+				poly_parcel_ids.push_back((int)parcel->id.value());
+				poly_parcel_state.push_back(state);
 			}
 		}
 	} // End lock scope
@@ -206,8 +236,17 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		if(i + 1 < poly_parcel_ids.size())
 			var_js += ", ";
 	}
-
 	var_js += "];\n";
+
+	var_js += "poly_parcel_state = [";
+	for(size_t i=0; i<poly_parcel_state.size(); ++i)
+	{
+		var_js += toString(poly_parcel_state[i]);
+		if(i + 1 < poly_parcel_state.size())
+			var_js += ", ";
+	}
+	var_js += "];\n";
+	
 	var_js += "rect_bound_coords = [";
 	for(size_t i=0; i<rect_bounds.size(); ++i)
 	{
@@ -227,7 +266,15 @@ const std::string getMapEmbedCode(ServerAllWorldsState& world_state, ParcelID hi
 		if(i + 1 < rect_parcel_ids.size())
 			var_js += ", ";
 	}
+	var_js += "];\n";
 
+	var_js += "rect_parcel_state = [";
+	for(size_t i=0; i<rect_parcel_state.size(); ++i)
+	{
+		var_js += toString(rect_parcel_state[i]);
+		if(i + 1 < rect_parcel_state.size())
+			var_js += ", ";
+	}
 	var_js += "];\n";
 
 	var_js += "highlight_parcel_id = " + toString(highlighted_parcel_id.value()) + ";";
