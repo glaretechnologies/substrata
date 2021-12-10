@@ -19,6 +19,9 @@ Copyright Glare Technologies Limited 2017 -
 #include <DatabaseKey.h>
 
 
+struct ServerCredentials;
+
+
 /*=====================================================================
 User
 ----
@@ -38,7 +41,7 @@ public:
 	bool isPasswordValid(const std::string& password) const;
 
 	// Adds reset token to list of reset tokens for user.
-	void sendPasswordResetEmail(); // throws glare::Exception on error
+	void sendPasswordResetEmail(const ServerCredentials& server_credentials); // throws glare::Exception on error
 
 	bool isResetTokenHashValidForUser(const std::array<uint8, 32>& reset_token_hash) const;
 	bool resetPasswordWithTokenHash(const std::array<uint8, 32>& reset_token_hash, const std::string& new_password);

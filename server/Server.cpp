@@ -47,6 +47,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../webserver/OpenSeaPollerThread.h"
 #include "../ethereum/RLP.h"//TEMP for testing
 #include "../ethereum/Signing.h"//TEMP for testing
+//#include <graphics/FormatDecoderGLTF.h>
 
 
 static const int parcel_coords[10][4][2] ={
@@ -518,6 +519,47 @@ static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
 }
 
 
+static ServerCredentials parseServerCredentials()
+{
+	try
+	{
+		std::string path;
+#ifdef WIN32
+		path = "D:\\substrata_stuff\\substrata_server_credentials.txt";
+#else
+		path = "/home/nick/substrata_server_credentials.txt";
+#endif
+
+		const std::string contents = FileUtils::readEntireFileTextMode(path);
+
+
+		ServerCredentials creds;
+
+		Parser parser(contents.c_str(), contents.size());
+
+		while(!parser.eof())
+		{
+			string_view key, value;
+			if(!parser.parseToChar(':', key))
+				throw glare::Exception("Error parsing key from '" + path + "'.");
+			if(!parser.parseChar(':'))
+				throw glare::Exception("Error parsing ':' from '" + path + "'.");
+
+			parser.parseWhiteSpace();
+			parser.parseLine(value);
+
+			creds.creds[key.to_string()] = value.to_string();
+		}
+
+		return creds;
+	}
+	catch(glare::Exception& e)
+	{
+		throw glare::Exception("Error while loading server credentials: " + e.what());
+	}
+}
+
+
 int main(int argc, char *argv[])
 {
 	Clock::init();
@@ -551,8 +593,9 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
-			DatabaseTests::test();
-			StringUtils::test();
+			//FormatDecoderGLTF::test();
+			//DatabaseTests::test();
+			//StringUtils::test();
 			//SHA256::test();
 			//RLP::test();
 			//Signing::test();
@@ -573,6 +616,7 @@ int main(int argc, char *argv[])
 		//-----------------------------------------------------------------------------------------
 
 
+		const ServerCredentials server_credentials = parseServerCredentials();
 
 
 		const int listen_port = 7600;
@@ -596,6 +640,8 @@ int main(int argc, char *argv[])
 		
 		Server server;
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
+
+		server.world_state->server_credentials = server_credentials;
 
 #ifdef WIN32
 		server.screenshot_dir = "C:\\programming\\cyberspace\\webdata\\screenshots"; // Dir generated screenshots will be saved to.
