@@ -424,7 +424,7 @@ void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::Reque
 			// TODO: move to another thread (make some kind of background task?)
 			try
 			{
-				matching_user->sendPasswordResetEmail();
+				matching_user->sendPasswordResetEmail(world_state.server_credentials);
 				world_state.addUserAsDBDirty(matching_user);
 				
 				conPrint("Sent user password reset email to '" + matching_user->email_address + ", username '" + matching_user->name + "'");

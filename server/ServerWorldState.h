@@ -90,6 +90,12 @@ struct MapTileInfo
 };
 
 
+struct ServerCredentials
+{
+	std::map<std::string, std::string> creds;
+};
+
+
 /*=====================================================================
 ServerWorldState
 ----------------
@@ -178,6 +184,9 @@ public:
 	std::unordered_set<UserRef, UserRefHash> db_dirty_users;
 
 	std::unordered_set<DatabaseKey, DatabaseKeyHash> db_records_to_delete;
+
+
+	ServerCredentials server_credentials;
 
 	::Mutex mutex;
 private:
