@@ -612,9 +612,6 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		if(	left_knee_node_i >= 0  && left_knee_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
 			right_knee_node_i >= 0 && right_knee_node_i < (int)skinned_gl_ob->anim_node_data.size())
 		{
-			printVar(left_knee_node_i);
-			printVar(right_knee_node_i);
-			printVar(skinned_gl_ob->anim_node_data.size());
 			Vec4f left_knee_pos  = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[left_knee_node_i ].node_hierarchical_to_object * Vec4f(0,0,0,1));
 			Vec4f right_knee_pos = skinned_gl_ob->ob_to_world_matrix * (skinned_gl_ob->anim_node_data[right_knee_node_i].node_hierarchical_to_object * Vec4f(0,0,0,1));
 
