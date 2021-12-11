@@ -715,16 +715,26 @@ void WorkerThread::doRun()
 		{
 			// Read name of world to connect to
 			const std::string world_name = socket->readStringLengthFirst(1000);
-			this->connected_world_name = world_name;
+			conPrint("Client connecting to world '" + world_name + "'...");
+			
 
 			{
 				Lock lock(world_state->mutex);
 				// Create world if didn't exist before.
-				// TODO: do this here? or restrict possible world names to those of users etc..?
+				// For now only the main world ("") and personal worlds are allowed
+				if(world_name == "")
+				{}
+				else if(world_state->name_to_users.find(world_name) != world_state->name_to_users.end()) // Else if world_name is a user name, it's valid
+				{}
+				else
+					throw glare::Exception("Invalid world name '" + world_name + "'.");
+
 				if(world_state->world_states[world_name].isNull())
 					world_state->world_states[world_name] = new ServerWorldState();
 				cur_world_state = world_state->world_states[world_name];
 			}
+
+			this->connected_world_name = world_name;
 
 			// Write avatar UID assigned to the connected client.
 			client_avatar_uid = world_state->getNextAvatarUID();

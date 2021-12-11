@@ -137,7 +137,7 @@ ws.onopen = function () {
 	let ConnectionTypeUpdates = 500;
 	ws.send(new Uint32Array([ConnectionTypeUpdates]));
 
-    writeStringToWebSocket(ws, ""); // World to connect to
+    writeStringToWebSocket(ws, world); // World to connect to
 
     sendQueryObjectsMessage();
 };
@@ -1272,6 +1272,10 @@ if(params.get("y"))
 if(params.get("z"))
     initial_pos_z = parseFloat(params.get("z"));
 
+let world = ""
+if (params.get("world"))
+    world = params.get("world")
+
 
 let client_avatar = new Avatar();
 client_avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
@@ -1519,7 +1523,11 @@ function animate() {
 
     // Update URL with current camera position
     if(cur_time > last_update_URL_time + 0.1) {
-        window.history.replaceState("object or string", "Title", "/webclient?x=" + camera.position.x.toFixed(1) + "&y=" + camera.position.y.toFixed(1) + "&z=" + camera.position.z.toFixed(1));
+        let url_path = "/webclient?";
+        if (world != "") // Append world if != empty string.
+            url_path += "world=" + encodeURIComponent(world) + "&";
+        url_path += "x=" + camera.position.x.toFixed(1) + "&y=" + camera.position.y.toFixed(1) + "&z=" + camera.position.z.toFixed(1);
+        window.history.replaceState("object or string", "Title", url_path);
         last_update_URL_time = cur_time;
     }
 
