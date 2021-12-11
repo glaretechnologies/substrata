@@ -496,4 +496,6 @@ public:
 	Timer download_queue_sort_timer;
 
 	SocketBufferOutStream scratch_packet;
+
+	js::Vector<Vec4f, 16> temp_av_positions;
 };

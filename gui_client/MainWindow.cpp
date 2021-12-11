@@ -3822,7 +3822,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	// Update avatar graphics
-	js::Vector<Vec4f, 16> av_positions;
+	temp_av_positions.clear();
 	if(world_state.nonNull())
 	{
 		try
@@ -3972,22 +3972,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 
 						for(int i=0; i<anim_events.num_blobs; ++i)
-						{
-							av_positions.push_back(anim_events.blob_sphere_positions[i]); // 0.3m off ground: legs/feet 
-						}
+							temp_av_positions.push_back(anim_events.blob_sphere_positions[i]);
 					}
-							
 
-
-
-					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f, 0)); // 0.3m off ground: legs/feet 
-					////av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 0.8f, 0)); // 0.3m off ground: legs/feet
-					////av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 1.3f, 0)); // torso
-
-					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 0.3f, 0)); // 0.3m off ground: legs/feet 
-					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 0.8f, 0)); // 0.3m off ground: legs/feet
-					//av_positions.push_back(pos.toVec4fPoint() + Vec4f(0, 0, -1.67f + 1.3f, 0)); // torso
-
+					
 					// Update nametag transform also
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 					{
@@ -4067,12 +4055,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			// Sort avatar positions based on distance from camera
 			CloserToCamComparator comparator(cam_controller.getPosition().toVec4fPoint());
-			std::sort(av_positions.begin(), av_positions.end(), comparator);
+			std::sort(temp_av_positions.begin(), temp_av_positions.end(), comparator);
 
-			const size_t use_num_av_positions = myMin((size_t)8, av_positions.size());
+			const size_t use_num_av_positions = myMin((size_t)8, temp_av_positions.size());
 			ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations.resize(use_num_av_positions);
 			for(size_t i=0; i<use_num_av_positions; ++i)
-				ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations[i] = av_positions[i];
+				ui->glWidget->opengl_engine->getCurrentScene()->blob_shadow_locations[i] = temp_av_positions[i];
 
 		}
 		catch(glare::Exception& e)
