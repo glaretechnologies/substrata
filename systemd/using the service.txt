@@ -18,3 +18,19 @@ NOTE:
 Had to execute
 	sudo setcap 'cap_net_bind_service=+ep' /home/nick/cyberspace/server
 to allow the program to bind to port 80.
+
+
+
+
+Need to enable lingering, otherwise service will shut down when not logged in. (See https://www.freedesktop.org/software/systemd/man/loginctl.html)
+
+	sudo loginctl enable-linger nick
+
+and
+
+	loginctl user-status nick
+	
+should show some data with:
+
+Linger: yes
+
