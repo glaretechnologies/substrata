@@ -865,7 +865,8 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 																FileUtils::writeEntireFile(local_path, file_data);
 
 																// Mark resource as present
-																resource_manager->getResourceForURL(url)->setState(Resource::State_Present);
+																//resource_manager->getResourceForURL(url)->setState(Resource::State_Present);
+																resource_manager->setResourceAsLocallyPresentForURL(url);
 
 																if(!FormatDecoderVox::isValidVoxFile(local_path))
 																	throw glare::Exception("invalid vox file.");
