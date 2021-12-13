@@ -47,7 +47,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../webserver/OpenSeaPollerThread.h"
 #include "../ethereum/RLP.h"//TEMP for testing
 #include "../ethereum/Signing.h"//TEMP for testing
-//#include <graphics/FormatDecoderGLTF.h>
+//#include <graphics/FormatDecoderGLTF.h>//TEMP for testing
 
 
 static const int parcel_coords[10][4][2] ={
@@ -548,7 +548,7 @@ static ServerCredentials parseServerCredentials()
 			parser.parseWhiteSpace();
 			parser.parseLine(value);
 
-			creds.creds[key.to_string()] = value.to_string();
+			creds.creds[key.to_string()] = ::stripHeadAndTailWhitespace(value.to_string());
 		}
 
 		return creds;
