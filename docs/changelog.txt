@@ -1,3 +1,29 @@
+0.83
+====
+Added blob shadows for closest avatars.
+Fixed avatar sometimes rotating when first made visible, for example when performing a gesture.
+Made 'v' key toggle third-person camera mode.
+Rendering speed optimisations.
+Animation retargetting: handle cases where new bone nodes are in reverse order, fixes cyberpirate model.
+
+0.82
+====
+Offset the voxel positions so that the origin is in the middle at the bottom of the voxel AABB.
+Auto-scaling loaded vox model so it's a reasonable size.
+Using ob_origin_ws instead of AABB centroid for determining which direction the axis arrow points for move/rotate tool.
+Fixed dragging of move handle arrows making object disappear in some cases, especially for newly created objects.
+Added 'Link x/y/z scale' checkbox to object editor.
+Move/rotate arrows are now always visible, even when inside or behind objects.
+Optimised voxel loading.
+Fixed not being able to select and right click and copy the URL from URL bar.
+
+0.81
+====
+Added option in options dialogue to enable/disable MSAA.
+Do auto-setting of graphics options, if they have not been set:
+MSAA will be off by default if the user is on retina screens or a GPU with Intel vendor
+Fixed crash when selecting hypercard.
+
 0.80
 ====
 Fixed gesture buttons not being clickable on Macs with retina screens.
