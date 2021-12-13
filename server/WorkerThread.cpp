@@ -469,6 +469,9 @@ void WorkerThread::handleScreenshotBotConnection()
 					screenshot->state = Screenshot::ScreenshotState_done;
 					screenshot->local_path = screenshot_path;
 					server->world_state->addScreenshotAsDBDirty(screenshot);
+
+					if(screenshot->is_map_tile) // If we received a tile screenshot, mark map tile info as dirty to get it saved.
+						server->world_state->map_tile_info.db_dirty = true;
 				}
 				else
 					throw glare::Exception("Client reported screenshot taking failed.");
