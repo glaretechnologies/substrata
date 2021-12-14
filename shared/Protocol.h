@@ -22,13 +22,14 @@ CyberspaceProtocolVersion
 29: Added AvatarPerformGesture, AvatarStopGesture
 30: Added audio_source_url to WorldObject
 31: Added length prefixing to messages.
+32: Added flags field to Parcel
 */
 namespace Protocol
 {
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 31;
+const uint32 CyberspaceProtocolVersion = 32;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
