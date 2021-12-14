@@ -56,7 +56,8 @@ public:
 	bool userHasWritePerms(const UserID user_id) const; // Does the user given by user_id have write permissions for this parcel?  E.g. are they an admin or writer,
 	// or is the parcel all-writeable (and the user id is valid)?
 
-	void copyNetworkStateFrom(const Parcel& other);
+	// restrict_changes: restrict changes to stuff clients are allowed to change.  Clients are not allowed to change bounds etc.
+	void copyNetworkStateFrom(const Parcel& other, bool restrict_changes);
 
 	// For client:
 	enum State
