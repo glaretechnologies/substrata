@@ -36,6 +36,8 @@ public:
 	Parcel();
 	~Parcel();
 
+	GLARE_ALIGNED_16_NEW_DELETE
+
 	void build(); // Build cached data like aabb_min
 
 	bool pointInParcel(const Vec3d& p) const;
@@ -85,6 +87,8 @@ public:
 	// A bound around the verts and zbounds above.  Derived data, not transferred across network
 	Vec3d aabb_min;
 	Vec3d aabb_max;
+
+	js::AABBox aabb; // single-precision SSE AABB.  Derived data, not transferred across network
 
 
 	std::vector<uint32> parcel_auction_ids;

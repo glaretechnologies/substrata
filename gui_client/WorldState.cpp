@@ -91,13 +91,15 @@ size_t WorldState::getTotalMemUsage() const
 }
 
 
-Parcel* WorldState::getParcelPointIsIn(const Vec3d& p)
+Parcel* WorldState::getParcelPointIsIn(const Vec3d& p_)
 {
+	const Vec4f p = p_.toVec4fPoint();
+
 	for(auto& it : parcels) // NOTE: fixme, crappy linear scan
 	{
 		Parcel* parcel = it.second.ptr();
 
-		if(parcel->pointInParcel(p))
+		if(parcel->aabb.contains(p))
 			return parcel;
 	}
 
