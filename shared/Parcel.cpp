@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "Parcel.h"
 
 
+#include "Protocol.h"
 #include <Exception.h>
 #include <StringUtils.h>
 #include <ContainerUtils.h>
@@ -24,7 +25,8 @@ Parcel::Parcel()
 	from_local_dirty(false),
 	all_writeable(false),
 	nft_status(NFTStatus_NotNFT),
-	minting_transaction_id(std::numeric_limits<uint64>::max())
+	minting_transaction_id(std::numeric_limits<uint64>::max()),
+	flags(0)
 {
 }
 
@@ -483,17 +485,18 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 #endif // GUI_CLIENT
 
 
-static const uint32 PARCEL_SERIALISATION_VERSION = 7;
+static const uint32 PARCEL_SERIALISATION_VERSION = 8;
 /*
 Version 3: added all_writeable.
 Version 4: Added auction data
 Version 5: Removed auction data, added parcel_auction_ids
 Version 6: Added screenshot_ids (serialised to disk only, not over network)
 Version 7: Added nft_status, minting_transaction_id (serialised to disk only, not over network)
+Version 8: Added flags
 */
 
 
-static void writeToStreamCommon(const Parcel& parcel, OutStream& stream)
+static void writeToStreamCommon(const Parcel& parcel, OutStream& stream, bool writing_to_network_stream, uint32 peer_protocol_version)
 {
 	writeToStream(parcel.id, stream);
 	writeToStream(parcel.owner_id, stream);
@@ -526,10 +529,19 @@ static void writeToStreamCommon(const Parcel& parcel, OutStream& stream)
 	stream.writeUInt32((uint32)parcel.parcel_auction_ids.size());
 	for(size_t i=0; i<parcel.parcel_auction_ids.size(); ++i)
 		stream.writeUInt32(parcel.parcel_auction_ids[i]);
+
+	if(writing_to_network_stream)
+	{
+		// Only write flags if the other end is using protocol version >= 32.
+		if(peer_protocol_version >= 32) // flags were added in protocol version 32.
+			stream.writeUInt32(parcel.flags);
+	}
+	else
+		stream.writeUInt32(parcel.flags); // Always write flags to disk.
 }
 
 
-static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parcel) // UID will have been read already
+static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parcel, bool reading_network_stream, uint32 peer_protocol_version) // UID will have been read already
 {
 	parcel.owner_id = readUserIDFromStream(stream);
 	parcel.created_time.readFromStream(stream);
@@ -587,16 +599,27 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 			parcel.parcel_auction_ids[i] = stream.readUInt32();
 	}
 
+	if(reading_network_stream)
+	{
+		if(peer_protocol_version >= 32)
+			parcel.flags = stream.readUInt32();
+	}
+	else
+	{
+		if(version >= 8)
+			parcel.flags = stream.readUInt32();
+	}
+
 	parcel.build();
 }
 
 
-void writeToStream(const Parcel& parcel, OutStream& stream)
+void writeToStream(const Parcel& parcel, OutStream& stream) // Write to file stream
 {
 	// Write version
 	stream.writeUInt32(PARCEL_SERIALISATION_VERSION);
 
-	writeToStreamCommon(parcel, stream);
+	writeToStreamCommon(parcel, stream, /*writing_to_network_stream=*/false, /*peer_protocol_version (not used)=*/0);
 
 	// Write screenshot_ids (serialised to disk only, not sent over network)
 	stream.writeUInt32((uint32)parcel.screenshot_ids.size());
@@ -609,7 +632,7 @@ void writeToStream(const Parcel& parcel, OutStream& stream)
 }
 
 
-void readFromStream(InStream& stream, Parcel& parcel)
+void readFromStream(InStream& stream, Parcel& parcel) // Read from file stream
 {
 	// Read version
 	const uint32 version = stream.readUInt32();
@@ -618,7 +641,7 @@ void readFromStream(InStream& stream, Parcel& parcel)
 
 	parcel.id = readParcelIDFromStream(stream);
 	
-	readFromStreamCommon(stream, version, parcel);
+	readFromStreamCommon(stream, version, parcel, /*reading_network_stream=*/false, /*peer_protocol_version (not used)=*/0);
 
 	if(version >= 6)
 	{
@@ -640,9 +663,9 @@ void readFromStream(InStream& stream, Parcel& parcel)
 }
 
 
-void writeToNetworkStream(const Parcel& parcel, OutStream& stream)
+void writeToNetworkStream(const Parcel& parcel, OutStream& stream, uint32 peer_protocol_version)
 {
-	writeToStreamCommon(parcel, stream);
+	writeToStreamCommon(parcel, stream, /*writing_to_network_stream=*/true, peer_protocol_version);
 
 	stream.writeStringLengthFirst(parcel.owner_name);
 
@@ -658,9 +681,9 @@ void writeToNetworkStream(const Parcel& parcel, OutStream& stream)
 }
 
 
-void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel) // UID will have been read already
+void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel, uint32 peer_protocol_version) // UID will have been read already
 {
-	readFromStreamCommon(stream, /*version=*/PARCEL_SERIALISATION_VERSION, parcel);
+	readFromStreamCommon(stream, /*version=*/PARCEL_SERIALISATION_VERSION, parcel, /*reading_network_stream=*/true, peer_protocol_version);
 
 	parcel.owner_name = stream.readStringLengthFirst(10000);
 
@@ -685,4 +708,31 @@ void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel) // UID will 
 	}
 
 	parcel.build();
+}
+
+
+void Parcel::copyNetworkStateFrom(const Parcel& other)
+{
+	// NOTE: The data in here needs to match that in readFromNetworkStreamGivenUID()
+	owner_id = other.owner_id;
+	created_time = other.created_time;
+	description = other.description;
+
+	admin_ids = other.admin_ids;
+	writer_ids = other.writer_ids;
+	child_parcel_ids = other.child_parcel_ids;
+	all_writeable = other.all_writeable;
+	
+	for(int i=0; i<4; ++i)
+		verts[i] = other.verts[i];
+	zbounds = other.zbounds;
+
+	parcel_auction_ids = other.parcel_auction_ids;
+	flags = other.flags;
+
+	owner_name = other.owner_name;
+	admin_names = other.admin_names;
+	writer_names = other.writer_names;
+
+	build();
 }

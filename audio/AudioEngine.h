@@ -50,8 +50,16 @@ public:
 		SourceType_Streaming
 	};
 
-	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), pos(0,0,0,1), num_occlusions(0) {}
-	
+	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
+		mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0) {}
+
+
+	void startMuting(double cur_time, double transition_period);
+	void startUnmuting(double cur_time, double transition_period);
+	void updateCurrentMuteVolumeFactor(double cur_time);
+
+	inline float getMuteVolumeFactor() const { return mute_volume_factor; }
+
 	int resonance_handle; // Set in AudioEngine::addSource().
 	
 	size_t cur_read_i;
@@ -66,9 +74,19 @@ public:
 
 	float volume; // 1 = default
 
+private:
+	float mute_volume_factor; // defualt = 1.  Final volume is volume * mute_volume_factor.  Use startMuting() and startUnmuting() to change this.
+	double mute_change_start_time;
+	double mute_change_end_time;
+	float mute_vol_fac_start; // mute_volume_factor at start of transition period.
+	float mute_vol_fac_end; // mute_volume_factor at end of transition period.
+public:
+
 	Vec4f pos;
 
 	float num_occlusions;
+
+	uint32 userdata_1;
 };
 typedef Reference<AudioSource> AudioSourceRef;
 

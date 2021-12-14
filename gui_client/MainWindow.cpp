@@ -278,6 +278,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
 	connect(ui->objectEditor, SIGNAL(removeLightmapSignal()), this, SLOT(removeLightmapSignalSlot()));
 	connect(ui->objectEditor, SIGNAL(posAndRot3DControlsToggled()), this, SLOT(posAndRot3DControlsToggledSlot()));
+	connect(ui->parcelEditor, SIGNAL(parcelChanged()), this, SLOT(parcelEditedSlot()));
 	connect(user_details, SIGNAL(logInClicked()), this, SLOT(on_actionLogIn_triggered()));
 	connect(user_details, SIGNAL(logOutClicked()), this, SLOT(on_actionLogOut_triggered()));
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
@@ -1121,6 +1122,13 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				glare::AudioSourceRef audio_source = new glare::AudioSource();
 				audio_source->type = glare::AudioSource::SourceType_Streaming;
 				audio_source->pos = ob->aabb_ws.centroid();
+
+				{
+					Lock lock(world_state->mutex);
+					
+					const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+					audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+				}
 
 				//std::vector<float> buf(48000.0 * 0.5, 0.f);
 				//audio_source->buffer.pushBackNItems(buf.data(), buf.size());
@@ -3175,6 +3183,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									const double audio_len_s = loaded_msg->audio_buffer->buffer.size() / 44100.0; // TEMP HACK
 									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
 									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->audio_buffer->buffer.size());
+
+									const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+									ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+
 									audio_engine.addSource(ob->audio_source);
 
 									ob->audio_state = WorldObject::AudioState_Loaded;
@@ -3753,7 +3765,38 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	audio_engine.setHeadTransform(campos, q);
 
 
-	// Set audio source occlusions
+	// Find out which parcel we are in, if any.
+	ParcelID in_parcel_id = ParcelID::invalidParcelID();
+	bool mute_outside_audio = false;
+	if(world_state.nonNull())
+	{
+		//Timer timer;
+		bool in_parcel = false;
+		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
+		Lock lock(world_state->mutex);
+		const Parcel* parcel = world_state->getParcelPointIsIn(campos_vec3d);
+		if(parcel)
+		{
+			// Set audio source room effects
+			audio_engine.setCurentRoomDimensions(js::AABBox(
+				Vec4f((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.f),
+				Vec4f((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.f)));
+
+			in_parcel_id = parcel->id;
+			in_parcel = true;
+
+			if(BitUtils::isBitSet(parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
+				mute_outside_audio = true;
+		}
+
+		audio_engine.setRoomEffectsEnabled(in_parcel);
+
+		//conPrint("Setting room effects took " + timer.elapsedStringNSigFigs(4));
+	}
+
+	//printVar(in_parcel_id.value());
+
+	// Set audio source occlusions and check for muting audio sources not in current parcel.
 	{
 		Lock lock(audio_engine.mutex);
 		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
@@ -3782,45 +3825,36 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				else
 					source->num_occlusions = 0;
 
-				// printVar(source->num_occlusions);
+				//conPrint("source: " + toString((uint64)source) + ", source->userdata_1: " + toString(source->userdata_1));
 
+				
+				if(source->type == glare::AudioSource::SourceType_Looping)
+				{
+					const float old_mute_volume_factor = source->getMuteVolumeFactor();
+					if(mute_outside_audio) // If we are in a parcel, which has the mute-outside-audio option enabled:
+					{
+						if(source->userdata_1 != in_parcel_id.value()) // And the source is in another parcel (or not in any parcel):
+							source->startMuting(cur_time, 1);
+						else
+							source->startUnmuting(cur_time, 1);
+					}
+					else
+						source->startUnmuting(cur_time, 1);
+
+					source->updateCurrentMuteVolumeFactor(cur_time);
+
+					if(old_mute_volume_factor != source->getMuteVolumeFactor())
+						audio_engine.sourceVolumeUpdated(*source);
+				}
+
+
+				// printVar(source->num_occlusions);
 				audio_engine.sourceNumOcclusionsUpdated(*source);
 			}
 		}
 	}
 
-	// Set audio source room effects
-
-	// Find out which parcel we are in, if any.  
-	if(world_state.nonNull())
-	{
-		//Timer timer;
-		bool in_parcel = false;
-		const Vec3d campos_vec3d = this->cam_controller.getFirstPersonPosition();
-		Lock lock(world_state->mutex);
-		for(auto& it : world_state->parcels) // NOTE: fixme, crappy linear scan
-		{
-			const Parcel* parcel = it.second.ptr();
-
-			if(parcel->pointInParcel(campos_vec3d))
-			{
-				audio_engine.setCurentRoomDimensions(js::AABBox(
-					Vec4f((float)parcel->aabb_min.x, (float)parcel->aabb_min.y, (float)parcel->aabb_min.z, 1.f),
-					Vec4f((float)parcel->aabb_max.x, (float)parcel->aabb_max.y, (float)parcel->aabb_max.z, 1.f)));
-
-				in_parcel = true;
-				break;
-			}
-		}
-
-		audio_engine.setRoomEffectsEnabled(in_parcel);
-
-		//conPrint("Setting room effects took " + timer.elapsedStringNSigFigs(4));
-	}
-
-
-
-
+	
 	// Update avatar graphics
 	temp_av_positions.clear();
 	if(world_state.nonNull())
@@ -4490,11 +4524,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
 
-		//============ Send any object updates needed ===========
+		
 		if(world_state.nonNull())
 		{
 			Lock lock(this->world_state->mutex);
 
+			//============ Send any object updates needed ===========
 			for(auto it = this->world_state->dirty_from_local_objects.begin(); it != this->world_state->dirty_from_local_objects.end(); ++it)
 			{
 				WorldObject* world_ob = it->getPointer();
@@ -4525,6 +4560,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 
 			this->world_state->dirty_from_local_objects.clear();
+
+			//============ Send any parcel updates needed ===========
+			for(auto it = this->world_state->dirty_from_local_parcels.begin(); it != this->world_state->dirty_from_local_parcels.end(); ++it)
+			{
+				const Parcel* parcel= it->getPointer();
+			
+				// Enqueue ParcelFullUpdate
+				initPacket(scratch_packet, Protocol::ParcelFullUpdate);
+				writeToNetworkStream(*parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
+
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
+			}
+
+			this->world_state->dirty_from_local_parcels.clear();
 		}
 
 
@@ -6435,6 +6484,19 @@ void MainWindow::objectEditedSlot()
 			this->selected_ob->audio_source->volume = this->selected_ob->audio_volume;
 			this->audio_engine.sourceVolumeUpdated(*this->selected_ob->audio_source);
 		}
+	}
+}
+
+
+// Parcel has been edited, e.g. by the parcel editor.
+void MainWindow::parcelEditedSlot()
+{
+	if(this->selected_parcel.nonNull())
+	{
+		ui->parcelEditor->toParcel(*this->selected_parcel);
+
+		//this->selected_parcel->from_local_other_dirty = true;
+		this->world_state->dirty_from_local_parcels.insert(this->selected_parcel);
 	}
 }
 

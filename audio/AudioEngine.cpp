@@ -20,6 +20,52 @@ Copyright Glare Technologies Limited 2021 -
 namespace glare
 {
 
+
+void AudioSource::startMuting(double cur_time, double transition_period)
+{
+	if(mute_vol_fac_end != 0) // If we have not already started muting, and are not already muted
+	{
+		mute_change_start_time = cur_time;
+		mute_change_end_time = cur_time + transition_period * mute_volume_factor;
+		mute_vol_fac_start = mute_volume_factor;
+		mute_vol_fac_end = 0;
+
+		// conPrint("Started muting");
+	}
+}
+
+
+void AudioSource::startUnmuting(double cur_time, double transition_period)
+{
+	if(mute_vol_fac_end != 1) // If we have not already started unmuting, and are not already unmuted
+	{
+		mute_change_start_time = cur_time;
+		mute_change_end_time = cur_time + transition_period * (1.f - mute_volume_factor);
+		mute_vol_fac_start = mute_volume_factor;
+		mute_vol_fac_end = 1;
+		
+		// conPrint("Started unmuting");
+	}
+}
+
+
+void AudioSource::updateCurrentMuteVolumeFactor(double cur_time)
+{
+	// If we are still in the mute volume factor change transition period,
+	// and the transition period isn't near to zero (avoid divide by zero)
+	if((cur_time < mute_change_end_time) && ((mute_change_end_time - mute_change_start_time) > 1.0e-4))
+	{
+		const double frac = (cur_time - mute_change_start_time) / (mute_change_end_time - mute_change_start_time); // Fraction of time through transition period
+
+		mute_volume_factor = mute_vol_fac_start + (float)frac * (mute_vol_fac_end - mute_vol_fac_start);
+	}
+	else
+	{
+		mute_volume_factor = mute_vol_fac_end;
+	}
+}
+
+
 float SoundFile::maxVal() const
 {
 	float m = -std::numeric_limits<float>::infinity();
@@ -563,7 +609,7 @@ void AudioEngine::sourcePositionUpdated(AudioSource& source)
 void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 {
 	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
-	resonance->SetSourceVolume(source.resonance_handle, source.volume);
+	resonance->SetSourceVolume(source.resonance_handle, source.volume * source.getMuteVolumeFactor());
 }
 
 

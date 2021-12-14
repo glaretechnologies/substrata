@@ -650,6 +650,20 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const User& use
 }
 
 
+// NOTE: world state mutex should be locked before calling this method.
+static bool userHasParcelWritePermissions(const Parcel& parcel, const User& user, const std::string& connected_world_name, ServerWorldState& world_state)
+{
+	if(user.id.valid())
+	{
+		return (user.id == parcel.owner_id) || // If the user created/owns the object
+			isGodUser(user.id); // or if the user is the god user (id 0)
+		// TODO: Add if user is a parcel admin also?
+	}
+	else
+		return false;
+}
+
+
 void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
@@ -673,18 +687,18 @@ void WorkerThread::doRun()
 		socket->writeUInt32(Protocol::CyberspaceHello);
 
 		// Read protocol version
-		const uint32 client_version = socket->readUInt32();
-		printVar(client_version);
-		if(client_version < Protocol::CyberspaceProtocolVersion)
+		const uint32 client_protocol_version = socket->readUInt32();
+		printVar(client_protocol_version);
+		if(client_protocol_version < 31) // We can handle protocol version 31 (before version 32 with 'Added flags field to Parcel')
 		{
 			socket->writeUInt32(Protocol::ClientProtocolTooOld);
-			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too old, require version " + 
+			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_protocol_version) + ") is too old, require version " + 
 				toString(Protocol::CyberspaceProtocolVersion) + ".  Please update your client at substrata.info.");
 		}
-		else if(client_version > Protocol::CyberspaceProtocolVersion)
+		else if(client_protocol_version > Protocol::CyberspaceProtocolVersion)
 		{
 			socket->writeUInt32(Protocol::ClientProtocolTooNew);
-			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_version) + ") is too new, require version " + 
+			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_protocol_version) + ") is too new, require version " + 
 				toString(Protocol::CyberspaceProtocolVersion) + ".  Please use an older client.");
 		}
 		else
@@ -819,7 +833,7 @@ void WorkerThread::doRun()
 
 						// Send ParcelCreated message
 						initPacket(scratch_packet, Protocol::ParcelCreated);
-						writeToNetworkStream(*parcel, scratch_packet);
+						writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
 						updatePacketLengthField(scratch_packet);
 
 						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1450,7 +1464,7 @@ void WorkerThread::doRun()
 							Lock lock(world_state->mutex);
 							scratch_packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
 							for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
-								writeToNetworkStream(*it->second, scratch_packet); // Write parcel
+								writeToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
 						}
 						updatePacketLengthField(scratch_packet);
 						socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
@@ -1462,35 +1476,45 @@ void WorkerThread::doRun()
 						conPrint("ParcelFullUpdate");
 						const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
-						// Look up existing parcel in world state
+						Parcel temp_parcel;
+						readFromNetworkStreamGivenID(msg_buffer, temp_parcel, client_protocol_version);
+
+						// If client is not logged in, refuse parcel modification.
+						if(client_user.isNull())
 						{
-							bool read = false;
-
-							// Only allow updating of parcels is this is a website connection.
-							const bool have_permissions = false;// connection_type == Protocol::ConnectionTypeWebsite;
-
-							if(have_permissions)
+							writeErrorMessageToClient(socket, "You must be logged in to modify a parcel.");
+						}
+						else
+						{
+							// Look up existing parcel in world state
+							std::string error_msg;
 							{
 								Lock lock(world_state->mutex);
 								auto res = cur_world_state->parcels.find(parcel_id);
 								if(res != cur_world_state->parcels.end())
 								{
-									// TODO: Check if this client has permissions to update the parcel information.
-
 									Parcel* parcel = res->second.getPointer();
-									readFromNetworkStreamGivenID(msg_buffer, *parcel);
-									read = true;
-									parcel->from_remote_dirty = true;
-									cur_world_state->addParcelAsDBDirty(parcel);
-								}
-							}
 
-							// Make sure we have read the whole pracel from the network stream
-							if(!read)
-							{
-								Parcel dummy;
-								readFromNetworkStreamGivenID(msg_buffer, dummy);
-							}
+									// See if the user has permissions to alter this object:
+									if(!userHasParcelWritePermissions(*parcel, *client_user, this->connected_world_name, *cur_world_state))
+									{
+										error_msg = "You must be the owner of this parcel (or have write permissions) to modify it";
+									}
+									else
+									{
+										parcel->copyNetworkStateFrom(temp_parcel);
+
+										//parcel->from_remote_other_dirty = true;
+										cur_world_state->addParcelAsDBDirty(parcel);
+										//cur_world_state->dirty_from_remote_parcels.insert(ob);
+
+										world_state->markAsChanged();
+									}
+								}
+							} // End lock scope
+
+							if(!error_msg.empty())
+								writeErrorMessageToClient(socket, error_msg);
 						}
 						break;
 					}

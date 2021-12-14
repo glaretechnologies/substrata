@@ -54,6 +54,8 @@ public:
 	bool userHasWritePerms(const UserID user_id) const; // Does the user given by user_id have write permissions for this parcel?  E.g. are they an admin or writer,
 	// or is the parcel all-writeable (and the user id is valid)?
 
+	void copyNetworkStateFrom(const Parcel& other);
+
 	// For client:
 	enum State
 	{
@@ -86,6 +88,9 @@ public:
 
 
 	std::vector<uint32> parcel_auction_ids;
+
+	static const uint32 MUTE_OUTSIDE_AUDIO_FLAG    = 1; // Should we mute audio sources originating from outside this parcel, when inside it?
+	uint32 flags;
 
 	std::vector<uint64> screenshot_ids;
 
@@ -124,11 +129,11 @@ typedef Reference<Parcel> ParcelRef;
 
 
 
-void writeToStream(const Parcel& parcel, OutStream& stream);
-void readFromStream(InStream& stream, Parcel& parcel);
+void writeToStream(const Parcel& parcel, OutStream& stream); // Write to file stream
+void readFromStream(InStream& stream, Parcel& parcel); // Read from file stream
 
-void writeToNetworkStream(const Parcel& parcel, OutStream& stream); // write without version
-void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel);
+void writeToNetworkStream(const Parcel& parcel, OutStream& stream, uint32 peer_protocol_version); // write without version
+void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel, uint32 peer_protocol_version);
 
 
 struct ParcelRefHash

@@ -34,6 +34,8 @@ public:
 
 	size_t getTotalMemUsage() const;
 
+	Parcel* getParcelPointIsIn(const Vec3d& p); // Returns NULL if not in any parcel.  A lock on mutex must be held by the caller.
+
 	std::map<UID, Reference<Avatar>> avatars;
 
 	std::map<UID, WorldObjectRef> objects;
@@ -42,6 +44,7 @@ public:
 
 	std::map<ParcelID, ParcelRef> parcels;
 	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_remote_parcels;
+	std::unordered_set<ParcelRef, ParcelRefHash> dirty_from_local_parcels;
 
 	std::map<GroundPatchUID, GroundPatchRef> ground_patches;
 

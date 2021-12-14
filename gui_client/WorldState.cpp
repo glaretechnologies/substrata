@@ -89,3 +89,17 @@ size_t WorldState::getTotalMemUsage() const
 
 	return sum;
 }
+
+
+Parcel* WorldState::getParcelPointIsIn(const Vec3d& p)
+{
+	for(auto& it : parcels) // NOTE: fixme, crappy linear scan
+	{
+		Parcel* parcel = it.second.ptr();
+
+		if(parcel->pointInParcel(p))
+			return parcel;
+	}
+
+	return NULL;
+}

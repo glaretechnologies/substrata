@@ -15,6 +15,11 @@ public:
 
 	void setFromParcel(const Parcel& parcel);
 
+	void toParcel(Parcel& parcel_out);
+
+signals:;
+	void parcelChanged();
+
 private slots:
 	void on_showOnWebLabel_linkActivated(const QString& link);
 
