@@ -10,7 +10,10 @@ ParcelEditor::ParcelEditor(QWidget *parent)
 :	QWidget(parent)
 {
 	setupUi(this);
-	this->allWriteableCheckBox->setEnabled(false); // Do this as the most similar to read-only.
+
+	connect(this->descriptionTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(parcelChanged()));
+	connect(this->allWriteableCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(parcelChanged()));
+	connect(this->muteOutsideAudioCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(parcelChanged()));
 }
 
 
@@ -31,7 +34,7 @@ void ParcelEditor::setFromParcel(const Parcel& parcel)
 
 	{
 		SignalBlocker b(this->descriptionTextEdit);
-		this->descriptionTextEdit->setText(QtUtils::toQString(parcel.description));
+		this->descriptionTextEdit->setPlainText(QtUtils::toQString(parcel.description));
 	}
 	{
 		SignalBlocker b(this->writersTextEdit);
@@ -44,8 +47,23 @@ void ParcelEditor::setFromParcel(const Parcel& parcel)
 
 	SignalBlocker::setChecked(this->allWriteableCheckBox, parcel.all_writeable);
 
+	SignalBlocker::setChecked(this->muteOutsideAudioCheckBox, BitUtils::isBitSet(parcel.flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG));
+
 	this->minLabel->setText(QtUtils::toQString(parcel.aabb_min.toString()));
 	this->maxLabel->setText(QtUtils::toQString(parcel.aabb_max.toString()));
+}
+
+
+void ParcelEditor::toParcel(Parcel& parcel_out)
+{
+	parcel_out.description = QtUtils::toStdString(this->descriptionTextEdit->toPlainText());
+
+	parcel_out.all_writeable = this->allWriteableCheckBox->isChecked();
+
+	const bool mute_outside_audio = this->muteOutsideAudioCheckBox->isChecked();
+	parcel_out.flags = 0;
+	if(mute_outside_audio)
+		BitUtils::setBit(parcel_out.flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG);
 }
 
 

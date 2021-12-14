@@ -139,6 +139,7 @@ private slots:;
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
 	void objectEditedSlot();
+	void parcelEditedSlot();
 	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap
 	void bakeObjectLightmapHighQualSlot(); // Bake the currently selected object lightmap
 	void removeLightmapSignalSlot();
