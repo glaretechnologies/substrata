@@ -45,6 +45,11 @@ void Parcel::build() // Build cached data like aabb_min
 	aabb_max.x = myMax(myMax(verts[0].x, verts[1].x), myMax(verts[2].x, verts[3].x));
 	aabb_max.y = myMax(myMax(verts[0].y, verts[1].y), myMax(verts[2].y, verts[3].y));
 	aabb_max.z = zbounds.y;
+
+	aabb = js::AABBox(
+		Vec4f((float)aabb_min.x, (float)aabb_min.y, (float)aabb_min.z, 1.f),
+		Vec4f((float)aabb_max.x, (float)aabb_max.y, (float)aabb_max.z, 1.f)
+	);
 }
 
 
@@ -56,20 +61,15 @@ bool Parcel::pointInParcel(const Vec3d& p) const
 }
 
 
-bool Parcel::AABBInParcel(const js::AABBox& aabb) const
+bool Parcel::AABBInParcel(const js::AABBox& other_aabb) const
 {
-	return AABBInParcelBounds(aabb, this->aabb_min, this->aabb_max);
+	return AABBInParcelBounds(other_aabb, this->aabb_min, this->aabb_max);
 }
 
 
 bool Parcel::AABBIntersectsParcel(const js::AABBox& other_aabb) const
 {
-	const js::AABBox this_aabb(
-		Vec4f((float)aabb_min.x, (float)aabb_min.y, (float)aabb_min.z, 1.0f),
-		Vec4f((float)aabb_max.x, (float)aabb_max.y, (float)aabb_max.z, 1.0f)
-	);
-
-	return this_aabb.intersectsAABB(other_aabb);
+	return this->aabb.intersectsAABB(other_aabb);
 }
 
 
