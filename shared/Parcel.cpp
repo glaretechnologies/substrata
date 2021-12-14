@@ -711,23 +711,34 @@ void readFromNetworkStreamGivenID(InStream& stream, Parcel& parcel, uint32 peer_
 }
 
 
-void Parcel::copyNetworkStateFrom(const Parcel& other)
+// restrict_changes: restrict changes to stuff clients are allowed to change.  Clients are not allowed to change bounds etc.
+void Parcel::copyNetworkStateFrom(const Parcel& other, bool restrict_changes)
 {
+	const bool allow_all_changes = !restrict_changes;
+
 	// NOTE: The data in here needs to match that in readFromNetworkStreamGivenUID()
 	owner_id = other.owner_id;
-	created_time = other.created_time;
+
+	if(allow_all_changes)
+		created_time = other.created_time;
 	description = other.description;
 
 	admin_ids = other.admin_ids;
 	writer_ids = other.writer_ids;
-	child_parcel_ids = other.child_parcel_ids;
+
+	if(allow_all_changes)
+		child_parcel_ids = other.child_parcel_ids;
 	all_writeable = other.all_writeable;
 	
-	for(int i=0; i<4; ++i)
-		verts[i] = other.verts[i];
-	zbounds = other.zbounds;
+	if(allow_all_changes)
+	{
+		for(int i=0; i<4; ++i)
+			verts[i] = other.verts[i];
+		zbounds = other.zbounds;
+	}
 
-	parcel_auction_ids = other.parcel_auction_ids;
+	if(allow_all_changes)
+		parcel_auction_ids = other.parcel_auction_ids;
 	flags = other.flags;
 
 	owner_name = other.owner_name;

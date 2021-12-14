@@ -1502,7 +1502,7 @@ void WorkerThread::doRun()
 									}
 									else
 									{
-										parcel->copyNetworkStateFrom(temp_parcel);
+										parcel->copyNetworkStateFrom(temp_parcel, /*restrict_changes=*/true); // restrict changes to stuff clients are allowed to change
 
 										//parcel->from_remote_other_dirty = true;
 										cur_world_state->addParcelAsDBDirty(parcel);
