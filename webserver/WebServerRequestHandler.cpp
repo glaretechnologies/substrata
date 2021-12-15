@@ -492,6 +492,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			request.path == "/webclient.js" ||
 			request.path == "/examples/jsm/loaders/GLTFLoader.js" ||
 			request.path == "/examples/jsm/objects/Sky.js" ||
+			//request.path == "/examples/jsm/csm/CSM.js" ||
+			//request.path == "/examples/jsm/csm/CSMFrustum.js" ||
+			//request.path == "/examples/jsm/csm/CSMHelper.js" ||
+			//request.path == "/examples/jsm/csm/CSMShader.js" ||
 			request.path == "/build/three.module.js"
 			)
 		{

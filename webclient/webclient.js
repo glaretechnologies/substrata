@@ -11,9 +11,11 @@ import * as voxelloading from './voxelloading.js';
 import * as bufferin from './bufferin.js';
 import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
+//import { CSM } from './examples/jsm/csm/CSM.js';
+//import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
 
-var ws = new WebSocket("wss://substrata.info", "substrata-protocol");
-//var ws = new WebSocket("ws://localhost", "substrata-protocol");
+
+var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
 
@@ -789,6 +791,10 @@ ws.onmessage = function (event) {
                 avatars.delete(avatar_uid);
 
                 if (avatar) {
+
+                    appendChatMessage(avatar.name + " left.");
+                    console.log("Avatar " + avatar.name + " left");
+
                     // Remove avatar mesh
                     scene.remove(avatar.mesh);
                 }
@@ -1046,7 +1052,11 @@ function setThreeJSMaterial(three_mat, world_mat, ob_lod_level) {
         // function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
         //console.log("world_mat.flags: " + world_mat.flags);
         //console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
-        let lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, world_mat.colourTexHasAlpha());
+        let color_tex_has_alpha = world_mat.colourTexHasAlpha();
+        let lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, color_tex_has_alpha);
+
+        if (color_tex_has_alpha)
+            three_mat.alphaTest = 0.5;
 
         //console.log("lod_texture_URL: " + lod_texture_URL);
         //mesh.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
@@ -1143,6 +1153,7 @@ function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob
     let three_mats = []
     for (let i = 0; i < mats.length; ++i) {
         let three_mat = new THREE.MeshStandardMaterial();
+        //csm.setupMaterial(three_mat); // TEMP
         setThreeJSMaterial(three_mat, mats[i], ob_lod_level);
         three_mats.push(three_mat);
     }
@@ -1284,7 +1295,7 @@ client_avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
 THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, /*near=*/0.1, /*far=*/1000);
 
 let renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
@@ -1314,9 +1325,11 @@ const sun_phi = 1.0;
 const sun_theta = Math.PI / 4;
 
 //===================== Add directional light =====================
+const sundir = new THREE.Vector3();
+sundir.setFromSphericalCoords(1, sun_phi, sun_theta);
 const dirLight = new THREE.DirectionalLight();
 dirLight.color = new THREE.Color(0.8, 0.8, 0.8);
-dirLight.position.setFromSphericalCoords(1, sun_phi, sun_theta);
+dirLight.position.copy(sundir);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048;
 dirLight.shadow.mapSize.height = 2048;
@@ -1328,6 +1341,46 @@ dirLight.shadow.camera.right = 20;
 //dirLight.shadow.camera.far = 40;
 
 scene.add(dirLight);
+
+//Create a helper for the shadow camera (optional)
+const camera_helper = new THREE.CameraHelper(dirLight.shadow.camera);
+//scene.add(camera_helper);
+
+
+let from_sun_dir = new THREE.Vector3();
+from_sun_dir.copy(sundir);
+from_sun_dir.negate();
+
+// cascaded shadow maps
+//const csm = new CSM({
+//    //fade: true,
+//    //near: 1,
+//    //far: 100,//camera.far,
+//    //far: camera.far,
+//    //maxFar: 60,
+//    //cascades: 4,
+//    shadowMapSize: 2048,
+//    lightDirection: from_sun_dir,
+//    camera: camera,
+//    parent: scene,
+//    lightIntensity: 0.5
+//});
+
+//const csmHelper = new CSMHelper(csm);
+//csmHelper.displayFrustum = true;
+//csmHelper.displayPlanes = true;
+//csmHelper.displayShadowBounds = true;
+//scene.add(csmHelper);
+
+
+//for (let i = 0; i < csm.lights.length; i++) {
+//    //csm.lights[i].shadow.camera.near = 1;
+//    //csm.lights[i].shadow.camera.far = 2000;
+//   // csm.lights[i].shadow.camera.updateProjectionMatrix();
+//
+//   // csm.lights[i].color = new THREE.Color(1.0, 0.8, 0.8);
+//}
+
 
 
 //===================== Add Sky =====================
@@ -1517,6 +1570,39 @@ function animate() {
     requestAnimationFrame(animate);
 
     doCamMovement(dt);
+
+    // Update shadow map 'camera' so that the shadow map volume is positioned around the camera.
+    {
+        let sun_right = new THREE.Vector3();
+        sun_right.crossVectors(new THREE.Vector3(0, 0, 1), sundir);
+        sun_right.normalize();
+        let sun_up = new THREE.Vector3();
+        sun_up.crossVectors(sundir, sun_right);
+
+        let cam_dot_sun_right = sun_right.dot(camera.position);
+        let cam_dot_sun_up = sun_up.dot(camera.position);
+        let cam_dot_sun = -sundir.dot(camera.position);
+
+        //console.log("cam_dot_sun_up: " + cam_dot_sun_up);
+        //console.log("cam_dot_sun_right: " + cam_dot_sun_right);
+
+        let shadow_half_w = 80;
+        dirLight.shadow.camera.top    = cam_dot_sun_up + shadow_half_w;
+        dirLight.shadow.camera.bottom = cam_dot_sun_up - shadow_half_w;
+        dirLight.shadow.camera.left  = cam_dot_sun_right - shadow_half_w;
+        dirLight.shadow.camera.right = cam_dot_sun_right + shadow_half_w;
+        dirLight.shadow.camera.near = cam_dot_sun - 100;
+        dirLight.shadow.camera.far = cam_dot_sun + 100;
+        dirLight.shadow.camera.updateProjectionMatrix();
+        
+        if (camera_helper)
+            camera_helper.update();
+
+        //csm.update()
+        //csm.updateFrustums();
+        //csm.update(camera.matrix);
+        //csmHelper.update()
+    }
 
 
     renderer.render(scene, camera);
