@@ -490,6 +490,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			request.path == "/bmeshloading.js" ||
 			request.path == "/voxelloading.js" ||
 			request.path == "/webclient.js" ||
+			request.path == "/downloadqueue.js" ||
 			request.path == "/examples/jsm/loaders/GLTFLoader.js" ||
 			request.path == "/examples/jsm/objects/Sky.js" ||
 			//request.path == "/examples/jsm/csm/CSM.js" ||
