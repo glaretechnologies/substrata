@@ -11,6 +11,7 @@ import * as voxelloading from './voxelloading.js';
 import * as bufferin from './bufferin.js';
 import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
+import * as downloadqueue from './downloadqueue.js';
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
 
@@ -760,7 +761,8 @@ ws.onmessage = function (event) {
                     let ob_lod_level = 0;
                     let world_axis = new Vec3f(0, 0, 1);
                     let angle = 0;
-                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                    let ob_aabb_longest_len = 2;
+                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
                 }
             }
             else if (msg_type == AvatarIsHere) {
@@ -781,7 +783,8 @@ ws.onmessage = function (event) {
                     let ob_lod_level = 0;
                     let world_axis = new Vec3f(0, 0, 1);
                     let angle = 0;
-                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                    let ob_aabb_longest_len = 2;
+                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
                 }
             }
             else if (msg_type == AvatarDestroyed) {
@@ -838,7 +841,8 @@ ws.onmessage = function (event) {
                     let ob_lod_level = 0;
                     let world_axis = new Vec3f(0, 0, 1);
                     let angle = 0;
-                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                    let ob_aabb_longest_len = 2;
+                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
                 }
             }
             else if (msg_type == LoggedInMessageID) {
@@ -958,6 +962,10 @@ function AABBLongestLength(world_ob) {
     );
 }
 
+function toThreeVector3(v) {
+    return new THREE.Vector3(v.x, v.y, v.z);
+}
+
 function getLODLevel(world_ob, campos) {
 
     let dist = new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z).distanceTo(campos);
@@ -1038,8 +1046,24 @@ function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
 }
 
 
+
+let url_to_geom_map = new Map(); // Map from model_url to 3.js geometry object.
+
+let loading_model_URL_set = new Set(); // set of URLS
+
+
+let url_to_texture_map = new Map(); // Map from texture url to 3.js Texture object
+
+let loading_texture_URL_set = new Set(); // Set of URL for textures that are being loaded.
+
+
+let loading_model_URL_to_world_ob_map = new Map(); // Map from a URL of a loading model to a list of WorldObjects using that model.
+
+let loading_texture_URL_to_materials_map = new Map(); // Map from a URL of a loading texture to a list of materials using that texture.
+
+
 // three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
-function setThreeJSMaterial(three_mat, world_mat, ob_lod_level) {
+function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, ob_lod_level) {
     three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
     three_mat.metalness = world_mat.metallic_fraction.val;
     three_mat.roughness = world_mat.roughness.val;
@@ -1061,17 +1085,53 @@ function setThreeJSMaterial(three_mat, world_mat, ob_lod_level) {
         //console.log("lod_texture_URL: " + lod_texture_URL);
         //mesh.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
 
-        let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        three_mat.map = texture;
+        //let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
 
-        three_mat.map.matrixAutoUpdate = false;
-        three_mat.map.matrix.set(
-            world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
-            world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
-            0, 0, 1
-        );
+        let texture = null;
+        if (url_to_texture_map.has(lod_texture_URL)) {
+            // This texture has already been loaded
+            texture = url_to_texture_map.get(lod_texture_URL);
+        }
+        else { // Else texture has not been loaded:
+
+            // Add this material to the list of materials waiting for the texture
+            if (!loading_texture_URL_to_materials_map.has(lod_texture_URL)) // Initialise with empty list if needed
+                loading_texture_URL_to_materials_map.set(lod_texture_URL, []);
+
+            loading_texture_URL_to_materials_map.get(lod_texture_URL).push(three_mat);
+
+           
+            if (loading_texture_URL_set.has(lod_texture_URL)) { // Are we already loading the texture?
+
+            }
+            else {
+                // We are not currently loading the texture, so start loading it.
+
+                // Enqueue downloading of the texture
+                let size_factor = downloadqueue.sizeFactorForAABBWSLongestLen(ob_aabb_longest_len);
+                download_queue.enqueueItem(new downloadqueue.DownloadQueueItem(toThreeVector3(ob_pos), size_factor, lod_texture_URL, /*is_texture=*/true));
+
+                loading_texture_URL_set.add(lod_texture_URL); // Add to set of loading textures.
+            }
+
+            //texture = obstacle_texture; // Use obstacle texture as a loading placeholder.
+            texture = new THREE.TextureLoader().load("./obstacle.png");
+        }
+
+        //if (!texture)
+        //    texture = new THREE.Texture();
+        //if (texture) {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            three_mat.map = texture;
+
+            three_mat.map.matrixAutoUpdate = false;
+            three_mat.map.matrix.set(
+                world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
+                world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
+                0, 0, 1
+            );
+       // }
     }
 }
 
@@ -1084,6 +1144,7 @@ function addWorldObjectGraphics(world_ob) {
 
         let ob_lod_level = getLODLevel(world_ob, camera.position);
         let model_lod_level = getModelLODLevel(world_ob, camera.position);
+        let aabb_longest_len = AABBLongestLength(world_ob);
         //console.log("model_lod_level: " + model_lod_level);
 
         if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
@@ -1100,7 +1161,8 @@ function addWorldObjectGraphics(world_ob) {
                 let three_mats = []
                 for (let i = 0; i < world_ob.mats.length; ++i) {
                     let three_mat = new THREE.MeshStandardMaterial();
-                    setThreeJSMaterial(three_mat, world_ob.mats[i], ob_lod_level);
+                    // function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, ob_lod_level)
+                    setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
                     three_mats.push(three_mat);
                 }
 
@@ -1124,7 +1186,7 @@ function addWorldObjectGraphics(world_ob) {
 
             let url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
 
-            loadModelAndAddToScene(world_ob, url, ob_lod_level, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle);
+            loadModelAndAddToScene(world_ob, url, aabb_longest_len, ob_lod_level, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle);
         }
     }
     else {
@@ -1143,18 +1205,14 @@ function addWorldObjectGraphics(world_ob) {
 }
 
 
-let url_to_geom_map = new Map(); // Map from model_url to 3.js geometry object.
-
-let loading_model_URL_set = new Set(); // set of URLS
-
 
 // Returns mesh
-function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob_lod_level) {
+function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level) {
     let three_mats = []
     for (let i = 0; i < mats.length; ++i) {
         let three_mat = new THREE.MeshStandardMaterial();
         //csm.setupMaterial(three_mat); // TEMP
-        setThreeJSMaterial(three_mat, mats[i], ob_lod_level);
+        setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
         three_mats.push(three_mat);
     }
 
@@ -1177,18 +1235,166 @@ function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob
 }
 
 
-// model_url will have lod level in it, e.g. cube_lod2.bmesh
-function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_lod_level, mats, pos, scale, world_axis, angle) {
+let num_resources_downloading = 0;
 
-    console.log("loadModelAndAddToScene(), model_url: " + model_url);
+
+function startDownloadingResource(download_queue_item) {
+
+    num_resources_downloading++;
+
+    if (download_queue_item.is_texture) {
+
+        //let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
+
+        const loader = new THREE.TextureLoader();
+
+        loader.load("resource/" + download_queue_item.URL,
+            
+            function (texture) { // onLoad callback
+                num_resources_downloading--;
+
+                // There should be 1 or more materials that use this texture.
+
+                //console.log("Loaded texture '" + download_queue_item.URL + "'.");
+
+                let waiting_mats = loading_texture_URL_to_materials_map.get(download_queue_item.URL);
+
+                if (!waiting_mats) {
+                    console.log("Error: waiting mats was null or false:");
+                    console.log(waiting_mats);
+                }
+                else {
+
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+
+                    for (let z = 0; z < waiting_mats.length; ++z) {
+                        let mat = waiting_mats[z];
+
+                        //console.log("Assigning texture '" + download_queue_item.URL + "' to waiting material: " + mat);
+
+                        // Keep tex matrix
+                        let tex_matrix = new THREE.Matrix3();
+                        tex_matrix.copy(mat.map.matrix);
+
+                        mat.map = texture; // Assign texture
+                        mat.map.matrix.copy(tex_matrix);
+                        mat.map.matrixAutoUpdate = false;
+                    }
+
+                    loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
+                }
+
+
+                // Add to our loaded texture map
+                url_to_texture_map.set(download_queue_item.URL, texture);
+            },
+
+            undefined, // onProgress callback currently not supported
+
+            function (err) { // onError callback
+                //console.error('An error happened.');
+                num_resources_downloading--;
+            }
+        );
+
+    }
+    else { // Else it's a model to download:
+        let model_url = download_queue_item.URL;
+        let encoded_url = encodeURIComponent(model_url);
+
+        var request = new XMLHttpRequest();
+        request.open("GET", "/resource/" + encoded_url, /*async=*/true);
+        request.responseType = "arraybuffer";
+
+        request.onload = function (oEvent) {
+            num_resources_downloading--;
+
+            if (request.status >= 200 && request.status < 300) {
+                var array_buffer = request.response;
+                if (array_buffer) {
+
+                    //console.log("Downloaded the file: '" + model_url + "'!");
+                    //try {
+                    //console.log("request.status: " + request.status);
+                    //console.log("Loading batched mesh from '" + url + "'...");
+                    //console.log("array_buffer:");
+                    //console.log(array_buffer);
+                    let geometry = loadBatchedMesh(array_buffer);
+
+                    //console.log("Inserting " + model_url + " into url_to_geom_map");
+                    url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
+
+
+                    // Assign to any waiting world obs or avatars
+                    let waiting_obs = loading_model_URL_to_world_ob_map.get(download_queue_item.URL);
+
+                    if (!waiting_obs) {
+                        console.log("Error: waiting obs was null or false:");
+                        console.log(waiting_obs);
+                    }
+                    else {
+
+                        for (let z = 0; z < waiting_obs.length; ++z) {
+                            let world_ob_or_avatar = waiting_obs[z];
+
+                            if (world_ob_or_avatar instanceof WorldObject) {
+
+                                let world_ob = world_ob_or_avatar;
+                                //console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
+
+                                let use_ob_lod_level = getLODLevel(world_ob, camera.position); // Used for determining which texture LOD level to load
+                                let ob_aabb_longest_len = AABBLongestLength(world_ob);
+
+                                let mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
+
+                                world_ob_or_avatar.mesh = mesh;
+                                world_ob_or_avatar.mesh_state = MESH_LOADED;
+                            }
+                            else if (world_ob_or_avatar instanceof Avatar) {
+
+                                let avatar = world_ob_or_avatar;
+                                if (avatar.uid != client_avatar_uid) {
+                                    let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1), /*angle=*/0, /*ob_lod_level=*/0);
+                    
+                                    //console.log("Loaded mesh '" + model_url + "'.");
+                                    avatar.mesh = mesh;
+                                    avatar.mesh_state = MESH_LOADED;
+                                }
+                            }
+                        }
+
+                        loading_model_URL_to_world_ob_map.delete(download_queue_item.URL); // Now that this model has been downloaded, remove from map
+                    }
+                }
+            }
+            else {
+                console.log("Request for '" + model_url + "' returned a non-200 error code: " + request.status);
+            }
+        };
+
+        request.onerror = function (oEvent) {
+            num_resources_downloading--;
+            console.log("Request for '" + model_url + "' encountered an error: " + request.status);
+        };
+
+        request.send(/*body=*/null);
+    }
+}
+
+
+// model_url will have lod level in it, e.g. cube_lod2.bmesh
+function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_aabb_longest_len, ob_lod_level, mats, pos, scale, world_axis, angle) {
+
+    //console.log("loadModelAndAddToScene(), model_url: " + model_url);
 
     world_ob_or_avatar.mesh_state = MESH_LOADING;
 
     let geom = url_to_geom_map.get(model_url);
     if (geom) {
-        console.log("Found already loaded geom for " + model_url);
+        //console.log("Found already loaded geom for " + model_url);
 
-        let mesh = makeMeshAndAddToScene(geom, mats, pos, scale, world_axis, angle, ob_lod_level);
+        let mesh = makeMeshAndAddToScene(geom, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
 
         //console.log("Loaded mesh '" + model_url + "'.");
         world_ob_or_avatar.mesh = mesh;
@@ -1197,74 +1403,23 @@ function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_lod_level, mat
     }
     else {
         if (loading_model_URL_set.has(model_url)) {
-            console.log("model is in loading set, returning.");
-            return;
+            //console.log("model is in loading set.");
+        }
+        else {
+            // Else we were not already loading model.
+            // Enqueue downloading of the model
+            let size_factor = downloadqueue.sizeFactorForAABBWSLongestLen(ob_aabb_longest_len);
+            download_queue.enqueueItem(new downloadqueue.DownloadQueueItem(toThreeVector3(pos), size_factor, model_url, /*is_texture=*/false));
+
+            //console.log("Inserting " + model_url + " into loading_model_URL_set");
+            loading_model_URL_set.add(model_url);
         }
 
-        let encoded_url = encodeURIComponent(model_url);
+        // Add this world ob or avatar to the list of objects waiting for the model
+        if (!loading_model_URL_to_world_ob_map.has(model_url)) // Initialise with empty list if needed
+            loading_model_URL_to_world_ob_map.set(model_url, []);
 
-        var request = new XMLHttpRequest();
-        request.open("GET", "/resource/" + encoded_url, true);
-        request.responseType = "arraybuffer";
-
-        request.onload = function (oEvent) {
-
-            if (request.status >= 200 && request.status < 300) {
-                var array_buffer = request.response;
-                if (array_buffer) {
-
-                    console.log("Downloaded the file: '" + model_url + "'!");
-                    //try {
-                    //console.log("request.status: " + request.status);
-                    //console.log("Loading batched mesh from '" + url + "'...");
-                    //console.log("array_buffer:");
-                    //console.log(array_buffer);
-                    let geometry = loadBatchedMesh(array_buffer);
-
-                    console.log("Inserting " + model_url + " into url_to_geom_map");
-                    url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
-
-
-                    // Iterate over all objects and avatars, assign this model to all of those
-                    for (const world_ob of world_objects.values()) {
-                        if (world_ob.model_url === model_url) {
-
-                            let use_ob_lod_level = getLODLevel(world_ob, camera.position); // Used for determining which texture LOD level to load
-                            //let use_model_lod_level = getModelLODLevel(world_ob, camera.position);
-                            let mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, use_ob_lod_level);
-
-                            console.log("Made mesh with '" + model_url + "', assigning to world_ob " + world_ob.uid);
-                            world_ob.mesh = mesh;
-                            world_ob.mesh_state = MESH_LOADED;
-                        }
-                    }
-
-                    for (const avatar of avatars.values()) {
-                        if (avatar.avatar_settings.model_url === model_url) {
-
-                            if (avatar.uid != client_avatar_uid) {
-                                let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1), /*angle=*/0, /*ob_lod_level=*/0);
-
-                                //console.log("Loaded mesh '" + model_url + "'.");
-                                avatar.mesh = mesh;
-                                avatar.mesh_state = MESH_LOADED;
-                            }
-                        }
-                    }
-
-
-                    
-                }
-            }
-            else {
-                console.log("Request for '" + model_url + "' returned a non-200 error code: " + request.status);
-            }
-        };
-
-        request.send(null);
-
-        console.log("Inserting " + model_url + " into loading_model_URL_set");
-        loading_model_URL_set.add(model_url);
+        loading_model_URL_to_world_ob_map.get(model_url).push(world_ob_or_avatar);
     }
 }
 
@@ -1434,6 +1589,11 @@ uniforms['sunPosition'].value.copy(sun);
 
 
 
+
+let download_queue = new downloadqueue.DownloadQueue();
+
+
+
 let is_mouse_down = false;
 let heading = Math.PI / 2;
 let pitch = Math.PI / 2;
@@ -1563,6 +1723,7 @@ let cur_time = curTimeS();
 
 let last_update_URL_time = curTimeS();
 let last_avatar_update_send_time = curTimeS();
+let last_queue_sort_time = curTimeS() - 100;
 
 function animate() {
     let dt = Math.min(0.1, curTimeS() - cur_time);
@@ -1570,6 +1731,32 @@ function animate() {
     requestAnimationFrame(animate);
 
     doCamMovement(dt);
+
+
+    {
+        // Sort download queue
+        if (cur_time - last_queue_sort_time > 0.1)
+        {
+            //let sort_start_time = curTimeS();
+            download_queue.sortQueue(camera.position);
+            //let sort_duration = curTimeS() - sort_start_time;
+            //console.log("Sorting download queue took " + (sort_duration * 1.0e3) + " ms (num obs in queue: " + download_queue.items.length + ")");
+
+            last_queue_sort_time = cur_time;
+        }
+
+
+        if (num_resources_downloading < 10 && download_queue.items.length > 0) {
+
+            let num_to_dequeue = 10 - num_resources_downloading;
+            for (let z = 0; z < num_to_dequeue; ++z) {
+                let item = download_queue.dequeueItem();
+                startDownloadingResource(item);
+            }
+        }
+    }
+
+
 
     // Update shadow map 'camera' so that the shadow map volume is positioned around the camera.
     {
