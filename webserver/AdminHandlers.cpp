@@ -1247,6 +1247,7 @@ void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state,
 }
 
 
+// See also ParcelHandlers::handleRegenerateParcelScreenshots()
 void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
@@ -1277,6 +1278,21 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 					if(shot_res != world_state.screenshots.end())
 					{
 						Screenshot* shot = shot_res->second.ptr();
+
+						// Update pos and angles
+						if(z == 0) // If this is the close-in shot.  NOTE: bit of a hack
+						{
+							parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+						}
+						else
+						{
+							parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+						}
+
+						shot->is_map_tile = false; // There was a bug where some screenshots got mixed up with map tile screenshots, make sure the screenshot is not marked as a map tile.
+						shot->width_px = 650;
+						shot->highlight_parcel_id = (int)parcel->id.value();
+
 						shot->state = Screenshot::ScreenshotState_notdone;
 						world_state.addScreenshotAsDBDirty(shot);
 					}
