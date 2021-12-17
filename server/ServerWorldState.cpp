@@ -1013,6 +1013,32 @@ uint64 ServerAllWorldsState::getNextSubEthTransactionUID()
 }
 
 
+uint64 ServerAllWorldsState::getNextScreenshotUID()
+{
+	Lock lock(mutex);
+
+	uint64 highest_id = 0;
+
+	for(auto it = screenshots.begin(); it != screenshots.end(); ++it)
+		highest_id = myMax(highest_id, it->first);
+
+
+	// Consider ids from map tile screenshots as well
+	for(auto it = map_tile_info.info.begin(); it != map_tile_info.info.end(); ++it)
+	{
+		const TileInfo& tile_info = it->second;
+
+		if(tile_info.cur_tile_screenshot.nonNull())
+			highest_id = myMax(highest_id, tile_info.cur_tile_screenshot->id);
+
+		if(tile_info.prev_tile_screenshot.nonNull())
+			highest_id = myMax(highest_id, tile_info.prev_tile_screenshot->id);
+	}
+
+	return highest_id + 1;
+}
+
+
 void ServerAllWorldsState::setUserWebMessage(const UserID& user_id, const std::string& s)
 {
 	Lock lock(mutex);

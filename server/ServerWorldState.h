@@ -115,6 +115,7 @@ public:
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.
 	uint64 getNextOrderUID(); // Gets and then increments next_order_uid.  Locks mutex.
 	uint64 getNextSubEthTransactionUID();
+	uint64 getNextScreenshotUID();
 
 	void markAsChanged() { changed = 1; }
 	void clearChangedFlag() { changed = 0; }

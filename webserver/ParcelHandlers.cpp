@@ -539,6 +539,10 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 								parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 							}
 
+							shot->is_map_tile = false; // There was a bug where some screenshots got mixed up with map tile screenshots, make sure the screenshot is not marked as a map tile.
+							shot->width_px = 650;
+							shot->highlight_parcel_id = (int)parcel->id.value();
+
 							shot->state = Screenshot::ScreenshotState_notdone;
 							world_state.addScreenshotAsDBDirty(shot);
 						}

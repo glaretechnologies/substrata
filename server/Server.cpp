@@ -351,16 +351,12 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				world_state.parcel_auctions[auction->id] = auction;
 
 				// Make new screenshot (request) for parcel auction
-
-				//TEMP: scan over all screenshots and find highest used ID. (was running into a problem on localhost of id >= num items)
-				uint64 highest_id = 0;
-				for(auto it = world_state.screenshots.begin(); it != world_state.screenshots.end(); ++it)
-					highest_id = myMax(highest_id, it->first);
+				uint64 next_shot_id = world_state.getNextScreenshotUID();
 
 				// Close-in screenshot
 				{
 					ScreenshotRef shot = new Screenshot();
-					shot->id = highest_id + 1;
+					shot->id = next_shot_id++;
 					parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 					shot->width_px = 650;
 					shot->highlight_parcel_id = (int)parcel->id.value();
@@ -376,7 +372,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				// Zoomed-out screenshot
 				{
 					ScreenshotRef shot = new Screenshot();
-					shot->id = highest_id + 2;
+					shot->id = next_shot_id++;
 					parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 					shot->width_px = 650;
 					shot->highlight_parcel_id = (int)parcel->id.value();
@@ -405,12 +401,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 
 void updateMapTiles(ServerAllWorldsState& world_state)
 {
-	// TEMP: scan over all screenshots and find highest used ID. (was running into a problem on localhost of id >= num items)
-	uint64 highest_id = 0;
-	for(auto it = world_state.screenshots.begin(); it != world_state.screenshots.end(); ++it)
-		highest_id = myMax(highest_id, it->first);
-
-	uint64 next_shot_id = highest_id + 1;
+	uint64 next_shot_id = world_state.getNextScreenshotUID();
 
 	const int z_begin = 0;
 	const int z_end = 7;
