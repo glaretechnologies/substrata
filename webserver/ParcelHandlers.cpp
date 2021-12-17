@@ -501,6 +501,7 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 }
 
 
+// See also AdminHandlers::handleRegenerateParcelScreenshots().
 void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
 {
 	try
