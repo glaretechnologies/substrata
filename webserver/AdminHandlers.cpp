@@ -535,7 +535,11 @@ void renderMapPage(ServerAllWorldsState& world_state, const web::RequestInfo& re
 	std::string page_out = sharedAdminHeader(world_state, request);
 
 	page_out += "<form action=\"/admin_regen_map_tiles_post\" method=\"post\">";
-	page_out += "<input type=\"submit\" value=\"Regen map tiles\">";
+	page_out += "<input type=\"submit\" value=\"Regen map tiles (mark as not done)\">";
+	page_out += "</form>";
+
+	page_out += "<form action=\"/admin_recreate_map_tiles_post\" method=\"post\">";
+	page_out += "<input type=\"submit\" value=\"Recreate map tiles\">";
 	page_out += "</form>";
 
 	{ // Lock scope
@@ -550,7 +554,7 @@ void renderMapPage(ServerAllWorldsState& world_state, const web::RequestInfo& re
 
 			page_out += "Tile Coords: " + v.toString();
 			if(info.cur_tile_screenshot.nonNull())
-				page_out += std::string(" state: ") + ((info.cur_tile_screenshot->state == Screenshot::ScreenshotState_notdone) ? "Not done" : "Done");
+				page_out += std::string("  ID: ") + toString(info.cur_tile_screenshot->id) + ", state: " + ((info.cur_tile_screenshot->state == Screenshot::ScreenshotState_notdone) ? "Not done" : "Done");
 
 			page_out += "<br/>";
 		}
@@ -703,15 +707,12 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 
 				// Make new screenshot (request) for parcel auction
 
-				//TEMP: scan over all screenshots and find highest used ID. (was running into a problem on localhost of id >= num items)
-				uint64 highest_id = 0;
-				for(auto it = world_state.screenshots.begin(); it != world_state.screenshots.end(); ++it)
-					highest_id = myMax(highest_id, it->first);
+				uint64 next_shot_id = world_state.getNextScreenshotUID();
 
 				// Close-in screenshot
 				{
 					ScreenshotRef shot = new Screenshot();
-					shot->id = highest_id + 1;
+					shot->id = next_shot_id++;
 					parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 					shot->width_px = 650;
 					shot->highlight_parcel_id = (int)parcel_id;
@@ -726,7 +727,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 				// Zoomed-out screenshot
 				{
 					ScreenshotRef shot = new Screenshot();
-					shot->id = highest_id + 2;
+					shot->id = next_shot_id++;
 					parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 					shot->width_px = 650;
 					shot->highlight_parcel_id = (int)parcel_id;
@@ -1365,7 +1366,56 @@ void handleRegenMapTilesPost(ServerAllWorldsState& world_state, const web::Reque
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		conPrint("handleRegenMapTilesPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+// Instead of marking screenshots as not done, creates new Sceenshot objects.  Used for the database sceenshot ID clash issue.
+void handleRecreateMapTilesPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			uint64 next_shot_id = world_state.getNextScreenshotUID();
+
+			for(auto it = world_state.map_tile_info.info.begin(); it != world_state.map_tile_info.info.end(); ++it)
+			{
+				const Vec3<int> key = it->first;
+
+				TileInfo& tile_info = it->second;
+
+				tile_info.cur_tile_screenshot = new Screenshot();
+				tile_info.cur_tile_screenshot->id = next_shot_id++;
+				tile_info.cur_tile_screenshot->created_time = TimeStamp::currentTime();
+				tile_info.cur_tile_screenshot->state = Screenshot::ScreenshotState_notdone;
+				tile_info.cur_tile_screenshot->is_map_tile = true;
+				tile_info.cur_tile_screenshot->tile_x = key.x;
+				tile_info.cur_tile_screenshot->tile_y = key.y;
+				tile_info.cur_tile_screenshot->tile_z = key.z;
+			}
+
+			world_state.map_tile_info.db_dirty = true;
+			world_state.markAsChanged();
+			//world_state.setUserWebMessage("Regenerating map tiles.");
+
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_map");
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleRecreateMapTilesPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

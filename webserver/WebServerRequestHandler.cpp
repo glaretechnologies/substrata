@@ -187,6 +187,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleRegenMapTilesPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_recreate_map_tiles_post")
+		{
+			AdminHandlers::handleRecreateMapTilesPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_set_min_next_nonce_post")
 		{
 			AdminHandlers::handleSetMinNextNoncePost(*this->world_state, request, reply_info);
