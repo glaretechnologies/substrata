@@ -45,8 +45,8 @@ struct QueueItemDistComparator
 {
 	bool operator () (const DownloadQueueItem& a, const DownloadQueueItem& b)
 	{
-		const float a_priority = a.pos.getDist2(campos) * a.size_factor;
-		const float b_priority = b.pos.getDist2(campos) * b.size_factor;
+		const float a_priority = a.pos.getDist(campos) * a.size_factor;
+		const float b_priority = b.pos.getDist(campos) * b.size_factor;
 		return a_priority < b_priority;
 	}
 
@@ -62,7 +62,7 @@ void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 	{
 		Lock lock(mutex);
 
-		Timer timer;
+		//Timer timer;
 
 		QueueItemDistComparator comparator;
 		comparator.campos = campos;
@@ -76,7 +76,7 @@ void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 			conPrint("item " + toString(i) + ": " + items[i].URL + ", (" + doubleToStringNSigFigs(items[i].pos.getDist(campos), 3) + " m away)");
 		}*/
 
-		// conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4));
+		//conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4));
 	}
 }
 
