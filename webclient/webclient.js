@@ -730,7 +730,12 @@ ws.onmessage = function (event) {
                 let world_ob = readWorldObjectFromNetworkStreamGivenUID(buffer);
                 world_ob.uid = object_uid;
 
-                addWorldObjectGraphics(world_ob);
+                const MAX_OB_LOAD_DISTANCE_FROM_CAM = 200;
+
+                let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
+                if (dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM) {
+                    addWorldObjectGraphics(world_ob);
+                }
 
                 world_objects.set(object_uid, world_ob);
                 //console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
