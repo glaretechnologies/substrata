@@ -1083,30 +1083,24 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
             three_mat.alphaTest = 0.5;
 
         //console.log("lod_texture_URL: " + lod_texture_URL);
-        //mesh.material.map = THREE.ImageUtils.loadTexture("resource/" + lod_texture_URL);
-
-        //let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
 
         let texture = null;
         if (url_to_texture_map.has(lod_texture_URL)) {
-            // This texture has already been loaded
-            texture = url_to_texture_map.get(lod_texture_URL);
+
+            texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
         }
         else { // Else texture has not been loaded:
 
             // Add this material to the list of materials waiting for the texture
             if (!loading_texture_URL_to_materials_map.has(lod_texture_URL)) // Initialise with empty list if needed
                 loading_texture_URL_to_materials_map.set(lod_texture_URL, []);
-
             loading_texture_URL_to_materials_map.get(lod_texture_URL).push(three_mat);
 
-           
             if (loading_texture_URL_set.has(lod_texture_URL)) { // Are we already loading the texture?
-
+                // Just wait for the texture to load
             }
             else {
-                // We are not currently loading the texture, so start loading it.
-
+                // We are not currently loading the texture, so start loading it:
                 // Enqueue downloading of the texture
                 let size_factor = downloadqueue.sizeFactorForAABBWSLongestLen(ob_aabb_longest_len);
                 download_queue.enqueueItem(new downloadqueue.DownloadQueueItem(toThreeVector3(ob_pos), size_factor, lod_texture_URL, /*is_texture=*/true));
@@ -1114,24 +1108,20 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
                 loading_texture_URL_set.add(lod_texture_URL); // Add to set of loading textures.
             }
 
-            //texture = obstacle_texture; // Use obstacle texture as a loading placeholder.
-            texture = new THREE.TextureLoader().load("./obstacle.png");
+            texture = new THREE.TextureLoader().load("./obstacle.png"); // Use obstacle texture as a loading placeholder.
         }
 
-        //if (!texture)
-        //    texture = new THREE.Texture();
-        //if (texture) {
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            three_mat.map = texture;
+        // TODO: fix clashing texture matrix for multiple materials using same texture.
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        three_mat.map = texture;
 
-            three_mat.map.matrixAutoUpdate = false;
-            three_mat.map.matrix.set(
-                world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
-                world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
-                0, 0, 1
-            );
-       // }
+        three_mat.map.matrixAutoUpdate = false;
+        three_mat.map.matrix.set(
+            world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
+            world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
+            0, 0, 1
+        );
     }
 }
 
@@ -1152,7 +1142,6 @@ function addWorldObjectGraphics(world_ob) {
 
             if (true) {
 
-                // let subsample_factor = 4;
                 let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level); // type THREE.BufferGeometry
                 let geometry = values[0];
                 let subsample_factor = values[1];
@@ -1161,7 +1150,6 @@ function addWorldObjectGraphics(world_ob) {
                 let three_mats = []
                 for (let i = 0; i < world_ob.mats.length; ++i) {
                     let three_mat = new THREE.MeshStandardMaterial();
-                    // function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, ob_lod_level)
                     setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
                     three_mats.push(three_mat);
                 }
@@ -1205,8 +1193,8 @@ function addWorldObjectGraphics(world_ob) {
 }
 
 
-
-// Returns mesh
+// Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
+// Returns mesh (THREE.Mesh)
 function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level) {
     let three_mats = []
     for (let i = 0; i < mats.length; ++i) {
@@ -1235,7 +1223,7 @@ function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob
 }
 
 
-let num_resources_downloading = 0;
+let num_resources_downloading = 0; // Total number of resources (models + textures) currently being downloaded.
 
 
 function startDownloadingResource(download_queue_item) {
@@ -1244,8 +1232,6 @@ function startDownloadingResource(download_queue_item) {
 
     if (download_queue_item.is_texture) {
 
-        //let texture = new THREE.TextureLoader().load("resource/" + lod_texture_URL);
-
         const loader = new THREE.TextureLoader();
 
         loader.load("resource/" + download_queue_item.URL,
@@ -1253,27 +1239,25 @@ function startDownloadingResource(download_queue_item) {
             function (texture) { // onLoad callback
                 num_resources_downloading--;
 
-                // There should be 1 or more materials that use this texture.
-
                 //console.log("Loaded texture '" + download_queue_item.URL + "'.");
 
+                // There should be 1 or more materials that use this texture.
                 let waiting_mats = loading_texture_URL_to_materials_map.get(download_queue_item.URL);
-
                 if (!waiting_mats) {
-                    console.log("Error: waiting mats was null or false:");
-                    console.log(waiting_mats);
+                    console.log("Error: waiting mats was null or false.");
                 }
                 else {
 
                     texture.wrapS = THREE.RepeatWrapping;
                     texture.wrapT = THREE.RepeatWrapping;
 
+                    // Assign this texture to all materials waiting for it.
                     for (let z = 0; z < waiting_mats.length; ++z) {
                         let mat = waiting_mats[z];
 
                         //console.log("Assigning texture '" + download_queue_item.URL + "' to waiting material: " + mat);
 
-                        // Keep tex matrix
+                        // Keep existing material texture matrix
                         let tex_matrix = new THREE.Matrix3();
                         tex_matrix.copy(mat.map.matrix);
 
@@ -1284,7 +1268,6 @@ function startDownloadingResource(download_queue_item) {
 
                     loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
                 }
-
 
                 // Add to our loaded texture map
                 url_to_texture_map.set(download_queue_item.URL, texture);
@@ -1315,56 +1298,54 @@ function startDownloadingResource(download_queue_item) {
                 if (array_buffer) {
 
                     //console.log("Downloaded the file: '" + model_url + "'!");
-                    //try {
-                    //console.log("request.status: " + request.status);
-                    //console.log("Loading batched mesh from '" + url + "'...");
-                    //console.log("array_buffer:");
-                    //console.log(array_buffer);
-                    let geometry = loadBatchedMesh(array_buffer);
+                    try {
+                        let geometry = loadBatchedMesh(array_buffer);
 
-                    //console.log("Inserting " + model_url + " into url_to_geom_map");
-                    url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
+                        //console.log("Inserting " + model_url + " into url_to_geom_map");
+                        url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
 
+                        // Assign to any waiting world obs or avatars
+                        let waiting_obs = loading_model_URL_to_world_ob_map.get(download_queue_item.URL);
+                        if (!waiting_obs) {
+                            console.log("Error: waiting obs was null or false:");
+                            console.log(waiting_obs);
+                        }
+                        else {
 
-                    // Assign to any waiting world obs or avatars
-                    let waiting_obs = loading_model_URL_to_world_ob_map.get(download_queue_item.URL);
+                            for (let z = 0; z < waiting_obs.length; ++z) {
+                                let world_ob_or_avatar = waiting_obs[z];
 
-                    if (!waiting_obs) {
-                        console.log("Error: waiting obs was null or false:");
-                        console.log(waiting_obs);
-                    }
-                    else {
+                                if (world_ob_or_avatar instanceof WorldObject) {
 
-                        for (let z = 0; z < waiting_obs.length; ++z) {
-                            let world_ob_or_avatar = waiting_obs[z];
+                                    let world_ob = world_ob_or_avatar;
+                                    //console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
 
-                            if (world_ob_or_avatar instanceof WorldObject) {
+                                    let use_ob_lod_level = getLODLevel(world_ob, camera.position); // Used for determining which texture LOD level to load
+                                    let ob_aabb_longest_len = AABBLongestLength(world_ob);
 
-                                let world_ob = world_ob_or_avatar;
-                                //console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
+                                    let mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
-                                let use_ob_lod_level = getLODLevel(world_ob, camera.position); // Used for determining which texture LOD level to load
-                                let ob_aabb_longest_len = AABBLongestLength(world_ob);
+                                    world_ob_or_avatar.mesh = mesh;
+                                    world_ob_or_avatar.mesh_state = MESH_LOADED;
+                                }
+                                else if (world_ob_or_avatar instanceof Avatar) {
 
-                                let mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
+                                    let avatar = world_ob_or_avatar;
+                                    if (avatar.uid != client_avatar_uid) {
+                                        let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1), /*angle=*/0, /*ob_lod_level=*/0);
 
-                                world_ob_or_avatar.mesh = mesh;
-                                world_ob_or_avatar.mesh_state = MESH_LOADED;
-                            }
-                            else if (world_ob_or_avatar instanceof Avatar) {
-
-                                let avatar = world_ob_or_avatar;
-                                if (avatar.uid != client_avatar_uid) {
-                                    let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1), /*angle=*/0, /*ob_lod_level=*/0);
-                    
-                                    //console.log("Loaded mesh '" + model_url + "'.");
-                                    avatar.mesh = mesh;
-                                    avatar.mesh_state = MESH_LOADED;
+                                        //console.log("Loaded mesh '" + model_url + "'.");
+                                        avatar.mesh = mesh;
+                                        avatar.mesh_state = MESH_LOADED;
+                                    }
                                 }
                             }
-                        }
 
-                        loading_model_URL_to_world_ob_map.delete(download_queue_item.URL); // Now that this model has been downloaded, remove from map
+                            loading_model_URL_to_world_ob_map.delete(download_queue_item.URL); // Now that this model has been downloaded, remove from map
+                        }
+                    }
+                    catch (error) { // There was an exception loading/parsing the geometry
+                        console.log("exception occurred while loading/parsing the geometry: " + error);
                     }
                 }
             }
@@ -1497,14 +1478,14 @@ dirLight.shadow.camera.right = 20;
 
 scene.add(dirLight);
 
-//Create a helper for the shadow camera (optional)
-const camera_helper = new THREE.CameraHelper(dirLight.shadow.camera);
+// Create a helper to visualise the shadow camera.
+//const camera_helper = new THREE.CameraHelper(dirLight.shadow.camera);
 //scene.add(camera_helper);
 
 
-let from_sun_dir = new THREE.Vector3();
-from_sun_dir.copy(sundir);
-from_sun_dir.negate();
+//let from_sun_dir = new THREE.Vector3();
+//from_sun_dir.copy(sundir);
+//from_sun_dir.negate();
 
 // cascaded shadow maps
 //const csm = new CSM({
@@ -1734,8 +1715,8 @@ function animate() {
 
 
     {
-        // Sort download queue
-        if (cur_time - last_queue_sort_time > 0.1)
+        // Sort download queue (by distance from camera)
+        if (cur_time - last_queue_sort_time > 0.5)
         {
             //let sort_start_time = curTimeS();
             download_queue.sortQueue(camera.position);
@@ -1745,10 +1726,11 @@ function animate() {
             last_queue_sort_time = cur_time;
         }
 
+        // If there are less than N resources currently downloading, and there are items in the to-download queue, start downloading some of them.
+        const MAX_CONCURRENT_DOWNLOADS = 10;
+        if (num_resources_downloading < MAX_CONCURRENT_DOWNLOADS && download_queue.items.length > 0) {
 
-        if (num_resources_downloading < 10 && download_queue.items.length > 0) {
-
-            let num_to_dequeue = 10 - num_resources_downloading;
+            let num_to_dequeue = Math.min(MAX_CONCURRENT_DOWNLOADS - num_resources_downloading, download_queue.items.length);
             for (let z = 0; z < num_to_dequeue; ++z) {
                 let item = download_queue.dequeueItem();
                 startDownloadingResource(item);
@@ -1782,8 +1764,8 @@ function animate() {
         dirLight.shadow.camera.far = cam_dot_sun + 100;
         dirLight.shadow.camera.updateProjectionMatrix();
         
-        if (camera_helper)
-            camera_helper.update();
+        //if (camera_helper)
+        //    camera_helper.update();
 
         //csm.update()
         //csm.updateFrustums();
