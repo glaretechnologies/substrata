@@ -632,19 +632,44 @@ function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
 }
 
 
+const MAX_OB_LOAD_DISTANCE_FROM_CAM = 200;
+
+
 function sendQueryObjectsMessage() {
+
+    const CELL_WIDTH = 200.0;
+    const load_distance = MAX_OB_LOAD_DISTANCE_FROM_CAM;
+
+    let begin_x = Math.floor((camera.position.x - load_distance) / CELL_WIDTH);
+    let begin_y = Math.floor((camera.position.y - load_distance) / CELL_WIDTH);
+    let begin_z = Math.floor((camera.position.z - load_distance) / CELL_WIDTH);
+    let end_x   = Math.floor((camera.position.x + load_distance) / CELL_WIDTH);
+    let end_y   = Math.floor((camera.position.y + load_distance) / CELL_WIDTH);
+    let end_z = Math.floor((camera.position.z + load_distance) / CELL_WIDTH);
+
+    // console.log("begin_x: " + begin_x);
+    // console.log("begin_y: " + begin_y);
+    // console.log("begin_z: " + begin_z);
+    // console.log("end_x: " + end_x);
+    // console.log("end_y: " + end_y);
+    // console.log("end_z: " + end_z);
 
     let buffer_out = new bufferout.BufferOut();
     buffer_out.writeUInt32(QueryObjects);
     buffer_out.writeUInt32(0); // message length - to be updated.
-    let r = 1;
-    buffer_out.writeUInt32(2 * (2 * r + 1) * (2 * r + 1)); // Num cells to query
 
-    for (let x = -r; x <= r; ++x)
-        for (let y = -r; y <= r; ++y) {
-            buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(0);
-            buffer_out.writeInt32(x); buffer_out.writeInt32(y); buffer_out.writeInt32(-1);
-        }
+    let coords = []
+    for (let x = begin_x; x <= end_x; ++x)
+        for (let y = begin_y; y <= end_y; ++y)
+            for (let z = begin_z; z <= end_z; ++z) {
+                coords.push(x);
+                coords.push(y);
+                coords.push(z);
+            }
+
+    buffer_out.writeUInt32(coords.length / 3); // Num cells to query
+    for (let i = 0; i < coords.length; ++i)
+        buffer_out.writeInt32(coords[i]);
 
     buffer_out.updateMessageLengthField();
     buffer_out.writeToWebSocket(ws);
@@ -729,8 +754,6 @@ ws.onmessage = function (event) {
 
                 let world_ob = readWorldObjectFromNetworkStreamGivenUID(buffer);
                 world_ob.uid = object_uid;
-
-                const MAX_OB_LOAD_DISTANCE_FROM_CAM = 200;
 
                 let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
                 if (dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM) {
@@ -1072,6 +1095,8 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
     three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
     three_mat.metalness = world_mat.metallic_fraction.val;
     three_mat.roughness = world_mat.roughness.val;
+
+    three_mat.side = THREE.DoubleSide; // Enable backface rendering as well.
 
     three_mat.opacity = world_mat.opacity.val;
     three_mat.transparent = world_mat.opacity.val < 1.0;
@@ -1478,6 +1503,8 @@ dirLight.shadow.camera.top = 20;
 dirLight.shadow.camera.bottom = - 20;
 dirLight.shadow.camera.left = - 20;
 dirLight.shadow.camera.right = 20;
+
+dirLight.shadow.bias = -0.001; // Needed when backfaces are drawn.
 //dirLight.shadow.camera.near = 0.1;
 //dirLight.shadow.camera.far = 40;
 
@@ -1544,7 +1571,7 @@ uniforms['sunPosition'].value.copy(sun);
 
 //===================== Add ground plane =====================
 {
-    let plane_w = 1000;
+    let plane_w = 2000;
     const geometry = new THREE.PlaneGeometry(plane_w, plane_w);
     const material = new THREE.MeshStandardMaterial();
     material.color = new THREE.Color(0.9, 0.9, 0.9);
