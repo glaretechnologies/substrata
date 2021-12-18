@@ -294,10 +294,9 @@ void WorkerThread::handleResourceDownloadConnection()
 			const uint32 msg_type = socket->readUInt32();
 			if(msg_type == Protocol::GetFiles)
 			{
-				conPrint("------GetFiles-----");
-
 				const uint64 num_resources = socket->readUInt64();
-				conPrint("\tnum_resources requested: " + toString(num_resources));
+				
+				conPrint("Handling GetFiles:\tnum resources requested: " + toString(num_resources));
 
 				for(size_t i=0; i<num_resources; ++i)
 				{
@@ -312,7 +311,7 @@ void WorkerThread::handleResourceDownloadConnection()
 					}
 					else
 					{
-						conPrint("\tRequested URL was valid.");
+						// conPrint("\tRequested URL was valid.");
 
 						const ResourceRef resource = server->world_state->resource_manager->getExistingResourceForURL(URL);
 						if(resource.isNull() || (resource->getState() != Resource::State_Present))
@@ -324,13 +323,13 @@ void WorkerThread::handleResourceDownloadConnection()
 						{
 							const std::string local_path = resource->getLocalPath();
 
-							conPrint("\tlocal path: '" + local_path + "'");
+							// conPrint("\tlocal path: '" + local_path + "'");
 
 							try
 							{
 								// Load resource off disk
 								MemMappedFile file(local_path);
-								conPrint("\tSending file to client.");
+								// conPrint("\tSending file to client.");
 								socket->writeUInt32(0); // write OK msg to client
 								socket->writeUInt64(file.fileSize()); // Write file size
 								socket->writeData(file.fileData(), file.fileSize()); // Write file data

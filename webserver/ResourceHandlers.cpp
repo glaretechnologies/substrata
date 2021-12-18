@@ -184,11 +184,11 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				}
 				else
 				{
-					conPrint("\thandleResourceRequest: serving data (len: " + toString(file.fileSize()) + ")");
+					conPrint("handleResourceRequest: serving data for '" + resource_URL + "' (len: " + toString(file.fileSize()) + " B)");
 
 					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*max age(s)=*/100000000);
 
-					conPrint("\thandleResourceRequest: sent data. (len: " + toString(file.fileSize()) + ")");
+					// conPrint("\thandleResourceRequest: sent data. (len: " + toString(file.fileSize()) + ")");
 				}
 			}
 			catch(glare::Exception& e)
