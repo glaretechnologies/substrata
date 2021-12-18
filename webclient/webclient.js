@@ -1117,7 +1117,8 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
         let texture = null;
         if (url_to_texture_map.has(lod_texture_URL)) {
 
-            texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
+            texture = new THREE.Texture();
+            texture.image = url_to_texture_map.get(lod_texture_URL).image; // This texture has already been loaded, use it
         }
         else { // Else texture has not been loaded:
 
@@ -1138,20 +1139,23 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
                 loading_texture_URL_set.add(lod_texture_URL); // Add to set of loading textures.
             }
 
-            texture = new THREE.TextureLoader().load("./obstacle.png"); // Use obstacle texture as a loading placeholder.
+            //texture = new THREE.TextureLoader().load("./obstacle.png"); // Use obstacle texture as a loading placeholder.
+            texture = new THREE.Texture();
+            texture.image = placeholder_texture.image;
         }
 
         // TODO: fix clashing texture matrix for multiple materials using same texture.
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
-        three_mat.map = texture;
 
-        three_mat.map.matrixAutoUpdate = false;
-        three_mat.map.matrix.set(
+        texture.matrixAutoUpdate = false;
+        texture.matrix.set(
             world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
             world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
             0, 0, 1
         );
+
+        three_mat.map = texture;
     }
 }
 
@@ -1277,23 +1281,14 @@ function startDownloadingResource(download_queue_item) {
                     console.log("Error: waiting mats was null or false.");
                 }
                 else {
-
-                    texture.wrapS = THREE.RepeatWrapping;
-                    texture.wrapT = THREE.RepeatWrapping;
-
                     // Assign this texture to all materials waiting for it.
                     for (let z = 0; z < waiting_mats.length; ++z) {
                         let mat = waiting_mats[z];
 
                         //console.log("Assigning texture '" + download_queue_item.URL + "' to waiting material: " + mat);
 
-                        // Keep existing material texture matrix
-                        let tex_matrix = new THREE.Matrix3();
-                        tex_matrix.copy(mat.map.matrix);
-
-                        mat.map = texture; // Assign texture
-                        mat.map.matrix.copy(tex_matrix);
-                        mat.map.matrixAutoUpdate = false;
+                        mat.map.image = texture.image; // Assign the texture image, but not the whole texture, because we want to keep the existing tex matrix etc..
+                        mat.map.needsUpdate = true; // Seems to be needed to get the texture to show.
                     }
 
                     loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
@@ -1568,6 +1563,8 @@ sun.setFromSphericalCoords(1, sun_phi, sun_theta);
 
 uniforms['sunPosition'].value.copy(sun);
 
+
+let placeholder_texture = new THREE.TextureLoader().load("./obstacle.png");
 
 //===================== Add ground plane =====================
 {
