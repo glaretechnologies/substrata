@@ -1098,8 +1098,16 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
 
     three_mat.side = THREE.DoubleSide; // Enable backface rendering as well.
 
-    three_mat.opacity = world_mat.opacity.val;
+    three_mat.opacity = (world_mat.opacity.val < 1.0) ? 0.3 : 1.0;
     three_mat.transparent = world_mat.opacity.val < 1.0;
+
+    if (world_mat.opacity.val < 1.0) {
+        // Try and make this look vaguely like the native engine transparent shader, which has quite desaturated colours for transparent mats.
+        three_mat.color.convertGammaToLinear(2.2);
+        three_mat.color.r = 0.6 + three_mat.color.r * 0.4;
+        three_mat.color.g = 0.6 + three_mat.color.g * 0.4;
+        three_mat.color.b = 0.6 + three_mat.color.b * 0.4;
+    }
 
     //console.log("world_mat.colour_texture_url:" + world_mat.colour_texture_url);
     if (world_mat.colour_texture_url.length > 0) {
@@ -1144,7 +1152,8 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
             texture.image = placeholder_texture.image;
         }
 
-        // TODO: fix clashing texture matrix for multiple materials using same texture.
+        texture.needsUpdate = true; // Seems to be needed to get the texture to show.
+
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
 
@@ -1229,10 +1238,13 @@ function addWorldObjectGraphics(world_ob) {
 
 // Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
 // Returns mesh (THREE.Mesh)
-function makeMeshAndAddToScene(geometry, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level) {
+function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level) {
+
+    let use_vert_colours = (geometry.getAttribute('color') !== undefined);
+
     let three_mats = []
     for (let i = 0; i < mats.length; ++i) {
-        let three_mat = new THREE.MeshStandardMaterial();
+        let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
         //csm.setupMaterial(three_mat); // TEMP
         setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
         three_mats.push(three_mat);
@@ -1357,7 +1369,8 @@ function startDownloadingResource(download_queue_item) {
 
                                     let avatar = world_ob_or_avatar;
                                     if (avatar.uid != client_avatar_uid) {
-                                        let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1), /*angle=*/0, /*ob_lod_level=*/0);
+                                        let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
+                                            /*angle=*/0, /*ob_lod_level=*/0);
 
                                         //console.log("Loaded mesh '" + model_url + "'.");
                                         avatar.mesh = mesh;
@@ -1462,6 +1475,10 @@ let renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
 renderer.setSize(window.innerWidth, window.innerHeight);
 
+// Use linear tone mapping with a scale less than 1, which seems to be needed to make the sky model look good.
+renderer.toneMapping = THREE.LinearToneMapping;
+renderer.toneMappingExposure = 0.5;
+
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -1476,7 +1493,7 @@ camera.lookAt(camera.position.clone().add(new THREE.Vector3(0, 1, 0)));
 const hemiLight = new THREE.HemisphereLight();
 hemiLight.color = new THREE.Color(0.4, 0.4, 0.45); // sky colour
 hemiLight.groundColor = new THREE.Color(0.5, 0.45, 0.4);
-hemiLight.intensity = 1.2;
+hemiLight.intensity = 1.2 * 2;
 
 hemiLight.position.set(0, 20, 20);
 scene.add(hemiLight);
@@ -1490,6 +1507,7 @@ const sundir = new THREE.Vector3();
 sundir.setFromSphericalCoords(1, sun_phi, sun_theta);
 const dirLight = new THREE.DirectionalLight();
 dirLight.color = new THREE.Color(0.8, 0.8, 0.8);
+dirLight.intensity = 2;
 dirLight.position.copy(sundir);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048;
@@ -1548,14 +1566,14 @@ scene.add(dirLight);
 
 //===================== Add Sky =====================
 let sky = new Sky();
-sky.scale.setScalar(450000);
+sky.scale.setScalar(450000); // No idea what this does, seems to be needed to show the sky tho.
 scene.add(sky);
 
 const uniforms = sky.material.uniforms;
-uniforms['turbidity'].value = 0.1
-uniforms['rayleigh'].value = 0.5
-uniforms['mieCoefficient'].value = 0.1
-uniforms['mieDirectionalG'].value = 0.5
+uniforms['turbidity'].value =  0.4;
+//uniforms['rayleigh'].value = 0.5;
+//uniforms['mieCoefficient'].value = 0.1;
+//uniforms['mieDirectionalG'].value = 0.5;
 uniforms['up'].value.copy(new THREE.Vector3(0,0,1));
 
 let sun = new THREE.Vector3();
@@ -1566,35 +1584,42 @@ uniforms['sunPosition'].value.copy(sun);
 
 let placeholder_texture = new THREE.TextureLoader().load("./obstacle.png");
 
-//===================== Add ground plane =====================
+//===================== Add ground plane quads =====================
+// Use multiple quads to improve z fighting.
 {
-    let plane_w = 2000;
-    const geometry = new THREE.PlaneGeometry(plane_w, plane_w);
-    const material = new THREE.MeshStandardMaterial();
-    material.color = new THREE.Color(0.9, 0.9, 0.9);
-    //material.side = THREE.DoubleSide;
+    let half_res = 5;
+    for (let x = -half_res; x <= half_res; ++x)
+        for (let y = -half_res; y <= half_res; ++y) {
 
-    let texture = new THREE.TextureLoader().load("./obstacle.png");
+            let plane_w = 200;
+            const geometry = new THREE.PlaneGeometry(plane_w, plane_w);
+            const material = new THREE.MeshStandardMaterial();
+            material.color = new THREE.Color(0.9, 0.9, 0.9);
+            //material.side = THREE.DoubleSide;
 
-    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
+            let texture = new THREE.TextureLoader().load("./obstacle.png");
 
-    texture.matrixAutoUpdate = false;
-    texture.matrix.set(
-        plane_w, 0, 0,
-        0, plane_w, 0,
-        0, 0, 1
-    );
-   
-    material.map = texture;
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
 
-    const plane = new THREE.Mesh(geometry, material);
+            texture.matrixAutoUpdate = false;
+            texture.matrix.set(
+                plane_w, 0, 0,
+                0, plane_w, 0,
+                0, 0, 1
+            );
+            material.map = texture;
 
-    plane.castShadow = true;
-    plane.receiveShadow = true;
-    
-    scene.add(plane);
+            const plane = new THREE.Mesh(geometry, material);
+            plane.position.x = x * plane_w;
+            plane.position.y = y * plane_w;
+
+            plane.castShadow = true;
+            plane.receiveShadow = true;
+
+            scene.add(plane);
+        }
 }
 
 
