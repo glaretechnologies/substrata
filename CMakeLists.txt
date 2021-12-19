@@ -209,7 +209,7 @@ if(WIN32)
 	set (ACTUAL_FUCKING_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$(Configuration)")
 	
 else() # Mac or Linux.
-	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install")
+	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_dylib_install")
 	set(libressldir	"${INDIGO_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-install")
 	set(openssldir "${INDIGO_LIBS_ENV}/OpenSSL/openssl-${INDIGO_OPENSSL_VERSION}-install")
 	
