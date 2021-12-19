@@ -125,9 +125,14 @@ if(WIN32)
 else()
 	# get the llvm libs
 	# NOTE: LLVM 3.6+ requires --system-libs also.
-	execute_process(COMMAND "${llvmdir}/bin/llvm-config" "--ldflags" "--system-libs" "--libs" "all" OUTPUT_VARIABLE LLVM_LIBS_OUT OUTPUT_STRIP_TRAILING_WHITESPACE)
+	execute_process(COMMAND "${llvmdir}/bin/llvm-config" "--ldflags" "--system-libs" OUTPUT_VARIABLE LLVM_LIBS_OUT OUTPUT_STRIP_TRAILING_WHITESPACE)
 	string(REPLACE "\n" " " LLVM_LIBS_FINAL ${LLVM_LIBS_OUT})
+		
+	# Manually append LLVM library name (We will link against libLLVM-6.0.so)
+	set(LLVM_LIBS_FINAL "${LLVM_LIBS_FINAL} -lLLVM-6.0")
 	
+	MESSAGE("LLVM_LIBS_FINAL: ${LLVM_LIBS_FINAL}")
+		
 	target_link_libraries(${CURRENT_TARGET} 
 		${LLVM_LIBS_FINAL})
 	
