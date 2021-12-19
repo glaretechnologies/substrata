@@ -122,6 +122,18 @@ if(WIN32)
 	
 	target_link_libraries(${CURRENT_TARGET} 
 		${LLVM_LIBS})
+
+elseif(APPLE)
+	# get the llvm libs
+	# NOTE: LLVM 3.6+ requires --system-libs also.
+	execute_process(COMMAND "${llvmdir}/bin/llvm-config" "--ldflags" "--system-libs" "--libs" "all" OUTPUT_VARIABLE LLVM_LIBS_OUT OUTPUT_STRIP_TRAILING_WHITESPACE)
+	string(REPLACE "\n" " " LLVM_LIBS_FINAL ${LLVM_LIBS_OUT})
+		
+	MESSAGE("LLVM_LIBS_FINAL: ${LLVM_LIBS_FINAL}")
+		
+	target_link_libraries(${CURRENT_TARGET} 
+		${LLVM_LIBS_FINAL})
+
 else()
 	# get the llvm libs
 	# NOTE: LLVM 3.6+ requires --system-libs also.
