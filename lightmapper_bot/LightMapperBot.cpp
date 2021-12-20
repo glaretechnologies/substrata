@@ -119,7 +119,7 @@ public:
 		ResourceRef resource = resource_manager->getOrCreateResourceForURL(url);
 		if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
 		{
-			conPrint("Already present or being downloaded, skipping...");
+			//conPrint("Already present or being downloaded, skipping...");
 			return;
 		}
 
@@ -393,6 +393,8 @@ public:
 
 	Indigo::SceneNodeModelRef makeModelNodeForWorldObject(WorldObject* ob)
 	{
+		checkTransformOK(ob); // Throws glare::Exception if transform not OK, for example if any components are infinite or NaN. 
+
 		bool mesh_had_skeletal_anim;
 		Indigo::SceneNodeMeshRef mesh_node = makeSceneNodeMeshForOb(ob, mesh_had_skeletal_anim);
 
@@ -1144,6 +1146,7 @@ public:
 
 
 			conPrint("Done initial scan over all objects.");
+			Timer last_status_print_timer;
 
 			//============= Now loop and wait for any objects to be marked dirty, and check those objects for if they need lightmapping ===========
 			while(1)
@@ -1196,6 +1199,12 @@ public:
 					throw glare::Exception("client thread disconnected.");
 
 				PlatformUtils::Sleep(100);
+
+				if(last_status_print_timer.elapsed() > 10)
+				{
+					conPrint("Waiting for an object to lightmap...");
+					last_status_print_timer.reset();
+				}
 			}
 		}
 		catch(glare::Exception& e)
