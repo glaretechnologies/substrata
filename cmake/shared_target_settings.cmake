@@ -35,7 +35,10 @@ else()
 		SET(SANITIZER_LINK_FLAGS "-fsanitize=${INDIGO_USE_SANITIZER} -fno-omit-frame-pointer -g -pie")
 	endif()
 
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib'")
+	# Note that for some stupid reason, -no-pie is needed to get the executable to show up as clickable in the Ubuntu files app.
+	# See https://askubuntu.com/questions/1056882/i-cannot-run-any-executable-from-nautilus and https://gitlab.gnome.org/GNOME/nautilus/-/issues/1601
+	# Note that the server target doesn't include this cmake file, so the -no-pie won't apply to it.
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
 endif()
 
 
