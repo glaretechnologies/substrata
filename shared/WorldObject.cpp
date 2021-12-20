@@ -954,3 +954,33 @@ js::AABBox VoxelGroup::getAABB() const
 	}
 	return js::AABBox(Vec4f((float)minpos.x, (float)minpos.y, (float)minpos.z, 1), Vec4f((float)(maxpos.x + 1), (float)(maxpos.y + 1), (float)(maxpos.z + 1), 1));
 }
+
+
+// Throws glare::Exception if transform not OK, for example if any components are infinite or NaN. 
+void checkTransformOK(const WorldObject* ob)
+{
+	// Sanity check position, axis, angle
+	if(!ob->pos.isFinite())
+		throw glare::Exception("Position had non-finite component.");
+	if(!ob->axis.isFinite())
+		throw glare::Exception("axis had non-finite component.");
+	if(!::isFinite(ob->angle))
+		throw glare::Exception("angle was non-finite.");
+
+	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+
+	// Sanity check ob_to_world_matrix matrix
+	for(int i=0; i<16; ++i)
+		if(!::isFinite(ob_to_world_matrix.e[i]))
+			throw glare::Exception("ob_to_world_matrix had non-finite component.");
+
+	Matrix4f world_to_ob;
+	const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
+	if(!ob_to_world_invertible)
+		throw glare::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
+
+	// Check world_to_ob matrix
+	for(int i=0; i<16; ++i)
+		if(!::isFinite(world_to_ob.e[i]))
+			throw glare::Exception("world_to_ob had non-finite component.");
+}

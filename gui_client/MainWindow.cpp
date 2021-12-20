@@ -880,36 +880,6 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 }
 
 
-// Throws glare::Exception if transform not OK, for example if any components are infinite or NaN. 
-static void checkTransformOK(const WorldObject* ob)
-{
-	// Sanity check position, axis, angle
-	if(!::isFinite(ob->pos.x) || !::isFinite(ob->pos.y) || !::isFinite(ob->pos.z))
-		throw glare::Exception("Position had non-finite component.");
-	if(!::isFinite(ob->axis.x) || !::isFinite(ob->axis.y) || !::isFinite(ob->axis.z))
-		throw glare::Exception("axis had non-finite component.");
-	if(!::isFinite(ob->angle))
-		throw glare::Exception("angle was non-finite.");
-
-	const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
-
-	// Sanity check ob_to_world_matrix matrix
-	for(int i=0; i<16; ++i)
-		if(!::isFinite(ob_to_world_matrix.e[i]))
-			throw glare::Exception("ob_to_world_matrix had non-finite component.");
-
-	Matrix4f world_to_ob;
-	const bool ob_to_world_invertible = ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob);
-	if(!ob_to_world_invertible)
-		throw glare::Exception("ob_to_world_matrix was not invertible."); // TEMP: do we actually need this restriction?
-
-	// Check world_to_ob matrix
-	for(int i=0; i<16; ++i)
-		if(!::isFinite(world_to_ob.e[i]))
-			throw glare::Exception("world_to_ob had non-finite component.");
-}
-
-
 static bool hasAudioFileExtension(const std::string& url)
 {
 	return hasExtensionStringView(url, "mp3") || hasExtensionStringView(url, "m4a") || hasExtensionStringView(url, "wav") || hasExtensionStringView(url, "aac") || hasExtensionStringView(url, "flac");

@@ -271,6 +271,9 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID wi
 const Matrix4f obToWorldMatrix(const WorldObject& ob);
 const Matrix4f worldToObMatrix(const WorldObject& ob);
 
+// Throws glare::Exception if transform not OK, for example if any components are infinite or NaN. 
+void checkTransformOK(const WorldObject* ob);
+
 
 struct WorldObjectRefHash
 {
