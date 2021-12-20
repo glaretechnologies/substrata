@@ -239,6 +239,8 @@ int main(int argc, char* argv[])
 						conPrint("Sending screenshot " + screenshot_path + " to server.");
 						socket->writeUInt64(screenshot_data.length());
 						socket->writeData(screenshot_data.data(), screenshot_data.length());
+
+						time_since_last_shot_request.reset();
 					}
 					else if(request_type == Protocol::KeepAlive)
 					{
@@ -251,7 +253,7 @@ int main(int argc, char* argv[])
 				} // end if socket was readable
 
 				// If it has been a while since we got a screenshot request from the server, terminate the GUI process and close the socket connection to it.
-				if(time_since_last_shot_request.elapsed() > 30.0)
+				if(time_since_last_shot_request.elapsed() > 60.0)
 				{
 					if(process != NULL)
 					{
