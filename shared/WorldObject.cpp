@@ -92,8 +92,13 @@ std::string WorldObject::getLODModelURLForLevel(const std::string& base_model_ur
 
 int WorldObject::getLODLevel(const Vec3d& campos) const
 {
-	const float dist = campos.toVec4fVector().getDist(this->pos.toVec4fVector());
-	const float proj_len = aabb_ws.longestLength() / dist;
+	// proj_len = aabb_ws.longestLength() / ||campos - pos||
+	const float recip_dist = (campos.toVec4fVector() - this->pos.toVec4fVector()).fastApproxRecipLength();
+	float proj_len = aabb_ws.longestLength() * recip_dist;
+
+	// For voxel objects, push out the transition distances a bit.
+	if(object_type == ObjectType_VoxelGroup)
+		proj_len *= 2;
 
 	if(proj_len > 0.6)
 		return -1;
