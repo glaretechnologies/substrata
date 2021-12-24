@@ -159,6 +159,8 @@ private:
 
 	AudioCallbackData callback_data;
 
+	bool initialised;
+
 public:
 	Mutex mutex; // Guards access to audio_sources, and resonance
 	std::set<AudioSourceRef> audio_sources;

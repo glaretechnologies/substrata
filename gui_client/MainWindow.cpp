@@ -400,8 +400,15 @@ void MainWindow::initialise()
 	Direct3DUtils::createGPUDeviceAndMFDeviceManager(d3d_device, device_manager);
 #endif //_WIN32
 
+	try
+	{
+		audio_engine.init();
+	}
+	catch(glare::Exception& e)
+	{
+		logMessage("Audio engine could not be initialised: " + e.what());
+	}
 
-	audio_engine.init();
 	//for(int i=0; i<4; ++i)
 	//	this->footstep_sources.push_back(audio_engine.addSourceFromSoundFile("D:\\audio\\sound_effects\\footstep_mono" + toString(i) + ".wav"));
 

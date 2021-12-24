@@ -86,7 +86,8 @@ float SoundFile::minVal() const
 
 AudioEngine::AudioEngine()
 :	audio(NULL),
-	resonance(NULL)
+	resonance(NULL),
+	initialised(false)
 {
 
 }
@@ -414,9 +415,11 @@ void AudioEngine::init()
 
 	// Scan through devices for various capabilities
 	RtAudio::DeviceInfo info;
-	for ( unsigned int i=0; i<devices; i++ ) {
-		info = audio->getDeviceInfo( i );
-		if ( info.probed == true ) {
+	for(unsigned int i=0; i<devices; i++ )
+	{
+		info = audio->getDeviceInfo(i);
+		if(info.probed)
+		{
 			// Print, for example, the maximum number of output channels for each device
 
 			// conPrint("name = " + info.name);
@@ -513,17 +516,25 @@ void AudioEngine::init()
 	{
 		throw glare::Exception(e.what());
 	}
+
+	this->initialised = true;
 }
 
 
 void AudioEngine::setRoomEffectsEnabled(bool enabled)
 {
+	if(!initialised)
+		return;
+
 	resonance->EnableRoomEffects(enabled);
 }
 
 
 void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 {
+	if(!initialised)
+		return;
+
 	vraudio::ReflectionProperties refl_props;
 
 	refl_props.room_dimensions[0] = room_aabb.axisLength(0);
@@ -576,6 +587,9 @@ void AudioEngine::shutdown()
 
 void AudioEngine::addSource(AudioSourceRef source)
 {
+	if(!initialised)
+		return;
+
 	source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
 
 	if(source->pos.isFinite()) // Avoid crash in Resonance with NaN position coords.
@@ -590,6 +604,9 @@ void AudioEngine::addSource(AudioSourceRef source)
 
 void AudioEngine::removeSource(AudioSourceRef source)
 {
+	if(!initialised)
+		return;
+
 	resonance->DestroySource(source->resonance_handle);
 
 	Lock lock(mutex);
@@ -599,6 +616,9 @@ void AudioEngine::removeSource(AudioSourceRef source)
 
 void AudioEngine::sourcePositionUpdated(AudioSource& source)
 {
+	if(!initialised)
+		return;
+
 	if(!source.pos.isFinite())
 		return; // Avoid crash in Resonance with NaN position coords.
 
@@ -608,6 +628,9 @@ void AudioEngine::sourcePositionUpdated(AudioSource& source)
 
 void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 {
+	if(!initialised)
+		return;
+
 	// conPrint("Setting volume to " + doubleToStringNSigFigs(source.volume, 4));
 	resonance->SetSourceVolume(source.resonance_handle, source.volume * source.getMuteVolumeFactor());
 }
@@ -615,12 +638,18 @@ void AudioEngine::sourceVolumeUpdated(AudioSource& source)
 
 void AudioEngine::sourceNumOcclusionsUpdated(AudioSource& source)
 {
+	if(!initialised)
+		return;
+
 	resonance->SetSoundObjectOcclusionIntensity(source.resonance_handle, source.num_occlusions);
 }
 
 
 void AudioEngine::setHeadTransform(const Vec4f& head_pos, const Quatf& head_rot)
 {
+	if(!initialised)
+		return;
+
 	//Lock lock(mutex);
 
 	resonance->SetHeadPosition(head_pos[0], head_pos[1], head_pos[2]);
@@ -799,6 +828,9 @@ SoundFileRef AudioEngine::loadSoundFile(const std::string& sound_file_path)
 
 void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec4f& pos)
 {
+	if(!initialised)
+		return;
+
 	try
 	{
 		SoundFileRef sound;
