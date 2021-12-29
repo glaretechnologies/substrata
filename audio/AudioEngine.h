@@ -47,7 +47,7 @@ public:
 	{
 		SourceType_Looping,
 		SourceType_OneShot,
-		SourceType_Streaming
+		SourceType_Streaming // Audio data is streamed from e.g. a video, into the circular buffer.
 	};
 
 	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
@@ -87,6 +87,8 @@ public:
 	float num_occlusions;
 
 	uint32 userdata_1;
+
+	std::string debugname;
 };
 typedef Reference<AudioSource> AudioSourceRef;
 

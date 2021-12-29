@@ -1096,21 +1096,30 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
 			{
-				glare::AudioSourceRef audio_source = new glare::AudioSource();
-				audio_source->type = glare::AudioSource::SourceType_Streaming;
-				audio_source->pos = ob->aabb_ws.centroid();
-
+				// Only create if we have not already created an audio source for this object.  Check to avoid leaking previous audio sources, also to make sure we don't create duplicate audio sources
+				// as we transition between LOD levels.
+				if(ob->audio_source.isNull())
 				{
-					Lock lock(world_state->mutex);
-					
-					const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
-					audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
-				}
+					// Create a streaming audio source.
+					// In AnimatedTexObData::process(), audio will be piped from the video to the audio source buffer.
 
-				//std::vector<float> buf(48000.0 * 0.5, 0.f);
-				//audio_source->buffer.pushBackNItems(buf.data(), buf.size());
-				ob->audio_source = audio_source;
-				this->audio_engine.addSource(audio_source);
+					glare::AudioSourceRef audio_source = new glare::AudioSource();
+					audio_source->type = glare::AudioSource::SourceType_Streaming;
+					audio_source->pos = ob->aabb_ws.centroid();
+					audio_source->debugname = ob->materials[i]->colour_texture_url;
+
+					{
+						Lock lock(world_state->mutex);
+					
+						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+						audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+					}
+
+					//std::vector<float> buf(48000.0 * 0.5, 0.f);
+					//audio_source->buffer.pushBackNItems(buf.data(), buf.size());
+					ob->audio_source = audio_source;
+					this->audio_engine.addSource(audio_source);
+				}
 			}
 		}
 
@@ -2386,7 +2395,7 @@ void MainWindow::checkForLODChanges()
 				{
 					if(dist > MAX_AUDIO_DIST)
 					{
-						// conPrint("Object out of range, removing audio object '" + ob->audio_source_url + "'.");
+						// conPrint("Object out of range, removing audio object '" + ob->audio_source->debugname + "'.");
 						audio_engine.removeSource(ob->audio_source);
 						ob->audio_source = NULL;
 						ob->audio_state = WorldObject::AudioState_NotLoaded;
@@ -2498,6 +2507,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 			}
 		}
+
+		/*{
+			msg += "Audio sources\n";
+			Lock lock(audio_engine.mutex);
+			for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
+			{
+				msg += (*it)->debugname + "\n";
+			}
+		}*/
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
 		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())
@@ -3160,6 +3178,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									const double audio_len_s = loaded_msg->audio_buffer->buffer.size() / 44100.0; // TEMP HACK
 									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
 									ob->audio_source->cur_read_i = Maths::intMod((int)(source_time_offset * 44100.0), (int)loaded_msg->audio_buffer->buffer.size());
+									ob->audio_source->debugname = ob->audio_source_url;
 
 									const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
 									ob->audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
