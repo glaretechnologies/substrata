@@ -277,3 +277,5 @@ ADD_SUBDIRECTORY(server server)
 #ADD_SUBDIRECTORY(eth_bot eth_bot)
 
 #ADD_SUBDIRECTORY(backup_bot backup_bot)
+
+#ADD_SUBDIRECTORY(stress_test stress_test)
