@@ -1,3 +1,25 @@
+0.84
+====
+Fixed linux build handling of LLVM libs.
+Made substrata exe clickable in Gnome files app on Linux
+Small improvement/fix in download queue ordering.
+Fix leak of audio source when creating audio sources for mp4 textures.
+Allowing execution to continue if audio engine fails to initialise.
+For voxel objects, push out the transition distances a bit.
+webclient improvements:
+	Improved transparent colours.
+	Made vertex colours work.
+	Use linear tone mapping with a scale less than 1, which seems to be needed to make the sky model look good.
+	Made ground use lots of quads to improve z fighting.
+	Tweaked texture loading code so tex matrix should be preserved.
+	Made initial query centre around camera position.
+	Enabled backface rendering.
+	Added MAX_OB_LOAD_DISTANCE_FROM_CAM of 200 m
+	Added use of download queue in webclient
+	Added "xx left" message.
+	Enabled alpha testing.
+	Moving shadow map 'camera' with actual camera.
+
 0.83
 ====
 Added blob shadows for closest avatars.
@@ -5,6 +27,8 @@ Fixed avatar sometimes rotating when first made visible, for example when perfor
 Made 'v' key toggle third-person camera mode.
 Rendering speed optimisations.
 Animation retargetting: handle cases where new bone nodes are in reverse order, fixes cyberpirate model.
+Made it so you can edit parcel descriptions, all-writable and mute-outside-audio in parcel editor.
+Implmented 'mute outside audio' option for parcels.
 
 0.82
 ====
