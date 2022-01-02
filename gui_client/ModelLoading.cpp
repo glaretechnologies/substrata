@@ -78,6 +78,7 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	opengl_mat.tex_path = mat.colour_texture_url;
 
 	opengl_mat.roughness = mat.roughness.val;
+	opengl_mat.metallic_roughness_tex_path = mat.roughness.texture_url;
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
@@ -111,6 +112,11 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 		opengl_mat.tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
 	else
 		opengl_mat.tex_path.clear();
+
+	if(!mat.roughness.texture_url.empty())
+		opengl_mat.metallic_roughness_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.roughness.texture_url, lod_level, /*has alpha=*/false), resource_manager);
+	else
+		opengl_mat.metallic_roughness_tex_path.clear();
 
 	if(!lightmap_url.empty())
 		opengl_mat.lightmap_path = toLocalPath(WorldObject::getLODLightmapURL(lightmap_url, lod_level), resource_manager);
@@ -659,6 +665,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			loaded_object_out.materials[i] = new WorldMaterial();
 
 			const std::string tex_path = gltf_data.materials.materials[i].diffuse_map.path;
+			const std::string metallic_roughness_tex_path = gltf_data.materials.materials[i].metallic_roughness_map.path;
 
 			// NOTE: gltf has (0,0) at the upper left of the image, as opposed to the Indigo/substrata/opengl convention of (0,0) being at the lower left
 			// (See https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#images)
@@ -667,6 +674,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 			gl_ob->materials[i].albedo_rgb = gltf_data.materials.materials[i].diffuse;
 			gl_ob->materials[i].tex_path = tex_path;
+			gl_ob->materials[i].metallic_roughness_tex_path = metallic_roughness_tex_path;
 			gl_ob->materials[i].roughness = gltf_data.materials.materials[i].roughness;
 			gl_ob->materials[i].alpha = gltf_data.materials.materials[i].alpha;
 			gl_ob->materials[i].transparent = gltf_data.materials.materials[i].alpha < 1.0f;
@@ -674,10 +682,11 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 			loaded_object_out.materials[i]->colour_rgb = gltf_data.materials.materials[i].diffuse;
 			loaded_object_out.materials[i]->colour_texture_url = tex_path;
+			loaded_object_out.materials[i]->roughness.texture_url = metallic_roughness_tex_path; // HACK: just assign to roughness URL
 			loaded_object_out.materials[i]->opacity = ScalarVal(gl_ob->materials[i].alpha);
-			loaded_object_out.materials[i]->roughness = gltf_data.materials.materials[i].roughness;
-			loaded_object_out.materials[i]->opacity = gltf_data.materials.materials[i].alpha;
-			loaded_object_out.materials[i]->metallic_fraction = gltf_data.materials.materials[i].metallic;
+			loaded_object_out.materials[i]->roughness.val = gltf_data.materials.materials[i].roughness;
+			loaded_object_out.materials[i]->opacity.val = gltf_data.materials.materials[i].alpha;
+			loaded_object_out.materials[i]->metallic_fraction.val = gltf_data.materials.materials[i].metallic;
 			loaded_object_out.materials[i]->tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
 		mesh_out = batched_mesh;
@@ -982,6 +991,122 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 
 	raymesh_out = raymesh;
 	return ob;
+}
+
+
+Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
+	ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
+	bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
+{
+	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
+	size_t num_materials_referenced = 0;
+	Reference<OpenGLMeshRenderData> gl_meshdata;
+	Reference<RayMesh> raymesh;
+
+	{
+		Lock lock(mesh_manager.getMutex());
+
+		auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_URL);
+		if(res != mesh_manager.model_URL_to_mesh_map.end())
+		{
+			num_materials_referenced = res->second.num_materials_referenced;
+			gl_meshdata  = res->second.gl_meshdata;
+			raymesh      = res->second.raymesh;
+		}
+	}
+
+	if(gl_meshdata.isNull())
+	{
+		// Load mesh from disk:
+		const std::string model_path = resource_manager.pathForURL(lod_model_URL);
+
+		BatchedMeshRef batched_mesh = new BatchedMesh();
+
+		if(hasExtension(model_path, "obj"))
+		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
+			MLTLibMaterials mats;
+			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
+
+			batched_mesh->buildFromIndigoMesh(*mesh);
+		}
+		else if(hasExtension(model_path, "stl"))
+		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
+			FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
+
+			batched_mesh->buildFromIndigoMesh(*mesh);
+		}
+		else if(hasExtension(model_path, "gltf"))
+		{
+			GLTFLoadedData gltf_data;
+			batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data);
+		}
+		else if(hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
+		{
+			GLTFLoadedData gltf_data;
+			batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
+		}
+		else if(hasExtension(model_path, "igmesh"))
+		{
+			Indigo::MeshRef mesh = new Indigo::Mesh();
+
+			try
+			{
+				Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
+			}
+			catch(Indigo::IndigoException& e)
+			{
+				throw glare::Exception(toStdString(e.what()));
+			}
+
+			batched_mesh->buildFromIndigoMesh(*mesh);
+		}
+		else if(hasExtension(model_path, "bmesh"))
+		{
+			BatchedMesh::readFromFile(model_path, *batched_mesh);
+		}
+		else
+			throw glare::Exception("Format not supported: " + getExtension(model_path));
+
+
+		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
+
+		if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
+			if(batched_mesh->animation_data.vrm_data.nonNull())
+				rotateVRMMesh(*batched_mesh);
+
+		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+
+		gl_meshdata->animation_data = batched_mesh->animation_data;
+
+		// Build RayMesh from our batched mesh (used for physics + picking)
+		raymesh = new RayMesh("mesh", false);
+		raymesh->fromBatchedMesh(*batched_mesh);
+
+		Geometry::BuildOptions options;
+		options.compute_is_planar = false;
+		DummyShouldCancelCallback should_cancel_callback;
+		StandardPrintOutput print_output;
+		raymesh->build(options, should_cancel_callback, print_output, false, task_manager);
+
+		num_materials_referenced = batched_mesh->numMaterialsReferenced();
+
+		// Add to map
+		MeshData mesh_data;
+		mesh_data.num_materials_referenced = num_materials_referenced;
+		mesh_data.gl_meshdata = gl_meshdata;
+		mesh_data.raymesh = raymesh;
+		{
+			Lock lock(mesh_manager.mutex);
+			mesh_manager.model_URL_to_mesh_map[lod_model_URL] = mesh_data;
+		}
+	}
+
+	raymesh_out = raymesh;
+	return gl_meshdata;
 }
 
 

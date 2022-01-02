@@ -16,8 +16,8 @@ Copyright Glare Technologies Limited 2019 -
 #include <PlatformUtils.h>
 
 
-LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, const std::string& path_)
-:	opengl_engine(opengl_engine_), main_window(main_window_), path(path_)
+LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, const std::string& path_, bool use_sRGB_)
+:	opengl_engine(opengl_engine_), main_window(main_window_), path(path_), use_sRGB(use_sRGB_)
 {}
 
 
@@ -70,6 +70,7 @@ void LoadTextureTask::run(size_t thread_index)
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
 		msg->tex_path = path;
 		msg->tex_key = key;
+		msg->use_sRGB = use_sRGB;
 		main_window->msg_queue.enqueue(msg);
 	}
 	catch(TextureServerExcep& e)

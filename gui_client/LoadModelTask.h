@@ -23,15 +23,15 @@ class ModelLoadedThreadMessage : public ThreadMessage
 {
 public:
 	// Results of the task:
-	GLObjectRef opengl_ob;
-	PhysicsObjectRef physics_ob;
 	
-	std::string base_model_url;
-	int model_lod_level;
-	std::string lod_model_url; // May differ from ob->model_url for LOD levels != 0.
-	bool loaded_voxels;
+	Reference<OpenGLMeshRenderData> gl_meshdata;
+	Reference<RayMesh> raymesh;
+	
+	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 
-	WorldObjectRef ob; // Used for when loading voxels.
+	WorldObjectRef voxel_ob; // Object we loaded voxels for, NULL otherwise.
+	int voxel_ob_lod_level;// If we are loaded a voxel model, the LOD level of the object.
+	int subsample_factor; // Computed when loading voxels.
 };
 
 
@@ -55,12 +55,11 @@ public:
 
 	virtual void run(size_t thread_index);
 
-	std::string base_model_url;
-	int ob_lod_level;
-	int model_lod_level;
-	std::string lod_model_url;
-	WorldObjectRef ob; // Either ob or avatar will be non-null
-	AvatarRef avatar;
+	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
+	
+	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
+	int voxel_ob_lod_level; // If we are loading a voxel model, the LOD level of the object.
+
 	Reference<OpenGLEngine> opengl_engine;
 	MainWindow* main_window;
 	MeshManager* mesh_manager;

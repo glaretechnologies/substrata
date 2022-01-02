@@ -90,6 +90,19 @@ std::string WorldObject::getLODModelURLForLevel(const std::string& base_model_ur
 }
 
 
+int WorldObject::getLODLevelForURL(const std::string& URL) // Identifies _lod1 etc. suffix.
+{
+	const std::string base = removeDotAndExtension(URL);
+
+	if(hasSuffix(base, "_lod1"))
+		return 1;
+	else if(hasSuffix(base, "_lod2"))
+		return 2;
+	else
+		return 0;
+}
+
+
 int WorldObject::getLODLevel(const Vec3d& campos) const
 {
 	// proj_len = aabb_ws.longestLength() / ||campos - pos||
@@ -117,6 +130,12 @@ int WorldObject::getModelLODLevel(const Vec3d& campos) const // getLODLevel() cl
 		return 0;
 
 	return myMax(0, getLODLevel(campos));
+}
+
+
+int WorldObject::getModelLODLevelForObLODLevel(int ob_lod_level) const
+{
+	return myClamp<int>(ob_lod_level, 0, this->max_model_lod_level);
 }
 
 
@@ -218,6 +237,15 @@ void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 	if(FileUtils::fileExists(this->audio_source_url)) // If the URL is a local path:
 		this->audio_source_url = resource_manager.URLForPathAndHash(this->audio_source_url, FileChecksum::fileChecksum(this->audio_source_url));
+}
+
+
+bool WorldObject::isURLANonSRGBTexture(const std::string& URL)
+{
+	for(size_t i=0; i<materials.size(); ++i)
+		if(materials[i]->roughness.texture_url == URL)
+			return true;
+	return false;
 }
 
 

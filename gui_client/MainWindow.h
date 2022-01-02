@@ -61,6 +61,14 @@ struct ID3D11Device;
 struct IMFDXGIDeviceManager;
 
 
+struct DownloadingResourceInfo
+{
+	DownloadingResourceInfo() : use_sRGB(true) {}
+
+	bool use_sRGB; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
+};
+
+
 class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput
 {
 	Q_OBJECT
@@ -171,7 +179,7 @@ private:
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level);
-	void startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
+	void startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void evalObjectScript(WorldObject* ob, float use_global_time);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
@@ -499,4 +507,9 @@ public:
 	SocketBufferOutStream scratch_packet;
 
 	js::Vector<Vec4f, 16> temp_av_positions;
+
+	std::map<std::string, DownloadingResourceInfo> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
+
+	std::map<std::string, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
+	std::map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
 };

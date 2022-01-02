@@ -39,6 +39,8 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 	connect(this->metallicFractionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 
 	connect(this->opacityDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
+
+	connect(this->metallicRoughnessFileSelectWidget,SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
 }
 
 
@@ -79,6 +81,8 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 	SignalBlocker::setValue(this->opacityDoubleSpinBox, mat.opacity.val);
 	SignalBlocker::setValue(this->metallicFractionDoubleSpinBox, mat.metallic_fraction.val);
 
+	this->metallicRoughnessFileSelectWidget->setFilename(QtUtils::toQString(mat.roughness.texture_url));
+
 	updateColourButton();
 }
 
@@ -96,6 +100,8 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	mat_out.roughness			= ScalarVal(this->roughnessDoubleSpinBox->value());
 	mat_out.metallic_fraction	= ScalarVal(this->metallicFractionDoubleSpinBox->value());
 	mat_out.opacity				= ScalarVal(this->opacityDoubleSpinBox->value());
+
+	mat_out.roughness.texture_url = QtUtils::toIndString(this->metallicRoughnessFileSelectWidget->filename());
 }
 
 
@@ -115,6 +121,8 @@ void MaterialEditor::setControlsEditable(bool editable)
 	this->roughnessDoubleSpinBox->setReadOnly(!editable);
 	this->metallicFractionDoubleSpinBox->setReadOnly(!editable);
 	this->opacityDoubleSpinBox->setReadOnly(!editable);
+
+	this->metallicRoughnessFileSelectWidget->setReadOnly(!editable);
 }
 
 

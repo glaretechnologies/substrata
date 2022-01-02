@@ -600,6 +600,9 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				const bool has_alpha = LODGeneration::textureHasAlphaChannel(preview_gl_ob->materials[i].tex_path, map);// preview_gl_ob->materials[i].albedo_texture->hasAlpha();// && !preview_gl_ob->materials[i].albedo_texture->isAlphaChannelAllWhite();
 				BitUtils::setOrZeroBit(loaded_object->materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
 			}
+
+			if(!preview_gl_ob->materials[i].metallic_roughness_tex_path.empty())
+				preview_gl_ob->materials[i].metallic_roughness_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].metallic_roughness_tex_path);
 		}
 
 		objectPreviewGLWidget->addObject(preview_gl_ob);
