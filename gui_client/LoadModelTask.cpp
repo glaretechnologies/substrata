@@ -25,150 +25,68 @@ LoadModelTask::~LoadModelTask()
 
 void LoadModelTask::run(size_t thread_index)
 {
-	GLObjectRef opengl_ob;
-	PhysicsObjectRef physics_ob;
+	Reference<OpenGLMeshRenderData> gl_meshdata;
+	Reference<RayMesh> raymesh;
+	int subsample_factor = 1; // computed when loading voxels
 
 	try
 	{
-		if(avatar.nonNull())
+		if(voxel_ob.nonNull())
 		{
-			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
+			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
+
+			if(voxel_ob->getCompressedVoxels().size() == 0)
+			{
+				// Add dummy cube marker for zero-voxel case.
+				gl_meshdata = opengl_engine->getCubeMeshData();
+				raymesh = main_window->unit_cube_raymesh;
+			}
+			else
+			{
+				VoxelGroup voxel_group;
+				WorldObject::decompressVoxelGroup(voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size(), voxel_group);
+
+				const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
+				const int use_model_lod_level = myMin(voxel_ob_lod_level/*model_lod_level*/, max_model_lod_level);
+
+				if(use_model_lod_level == 1)
+					subsample_factor = 2;
+				else if(use_model_lod_level == 2)
+					subsample_factor = 4;
+
+				// conPrint("Loading vox model for LOD level " + toString(use_lod_level) + ", using subsample_factor " + toString(subsample_factor));
+
+				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+			}
+		}
+		else // Else not voxel ob, just loading a model:
+		{
+			assert(!lod_model_url.empty());
 
 			// We want to load and build the mesh at lod_model_url.
 			const bool just_inserted = main_window->checkAddModelToProcessedSet(lod_model_url); // Mark model as being processed so another LoadModelTask doesn't try and process it also.
 			if(just_inserted)
 			{
 				// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
-				Reference<RayMesh> raymesh;
-				opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, this->ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *this->resource_manager, *this->mesh_manager, 
-					*model_building_task_manager, ob_to_world_matrix,
+				gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager, *this->mesh_manager, 
+					*model_building_task_manager, 
 					true, // skip_opengl_calls - we need to do these on the main thread.
 					raymesh);
 			}
-			
-			if(opengl_ob.nonNull()) // If we actually loaded a model:
-			{
-				// Send a ModelLoadedThreadMessage back to main window.
-				Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
-				msg->opengl_ob = opengl_ob;
-				msg->physics_ob = physics_ob;
-				msg->base_model_url = base_model_url;
-				msg->model_lod_level = model_lod_level;
-				msg->lod_model_url = lod_model_url;
-				msg->loaded_voxels = false;
-				main_window->msg_queue.enqueue(msg);
-			}
 		}
-		else
+
+		if(gl_meshdata.nonNull()) // If we actually loaded a model (may have already been loaded):
 		{
-			bool loaded_voxels = false;
-			const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
-
-			if(ob->object_type == WorldObject::ObjectType_Hypercard)
-			{
-				return; // Done in main thread for now.
-			}
-			else if(ob->object_type == WorldObject::ObjectType_Spotlight)
-			{
-				return; // Done in main thread for now.
-			}
-			else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
-			{
-				if(ob->getCompressedVoxels().size() == 0) //  ob->getDecompressedVoxelGroup().voxels.size() == 0)
-				{
-					// Add dummy cube marker for zero-voxel case.
-					physics_ob = new PhysicsObject(/*collidable=*/false);
-					physics_ob->geometry = main_window->unit_cube_raymesh;
-					physics_ob->ob_to_world = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-
-					opengl_ob = new GLObject();
-					opengl_ob->mesh_data = opengl_engine->getCubeMeshData();
-					opengl_ob->materials.resize(1);
-					opengl_ob->materials[0].albedo_rgb = Colour3f(0.9f, 0.5f, 0.1f);
-//					opengl_ob->materials[0].albedo_tex_path = "resources/voxel_dummy_texture.png";
-					opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-					opengl_ob->ob_to_world_matrix = ob_to_world_matrix * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-				}
-				else
-				{
-					VoxelGroup voxel_group;
-					WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
-
-					const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
-					const int use_model_lod_level = myMin(model_lod_level, max_model_lod_level);
-
-					int subsample_factor = 1;
-					if(use_model_lod_level == 1)
-						subsample_factor = 2;
-					else if(use_model_lod_level == 2)
-						subsample_factor = 4;
-
-					// conPrint("Loading vox model for LOD level " + toString(use_lod_level) + ", using subsample_factor " + toString(subsample_factor));
-
-					Reference<RayMesh> raymesh;
-					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
-
-					const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix(subsample_factor);
-
-					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-					physics_ob->geometry = raymesh;
-					physics_ob->ob_to_world = use_ob_to_world_matrix;
-
-					opengl_ob = new GLObject();
-					opengl_ob->mesh_data = gl_meshdata;
-					opengl_ob->materials.resize(ob->materials.size());
-					for(uint32 i=0; i<ob->materials.size(); ++i)
-					{
-						ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], this->ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
-						opengl_ob->materials[i].gen_planar_uvs = true;
-					}
-
-					opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
-				}
-
-				loaded_voxels = true;
-			}
-			else
-			{
-				assert(ob->object_type == WorldObject::ObjectType_Generic);
-
-				// We want to load and build the mesh at lod_model_url.
-				const bool just_inserted = main_window->checkAddModelToProcessedSet(lod_model_url); // Mark model as being processed so another LoadModelTask doesn't try and process it also.
-				if(just_inserted)
-				{
-					// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
-					Reference<RayMesh> raymesh;
-					opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, this->ob_lod_level, ob->materials, ob->lightmap_url, *this->resource_manager, *this->mesh_manager, 
-						*model_building_task_manager, ob_to_world_matrix,
-						true, // skip_opengl_calls - we need to do these on the main thread.
-						raymesh);
-
-					// Make physics object
-					physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-					physics_ob->geometry = raymesh;
-					physics_ob->ob_to_world = ob_to_world_matrix;
-				}
-			}
-
-			if(physics_ob.nonNull())
-			{
-				physics_ob->userdata = ob.ptr();
-				physics_ob->userdata_type = 0;
-			}
-
-			if(opengl_ob.nonNull()) // If we actually loaded a model:
-			{
-				// Send a ModelLoadedThreadMessage back to main window.
-				Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
-				msg->opengl_ob = opengl_ob;
-				msg->physics_ob = physics_ob;
-				msg->base_model_url = base_model_url;
-				msg->model_lod_level = model_lod_level;
-				msg->lod_model_url = lod_model_url;
-				msg->loaded_voxels = loaded_voxels;
-				msg->ob = ob;
-				main_window->msg_queue.enqueue(msg);
-			}
+			//assert(model_lod_level >= 0 && model_lod_level <= 2);
+			// Send a ModelLoadedThreadMessage back to main window.
+			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
+			msg->gl_meshdata = gl_meshdata;
+			msg->raymesh = raymesh;
+			msg->lod_model_url = lod_model_url;
+			msg->voxel_ob = voxel_ob;
+			msg->voxel_ob_lod_level = voxel_ob_lod_level;
+			msg->subsample_factor = subsample_factor;
+			main_window->msg_queue.enqueue(msg);
 		}
 	}
 	catch(glare::Exception& e)

@@ -124,22 +124,6 @@
    <item row="8" column="1">
     <widget class="RealControl" name="metallicFractionDoubleSpinBox"/>
    </item>
-   <item row="9" column="1">
-    <spacer name="verticalSpacer_2">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeType">
-      <enum>QSizePolicy::Expanding</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>0</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
    <item row="10" column="0">
     <widget class="QLabel" name="label_7">
      <property name="text">
@@ -168,6 +152,16 @@
       <string/>
      </property>
     </widget>
+   </item>
+   <item row="9" column="0">
+    <widget class="QLabel" name="label">
+     <property name="text">
+      <string>Metallic roughness texture</string>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="1">
+    <widget class="FileSelectWidget" name="metallicRoughnessFileSelectWidget"/>
    </item>
   </layout>
  </widget>

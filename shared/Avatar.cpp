@@ -116,6 +116,14 @@ void Avatar::convertLocalPathsToURLS(ResourceManager& resource_manager)
 }
 
 
+bool Avatar::isURLANonSRGBTexture(const std::string& URL)
+{
+	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
+		if(avatar_settings.materials[i]->roughness.texture_url == URL)
+			return true;
+	return false;
+}
+
 
 int Avatar::getLODLevel(const Vec3d& campos) const
 {
@@ -155,6 +163,13 @@ std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, in
 		else
 			return removeDotAndExtension(base_model_url) + "_lod2.bmesh";
 	}
+}
+
+
+int Avatar::getModelLODLevelForObLODLevel(int ob_lod_level) const
+{
+	return 0; // TEMP just use LOD 0 for now        
+	//myClamp<int>(ob_lod_level, 0, this->max_model_lod_level);
 }
 
 

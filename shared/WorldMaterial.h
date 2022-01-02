@@ -23,7 +23,7 @@ class ResourceManager;
 struct ScalarVal
 {
 	ScalarVal() : val(0.0f) {}
-	ScalarVal(const float v) : val(v) {}
+	explicit ScalarVal(const float v) : val(v) {}
 
 	void appendDependencyURLs(std::vector<std::string>& paths_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
