@@ -928,11 +928,12 @@ static const float MAX_AUDIO_DIST = 60;
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
-	std::set<std::string> dependency_URLs;
+	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, dependency_URLs);
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 	{
-		const std::string& url = *it;
+		const DependencyURL& url_info = *it;
+		const std::string& url = url_info.URL;
 		
 		// If resources are streamable, don't download them.
 		//const bool stream = shouldStreamResourceViaHTTP(url);
@@ -954,7 +955,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 		if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 		{
 			DownloadingResourceInfo info;
-			info.use_sRGB = !ob->isURLANonSRGBTexture(url);
+			info.use_sRGB = url_info.use_sRGB;
 
 			startDownloadingResource(url, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
 		}
@@ -964,11 +965,12 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 
 void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level)
 {
-	std::set<std::string> dependency_URLs;
+	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, dependency_URLs);
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 	{
-		const std::string& url = *it;
+		const DependencyURL& url_info = *it;
+		const std::string& url = url_info.URL;
 
 		// Only download mp4s if the camera is near them in the world.
 		bool in_range = true;
@@ -987,7 +989,7 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 			);
 
 			DownloadingResourceInfo info;
-			info.use_sRGB = !ob->isURLANonSRGBTexture(url);
+			info.use_sRGB = url_info.use_sRGB;
 
 			startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
 		}
@@ -3628,9 +3630,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								//if(ob->using_placeholder_model)
 								{
-									std::set<std::string> URL_set;
+									std::set<DependencyURL> URL_set;
 									ob->getDependencyURLSet(ob_lod_level, URL_set);
-									need_resource = need_resource || (URL_set.count(m->URL) != 0);
+									need_resource = need_resource || (URL_set.count(DependencyURL(m->URL)) != 0);
 								}
 							}
 
@@ -3642,9 +3644,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								//if(ob->using_placeholder_model)
 								{
-									std::set<std::string> URL_set;
+									std::set<DependencyURL> URL_set;
 									av->getDependencyURLSet(av_lod_level, URL_set);
-									need_resource = need_resource || (URL_set.count(m->URL) != 0);
+									need_resource = need_resource || (URL_set.count(DependencyURL(m->URL)) != 0);
 								}
 							}
 
@@ -4963,11 +4965,11 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
-			std::set<std::string> paths;
+			std::set<DependencyURL> paths;
 			avatar.getDependencyURLSet(/*ob_lod_level=*/0, paths);
 			for(auto it = paths.begin(); it != paths.end(); ++it)
 			{
-				const std::string path = *it;
+				const std::string path = it->URL;
 				if(FileUtils::fileExists(path))
 				{
 					const uint64 hash = FileChecksum::fileChecksum(path);
@@ -5309,11 +5311,11 @@ void MainWindow::on_actionAddObject_triggered()
 			new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
-			std::set<std::string> paths;
+			std::set<DependencyURL> paths;
 			new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, paths);
 			for(auto it = paths.begin(); it != paths.end(); ++it)
 			{
-				const std::string path = *it;
+				const std::string path = it->URL;
 				if(FileUtils::fileExists(path))
 				{
 					const uint64 hash = FileChecksum::fileChecksum(path);
@@ -6377,16 +6379,16 @@ void MainWindow::objectEditedSlot()
 
 		// Copy all dependencies into resource directory if they are not there already.
 		// URLs will actually be paths from editing for now.
-		std::vector<std::string> URLs;
+		std::vector<DependencyURL> URLs;
 		this->selected_ob->appendDependencyURLs(/*ob_lod_level=*/0, URLs);
 
 		try
 		{
 			for(size_t i=0; i<URLs.size(); ++i)
 			{
-				if(FileUtils::fileExists(URLs[i])) // If this was a local path:
+				if(FileUtils::fileExists(URLs[i].URL)) // If this was a local path:
 				{
-					const std::string local_path = URLs[i];
+					const std::string local_path = URLs[i].URL;
 					const std::string URL = ResourceManager::URLForPathAndHash(local_path, FileChecksum::fileChecksum(local_path));
 
 					// Copy model to local resources dir.

@@ -163,64 +163,64 @@ std::string WorldObject::getLODLightmapURL(const std::string& base_lightmap_url,
 }
 
 
-void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out)
+void WorldObject::appendDependencyURLs(int ob_lod_level, std::vector<DependencyURL>& URLs_out)
 {
 	if(!model_url.empty())
 	{
 		const int ob_model_lod_level =  myClamp(ob_lod_level, 0, this->max_model_lod_level);
-		URLs_out.push_back(getLODModelURLForLevel(model_url, ob_model_lod_level));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, ob_model_lod_level)));
 	}
 
 	if(!lightmap_url.empty())
-		URLs_out.push_back(getLODLightmapURL(lightmap_url, ob_lod_level));
+		URLs_out.push_back(DependencyURL(getLODLightmapURL(lightmap_url, ob_lod_level)));
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
 
 	if(!audio_source_url.empty())
-		URLs_out.push_back(audio_source_url);
+		URLs_out.push_back(DependencyURL(audio_source_url));
 }
 
 
-void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out)
+void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out)
 {
 	if(!model_url.empty())
 	{
-		URLs_out.push_back(model_url);
+		URLs_out.push_back(DependencyURL(model_url));
 		if(max_model_lod_level > 0)
 		{
-			URLs_out.push_back(getLODModelURLForLevel(model_url, 1));
-			URLs_out.push_back(getLODModelURLForLevel(model_url, 2));
+			URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, 1)));
+			URLs_out.push_back(DependencyURL(getLODModelURLForLevel(model_url, 2)));
 		}
 	}
 
 	if(!lightmap_url.empty())
 		for(int lvl=0; lvl<=2; ++lvl)
-			URLs_out.push_back(getLODLightmapURL(lightmap_url, lvl));
+			URLs_out.push_back(DependencyURL(getLODLightmapURL(lightmap_url, lvl)));
 
 	for(size_t i=0; i<materials.size(); ++i)
 		materials[i]->appendDependencyURLsAllLODLevels(URLs_out);
 
 	if(!audio_source_url.empty())
-		URLs_out.push_back(audio_source_url);
+		URLs_out.push_back(DependencyURL(audio_source_url));
 }
 
 
-void WorldObject::getDependencyURLSet(int ob_lod_level, std::set<std::string>& URLS_out)
+void WorldObject::getDependencyURLSet(int ob_lod_level, std::set<DependencyURL>& URLS_out)
 {
-	std::vector<std::string> URLs;
+	std::vector<DependencyURL> URLs;
 	this->appendDependencyURLs(ob_lod_level, URLs);
 
-	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
 
 
-void WorldObject::getDependencyURLSetForAllLODLevels(std::set<std::string>& URLS_out)
+void WorldObject::getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out)
 {
-	std::vector<std::string> URLs;
+	std::vector<DependencyURL> URLs;
 	this->appendDependencyURLsForAllLODLevels(URLs);
 
-	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
 
 
@@ -237,15 +237,6 @@ void WorldObject::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 	if(FileUtils::fileExists(this->audio_source_url)) // If the URL is a local path:
 		this->audio_source_url = resource_manager.URLForPathAndHash(this->audio_source_url, FileChecksum::fileChecksum(this->audio_source_url));
-}
-
-
-bool WorldObject::isURLANonSRGBTexture(const std::string& URL)
-{
-	for(size_t i=0; i<materials.size(); ++i)
-		if(materials[i]->roughness.texture_url == URL)
-			return true;
-	return false;
 }
 
 

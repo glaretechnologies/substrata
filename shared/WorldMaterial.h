@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2016 -
 #pragma once
 
 
+#include "DependencyURL.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <BitUtils.h>
@@ -25,7 +26,7 @@ struct ScalarVal
 	ScalarVal() : val(0.0f) {}
 	explicit ScalarVal(const float v) : val(v) {}
 
-	void appendDependencyURLs(std::vector<std::string>& paths_out);
+	void appendDependencyURLs(bool tex_use_sRGB, std::vector<DependencyURL>& paths_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 	bool operator == (const ScalarVal& b) const
@@ -109,9 +110,9 @@ public:
 
 	std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha) const;
 
-	void appendDependencyURLs(int lod_level, std::vector<std::string>& paths_out);
+	void appendDependencyURLs(int lod_level, std::vector<DependencyURL>& paths_out);
 
-	void appendDependencyURLsAllLODLevels(std::vector<std::string>& paths_out);
+	void appendDependencyURLsAllLODLevels(std::vector<DependencyURL>& paths_out);
 	
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 

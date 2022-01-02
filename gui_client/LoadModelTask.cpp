@@ -77,7 +77,6 @@ void LoadModelTask::run(size_t thread_index)
 
 		if(gl_meshdata.nonNull()) // If we actually loaded a model (may have already been loaded):
 		{
-			//assert(model_lod_level >= 0 && model_lod_level <= 2);
 			// Send a ModelLoadedThreadMessage back to main window.
 			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
 			msg->gl_meshdata = gl_meshdata;

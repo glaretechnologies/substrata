@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "TimeStamp.h"
+#include "DependencyURL.h"
 #include "WorldMaterial.h"
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
@@ -78,12 +79,11 @@ public:
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	std::string getLODModelURL(const Vec3d& campos) const; // Using lod level clamped to max_model_lod_level
 
-	void appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out);
-	void appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out);
-	void getDependencyURLSet(int ob_lod_level, std::set<std::string>& URLS_out);
-	void getDependencyURLSetForAllLODLevels(std::set<std::string>& URLS_out);
+	void appendDependencyURLs(int ob_lod_level, std::vector<DependencyURL>& URLs_out);
+	void appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out);
+	void getDependencyURLSet(int ob_lod_level, std::set<DependencyURL>& URLS_out);
+	void getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
-	bool isURLANonSRGBTexture(const std::string& URL); // E.g. is it a metallic-roughness texture
 
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
