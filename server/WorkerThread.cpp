@@ -1017,10 +1017,10 @@ void WorkerThread::doRun()
 							sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
 
 						// Process resources
-						std::set<std::string> URLs;
+						std::set<DependencyURL> URLs;
 						temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
 						for(auto it = URLs.begin(); it != URLs.end(); ++it)
-							sendGetFileMessageIfNeeded(*it);
+							sendGetFileMessageIfNeeded(it->URL);
 
 						break;
 					}
@@ -1061,10 +1061,10 @@ void WorkerThread::doRun()
 							sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
 
 						// Process resources
-						std::set<std::string> URLs;
+						std::set<DependencyURL> URLs;
 						temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
 						for(auto it = URLs.begin(); it != URLs.end(); ++it)
-							sendGetFileMessageIfNeeded(*it);
+							sendGetFileMessageIfNeeded(it->URL);
 
 						conPrint("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
 
@@ -1177,10 +1177,10 @@ void WorkerThread::doRun()
 										world_state->markAsChanged();
 
 										// Process resources
-										std::set<std::string> URLs;
+										std::set<DependencyURL> URLs;
 										ob->getDependencyURLSetForAllLODLevels(URLs);
 										for(auto it = URLs.begin(); it != URLs.end(); ++it)
-											sendGetFileMessageIfNeeded(*it);
+											sendGetFileMessageIfNeeded(it->URL);
 									}
 								}
 							} // End lock scope
@@ -1291,10 +1291,10 @@ void WorkerThread::doRun()
 							new_ob->created_time = TimeStamp::currentTime();
 							new_ob->creator_name = client_user->name;
 
-							std::set<std::string> URLs;
+							std::set<DependencyURL> URLs;
 							new_ob->getDependencyURLSetForAllLODLevels(URLs);
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
-								sendGetFileMessageIfNeeded(*it);
+								sendGetFileMessageIfNeeded(it->URL);
 
 							// Look up existing object in world state
 							{

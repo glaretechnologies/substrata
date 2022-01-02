@@ -64,23 +64,23 @@ Avatar::~Avatar()
 {}
 
 
-void Avatar::appendDependencyURLs(int ob_lod_level, std::vector<std::string>& URLs_out)
+void Avatar::appendDependencyURLs(int ob_lod_level, std::vector<DependencyURL>& URLs_out)
 {
 	if(!avatar_settings.model_url.empty())
-		URLs_out.push_back(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, ob_lod_level)));
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
 		avatar_settings.materials[i]->appendDependencyURLs(ob_lod_level, URLs_out);
 }
 
 
-void Avatar::appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_out)
+void Avatar::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out)
 {
 	if(!avatar_settings.model_url.empty())
 	{
-		URLs_out.push_back(avatar_settings.model_url);
-		URLs_out.push_back(getLODModelURLForLevel(avatar_settings.model_url, 1));
-		URLs_out.push_back(getLODModelURLForLevel(avatar_settings.model_url, 2));
+		URLs_out.push_back(DependencyURL(avatar_settings.model_url));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 1)));
+		URLs_out.push_back(DependencyURL(getLODModelURLForLevel(avatar_settings.model_url, 2)));
 	}
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
@@ -88,21 +88,21 @@ void Avatar::appendDependencyURLsForAllLODLevels(std::vector<std::string>& URLs_
 }
 
 
-void Avatar::getDependencyURLSet(int ob_lod_level, std::set<std::string>& URLS_out)
+void Avatar::getDependencyURLSet(int ob_lod_level, std::set<DependencyURL>& URLS_out)
 {
-	std::vector<std::string> URLs;
+	std::vector<DependencyURL> URLs;
 	this->appendDependencyURLs(ob_lod_level, URLs);
 
-	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
 
 
-void Avatar::getDependencyURLSetForAllLODLevels(std::set<std::string>& URLS_out)
+void Avatar::getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out)
 {
-	std::vector<std::string> URLs;
+	std::vector<DependencyURL> URLs;
 	this->appendDependencyURLsForAllLODLevels(URLs);
 
-	URLS_out = std::set<std::string>(URLs.begin(), URLs.end());
+	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
 
 
@@ -113,15 +113,6 @@ void Avatar::convertLocalPathsToURLS(ResourceManager& resource_manager)
 
 	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
 		avatar_settings.materials[i]->convertLocalPathsToURLS(resource_manager);
-}
-
-
-bool Avatar::isURLANonSRGBTexture(const std::string& URL)
-{
-	for(size_t i=0; i<avatar_settings.materials.size(); ++i)
-		if(avatar_settings.materials[i]->roughness.texture_url == URL)
-			return true;
-	return false;
 }
 
 

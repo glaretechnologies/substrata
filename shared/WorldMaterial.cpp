@@ -32,10 +32,10 @@ WorldMaterial::~WorldMaterial()
 {}
 
 
-void ScalarVal::appendDependencyURLs(std::vector<std::string>& paths_out)
+void ScalarVal::appendDependencyURLs(bool tex_use_sRGB, std::vector<DependencyURL>& paths_out)
 {
 	if(!texture_url.empty())
-		paths_out.push_back(texture_url);
+		paths_out.push_back(DependencyURL(texture_url, tex_use_sRGB));
 }
 
 
@@ -75,30 +75,30 @@ std::string WorldMaterial::getLODTextureURLForLevel(const std::string& base_text
 }
 
 
-void WorldMaterial::appendDependencyURLs(int lod_level, std::vector<std::string>& paths_out)
+void WorldMaterial::appendDependencyURLs(int lod_level, std::vector<DependencyURL>& paths_out)
 {
 	if(!colour_texture_url.empty())
-		paths_out.push_back(getLODTextureURLForLevel(colour_texture_url, lod_level, this->colourTexHasAlpha()));
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(colour_texture_url, lod_level, this->colourTexHasAlpha())));
 
-	roughness.appendDependencyURLs(paths_out);
-	metallic_fraction.appendDependencyURLs(paths_out);
-	opacity.appendDependencyURLs(paths_out);
+	roughness.appendDependencyURLs(/*use sRGB=*/false, paths_out);
+	metallic_fraction.appendDependencyURLs(/*use sRGB=*/false, paths_out);
+	opacity.appendDependencyURLs(/*use sRGB=*/false, paths_out);
 }
 
 
-void WorldMaterial::appendDependencyURLsAllLODLevels(std::vector<std::string>& paths_out)
+void WorldMaterial::appendDependencyURLsAllLODLevels(std::vector<DependencyURL>& paths_out)
 {
 	if(!colour_texture_url.empty())
 	{
 		const int min_lod_level = this->minLODLevel();
-		paths_out.push_back(colour_texture_url);
+		paths_out.push_back(DependencyURL(colour_texture_url));
 		for(int i=min_lod_level+1; i <=2; ++i)
-			paths_out.push_back(getLODTextureURLForLevel(colour_texture_url, i, this->colourTexHasAlpha()));
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(colour_texture_url, i, this->colourTexHasAlpha())));
 	}
 
-	roughness.appendDependencyURLs(paths_out);
-	metallic_fraction.appendDependencyURLs(paths_out);
-	opacity.appendDependencyURLs(paths_out);
+	roughness.appendDependencyURLs(/*use sRGB=*/false, paths_out);
+	metallic_fraction.appendDependencyURLs(/*use sRGB=*/false, paths_out);
+	opacity.appendDependencyURLs(/*use sRGB=*/false, paths_out);
 }
 
 
