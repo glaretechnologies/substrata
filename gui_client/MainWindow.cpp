@@ -708,6 +708,8 @@ void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& p
 
 	try
 	{
+		this->URL_to_downloading_info[url] = resource_info;
+
 		const URL parsed_url = URL::parseURL(url);
 
 		if(parsed_url.scheme == "http" || parsed_url.scheme == "https")
@@ -717,8 +719,6 @@ void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& p
 		}
 		else
 		{
-			this->URL_to_downloading_info[url] = resource_info;
-
 			DownloadQueueItem item;
 			item.pos = ob_aabb_ws.centroid();
 			item.size_factor = DownloadQueueItem::sizeFactorForAABBWS(ob_aabb_ws);
@@ -957,7 +957,11 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 			DownloadingResourceInfo info;
 			info.use_sRGB = url_info.use_sRGB;
 
-			startDownloadingResource(url, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
+			js::AABBox aabb_ws = ob->aabb_ws;
+			if(aabb_ws.isEmpty())
+				aabb_ws = js::AABBox(ob->pos.toVec4fPoint(), ob->pos.toVec4fPoint());
+
+			startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
 		}
 	}
 }
@@ -3675,67 +3679,76 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(world_state.nonNull())
 				{
-					// If we just downloaded a texture, start loading it.
-					// NOTE: Do we want to check this texture is actually used by an object?
-					if(ImFormatDecoder::hasImageExtension(URL))
+					ResourceRef resource = this->resource_manager->getExistingResourceForURL(URL);
+					assert(resource.nonNull()); // The downloaded file should have been added as a resource in DownloadResourcesThread or NetDownloadResourcesThread.
+					if(resource.nonNull())
 					{
-						//conPrint("Downloaded texture resource, loading it...");
+						// Get the local path, we will check the file type of the local path when determining what to do with the file, as the local path will have an extension given by thte mime type
+						// in the net download case.
+						const std::string local_path = resource->getLocalPath();
 
-						bool use_SRGB = true;
-						// Look up in our map of downloading resources
-						auto res = URL_to_downloading_info.find(URL);
-						if(res != URL_to_downloading_info.end())
+						// If we just downloaded a texture, start loading it.
+						// NOTE: Do we want to check this texture is actually used by an object?
+						if(ImFormatDecoder::hasImageExtension(local_path))
 						{
-							const DownloadingResourceInfo& info = res->second;
-							use_SRGB = info.use_sRGB;
-						}
-						else
-						{
-							assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
-						}
-						
-						const std::string tex_path = resource_manager->pathForURL(URL);
+							//conPrint("Downloaded texture resource, loading it...");
 
-						if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
-							!this->isTextureProcessed(tex_path)) // and not being loaded already:
-						{
-							this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/use_SRGB)); 
-						}
-					}
-					else if(hasAudioFileExtension(URL))
-					{
-						// Iterate over objects, if any object is using this audio file, load it.
-						{
-							Lock lock(this->world_state->mutex);
-
-							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+							bool use_SRGB = true;
+							// Look up in our map of downloading resources
+							auto res = URL_to_downloading_info.find(URL);
+							if(res != URL_to_downloading_info.end())
 							{
-								WorldObject* ob = it->second.getPointer();
+								const DownloadingResourceInfo& info = res->second;
+								use_SRGB = info.use_sRGB;
+							}
+							else
+							{
+								assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
+							}
+						
+							const std::string tex_path = local_path;
 
-								if(ob->audio_source_url == URL)
-									loadAudioForObject(ob);
+							if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
+								!this->isTextureProcessed(tex_path)) // and not being loaded already:
+							{
+								this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/use_SRGB)); 
 							}
 						}
-					}
-					else // Else we didn't download a texture, but maybe a model:
-					{
-						try
+						else if(hasAudioFileExtension(local_path))
 						{
-							// Start loading the model
-							Reference<LoadModelTask> load_model_task = new LoadModelTask();
+							// Iterate over objects, if any object is using this audio file, load it.
+							{
+								Lock lock(this->world_state->mutex);
 
-							load_model_task->lod_model_url = URL;
-							load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-							load_model_task->main_window = this;
-							load_model_task->mesh_manager = &mesh_manager;
-							load_model_task->resource_manager = resource_manager;
-							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
+								for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+								{
+									WorldObject* ob = it->second.getPointer();
 
-							model_and_texture_loader_task_manager.addTask(load_model_task);
+									if(ob->audio_source_url == URL)
+										loadAudioForObject(ob);
+								}
+							}
 						}
-						catch(glare::Exception& e)
+						else // Else we didn't download a texture, but maybe a model:
 						{
-							print("Error while loading object: " + e.what());
+							try
+							{
+								// Start loading the model
+								Reference<LoadModelTask> load_model_task = new LoadModelTask();
+
+								load_model_task->lod_model_url = URL;
+								load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
+								load_model_task->main_window = this;
+								load_model_task->mesh_manager = &mesh_manager;
+								load_model_task->resource_manager = resource_manager;
+								load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
+
+								model_and_texture_loader_task_manager.addTask(load_model_task);
+							}
+							catch(glare::Exception& e)
+							{
+								print("Error while loading object: " + e.what());
+							}
 						}
 					}
 				}
@@ -6414,15 +6427,22 @@ void MainWindow::objectEditedSlot()
 				{
 					if(FileUtils::fileExists(mat->colour_texture_url)) // If this was a local path:
 					{
-						const std::string local_tex_path = mat->colour_texture_url;
-						Map2DRef tex = texture_server->getTexForPath(base_dir_path, local_tex_path); // Get from texture server so it's cached.
+						try
+						{
+							const std::string local_tex_path = mat->colour_texture_url;
+							Map2DRef tex = texture_server->getTexForPath(base_dir_path, local_tex_path); // Get from texture server so it's cached.
 
-						const bool has_alpha = LODGeneration::textureHasAlphaChannel(local_tex_path, tex);
-						BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
+							const bool has_alpha = LODGeneration::textureHasAlphaChannel(local_tex_path, tex);
+							BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
 
-						// If the texture is very high res, set minimum texture lod level to -1.  Lod level 0 will be the texture resized to 1024x1024 or below.
-						const bool is_hi_res = tex->getMapWidth() > 1024 || tex->getMapHeight() > 1024;
-						BitUtils::setOrZeroBit(mat->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, is_hi_res);
+							// If the texture is very high res, set minimum texture lod level to -1.  Lod level 0 will be the texture resized to 1024x1024 or below.
+							const bool is_hi_res = tex->getMapWidth() > 1024 || tex->getMapHeight() > 1024;
+							BitUtils::setOrZeroBit(mat->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, is_hi_res);
+						}
+						catch(glare::Exception& e)
+						{
+							conPrint("Error while trying to load texture: " + e.what());
+						}
 					}
 				}
 			}
