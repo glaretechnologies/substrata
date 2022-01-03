@@ -27,6 +27,7 @@ layout (std140) uniform PhongUniforms
 	mat3 texture_matrix;
 	int have_shading_normals;
 	int have_texture;
+	int have_metallic_roughness_tex;
 	float roughness;
 	float fresnel_scale;
 	float metallic_frac;
