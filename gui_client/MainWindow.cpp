@@ -1003,12 +1003,12 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 
 // For when the desired texture LOD is not loaded, pick another texture LOD that is loaded (if it exists).
 // Prefer lower LOD levels (more detail).
-static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const std::string& base_tex_path, bool tex_has_alpha, OpenGLEngine& opengl_engine)
+static Reference<OpenGLTexture> getBestTextureLOD(const WorldMaterial& world_mat, const std::string& base_tex_path, bool tex_has_alpha, bool use_sRGB, OpenGLEngine& opengl_engine)
 {
 	for(int lvl=-1; lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = world_mat.getLODTextureURLForLevel(base_tex_path, lvl, tex_has_alpha);
-		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path), use_sRGB);
 		if(tex.nonNull())
 			return tex;
 	}
@@ -1022,7 +1022,7 @@ static Reference<OpenGLTexture> getBestLightmapLOD(const std::string& base_light
 	for(int lvl=0; lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = WorldObject::getLODLightmapURL(base_lightmap_path, lvl);
-		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path));
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path), /*use_sRGB=*/true);
 		if(tex.nonNull())
 			return tex;
 	}
@@ -1038,14 +1038,14 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
 		if(!opengl_mat.tex_path.empty())
 		{
-			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
+			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
 
 			if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 			{
 				if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
 				{
 					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), opengl_engine);
+					opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
 					opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
 				}
 			}
@@ -1053,14 +1053,14 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 
 		if(!opengl_mat.metallic_roughness_tex_path.empty())
 		{
-			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
+			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
 
 			if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 			{
 				if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
 				{
 					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, opengl_engine);
+					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
 				}
 			}
 		}
@@ -1068,7 +1068,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		if(!opengl_mat.lightmap_path.empty())
 		{
 			//conPrint("Trying to use " + opengl_mat.lightmap_path);
-			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path));
+			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true);
 
 			//printVar(opengl_mat.lightmap_texture.isNull());
 			if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
@@ -1095,14 +1095,14 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 		OpenGLMaterial& opengl_mat = gl_ob->materials[z];
 		if(!opengl_mat.tex_path.empty())
 		{
-			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path));
+			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
 
 			if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 			{
 				if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
 				{
 					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.albedo_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->colour_texture_url), av->avatar_settings.materials[z]->colourTexHasAlpha(), opengl_engine);
+					opengl_mat.albedo_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->colour_texture_url), av->avatar_settings.materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
 					opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
 				}
 			}
@@ -1110,14 +1110,14 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 
 		if(!opengl_mat.metallic_roughness_tex_path.empty())
 		{
-			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path));
+			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
 
 			if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 			{
 				if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
 				{
 					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, opengl_engine);
+					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
 				}
 			}
 		}
@@ -3188,7 +3188,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					textures_processed.erase(message->tex_key);
 				}
 
-				// conPrint("Handling texture loaded message " + message->tex_path);
+				// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 
 				//Timer timer;
 				try

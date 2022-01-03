@@ -24,6 +24,8 @@ DownloadingResourceQueue::~DownloadingResourceQueue()
 
 void DownloadingResourceQueue::enqueueItem(const DownloadQueueItem& item/*const Vec4f& pos, const std::string& URL*/)
 {
+	assert(item.pos.isFinite());
+
 	{
 		Lock lock(mutex);
 
