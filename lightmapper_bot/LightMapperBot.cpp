@@ -145,11 +145,11 @@ public:
 	// For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void startDownloadingResourcesForObject(WorldObject* ob)
 	{
-		std::set<std::string> dependency_URLs;
+		std::set<DependencyURL> dependency_URLs;
 		ob->getDependencyURLSet(/*lod level=*/0, dependency_URLs);
 		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
-			const std::string& url = *it;
+			const std::string& url = it->URL;
 			if(!resource_manager->isFileForURLPresent(url))
 				startDownloadingResource(url);
 		}
@@ -158,11 +158,11 @@ public:
 
 	bool allResourcesPresentForOb(WorldObject* ob)
 	{
-		std::set<std::string> dependency_URLs;
+		std::set<DependencyURL> dependency_URLs;
 		ob->getDependencyURLSet(/*lod level=*/0, dependency_URLs);
 		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
-			const std::string& url = *it;
+			const std::string& url = it->URL;
 			if(!resource_manager->isFileForURLPresent(url))
 				return false;
 		}
