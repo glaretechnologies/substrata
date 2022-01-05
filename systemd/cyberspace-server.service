@@ -8,6 +8,7 @@ After=network.target
 ExecStart=/home/nick/cyberspace/server
 WorkingDirectory=/home/nick/cyberspace
 Restart=on-failure
+LimitNOFILE=1000000
 #User=nick
 #Group=nick
 
