@@ -41,6 +41,7 @@ public:
 	void build(); // Build cached data like aabb_min
 
 	bool pointInParcel(const Vec3d& p) const;
+	bool pointInParcel(const Vec4f& p) const { return this->aabb.contains(p); }
 	bool AABBInParcel(const js::AABBox& aabb) const;
 	bool AABBIntersectsParcel(const js::AABBox& aabb) const;
 	static bool AABBInParcelBounds(const js::AABBox& aabb, const Vec3d& parcel_aabb_min, const Vec3d& parcel_aabb_max);

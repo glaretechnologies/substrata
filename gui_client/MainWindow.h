@@ -195,7 +195,7 @@ private:
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.
 	// Action will be printed in error message, could be "modify" or "delete"
-	bool objectIsInParcelOwnedByLoggedInUser(const WorldObject& ob);
+	bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob);
 
 	void updateOnlineUsersList(); // Works off world state avatars.
 	bool areEditingVoxels();
