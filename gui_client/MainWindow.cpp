@@ -2143,6 +2143,24 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 }
 
 
+bool MainWindow::objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob)
+{
+	assert(this->logged_in_user_id.valid());
+
+	const Vec4f ob_pos = ob.pos.toVec4fPoint();
+
+	Lock lock(world_state->mutex);
+	for(auto& it : world_state->parcels)
+	{
+		const Parcel* parcel = it.second.ptr();
+		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(this->logged_in_user_id))
+			return true;
+	}
+
+	return false;
+}
+
+
 bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 {
 	if(!this->logged_in_user_id.valid())
@@ -2152,28 +2170,13 @@ bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 	else
 	{
 		return (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id) ||
-			(server_worldname != "" && server_worldname == this->logged_in_user_name); // If this is the personal world of the user:
+			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)) || // If this is the personal world of the user:
+			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob);
 	}
 }
 
 
-bool MainWindow::objectIsInParcelOwnedByLoggedInUser(const WorldObject& ob)
-{
-	assert(this->logged_in_user_id.valid());
-
-	Lock lock(world_state->mutex);
-	for(auto& it : world_state->parcels)
-	{
-		const Parcel* parcel = it.second.ptr();
-		if((parcel->owner_id == this->logged_in_user_id) && parcel->pointInParcel(ob.pos))
-			return true;
-	}
-
-	return false;
-}
-
-
-// Also shows error notifications if modification is not allowed.
+// Similar to objectModificationAllowed() above, but also shows error notifications if modification is not allowed
 bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action)
 {
 	bool allow_modification = true;
@@ -2191,8 +2194,8 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 	else
 	{
 		const bool logged_in_user_can_modify = (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id) ||
-			(server_worldname != "" && server_worldname == this->logged_in_user_name) || // If this is the personal world of the user:
-			objectIsInParcelOwnedByLoggedInUser(ob); // Can modify objects owned by other people if they are in parcels you own.
+			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)) || // If this is the personal world of the user:
+			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 		
 		if(!logged_in_user_can_modify)
 		{

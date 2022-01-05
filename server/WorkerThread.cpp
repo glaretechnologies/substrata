@@ -618,14 +618,16 @@ void WorkerThread::handleEthBotConnection()
 }
 
 
-static bool objectIsInParcelOwnedByLoggedInUser(const WorldObject& ob, const User& user, ServerWorldState& world_state)
+static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const User& user, ServerWorldState& world_state)
 {
 	assert(user.id.valid());
+
+	const Vec4f ob_pos = ob.pos.toVec4fPoint();
 
 	for(auto& it : world_state.parcels)
 	{
 		const Parcel* parcel = it.second.ptr();
-		if((parcel->owner_id == user.id) && parcel->pointInParcel(ob.pos))
+		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(user.id))
 			return true;
 	}
 
@@ -641,14 +643,15 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const User& use
 		return (user.id == ob.creator_id) || // If the user created/owns the object
 			isGodUser(user.id) || // or if the user is the god user (id 0)
 			user.name == "lightmapperbot" || // lightmapper bot has full write permissions for now.
-			((connected_world_name != "") && (user.name == connected_world_name)) || // or if this is the user's personal world
-			objectIsInParcelOwnedByLoggedInUser(ob, user, world_state); // Can modify objects owned by other people if they are in parcels you own.
+			(!connected_world_name.empty() && (user.name == connected_world_name)) || // or if this is the user's personal world
+			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user, world_state); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 	}
 	else
 		return false;
 }
 
 
+// This is for editing the parcel itself.
 // NOTE: world state mutex should be locked before calling this method.
 static bool userHasParcelWritePermissions(const Parcel& parcel, const User& user, const std::string& connected_world_name, ServerWorldState& world_state)
 {
