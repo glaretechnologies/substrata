@@ -160,10 +160,17 @@ int main(int argc, char* argv[])
 						const std::string local_path = "d:/substrata_stuff/resources_backup/" + filename;
 
 						// Write downloaded file to disk, clear in-mem buffer.
-						FileUtils::writeEntireFile(local_path, buffer);
+						try
+						{
+							FileUtils::writeEntireFile(local_path, buffer);
 
 
-						conPrint("Wrote downloaded file to '" + local_path + "'. (len=" + toString(file_len) + ") ");
+							conPrint("Wrote downloaded file to '" + local_path + "'. (len=" + toString(file_len) + ") ");
+						}
+						catch(glare::Exception& e)
+						{
+							conPrint("Error while writing file to '" + local_path + "': " + e.what());
+						}
 					}
 				}
 				else
