@@ -82,6 +82,7 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 			test_parcel->verts[v] = M * Vec2d(parcel_coords[i][v][0], parcel_coords[i][v][1]);
 
 		world_state->parcels[parcel_id] = test_parcel;
+		world_state->addParcelAsDBDirty(test_parcel);
 	}
 }
 
@@ -172,6 +173,7 @@ static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_to
 			test_parcel->build();
 
 			world_state->parcels[parcel_id] = test_parcel;
+			world_state->addParcelAsDBDirty(test_parcel);
 			return;
 		}
 	}
@@ -222,6 +224,7 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 				test_parcel->verts[3] = botleft + Vec2d((xi)* 20, (yi+1) * 20);
 
 				world_state->parcels[parcel_id] = test_parcel;
+				world_state->addParcelAsDBDirty(test_parcel);
 			}
 		}
 }
@@ -648,6 +651,8 @@ int main(int argc, char *argv[])
 
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path);
+		else
+			server.world_state->createNewDatabase(server_state_path);
 
 
 		//TEMP:
