@@ -411,7 +411,7 @@ static float getScaleForVoxModel(const js::AABBox& aabb)
 }
 
 
-// Rotate vertices around the y axis by half a turn, so that the figure faces in the positive z direction, similary to Mixamo animation data and readyplayerme avatars.
+// Rotate vertices around the y axis by half a turn, so that the figure faces in the positive z direction, similarly to Mixamo animation data and readyplayerme avatars.
 static void rotateVRMMesh(BatchedMesh& mesh)
 {
 	conPrint("Rotating VRM mesh");
@@ -923,7 +923,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 		gl_meshdata->animation_data = batched_mesh->animation_data;
 
 		// Build RayMesh from our batched mesh (used for physics + picking)
-		raymesh = new RayMesh("mesh", false);
+		raymesh = new RayMesh(/*name=*/FileUtils::getFilename(model_path), false);
 		raymesh->fromBatchedMesh(*batched_mesh);
 
 		Geometry::BuildOptions options;
@@ -1083,7 +1083,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelUR
 		gl_meshdata->animation_data = batched_mesh->animation_data;
 
 		// Build RayMesh from our batched mesh (used for physics + picking)
-		raymesh = new RayMesh("mesh", false);
+		raymesh = new RayMesh(/*name=*/FileUtils::getFilename(model_path), false);
 		raymesh->fromBatchedMesh(*batched_mesh);
 
 		Geometry::BuildOptions options;
@@ -1477,7 +1477,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh);
 
 	// Build RayMesh from our indigo mesh (used for physics + picking)
-	raymesh_out = new RayMesh("mesh", /*enable_shading_normals=*/false);
+	raymesh_out = new RayMesh("voxelmesh", /*enable_shading_normals=*/false);
 	raymesh_out->fromIndigoMeshForPhysics(*indigo_mesh);
 
 	// Build raymesh acceleration structure
