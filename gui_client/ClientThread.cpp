@@ -489,9 +489,10 @@ void ClientThread::doRun()
 							::Lock lock(world_state->mutex);
 
 							// NOTE: will not replace existing object with that UID if it exists in the map.
-							world_state->objects.insert(std::make_pair(object_uid, ob));
-
-							world_state->dirty_from_remote_objects.insert(ob.ptr());
+							const auto res = world_state->objects.insert(std::make_pair(object_uid, ob));
+							const bool added = res.second;
+							if(added)
+								world_state->dirty_from_remote_objects.insert(ob.ptr());
 						}
 						break;
 					}
@@ -522,10 +523,15 @@ void ClientThread::doRun()
 						{
 							::Lock lock(world_state->mutex);
 
-							// NOTE: will not replace existing object with that UID if it exists in the map.
-							world_state->objects.insert(std::make_pair(object_uid, ob));
-
-							world_state->dirty_from_remote_objects.insert(ob.ptr());
+							// When a client moves and a new cell comes into proximity, a QueryObjects message is sent to the server.
+							// The server replies with ObjectInitialSend messages.
+							// This means that the client may already have the object inserted, when moving back into a cell previously in proximity.
+							// We want to make sure not to add the object twice or load it into the graphics engine twice.
+							
+							const auto res = world_state->objects.insert(std::make_pair(object_uid, ob)); // Will not replace existing object with that UID if it exists in the map.
+							const bool added = res.second;
+							if(added)
+								world_state->dirty_from_remote_objects.insert(ob.ptr());
 						}
 						break;
 					}
