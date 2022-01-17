@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 static const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in WorkerThread.cpp
+static bool VERBOSE = false;
 
 
 ProximityLoader::ProximityLoader(float load_distance_)
@@ -63,20 +64,20 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 
 			if(dist2 > ob_load_dist2) // If object is (now) outside of loading distance
 			{
-				if(ob->loaded)
+				if(ob->in_proximity)
 				{
+					ob->in_proximity = false;
 					//conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
 					callbacks->unloadObject(ob);
-					ob->loaded = false;
 				}
 			}
 			else // If object is (now) inside of loading distance
 			{
-				if(!ob->loaded)
+				if(!ob->in_proximity)
 				{
+					ob->in_proximity = true;
 					//conPrint("setLoadDistance(): Unloading object " + ob->uid.toString());
 					callbacks->loadObject(ob);
-					ob->loaded = true;
 				}
 			}
 		}
@@ -104,17 +105,20 @@ void ProximityLoader::setLoadDistance(float new_load_distance)
 
 void ProximityLoader::checkAddObject(WorldObjectRef ob)
 {
-	//conPrint("ProximityLoader:checkAddObject(): Adding ob " + ob->uid.toString() + " at " + ob->pos.toString());
+	if(VERBOSE) conPrint("ProximityLoader:checkAddObject(): Adding ob " + ob->uid.toString() + " at " + ob->pos.toString());
 
-	ob_grid.insert(ob);
+	ob_grid.insert(ob); // Add to set if not already added.
 
 	const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
 
 	const float dist2 = ob->pos.toVec4fPoint().getDist2(last_cam_pos);
 	if(dist2 <= ob_load_dist2) // If object is inside of loading distance:
 	{
-		callbacks->loadObject(ob);
-		ob->loaded = true;
+		if(!ob->in_proximity)
+		{
+			ob->in_proximity = true;
+			callbacks->loadObject(ob);
+		}
 	}
 }
 
@@ -143,7 +147,7 @@ void ProximityLoader::objectTransformChanged(WorldObject* ob)
 
 	if(old_cell != new_cell)
 	{
-		conPrint("Cell changed!");
+		if(VERBOSE) conPrint("Cell changed!");
 
 		// Remove from old grid cell
 		ob_grid.removeAtLastPos(ob);
@@ -158,13 +162,13 @@ void ProximityLoader::objectTransformChanged(WorldObject* ob)
 	const bool new_in_load_dist = ob->pos     .toVec4fPoint().getDist2(last_cam_pos) <= ob_load_dist2;
 	if(old_in_load_dist && !new_in_load_dist) // If object has moved out of load distance:
 	{
+		ob->in_proximity = false;
 		callbacks->unloadObject(ob);
-		ob->loaded = false;
 	}
 	else if(!old_in_load_dist && new_in_load_dist) // If object has moved into load distance:
 	{
+		ob->in_proximity = true;
 		callbacks->loadObject(ob);
-		ob->loaded = true;
 	}
 }
 
@@ -193,11 +197,11 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 					const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
 					if(new_dist2 > ob_load_dist2) // If object is now outside of loading distance
 					{
-						if(ob->loaded)
+						if(ob->in_proximity)
 						{
-							//conPrint("Unloading object " + ob->uid.toString());
+							ob->in_proximity = false;
+							if(VERBOSE) conPrint("ProximityLoader: Unloading object " + ob->uid.toString());
 							callbacks->unloadObject(ob);
-							ob->loaded = false;
 						}
 					}
 				}
@@ -227,11 +231,11 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 					const float ob_load_dist2 = myMin(ob->max_load_dist2, load_distance2);
 					if(new_dist2 <= ob_load_dist2) // If object is now inside of loading distance
 					{
-						if(!ob->loaded)
+						if(!ob->in_proximity)
 						{
-							//conPrint("Loading object " + ob->uid.toString());
+							if(VERBOSE) conPrint("ProximityLoader: Loading object " + ob->uid.toString());
+							ob->in_proximity = true;
 							callbacks->loadObject(ob);
-							ob->loaded = true;
 						}
 					}
 				}
@@ -242,14 +246,34 @@ void ProximityLoader::updateCamPos(const Vec4f& new_cam_pos)
 					x <= old_end[0]   && y <= old_end[1]   && z <= old_end[2];
 				if(!is_in_old_cells)
 				{
-					//conPrint("Loading cell " + cell_coords.toString());
+					if(VERBOSE) conPrint("ProximityLoader: Loading cell " + cell_coords.toString());
 					callbacks->newCellInProximity(cell_coords);
 				}
 			}
 		}
-	
-		last_cam_pos = new_cam_pos;
+
+		this->last_cam_pos = new_cam_pos;
 	}
+}
+
+
+std::string ProximityLoader::getDiagnostics() const
+{
+	size_t num_obs = 0;
+	size_t num_in_proximity_obs = 0;
+	for(size_t i=0; i<ob_grid.buckets.size(); ++i)
+	{
+		for(auto it = ob_grid.buckets[i].objects.begin(); it != ob_grid.buckets[i].objects.end(); ++it)
+		{
+			const WorldObject* ob = it->ptr();
+
+			num_obs++;
+			if(ob->in_proximity)
+				num_in_proximity_obs++;
+		}
+	}
+
+	return "Obs: " + toString(num_obs) + " (in proximity: " + toString(num_in_proximity_obs) + ", out of proximity: " + toString(num_obs - num_in_proximity_obs) + ")";
 }
 
 

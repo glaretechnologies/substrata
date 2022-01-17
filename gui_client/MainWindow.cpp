@@ -872,6 +872,7 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 	ob.opengl_engine_ob = NULL;
 	ob.physics_object = NULL;
 
+	ob.loaded_model_lod_level = -10;
 	ob.using_placeholder_model = false;
 }
 
@@ -1131,6 +1132,10 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 // Also enqueue any downloads for missing resources such as textures.
 void MainWindow::loadModelForObject(WorldObject* ob)
 {
+	// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
+	if(!ob->in_proximity)
+		return;
+
 	const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 
@@ -1138,7 +1143,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->loaded_lod_level == ob_lod_level))
 		return;
 
-	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url);
+	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url + ", ob_model_lod_level: " + toString(ob_model_lod_level));
 	Timer timer;
 	ob->loaded_model_url = ob->model_url;
 
@@ -2256,28 +2261,6 @@ void MainWindow::saveScreenshot()
 }
 
 
-// ObLoadingCallbacks interface
-void MainWindow::loadObject(WorldObjectRef ob)
-{
-	loadModelForObject(ob.ptr());
-
-	loadAudioForObject(ob.ptr());
-}
-
-
-void MainWindow::unloadObject(WorldObjectRef ob)
-{
-	removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-	if(ob->audio_source.nonNull())
-	{
-		audio_engine.removeSource(ob->audio_source);
-		ob->audio_source = NULL;
-		ob->audio_state = WorldObject::AudioState_NotLoaded;
-	}
-}
-
-
 static void updatePacketLengthField(SocketBufferOutStream& packet)
 {
 	// length field is second uint32
@@ -2306,6 +2289,31 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 }
 
 
+// ObLoadingCallbacks interface callback function:
+void MainWindow::loadObject(WorldObjectRef ob)
+{
+	loadModelForObject(ob.ptr());
+
+	loadAudioForObject(ob.ptr());
+}
+
+
+// ObLoadingCallbacks interface callback function:
+void MainWindow::unloadObject(WorldObjectRef ob)
+{
+	//conPrint("unloadObject");
+	removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+	if(ob->audio_source.nonNull())
+	{
+		audio_engine.removeSource(ob->audio_source);
+		ob->audio_source = NULL;
+		ob->audio_state = WorldObject::AudioState_NotLoaded;
+	}
+}
+
+
+// ObLoadingCallbacks interface callback function:
 void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 {
 	if(this->client_thread.nonNull())
@@ -2544,6 +2552,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
 			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
 			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
+		}
+
+		if(physics_world.nonNull())
+		{
+			msg += "Physics:\n";
+			msg += physics_world->getDiagnostics() + "\n";
+		}
+
+		{
+			msg += "Proximity loader:\n";
+			msg += proximity_loader.getDiagnostics() + "\n";
 		}
 
 		if(selected_ob.nonNull())
@@ -2812,7 +2831,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 	}
 
-	if(false)//stats_timer.elapsed() > 2.0)
+	if(false) // stats_timer.elapsed() > 10.0)
 	{
 		stats_timer.reset();
 
@@ -2821,7 +2840,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		conPrint("World objects CPU mem usage:            " + getNiceByteSize(this->world_state->getTotalMemUsage()));
 
 		if(this->physics_world.nonNull())
-			conPrint("physics_world->getTotalMemUsage:        " + getNiceByteSize(this->physics_world->getTotalMemUsage()));
+		{
+			conPrint(this->physics_world->getLoadedMeshes());
+		}
+		//	conPrint("physics_world->getTotalMemUsage:        " + getNiceByteSize(this->physics_world->getTotalMemUsage()));
 	
 		conPrint("texture_server->getTotalMemUsage:       " + getNiceByteSize(this->texture_server->getTotalMemUsage()));
 		
@@ -2948,7 +2970,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
 
-						if(proximity_loader.isObjectInLoadProximity(voxel_ob.ptr())) // Object may be out of load distance now that it has actually been loaded.
+						if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
 						{
 							const int ob_lod_level = voxel_ob->getLODLevel(cam_controller.getPosition());
 
@@ -3022,7 +3044,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								{
 									WorldObject* ob = res2->second.ptr();
 
-									if(proximity_loader.isObjectInLoadProximity(ob))
+									if(ob->in_proximity)
 									{
 										const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 										const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
@@ -4257,6 +4279,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				WorldObject* ob = it->ptr();
 
+				assert(this->world_state->objects.count(ob->uid) == 1 && this->world_state->objects[ob->uid].ptr() == ob); // Make sure this object in the dirty set is in our set of objects.
+
 				// conPrint("Processing dirty object.");
 
 				if(ob->from_remote_other_dirty || ob->from_remote_model_url_dirty)
@@ -4267,6 +4291,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 						need_physics_world_rebuild = true;
+
+						proximity_loader.removeObject(ob);
 
 						ui->indigoView->objectRemoved(*ob);
 
@@ -4290,38 +4316,39 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// Decompress voxel group
 						//ob->decompressVoxels();
 
-						bool reload_opengl_model = false; // Do we need to load or reload model?
-						if(ob->opengl_engine_ob.isNull())
-							reload_opengl_model = true;
+						proximity_loader.checkAddObject(ob); // Calls loadModelForObject() if it is within load distance.
 
-						if(ob->object_type == WorldObject::ObjectType_Generic)
-						{
-							if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
-								reload_opengl_model = true;
-						}
-						else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
-						{
-							reload_opengl_model = true;
-						}
-						else if(ob->object_type == WorldObject::ObjectType_Hypercard)
-						{
-							if(ob->loaded_content != ob->content)
-								reload_opengl_model = true;
-						}
-						else if(ob->object_type == WorldObject::ObjectType_Spotlight)
-						{
-							// no reload needed
-						}
+						//bool reload_opengl_model = false; // Do we need to load or reload model?
+						//if(ob->opengl_engine_ob.isNull())
+						//	reload_opengl_model = true;
+						//
+						//if(ob->object_type == WorldObject::ObjectType_Generic)
+						//{
+						//	if(ob->loaded_model_url != ob->model_url) // If model URL differs from what we have loaded for this model:
+						//		reload_opengl_model = true;
+						//}
+						//else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
+						//{
+						//	reload_opengl_model = true;
+						//}
+						//else if(ob->object_type == WorldObject::ObjectType_Hypercard)
+						//{
+						//	if(ob->loaded_content != ob->content)
+						//		reload_opengl_model = true;
+						//}
+						//else if(ob->object_type == WorldObject::ObjectType_Spotlight)
+						//{
+						//	// no reload needed
+						//}
 
-						if(reload_opengl_model)
-						{
-							// loadModelForObject(ob);
-							proximity_loader.checkAddObject(ob);
-						}
-						else
-						{
+						//if(reload_opengl_model)
+						//{
+						//	// loadModelForObject(ob);
+						//}
+						//else
+						//{
 							// Update transform for object in OpenGL engine
-							if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
+							if(ob->opengl_engine_ob.nonNull() && (ob != selected_ob.getPointer())) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
 							{
 								// Update materials in opengl engine.
 								GLObjectRef opengl_ob = ob->opengl_engine_ob;
@@ -4337,7 +4364,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								active_objects.insert(ob);
 							}
-						}
+						//}
 
 						ob->from_remote_other_dirty = false;
 						ob->from_remote_model_url_dirty = false;

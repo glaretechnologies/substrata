@@ -42,7 +42,7 @@ WorldObject::WorldObject()
 
 #if GUI_CLIENT
 	is_selected = false;
-	loaded = false;
+	in_proximity = false;
 	lightmap_baking = false;
 	current_lod_level = 0;
 	loaded_model_lod_level = -10;
