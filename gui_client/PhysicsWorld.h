@@ -50,8 +50,20 @@ public:
 
 	void rebuild(glare::TaskManager& task_manager, PrintOutput& print_output);
 
-	size_t getTotalMemUsage() const;
+	
 
+	//----------------------------------- Diagnostics ----------------------------------------
+	struct MemUsageStats
+	{
+		size_t mem;
+		size_t num_meshes;
+	};
+	MemUsageStats getTotalMemUsage() const;
+
+	std::string getDiagnostics() const;
+
+	std::string getLoadedMeshes() const;
+	//----------------------------------------------------------------------------------------
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const;
 
@@ -60,7 +72,6 @@ public:
 	void getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const;
 
 private:
-	//js::Vector<Reference<PhysicsObject>, 32> objects;
 	std::unordered_set<Reference<PhysicsObject>, PhysicsObjectHash> objects_set;
 
 	PhysicsObjectBVH object_bvh;

@@ -212,7 +212,7 @@ public:
 
 	bool is_selected;
 
-	bool loaded; // Used by proximity loader
+	bool in_proximity; // Used by proximity loader
 
 	Vec3d last_pos; // Used by proximity loader
 

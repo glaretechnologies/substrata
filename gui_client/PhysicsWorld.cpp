@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/Timer.h>
+#include <utils/HashMapInsertOnly2.h>
 
 
 PhysicsWorld::PhysicsWorld()
@@ -75,16 +76,56 @@ void PhysicsWorld::rebuild(glare::TaskManager& task_manager, PrintOutput& print_
 }
 
 
-size_t PhysicsWorld::getTotalMemUsage() const
+PhysicsWorld::MemUsageStats PhysicsWorld::getTotalMemUsage() const
 {
-	size_t sum = 0;
+	HashMapInsertOnly2<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());
+	MemUsageStats stats;
+	stats.num_meshes = 0;
+	stats.mem = 0;
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
-		sum += (*it)->getTotalMemUsage();
+	{
+		const PhysicsObject* ob = it->getPointer();
 
-	sum += object_bvh.getTotalMemUsage();
-	return sum;
+		const bool added = meshes.insert(std::make_pair(ob->geometry.ptr(), 0)).second;
+
+		if(added)
+		{
+			stats.mem += ob->geometry->getTotalMemUsage();
+			stats.num_meshes++;
+		}
+	}
+
+	return stats;
 }
 
+
+std::string PhysicsWorld::getDiagnostics() const
+{
+	const MemUsageStats stats = getTotalMemUsage();
+	std::string s;
+	s += "Objects: " + toString(objects_set.size()) + "\n";
+	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
+	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
+	return s;
+}
+
+
+std::string PhysicsWorld::getLoadedMeshes() const
+{
+	std::string s;
+	HashMapInsertOnly2<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	{
+		const PhysicsObject* ob = it->getPointer();
+		const bool added = meshes.insert(std::make_pair(ob->geometry.ptr(), 0)).second;
+		if(added)
+		{
+			s += ob->geometry->getName() + "\n";
+		}
+	}
+
+	return s;
+}
 
 
 void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const
