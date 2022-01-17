@@ -46,6 +46,14 @@ ServerAllWorldsState::~ServerAllWorldsState()
 }
 
 
+void ServerAllWorldsState::createNewDatabase(const std::string& path)
+{
+	conPrint("Creating new world state database at '" + path + "'...");
+
+	database.openAndMakeOrClearDatabase(path);
+}
+
+
 static const uint32 WORLD_STATE_MAGIC_NUMBER = 487173571;
 static const uint32 WORLD_STATE_SERIALISATION_VERSION = 3; // v3: using Database
 static const uint32 WORLD_CHUNK = 50;

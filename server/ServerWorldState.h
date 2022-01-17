@@ -108,6 +108,7 @@ public:
 	~ServerAllWorldsState();
 
 	void readFromDisk(const std::string& path);
+	void createNewDatabase(const std::string& path);
 	void serialiseToDisk(const std::string& path); // Write any changed data (objects in dirty set) to disk.
 	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.  Mutex should be locked already.
 
