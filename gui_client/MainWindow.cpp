@@ -3846,6 +3846,56 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
 		this->cam_controller.setPosition(toVec3d(campos));
 
+
+		// Update debug player-physics visualisation spheres
+		if(false)
+		{
+			for(size_t i=0; i<player_phys_debug_spheres.size(); ++i)
+			{
+				if(player_phys_debug_spheres[i].nonNull())
+					ui->glWidget->opengl_engine->removeObject(player_phys_debug_spheres[i]);
+
+				player_phys_debug_spheres[i] = NULL;
+			}
+			player_phys_debug_spheres.resize(0);
+
+			std::vector<js::BoundingSphere> spheres;
+			player_physics.debugGetCollisionSpheres(campos, spheres);
+
+
+			player_phys_debug_spheres.resize(spheres.size());
+			
+			
+			for(size_t i=0; i<spheres.size(); ++i)
+			{
+				if(player_phys_debug_spheres[i].isNull())
+				{
+					player_phys_debug_spheres[i] = new GLObject();
+					player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::identity();
+					player_phys_debug_spheres[i]->mesh_data = ui->glWidget->opengl_engine->getSphereMeshData();
+
+					OpenGLMaterial material;
+					material.albedo_rgb = (i < 3) ? Colour3f(0.3f, 0.8f, 0.3f) : Colour3f(0.8f, 0.3f, 0.3f);
+					
+					material.alpha = 0.5f;
+					material.transparent = true;
+					if(i >= 4)
+					{
+						material.albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
+						material.transparent = false;
+					}
+
+					player_phys_debug_spheres[i]->materials = std::vector<OpenGLMaterial>(1, material);
+
+					ui->glWidget->opengl_engine->addObject(player_phys_debug_spheres[i]);
+				}
+
+				player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::translationMatrix(spheres[i].getCenter()) * Matrix4f::uniformScaleMatrix(spheres[i].getRadius());
+				ui->glWidget->opengl_engine->updateObjectTransformData(*player_phys_debug_spheres[i]);
+			}
+		}
+
+
 		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
 		{
 			const Vec3d cam_back_dir = cam_controller.getForwardsVec() * -3.0 + cam_controller.getUpVec() * 0.2;

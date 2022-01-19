@@ -152,7 +152,7 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 }
 
 
-void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, RayTraceResult& results_out) const
+void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, SphereTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
 
@@ -169,7 +169,7 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 	{
 		const PhysicsObject* object = it->ptr();
 
-		RayTraceResult ob_results;
+		SphereTraceResult ob_results;
 		object->traceSphere(sphere, translation_ws, spherepath_aabb_ws, ob_results);
 		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist_ws)
 		{

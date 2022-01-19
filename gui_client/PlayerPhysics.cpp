@@ -22,6 +22,8 @@ static const float maxairspeed = 8;
 
 static const float JUMP_PERIOD = 0.1f; // Allow a jump command to be executed even if the player is not quite on the ground yet.
 
+const float SPHERE_RAD = 0.3f;
+const float EYE_HEIGHT = 1.67f;
 
 PlayerPhysics::PlayerPhysics()
 :	vel(0,0,0),
@@ -32,7 +34,8 @@ PlayerPhysics::PlayerPhysics()
 	onground(false),
 	flymode(false),
 	last_runpressed(false),
-	time_since_on_ground(0)
+	time_since_on_ground(0),
+	campos_z_delta(0)
 {
 }
 
@@ -108,6 +111,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 			onground = false;
 			vel += Vec3f(0,0,1) * jumpspeed;
 			events.jumped = true;
+
+			time_since_on_ground = 1; // Hack this up to a large value so jump animation can play immediately.
 		}
 	}
 
@@ -140,7 +145,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 		}
 
 		//-----------------------------------------------------------------
-		//apply grav
+		//apply gravity
 		//-----------------------------------------------------------------
 		Vec3f dvel(0, 0, -9.81f);
 
@@ -193,7 +198,10 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 	//-----------------------------------------------------------------
 	Vec3f dpos = vel*dtime;
 
-	Vec3f campos = toVec3f(campos_in_out);
+	Vec3f campos = toVec3f(campos_in_out) + Vec3f(0, 0, campos_z_delta); // Physics/actual campos is below camera campos.
+
+	//campos_z_delta = myMax(0.f, campos_z_delta - 2.f * dtime); // Linearly reduce campos_z_delta over time until it reaches 0.
+	campos_z_delta = myMax(0.f, campos_z_delta - 20.f * dtime * campos_z_delta); // Exponentially reduce campos_z_delta over time until it reaches 0.
 
 	for(int i=0; i<5; ++i)
 	{	
@@ -206,26 +214,25 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 			//do a trace along desired movement path to see if obstructed
 			//-----------------------------------------------------------------
 			float closest_dist = 1e9f;
+			Vec4f closest_hit_pos_ws(0.f);
 			Vec3f hit_normal;
+			bool closest_point_in_tri = false;
 			bool hitsomething = false;
-
-			const float SPHERE_RAD = 0.3f;
-			const float EYE_HEIGHT = 1.67f;
 
 			for(int s=0; s<3; ++s)//for each sphere in body
 			{
 				//-----------------------------------------------------------------
 				//calc initial sphere position
 				//-----------------------------------------------------------------
-				const Vec3f spherepos = campos - Vec3f(0,0, (EYE_HEIGHT - 1.5f) + (float)s * 0.6f);
+				const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * (1 + 2 * s));
 
 				const js::BoundingSphere playersphere(spherepos.toVec4fPoint(), SPHERE_RAD);
 
 				//-----------------------------------------------------------------
 				//trace sphere through world
 				//-----------------------------------------------------------------
-				RayTraceResult traceresults;
-				physics_world.traceSphere(playersphere, dpos.toVec4fVector(), thread_context, traceresults); 
+				SphereTraceResult traceresults;
+				physics_world.traceSphere(playersphere, dpos.toVec4fVector(), thread_context, traceresults);
 
 				if(traceresults.hit_object)
 				{
@@ -238,7 +245,10 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 					{
 						hitsomething = true;
 						closest_dist = distgot;
+						closest_hit_pos_ws = traceresults.hit_pos_ws;
 						hit_normal = toVec3f(traceresults.hit_normal_ws);
+						closest_point_in_tri = traceresults.point_in_tri;
+						assert(hit_normal.isUnitLength());
 
 						//void* userdata = traceresults.hit_object->getUserdata();
 
@@ -262,21 +272,60 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 
 		
 				campos += dpos * usefraction; // advance camera position
-
+				
 				dpos *= (1.0f - usefraction); // reduce remaining distance by dist moved cam.
+
+				//---------------------------------- Do stair climbing ----------------------------------
+				// This is done by detecting if we have hit the edge of a step.
+				// A step hit is categorised as any hit that is within a certain distance above the ground/foot level.
+				// If we do hit a step, we displace the player upwards to just above the step, so it can continue its movement forwards over the step without obstruction.
+				
+				// Work out if we hit the edge of a step
+				const float foot_z = campos[2] - EYE_HEIGHT;
+				const float hitpos_height_above_foot = closest_hit_pos_ws[2] - foot_z;
+
+				bool hit_step = false;
+				if(!closest_point_in_tri && hitpos_height_above_foot > 0.003f && hitpos_height_above_foot < 0.25f)
+				{
+					hit_step = true;
+
+					const float jump_up_amount = hitpos_height_above_foot + 0.01f; // Distance to displace the player upwards
+
+					// conPrint("hit step (hitpos_height_above_foot: " + doubleToStringNSigFigs(hitpos_height_above_foot, 4) + "), jump_up_amount: " + doubleToStringNSigFigs(jump_up_amount, 4));
+
+					// Trace a sphere up to see if we can raise up the avatar over the step without obstruction (we don't want to displace the head upwards into an overhanging object)
+					const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * 5); // Upper sphere centre
+					const js::BoundingSphere playersphere(spherepos.toVec4fPoint(), SPHERE_RAD);
+					SphereTraceResult traceresults;
+					physics_world.traceSphere(playersphere, /*translation_ws=*/Vec4f(0, 0, jump_up_amount, 0), thread_context, traceresults); // Trace sphere through world
+
+					if(!traceresults.hit_object)
+					{
+						campos.z += jump_up_amount;
+						campos_z_delta += jump_up_amount;
+
+						hit_normal = Vec3f(0,0,1); // the step edge normal will be oriented towards the swept sphere centre at the collision point.
+						// However consider it pointing straight up, so that next think the player is considered to be on flat ground and hence moves in the x-y plane.
+					}
+					else
+					{
+						conPrint("hit an object while tracing sphere up for jump");
+					}
+				}
+				//---------------------------------- End stair climbing ----------------------------------
+
+
+				const bool was_just_falling = vel.x == 0 && vel.y == 0;
 
 				//-----------------------------------------------------------------
 				//kill remaining translation normal to obstructor
 				//-----------------------------------------------------------------
 				dpos.removeComponentInDir(hit_normal);
 
-		
 				//-----------------------------------------------------------------
 				//kill velocity in direction of obstructor normal
 				//-----------------------------------------------------------------
 				//lastvel = vel;
-				const bool was_just_falling = vel.x == 0 && vel.y == 0;
-			
 				vel.removeComponentInDir(hit_normal);
 
 				//-----------------------------------------------------------------
@@ -334,7 +383,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 			}
 
 			const Vec3f displacement = doSpringRelaxation(springspheresets, onground);
-			campos += displacement;
+				campos += displacement;
 
 			// If we were repelled from an upwards facing surface, consider us to be on the ground.
 			if(displacement != Vec3f(0, 0, 0) && normalise(displacement).z > 0.5f)
@@ -347,7 +396,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 	else
 		time_since_on_ground = 0;
 		
-	campos_in_out = campos.toVec4fPoint();
+	campos_in_out = (campos - Vec3f(0,0,campos_z_delta)).toVec4fPoint();
 
 	moveimpulse.set(0,0,0);
 
@@ -424,4 +473,19 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 	//conPrint("springs took " + toString(num_iters_done) + " iterations to solve for " + toString(numsprings) + " springs"); 
 
 	return displacement;
+}
+
+
+
+void PlayerPhysics::debugGetCollisionSpheres(const Vec4f& campos, std::vector<js::BoundingSphere>& spheres_out)
+{
+	spheres_out.resize(0);
+	for(int s=0; s<3; ++s)//for each sphere in body
+	{
+		//-----------------------------------------------------------------
+		//calc position of sphere
+		//-----------------------------------------------------------------
+		const Vec3f spherepos = Vec3f(campos) - Vec3f(0,0, (EYE_HEIGHT - 1.5f) + (float)s * 0.6f);
+		spheres_out.push_back(js::BoundingSphere(spherepos.toVec4fPoint(), SPHERE_RAD));
+	}
 }

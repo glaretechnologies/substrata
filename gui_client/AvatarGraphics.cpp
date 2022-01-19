@@ -94,6 +94,10 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		const Vec3d dpos = pos - last_pos;
 		const Vec3d vel = dpos / dt;
 		const double speed = vel.length();
+
+		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
+		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
+		const double xyplane_speed = Vec3d(vel.x, vel.y, 0).length();
 		
 		const Vec3d old_vel = last_vel;
 		const Vec3d accel = (vel - old_vel) / dt;
@@ -126,7 +130,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			//if(speed > 0.1 && (forwards_vel < -0.1f || forwards_vel > 0.1f))
 				lean_matrix = Matrix4f::rotationAroundXAxis(cur_sideweays_lean * -0.02f) * Matrix4f::rotationAroundYAxis(cur_forwards_lean * -0.02f);
 
-			if(speed > 6)
+			if(xyplane_speed > 6)
 			{
 				// Blend rotation of avatar towards camera rotation
 				const float rot_blend_frac = (float)(10 * dt);
@@ -139,7 +143,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 				new_anim_transition_duration = 0.1;
 			}
-			else if(speed > 0.1)
+			else if(xyplane_speed > 0.1)
 			{
 				// Blend rotation of avatar towards camera rotation
 				const float rot_blend_frac = (float)(10 * dt);
