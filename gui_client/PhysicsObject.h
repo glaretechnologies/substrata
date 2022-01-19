@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "simpleraytracer/raymesh.h"
 namespace js { class BoundingSphere; }
 class RayTraceResult;
+class SphereTraceResult;
 class DiscreteDistribution;
 
 
@@ -37,7 +38,7 @@ public:
 
 	void traceRay(const Ray& ray, RayTraceResult& results_out) const;
 
-	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, const js::AABBox& spherepath_aabb_ws, RayTraceResult& results_out) const;
+	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, const js::AABBox& spherepath_aabb_ws, SphereTraceResult& results_out) const;
 
 	void appendCollPoints(const js::BoundingSphere& sphere, const js::AABBox& sphere_aabb_ws, std::vector<Vec4f>& points_ws_in_out) const;
 

@@ -512,4 +512,6 @@ public:
 
 	std::map<std::string, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
 	std::map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
+
+	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 };

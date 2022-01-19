@@ -50,8 +50,10 @@ public:
 	void setFlyModeEnabled(bool enabled);
 	bool flyModeEnabled() const { return flymode; }
 	
-	bool onGroundRecently() const { return time_since_on_ground < 0.02f; }
+	bool onGroundRecently() const { return time_since_on_ground < 0.2f; }
 	bool isRunPressed() const { return last_runpressed; }
+
+	void debugGetCollisionSpheres(const Vec4f& campos, std::vector<js::BoundingSphere>& spheres_out);
 private:
 	Vec3f vel;
 	Vec3f lastvel;
@@ -72,4 +74,8 @@ private:
 	
 
 	std::vector<SpringSphereSet> springspheresets;
+
+	// This is the amount which the displayed camera position is below the actual physical avatar position.
+	// This is to allow the physical avatar position to step up discontinuously, where as the camera position will smoothly increase to match the physical avatar position.
+	float campos_z_delta; // campos.z returned will be cam_return = cam_actual.z - campos_z_delta;
 };

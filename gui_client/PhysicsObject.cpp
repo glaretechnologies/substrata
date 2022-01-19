@@ -59,7 +59,7 @@ void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 }
 
 
-void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f& translation_ws, const js::AABBox& spherepath_aabb_ws, RayTraceResult& results_out) const
+void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f& translation_ws, const js::AABBox& spherepath_aabb_ws, SphereTraceResult& results_out) const
 {
 	if(!collidable)
 	{
@@ -83,18 +83,20 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 		translation_len_ws // max_t
 	);
 
+	bool point_in_tri;
+	Vec4f closest_hit_pos_ws;
 	Vec4f closest_hit_normal_ws;
-	const float smallest_dist_ws = (float)geometry->traceSphere(ray_ws, world_to_ob, ob_to_world, sphere_ws.getRadius(), closest_hit_normal_ws);
+	const float smallest_dist_ws = (float)geometry->traceSphere(ray_ws, world_to_ob, ob_to_world, sphere_ws.getRadius(), closest_hit_pos_ws, closest_hit_normal_ws, point_in_tri);
 
 	if(smallest_dist_ws >= 0.f && smallest_dist_ws < std::numeric_limits<float>::infinity())
 	{
 		assert(closest_hit_normal_ws.isUnitLength());
 		assert(smallest_dist_ws <= translation_len_ws);
 
-		results_out.hitdist_ws = smallest_dist_ws;
+		results_out.hit_pos_ws = closest_hit_pos_ws;
 		results_out.hit_normal_ws = closest_hit_normal_ws;
-		results_out.hit_tri_index = 0;//TEMP
-		results_out.coords = Vec2f(0,0);//TEMP
+		results_out.hitdist_ws = smallest_dist_ws;
+		results_out.point_in_tri = point_in_tri;
 	}
 	else
 	{
