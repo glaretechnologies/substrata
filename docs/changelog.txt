@@ -1,3 +1,10 @@
+0.85
+====
+Added some stair-climbing physics.
+Fixed various issues with objects loading in duplicate when moving around.
+Made it so that you can edit objects created by other people in parcels you have write permissions for.
+Added metallic-roughness texture support.
+
 0.84
 ====
 Fixed linux build handling of LLVM libs.
