@@ -224,7 +224,11 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 				//-----------------------------------------------------------------
 				//calc initial sphere position
 				//-----------------------------------------------------------------
-				const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * (1 + 2 * s));
+				// NOTE: The order of these spheres actually makes a difference, even though it shouldn't.
+				// When s=0 is the bottom sphere, hit_normal may end up as (0,0,1) from a distance=0 hit, which means on_ground is set and spring relaxation is constrained to z-dir, which results in getting stuck.
+				// So instead may sphere 0 the top sphere.
+				//const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * (1 + 2 * s));
+				const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s));
 
 				const js::BoundingSphere playersphere(spherepos.toVec4fPoint(), SPHERE_RAD);
 
@@ -279,7 +283,6 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 				// This is done by detecting if we have hit the edge of a step.
 				// A step hit is categorised as any hit that is within a certain distance above the ground/foot level.
 				// If we do hit a step, we displace the player upwards to just above the step, so it can continue its movement forwards over the step without obstruction.
-				
 				// Work out if we hit the edge of a step
 				const float foot_z = campos[2] - EYE_HEIGHT;
 				const float hitpos_height_above_foot = closest_hit_pos_ws[2] - foot_z;
@@ -382,8 +385,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 				
 			}
 
-			const Vec3f displacement = doSpringRelaxation(springspheresets, onground);
-				campos += displacement;
+			const Vec3f displacement = doSpringRelaxation(springspheresets, /*constrain to vertical=*/onground);
+			campos += displacement;
 
 			// If we were repelled from an upwards facing surface, consider us to be on the ground.
 			if(displacement != Vec3f(0, 0, 0) && normalise(displacement).z > 0.5f)
