@@ -1,3 +1,7 @@
+0.86
+====
+Tweaked player physics to avoid avatar getting stuck in objects.
+
 0.85
 ====
 Added some stair-climbing physics.
