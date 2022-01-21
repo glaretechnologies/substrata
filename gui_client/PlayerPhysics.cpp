@@ -90,7 +90,7 @@ void PlayerPhysics::setFlyModeEnabled(bool enabled)
 
 
 static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,
-										bool constrain_to_vertical);
+										bool constrain_to_vertical, bool do_fast_mode);
 
 
 UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_in_out)
@@ -227,6 +227,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 				// NOTE: The order of these spheres actually makes a difference, even though it shouldn't.
 				// When s=0 is the bottom sphere, hit_normal may end up as (0,0,1) from a distance=0 hit, which means on_ground is set and spring relaxation is constrained to z-dir, which results in getting stuck.
 				// So instead may sphere 0 the top sphere.
+				// NEW: Actually removing the constrain-to-vertical constraint in sphere relaxation makes this not necessary.
 				//const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * (1 + 2 * s));
 				const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s));
 
@@ -305,7 +306,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 					if(!traceresults.hit_object)
 					{
 						campos.z += jump_up_amount;
-						campos_z_delta += jump_up_amount;
+						campos_z_delta = myMin(0.3f, campos_z_delta + jump_up_amount);
 
 						hit_normal = Vec3f(0,0,1); // the step edge normal will be oriented towards the swept sphere centre at the collision point.
 						// However consider it pointing straight up, so that next think the player is considered to be on flat ground and hence moves in the x-y plane.
@@ -385,12 +386,17 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 				
 			}
 
-			const Vec3f displacement = doSpringRelaxation(springspheresets, /*constrain to vertical=*/onground);
-			campos += displacement;
+			// Do a fast pass of spring relaxation.  This is basically just to determine if we are standing on a ground surface.
+			Vec3f displacement = doSpringRelaxation(springspheresets, /*constrain to vertical=*/false, /*do_fast_mode=*/true);
 
 			// If we were repelled from an upwards facing surface, consider us to be on the ground.
 			if(displacement != Vec3f(0, 0, 0) && normalise(displacement).z > 0.5f)
 				onground = true;
+
+			// If we are standing on a ground surface, and not trying to move (moveimpulse = 0), then constrain to vertical movement.
+			// This prevents sliding down ramps due to relaxation pushing in the normal direction.
+			displacement = doSpringRelaxation(springspheresets, /*constrain to vertical=*/onground && (moveimpulse == Vec3f(0.f)), /*do_fast_mode=*/false);
+			campos += displacement;
 		}
 	}
 
@@ -408,12 +414,13 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, Thr
 
 
 static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& springspheresets,
-										bool constrain_to_vertical)
+										bool constrain_to_vertical, bool do_fast_mode)
 {
 	Vec3f displacement(0,0,0); // total displacement so far of spheres
 
 	int num_iters_done = 0;
-	for(int i=0; i<100; ++i)
+	const int max_num_iters = do_fast_mode ? 1 : 100;
+	for(int i=0; i<max_num_iters; ++i)
 	{	
 		num_iters_done++;
 		Vec3f force(0,0,0); // sum of forces acting on spheres from all springs
