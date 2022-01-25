@@ -93,10 +93,13 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 										bool constrain_to_vertical, bool do_fast_mode);
 
 
-UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_in_out)
+UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float raw_dtime, ThreadContext& thread_context, Vec4f& campos_in_out)
 {
 	//printVar(onground);
 	//conPrint("lastgroundnormal: " + lastgroundnormal.toString());
+
+	const float dtime = myMin(raw_dtime, 0.1f); // Put a cap on dtime, so that if there is a long pause between update() calls for some reason (e.g. loading objects), 
+	// then the user doesn't fly off into space or similar.
 
 	UpdateEvents events;
 	
