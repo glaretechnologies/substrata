@@ -828,7 +828,7 @@ int main(int argc, char *argv[])
 				parcel->admin_ids.push_back(UserID(0));
 				parcel->writer_ids.push_back(UserID(0));
 				parcel->created_time = TimeStamp::currentTime();
-				parcel->zbounds = Vec2d(-2, 25);
+				parcel->zbounds = Vec2d(-2, 50);
 
 				parcel->verts[0] = Vec2d(-275,            335 + 80); // 335 = y coord of north edge of north town belt, place 80 m above that
 				parcel->verts[1] = Vec2d(-275 + 105.0/2,  335 + 80);
@@ -847,7 +847,7 @@ int main(int argc, char *argv[])
 				parcel->admin_ids.push_back(UserID(0));
 				parcel->writer_ids.push_back(UserID(0));
 				parcel->created_time = TimeStamp::currentTime();
-				parcel->zbounds = Vec2d(-2, 25);
+				parcel->zbounds = Vec2d(-2, 50);
 
 				parcel->verts[0] = Vec2d(-275 + 105.0/2,  335 + 80); // 335 = y coord of north edge of north town belt, place 80 m above that
 				parcel->verts[1] = Vec2d(-275 + 105.0  ,  335 + 80);
