@@ -816,6 +816,49 @@ int main(int argc, char *argv[])
 			}
 		}
 
+		if(max_parcel_id.value() == 953)
+		{
+			// Make Zombot's parcels: a 105m^2 plot of land, split vertically down the middle into two plots
+			{
+				const ParcelID parcel_id(954);
+				ParcelRef parcel = new Parcel();
+				parcel->state = Parcel::State_Alive;
+				parcel->id = parcel_id;
+				parcel->owner_id = UserID(0);
+				parcel->admin_ids.push_back(UserID(0));
+				parcel->writer_ids.push_back(UserID(0));
+				parcel->created_time = TimeStamp::currentTime();
+				parcel->zbounds = Vec2d(-2, 25);
+
+				parcel->verts[0] = Vec2d(-275,            335 + 80); // 335 = y coord of north edge of north town belt, place 80 m above that
+				parcel->verts[1] = Vec2d(-275 + 105.0/2,  335 + 80);
+				parcel->verts[2] = Vec2d(-275 + 105.0/2,  335 + 80 + 105);
+				parcel->verts[3] = Vec2d(-275,            335 + 80 + 105);
+
+				server.world_state->getRootWorldState()->parcels[parcel_id] = parcel;
+				server.world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+			}
+			{
+				const ParcelID parcel_id(955);
+				ParcelRef parcel = new Parcel();
+				parcel->state = Parcel::State_Alive;
+				parcel->id = parcel_id;
+				parcel->owner_id = UserID(0);
+				parcel->admin_ids.push_back(UserID(0));
+				parcel->writer_ids.push_back(UserID(0));
+				parcel->created_time = TimeStamp::currentTime();
+				parcel->zbounds = Vec2d(-2, 25);
+
+				parcel->verts[0] = Vec2d(-275 + 105.0/2,  335 + 80); // 335 = y coord of north edge of north town belt, place 80 m above that
+				parcel->verts[1] = Vec2d(-275 + 105.0  ,  335 + 80);
+				parcel->verts[2] = Vec2d(-275 + 105.0  ,  335 + 80 + 105);
+				parcel->verts[3] = Vec2d(-275 + 105.0/2,  335 + 80 + 105);
+
+				server.world_state->getRootWorldState()->parcels[parcel_id] = parcel;
+				server.world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
+			}
+		} 
+
 
 		// Add road objects
 		if(false)
