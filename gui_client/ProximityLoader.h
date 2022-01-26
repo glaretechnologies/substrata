@@ -43,6 +43,7 @@ public:
 	~ProximityLoader();
 
 	void setLoadDistance(float new_load_distance);
+	float getLoadDistance() const { return load_distance; }
 
 	void checkAddObject(WorldObjectRef ob); // Add object it not already added
 	void removeObject(WorldObjectRef ob);
@@ -62,8 +63,7 @@ public:
 	void updateCamPos(const Vec4f& new_cam_pos);
 
 	// Sets initial camera position, doesn't issue load object callbacks (assumes no objects downloaded yet)
-	// Returns initial cell coords within load distance.
-	std::vector<Vec3<int> > setCameraPosForNewConnection(const Vec4f& initial_cam_pos);
+	void setCameraPosForNewConnection(const Vec4f& initial_cam_pos);
 
 	//----------------------------------- Diagnostics ----------------------------------------
 	std::string getDiagnostics() const;
