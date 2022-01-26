@@ -43,6 +43,18 @@ struct AnimToPlay
 AvatarGraphics
 --------------
 
+Animation system for avatars.
+
+TODO:
+
+There is an issue with jumping not playing the jumping animation immediately sometimes.
+
+This is an instance of a more general problem that stems from the way the animation transitions work, as blends from one animation (A) to another one (B).
+
+We can't currently interrupt this transition from A to B, if we suddenly want to transition to C instead.
+
+We could solve this by allowing blends of more than 2 animations, or by not blending animations but instead using the current bone positions and velocities and blending to the target positions and velocities.
+
 =====================================================================*/
 class AvatarGraphics : public ThreadSafeRefCounted
 {
