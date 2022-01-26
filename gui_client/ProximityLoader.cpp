@@ -278,23 +278,9 @@ std::string ProximityLoader::getDiagnostics() const
 
 
 // Sets initial camera position, doesn't issue load object callbacks (assumes no objects downloaded yet)
-// Returns initial cell coords within load distance.
-std::vector<Vec3<int> > ProximityLoader::setCameraPosForNewConnection(const Vec4f& initial_cam_pos)
+void ProximityLoader::setCameraPosForNewConnection(const Vec4f& initial_cam_pos)
 {
-	const Vec4i begin = ob_grid.bucketIndicesForPoint(initial_cam_pos - Vec4f(load_distance, load_distance, load_distance, 0));
-	const Vec4i end   = ob_grid.bucketIndicesForPoint(initial_cam_pos + Vec4f(load_distance, load_distance, load_distance, 0));
-
-	std::vector<Vec3<int> > res;
-
-	for(int z = begin[2]; z <= end[2]; ++z)
-	for(int y = begin[1]; y <= end[1]; ++y)
-	for(int x = begin[0]; x <= end[0]; ++x)
-	{
-		const Vec3<int> cell_coords(x, y, z);
-		res.push_back(cell_coords);
-	}
-
-	return res;
+	this->last_cam_pos = initial_cam_pos;
 }
 
 

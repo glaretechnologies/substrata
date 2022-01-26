@@ -1457,6 +1457,50 @@ void WorkerThread::doRun()
 
 					break;
 				}
+				case Protocol::QueryObjectsInAABB: // Client wants to query objects in a particular AABB
+				{
+					const float lower_x = msg_buffer.readFloat();
+					const float lower_y = msg_buffer.readFloat();
+					const float lower_z = msg_buffer.readFloat();
+					const float upper_x = msg_buffer.readFloat();
+					const float upper_y = msg_buffer.readFloat();
+					const float upper_z = msg_buffer.readFloat();
+
+					const js::AABBox aabb(Vec4f(lower_x, lower_y, lower_z, 1.f), Vec4f(upper_x, upper_y, upper_z, 1.f));
+					
+					conPrint("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
+
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					int num_obs_written = 0;
+
+					{ // Lock scope
+						Lock lock(world_state->mutex);
+						for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+						{
+							const WorldObject* ob = it->second.ptr();
+
+							// See if the object is in any of the cell AABBs
+							if(aabb.contains(ob->pos.toVec4fPoint()))
+							{
+								// Create ObjectInitialSend packet
+								initPacket(scratch_packet, Protocol::ObjectInitialSend);
+								ob->writeToNetworkStream(scratch_packet);
+								updatePacketLengthField(scratch_packet);
+
+								packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append to packet
+
+								num_obs_written++;
+							}
+						}
+					} // End lock scope
+
+					conPrint("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+
+					socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+					socket->flush();
+
+					break;
+				}
 				case Protocol::QueryParcels:
 					{
 						conPrint("QueryParcels");

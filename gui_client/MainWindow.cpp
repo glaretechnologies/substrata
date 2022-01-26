@@ -7059,19 +7059,21 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 	proximity_loader.physics_world = physics_world.ptr();
 
-	const std::vector<Vec3<int> > initial_cells = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getPosition().toVec4fPoint());
+	proximity_loader.setCameraPosForNewConnection(this->cam_controller.getPosition().toVec4fPoint());
 
-	// Send QueryObjects for initial cells to server
+	// Send QueryObjectsInAABB for initial volume around camera to server
 	{
-		// Make QueryObjects packet and enqueue to send
-		initPacket(scratch_packet, Protocol::QueryObjects);
-		scratch_packet.writeUInt32((uint32)initial_cells.size()); // Num cells to query
-		for(size_t i=0; i<initial_cells.size(); ++i)
-		{
-			scratch_packet.writeInt32(initial_cells[i].x);
-			scratch_packet.writeInt32(initial_cells[i].y);
-			scratch_packet.writeInt32(initial_cells[i].z);
-		}
+		const Vec3d lower = this->cam_controller.getPosition() - Vec3d(proximity_loader.getLoadDistance());
+		const Vec3d upper = this->cam_controller.getPosition() + Vec3d(proximity_loader.getLoadDistance());
+
+		// Make QueryObjectsInAABB packet and enqueue to send
+		initPacket(scratch_packet, Protocol::QueryObjectsInAABB);
+		scratch_packet.writeFloat((float)lower.x);
+		scratch_packet.writeFloat((float)lower.y);
+		scratch_packet.writeFloat((float)lower.z);
+		scratch_packet.writeFloat((float)upper.x);
+		scratch_packet.writeFloat((float)upper.y);
+		scratch_packet.writeFloat((float)upper.z);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}

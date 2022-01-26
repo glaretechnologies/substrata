@@ -66,6 +66,7 @@ const uint32 DestroyObject			= 3005; // Client wants to destroy an object.
 
 const uint32 QueryObjects			= 3020; // Client wants to query objects in certain grid cells
 const uint32 ObjectInitialSend		= 3021;
+const uint32 QueryObjectsInAABB		= 3022; // Client wants to query objects in a particular AABB
 
 
 const uint32 ParcelCreated			= 3100;
