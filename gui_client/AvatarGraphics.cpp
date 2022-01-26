@@ -294,10 +294,11 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 			// If we are currently transitioning, don't change next
 			if(cur_time >= skinned_gl_ob->transition_start_time && cur_time < skinned_gl_ob->transition_end_time)
 			{
+				// conPrint("Currently transitioning, not changing next state.");
 			}
 			else
 			{
-				//conPrint("Started transitioning to anim " + skinned_gl_ob->mesh_data->animation_data.animations[new_anim_i]->name + " transition duration: " + doubleToStringNSigFigs(new_anim_transition_duration, 3));
+				// conPrint("Started transitioning to anim " + skinned_gl_ob->mesh_data->animation_data.animations[new_anim_i]->name + " transition duration: " + doubleToStringNSigFigs(new_anim_transition_duration, 3));
 
 				skinned_gl_ob->next_anim_i = new_anim_i;
 
