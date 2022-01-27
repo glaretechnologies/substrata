@@ -19,24 +19,22 @@ GestureUI
 ---------
 
 =====================================================================*/
-class GestureUI : public GLUICallbackHandler, public GLUITextRendererCallback
+class GestureUI : public GLUICallbackHandler
 {
 public:
 	GestureUI();
 	~GestureUI();
 
-	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_);
+	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
 	void destroy();
 
 	void think();
 
-	bool handleMouseClick(const Vec2f& gl_coords);
-	bool handleMouseMoved(const Vec2f& gl_coords);
+	//bool handleMouseClick(const Vec2f& gl_coords);
+	//bool handleMouseMoved(const Vec2f& gl_coords);
 	void viewportResized(int w, int h);
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
-
-	virtual OpenGLTextureRef makeToolTipTexture(const std::string& text) override; // From GLUITextRendererCallback
 
 	// Get the current gesture being performed, according to the UI state (i.e. which button is toggled).
 	// Returns true if a gesture is being performed, false otherwise.

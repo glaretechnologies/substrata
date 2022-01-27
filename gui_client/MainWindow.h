@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "UndoBuffer.h"
 #include "LogWindow.h"
 #include "GestureUI.h"
+#include "ObInfoUI.h"
 #include "DownloadingResourceQueue.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
@@ -69,7 +70,7 @@ struct DownloadingResourceInfo
 };
 
 
-class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput
+class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput, public GLUITextRendererCallback
 {
 	Q_OBJECT
 public:
@@ -157,7 +158,7 @@ private slots:;
 	void sendLightmapNeededFlagsSlot();
 	void handleURL(const QUrl &url);
 private:
-	bool nativeEvent(const QByteArray& event_type, void* message, long* result);
+	bool nativeEvent(const QByteArray& event_type, void* message, long/*qintptr*/* result);
 	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
@@ -165,9 +166,10 @@ private:
 	void deleteSelectedObject();
 	void deselectObject();
 	void deselectParcel();
+	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
 public:
-	OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
+	virtual OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
 private:
 	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out);
 	void loadModelForObject(WorldObject* ob);
@@ -495,7 +497,9 @@ public:
 	UID last_restored_ob_uid_in_edit;
 
 
+	GLUIRef gl_ui;
 	GestureUI gesture_ui;
+	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
 
 	bool running_destructor;
 
@@ -514,4 +518,8 @@ public:
 	std::map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
 
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
+
+	// QImage webview_qimage;
+
+	Reference<GLObject> mouseover_selected_gl_ob;
 };

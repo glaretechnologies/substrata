@@ -12,6 +12,9 @@ Copyright Glare Technologies Limited 2020 -
 #pragma warning(push, 0) // Disable warnings
 #endif
 #include <QtOpenGL/QGLWidget>
+//#include <QtOpenGLWidgets/QOpenGLWidget>
+//#include <QtWebEngineQuick/qtwebenginequickglobal.h>
+//#include <QtWebEngineWidgets/QWebEngineView>
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
@@ -58,7 +61,8 @@ Copyright Glare Technologies Limited 2020 -
 #include <QtGui/QImageWriter>
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QSplashScreen>
-#include <QtWidgets/QShortcut>
+//#include <QtGui/QShortcut>
+//#include <QtGui/QPainter>
 #include <QtCore/QTimer>
 #include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
@@ -348,6 +352,8 @@ static const char* default_help_info_message = "Use the W/A/S/D keys and arrow k
 	"Double-click an object to select it.";
 
 
+//static QWebEngineView* webview = NULL;//TEMP
+
 void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
@@ -443,6 +449,16 @@ void MainWindow::initialise()
 		screenshot_command_socket->setUseNetworkByteOrder(false);
 		conPrint("Got screenshot command connection.");
 	}
+
+#if 0
+	{
+		webview = new QWebEngineView(/*ui->diagnosticsDockWidgetContents*/);
+		webview->setAttribute(Qt::WA_DontShowOnScreen);
+		webview->setFixedSize(800, 600);
+		webview->load(QUrl("https://youtu.be/Djr71gUtzLM&autoplay=1"));
+		webview->show();
+	}
+#endif
 }
 
 
@@ -475,13 +491,17 @@ void MainWindow::afterGLInitInitialise()
 #endif
 
 
-	gesture_ui.create(ui->glWidget->opengl_engine, this);
+	gl_ui = new GLUI();
+	gl_ui->create(ui->glWidget->opengl_engine, /*text_renderer=*/this);
+	gesture_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
+
+	ob_info_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
 	if(!settings->contains(MainOptionsDialog::MSAAKey())) // If the MSAA key has not been set:
 	{
-		const int device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
+		const auto device_pixel_ratio = ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
 		const bool is_retina = device_pixel_ratio > 1;
 
 		// We won't use MSAA by default in two cases:
@@ -513,6 +533,12 @@ MainWindow::~MainWindow()
 	if(biome_manager) delete biome_manager;
 
 	gesture_ui.destroy();
+
+	if(gl_ui.nonNull())
+	{
+		gl_ui->destroy();
+		gl_ui = NULL;
+	}
 
 #if !defined(_WIN32)
 	QDesktopServices::unsetUrlHandler("sub"); // Remove 'this' as an URL handler.
@@ -2516,8 +2542,55 @@ struct CloserToCamComparator
 };
 
 
+
+//static GLObjectRef webview_gl_ob; // TEMP
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
+	//-------------------------------------------------------------------------------------------
+#if 0
+	if(webview_qimage.size() != webview->size())
+	{
+		webview_qimage = QImage(webview->size(), QImage::Format_RGB888/*Format_RGB32*/);
+	}
+
+	// https://doc.qt.io/qt-6/qwebengineview.html
+	QPainter painter(&webview_qimage);
+	webview->render(&painter);
+	painter.end();
+
+
+	const int W = webview->size().width();
+	const int H = webview->size().height();
+
+	if(webview_gl_ob.isNull())
+	{
+		webview_gl_ob = new GLObject();
+		webview_gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+		webview_gl_ob->materials.resize(1);
+		webview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, ui->glWidget->opengl_engine.ptr(), OpenGLTexture::Format_SRGB_Uint8, OpenGLTexture::Filtering_Bilinear);
+		webview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, 2);
+
+		ui->glWidget->opengl_engine->addObject(webview_gl_ob);
+	}
+
+	// Make nametag texture
+	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
+
+	// Copy to map
+	for(int y=0; y<H; ++y)
+	{
+		const QRgb* line = (const QRgb*)webview_qimage.scanLine(y);
+		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
+	}
+
+	webview_gl_ob->materials[0].albedo_texture->load(W, H, /*row stride B=*/W * 3, ArrayRef<uint8>(map->getData(), map->getDataSize()));
+#endif
+	//-------------------------------------------------------------------------------------------
+
+
+
+
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
@@ -2549,7 +2622,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			msg += ui->glWidget->opengl_engine->getDiagnostics() + "\n";
 			msg += "GL widget valid: " + boolToString(ui->glWidget->isValid()) + "\n";
-			msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
+			//msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
 			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
 			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
 		}
@@ -4781,6 +4854,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	ui->glWidget->makeCurrent();
 	ui->glWidget->updateGL();
+	//ui->glWidget->update();
 
 	if(need_physics_world_rebuild)
 	{
@@ -6858,10 +6932,15 @@ void MainWindow::sendLightmapNeededFlagsSlot()
 
 void MainWindow::URLChangedSlot()
 {
-	// Set the play position to the coordinates in the URL
+	const std::string URL = this->url_widget->getURL();
+	visitSubURL(URL);
+}
+
+
+void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
+{
 	try
 	{
-		const std::string URL = this->url_widget->getURL();
 		URLParseResults parse_res = URLParser::parseURL(URL);
 
 		const std::string hostname = parse_res.hostname;
@@ -7444,9 +7523,15 @@ static Vec2f GLCoordsForGLWidgetPos(MainWindow* main_window, const Vec2f widget_
 	const int vp_width  = main_window->ui->glWidget->opengl_engine->getViewPortWidth();
 	const int vp_height = main_window->ui->glWidget->opengl_engine->getViewPortHeight();
 
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	const double device_pixel_ratio = main_window->ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
+	const int use_vp_width  = (int)(vp_width  / device_pixel_ratio);
+	const int use_vp_height = (int)(vp_height / device_pixel_ratio);
+#else
 	const int device_pixel_ratio = main_window->ui->glWidget->devicePixelRatio(); // For retina screens this is 2, meaning the gl viewport width is in physical pixels, of which have twice the density of qt pixel coordinates.
 	const int use_vp_width  = vp_width  / device_pixel_ratio;
 	const int use_vp_height = vp_height / device_pixel_ratio;
+#endif
 
 	return Vec2f(
 		 (widget_pos.x - use_vp_width /2) / (use_vp_width /2),
@@ -7458,11 +7543,12 @@ static Vec2f GLCoordsForGLWidgetPos(MainWindow* main_window, const Vec2f widget_
 // This is emitted from GlWidget::mouseReleaseEvent().
 void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 {
-	{
-		const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
-		const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
-		const bool accepted = gesture_ui.handleMouseClick(gl_coords);
+	if(gl_ui.nonNull())
+	{
+		const bool accepted = gl_ui->handleMouseClick(gl_coords);
 		if(accepted)
 		{
 			e->accept();
@@ -7736,11 +7822,12 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 {
 	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
 
-	{
-		const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
-		const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
-		const bool accepted = gesture_ui.handleMouseClick(gl_coords);
+	if(gl_ui.nonNull())
+	{
+		const bool accepted = gl_ui->handleMouseClick(gl_coords);
 		if(accepted)
 		{
 			e->accept();
@@ -7838,15 +7925,77 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 	if(ui->glWidget->opengl_engine.isNull() || !ui->glWidget->opengl_engine->initSucceeded())
 		return;
 
-	{
-		const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
-		const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
+	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
+	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
 
-		const bool accepted = gesture_ui.handleMouseMoved(gl_coords);
+	if(gl_ui.nonNull())
+	{
+		const bool accepted = gl_ui->handleMouseMoved(gl_coords);
 		if(accepted)
 		{
 			e->accept();
 			return;
+		}
+	}
+
+
+	// New for object mouseover hyperlink showing:
+	if((e->buttons() & Qt::LeftButton) == 0) // If left mouse button is not pressed down:
+	{
+		// Trace ray through scene
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
+
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+
+		bool show_hyperlink_ui = false;
+		if(results.hit_object)
+		{
+			if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
+			{
+				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+				if(!ob->target_url.empty())
+				{
+					// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
+					const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
+
+					if(!selected_editable_ob)
+					{
+						ob_info_ui.showHyperLink(ob->target_url, gl_coords);
+
+						// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
+						if(this->mouseover_selected_gl_ob.nonNull())
+						{
+							if(ob != this->selected_ob.ptr()) 
+								ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
+							this->mouseover_selected_gl_ob = NULL;
+						}
+
+						// Add outline around object
+						if(ob->opengl_engine_ob.nonNull())
+						{
+							this->mouseover_selected_gl_ob = ob->opengl_engine_ob;
+							ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+						}
+						show_hyperlink_ui = true;
+					}
+				}
+			}
+		}
+
+		if(!show_hyperlink_ui)
+		{
+			// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
+			if(this->mouseover_selected_gl_ob.nonNull())
+			{
+				const bool mouseover_is_selected_ob = this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull() && (this->selected_ob->opengl_engine_ob == this->mouseover_selected_gl_ob);
+				if(!mouseover_is_selected_ob)
+					ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
+				this->mouseover_selected_gl_ob = NULL;
+			}
+			ob_info_ui.hideHyperLink();
 		}
 	}
 
@@ -8245,6 +8394,37 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 			deleteSelectedObject();
 		}
 	}
+	else if(e->key() == Qt::Key::Key_E)
+	{
+		if(!ob_info_ui.getCurrentlyShowingHyperlink().empty())
+		{
+			const std::string url = ob_info_ui.getCurrentlyShowingHyperlink();
+			if(StringUtils::containsString(url, "://"))
+			{
+				// URL already has protocol prefix
+				const std::string protocol = url.substr(0, url.find("://", 0));
+				if(protocol == "http" || protocol == "https")
+				{
+					QDesktopServices::openUrl(QtUtils::toQString(url));
+				}
+				else if(protocol == "sub")
+				{
+					visitSubURL(url);
+				}
+				else
+				{
+					// Don't open this URL, might be something potentially unsafe like a file on disk
+					QErrorMessage m;
+					m.showMessage("This URL is potentially unsafe and will not be opened.");
+					m.exec();
+				}
+			}
+			else
+			{
+				QDesktopServices::openUrl(QtUtils::toQString("http://" + url));
+			}
+		}
+	}
 	else if(e->key() == Qt::Key::Key_F)
 	{
 		ui->actionFly_Mode->toggle();
@@ -8288,10 +8468,13 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		}
 		else if(e->key() == Qt::Key::Key_E)
 		{
-			if(!this->selected_ob_picked_up)
-				pickUpSelectedObject();
-			else
-				dropSelectedObject();
+			if(ob_info_ui.getCurrentlyShowingHyperlink().empty()) // If we didn't use the E-press to open a hyperlink:
+			{
+				if(!this->selected_ob_picked_up)
+					pickUpSelectedObject();
+				else
+					dropSelectedObject();
+			}
 		}
 	}
 
@@ -8329,6 +8512,17 @@ void MainWindow::glWidgetViewportResized(int w, int h)
 void MainWindow::cameraUpdated()
 {
 	ui->indigoView->cameraUpdated(this->cam_controller);
+
+	// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
+	if(this->mouseover_selected_gl_ob.nonNull())
+	{
+		const bool mouseover_is_selected_ob = this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull() && (this->selected_ob->opengl_engine_ob == this->mouseover_selected_gl_ob);
+		if(!mouseover_is_selected_ob) 
+			ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
+
+		this->mouseover_selected_gl_ob = NULL;
+	}
+	ob_info_ui.hideHyperLink();
 }
 
 
@@ -8823,7 +9017,7 @@ void MainWindow::handleURL(const QUrl &url)
 
 // Override nativeEvent() so we can handle WM_COPYDATA messages from other Substrata processes.
 // See https://www.programmersought.com/article/216036067/
-bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, long* result)
+bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, long/*qintptr*/* result)
 {
 #if defined(_WIN32)
 	if(event_type == "windows_generic_MSG")
@@ -8898,6 +9092,12 @@ public:
 int main(int argc, char *argv[])
 {
 	QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
+
+	//QtWebEngine::initialize();
+//	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+//	QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+//	QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+//	QtWebEngineQuick::initialize();
 
 	// Note that this is deliberately constructed outside of the try..catch block below, because QErrorMessage crashes when displayed if
 	// GuiClientApplication has been destroyed. (stupid qt).
