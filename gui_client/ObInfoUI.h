@@ -1,7 +1,7 @@
 /*=====================================================================
-GestureUI.h
+ObInfoUI.h
 -----------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
@@ -9,26 +9,33 @@ Copyright Glare Technologies Limited 2021 -
 #include <opengl/ui/GLUI.h>
 #include <opengl/ui/GLUIButton.h>
 #include <opengl/ui/GLUICallbackHandler.h>
+#include <opengl/ui/GLUITextView.h>
 
 
 class MainWindow;
 
 
 /*=====================================================================
-GestureUI
+ObInfoUI
 ---------
-
+For object info and hyperlinks etc.
 =====================================================================*/
-class GestureUI : public GLUICallbackHandler
+class ObInfoUI : public GLUICallbackHandler
 {
 public:
-	GestureUI();
-	~GestureUI();
+	ObInfoUI();
+	~ObInfoUI();
 
 	void create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_);
 	void destroy();
 
 	void think();
+
+	void showHyperLink(const std::string& URL, const Vec2f& gl_coords);
+
+	void hideHyperLink();
+
+	std::string getCurrentlyShowingHyperlink() const; // Returns empty string if not showing currently
 
 	//bool handleMouseClick(const Vec2f& gl_coords);
 	//bool handleMouseMoved(const Vec2f& gl_coords);
@@ -36,26 +43,14 @@ public:
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
 
-	// Get the current gesture being performed, according to the UI state (i.e. which button is toggled).
-	// Returns true if a gesture is being performed, false otherwise.
-	bool getCurrentGesturePlaying(std::string& gesture_name_out, bool& animate_head_out, bool& loop_out);
-
-	void stopAnyGesturePlaying();
-
-	static bool animateHead(const std::string& gesture);
-	static bool loopAnim(const std::string& gesture);
-
 private:
 	void updateWidgetPositions();
 //public:
 	MainWindow* main_window;
 
-	std::vector<GLUIButtonRef> gesture_buttons;
+	//GLUIButtonRef selfie_button;
 
-	GLUIButtonRef left_tab_button;
-	GLUIButtonRef right_tab_button;
-
-	GLUIButtonRef selfie_button;
+	GLUITextViewRef info_text_view;
 
 	bool gestures_visible;
 
@@ -65,4 +60,6 @@ private:
 
 	Timer timer;
 	double untoggle_button_time;
+
+	std::string currently_showing_url;
 };

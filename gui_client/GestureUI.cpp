@@ -66,15 +66,13 @@ bool GestureUI::loopAnim(const std::string& gesture)
 }
 
 
-void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_)
+void GestureUI::create(Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, GLUIRef gl_ui_)
 {
 	opengl_engine = opengl_engine_;
 	main_window = main_window_;
+	gl_ui = gl_ui_;
 
 	gestures_visible = main_window->settings->value("GestureUI/gestures_visible", /*default val=*/false).toBool();
-
-	gl_ui = new GLUI();
-	gl_ui->create(opengl_engine, this);
 
 	const float min_max_y = GLUI::getViewportMinMaxY(opengl_engine);
 
@@ -142,11 +140,11 @@ void GestureUI::destroy()
 	}
 	gesture_buttons.resize(0);
 
-	if(gl_ui.nonNull())
+	/*if(gl_ui.nonNull())
 	{
 		gl_ui->destroy();
 		gl_ui = NULL;
-	}
+	}*/
 }
 
 
@@ -166,22 +164,22 @@ void GestureUI::think()
 }
 
 
-bool GestureUI::handleMouseClick(const Vec2f& gl_coords)
-{
-	if(gl_ui.nonNull())
-		return gl_ui->handleMouseClick(gl_coords);
-	else
-		return false;
-}
-
-
-bool GestureUI::handleMouseMoved(const Vec2f& gl_coords)
-{
-	if(gl_ui.nonNull())
-		return gl_ui->handleMouseMoved(gl_coords);
-	else
-		return false;
-}
+//bool GestureUI::handleMouseClick(const Vec2f& gl_coords)
+//{
+//	if(gl_ui.nonNull())
+//		return gl_ui->handleMouseClick(gl_coords);
+//	else
+//		return false;
+//}
+//
+//
+//bool GestureUI::handleMouseMoved(const Vec2f& gl_coords)
+//{
+//	if(gl_ui.nonNull())
+//		return gl_ui->handleMouseMoved(gl_coords);
+//	else
+//		return false;
+//}
 
 
 void GestureUI::updateWidgetPositions()
@@ -328,15 +326,4 @@ void GestureUI::stopAnyGesturePlaying()
 		gesture_buttons[z]->setToggled(false);
 
 	untoggle_button_time = -1;
-}
-
-
-OpenGLTextureRef GestureUI::makeToolTipTexture(const std::string& text)
-{
-	if(main_window)
-	{
-		return main_window->makeToolTipTexture(text);
-	}
-	else
-		return NULL;
 }
