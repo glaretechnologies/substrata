@@ -7138,21 +7138,18 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 	proximity_loader.physics_world = physics_world.ptr();
 
-	proximity_loader.setCameraPosForNewConnection(this->cam_controller.getPosition().toVec4fPoint());
+	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getPosition().toVec4fPoint());
 
 	// Send QueryObjectsInAABB for initial volume around camera to server
 	{
-		const Vec3d lower = this->cam_controller.getPosition() - Vec3d(proximity_loader.getLoadDistance());
-		const Vec3d upper = this->cam_controller.getPosition() + Vec3d(proximity_loader.getLoadDistance());
-
 		// Make QueryObjectsInAABB packet and enqueue to send
 		initPacket(scratch_packet, Protocol::QueryObjectsInAABB);
-		scratch_packet.writeFloat((float)lower.x);
-		scratch_packet.writeFloat((float)lower.y);
-		scratch_packet.writeFloat((float)lower.z);
-		scratch_packet.writeFloat((float)upper.x);
-		scratch_packet.writeFloat((float)upper.y);
-		scratch_packet.writeFloat((float)upper.z);
+		scratch_packet.writeFloat((float)initial_aabb.min_[0]);
+		scratch_packet.writeFloat((float)initial_aabb.min_[1]);
+		scratch_packet.writeFloat((float)initial_aabb.min_[2]);
+		scratch_packet.writeFloat((float)initial_aabb.max_[0]);
+		scratch_packet.writeFloat((float)initial_aabb.max_[1]);
+		scratch_packet.writeFloat((float)initial_aabb.max_[2]);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
