@@ -278,11 +278,18 @@ std::string ProximityLoader::getDiagnostics() const
 
 
 // Sets initial camera position, doesn't issue load object callbacks (assumes no objects downloaded yet)
-void ProximityLoader::setCameraPosForNewConnection(const Vec4f& initial_cam_pos)
+js::AABBox ProximityLoader::setCameraPosForNewConnection(const Vec4f& initial_cam_pos)
 {
 	this->last_cam_pos = initial_cam_pos;
-}
 
+	// The initial AABB load distance needs to be rounded up to CELL_WIDTH, otherwise we will miss objects around the edge of the initial AABB when starting to load adjacent cells.
+	const float use_load_dist = Maths::roundUpToMultipleFloating(load_distance, CELL_WIDTH);
+
+	return js::AABBox(
+		initial_cam_pos - Vec4f(use_load_dist, use_load_dist, use_load_dist, 0),
+		initial_cam_pos + Vec4f(use_load_dist, use_load_dist, use_load_dist, 0)
+	);
+}
 
 
 #if BUILD_TESTS
