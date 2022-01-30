@@ -63,7 +63,8 @@ public:
 	void updateCamPos(const Vec4f& new_cam_pos);
 
 	// Sets initial camera position, doesn't issue load object callbacks (assumes no objects downloaded yet)
-	void setCameraPosForNewConnection(const Vec4f& initial_cam_pos);
+	// Returns query AABB
+	js::AABBox setCameraPosForNewConnection(const Vec4f& initial_cam_pos);
 
 	//----------------------------------- Diagnostics ----------------------------------------
 	std::string getDiagnostics() const;
