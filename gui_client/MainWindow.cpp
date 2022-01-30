@@ -6083,7 +6083,7 @@ void MainWindow::on_actionThird_Person_Camera_triggered()
 	settings->setValue("mainwindow/thirdPersonCamera", QVariant(ui->actionThird_Person_Camera->isChecked()));
 
 	// Add or remove our avatar opengl model.
-	if(this->cam_controller.thirdPersonEnabled())
+	if(this->cam_controller.thirdPersonEnabled()) // If we just enabled third person camera:
 	{
 		// Add our avatar model. Do this by marking it as dirty.
 		Lock lock(this->world_state->mutex);
@@ -6112,6 +6112,9 @@ void MainWindow::on_actionThird_Person_Camera_triggered()
 					ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
 			}
 		}
+
+		// Turn off selfie mode if it was enabled.
+		gesture_ui.turnOffSelfieMode(); // calls setSelfieModeEnabled(false);
 	}
 }
 
@@ -9000,8 +9003,12 @@ void MainWindow::setSelfieModeEnabled(bool enabled)
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 	this->cam_controller.setSelfieModeEnabled(cur_time, enabled);
 
-	if(!ui->actionThird_Person_Camera->isChecked())
-		ui->actionThird_Person_Camera->trigger();
+	if(enabled)
+	{
+		// Enable third-person camera view if not already enabled.
+		if(!ui->actionThird_Person_Camera->isChecked())
+			ui->actionThird_Person_Camera->trigger();
+	}
 }
 
 

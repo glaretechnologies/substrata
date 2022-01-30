@@ -327,3 +327,10 @@ void GestureUI::stopAnyGesturePlaying()
 
 	untoggle_button_time = -1;
 }
+
+
+void GestureUI::turnOffSelfieMode()
+{
+	selfie_button->setToggled(false);
+	main_window->setSelfieModeEnabled(selfie_button->toggled);
+}
