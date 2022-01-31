@@ -32,6 +32,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <Parser.h>
 #include <FileUtils.h>
 #include <MemMappedFile.h>
+#include <openssl/err.h>
 
 
 static const bool VERBOSE = false;
@@ -713,22 +714,18 @@ void WorkerThread::doRun()
 		if(connection_type == Protocol::ConnectionTypeUploadResource)
 		{
 			handleResourceUploadConnection();
-			return;
 		}
 		else if(connection_type == Protocol::ConnectionTypeDownloadResources)
 		{
 			handleResourceDownloadConnection();
-			return;
 		}
 		else if(connection_type == Protocol::ConnectionTypeScreenshotBot)
 		{
 			handleScreenshotBotConnection();
-			return;
 		}
 		else if(connection_type == Protocol::ConnectionTypeEthBot)
 		{
 			handleEthBotConnection();
-			return;
 		}
 		else if(connection_type == Protocol::ConnectionTypeUpdates)
 		{
@@ -852,483 +849,404 @@ void WorkerThread::doRun()
 				packet.writeUInt32(Protocol::InitialStateSent);
 				socket->writeData(packet.buf.data(), packet.buf.size());
 			}*/
-		}
-
-		assert(cur_world_state.nonNull());
 
 
-		socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
+			assert(cur_world_state.nonNull());
+
+
+			socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
 		
-		while(1) // write to / read from socket loop
-		{
-			// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
-			if(VERBOSE) conPrint("WorkerThread: checking for pending data to send...");
-
-			// We don't want to do network writes while holding the data_to_send_mutex.  So copy to temp_data_to_send.
+			while(1) // write to / read from socket loop
 			{
-				Lock lock(data_to_send_mutex);
-				temp_data_to_send = data_to_send;
-				data_to_send.clear();
-			}
+				// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
+				if(VERBOSE) conPrint("WorkerThread: checking for pending data to send...");
 
-			if(temp_data_to_send.nonEmpty() && (connection_type == Protocol::ConnectionTypeUpdates))
-			{
-				socket->writeData(temp_data_to_send.data(), temp_data_to_send.size());
-				socket->flush();
-				temp_data_to_send.clear();
-			}
+				// We don't want to do network writes while holding the data_to_send_mutex.  So copy to temp_data_to_send.
+				{
+					Lock lock(data_to_send_mutex);
+					temp_data_to_send = data_to_send;
+					data_to_send.clear();
+				}
+
+				if(temp_data_to_send.nonEmpty() && (connection_type == Protocol::ConnectionTypeUpdates))
+				{
+					socket->writeData(temp_data_to_send.data(), temp_data_to_send.size());
+					socket->flush();
+					temp_data_to_send.clear();
+				}
 
 
-			if(logged_in_user_is_lightmapper_bot)
-				server->world_state->last_lightmapper_bot_contact_time = TimeStamp::currentTime(); // bit of a hack
+				if(logged_in_user_is_lightmapper_bot)
+					server->world_state->last_lightmapper_bot_contact_time = TimeStamp::currentTime(); // bit of a hack
 
 
 #if defined(_WIN32) || defined(OSX)
-			if(socket->readable(0.05)) // If socket has some data to read from it:
+				if(socket->readable(0.05)) // If socket has some data to read from it:
 #else
-			if(socket->readable(event_fd)) // Block until either the socket is readable or the event fd is signalled, which means we have data to write.
+				if(socket->readable(event_fd)) // Block until either the socket is readable or the event fd is signalled, which means we have data to write.
 #endif
-			{
-				// Read msg type and length
-				uint32 msg_type_and_len[2];
-				socket->readData(msg_type_and_len, sizeof(uint32) * 2);
-				const uint32 msg_type = msg_type_and_len[0];
-				const uint32 msg_len = msg_type_and_len[1]; // Length of message, including the message type and length fields.
-
-				if((msg_len < sizeof(uint32) * 2) || (msg_len > 1000000))
-					throw glare::Exception("Invalid message size: " + toString(msg_len));
-
-				// conPrint("WorkerThread: Read message header: id: " + toString(msg_type) + ", len: " + toString(msg_len));
-
-				// Read entire message
-				msg_buffer.buf.resizeNoCopy(msg_len);
-				msg_buffer.read_index = sizeof(uint32) * 2;
-
-				socket->readData(msg_buffer.buf.data() + sizeof(uint32) * 2, msg_len - sizeof(uint32) * 2); // Read rest of message, store in msg_buffer.
-
-				switch(msg_type)
 				{
-				case Protocol::AvatarTransformUpdate:
+					// Read msg type and length
+					uint32 msg_type_and_len[2];
+					socket->readData(msg_type_and_len, sizeof(uint32) * 2);
+					const uint32 msg_type = msg_type_and_len[0];
+					const uint32 msg_len = msg_type_and_len[1]; // Length of message, including the message type and length fields.
+
+					if((msg_len < sizeof(uint32) * 2) || (msg_len > 1000000))
+						throw glare::Exception("Invalid message size: " + toString(msg_len));
+
+					// conPrint("WorkerThread: Read message header: id: " + toString(msg_type) + ", len: " + toString(msg_len));
+
+					// Read entire message
+					msg_buffer.buf.resizeNoCopy(msg_len);
+					msg_buffer.read_index = sizeof(uint32) * 2;
+
+					socket->readData(msg_buffer.buf.data() + sizeof(uint32) * 2, msg_len - sizeof(uint32) * 2); // Read rest of message, store in msg_buffer.
+
+					switch(msg_type)
 					{
-						//conPrint("AvatarTransformUpdate");
-						const UID avatar_uid = readUIDFromStream(msg_buffer);
-						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
-						const Vec3f rotation = readVec3FromStream<float>(msg_buffer);
-						const uint32 anim_state = msg_buffer.readUInt32();
-
-						// Look up existing avatar in world state
+					case Protocol::AvatarTransformUpdate:
 						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->avatars.find(avatar_uid);
-							if(res != cur_world_state->avatars.end())
-							{
-								Avatar* avatar = res->second.getPointer();
-								avatar->pos = pos;
-								avatar->rotation = rotation;
-								avatar->anim_state = anim_state;
-								avatar->transform_dirty = true;
+							//conPrint("AvatarTransformUpdate");
+							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+							const Vec3f rotation = readVec3FromStream<float>(msg_buffer);
+							const uint32 anim_state = msg_buffer.readUInt32();
 
-								//conPrint("updated avatar transform");
-							}
-						}
-						break;
-					}
-				case Protocol::AvatarPerformGesture:
-					{
-						//conPrint("AvatarPerformGesture");
-						const UID avatar_uid = readUIDFromStream(msg_buffer);
-						const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
-
-						//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
-
-						if(client_user.isNull())
-						{
-							writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
-						}
-						else
-						{
-							// Enqueue AvatarPerformGesture messages to worker threads to send
-							initPacket(scratch_packet, Protocol::AvatarPerformGesture);
-							writeToStream(avatar_uid, scratch_packet);
-							scratch_packet.writeStringLengthFirst(gesture_name);
-							updatePacketLengthField(scratch_packet);
-
-							enqueuePacketToBroadcast(scratch_packet, server);
-						}
-						break;
-					}
-				case Protocol::AvatarStopGesture:
-					{
-						//conPrint("AvatarStopGesture");
-						const UID avatar_uid = readUIDFromStream(msg_buffer);
-
-						if(client_user.isNull())
-						{
-							writeErrorMessageToClient(socket, "You must be logged in to stop a gesture.");
-						}
-						else
-						{
-							// Enqueue AvatarStopGesture messages to worker threads to send
-							initPacket(scratch_packet, Protocol::AvatarStopGesture);
-							writeToStream(avatar_uid, scratch_packet);
-							updatePacketLengthField(scratch_packet);
-
-							enqueuePacketToBroadcast(scratch_packet, server);
-						}
-						break;
-				}
-				case Protocol::AvatarFullUpdate:
-					{
-						conPrint("Protocol::AvatarFullUpdate");
-						const UID avatar_uid = readUIDFromStream(msg_buffer);
-
-						Avatar temp_avatar;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
-
-						// Look up existing avatar in world state
-						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->avatars.find(avatar_uid);
-							if(res != cur_world_state->avatars.end())
-							{
-								Avatar* avatar = res->second.getPointer();
-								avatar->copyNetworkStateFrom(temp_avatar);
-								avatar->other_dirty = true;
-
-
-								// Store avatar settings in the user data
-								if(client_user.nonNull())
-								{
-									const bool avatar_settings_changed = !(client_user->avatar_settings == avatar->avatar_settings);
-
-									if(avatar_settings_changed)
-									{
-										client_user->avatar_settings = avatar->avatar_settings;
-
-										world_state->addUserAsDBDirty(client_user);
-
-										conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
-									}
-								}
-
-								//conPrint("updated avatar transform");
-							}
-						}
-
-						if(!temp_avatar.avatar_settings.model_url.empty())
-							sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
-
-						// Process resources
-						std::set<DependencyURL> URLs;
-						temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
-						for(auto it = URLs.begin(); it != URLs.end(); ++it)
-							sendGetFileMessageIfNeeded(it->URL);
-
-						break;
-					}
-				case Protocol::CreateAvatar:
-					{
-						conPrint("received Protocol::CreateAvatar");
-						// Note: name will come from user account
-						// will use the client_avatar_uid that we assigned to the client
-						
-						Avatar temp_avatar;
-						temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
-						readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
-
-						temp_avatar.name = client_user.isNull() ? "Anonymous" : client_user->name;
-
-						const UID use_avatar_uid = client_avatar_uid;
-						temp_avatar.uid = use_avatar_uid;
-
-						// Look up existing avatar in world state
-						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->avatars.find(use_avatar_uid);
-							if(res == cur_world_state->avatars.end())
-							{
-								// Avatar for UID not already created, create it now.
-								AvatarRef avatar = new Avatar();
-								avatar->uid = use_avatar_uid;
-								avatar->copyNetworkStateFrom(temp_avatar);
-								avatar->state = Avatar::State_JustCreated;
-								avatar->other_dirty = true;
-								cur_world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
-
-								conPrint("created new avatar");
-							}
-						}
-
-						if(!temp_avatar.avatar_settings.model_url.empty())
-							sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
-
-						// Process resources
-						std::set<DependencyURL> URLs;
-						temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
-						for(auto it = URLs.begin(); it != URLs.end(); ++it)
-							sendGetFileMessageIfNeeded(it->URL);
-
-						conPrint("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
-
-						break;
-					}
-				case Protocol::AvatarDestroyed:
-					{
-						conPrint("AvatarDestroyed");
-						const UID avatar_uid = readUIDFromStream(msg_buffer);
-
-						// Mark avatar as dead
-						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->avatars.find(avatar_uid);
-							if(res != cur_world_state->avatars.end())
-							{
-								Avatar* avatar = res->second.getPointer();
-								avatar->state = Avatar::State_Dead;
-								avatar->other_dirty = true;
-							}
-						}
-						break;
-					}
-				case Protocol::ObjectTransformUpdate:
-					{
-						//conPrint("received ObjectTransformUpdate");
-						const UID object_uid = readUIDFromStream(msg_buffer);
-						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
-						const Vec3f axis = readVec3FromStream<float>(msg_buffer);
-						const float angle = msg_buffer.readFloat();
-
-						// If client is not logged in, refuse object modification.
-						if(client_user.isNull())
-						{
-							writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
-						}
-						else
-						{
-							std::string err_msg_to_client;
-							// Look up existing object in world state
+							// Look up existing avatar in world state
 							{
 								Lock lock(world_state->mutex);
-								auto res = cur_world_state->objects.find(object_uid);
-								if(res != cur_world_state->objects.end())
+								auto res = cur_world_state->avatars.find(avatar_uid);
+								if(res != cur_world_state->avatars.end())
 								{
-									WorldObject* ob = res->second.getPointer();
+									Avatar* avatar = res->second.getPointer();
+									avatar->pos = pos;
+									avatar->rotation = rotation;
+									avatar->anim_state = anim_state;
+									avatar->transform_dirty = true;
 
-									// See if the user has permissions to alter this object:
-									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
-										err_msg_to_client = "You must be the owner of this object to change it.";
-									else
-									{
-										ob->pos = pos;
-										ob->axis = axis;
-										ob->angle = angle;
-										ob->from_remote_transform_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob);
-										cur_world_state->dirty_from_remote_objects.insert(ob);
-
-										world_state->markAsChanged();
-									}
-
-									//conPrint("updated object transform");
+									//conPrint("updated avatar transform");
 								}
-							} // End lock scope
-
-							if(!err_msg_to_client.empty())
-								writeErrorMessageToClient(socket, err_msg_to_client);
+							}
+							break;
 						}
+					case Protocol::AvatarPerformGesture:
+						{
+							//conPrint("AvatarPerformGesture");
+							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							const std::string gesture_name = msg_buffer.readStringLengthFirst(10000);
 
-						break;
+							//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
+
+							if(client_user.isNull())
+							{
+								writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
+							}
+							else
+							{
+								// Enqueue AvatarPerformGesture messages to worker threads to send
+								initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+								writeToStream(avatar_uid, scratch_packet);
+								scratch_packet.writeStringLengthFirst(gesture_name);
+								updatePacketLengthField(scratch_packet);
+
+								enqueuePacketToBroadcast(scratch_packet, server);
+							}
+							break;
+						}
+					case Protocol::AvatarStopGesture:
+						{
+							//conPrint("AvatarStopGesture");
+							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							if(client_user.isNull())
+							{
+								writeErrorMessageToClient(socket, "You must be logged in to stop a gesture.");
+							}
+							else
+							{
+								// Enqueue AvatarStopGesture messages to worker threads to send
+								initPacket(scratch_packet, Protocol::AvatarStopGesture);
+								writeToStream(avatar_uid, scratch_packet);
+								updatePacketLengthField(scratch_packet);
+
+								enqueuePacketToBroadcast(scratch_packet, server);
+							}
+							break;
 					}
-				case Protocol::ObjectFullUpdate:
-					{
-						//conPrint("received ObjectFullUpdate");
-						const UID object_uid = readUIDFromStream(msg_buffer);
-
-						WorldObject temp_ob;
-						readFromNetworkStreamGivenUID(msg_buffer, temp_ob); // Read rest of ObjectFullUpdate message.
-
-						// If client is not logged in, refuse object modification.
-						if(client_user.isNull())
+					case Protocol::AvatarFullUpdate:
 						{
-							writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
-						}
-						else
-						{
-							// Look up existing object in world state
-							bool send_must_be_owner_msg = false;
+							conPrint("Protocol::AvatarFullUpdate");
+							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							Avatar temp_avatar;
+							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+
+							// Look up existing avatar in world state
 							{
 								Lock lock(world_state->mutex);
-								auto res = cur_world_state->objects.find(object_uid);
-								if(res != cur_world_state->objects.end())
+								auto res = cur_world_state->avatars.find(avatar_uid);
+								if(res != cur_world_state->avatars.end())
 								{
-									WorldObject* ob = res->second.getPointer();
+									Avatar* avatar = res->second.getPointer();
+									avatar->copyNetworkStateFrom(temp_avatar);
+									avatar->other_dirty = true;
 
-									// See if the user has permissions to alter this object:
-									if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
+
+									// Store avatar settings in the user data
+									if(client_user.nonNull())
 									{
-										send_must_be_owner_msg = true;
+										const bool avatar_settings_changed = !(client_user->avatar_settings == avatar->avatar_settings);
+
+										if(avatar_settings_changed)
+										{
+											client_user->avatar_settings = avatar->avatar_settings;
+
+											world_state->addUserAsDBDirty(client_user);
+
+											conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+										}
 									}
-									else
-									{
-										ob->copyNetworkStateFrom(temp_ob);
 
-										ob->from_remote_other_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob);
-										cur_world_state->dirty_from_remote_objects.insert(ob);
-
-										world_state->markAsChanged();
-
-										// Process resources
-										std::set<DependencyURL> URLs;
-										ob->getDependencyURLSetForAllLODLevels(URLs);
-										for(auto it = URLs.begin(); it != URLs.end(); ++it)
-											sendGetFileMessageIfNeeded(it->URL);
-									}
+									//conPrint("updated avatar transform");
 								}
-							} // End lock scope
-
-							if(send_must_be_owner_msg)
-								writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
-						}
-						break;
-					}
-				case Protocol::ObjectLightmapURLChanged:
-					{
-						//conPrint("ObjectLightmapURLChanged");
-						const UID object_uid = readUIDFromStream(msg_buffer);
-						const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(10000);
-
-						// Look up existing object in world state
-						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->objects.find(object_uid);
-							if(res != cur_world_state->objects.end())
-							{
-								WorldObject* ob = res->second.getPointer();
-					
-								ob->lightmap_url = new_lightmap_url;
-
-								ob->from_remote_lightmap_url_dirty = true;
-								cur_world_state->addWorldObjectAsDBDirty(ob);
-								cur_world_state->dirty_from_remote_objects.insert(ob);
-
-								world_state->markAsChanged();
 							}
-						}
-						break;
-					}
-				case Protocol::ObjectModelURLChanged:
-					{
-						//conPrint("ObjectModelURLChanged");
-						const UID object_uid = readUIDFromStream(msg_buffer);
-						const std::string new_model_url = msg_buffer.readStringLengthFirst(10000);
 
-						// Look up existing object in world state
-						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->objects.find(object_uid);
-							if(res != cur_world_state->objects.end())
-							{
-								WorldObject* ob = res->second.getPointer();
-					
-								ob->model_url = new_model_url;
+							if(!temp_avatar.avatar_settings.model_url.empty())
+								sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
 
-								ob->from_remote_model_url_dirty = true;
-								cur_world_state->addWorldObjectAsDBDirty(ob);
-								cur_world_state->dirty_from_remote_objects.insert(ob);
-
-								world_state->markAsChanged();
-							}
-						}
-						break;
-					}
-				case Protocol::ObjectFlagsChanged:
-					{
-						//conPrint("ObjectFlagsChanged");
-						const UID object_uid = readUIDFromStream(msg_buffer);
-						const uint32 flags = msg_buffer.readUInt32();
-
-						// Look up existing object in world state
-						{
-							Lock lock(world_state->mutex);
-							auto res = cur_world_state->objects.find(object_uid);
-							if(res != cur_world_state->objects.end())
-							{
-								WorldObject* ob = res->second.getPointer();
-
-								ob->flags = flags; // Copy flags
-
-								ob->from_remote_flags_dirty = true;
-								cur_world_state->addWorldObjectAsDBDirty(ob);
-								cur_world_state->dirty_from_remote_objects.insert(ob);
-
-								world_state->markAsChanged();
-							}
-						}
-						break;
-					}
-				case Protocol::CreateObject: // Client wants to create an object
-					{
-						conPrint("CreateObject");
-
-						WorldObjectRef new_ob = new WorldObject();
-						new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
-						readFromNetworkStreamGivenUID(msg_buffer, *new_ob);
-
-						conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
-
-						// If client is not logged in, refuse object creation.
-						if(client_user.isNull())
-						{
-							conPrint("Creation denied, user was not logged in.");
-							initPacket(scratch_packet, Protocol::ErrorMessageID);
-							scratch_packet.writeStringLengthFirst("You must be logged in to create an object.");
-							updatePacketLengthField(scratch_packet);
-							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-							socket->flush();
-						}
-						else
-						{
-							new_ob->creator_id = client_user->id;
-							new_ob->created_time = TimeStamp::currentTime();
-							new_ob->creator_name = client_user->name;
-
+							// Process resources
 							std::set<DependencyURL> URLs;
-							new_ob->getDependencyURLSetForAllLODLevels(URLs);
+							temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 								sendGetFileMessageIfNeeded(it->URL);
 
+							break;
+						}
+					case Protocol::CreateAvatar:
+						{
+							conPrint("received Protocol::CreateAvatar");
+							// Note: name will come from user account
+							// will use the client_avatar_uid that we assigned to the client
+						
+							Avatar temp_avatar;
+							temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
+							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
+
+							temp_avatar.name = client_user.isNull() ? "Anonymous" : client_user->name;
+
+							const UID use_avatar_uid = client_avatar_uid;
+							temp_avatar.uid = use_avatar_uid;
+
+							// Look up existing avatar in world state
+							{
+								Lock lock(world_state->mutex);
+								auto res = cur_world_state->avatars.find(use_avatar_uid);
+								if(res == cur_world_state->avatars.end())
+								{
+									// Avatar for UID not already created, create it now.
+									AvatarRef avatar = new Avatar();
+									avatar->uid = use_avatar_uid;
+									avatar->copyNetworkStateFrom(temp_avatar);
+									avatar->state = Avatar::State_JustCreated;
+									avatar->other_dirty = true;
+									cur_world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
+
+									conPrint("created new avatar");
+								}
+							}
+
+							if(!temp_avatar.avatar_settings.model_url.empty())
+								sendGetFileMessageIfNeeded(temp_avatar.avatar_settings.model_url);
+
+							// Process resources
+							std::set<DependencyURL> URLs;
+							temp_avatar.getDependencyURLSetForAllLODLevels(URLs);
+							for(auto it = URLs.begin(); it != URLs.end(); ++it)
+								sendGetFileMessageIfNeeded(it->URL);
+
+							conPrint("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
+
+							break;
+						}
+					case Protocol::AvatarDestroyed:
+						{
+							conPrint("AvatarDestroyed");
+							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							// Mark avatar as dead
+							{
+								Lock lock(world_state->mutex);
+								auto res = cur_world_state->avatars.find(avatar_uid);
+								if(res != cur_world_state->avatars.end())
+								{
+									Avatar* avatar = res->second.getPointer();
+									avatar->state = Avatar::State_Dead;
+									avatar->other_dirty = true;
+								}
+							}
+							break;
+						}
+					case Protocol::ObjectTransformUpdate:
+						{
+							//conPrint("received ObjectTransformUpdate");
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+							const Vec3f axis = readVec3FromStream<float>(msg_buffer);
+							const float angle = msg_buffer.readFloat();
+
+							// If client is not logged in, refuse object modification.
+							if(client_user.isNull())
+							{
+								writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
+							}
+							else
+							{
+								std::string err_msg_to_client;
+								// Look up existing object in world state
+								{
+									Lock lock(world_state->mutex);
+									auto res = cur_world_state->objects.find(object_uid);
+									if(res != cur_world_state->objects.end())
+									{
+										WorldObject* ob = res->second.getPointer();
+
+										// See if the user has permissions to alter this object:
+										if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
+											err_msg_to_client = "You must be the owner of this object to change it.";
+										else
+										{
+											ob->pos = pos;
+											ob->axis = axis;
+											ob->angle = angle;
+											ob->from_remote_transform_dirty = true;
+											cur_world_state->addWorldObjectAsDBDirty(ob);
+											cur_world_state->dirty_from_remote_objects.insert(ob);
+
+											world_state->markAsChanged();
+										}
+
+										//conPrint("updated object transform");
+									}
+								} // End lock scope
+
+								if(!err_msg_to_client.empty())
+									writeErrorMessageToClient(socket, err_msg_to_client);
+							}
+
+							break;
+						}
+					case Protocol::ObjectFullUpdate:
+						{
+							//conPrint("received ObjectFullUpdate");
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							WorldObject temp_ob;
+							readFromNetworkStreamGivenUID(msg_buffer, temp_ob); // Read rest of ObjectFullUpdate message.
+
+							// If client is not logged in, refuse object modification.
+							if(client_user.isNull())
+							{
+								writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
+							}
+							else
+							{
+								// Look up existing object in world state
+								bool send_must_be_owner_msg = false;
+								{
+									Lock lock(world_state->mutex);
+									auto res = cur_world_state->objects.find(object_uid);
+									if(res != cur_world_state->objects.end())
+									{
+										WorldObject* ob = res->second.getPointer();
+
+										// See if the user has permissions to alter this object:
+										if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
+										{
+											send_must_be_owner_msg = true;
+										}
+										else
+										{
+											ob->copyNetworkStateFrom(temp_ob);
+
+											ob->from_remote_other_dirty = true;
+											cur_world_state->addWorldObjectAsDBDirty(ob);
+											cur_world_state->dirty_from_remote_objects.insert(ob);
+
+											world_state->markAsChanged();
+
+											// Process resources
+											std::set<DependencyURL> URLs;
+											ob->getDependencyURLSetForAllLODLevels(URLs);
+											for(auto it = URLs.begin(); it != URLs.end(); ++it)
+												sendGetFileMessageIfNeeded(it->URL);
+										}
+									}
+								} // End lock scope
+
+								if(send_must_be_owner_msg)
+									writeErrorMessageToClient(socket, "You must be the owner of this object to change it.");
+							}
+							break;
+						}
+					case Protocol::ObjectLightmapURLChanged:
+						{
+							//conPrint("ObjectLightmapURLChanged");
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const std::string new_lightmap_url = msg_buffer.readStringLengthFirst(10000);
+
 							// Look up existing object in world state
 							{
-								::Lock lock(world_state->mutex);
+								Lock lock(world_state->mutex);
+								auto res = cur_world_state->objects.find(object_uid);
+								if(res != cur_world_state->objects.end())
+								{
+									WorldObject* ob = res->second.getPointer();
+					
+									ob->lightmap_url = new_lightmap_url;
 
-								new_ob->uid = world_state->getNextObjectUID();
-								new_ob->state = WorldObject::State_JustCreated;
-								new_ob->from_remote_other_dirty = true;
-								cur_world_state->addWorldObjectAsDBDirty(new_ob);
-								cur_world_state->dirty_from_remote_objects.insert(new_ob);
-								cur_world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
+									ob->from_remote_lightmap_url_dirty = true;
+									cur_world_state->addWorldObjectAsDBDirty(ob);
+									cur_world_state->dirty_from_remote_objects.insert(ob);
 
-								world_state->markAsChanged();
+									world_state->markAsChanged();
+								}
 							}
+							break;
 						}
-
-						break;
-					}
-				case Protocol::DestroyObject: // Client wants to destroy an object.
-					{
-						conPrint("DestroyObject");
-						const UID object_uid = readUIDFromStream(msg_buffer);
-
-						// If client is not logged in, refuse object modification.
-						if(client_user.isNull())
+					case Protocol::ObjectModelURLChanged:
 						{
-							writeErrorMessageToClient(socket, "You must be logged in to destroy an object.");
+							//conPrint("ObjectModelURLChanged");
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const std::string new_model_url = msg_buffer.readStringLengthFirst(10000);
+
+							// Look up existing object in world state
+							{
+								Lock lock(world_state->mutex);
+								auto res = cur_world_state->objects.find(object_uid);
+								if(res != cur_world_state->objects.end())
+								{
+									WorldObject* ob = res->second.getPointer();
+					
+									ob->model_url = new_model_url;
+
+									ob->from_remote_model_url_dirty = true;
+									cur_world_state->addWorldObjectAsDBDirty(ob);
+									cur_world_state->dirty_from_remote_objects.insert(ob);
+
+									world_state->markAsChanged();
+								}
+							}
+							break;
 						}
-						else
+					case Protocol::ObjectFlagsChanged:
 						{
-							bool send_must_be_owner_msg = false;
+							//conPrint("ObjectFlagsChanged");
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const uint32 flags = msg_buffer.readUInt32();
+
+							// Look up existing object in world state
 							{
 								Lock lock(world_state->mutex);
 								auto res = cur_world_state->objects.find(object_uid);
@@ -1336,428 +1254,410 @@ void WorkerThread::doRun()
 								{
 									WorldObject* ob = res->second.getPointer();
 
-									// See if the user has permissions to alter this object:
-									const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state);
-									if(!have_delete_perms)
-										send_must_be_owner_msg = true;
-									else
-									{
-										// Mark object as dead
-										ob->state = WorldObject::State_Dead;
-										ob->from_remote_other_dirty = true;
-										cur_world_state->addWorldObjectAsDBDirty(ob);
-										cur_world_state->dirty_from_remote_objects.insert(ob);
+									ob->flags = flags; // Copy flags
 
-										world_state->markAsChanged();
-									}
+									ob->from_remote_flags_dirty = true;
+									cur_world_state->addWorldObjectAsDBDirty(ob);
+									cur_world_state->dirty_from_remote_objects.insert(ob);
+
+									world_state->markAsChanged();
 								}
-							} // End lock scope
-
-							if(send_must_be_owner_msg)
-								writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
+							}
+							break;
 						}
-						break;
-					}
-				case Protocol::GetAllObjects: // Client wants to get all objects in world
-				{
-					conPrint("GetAllObjects");
-
-					SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder); // Will contain several messages
-
-					{
-						Lock lock(world_state->mutex);
-						for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+					case Protocol::CreateObject: // Client wants to create an object
 						{
-							const WorldObject* ob = it->second.getPointer();
+							conPrint("CreateObject");
 
-							// Build ObjectInitialSend message
-							initPacket(scratch_packet, Protocol::ObjectInitialSend);
-							ob->writeToNetworkStream(scratch_packet);
-							updatePacketLengthField(scratch_packet);
+							WorldObjectRef new_ob = new WorldObject();
+							new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
+							readFromNetworkStreamGivenUID(msg_buffer, *new_ob);
 
-							temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-						}
-					}
+							conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 
-					initPacket(scratch_packet, Protocol::AllObjectsSent);// Terminate the buffer with an AllObjectsSent message.
-					updatePacketLengthField(scratch_packet);
-					temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-
-					socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
-					socket->flush();
-
-					break;
-				}
-				case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
-				{
-					const uint32 num_cells = msg_buffer.readUInt32();
-					if(num_cells > 100000)
-						throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
-
-					//conPrint("QueryObjects, num_cells=" + toString(num_cells));
-
-					//conPrint("QueryObjects: num_cells " + toString(num_cells));
-					
-					// Read cell coords from network and make AABBs for cells
-					js::Vector<js::AABBox, 16> cell_aabbs(num_cells);
-					for(uint32 i=0; i<num_cells; ++i)
-					{
-						const int x = msg_buffer.readInt32();
-						const int y = msg_buffer.readInt32();
-						const int z = msg_buffer.readInt32();
-
-						//if(i < 10)
-						//	conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
-
-						const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
-
-						cell_aabbs[i] = js::AABBox(
-							Vec4f(0,0,0,1) + Vec4f((float)x,     (float)y,     (float)z,     0)*CELL_WIDTH,
-							Vec4f(0,0,0,1) + Vec4f((float)(x+1), (float)(y+1), (float)(z+1), 0)*CELL_WIDTH
-						);
-					}
-
-
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					int num_obs_written = 0;
-
-					{ // Lock scope
-						Lock lock(world_state->mutex);
-						for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
-						{
-							const WorldObject* ob = it->second.ptr();
-
-							// See if the object is in any of the cell AABBs
-							bool in_cell = false;
-							for(uint32 i=0; i<num_cells; ++i)
-								if(cell_aabbs[i].contains(ob->pos.toVec4fPoint()))
-								{
-									in_cell = true;
-									break;
-								}
-
-							if(in_cell)
+							// If client is not logged in, refuse object creation.
+							if(client_user.isNull())
 							{
-								// Send ObjectInitialSend packet
-								initPacket(scratch_packet, Protocol::ObjectInitialSend);
-								ob->writeToNetworkStream(scratch_packet);
+								conPrint("Creation denied, user was not logged in.");
+								initPacket(scratch_packet, Protocol::ErrorMessageID);
+								scratch_packet.writeStringLengthFirst("You must be logged in to create an object.");
 								updatePacketLengthField(scratch_packet);
-
-								packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
-
-								num_obs_written++;
+								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+								socket->flush();
 							}
-						}
-					} // End lock scope
-
-					socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-					socket->flush();
-
-					//conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
-
-					break;
-				}
-				case Protocol::QueryObjectsInAABB: // Client wants to query objects in a particular AABB
-				{
-					const float lower_x = msg_buffer.readFloat();
-					const float lower_y = msg_buffer.readFloat();
-					const float lower_z = msg_buffer.readFloat();
-					const float upper_x = msg_buffer.readFloat();
-					const float upper_y = msg_buffer.readFloat();
-					const float upper_z = msg_buffer.readFloat();
-
-					const js::AABBox aabb(Vec4f(lower_x, lower_y, lower_z, 1.f), Vec4f(upper_x, upper_y, upper_z, 1.f));
-					
-					conPrint("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
-
-					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-					int num_obs_written = 0;
-
-					{ // Lock scope
-						Lock lock(world_state->mutex);
-						for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
-						{
-							const WorldObject* ob = it->second.ptr();
-
-							// See if the object is in any of the cell AABBs
-							if(aabb.contains(ob->pos.toVec4fPoint()))
-							{
-								// Create ObjectInitialSend packet
-								initPacket(scratch_packet, Protocol::ObjectInitialSend);
-								ob->writeToNetworkStream(scratch_packet);
-								updatePacketLengthField(scratch_packet);
-
-								packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append to packet
-
-								num_obs_written++;
-							}
-						}
-					} // End lock scope
-
-					conPrint("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
-
-					socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-					socket->flush();
-
-					break;
-				}
-				case Protocol::QueryParcels:
-					{
-						conPrint("QueryParcels");
-						// Send all current parcel data to client
-						initPacket(scratch_packet, Protocol::ParcelList);
-						{
-							Lock lock(world_state->mutex);
-							scratch_packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
-							for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
-								writeToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
-						}
-						updatePacketLengthField(scratch_packet);
-						socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
-						socket->flush();
-						break;
-					}
-				case Protocol::ParcelFullUpdate: // Client wants to update a parcel
-					{
-						conPrint("ParcelFullUpdate");
-						const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
-
-						Parcel temp_parcel;
-						readFromNetworkStreamGivenID(msg_buffer, temp_parcel, client_protocol_version);
-
-						// If client is not logged in, refuse parcel modification.
-						if(client_user.isNull())
-						{
-							writeErrorMessageToClient(socket, "You must be logged in to modify a parcel.");
-						}
-						else
-						{
-							// Look up existing parcel in world state
-							std::string error_msg;
-							{
-								Lock lock(world_state->mutex);
-								auto res = cur_world_state->parcels.find(parcel_id);
-								if(res != cur_world_state->parcels.end())
-								{
-									Parcel* parcel = res->second.getPointer();
-
-									// See if the user has permissions to alter this object:
-									if(!userHasParcelWritePermissions(*parcel, *client_user, this->connected_world_name, *cur_world_state))
-									{
-										error_msg = "You must be the owner of this parcel (or have write permissions) to modify it";
-									}
-									else
-									{
-										parcel->copyNetworkStateFrom(temp_parcel, /*restrict_changes=*/true); // restrict changes to stuff clients are allowed to change
-
-										//parcel->from_remote_other_dirty = true;
-										cur_world_state->addParcelAsDBDirty(parcel);
-										//cur_world_state->dirty_from_remote_parcels.insert(ob);
-
-										world_state->markAsChanged();
-									}
-								}
-							} // End lock scope
-
-							if(!error_msg.empty())
-								writeErrorMessageToClient(socket, error_msg);
-						}
-						break;
-					}
-				case Protocol::ChatMessageID:
-					{
-						//const std::string name = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-						const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-
-						conPrint("Received chat message: '" + msg + "'");
-
-						if(client_user.isNull())
-						{
-							writeErrorMessageToClient(socket, "You must be logged in to chat.");
-						}
-						else
-						{
-							// Enqueue chat messages to worker threads to send
-							// Send ChatMessageID packet
-							initPacket(scratch_packet, Protocol::ChatMessageID);
-							scratch_packet.writeStringLengthFirst(client_user->name);
-							scratch_packet.writeStringLengthFirst(msg);
-							updatePacketLengthField(scratch_packet);
-
-							enqueuePacketToBroadcast(scratch_packet, server);
-						}
-						break;
-					}
-				case Protocol::UserSelectedObject:
-					{
-						//conPrint("Received UserSelectedObject msg.");
-
-						const UID object_uid = readUIDFromStream(msg_buffer);
-
-						// Send message to connected clients
-						{
-							initPacket(scratch_packet, Protocol::UserSelectedObject);
-							writeToStream(client_avatar_uid, scratch_packet);
-							writeToStream(object_uid, scratch_packet);
-							updatePacketLengthField(scratch_packet);
-
-							enqueuePacketToBroadcast(scratch_packet, server);
-						}
-						break;
-					}
-				case Protocol::UserDeselectedObject:
-					{
-						//conPrint("Received UserDeselectedObject msg.");
-
-						const UID object_uid = readUIDFromStream(msg_buffer);
-
-						// Send message to connected clients
-						{
-							initPacket(scratch_packet, Protocol::UserDeselectedObject);
-							writeToStream(client_avatar_uid, scratch_packet);
-							writeToStream(object_uid, scratch_packet);
-							updatePacketLengthField(scratch_packet);
-
-							enqueuePacketToBroadcast(scratch_packet, server);
-						}
-						break;
-					}
-				case Protocol::LogInMessage: // Client wants to log in.
-					{
-						conPrint("LogInMessage");
-
-						const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-						const std::string password = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-
-						conPrint("username: '" + username + "'");
-						
-						bool logged_in = false;
-						{
-							Lock lock(world_state->mutex);
-							auto res = world_state->name_to_users.find(username);
-							if(res != world_state->name_to_users.end())
-							{
-								User* user = res->second.getPointer();
-								const bool password_valid = user->isPasswordValid(password);
-								conPrint("password_valid: " + boolToString(password_valid));
-								if(password_valid)
-								{
-									// Password is valid, log user in.
-									client_user = user;
-
-									logged_in = true;
-								}
-							}
-						}
-
-						conPrint("logged_in: " + boolToString(logged_in));
-						if(logged_in)
-						{
-							if(username == "lightmapperbot")
-								logged_in_user_is_lightmapper_bot = true;
-
-							// Send logged-in message to client
-							initPacket(scratch_packet, Protocol::LoggedInMessageID);
-							writeToStream(client_user->id, scratch_packet);
-							scratch_packet.writeStringLengthFirst(username);
-							writeToStream(client_user->avatar_settings, scratch_packet);
-							updatePacketLengthField(scratch_packet);
-
-							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-							socket->flush();
-						}
-						else
-						{
-							// Login failed.  Send error message back to client
-							initPacket(scratch_packet, Protocol::ErrorMessageID);
-							scratch_packet.writeStringLengthFirst("Login failed: username or password incorrect.");
-							updatePacketLengthField(scratch_packet);
-
-							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-							socket->flush();
-						}
-					
-						break;
-					}
-				case Protocol::LogOutMessage: // Client wants to log out.
-					{
-						conPrint("LogOutMessage");
-
-						client_user = NULL; // Mark the client as not logged in.
-
-						// Send logged-out message to client
-						initPacket(scratch_packet, Protocol::LoggedOutMessageID);
-						updatePacketLengthField(scratch_packet);
-
-						socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-						socket->flush();
-						break;
-					}
-				case Protocol::SignUpMessage:
-					{
-						conPrint("SignUpMessage");
-
-						const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-						const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-						const std::string password = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-
-						try
-						{
-
-							conPrint("username: '" + username + "', email: '" + email + "'");
-
-							bool signed_up = false;
-
-							std::string msg_to_client;
-							if(username.size() < 3)
-								msg_to_client = "Username is too short, must have at least 3 characters";
 							else
 							{
-								if(password.size() < 6)
-									msg_to_client = "Password is too short, must have at least 6 characters";
-								else
+								new_ob->creator_id = client_user->id;
+								new_ob->created_time = TimeStamp::currentTime();
+								new_ob->creator_name = client_user->name;
+
+								std::set<DependencyURL> URLs;
+								new_ob->getDependencyURLSetForAllLODLevels(URLs);
+								for(auto it = URLs.begin(); it != URLs.end(); ++it)
+									sendGetFileMessageIfNeeded(it->URL);
+
+								// Look up existing object in world state
+								{
+									::Lock lock(world_state->mutex);
+
+									new_ob->uid = world_state->getNextObjectUID();
+									new_ob->state = WorldObject::State_JustCreated;
+									new_ob->from_remote_other_dirty = true;
+									cur_world_state->addWorldObjectAsDBDirty(new_ob);
+									cur_world_state->dirty_from_remote_objects.insert(new_ob);
+									cur_world_state->objects.insert(std::make_pair(new_ob->uid, new_ob));
+
+									world_state->markAsChanged();
+								}
+							}
+
+							break;
+						}
+					case Protocol::DestroyObject: // Client wants to destroy an object.
+						{
+							conPrint("DestroyObject");
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							// If client is not logged in, refuse object modification.
+							if(client_user.isNull())
+							{
+								writeErrorMessageToClient(socket, "You must be logged in to destroy an object.");
+							}
+							else
+							{
+								bool send_must_be_owner_msg = false;
 								{
 									Lock lock(world_state->mutex);
-									auto res = world_state->name_to_users.find(username);
-									if(res == world_state->name_to_users.end())
+									auto res = cur_world_state->objects.find(object_uid);
+									if(res != cur_world_state->objects.end())
 									{
-										Reference<User> new_user = new User();
-										new_user->id = UserID((uint32)world_state->name_to_users.size());
-										new_user->created_time = TimeStamp::currentTime();
-										new_user->name = username;
-										new_user->email_address = email;
+										WorldObject* ob = res->second.getPointer();
 
-										// We need a random salt for the user.
-										uint8 random_bytes[32];
-										CryptoRNG::getRandomBytes(random_bytes, 32); // throws glare::Exception
+										// See if the user has permissions to alter this object:
+										const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state);
+										if(!have_delete_perms)
+											send_must_be_owner_msg = true;
+										else
+										{
+											// Mark object as dead
+											ob->state = WorldObject::State_Dead;
+											ob->from_remote_other_dirty = true;
+											cur_world_state->addWorldObjectAsDBDirty(ob);
+											cur_world_state->dirty_from_remote_objects.insert(ob);
 
-										std::string user_salt;
-										Base64::encode(random_bytes, 32, user_salt); // Convert random bytes to base-64.
+											world_state->markAsChanged();
+										}
+									}
+								} // End lock scope
 
-										new_user->password_hash_salt = user_salt;
-										new_user->hashed_password = User::computePasswordHash(password, user_salt);
+								if(send_must_be_owner_msg)
+									writeErrorMessageToClient(socket, "You must be the owner of this object to destroy it.");
+							}
+							break;
+						}
+					case Protocol::GetAllObjects: // Client wants to get all objects in world
+					{
+						conPrint("GetAllObjects");
 
-										world_state->addUserAsDBDirty(new_user);
+						SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder); // Will contain several messages
 
-										// Add new user to world state
-										world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
-										world_state->name_to_users   .insert(std::make_pair(username,     new_user));
-										world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+						{
+							Lock lock(world_state->mutex);
+							for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+							{
+								const WorldObject* ob = it->second.getPointer();
 
-										client_user = new_user; // Log user in as well.
-										signed_up = true;
+								// Build ObjectInitialSend message
+								initPacket(scratch_packet, Protocol::ObjectInitialSend);
+								ob->writeToNetworkStream(scratch_packet);
+								updatePacketLengthField(scratch_packet);
+
+								temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							}
+						}
+
+						initPacket(scratch_packet, Protocol::AllObjectsSent);// Terminate the buffer with an AllObjectsSent message.
+						updatePacketLengthField(scratch_packet);
+						temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+
+						socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
+						socket->flush();
+
+						break;
+					}
+					case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
+					{
+						const uint32 num_cells = msg_buffer.readUInt32();
+						if(num_cells > 100000)
+							throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
+
+						//conPrint("QueryObjects, num_cells=" + toString(num_cells));
+
+						//conPrint("QueryObjects: num_cells " + toString(num_cells));
+					
+						// Read cell coords from network and make AABBs for cells
+						js::Vector<js::AABBox, 16> cell_aabbs(num_cells);
+						for(uint32 i=0; i<num_cells; ++i)
+						{
+							const int x = msg_buffer.readInt32();
+							const int y = msg_buffer.readInt32();
+							const int z = msg_buffer.readInt32();
+
+							//if(i < 10)
+							//	conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
+
+							const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
+
+							cell_aabbs[i] = js::AABBox(
+								Vec4f(0,0,0,1) + Vec4f((float)x,     (float)y,     (float)z,     0)*CELL_WIDTH,
+								Vec4f(0,0,0,1) + Vec4f((float)(x+1), (float)(y+1), (float)(z+1), 0)*CELL_WIDTH
+							);
+						}
+
+
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+						int num_obs_written = 0;
+
+						{ // Lock scope
+							Lock lock(world_state->mutex);
+							for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+							{
+								const WorldObject* ob = it->second.ptr();
+
+								// See if the object is in any of the cell AABBs
+								bool in_cell = false;
+								for(uint32 i=0; i<num_cells; ++i)
+									if(cell_aabbs[i].contains(ob->pos.toVec4fPoint()))
+									{
+										in_cell = true;
+										break;
+									}
+
+								if(in_cell)
+								{
+									// Send ObjectInitialSend packet
+									initPacket(scratch_packet, Protocol::ObjectInitialSend);
+									ob->writeToNetworkStream(scratch_packet);
+									updatePacketLengthField(scratch_packet);
+
+									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
+
+									num_obs_written++;
+								}
+							}
+						} // End lock scope
+
+						socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+						socket->flush();
+
+						//conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
+
+						break;
+					}
+					case Protocol::QueryObjectsInAABB: // Client wants to query objects in a particular AABB
+					{
+						const float lower_x = msg_buffer.readFloat();
+						const float lower_y = msg_buffer.readFloat();
+						const float lower_z = msg_buffer.readFloat();
+						const float upper_x = msg_buffer.readFloat();
+						const float upper_y = msg_buffer.readFloat();
+						const float upper_z = msg_buffer.readFloat();
+
+						const js::AABBox aabb(Vec4f(lower_x, lower_y, lower_z, 1.f), Vec4f(upper_x, upper_y, upper_z, 1.f));
+					
+						conPrint("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
+
+						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+						int num_obs_written = 0;
+
+						{ // Lock scope
+							Lock lock(world_state->mutex);
+							for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+							{
+								const WorldObject* ob = it->second.ptr();
+
+								// See if the object is in any of the cell AABBs
+								if(aabb.contains(ob->pos.toVec4fPoint()))
+								{
+									// Create ObjectInitialSend packet
+									initPacket(scratch_packet, Protocol::ObjectInitialSend);
+									ob->writeToNetworkStream(scratch_packet);
+									updatePacketLengthField(scratch_packet);
+
+									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append to packet
+
+									num_obs_written++;
+								}
+							}
+						} // End lock scope
+
+						conPrint("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+
+						socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+						socket->flush();
+
+						break;
+					}
+					case Protocol::QueryParcels:
+						{
+							conPrint("QueryParcels");
+							// Send all current parcel data to client
+							initPacket(scratch_packet, Protocol::ParcelList);
+							{
+								Lock lock(world_state->mutex);
+								scratch_packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
+								for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
+									writeToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
+							}
+							updatePacketLengthField(scratch_packet);
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
+							socket->flush();
+							break;
+						}
+					case Protocol::ParcelFullUpdate: // Client wants to update a parcel
+						{
+							conPrint("ParcelFullUpdate");
+							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
+
+							Parcel temp_parcel;
+							readFromNetworkStreamGivenID(msg_buffer, temp_parcel, client_protocol_version);
+
+							// If client is not logged in, refuse parcel modification.
+							if(client_user.isNull())
+							{
+								writeErrorMessageToClient(socket, "You must be logged in to modify a parcel.");
+							}
+							else
+							{
+								// Look up existing parcel in world state
+								std::string error_msg;
+								{
+									Lock lock(world_state->mutex);
+									auto res = cur_world_state->parcels.find(parcel_id);
+									if(res != cur_world_state->parcels.end())
+									{
+										Parcel* parcel = res->second.getPointer();
+
+										// See if the user has permissions to alter this object:
+										if(!userHasParcelWritePermissions(*parcel, *client_user, this->connected_world_name, *cur_world_state))
+										{
+											error_msg = "You must be the owner of this parcel (or have write permissions) to modify it";
+										}
+										else
+										{
+											parcel->copyNetworkStateFrom(temp_parcel, /*restrict_changes=*/true); // restrict changes to stuff clients are allowed to change
+
+											//parcel->from_remote_other_dirty = true;
+											cur_world_state->addParcelAsDBDirty(parcel);
+											//cur_world_state->dirty_from_remote_parcels.insert(ob);
+
+											world_state->markAsChanged();
+										}
+									}
+								} // End lock scope
+
+								if(!error_msg.empty())
+									writeErrorMessageToClient(socket, error_msg);
+							}
+							break;
+						}
+					case Protocol::ChatMessageID:
+						{
+							//const std::string name = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+							const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+
+							conPrint("Received chat message: '" + msg + "'");
+
+							if(client_user.isNull())
+							{
+								writeErrorMessageToClient(socket, "You must be logged in to chat.");
+							}
+							else
+							{
+								// Enqueue chat messages to worker threads to send
+								// Send ChatMessageID packet
+								initPacket(scratch_packet, Protocol::ChatMessageID);
+								scratch_packet.writeStringLengthFirst(client_user->name);
+								scratch_packet.writeStringLengthFirst(msg);
+								updatePacketLengthField(scratch_packet);
+
+								enqueuePacketToBroadcast(scratch_packet, server);
+							}
+							break;
+						}
+					case Protocol::UserSelectedObject:
+						{
+							//conPrint("Received UserSelectedObject msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							// Send message to connected clients
+							{
+								initPacket(scratch_packet, Protocol::UserSelectedObject);
+								writeToStream(client_avatar_uid, scratch_packet);
+								writeToStream(object_uid, scratch_packet);
+								updatePacketLengthField(scratch_packet);
+
+								enqueuePacketToBroadcast(scratch_packet, server);
+							}
+							break;
+						}
+					case Protocol::UserDeselectedObject:
+						{
+							//conPrint("Received UserDeselectedObject msg.");
+
+							const UID object_uid = readUIDFromStream(msg_buffer);
+
+							// Send message to connected clients
+							{
+								initPacket(scratch_packet, Protocol::UserDeselectedObject);
+								writeToStream(client_avatar_uid, scratch_packet);
+								writeToStream(object_uid, scratch_packet);
+								updatePacketLengthField(scratch_packet);
+
+								enqueuePacketToBroadcast(scratch_packet, server);
+							}
+							break;
+						}
+					case Protocol::LogInMessage: // Client wants to log in.
+						{
+							conPrint("LogInMessage");
+
+							const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+							const std::string password = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+
+							conPrint("username: '" + username + "'");
+						
+							bool logged_in = false;
+							{
+								Lock lock(world_state->mutex);
+								auto res = world_state->name_to_users.find(username);
+								if(res != world_state->name_to_users.end())
+								{
+									User* user = res->second.getPointer();
+									const bool password_valid = user->isPasswordValid(password);
+									conPrint("password_valid: " + boolToString(password_valid));
+									if(password_valid)
+									{
+										// Password is valid, log user in.
+										client_user = user;
+
+										logged_in = true;
 									}
 								}
 							}
 
-							conPrint("signed_up: " + boolToString(signed_up));
-							if(signed_up)
+							conPrint("logged_in: " + boolToString(logged_in));
+							if(logged_in)
 							{
-								conPrint("Sign up successful");
-								// Send signed-up message to client
-								initPacket(scratch_packet, Protocol::SignedUpMessageID);
+								if(username == "lightmapperbot")
+									logged_in_user_is_lightmapper_bot = true;
+
+								// Send logged-in message to client
+								initPacket(scratch_packet, Protocol::LoggedInMessageID);
 								writeToStream(client_user->id, scratch_packet);
 								scratch_packet.writeStringLengthFirst(username);
+								writeToStream(client_user->avatar_settings, scratch_packet);
 								updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1765,119 +1665,217 @@ void WorkerThread::doRun()
 							}
 							else
 							{
-								conPrint("Sign up failed.");
+								// Login failed.  Send error message back to client
+								initPacket(scratch_packet, Protocol::ErrorMessageID);
+								scratch_packet.writeStringLengthFirst("Login failed: username or password incorrect.");
+								updatePacketLengthField(scratch_packet);
+
+								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+								socket->flush();
+							}
+					
+							break;
+						}
+					case Protocol::LogOutMessage: // Client wants to log out.
+						{
+							conPrint("LogOutMessage");
+
+							client_user = NULL; // Mark the client as not logged in.
+
+							// Send logged-out message to client
+							initPacket(scratch_packet, Protocol::LoggedOutMessageID);
+							updatePacketLengthField(scratch_packet);
+
+							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+							socket->flush();
+							break;
+						}
+					case Protocol::SignUpMessage:
+						{
+							conPrint("SignUpMessage");
+
+							const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+							const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+							const std::string password = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+
+							try
+							{
+
+								conPrint("username: '" + username + "', email: '" + email + "'");
+
+								bool signed_up = false;
+
+								std::string msg_to_client;
+								if(username.size() < 3)
+									msg_to_client = "Username is too short, must have at least 3 characters";
+								else
+								{
+									if(password.size() < 6)
+										msg_to_client = "Password is too short, must have at least 6 characters";
+									else
+									{
+										Lock lock(world_state->mutex);
+										auto res = world_state->name_to_users.find(username);
+										if(res == world_state->name_to_users.end())
+										{
+											Reference<User> new_user = new User();
+											new_user->id = UserID((uint32)world_state->name_to_users.size());
+											new_user->created_time = TimeStamp::currentTime();
+											new_user->name = username;
+											new_user->email_address = email;
+
+											// We need a random salt for the user.
+											uint8 random_bytes[32];
+											CryptoRNG::getRandomBytes(random_bytes, 32); // throws glare::Exception
+
+											std::string user_salt;
+											Base64::encode(random_bytes, 32, user_salt); // Convert random bytes to base-64.
+
+											new_user->password_hash_salt = user_salt;
+											new_user->hashed_password = User::computePasswordHash(password, user_salt);
+
+											world_state->addUserAsDBDirty(new_user);
+
+											// Add new user to world state
+											world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
+											world_state->name_to_users   .insert(std::make_pair(username,     new_user));
+											world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+
+											client_user = new_user; // Log user in as well.
+											signed_up = true;
+										}
+									}
+								}
+
+								conPrint("signed_up: " + boolToString(signed_up));
+								if(signed_up)
+								{
+									conPrint("Sign up successful");
+									// Send signed-up message to client
+									initPacket(scratch_packet, Protocol::SignedUpMessageID);
+									writeToStream(client_user->id, scratch_packet);
+									scratch_packet.writeStringLengthFirst(username);
+									updatePacketLengthField(scratch_packet);
+
+									socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+									socket->flush();
+								}
+								else
+								{
+									conPrint("Sign up failed.");
+
+									// signup failed.  Send error message back to client
+									initPacket(scratch_packet, Protocol::ErrorMessageID);
+									scratch_packet.writeStringLengthFirst(msg_to_client);
+									updatePacketLengthField(scratch_packet);
+
+									socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+									socket->flush();
+								}
+							}
+							catch(glare::Exception& e)
+							{
+								conPrint("Sign up failed, internal error: " + e.what());
 
 								// signup failed.  Send error message back to client
 								initPacket(scratch_packet, Protocol::ErrorMessageID);
-								scratch_packet.writeStringLengthFirst(msg_to_client);
+								scratch_packet.writeStringLengthFirst("Signup failed: internal error.");
 								updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 								socket->flush();
 							}
+
+							break;
 						}
-						catch(glare::Exception& e)
+					case Protocol::RequestPasswordReset:
 						{
-							conPrint("Sign up failed, internal error: " + e.what());
+							conPrint("RequestPasswordReset");
 
-							// signup failed.  Send error message back to client
-							initPacket(scratch_packet, Protocol::ErrorMessageID);
-							scratch_packet.writeStringLengthFirst("Signup failed: internal error.");
-							updatePacketLengthField(scratch_packet);
+							const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
-							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-							socket->flush();
+							// NOTE: This stuff is done via the website now instead.
+
+							//conPrint("email: " + email);
+							//
+							//// TEMP: Send password reset email in this thread for now. 
+							//// TODO: move to another thread (make some kind of background task?)
+							//{
+							//	Lock lock(world_state->mutex);
+							//	for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+							//		if(it->second->email_address == email)
+							//		{
+							//			User* user = it->second.getPointer();
+							//			try
+							//			{
+							//				user->sendPasswordResetEmail();
+							//				world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+							//				conPrint("Sent user password reset email to '" + email + ", username '" + user->name + "'");
+							//			}
+							//			catch(glare::Exception& e)
+							//			{
+							//				conPrint("Sending password reset email failed: " + e.what());
+							//			}
+							//		}
+							//}
+					
+							break;
 						}
-
-						break;
-					}
-				case Protocol::RequestPasswordReset:
-					{
-						conPrint("RequestPasswordReset");
-
-						const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-
-						// NOTE: This stuff is done via the website now instead.
-
-						//conPrint("email: " + email);
-						//
-						//// TEMP: Send password reset email in this thread for now. 
-						//// TODO: move to another thread (make some kind of background task?)
-						//{
-						//	Lock lock(world_state->mutex);
-						//	for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
-						//		if(it->second->email_address == email)
-						//		{
-						//			User* user = it->second.getPointer();
-						//			try
-						//			{
-						//				user->sendPasswordResetEmail();
-						//				world_state->markAsChanged(); // Mark as changed so gets saved to disk.
-						//				conPrint("Sent user password reset email to '" + email + ", username '" + user->name + "'");
-						//			}
-						//			catch(glare::Exception& e)
-						//			{
-						//				conPrint("Sending password reset email failed: " + e.what());
-						//			}
-						//		}
-						//}
-					
-						break;
-					}
-				case Protocol::ChangePasswordWithResetToken:
-					{
-						conPrint("ChangePasswordWithResetToken");
+					case Protocol::ChangePasswordWithResetToken:
+						{
+							conPrint("ChangePasswordWithResetToken");
 						
-						const std::string email			= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-						const std::string reset_token	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
-						const std::string new_password	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+							const std::string email			= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+							const std::string reset_token	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+							const std::string new_password	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
-						// NOTE: This stuff is done via the website now instead.
+							// NOTE: This stuff is done via the website now instead.
 					
-						//conPrint("email: " + email);
-						//conPrint("reset_token: " + reset_token);
-						////conPrint("new_password: " + new_password);
-						//
-						//{
-						//	Lock lock(world_state->mutex);
-						//
-						//	// Find user with the given email address:
-						//	for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
-						//		if(it->second->email_address == email)
-						//		{
-						//			User* user = it->second.getPointer();
-						//			const bool reset = user->resetPasswordWithToken(reset_token, new_password);
-						//			if(reset)
-						//			{
-						//				world_state->markAsChanged(); // Mark as changed so gets saved to disk.
-						//				conPrint("User password successfully updated.");
-						//			}
-						//		}
-						//}
+							//conPrint("email: " + email);
+							//conPrint("reset_token: " + reset_token);
+							////conPrint("new_password: " + new_password);
+							//
+							//{
+							//	Lock lock(world_state->mutex);
+							//
+							//	// Find user with the given email address:
+							//	for(auto it = world_state->user_id_to_users.begin(); it != world_state->user_id_to_users.end(); ++it)
+							//		if(it->second->email_address == email)
+							//		{
+							//			User* user = it->second.getPointer();
+							//			const bool reset = user->resetPasswordWithToken(reset_token, new_password);
+							//			if(reset)
+							//			{
+							//				world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+							//				conPrint("User password successfully updated.");
+							//			}
+							//		}
+							//}
 
-						break;
-					}
-				default:			
-					{
-						//conPrint("Unknown message id: " + toString(msg_type));
-						throw glare::Exception("Unknown message id: " + toString(msg_type));
+							break;
+						}
+					default:			
+						{
+							//conPrint("Unknown message id: " + toString(msg_type));
+							throw glare::Exception("Unknown message id: " + toString(msg_type));
+						}
 					}
 				}
-			}
-			else
-			{
+				else
+				{
 #if defined(_WIN32) || defined(OSX)
 #else
-				if(VERBOSE) conPrint("WorkerThread: event FD was signalled.");
+					if(VERBOSE) conPrint("WorkerThread: event FD was signalled.");
 
-				// The event FD was signalled, which means there is some data to send on the socket.
-				// Reset the event fd by reading from it.
-				event_fd.read();
+					// The event FD was signalled, which means there is some data to send on the socket.
+					// Reset the event fd by reading from it.
+					event_fd.read();
 
-				if(VERBOSE) conPrint("WorkerThread: event FD has been reset.");
+					if(VERBOSE) conPrint("WorkerThread: event FD has been reset.");
 #endif
-			}
-		}
+				}
+			} // End write to / read from socket loop
+		} // End if(connection_type == Protocol::ConnectionTypeUpdates)
 	}
 	catch(MySocketExcep& e)
 	{
@@ -1895,7 +1893,8 @@ void WorkerThread::doRun()
 		conPrint("WorkerThread: Caught std::bad_alloc.");
 	}
 
-	// Mark avatar corresponding to client as dead
+	
+	// Mark avatar corresponding to client as dead.  Note that we want to do this after catching any exceptions, so avatar is removed on broken connections etc.
 	if(cur_world_state.nonNull())
 	{
 		Lock lock(world_state->mutex);
@@ -1905,6 +1904,15 @@ void WorkerThread::doRun()
 			cur_world_state->avatars[client_avatar_uid]->other_dirty = true;
 		}
 	}
+
+	// Remove thread-local OpenSSL error state, to avoid leaking it.
+	// NOTE: have to destroy socket first, before calling ERR_remove_thread_state(), otherwise memory will just be reallocated.
+	if(socket.nonNull())
+	{
+		assert(socket->getRefCount() == 1);
+	}
+	socket = NULL;
+	ERR_remove_thread_state(/*thread id=*/NULL); // Set thread ID to null to use current thread.
 }
 
 
