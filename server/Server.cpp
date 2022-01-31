@@ -183,7 +183,7 @@ static void makeRandomParcel(const Vec2d& region_botleft, const Vec2d& region_to
 
 
 
-static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state)
+static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<ServerWorldState> world_state, double parcel_w, double parcel_max_z)
 {
 	// Randomly omit one of the 4 edge blocks
 	const int e = (int)(rng.unitRandom() * 3.9999);
@@ -216,15 +216,22 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 				test_parcel->admin_ids.push_back(UserID(0));
 				test_parcel->writer_ids.push_back(UserID(0));
 				test_parcel->created_time = TimeStamp::currentTime();
-				test_parcel->zbounds = Vec2d(-1, 10);
+				test_parcel->zbounds = Vec2d(-1, parcel_max_z);
 
-				test_parcel->verts[0] = botleft + Vec2d(xi * 20, yi * 20);
-				test_parcel->verts[1] = botleft + Vec2d((xi+1)* 20, yi * 20);
-				test_parcel->verts[2] = botleft + Vec2d((xi+1)* 20, (yi+1) * 20);
-				test_parcel->verts[3] = botleft + Vec2d((xi)* 20, (yi+1) * 20);
+				test_parcel->verts[0] = botleft + Vec2d(xi *     parcel_w,     yi * parcel_w);
+				test_parcel->verts[1] = botleft + Vec2d((xi+1) * parcel_w,     yi * parcel_w);
+				test_parcel->verts[2] = botleft + Vec2d((xi+1) * parcel_w, (yi+1) * parcel_w);
+				test_parcel->verts[3] = botleft + Vec2d((xi) *   parcel_w, (yi+1) * parcel_w);
 
-				world_state->parcels[parcel_id] = test_parcel;
-				world_state->addParcelAsDBDirty(test_parcel);
+				if(test_parcel->verts[0].x < -170 && test_parcel->verts[0].y >= 405)
+				{
+					// Don't create parcel, leave room for zombot parcel
+				}
+				else
+				{
+					world_state->parcels[parcel_id] = test_parcel;
+					world_state->addParcelAsDBDirty(test_parcel);
+				}
 			}
 		}
 }
@@ -300,17 +307,18 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90) && // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90)
 					!isParcelInCurrentAuction(world_state, parcel, now) && // And not already in a currently running auction
 					(parcel->nft_status == Parcel::NFTStatus_NotNFT) && // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
-					(!(parcel->id.value() >= 426 && parcel->id.value() < 430)) // Don't auction off new park parcels (parcels 426...429)
+					(!(parcel->id.value() >= 426 && parcel->id.value() < 430)) && // Don't auction off new park parcels (parcels 426...429)
+					(!(parcel->id.value() >= 954 && parcel->id.value() <= 955)) // Don't auction of Zombot's parcels
 					)
 					sellable_parcels.push_back(parcel);
 			}
 
 			// Permute parcels (Fisher–Yates shuffle).  NOTE: kinda slow if we have lots of sellable parcels.
-			for(int i=(int)sellable_parcels.size()-1; i>0; --i)
+			/*for(int i=(int)sellable_parcels.size()-1; i>0; --i)
 			{
 				const uint32 k = rng.nextUInt((uint32)i + 1);
 				mySwap(sellable_parcels[i], sellable_parcels[k]);
-			}
+			}*/
 
 			const int desired_num_to_add = target_num_for_sale - num_for_sale;
 			assert(desired_num_to_add > 0);
@@ -691,7 +699,7 @@ int main(int argc, char *argv[])
 						// Special town square blocks
 					}
 					else
-						makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, server.world_state->getRootWorldState());
+						makeBlock(Vec2d(5 + x*70, 5 + y*70), rng, next_id, server.world_state->getRootWorldState(), /*parcel_w=*/20, /*parcel_max_z=*/10);
 				}
 		}
 
@@ -858,6 +866,52 @@ int main(int argc, char *argv[])
 				server.world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
 			}
 		} 
+
+
+		if(max_parcel_id.value() == 955)
+		{
+			conPrint("Adding north district parcels!");
+
+			const int initial_next_id = 956;
+			int next_id = initial_next_id;
+
+			const double parcel_width = 14;
+			const double block_width = parcel_width * 3 + 8;
+			PCG32 rng(1);
+			for(int x=0; x<11; ++x)
+			for(int y=0; y<4; ++y)
+			{
+				//if(x <= 2 && y >= 1)
+				//{
+				//	// leave space for zombot parcel
+				//}
+				//else 
+				if(
+					/*(x == 1 && y == 1) ||
+					(x == 4 && y == 1) ||
+					(x == 2 && y == 2) ||
+					(x == 6 && y == 2) ||
+					(x == 8 && y == 1) ||
+					(x == 10 && y == 2)*/
+					(x == 1 && y == 1) ||
+					//(x == 2 && y == 2) ||
+					(x == 3 && y == 1) ||
+					(x == 5 && y == 0) ||
+					(x == 5 && y == 2) ||
+					(x == 7 && y == 1) ||
+					(x == 9 && y == 2)
+					)
+				{
+					// Make empty space for park/square
+				}
+				else
+					makeBlock(/*botleft=*/Vec2d(-275 + x * block_width, 335 + y * block_width), rng, next_id, server.world_state->getRootWorldState(), /*parcel_w=*/parcel_width, 
+						/*parcel_max_z=*/15 + rng.unitRandom() * 8);
+			}
+
+			server.world_state->markAsChanged();
+			conPrint("Num parcels added: " + toString(next_id - initial_next_id));
+		}
 
 
 		// Add road objects
