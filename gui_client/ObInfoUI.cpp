@@ -57,7 +57,7 @@ void ObInfoUI::think()
 
 void ObInfoUI::showHyperLink(const std::string& URL, const Vec2f& gl_coords)
 {
-	conPrint("ObInfoUI::showHyperLink: URL: " + URL + ", gl_coords: " + gl_coords.toString());
+	// conPrint("ObInfoUI::showHyperLink: URL: " + URL + ", gl_coords: " + gl_coords.toString());
 
 	currently_showing_url = URL;
 
