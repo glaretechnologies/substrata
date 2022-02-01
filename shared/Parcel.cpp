@@ -209,6 +209,8 @@ std::string Parcel::districtName() const
 		return "Market";
 	else if(id.value() <= 953)
 		return "East";
+	else if(id.value() <= 1221)
+		return "North";
 	else
 		return "Other";
 }
