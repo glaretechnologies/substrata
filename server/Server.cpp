@@ -81,6 +81,8 @@ static void makeParcels(Matrix2d M, int& next_id, Reference<ServerWorldState> wo
 		for(int v=0; v<4; ++v)
 			test_parcel->verts[v] = M * Vec2d(parcel_coords[i][v][0], parcel_coords[i][v][1]);
 
+		test_parcel->build();
+
 		world_state->parcels[parcel_id] = test_parcel;
 		world_state->addParcelAsDBDirty(test_parcel);
 	}
@@ -222,6 +224,7 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 				test_parcel->verts[1] = botleft + Vec2d((xi+1) * parcel_w,     yi * parcel_w);
 				test_parcel->verts[2] = botleft + Vec2d((xi+1) * parcel_w, (yi+1) * parcel_w);
 				test_parcel->verts[3] = botleft + Vec2d((xi) *   parcel_w, (yi+1) * parcel_w);
+				test_parcel->build();
 
 				if(test_parcel->verts[0].x < -170 && test_parcel->verts[0].y >= 405)
 				{
@@ -756,6 +759,8 @@ int main(int argc, char *argv[])
 				parcel->verts[2] = centre - Vec2d(30, 30);
 				parcel->verts[3] = centre - Vec2d(-30, 30);
 
+				parcel->build();
+
 				server.world_state->getRootWorldState()->parcels[parcel_id] = parcel;
 			}
 		}
@@ -844,6 +849,8 @@ int main(int argc, char *argv[])
 				parcel->verts[2] = Vec2d(-275 + 105.0/2,  335 + 80 + 105);
 				parcel->verts[3] = Vec2d(-275,            335 + 80 + 105);
 
+				parcel->build();
+
 				server.world_state->getRootWorldState()->parcels[parcel_id] = parcel;
 				server.world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
 			}
@@ -862,6 +869,8 @@ int main(int argc, char *argv[])
 				parcel->verts[1] = Vec2d(-275 + 105.0  ,  335 + 80);
 				parcel->verts[2] = Vec2d(-275 + 105.0  ,  335 + 80 + 105);
 				parcel->verts[3] = Vec2d(-275 + 105.0/2,  335 + 80 + 105);
+
+				parcel->build();
 
 				server.world_state->getRootWorldState()->parcels[parcel_id] = parcel;
 				server.world_state->getRootWorldState()->addParcelAsDBDirty(parcel);
