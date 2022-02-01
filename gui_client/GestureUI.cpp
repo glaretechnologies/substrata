@@ -202,16 +202,19 @@ void GestureUI::updateWidgetPositions()
 			gesture_buttons[i]->setPosAndDims(Vec2f(x, -min_max_y + y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
 		}
 
-		const float TAB_BUTTON_W = 0.05f;
-		right_tab_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
+		if(right_tab_button.nonNull())
+		{
+			const float TAB_BUTTON_W = 0.05f;
+			right_tab_button->setPosAndDims(Vec2f(GESTURES_LEFT_X - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
 
-		if(!gestures_visible)
-			left_tab_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
-		else
-			left_tab_button->setPosAndDims(Vec2f(1000, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING)); // hide
+			if(!gestures_visible)
+				left_tab_button->setPosAndDims(Vec2f(1 - TAB_BUTTON_W - SPACING, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING));
+			else
+				left_tab_button->setPosAndDims(Vec2f(1000, -min_max_y + SPACING), Vec2f(TAB_BUTTON_W, BUTTON_H * 2 + SPACING)); // hide
 
 
-		selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+			selfie_button->setPosAndDims(Vec2f(-1 + SPACING, -min_max_y + SPACING), Vec2f(BUTTON_W, BUTTON_H));
+		}
 	}
 }
 
