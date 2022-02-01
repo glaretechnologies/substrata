@@ -1222,16 +1222,34 @@ void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state,
 			{
 				ParcelAuction* auction = res->second.ptr();
 
-				for(size_t z=0; z<auction->screenshot_ids.size(); ++z)
+				// Lookup parcel
+				const auto res2 = world_state.getRootWorldState()->parcels.find(auction->parcel_id);
+				if(res2 != world_state.getRootWorldState()->parcels.end())
 				{
-					const uint64 screenshot_id = auction->screenshot_ids[z];
+					const Parcel* parcel = res2->second.ptr();
 
-					auto shot_res = world_state.screenshots.find(screenshot_id);
-					if(shot_res != world_state.screenshots.end())
+					for(size_t z=0; z<auction->screenshot_ids.size(); ++z)
 					{
-						Screenshot* shot = shot_res->second.ptr();
-						shot->state = Screenshot::ScreenshotState_notdone;
-						world_state.addScreenshotAsDBDirty(shot);
+						const uint64 screenshot_id = auction->screenshot_ids[z];
+
+						auto shot_res = world_state.screenshots.find(screenshot_id);
+						if(shot_res != world_state.screenshots.end())
+						{
+							Screenshot* shot = shot_res->second.ptr();
+
+							// Update pos and angles
+							if(z == 0) // If this is the first, close-in shot.  NOTE: bit of a hack
+							{
+								parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+							}
+							else
+							{
+								parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+							}
+
+							shot->state = Screenshot::ScreenshotState_notdone;
+							world_state.addScreenshotAsDBDirty(shot);
+						}
 					}
 				}
 			}
@@ -1280,7 +1298,7 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 						Screenshot* shot = shot_res->second.ptr();
 
 						// Update pos and angles
-						if(z == 0) // If this is the close-in shot.  NOTE: bit of a hack
+						if(z == 0) // If this is the first, close-in shot.  NOTE: bit of a hack
 						{
 							parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
 						}
