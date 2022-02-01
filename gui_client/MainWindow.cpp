@@ -2274,11 +2274,19 @@ void MainWindow::setUpForScreenshot()
 }
 
 
-void MainWindow::saveScreenshot()
+void MainWindow::saveScreenshot() // Throws glare::Exception on failure
 {
 	conPrint("Taking screenshot");
 
 	QImage framebuffer = ui->glWidget->grabFrameBuffer();
+
+	const int target_viewport_w = taking_map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
+	const int target_viewport_h = taking_map_screenshot ? (screenshot_width_px * 2) : (437 * 2); 
+
+	if(framebuffer.width() != target_viewport_w)
+		throw glare::Exception("saveScreenshot(): framebuffer width was incorrect: actual: " + toString(framebuffer.width()) + ", target: " + toString(target_viewport_w));
+	if(framebuffer.height() != target_viewport_h)
+		throw glare::Exception("saveScreenshot(): framebuffer height was incorrect: actual: " + toString(framebuffer.height()) + ", target: " + toString(target_viewport_h));
 
 	QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
 
@@ -2754,7 +2762,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const bool TESTING = false;
 				if(TESTING || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
 				{
+					conPrint("Reading command from screenshot_command_socket etc...");
 					const std::string command = TESTING ? "takemapscreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
+					conPrint("Read screenshot command: " + command);
 					if(command == "takescreenshot")
 					{
 						screenshot_campos.x = screenshot_command_socket->readDouble();
@@ -2810,6 +2820,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			catch(glare::Exception& e)
 			{
 				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what());
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Error");
+				msgBox.setText(QtUtils::toQString("Excep while reading screenshot command from screenshot_command_socket: " + e.what()));
+				msgBox.exec();
 				exit(1);
 			}
 		}
@@ -2839,14 +2853,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		ui->glWidget->take_map_screenshot = map_screenshot;
 		ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
 
-		conPrint("---------------Waiting for loading to be done for screenshot ---------------");
 		const size_t num_model_and_tex_tasks = model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
-	
 
-		printVar(num_obs);
-		printVar(num_model_and_tex_tasks);
-		printVar(num_non_net_resources_downloading);
-		printVar(num_net_resources_downloading);
+		if(time_since_last_waiting_msg.elapsed() > 2.0)
+		{
+			conPrint("---------------Waiting for loading to be done for screenshot ---------------");
+			printVar(num_obs);
+			printVar(num_model_and_tex_tasks);
+			printVar(num_non_net_resources_downloading);
+			printVar(num_net_resources_downloading);
+
+			time_since_last_waiting_msg.reset();
+		}
 
 		const bool loaded_all =
 			(time_since_last_screenshot.elapsed() > 4.0) && // Bit of a hack to allow time for the shadow mapping to render properly
@@ -2860,46 +2878,48 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			if(!done_screenshot_setup)
 			{
-				// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
-				/*ui->editorDockWidget->setFloating(false);
-				this->addDockWidget(Qt::LeftDockWidgetArea, ui->editorDockWidget);
-				ui->editorDockWidget->show();
-
-				ui->chatDockWidget->setFloating(false);
-				this->addDockWidget(Qt::RightDockWidgetArea, ui->chatDockWidget, Qt::Vertical);
-				ui->chatDockWidget->show();*/
+				conPrint("Setting up for screenshot...");
 
 				ui->editorDockWidget->hide();
 				ui->chatDockWidget->hide();
 				ui->diagnosticsDockWidget->hide();
 
-				// Set the window geometry such that the gl viewport is the desired size for the screenshot.
-				const int cur_viewport_w = ui->glWidget->opengl_engine->getViewPortWidth();
-				const int cur_viewport_h = ui->glWidget->opengl_engine->getViewPortHeight();
+				const int target_viewport_w = map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
+				const int target_viewport_h = map_screenshot ? (screenshot_width_px * 2) : (437 * 2);
 
-				const int taget_viewport_w = map_screenshot ? (screenshot_width_px * 2) : 2000;
-				const int taget_viewport_h = map_screenshot ? (screenshot_width_px * 2) : 1344; // 1344 is chosen for aspect ratio consistency with existing screenshots. (650 x 437 px)
-
-				const int new_geom_w = this->geometry().width()  + (taget_viewport_w - cur_viewport_w);
-				const int new_geom_h = this->geometry().height() + (taget_viewport_h - cur_viewport_h);
-				
-				setGeometry(
-					QRect(100, 100, new_geom_w, new_geom_h)
-				);
+				conPrint("Setting geometry size...");
+				// Make the gl widget a certain size so that the screenshot size / aspect ratio is consistent.
+				ui->glWidget->setGeometry(0, 0, target_viewport_w, target_viewport_h);
 				setUpForScreenshot();
 			}
 			else
 			{
-				saveScreenshot();
+				try
+				{
+					saveScreenshot();
 
-				// Reset screenshot state
-				screenshot_output_path.clear();
-				done_screenshot_setup = false;
+					// Reset screenshot state
+					screenshot_output_path.clear();
+					done_screenshot_setup = false;
 
-				time_since_last_screenshot.reset();
+					time_since_last_screenshot.reset();
 
-				if(screenshot_command_socket.nonNull())
-					screenshot_command_socket->writeInt32(0); // Write success msg
+					if(screenshot_command_socket.nonNull())
+						screenshot_command_socket->writeInt32(0); // Write success msg
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Excep while saving screenshot: " + e.what());
+
+					// Reset screenshot state
+					screenshot_output_path.clear();
+					done_screenshot_setup = false;
+
+					time_since_last_screenshot.reset();
+
+					if(screenshot_command_socket.nonNull())
+						screenshot_command_socket->writeInt32(1); // Write failure msg
+				}
 			}
 		}
 	}
@@ -9148,12 +9168,12 @@ int main(int argc, char *argv[])
 
 
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
-		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
-		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
-		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
-		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string);
-		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string);
-		syntax["--screenshotslave"] = std::vector<ArgumentParser::ArgumentType>();
+		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>(); // Run unit tests
+		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify hostname to connect to
+		syntax["-u"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to
+		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to, when a user has clicked on a substrata URL hyperlink.
+		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string); // Extract animation data
+		syntax["--screenshotslave"] = std::vector<ArgumentParser::ArgumentType>(); // Run GUI as a screenshot-taking slave.
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it

@@ -127,14 +127,27 @@ int main(int argc, char* argv[])
 							const double cam_z = socket->readDouble();
 
 							// Read cam angles
-							const double angles_0 = socket->readDouble();
+							      double angles_0 = socket->readDouble();
 							const double angles_1 = socket->readDouble();
 							const double angles_2 = socket->readDouble();
 
 							const int32 screenshot_width_px = socket->readInt32();
 							const int32 highlight_parcel_id = socket->readInt32();
 
-							//conPrint("highlight_parcel_id: " + toString(highlight_parcel_id));
+
+							conPrint("highlight_parcel_id: " + toString(highlight_parcel_id));
+							printVar(cam_x);
+							printVar(cam_y);
+							printVar(cam_z);
+							printVar(angles_0);
+							printVar(angles_1);
+							printVar(angles_2);
+
+							if(!isFinite(cam_x) || cam_x < -1.0e6 || cam_x > 1.0e6)
+								throw glare::Exception("Invalid cam position x: " + toString(cam_x));
+
+							if(angles_0 == 0)
+								angles_0 = Maths::pi_2<double>(); // TEMP HACK
 
 							const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
 							screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
@@ -186,7 +199,7 @@ int main(int argc, char* argv[])
 
 							process = new glare::Process(gui_client_path, command_line_args);
 
-							conPrint("Connecting to gui via socket...");
+							conPrint("Connecting to Substrata GUI process via socket...");
 
 							// Establish socket connection to gui process
 							while(1)
@@ -194,51 +207,60 @@ int main(int argc, char* argv[])
 								try
 								{
 									to_gui_socket = new MySocket("localhost", 34534);
+									to_gui_socket->setUseNetworkByteOrder(false);
 									break;
 								}
 								catch(glare::Exception& e)
 								{
-									conPrint("Excep while connecting to local GUI process: " + e.what());
+									conPrint("Excep while connecting to local GUI process: " + e.what() + " waiting to try again...");
 									PlatformUtils::Sleep(1000);
 								}
 							}
 
-							conPrint("Connected to gui via socket.");
+							conPrint("Connected to Substrata GUI process via socket.");
 						}
 
 						to_gui_socket->write(packet.buf.data(), packet.buf.size());
 
-						// Wait for response from GUI (will be send when screenshot is done)
-						while(1)
+						// Wait for response from GUI (will be sent when screenshot is done)
+						bool got_result = false;
+						int result = 0;
+						while(!got_result)
 						{
 							if(to_gui_socket->readable(1.0))
 							{
-								const int result = to_gui_socket->readInt32(); // 0 = success
-								if(result != 0)
-									throw glare::Exception("Received non-zero result from GUI client.");
-								break;
+								result = to_gui_socket->readInt32(); // 0 = success
+								conPrint("Received result " + toString(result) + " from GUI process.");
+								got_result = true;
 							}
 
 							// Print out any stdout from GUI client
 							while(process->isStdOutReadable())
 							{
 								const std::string output = process->readStdOut();
-								//std::vector<std::string> lines = ::split(output, '\n');
-								//for(size_t i=0; i<lines.size(); ++i)
-								//	if(!isAllWhitespace(lines[i]))
-								//		conPrint("GUI_CLIENT> " + lines[i]);
+								std::vector<std::string> lines = ::split(output, '\n');
+								for(size_t i=0; i<lines.size(); ++i)
+									if(!isAllWhitespace(lines[i]))
+										conPrint("\tGUI_CLIENT> " + lines[i]);
 							}
 						}
 
-						// Load generated screenshot
-						const std::string screenshot_data = FileUtils::readEntireFile(screenshot_path);
+						if(result == 0) // If success:
+						{
+							// Load generated screenshot
+							const std::string screenshot_data = FileUtils::readEntireFile(screenshot_path);
 
-						socket->writeUInt32(Protocol::ScreenShotSucceeded);
+							socket->writeUInt32(Protocol::ScreenShotSucceeded);
 
-						// Send it to the server
-						conPrint("Sending screenshot " + screenshot_path + " to server.");
-						socket->writeUInt64(screenshot_data.length());
-						socket->writeData(screenshot_data.data(), screenshot_data.length());
+							// Send it to the server
+							conPrint("Sending screenshot " + screenshot_path + " to server.");
+							socket->writeUInt64(screenshot_data.length());
+							socket->writeData(screenshot_data.data(), screenshot_data.length());
+						}
+						else
+						{
+							socket->writeUInt32(12341234); // Just write some value != Protocol::ScreenShotSucceeded
+						}
 
 						time_since_last_shot_request.reset();
 					}
@@ -283,7 +305,7 @@ int main(int argc, char* argv[])
 		{
 			// Connection failed.
 			conPrint("Error: " + e.what());
-			PlatformUtils::Sleep(1000);
+			PlatformUtils::Sleep(10000);
 		}
 	} // End while screenshot bot should keep running:
 

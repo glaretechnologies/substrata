@@ -245,7 +245,7 @@ public:
 	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
 	void addPlaceholderObjectsForOb(WorldObject& ob);
 	void setUpForScreenshot();
-	void saveScreenshot();
+	void saveScreenshot(); // Throws glare::Exception on failure
 
 	// ObLoadingCallbacks interface
 	virtual void loadObject(WorldObjectRef ob);
@@ -461,6 +461,7 @@ public:
 	bool taking_map_screenshot;
 	MySocketRef screenshot_command_socket;
 	Timer time_since_last_screenshot;
+	Timer time_since_last_waiting_msg;
 
 private:
 	struct tls_config* client_tls_config;
