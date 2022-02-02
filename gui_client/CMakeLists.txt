@@ -33,6 +33,7 @@ addMocFileRule(gui_client AboutDialog)
 addMocFileRule(gui_client MainOptionsDialog)
 addMocFileRule(gui_client GoToParcelDialog)
 addMocFileRule(gui_client FindObjectDialog)
+addMocFileRule(gui_client ListObjectsNearbyDialog)
 addMocFileRule(gui_client LogWindow)
 
 addMocFileRule(qt FileSelectWidget)
@@ -59,6 +60,7 @@ addUIFileRule(gui_client AboutDialog)
 addUIFileRule(gui_client MainOptionsDialog)
 addUIFileRule(gui_client GoToParcelDialog)
 addUIFileRule(gui_client FindObjectDialog)
+addUIFileRule(gui_client ListObjectsNearbyDialog)
 addUIFileRule(gui_client LogWindow)
 
 addUIFileRule(qt FileSelectWidget)
@@ -92,6 +94,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_FindObjectDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_ListObjectsNearbyDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_LogWindow.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
@@ -112,6 +115,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_AboutDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MainOptionsDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_GoToParcelDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_FindObjectDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_ListObjectsNearbyDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_LogWindow.h
 )
 
@@ -567,6 +571,28 @@ if(WIN32)
 
 	SET(QT_WIN32_LIBS
 		OpenGL32
+
+		#optimized Qt6Gui
+		#optimized Qt6Core
+		#optimized Qt6OpenGL
+		#optimized Qt6Widgets
+		#optimized Qt6Multimedia
+		#optimized Qt6OpenGLWidgets
+		#optimized Qt6Core5Compat
+		#optimized Qt6WebEngineWidgets
+		#optimized Qt6WebEngineQuick
+		#optimized Qt6Gamepad
+		#debug Qt6Guid
+		#debug Qt6Cored
+		#debug Qt6OpenGLd
+		#debug Qt6Widgetsd
+		#debug Qt6Multimediad
+		#debug Qt6OpenGLWidgetsd
+		#debug Qt6Core5Compatd
+		#debug Qt6WebEngineWidgetsd
+		#debug Qt6WebEngineQuickd
+		#debug Qt6Gamepadd
+		
 		optimized qtmain
 		optimized Qt5Gui
 		optimized Qt5Core

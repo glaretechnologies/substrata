@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "AddObjectDialog.h"
 #include "MainOptionsDialog.h"
 #include "FindObjectDialog.h"
+#include "ListObjectsNearbyDialog.h"
 #include "ModelLoading.h"
 #include "TestSuite.h"
 #include "CredentialManager.h"
@@ -6235,6 +6236,35 @@ void MainWindow::on_actionFind_Object_triggered()
 			msgBox.setWindowTitle("Invalid object id");
 			msgBox.setText("Please enter just a number.");
 			msgBox.exec();
+		}
+	}
+}
+
+
+void MainWindow::on_actionList_Objects_Nearby_triggered()
+{
+	ListObjectsNearbyDialog d(this->settings, this->world_state.ptr(), cam_controller.getPosition());
+	const int code = d.exec();
+	if(code == QDialog::Accepted)
+	{
+		const UID ob_id = d.getSelectedUID();
+		if(ob_id.valid())
+		{
+			auto res = world_state->objects.find(UID(ob_id));
+			if(res != world_state->objects.end())
+			{
+				WorldObject* ob = res->second.ptr();
+
+				deselectObject();
+				selectObject(ob, /*selected_tri_index=*/0);
+			}
+			else
+			{
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Invalid object id");
+				msgBox.setText("There is no object with that id.");
+				msgBox.exec();
+			}
 		}
 	}
 }

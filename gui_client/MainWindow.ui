@@ -65,7 +65,10 @@
     <addaction name="separator"/>
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
+    <addaction name="separator"/>
     <addaction name="actionFind_Object"/>
+    <addaction name="actionList_Objects_Nearby"/>
+    <addaction name="separator"/>
     <addaction name="menuLightmaps"/>
    </widget>
    <widget class="QMenu" name="menuMovement">
@@ -547,6 +550,11 @@
   <action name="actionShow_Screenshot_Folder">
    <property name="text">
     <string>Show Screenshot Folder</string>
+   </property>
+  </action>
+  <action name="actionList_Objects_Nearby">
+   <property name="text">
+    <string>Find Objects Nearby</string>
    </property>
   </action>
  </widget>
