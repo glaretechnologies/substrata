@@ -1224,7 +1224,6 @@ int main(int argc, char *argv[])
 		if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #else
-		const std::string certdir = "/home/" + username + "/certs/substrata.info";
 		if(FileUtils::fileExists(certdir))
 		{
 			conPrint("Using godaddy certs");
