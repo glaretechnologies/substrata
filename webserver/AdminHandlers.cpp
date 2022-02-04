@@ -45,7 +45,25 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 
 	std::string page_out = sharedAdminHeader(world_state, request_info);
 
-	page_out += "<p>Welcome!</p>";
+	page_out += "<p>Welcome!</p><br/><br/>";
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+		if(world_state.server_admin_message.empty())
+		{
+			page_out += "<p>No server admin message set.</p>";
+		}
+		else
+		{
+			page_out += "<p>Current server admin message: '"+ web::Escaping::HTMLEscape(world_state.server_admin_message) + "'.</p>";
+		}
+	} // End Lock scope
+
+	page_out += "<form action=\"/admin_set_server_admin_message_post\" method=\"post\">";
+	page_out += "<input type=\"text\" name=\"msg\" value=\"\">";
+	page_out += "<input type=\"submit\" value=\"Set server admin message\" onclick=\"return confirm('Are you sure you want set the server admin message?');\" >";
+	page_out += "</form>";
+
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
@@ -1477,6 +1495,37 @@ void handleSetMinNextNoncePost(ServerAllWorldsState& world_state, const web::Req
 		} // End lock scope
 
 		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_sub_eth_transactions");
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleSetServerAdminMessagePost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			world_state.server_admin_message = request.getPostField("msg").str();
+			world_state.server_admin_message_changed = true;
+
+		} // End lock scope
+
+		//world_state.setUserWebMessage("Set server admin message.");
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin");
 	}
 	catch(glare::Exception& e)
 	{

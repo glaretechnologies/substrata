@@ -494,9 +494,12 @@ void MainWindow::afterGLInitInitialise()
 
 	gl_ui = new GLUI();
 	gl_ui->create(ui->glWidget->opengl_engine, /*text_renderer=*/this);
+
 	gesture_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
 	ob_info_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
+
+	misc_info_ui.create(ui->glWidget->opengl_engine, /*main_window_=*/this, gl_ui);
 
 
 	// Do auto-setting of graphics options, if they have not been set.  Otherwise apply MSAA setting.
@@ -532,6 +535,10 @@ MainWindow::~MainWindow()
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
 
 	if(biome_manager) delete biome_manager;
+
+	misc_info_ui.destroy();
+
+	ob_info_ui.destroy();
 
 	gesture_ui.destroy();
 
@@ -3673,6 +3680,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				writeToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
+			}
+			else if(dynamic_cast<const ServerAdminMessage*>(msg.getPointer()))
+			{
+				const ServerAdminMessage* m = static_cast<const ServerAdminMessage*>(msg.getPointer());
+				
+				misc_info_ui.showServerAdminMessage(m->msg);
 			}
 			else if(dynamic_cast<const UserSelectedObjectMessage*>(msg.getPointer()))
 			{
@@ -8555,7 +8568,13 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 
 void MainWindow::glWidgetViewportResized(int w, int h)
 {
+	if(gl_ui.nonNull())
+	{
+		gl_ui->viewportResized(w, h);
+	}
 	gesture_ui.viewportResized(w, h);
+	ob_info_ui.viewportResized(w, h);
+	misc_info_ui.viewportResized(w, h);
 }
 
 

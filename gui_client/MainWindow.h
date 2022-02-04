@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "LogWindow.h"
 #include "GestureUI.h"
 #include "ObInfoUI.h"
+#include "MiscInfoUI.h"
 #include "DownloadingResourceQueue.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
@@ -502,6 +503,7 @@ public:
 	GLUIRef gl_ui;
 	GestureUI gesture_ui;
 	ObInfoUI ob_info_ui; // For object info and hyperlinks etc.
+	MiscInfoUI misc_info_ui; // For showing messages from the server etc.
 
 	bool running_destructor;
 

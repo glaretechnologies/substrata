@@ -223,8 +223,6 @@ void GestureUI::viewportResized(int w, int h)
 {
 	if(gl_ui.nonNull())
 	{
-		gl_ui->viewportResized(w, h);
-
 		updateWidgetPositions();
 	}
 }

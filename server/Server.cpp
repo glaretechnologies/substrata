@@ -1493,6 +1493,26 @@ int main(int argc, char *argv[])
 					world_state->dirty_from_remote_objects.clear();
 				} // End for each server world
 
+
+				if(server.world_state->server_admin_message_changed)
+				{
+					conPrint("Sending ServerAdminMessages to clients...");
+
+					// Send out ServerAdminMessageID packets to clients
+					initPacket(scratch_packet, Protocol::ServerAdminMessageID);
+					scratch_packet.writeStringLengthFirst(server.world_state->server_admin_message);
+					updatePacketLengthField(scratch_packet);
+
+					Lock lock3(server.worker_thread_manager.getMutex());
+					for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
+					{
+						assert(dynamic_cast<WorkerThread*>(i->getPointer()));
+						static_cast<WorkerThread*>(i->getPointer())->enqueueDataToSend(scratch_packet);
+					}
+
+					server.world_state->server_admin_message_changed = false;
+				}
+
 			} // End scope for world_state->mutex lock
 
 			// Enqueue packets to worker threads to send

@@ -38,6 +38,8 @@ ServerAllWorldsState::ServerAllWorldsState()
 	ETH_per_EUR = 0;
 
 	eth_info.min_next_nonce = 0;
+
+	server_admin_message_changed = false;
 }
 
 

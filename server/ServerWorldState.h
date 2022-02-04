@@ -174,6 +174,10 @@ public:
 	TimeStamp last_lightmapper_bot_contact_time;
 	TimeStamp last_eth_bot_contact_time;
 
+	// Ephemeral state - a message that is shown to clients
+	std::string server_admin_message;
+	bool server_admin_message_changed;
+
 	std::map<UserID, std::string> user_web_messages; // For displaying an informational or error message on the next webpage served to a user.
 
 	// Sets of objects that should be written to (updated) in the database.

@@ -163,6 +163,14 @@ public:
 };
 
 
+class ServerAdminMessage : public ThreadMessage
+{
+public:
+	ServerAdminMessage(const std::string& msg_) : msg(msg_) {}
+	std::string msg;
+};
+
+
 /*=====================================================================
 ClientThread
 -------------------

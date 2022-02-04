@@ -783,6 +783,22 @@ void WorkerThread::doRun()
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 			}
 
+			// Send a ServerAdminMessage to client if we have a non-empty message.
+			std::string server_admin_msg;
+			{ // Lock scope
+				Lock lock(world_state->mutex);
+				server_admin_msg = world_state->server_admin_message;
+			} // End lock scope
+			if(!server_admin_msg.empty())
+			{
+				initPacket(scratch_packet, Protocol::ServerAdminMessageID);
+				scratch_packet.writeStringLengthFirst(server_admin_msg);
+				updatePacketLengthField(scratch_packet);
+
+				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+				socket->flush();
+			}
+
 			// Send all current avatar state data to client
 			{
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
