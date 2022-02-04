@@ -136,6 +136,8 @@ public:
 	void addUserAsDBDirty(const UserRef user) { db_dirty_users.insert(user); changed = 1; }
 
 	void addEverythingToDirtySets();
+
+	bool isInReadOnlyMode() { return read_only_mode; }
 	
 	Reference<ResourceManager> resource_manager;
 
@@ -177,6 +179,9 @@ public:
 	// Ephemeral state - a message that is shown to clients
 	std::string server_admin_message;
 	bool server_admin_message_changed;
+
+	// Ephemeral state - is the server in read-only mode?  When true, clients can't make changes to objects etc.
+	bool read_only_mode;
 
 	std::map<UserID, std::string> user_web_messages; // For displaying an informational or error message on the next webpage served to a user.
 

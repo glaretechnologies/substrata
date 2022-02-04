@@ -236,7 +236,7 @@ void handleLogoutPost(const web::RequestInfo& request_info, web::ReplyInfo& repl
 }
 
 
-void renderSignUpPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderSignUpPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Sign Up");
 
@@ -245,16 +245,23 @@ void renderSignUpPage(const web::RequestInfo& request_info, web::ReplyInfo& repl
 	page_out += "<body>";
 	page_out += "</head><h1>Sign Up</h1><body>";
 
-	if(!msg.empty())
-		page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
+	if(world_state.isInReadOnlyMode())
+	{
+		page_out += "<div style=\"background-color: blanchedalmond;\"><p>Server is in read-only mode, signing up is paused currently.</p></div>";
+	}
+	else
+	{
+		if(!msg.empty())
+			page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + msg.HTMLEscaped() + "</div>  \n";
 
-	page_out += "<form action=\"signup_post\" method=\"post\">";
-	page_out += "<input type=\"hidden\" name=\"return\" value=\"" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\"><br>";
-	page_out += "username: <input type=\"text\" name=\"username\"><br>";
-	page_out += "email:    <input type=\"email\" name=\"email\"><br>";
-	page_out += "password: <input type=\"password\" name=\"password\"><br/>";
-	page_out += "<input type=\"submit\" value=\"Sign Up\">";
-	page_out += "</form>";
+		page_out += "<form action=\"signup_post\" method=\"post\">";
+		page_out += "<input type=\"hidden\" name=\"return\" value=\"" + web::Escaping::HTMLEscape(request_info.getURLParam("return").str()) + "\"><br>";
+		page_out += "username: <input type=\"text\" name=\"username\"><br>";
+		page_out += "email:    <input type=\"email\" name=\"email\"><br>";
+		page_out += "password: <input type=\"password\" name=\"password\"><br/>";
+		page_out += "<input type=\"submit\" value=\"Sign Up\">";
+		page_out += "</form>";
+	}
 
 	page_out += "<br/><br/><br/>";
 
@@ -275,6 +282,9 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 {
 	try
 	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, signups disabled currently.");
+
 		const web::UnsafeString username		= request_info.getPostField("username");
 		const web::UnsafeString email			= request_info.getPostField("email");
 		const web::UnsafeString password		= request_info.getPostField("password");
@@ -385,6 +395,9 @@ void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::Reque
 {
 	try
 	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, password resets disabled currently.");
+
 		const web::UnsafeString username_or_email = request_info.getPostField("username"); // or email address
 		
 		User* matching_user = NULL;
@@ -532,6 +545,9 @@ void handleSetNewPasswordPost(ServerAllWorldsState& world_state, const web::Requ
 {
 	try
 	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, password resetting disabled currently.");
+
 		const std::string reset_token = request_info.getPostField("reset_token").str();
 		const std::string new_password = request_info.getPostField("password").str();
 

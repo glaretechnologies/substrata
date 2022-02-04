@@ -183,6 +183,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetServerAdminMessagePost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_read_only_mode_post")
+		{
+			AdminHandlers::handleSetReadOnlyModePost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_delete_transaction_post")
 		{
 			AdminHandlers::handleDeleteTransactionPost(*this->world_state, request, reply_info);
@@ -366,7 +370,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(request.path == "/signup")
 		{
-			LoginHandlers::renderSignUpPage(request, reply_info);
+			LoginHandlers::renderSignUpPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/reset_password")
 		{

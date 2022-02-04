@@ -91,6 +91,7 @@ const uint32 UploadAllowed			= 5100;
 const uint32 LogInFailure			= 5101;
 const uint32 InvalidFileSize		= 5102;
 const uint32 NoWritePermissions		= 5103;
+const uint32 ServerIsInReadOnlyMode	= 5104;
 
 
 //TEMP HACK move elsewhere

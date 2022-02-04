@@ -459,6 +459,10 @@ void handleMakeParcelIntoNFTPost(ServerAllWorldsState& world_state, const web::R
 {
 	try
 	{ // lock scope
+
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
 		const ParcelID parcel_id(request_info.getPostIntField("parcel_id"));
 
 		Lock lock(world_state.mutex);
@@ -535,6 +539,9 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 	// Check user is logged in, check they have an eth address, check parcel exists.
 	try
 	{ // lock scope
+
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
 
 		parcel_id = ParcelID(request_info.getPostIntField("parcel_id"));
 

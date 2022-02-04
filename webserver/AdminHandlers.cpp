@@ -64,6 +64,19 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 	page_out += "<input type=\"submit\" value=\"Set server admin message\" onclick=\"return confirm('Are you sure you want set the server admin message?');\" >";
 	page_out += "</form>";
 
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		if(world_state.read_only_mode)
+			page_out += "<p>Server is in read-only mode!</p>";
+		else
+			page_out += "<p>Server is not in read-only mode.</p>";
+
+		page_out += "<form action=\"/admin_set_read_only_mode_post\" method=\"post\">";
+		page_out += "<input type=\"number\" name=\"read_only_mode\" value=\"" + toString(world_state.read_only_mode ? 1 : 0) + "\">";
+		page_out += "<input type=\"submit\" value=\"Set server read-only mode (1 / 0)\" onclick=\"return confirm('Are you sure you want set the server read-only mode?');\" >";
+		page_out += "</form>";
+	} // End Lock scope
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
@@ -1520,6 +1533,36 @@ void handleSetServerAdminMessagePost(ServerAllWorldsState& world_state, const we
 
 			world_state.server_admin_message = request.getPostField("msg").str();
 			world_state.server_admin_message_changed = true;
+
+		} // End lock scope
+
+		//world_state.setUserWebMessage("Set server admin message.");
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin");
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleLoginPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleSetReadOnlyModePost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			world_state.read_only_mode = request.getPostIntField("read_only_mode") != 0;
 
 		} // End lock scope
 
