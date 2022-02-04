@@ -706,6 +706,12 @@ void ClientThread::doRun()
 						world_state->updateWithGlobalTimeReceived(global_time);
 						break;
 					}
+				case Protocol::ServerAdminMessageID:
+					{
+						const std::string msg_text = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
+						out_msg_queue->enqueue(new ServerAdminMessage(msg_text));
+						break;
+					}
 				default:
 					{
 						conPrint("Unknown message id: " + ::toString(msg_type));

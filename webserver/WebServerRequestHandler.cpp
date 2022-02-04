@@ -179,6 +179,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetTransactionNoncePost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_server_admin_message_post")
+		{
+			AdminHandlers::handleSetServerAdminMessagePost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_delete_transaction_post")
 		{
 			AdminHandlers::handleDeleteTransactionPost(*this->world_state, request, reply_info);

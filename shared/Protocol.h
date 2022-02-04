@@ -99,6 +99,7 @@ const uint32 UserDeselectedObject	= 6001;
 
 const uint32 InfoMessageID			= 7001;
 const uint32 ErrorMessageID			= 7002;
+const uint32 ServerAdminMessageID	= 7010; // Allows server to send a message like "Server going down for reboot soon"
 
 const uint32 LogInMessage			= 8000;
 const uint32 LogOutMessage			= 8001;
