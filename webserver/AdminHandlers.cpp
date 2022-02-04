@@ -137,6 +137,18 @@ void renderParcelsPage(ServerAllWorldsState& world_state, const web::RequestInfo
 
 		page_out += "<h2>Root world Parcels</h2>\n";
 
+		//-----------------------
+		page_out += "<hr/>";
+		page_out += "<form action=\"/admin_regenerate_multiple_parcel_screenshots\" method=\"post\">";
+		page_out += "start parcel id: <input type=\"number\" name=\"start_parcel_id\" value=\"" + toString(0) + "\"><br/>";
+		page_out += "end parcel id: <input type=\"number\" name=\"end_parcel_id\" value=\"" + toString(10) + "\"><br/>";
+		page_out += "<input type=\"submit\" value=\"Regenerate/recreate parcel screenshots\" onclick=\"return confirm('Are you sure you want to recreate parcel screenshots?');\" >";
+		page_out += "</form>";
+		page_out += "<hr/>";
+		//-----------------------
+
+
+
 		Reference<ServerWorldState> root_world = world_state.getRootWorldState();
 
 		for(auto it = root_world->parcels.begin(); it != root_world->parcels.end(); ++it)
@@ -1350,6 +1362,117 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 		} // End lock scope
 
 		web::ResponseUtils::writeRedirectTo(reply_info, "/parcel/" + parcel_id.toString());
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleRegenerateParcelScreenshots error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleRegenerateMultipleParcelScreenshots(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int start_parcel_id	= request.getPostIntField("start_parcel_id");
+		const int end_parcel_id		= request.getPostIntField("end_parcel_id");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			for(auto it = world_state.getRootWorldState()->parcels.begin(); it != world_state.getRootWorldState()->parcels.end(); ++it)
+			{
+				Parcel* parcel = it->second.ptr();
+
+				if((int)parcel->id.value() >= start_parcel_id && (int)parcel->id.value() <= end_parcel_id)
+				{
+					if(parcel->screenshot_ids.empty()) // If parcel does not have any screenshots yet:
+					{
+						uint64 next_shot_id = world_state.getNextScreenshotUID();
+
+						// Create close-in screenshot
+						{
+							ScreenshotRef shot = new Screenshot();
+							shot->id = next_shot_id++;
+							parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+							shot->width_px = 650;
+							shot->highlight_parcel_id = (int)parcel->id.value();
+							shot->created_time = TimeStamp::currentTime();
+							shot->state = Screenshot::ScreenshotState_notdone;
+
+							world_state.screenshots[shot->id] = shot;
+
+							parcel->screenshot_ids.push_back(shot->id);
+
+							world_state.addScreenshotAsDBDirty(shot);
+						}
+						// Zoomed-out screenshot
+						{
+							ScreenshotRef shot = new Screenshot();
+							shot->id = next_shot_id++;
+							parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+							shot->width_px = 650;
+							shot->highlight_parcel_id = (int)parcel->id.value();
+							shot->created_time = TimeStamp::currentTime();
+							shot->state = Screenshot::ScreenshotState_notdone;
+
+							world_state.screenshots[shot->id] = shot;
+
+							parcel->screenshot_ids.push_back(shot->id);
+
+							world_state.addScreenshotAsDBDirty(shot);
+						}
+
+						world_state.getRootWorldState()->addParcelAsDBDirty(parcel);
+						world_state.markAsChanged();
+
+						conPrint("Created screenshots for parcel " + parcel->id.toString());
+					}
+					else
+					{
+						for(size_t z=0; z<parcel->screenshot_ids.size(); ++z)
+						{
+							const uint64 screenshot_id = parcel->screenshot_ids[z];
+
+							auto shot_res = world_state.screenshots.find(screenshot_id);
+							if(shot_res != world_state.screenshots.end())
+							{
+								Screenshot* shot = shot_res->second.ptr();
+
+								// Update pos and angles
+								if(z == 0) // If this is the first, close-in shot.  NOTE: bit of a hack
+								{
+									parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+								}
+								else
+								{
+									parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+								}
+
+								shot->is_map_tile = false; // There was a bug where some screenshots got mixed up with map tile screenshots, make sure the screenshot is not marked as a map tile.
+								shot->width_px = 650;
+								shot->highlight_parcel_id = (int)parcel->id.value();
+
+								shot->state = Screenshot::ScreenshotState_notdone;
+								world_state.addScreenshotAsDBDirty(shot);
+							}
+
+							conPrint("Regenerated screenshots for parcel " + parcel->id.toString());
+						}
+					}
+				}
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_parcels");
 	}
 	catch(glare::Exception& e)
 	{

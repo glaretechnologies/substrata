@@ -147,6 +147,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_regenerate_multiple_parcel_screenshots")
+		{
+			AdminHandlers::handleRegenerateMultipleParcelScreenshots(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_terminate_parcel_auction")
 		{
 			AdminHandlers::handleTerminateParcelAuction(*this->world_state, request, reply_info);
