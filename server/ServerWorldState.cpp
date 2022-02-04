@@ -40,6 +40,8 @@ ServerAllWorldsState::ServerAllWorldsState()
 	eth_info.min_next_nonce = 0;
 
 	server_admin_message_changed = false;
+
+	read_only_mode = false;
 }
 
 

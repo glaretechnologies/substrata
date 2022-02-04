@@ -38,7 +38,7 @@ namespace LoginHandlers
 	void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleLogoutPost(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
-	void renderSignUpPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
+	void renderSignUpPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 
 	void renderResetPasswordPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);

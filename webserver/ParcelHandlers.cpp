@@ -566,6 +566,9 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 {
 	try
 	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
 		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
 		const web::UnsafeString new_descrip = request.getPostField("description");
 
@@ -606,6 +609,9 @@ void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::Req
 {
 	try
 	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
 		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
 		const web::UnsafeString writer_name = request.getPostField("writer_name");
 
@@ -678,6 +684,9 @@ void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::
 {
 	try
 	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, editing disabled currently.");
+
 		const ParcelID parcel_id = ParcelID(request.getPostIntField("parcel_id"));
 		const UserID writer_id = UserID(request.getPostIntField("writer_id"));
 

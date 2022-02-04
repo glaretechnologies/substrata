@@ -175,6 +175,16 @@ void WorkerThread::handleResourceUploadConnection()
 			return;
 		}
 
+		if(server->world_state->isInReadOnlyMode())
+		{
+			conPrint("\tin read only-mode..");
+			socket->writeUInt32(Protocol::ServerIsInReadOnlyMode); // Note that this is not a framed message.
+			socket->writeStringLengthFirst("Server is in read-only mode, can't upload files.");
+
+			socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+			return;
+		}
+
 
 		const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
@@ -1015,7 +1025,7 @@ void WorkerThread::doRun()
 									{
 										const bool avatar_settings_changed = !(client_user->avatar_settings == avatar->avatar_settings);
 
-										if(avatar_settings_changed)
+										if(avatar_settings_changed && !world_state->isInReadOnlyMode())
 										{
 											client_user->avatar_settings = avatar->avatar_settings;
 
@@ -1117,6 +1127,10 @@ void WorkerThread::doRun()
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
 							}
+							else if(world_state->isInReadOnlyMode())
+							{
+								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't modify an object right now.");
+							}
 							else
 							{
 								std::string err_msg_to_client;
@@ -1165,6 +1179,10 @@ void WorkerThread::doRun()
 							if(client_user.isNull())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
+							}
+							else if(world_state->isInReadOnlyMode())
+							{
+								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't modify an object right now.");
 							}
 							else
 							{
@@ -1219,14 +1237,17 @@ void WorkerThread::doRun()
 								if(res != cur_world_state->objects.end())
 								{
 									WorldObject* ob = res->second.getPointer();
-					
-									ob->lightmap_url = new_lightmap_url;
 
-									ob->from_remote_lightmap_url_dirty = true;
-									cur_world_state->addWorldObjectAsDBDirty(ob);
-									cur_world_state->dirty_from_remote_objects.insert(ob);
+									if(!world_state->isInReadOnlyMode())
+									{
+										ob->lightmap_url = new_lightmap_url;
 
-									world_state->markAsChanged();
+										ob->from_remote_lightmap_url_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(ob);
+										cur_world_state->dirty_from_remote_objects.insert(ob);
+
+										world_state->markAsChanged();
+									}
 								}
 							}
 							break;
@@ -1244,14 +1265,17 @@ void WorkerThread::doRun()
 								if(res != cur_world_state->objects.end())
 								{
 									WorldObject* ob = res->second.getPointer();
-					
-									ob->model_url = new_model_url;
 
-									ob->from_remote_model_url_dirty = true;
-									cur_world_state->addWorldObjectAsDBDirty(ob);
-									cur_world_state->dirty_from_remote_objects.insert(ob);
+									if(!world_state->isInReadOnlyMode())
+									{
+										ob->model_url = new_model_url;
 
-									world_state->markAsChanged();
+										ob->from_remote_model_url_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(ob);
+										cur_world_state->dirty_from_remote_objects.insert(ob);
+
+										world_state->markAsChanged();
+									}
 								}
 							}
 							break;
@@ -1270,13 +1294,16 @@ void WorkerThread::doRun()
 								{
 									WorldObject* ob = res->second.getPointer();
 
-									ob->flags = flags; // Copy flags
+									if(!world_state->isInReadOnlyMode())
+									{
+										ob->flags = flags; // Copy flags
 
-									ob->from_remote_flags_dirty = true;
-									cur_world_state->addWorldObjectAsDBDirty(ob);
-									cur_world_state->dirty_from_remote_objects.insert(ob);
+										ob->from_remote_flags_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(ob);
+										cur_world_state->dirty_from_remote_objects.insert(ob);
 
-									world_state->markAsChanged();
+										world_state->markAsChanged();
+									}
 								}
 							}
 							break;
@@ -1300,6 +1327,10 @@ void WorkerThread::doRun()
 								updatePacketLengthField(scratch_packet);
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 								socket->flush();
+							}
+							else if(world_state->isInReadOnlyMode())
+							{
+								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't create an object right now.");
 							}
 							else
 							{
@@ -1338,6 +1369,10 @@ void WorkerThread::doRun()
 							if(client_user.isNull())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to destroy an object.");
+							}
+							else if(world_state->isInReadOnlyMode())
+							{
+								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't destroy an object right now.");
 							}
 							else
 							{
@@ -1543,6 +1578,10 @@ void WorkerThread::doRun()
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to modify a parcel.");
 							}
+							else if(world_state->isInReadOnlyMode())
+							{
+								writeErrorMessageToClient(socket, "Server is in read-only mode, you can't modify a parcel right now.");
+							}
 							else
 							{
 								// Look up existing parcel in world state
@@ -1722,43 +1761,50 @@ void WorkerThread::doRun()
 								bool signed_up = false;
 
 								std::string msg_to_client;
-								if(username.size() < 3)
-									msg_to_client = "Username is too short, must have at least 3 characters";
+								if(world_state->isInReadOnlyMode())
+								{
+									msg_to_client = "Server is in read-only mode, you can't sign up right now.";
+								}
 								else
 								{
-									if(password.size() < 6)
-										msg_to_client = "Password is too short, must have at least 6 characters";
+									if(username.size() < 3)
+										msg_to_client = "Username is too short, must have at least 3 characters";
 									else
 									{
-										Lock lock(world_state->mutex);
-										auto res = world_state->name_to_users.find(username);
-										if(res == world_state->name_to_users.end())
+										if(password.size() < 6)
+											msg_to_client = "Password is too short, must have at least 6 characters";
+										else
 										{
-											Reference<User> new_user = new User();
-											new_user->id = UserID((uint32)world_state->name_to_users.size());
-											new_user->created_time = TimeStamp::currentTime();
-											new_user->name = username;
-											new_user->email_address = email;
+											Lock lock(world_state->mutex);
+											auto res = world_state->name_to_users.find(username);
+											if(res == world_state->name_to_users.end())
+											{
+												Reference<User> new_user = new User();
+												new_user->id = UserID((uint32)world_state->name_to_users.size());
+												new_user->created_time = TimeStamp::currentTime();
+												new_user->name = username;
+												new_user->email_address = email;
 
-											// We need a random salt for the user.
-											uint8 random_bytes[32];
-											CryptoRNG::getRandomBytes(random_bytes, 32); // throws glare::Exception
+												// We need a random salt for the user.
+												uint8 random_bytes[32];
+												CryptoRNG::getRandomBytes(random_bytes, 32); // throws glare::Exception
 
-											std::string user_salt;
-											Base64::encode(random_bytes, 32, user_salt); // Convert random bytes to base-64.
+												std::string user_salt;
+												Base64::encode(random_bytes, 32, user_salt); // Convert random bytes to base-64.
 
-											new_user->password_hash_salt = user_salt;
-											new_user->hashed_password = User::computePasswordHash(password, user_salt);
+												new_user->password_hash_salt = user_salt;
+												new_user->hashed_password = User::computePasswordHash(password, user_salt);
 
-											world_state->addUserAsDBDirty(new_user);
+												world_state->addUserAsDBDirty(new_user);
 
-											// Add new user to world state
-											world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
-											world_state->name_to_users   .insert(std::make_pair(username,     new_user));
-											world_state->markAsChanged(); // Mark as changed so gets saved to disk.
+												// Add new user to world state
+												world_state->user_id_to_users.insert(std::make_pair(new_user->id, new_user));
+												world_state->name_to_users   .insert(std::make_pair(username,     new_user));
+												world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 
-											client_user = new_user; // Log user in as well.
-											signed_up = true;
+												client_user = new_user; // Log user in as well.
+												signed_up = true;
+											}
 										}
 									}
 								}
