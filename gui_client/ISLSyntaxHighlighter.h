@@ -8,6 +8,11 @@ Copyright Glare Technologies Limited 2019 -
 #include <QtGui/QSyntaxHighlighter>
 
 #include <QtCore/QHash>
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#include <QtCore5Compat/QRegExp>
+#else
+#include <QtCore/QRegExp>
+#endif
 #include <QtGui/QTextCharFormat>
 
 /*=====================================================================

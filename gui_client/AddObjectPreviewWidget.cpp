@@ -26,6 +26,7 @@
 
 // https://wiki.qt.io/How_to_use_OpenGL_Core_Profile_with_Qt
 // https://developer.apple.com/opengl/capabilities/GLInfo_1085_Core.html
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
 static QGLFormat makeFormat()
 {
 	// We need to request a 'core' profile.  Otherwise on OS X, we get an OpenGL 2.1 interface, whereas we require a v3+ interface.
@@ -38,10 +39,16 @@ static QGLFormat makeFormat()
 	format.setSampleBuffers(true);
 	return format;
 }
+#endif
 
 
 AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget *parent)
-:	QGLWidget(makeFormat(), parent)
+:	
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	QOpenGLWidget(parent)
+#else
+	QGLWidget(makeFormat(), parent)
+#endif
 {
 	viewport_aspect_ratio = 1;
 

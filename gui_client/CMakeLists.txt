@@ -572,41 +572,42 @@ if(WIN32)
 	SET(QT_WIN32_LIBS
 		OpenGL32
 
-		#optimized Qt6Gui
-		#optimized Qt6Core
-		#optimized Qt6OpenGL
-		#optimized Qt6Widgets
-		#optimized Qt6Multimedia
-		#optimized Qt6OpenGLWidgets
-		#optimized Qt6Core5Compat
-		#optimized Qt6WebEngineWidgets
-		#optimized Qt6WebEngineQuick
-		#optimized Qt6Gamepad
-		#debug Qt6Guid
-		#debug Qt6Cored
-		#debug Qt6OpenGLd
-		#debug Qt6Widgetsd
-		#debug Qt6Multimediad
-		#debug Qt6OpenGLWidgetsd
-		#debug Qt6Core5Compatd
-		#debug Qt6WebEngineWidgetsd
-		#debug Qt6WebEngineQuickd
-		#debug Qt6Gamepadd
+		# Qt 6:
+		optimized Qt6Gui
+		optimized Qt6Core
+		optimized Qt6OpenGL
+		optimized Qt6Widgets
+		optimized Qt6Multimedia
+		optimized Qt6OpenGLWidgets
+		optimized Qt6Core5Compat
+		optimized Qt6WebEngineWidgets
+		optimized Qt6WebEngineQuick
+		debug Qt6Guid
+		debug Qt6Cored
+		debug Qt6OpenGLd
+		debug Qt6Widgetsd
+		debug Qt6Multimediad
+		debug Qt6OpenGLWidgetsd
+		debug Qt6Core5Compatd
+		debug Qt6WebEngineWidgetsd
+		debug Qt6WebEngineQuickd
 		
-		optimized qtmain
-		optimized Qt5Gui
-		optimized Qt5Core
-		optimized Qt5OpenGL
-		optimized Qt5Widgets
-		optimized Qt5Multimedia
-		optimized Qt5Gamepad
-		debug qtmaind
-		debug Qt5Guid
-		debug Qt5Cored
-		debug Qt5OpenGLd
-		debug Qt5Widgetsd
-		debug Qt5Multimediad
-		debug Qt5Gamepadd
+		# Qt 5:
+		#optimized qtmain
+		#optimized Qt5Gui
+		#optimized Qt5Core
+		#optimized Qt5OpenGL
+		#optimized Qt5Widgets
+		#optimized Qt5Multimedia
+		#optimized Qt5Gamepad
+		#debug qtmaind
+		#debug Qt5Guid
+		#debug Qt5Cored
+		#debug Qt5OpenGLd
+		#debug Qt5Widgetsd
+		#debug Qt5Multimediad
+		#debug Qt5Gamepadd
+		
 #		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
 #		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
 

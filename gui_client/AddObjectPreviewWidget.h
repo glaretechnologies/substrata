@@ -9,7 +9,12 @@
 #include "../utils/Reference.h"
 #include "../utils/RefCounted.h"
 #include <QtCore/QEvent>
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#include <QtOpenGLWidgets/QOpenGLWidget>
+#else
 #include <QtOpenGL/QGLWidget>
+#endif
+
 #include <map>
 
 
@@ -18,7 +23,12 @@ class TextureServer;
 class EnvEmitter;
 
 
-class AddObjectPreviewWidget : public QGLWidget
+class AddObjectPreviewWidget : public 
+#if (QT_VERSION >= 393216) // QT_VERSION_CHECK(6, 0, 0))
+	QOpenGLWidget
+#else
+	QGLWidget
+#endif
 {
 	Q_OBJECT        // must include this if you use Qt signals/slots
 

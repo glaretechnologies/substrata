@@ -667,7 +667,11 @@ void AddObjectDialog::timerEvent(QTimerEvent* event)
 	//}
 
 	objectPreviewGLWidget->makeCurrent();
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	objectPreviewGLWidget->update();
+#else
 	objectPreviewGLWidget->updateGL();
+#endif
 
 	// Check msg queue
 	Lock lock(this->msg_queue.getMutex());
