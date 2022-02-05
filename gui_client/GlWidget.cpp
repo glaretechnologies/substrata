@@ -46,6 +46,24 @@ extern "C"
 
 // https://wiki.qt.io/How_to_use_OpenGL_Core_Profile_with_Qt
 // https://developer.apple.com/opengl/capabilities/GLInfo_1085_Core.html
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+
+static QSurfaceFormat makeFormat()
+{
+	// We need to request a 'core' profile.  Otherwise on OS X, we get an OpenGL 2.1 interface, whereas we require a v3+ interface.
+	QSurfaceFormat format;
+	// We need to request version 3.2 (or above?) on OS X, otherwise we get legacy version 2.
+#ifdef OSX
+	format.setVersion(3, 2);
+#endif
+	format.setProfile(QSurfaceFormat::CoreProfile);
+	format.setSamples(4); // Enable multisampling
+
+	return format;
+}
+
+#else
+
 static QGLFormat makeFormat()
 {
 	// We need to request a 'core' profile.  Otherwise on OS X, we get an OpenGL 2.1 interface, whereas we require a v3+ interface.
@@ -60,21 +78,34 @@ static QGLFormat makeFormat()
 	return format;
 }
 
+#endif
+
+
+
 
 GlWidget::GlWidget(QWidget *parent)
-:	QGLWidget(makeFormat(), parent),
+:	
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	QOpenGLWidget(parent),
+#else
+	QGLWidget(makeFormat(), parent),
+#endif
 	cam_controller(NULL),
 	current_time(0.f),
 	cam_rot_on_mouse_move_enabled(true),
 	near_draw_dist(0.22f), // As large as possible as we can get without clipping becoming apparent.
 	max_draw_dist(1000.f),
-	gamepad(NULL),
+	//gamepad(NULL),
 	print_output(NULL),
 	settings(NULL),
 	player_physics(NULL),
 	take_map_screenshot(false),
 	screenshot_ortho_sensor_width_m(10)
 {
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	setFormat(makeFormat());
+#endif
+
 	viewport_aspect_ratio = 1;
 
 	SHIFT_down = false;
@@ -118,17 +149,17 @@ GlWidget::GlWidget(QWidget *parent)
 void GlWidget::initGamepadsSlot()
 {
 	// See if we have any attached gamepads
-	QGamepadManager* manager = QGamepadManager::instance();
+	//QGamepadManager* manager = QGamepadManager::instance();
 
-	const QList<int> list = manager->connectedGamepads();
+	//const QList<int> list = manager->connectedGamepads();
 
-	if(!list.isEmpty())
-	{
-		gamepad = new QGamepad(list.at(0));
+	//if(!list.isEmpty())
+	//{
+	//	gamepad = new QGamepad(list.at(0));
 
-		//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
-		//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
-	}
+	//	//connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
+	//	//connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
+	//}
 }
 
 
@@ -168,6 +199,11 @@ void GlWidget::resizeGL(int width_, int height_)
 	this->opengl_engine->setViewport(viewport_w, viewport_h);
 
 	this->opengl_engine->setMainViewport(viewport_w, viewport_h);
+
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	// In Qt6, the GL widget uses a custom framebuffer (defaultFramebufferObject).  We want to make sure we draw to this.
+	this->opengl_engine->setTargetFrameBuffer(new FrameBuffer(this->defaultFramebufferObject()));
+#endif
 
 	emit viewportResizedSignal(width_, height_);
 }
@@ -418,6 +454,7 @@ void GlWidget::playerPhyicsThink(float dt)
 	double gamepad_strafe_forwardsback = 0;
 	double gamepad_turn_leftright = 0;
 	double gamepad_turn_updown = 0;
+#if 0
 	if(gamepad)
 	{
 		gamepad_strafe_leftright = gamepad->axisLeftX();
@@ -435,6 +472,7 @@ void GlWidget::playerPhyicsThink(float dt)
 		//if(gamepad->axisRightY() != 0)
 		//{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  gamepad->axisRightY())); cam_changed = true; }
 	}
+#endif
 
 	if(gamepad_strafe_leftright != 0 || gamepad_strafe_forwardsback != 0 || gamepad_turn_leftright != 0 || gamepad_turn_updown != 0)
 		cam_changed = true;
@@ -497,7 +535,7 @@ void GlWidget::playerPhyicsThink(float dt)
 	{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
 #endif
 
-	
+#if 0
 	if(gamepad)
 	{
 		const float gamepad_move_speed_factor = 10;
@@ -522,6 +560,7 @@ void GlWidget::playerPhyicsThink(float dt)
 		if(gamepad->axisRightY() != 0)
 		{ this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(dt *  gamepad_rotate_speed * -pow(gamepad->axisRightY(), 3.f), 0)); cam_changed = true; }
 	}
+#endif
 
 
 	if(cam_changed)
@@ -580,6 +619,14 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 	Qt::MouseButtons mb = e->buttons();
 	if(cam_rot_on_mouse_move_enabled && (cam_controller != NULL) && (mb & Qt::LeftButton))// && (e->modifiers() & Qt::AltModifier))
 	{
+		/*switch(e->source())
+		{
+			case Qt::MouseEventNotSynthesized: conPrint("Qt::MouseEventNotSynthesized");
+			case Qt::MouseEventSynthesizedBySystem: conPrint("Qt::MouseEventSynthesizedBySystem");
+			case Qt::MouseEventSynthesizedByQt: conPrint("Qt::MouseEventSynthesizedByQt");
+			case Qt::MouseEventSynthesizedByApplication: conPrint("Qt::MouseEventSynthesizedByApplication");
+		}*/
+
 		//double shift_scale = ((e->modifiers() & Qt::ShiftModifier) == 0) ? 1.0 : 0.35; // If shift is held, movement speed is roughly 1/3
 
 		// Get new mouse position, movement vector and set previous mouse position to new.
@@ -587,13 +634,16 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		QPoint delta(new_pos.x() - mouse_move_origin.x(),
 					 mouse_move_origin.y() - new_pos.y()); // Y+ is down in screenspace, not up as desired.
 
-		if(mb & Qt::LeftButton)  cam_controller->update(Vec3d(0, 0, 0), Vec2d(delta.y(), delta.x())/* * shift_scale*/);
-		//if(mb & Qt::MidButton)   cam_controller->update(Vec3d(delta.x(), 0, delta.y()) * shift_scale, Vec2d(0, 0));
-		//if(mb & Qt::RightButton) cam_controller->update(Vec3d(0, delta.y(), 0) * shift_scale, Vec2d(0, 0));
+		// QCursor::setPos() seems to generate mouse move events, which we don't want to affect the camera.  Only rotate camera based on actual mouse movements.
+		if(e->source() == Qt::MouseEventNotSynthesized)
+		{
+			if(mb & Qt::LeftButton)  cam_controller->update(Vec3d(0, 0, 0), Vec2d(delta.y(), delta.x())/* * shift_scale*/);
+			//if(mb & Qt::MidButton)   cam_controller->update(Vec3d(delta.x(), 0, delta.y()) * shift_scale, Vec2d(0, 0));
+			//if(mb & Qt::RightButton) cam_controller->update(Vec3d(0, delta.y(), 0) * shift_scale, Vec2d(0, 0));
 
-		if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MidButton)
-			emit cameraUpdated();
-
+			if(mb & Qt::RightButton || mb & Qt::LeftButton || mb & Qt::MiddleButton)
+				emit cameraUpdated();
+		}
 
 		// On Windows/linux, reset the cursor position to where we started, so we never run out of space to move.
 		// QCursor::setPos() does not work on mac, and also gives a message about Substrata trying to control the computer, which we want to avoid.
@@ -602,13 +652,18 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		mouse_move_origin = QCursor::pos();
 #else
 		QCursor::setPos(mouse_move_origin);
+		mouse_move_origin = QCursor::pos();
 #endif
 
 		//conPrint("mouseMoveEvent FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
 		//timer.reset();
 	}
 
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	QOpenGLWidget::mouseMoveEvent(e);
+#else
 	QGLWidget::mouseMoveEvent(e);
+#endif
 
 	emit mouseMoved(e);
 

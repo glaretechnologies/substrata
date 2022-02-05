@@ -9,7 +9,11 @@ Generated at Tue Feb 26 14:29:40 +0100 2013
 
 #include "RealControl.h"
 #include <QtWidgets/QAbstractButton>
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#include <QtGui/QAction>
+#else
 #include <QtWidgets/QAction>
+#endif
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QComboBox>

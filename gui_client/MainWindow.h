@@ -160,7 +160,11 @@ private slots:;
 	void sendLightmapNeededFlagsSlot();
 	void handleURL(const QUrl &url);
 private:
-	bool nativeEvent(const QByteArray& event_type, void* message, long/*qintptr*/* result);
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result);
+#else
+	bool nativeEvent(const QByteArray& event_type, void* message, long* result);
+#endif
 	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);

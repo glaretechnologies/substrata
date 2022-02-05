@@ -12,7 +12,6 @@
 #include "../graphics/colour3.h"
 #include "ui_MaterialEditor.h"
 #include <QtCore/QEvent>
-#include <QtOpenGL/QGLWidget>
 #include <map>
 
 

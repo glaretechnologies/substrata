@@ -8,8 +8,13 @@ Copyright Glare Technologies Limited 2019 -
 
 #include <QtWidgets/QPushButton>
 #include <QtGui/QOffscreenSurface>
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#include <QtOpenGL/QOpenGLFramebufferObject>
+#include <QtOpenGLWidgets/QOpenGLWidget>
+#else
 #include <QtGui/QOpenGLFramebufferObject>
 #include <QtOpenGL/QGLWidget>
+#endif
 #include <QtGui/QOpenGLContext>
 #include <QtGui/QImageWriter>
 #include "../qt/FlowLayout.h"

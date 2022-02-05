@@ -12,8 +12,12 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/Reference.h"
 #include "../utils/RefCounted.h"
 #include <QtCore/QEvent>
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#include <QtOpenGLWidgets/QOpenGLWidget>
+#else
 #include <QtOpenGL/QGLWidget>
-#include <QtGamepad/QGamepad>
+#endif
+//#include <QtGamepad/QGamepad>
 #include <QtCore/QTimer>
 
 
@@ -25,7 +29,12 @@ class EnvEmitter;
 class QSettings;
 
 
-class GlWidget : public QGLWidget
+class GlWidget : public
+#if (QT_VERSION >= 393216) // QT_VERSION_CHECK(6, 0, 0))
+	QOpenGLWidget
+#else
+	QGLWidget
+#endif
 {
 	Q_OBJECT        // must include this if you use Qt signals/slots
 
@@ -104,7 +113,7 @@ private:
 	float current_time;
 	bool cam_rot_on_mouse_move_enabled;
 
-	QGamepad* gamepad;
+	//QGamepad* gamepad;
 
 	std::string initialisation_error_msg;
 public:

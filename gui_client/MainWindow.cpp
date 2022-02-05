@@ -11,7 +11,7 @@ Copyright Glare Technologies Limited 2020 -
 #ifdef _MSC_VER // Qt headers suppress some warnings on Windows, make sure the warning suppression doesn't propagate to our code. See https://bugreports.qt.io/browse/QTBUG-26877
 #pragma warning(push, 0) // Disable warnings
 #endif
-#include <QtOpenGL/QGLWidget>
+//#include <QtOpenGL/QGLWidget>
 //#include <QtOpenGLWidgets/QOpenGLWidget>
 //#include <QtWebEngineQuick/qtwebenginequickglobal.h>
 //#include <QtWebEngineWidgets/QWebEngineView>
@@ -63,9 +63,9 @@ Copyright Glare Technologies Limited 2020 -
 #include <QtWidgets/QErrorMessage>
 #include <QtWidgets/QSplashScreen>
 //#include <QtGui/QShortcut>
-//#include <QtGui/QPainter>
+#include <QtGui/QPainter>
 #include <QtCore/QTimer>
-#include <QtGamepad/QGamepad>
+//#include <QtGamepad/QGamepad>
 #include "../qt/QtUtils.h"
 #ifdef _MSC_VER
 #pragma warning(pop) // Re-enable warnings
@@ -193,7 +193,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
-	QGamepadManager::instance();
+	//QGamepadManager::instance();
 
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
@@ -2286,20 +2286,21 @@ void MainWindow::saveScreenshot() // Throws glare::Exception on failure
 {
 	conPrint("Taking screenshot");
 
-	QImage framebuffer = ui->glWidget->grabFrameBuffer();
-
-	const int target_viewport_w = taking_map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
-	const int target_viewport_h = taking_map_screenshot ? (screenshot_width_px * 2) : (437 * 2); 
-
-	if(framebuffer.width() != target_viewport_w)
-		throw glare::Exception("saveScreenshot(): framebuffer width was incorrect: actual: " + toString(framebuffer.width()) + ", target: " + toString(target_viewport_w));
-	if(framebuffer.height() != target_viewport_h)
-		throw glare::Exception("saveScreenshot(): framebuffer height was incorrect: actual: " + toString(framebuffer.height()) + ", target: " + toString(target_viewport_h));
-
-	QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
-
-	const bool res = scaled_img.save(QtUtils::toQString(screenshot_output_path), "jpg", /*qquality=*/95);
-	assertOrDeclareUsed(res);
+	// TEMP HACK 
+	// QImage framebuffer = ui->glWidget->grabFrameBuffer();
+	// 
+	// const int target_viewport_w = taking_map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
+	// const int target_viewport_h = taking_map_screenshot ? (screenshot_width_px * 2) : (437 * 2); 
+	// 
+	// if(framebuffer.width() != target_viewport_w)
+	// 	throw glare::Exception("saveScreenshot(): framebuffer width was incorrect: actual: " + toString(framebuffer.width()) + ", target: " + toString(target_viewport_w));
+	// if(framebuffer.height() != target_viewport_h)
+	// 	throw glare::Exception("saveScreenshot(): framebuffer height was incorrect: actual: " + toString(framebuffer.height()) + ", target: " + toString(target_viewport_h));
+	// 
+	// QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
+	// 
+	// const bool res = scaled_img.save(QtUtils::toQString(screenshot_output_path), "jpg", /*qquality=*/95);
+	// assertOrDeclareUsed(res);
 }
 
 
@@ -4887,8 +4888,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}*/
 
 	ui->glWidget->makeCurrent();
+
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	ui->glWidget->update();
+#else
 	ui->glWidget->updateGL();
-	//ui->glWidget->update();
+#endif
 
 	if(need_physics_world_rebuild)
 	{
@@ -6291,26 +6296,26 @@ void MainWindow::on_actionExport_view_to_Indigo_triggered()
 
 void MainWindow::on_actionTake_Screenshot_triggered()
 {
-	QImage framebuffer = ui->glWidget->grabFrameBuffer(/*with alpha=*/false);
-
-	const std::string path = this->appdata_path + "/screenshots/screenshot_" + toString((uint64)Clock::getSecsSince1970()) + ".png";
-	try
-	{
-		FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
-	
-		const bool res = framebuffer.save(QtUtils::toQString(path), "png");
-		if(res)
-			showInfoNotification("Saved screenshot to " + path);
-		else
-			throw glare::Exception("Saving failed.");
-	}
-	catch(glare::Exception& e)
-	{
-		QMessageBox msgBox;
-		msgBox.setWindowTitle("Error");
-		msgBox.setText(QtUtils::toQString("Saving screenshot to '" + path + "' failed: " + e.what()));
-		msgBox.exec();
-	}
+	// QImage framebuffer = ui->glWidget->grabFrameBuffer(/*with alpha=*/false);
+	// 
+	// const std::string path = this->appdata_path + "/screenshots/screenshot_" + toString((uint64)Clock::getSecsSince1970()) + ".png";
+	// try
+	// {
+	// 	FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
+	// 
+	// 	const bool res = framebuffer.save(QtUtils::toQString(path), "png");
+	// 	if(res)
+	// 		showInfoNotification("Saved screenshot to " + path);
+	// 	else
+	// 		throw glare::Exception("Saving failed.");
+	// }
+	// catch(glare::Exception& e)
+	// {
+	// 	QMessageBox msgBox;
+	// 	msgBox.setWindowTitle("Error");
+	// 	msgBox.setText(QtUtils::toQString("Saving screenshot to '" + path + "' failed: " + e.what()));
+	// 	msgBox.exec();
+	// }
 }
 
 
@@ -9088,9 +9093,16 @@ void MainWindow::handleURL(const QUrl &url)
 }
 
 
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+typedef qintptr NativeEventArgType;
+#else
+typedef long NativeEventArgType;
+#endif
+
+
 // Override nativeEvent() so we can handle WM_COPYDATA messages from other Substrata processes.
 // See https://www.programmersought.com/article/216036067/
-bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, long/*qintptr*/* result)
+bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, NativeEventArgType* result)
 {
 #if defined(_WIN32)
 	if(event_type == "windows_generic_MSG")

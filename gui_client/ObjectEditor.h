@@ -11,7 +11,6 @@
 #include "../utils/RefCounted.h"
 #include "ui_ObjectEditor.h"
 #include <QtCore/QEvent>
-#include <QtOpenGL/QGLWidget>
 #include <map>
 
 

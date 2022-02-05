@@ -126,6 +126,9 @@ if(WIN32)
 	
 	add_definitions(-D__SSE4_1__)
 	
+	add_definitions(/std:c++17)
+	add_definitions(/Zc:__cplusplus) # Qt wants this for some reason
+	
 	# Consider some options.
 	if(NO_WHOLE_PROGRAM_OPT)
 		SET(GL_OPT)

@@ -77,7 +77,7 @@ IndigoView::IndigoView(QWidget* parent)
 	this->layout()->addWidget(this->label);
 
 	this->layout()->setContentsMargins(0, 0, 0, 0);
-	this->layout()->setMargin(0);
+	//this->layout()->setMargin(0);
 
 	this->label->setMinimumSize(QSize(64, 64));
 

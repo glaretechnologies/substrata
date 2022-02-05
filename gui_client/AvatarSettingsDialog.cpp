@@ -226,7 +226,11 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 void AvatarSettingsDialog::timerEvent(QTimerEvent* event)
 {
 	avatarPreviewGLWidget->makeCurrent();
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	avatarPreviewGLWidget->update();
+#else
 	avatarPreviewGLWidget->updateGL();
+#endif
 
 	// Once the OpenGL widget has initialised, we can add the model.
 	if(avatarPreviewGLWidget->opengl_engine.nonNull() && avatarPreviewGLWidget->opengl_engine->initSucceeded() && !done_initial_load)
