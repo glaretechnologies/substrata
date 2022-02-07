@@ -110,6 +110,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	case WorldObject::ObjectType_Hypercard: ob_type = "Hypercard"; break;
 	case WorldObject::ObjectType_VoxelGroup: ob_type = "Voxel Group"; break;
 	case WorldObject::ObjectType_Spotlight: ob_type = "Spotlight"; break;
+	case WorldObject::ObjectType_WebView: ob_type = "Web View"; break;
 	}
 
 	this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
@@ -193,6 +194,14 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->show();
+		this->audioGroupBox->hide();
+	}
+	else if(ob.object_type == WorldObject::ObjectType_WebView)
+	{
+		this->materialsGroupBox->show();
+		this->modelLabel->hide();
+		this->modelFileSelectWidget->hide();
+		this->spotlightGroupBox->hide();
 		this->audioGroupBox->hide();
 	}
 	else

@@ -398,6 +398,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 	case ObjectType_Hypercard: return "hypercard";
 	case ObjectType_VoxelGroup: return "voxel group";
 	case ObjectType_Spotlight: return "spotlight";
+	case ObjectType_WebView: return "web view";
 	default: return "Unknown";
 	}
 }

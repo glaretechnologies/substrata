@@ -121,7 +121,8 @@ public:
 		ObjectType_Generic = 0,
 		ObjectType_Hypercard = 1,
 		ObjectType_VoxelGroup = 2,
-		ObjectType_Spotlight = 3
+		ObjectType_Spotlight = 3,
+		ObjectType_WebView = 4
 	};
 
 	static std::string objectTypeString(ObjectType t);
