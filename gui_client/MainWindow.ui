@@ -62,6 +62,7 @@
     <addaction name="actionAddHypercard"/>
     <addaction name="actionAdd_Spotlight"/>
     <addaction name="actionAdd_Audio_Source"/>
+    <addaction name="actionAdd_Web_View"/>
     <addaction name="separator"/>
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
@@ -136,6 +137,7 @@
    <addaction name="actionAddObject"/>
    <addaction name="actionAddHypercard"/>
    <addaction name="actionAdd_Voxels"/>
+   <addaction name="actionAdd_Web_View"/>
    <addaction name="actionShow_Parcels"/>
   </widget>
   <widget class="QDockWidget" name="chatDockWidget">
@@ -555,6 +557,11 @@
   <action name="actionList_Objects_Nearby">
    <property name="text">
     <string>Find Objects Nearby</string>
+   </property>
+  </action>
+  <action name="actionAdd_Web_View">
+   <property name="text">
+    <string>Add Web View</string>
    </property>
   </action>
  </widget>

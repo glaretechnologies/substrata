@@ -224,12 +224,14 @@ int main(int argc, char* argv[])
 
 						// Wait for response from GUI (will be sent when screenshot is done)
 						bool got_result = false;
+						std::string from_gui_error_msg;
 						int result = 0;
 						while(!got_result)
 						{
 							if(to_gui_socket->readable(1.0))
 							{
 								result = to_gui_socket->readInt32(); // 0 = success
+								from_gui_error_msg = to_gui_socket->readStringLengthFirst(10000);
 								conPrint("Received result " + toString(result) + " from GUI process.");
 								got_result = true;
 							}
@@ -247,6 +249,8 @@ int main(int argc, char* argv[])
 
 						if(result == 0) // If success:
 						{
+							conPrint("GUI process took screenshot successfully.");
+
 							// Load generated screenshot
 							const std::string screenshot_data = FileUtils::readEntireFile(screenshot_path);
 
@@ -259,6 +263,8 @@ int main(int argc, char* argv[])
 						}
 						else
 						{
+							conPrint("GUI process failed to take screenshot: " + from_gui_error_msg);
+
 							socket->writeUInt32(12341234); // Just write some value != Protocol::ScreenShotSucceeded
 						}
 

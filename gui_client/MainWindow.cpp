@@ -15,6 +15,9 @@ Copyright Glare Technologies Limited 2020 -
 //#include <QtOpenGLWidgets/QOpenGLWidget>
 //#include <QtWebEngineQuick/qtwebenginequickglobal.h>
 //#include <QtWebEngineWidgets/QWebEngineView>
+//#include <QtWebEngineCore/QWebEngineSettings>
+//#include <QtNetwork/QNetworkProxyFactory>
+
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
@@ -111,6 +114,8 @@ Copyright Glare Technologies Limited 2020 -
 #include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
 #include "../graphics/imformatdecoder.h"
+#include "../graphics/PNGDecoder.h"
+#include "../graphics/jpegdecoder.h"
 #if defined(_WIN32)
 #include "../video/WMFVideoReader.h"
 #endif
@@ -188,7 +193,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	url_parcel_uid(-1),
 	running_destructor(false),
 	biome_manager(NULL),
-	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
+	screenshot_width_px(1024)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
@@ -455,8 +461,22 @@ void MainWindow::initialise()
 	{
 		webview = new QWebEngineView(/*ui->diagnosticsDockWidgetContents*/);
 		webview->setAttribute(Qt::WA_DontShowOnScreen);
-		webview->setFixedSize(800, 600);
-		webview->load(QUrl("https://youtu.be/Djr71gUtzLM&autoplay=1"));
+		webview->setFixedSize(1920, 1080);
+		webview->load(QUrl("https://www.youtube.com/watch?v=LT3cERVRoQo&autoplay=1"));
+		//webview->load(QUrl("https://youtu.be/Djr71gUtzLM&autoplay=1"));
+		//webview->load(QUrl("https://www.youtube.com/watch?v=0vfJP1v954A&autoplay=1"));
+		//webview->load(QUrl("https://www.twitch.tv/kritikal"));
+		//https://www.youtube.com/watch?v=0vfJP1v954A
+		// Set settings so that auto-play works.  (see https://stackoverflow.com/a/58120230)
+		webview->page()->settings()->setAttribute(QWebEngineSettings::PlaybackRequiresUserGesture, false);
+
+	//	//webview->defa
+	//	QWebEngineSettings::defaultSettings()-> 
+	//	// https://stackoverflow.com/a/58120230
+	//	//new QWebEngineProfile(
+	//	//QWebEnginePage* 
+	//	//webpage.settings().setAttribute(QWebEngineSettings.PlaybackRequiresUserGesture, False)
+
 		webview->show();
 	}
 #endif
@@ -1280,6 +1300,33 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			opengl_ob->mesh_data = this->spotlight_opengl_mesh;
 			opengl_ob->materials.resize(1);
 			opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+			ob->opengl_engine_ob = opengl_ob;
+			ob->physics_object = physics_ob;
+			ob->loaded_content = ob->content;
+
+			ui->glWidget->addObject(ob->opengl_engine_ob);
+
+			physics_world->addObject(ob->physics_object);
+			physics_world->rebuild(task_manager, print_output);
+		}
+		else if(ob->object_type == WorldObject::ObjectType_WebView)
+		{
+			removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+			physics_ob->geometry = this->hypercard_quad_raymesh;
+			physics_ob->ob_to_world = ob_to_world_matrix;
+			physics_ob->userdata = ob;
+			physics_ob->userdata_type = 0;
+
+			GLObjectRef opengl_ob = new GLObject();
+			opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+			opengl_ob->materials.resize(1);
+			opengl_ob->materials[0].albedo_rgb = Colour3f(1.f);
+			//opengl_ob->materials[0].albedo_texture = this->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
+			opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 			ob->opengl_engine_ob = opengl_ob;
@@ -2282,25 +2329,59 @@ void MainWindow::setUpForScreenshot()
 }
 
 
+static ImageMapUInt8Ref convertQImageToImageMapUInt8(const QImage& qimage)
+{
+	// NOTE: Qt-saved images were doing weird things with parcel border alpha.  Just copy to an ImageMapUInt8 and do the image saving ourselves.
+	const int W = qimage.width();
+	const int H = qimage.height();
+	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
+
+	const int px_byte_stride = qimage.depth() / 8; // depth = bits per pixel
+
+	// Copy to ImageMapUInt8
+	for(int y=0; y<H; ++y)
+	{
+		const uint8* scanline = qimage.constScanLine(y);
+
+		for(int x=0; x<W; ++x)
+		{
+			const QRgb src_px = *(const QRgb*)(scanline + px_byte_stride * x);
+			uint8* dst_px = map->getPixel(x, y);
+			dst_px[0] = (uint8)qRed(src_px);
+			dst_px[1] = (uint8)qGreen(src_px);
+			dst_px[2] = (uint8)qBlue(src_px);
+		}
+	}
+	
+	return map;
+}
+
+
+// For screenshot bot
 void MainWindow::saveScreenshot() // Throws glare::Exception on failure
 {
 	conPrint("Taking screenshot");
 
-	// TEMP HACK 
-	// QImage framebuffer = ui->glWidget->grabFrameBuffer();
-	// 
-	// const int target_viewport_w = taking_map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
-	// const int target_viewport_h = taking_map_screenshot ? (screenshot_width_px * 2) : (437 * 2); 
-	// 
-	// if(framebuffer.width() != target_viewport_w)
-	// 	throw glare::Exception("saveScreenshot(): framebuffer width was incorrect: actual: " + toString(framebuffer.width()) + ", target: " + toString(target_viewport_w));
-	// if(framebuffer.height() != target_viewport_h)
-	// 	throw glare::Exception("saveScreenshot(): framebuffer height was incorrect: actual: " + toString(framebuffer.height()) + ", target: " + toString(target_viewport_h));
-	// 
-	// QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
-	// 
-	// const bool res = scaled_img.save(QtUtils::toQString(screenshot_output_path), "jpg", /*qquality=*/95);
-	// assertOrDeclareUsed(res);
+#if QT_VERSION_MAJOR >= 6
+	QImage framebuffer = ui->glWidget->grabFramebuffer();
+#else
+	QImage framebuffer = ui->glWidget->grabFrameBuffer();
+#endif
+
+	const int target_viewport_w = taking_map_screenshot ? (screenshot_width_px * 2) : (650 * 2); // Existing screenshots are 650 px x 437 px.
+	const int target_viewport_h = taking_map_screenshot ? (screenshot_width_px * 2) : (437 * 2); 
+	
+	if(framebuffer.width() != target_viewport_w)
+		throw glare::Exception("saveScreenshot(): framebuffer width was incorrect: actual: " + toString(framebuffer.width()) + ", target: " + toString(target_viewport_w));
+	if(framebuffer.height() != target_viewport_h)
+		throw glare::Exception("saveScreenshot(): framebuffer height was incorrect: actual: " + toString(framebuffer.height()) + ", target: " + toString(target_viewport_h));
+	
+	QImage scaled_img = framebuffer.scaledToWidth(screenshot_width_px, Qt::SmoothTransformation);
+
+	// NOTE: Qt-saved images were doing weird things with parcel border alpha.  Just copy to an ImageMapUInt8 and do the image saving ourselves.
+	ImageMapUInt8Ref map = convertQImageToImageMapUInt8(scaled_img);
+
+	JPEGDecoder::save(map, screenshot_output_path, JPEGDecoder::SaveOptions(/*quality=*/95));
 }
 
 
@@ -2566,42 +2647,50 @@ void MainWindow::timerEvent(QTimerEvent* event)
 {
 	//-------------------------------------------------------------------------------------------
 #if 0
-	if(webview_qimage.size() != webview->size())
+	if(time_since_last_webview_display.elapsed() > 0.0333)
 	{
-		webview_qimage = QImage(webview->size(), QImage::Format_RGB888/*Format_RGB32*/);
+		if(webview_qimage.size() != webview->size())
+		{
+			webview_qimage = QImage(webview->size(), QImage::/*Format_RGB888*//*Format_RGB32*/Format_RGBA8888); // The 32 bit Qt formats seem faster than the 24 bit formats.
+		}
+
+		// https://doc.qt.io/qt-6/qwebengineview.html
+		QPainter painter(&webview_qimage);
+		webview->render(&painter);
+		painter.end();
+
+
+		const int W = webview->size().width();
+		const int H = webview->size().height();
+
+		if(webview_gl_ob.isNull())
+		{
+			webview_gl_ob = new GLObject();
+			webview_gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+			webview_gl_ob->materials.resize(1);
+			webview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, ui->glWidget->opengl_engine.ptr(), OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
+			webview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
+			webview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, 2) * Matrix4f::scaleMatrix(1920.f / 1080.f, 1, 1) * Matrix4f::rotationAroundZAxis(Maths::pi<float>());
+
+			ui->glWidget->opengl_engine->addObject(webview_gl_ob);
+		}
+
+		// Make nametag texture
+//		ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
+//
+//		// Copy to map
+//		for(int y=0; y<H; ++y)
+//		{
+//			const QRgb* line = (const QRgb*)webview_qimage.scanLine(y);
+//			std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
+//		}
+//
+//		webview_gl_ob->materials[0].albedo_texture->load(W, H, /*row stride B=*/W * 3, ArrayRef<uint8>(map->getData(), map->getDataSize()));
+
+		webview_gl_ob->materials[0].albedo_texture->load(W, H, /*row stride B=*/webview_qimage.bytesPerLine(), ArrayRef<uint8>(webview_qimage.constBits(), webview_qimage.sizeInBytes()));
+
+		time_since_last_webview_display.reset();
 	}
-
-	// https://doc.qt.io/qt-6/qwebengineview.html
-	QPainter painter(&webview_qimage);
-	webview->render(&painter);
-	painter.end();
-
-
-	const int W = webview->size().width();
-	const int H = webview->size().height();
-
-	if(webview_gl_ob.isNull())
-	{
-		webview_gl_ob = new GLObject();
-		webview_gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-		webview_gl_ob->materials.resize(1);
-		webview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, ui->glWidget->opengl_engine.ptr(), OpenGLTexture::Format_SRGB_Uint8, OpenGLTexture::Filtering_Bilinear);
-		webview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, 2);
-
-		ui->glWidget->opengl_engine->addObject(webview_gl_ob);
-	}
-
-	// Make nametag texture
-	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
-
-	// Copy to map
-	for(int y=0; y<H; ++y)
-	{
-		const QRgb* line = (const QRgb*)webview_qimage.scanLine(y);
-		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
-	}
-
-	webview_gl_ob->materials[0].albedo_texture->load(W, H, /*row stride B=*/W * 3, ArrayRef<uint8>(map->getData(), map->getDataSize()));
 #endif
 	//-------------------------------------------------------------------------------------------
 
@@ -2772,20 +2861,32 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(TESTING || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
 				{
 					conPrint("Reading command from screenshot_command_socket etc...");
-					const std::string command = TESTING ? "takemapscreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
+					const std::string command = TESTING ? "takescreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
 					conPrint("Read screenshot command: " + command);
 					if(command == "takescreenshot")
 					{
-						screenshot_campos.x = screenshot_command_socket->readDouble();
-						screenshot_campos.y = screenshot_command_socket->readDouble();
-						screenshot_campos.z = screenshot_command_socket->readDouble();
-						screenshot_camangles.x = screenshot_command_socket->readDouble();
-						screenshot_camangles.y = screenshot_command_socket->readDouble();
-						screenshot_camangles.z = screenshot_command_socket->readDouble();
-						screenshot_width_px = screenshot_command_socket->readInt32();
-						screenshot_highlight_parcel_id = screenshot_command_socket->readInt32();
-						screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
-						taking_map_screenshot = false;
+						if(TESTING)
+						{
+							screenshot_campos = Vec3d(0, -1, 100);
+							screenshot_camangles = Vec3d(0, 3, 0); // (heading, pitch, roll).
+							screenshot_width_px = 1024;
+							screenshot_highlight_parcel_id = 10;
+							taking_map_screenshot = false;
+							screenshot_output_path = "test_screenshot.jpg";
+						}
+						else
+						{
+							screenshot_campos.x = screenshot_command_socket->readDouble();
+							screenshot_campos.y = screenshot_command_socket->readDouble();
+							screenshot_campos.z = screenshot_command_socket->readDouble();
+							screenshot_camangles.x = screenshot_command_socket->readDouble();
+							screenshot_camangles.y = screenshot_command_socket->readDouble();
+							screenshot_camangles.z = screenshot_command_socket->readDouble();
+							screenshot_width_px = screenshot_command_socket->readInt32();
+							screenshot_highlight_parcel_id = screenshot_command_socket->readInt32();
+							screenshot_output_path = screenshot_command_socket->readStringLengthFirst(1000);
+							taking_map_screenshot = false;
+						}
 					}
 					else if(command == "takemapscreenshot")
 					{
@@ -2794,7 +2895,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						{
 							tile_x = 0;
 							tile_y = 0;
-							tile_z = 5;
+							tile_z = 7;
 							screenshot_output_path = "test_screenshot.jpg";
 						}
 						else
@@ -2822,17 +2923,22 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						screenshot_highlight_parcel_id = -1;
 						taking_map_screenshot = true;
 					}
+					else if(command == "quit")
+					{
+						conPrint("Received quit command, exiting...");
+						exit(1);
+					}
 					else
 						throw glare::Exception("received invalid screenshot command.");
 				}
 			}
 			catch(glare::Exception& e)
 			{
-				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what());
-				QMessageBox msgBox;
-				msgBox.setWindowTitle("Error");
-				msgBox.setText(QtUtils::toQString("Excep while reading screenshot command from screenshot_command_socket: " + e.what()));
-				msgBox.exec();
+				conPrint("Excep while reading screenshot command from screenshot_command_socket: " + e.what() + ", exiting!");
+				//QMessageBox msgBox;
+				//msgBox.setWindowTitle("Error");
+				//msgBox.setText(QtUtils::toQString("Excep while reading screenshot command from screenshot_command_socket: " + e.what()));
+				//msgBox.exec();
 				exit(1);
 			}
 		}
@@ -2914,7 +3020,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					time_since_last_screenshot.reset();
 
 					if(screenshot_command_socket.nonNull())
+					{
 						screenshot_command_socket->writeInt32(0); // Write success msg
+						screenshot_command_socket->writeStringLengthFirst("Success!");
+					}
 				}
 				catch(glare::Exception& e)
 				{
@@ -2927,7 +3036,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					time_since_last_screenshot.reset();
 
 					if(screenshot_command_socket.nonNull())
+					{
 						screenshot_command_socket->writeInt32(1); // Write failure msg
+						screenshot_command_socket->writeStringLengthFirst("Exception encountered: " + e.what());
+					}
 				}
 			}
 		}
@@ -5664,6 +5776,51 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 }
 
 
+void MainWindow::on_actionAdd_Web_View_triggered()
+{
+	const float quad_w = 0.4f;
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f -
+		this->cam_controller.getUpVec() * quad_w * 0.5f -
+		this->cam_controller.getRightVec() * quad_w * 0.5f;
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create web views in a parcel that you have write permissions for.");
+		return;
+	}
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->uid = UID(0); // Will be set by server
+	new_world_object->object_type = WorldObject::ObjectType_WebView;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = 0;
+	new_world_object->scale = Vec3f(1.f);
+	new_world_object->target_url = "https://www.youtube.com/watch?v=LT3cERVRoQo";
+
+	const float fixture_w = 0.1;
+	const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
+	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+
+	// Send CreateObject message to server
+	{
+		initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+
+	showInfoNotification("Added web view.");
+}
+
+
 void MainWindow::on_actionAdd_Audio_Source_triggered()
 {
 	try
@@ -6296,26 +6453,33 @@ void MainWindow::on_actionExport_view_to_Indigo_triggered()
 
 void MainWindow::on_actionTake_Screenshot_triggered()
 {
-	// QImage framebuffer = ui->glWidget->grabFrameBuffer(/*with alpha=*/false);
-	// 
-	// const std::string path = this->appdata_path + "/screenshots/screenshot_" + toString((uint64)Clock::getSecsSince1970()) + ".png";
-	// try
-	// {
-	// 	FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
-	// 
-	// 	const bool res = framebuffer.save(QtUtils::toQString(path), "png");
-	// 	if(res)
-	// 		showInfoNotification("Saved screenshot to " + path);
-	// 	else
-	// 		throw glare::Exception("Saving failed.");
-	// }
-	// catch(glare::Exception& e)
-	// {
-	// 	QMessageBox msgBox;
-	// 	msgBox.setWindowTitle("Error");
-	// 	msgBox.setText(QtUtils::toQString("Saving screenshot to '" + path + "' failed: " + e.what()));
-	// 	msgBox.exec();
-	// }
+#if QT_VERSION_MAJOR >= 6
+	QImage framebuffer = ui->glWidget->grabFramebuffer();
+#else
+	QImage framebuffer = ui->glWidget->grabFrameBuffer();
+#endif
+	
+	// NOTE: Qt-saved images were doing weird things with parcel border alpha.  Just copy to an ImageMapUInt8 and do the image saving ourselves.
+
+	ImageMapUInt8Ref map = convertQImageToImageMapUInt8(framebuffer);
+
+
+	const std::string path = this->appdata_path + "/screenshots/screenshot_" + toString((uint64)Clock::getSecsSince1970()) + ".png";
+	try
+	{
+		FileUtils::createDirIfDoesNotExist(FileUtils::getDirectory(path));
+
+		PNGDecoder::write(*map, path);
+	
+		showInfoNotification("Saved screenshot to " + path);
+	}
+	catch(glare::Exception& e)
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Error");
+		msgBox.setText(QtUtils::toQString("Saving screenshot to '" + path + "' failed: " + e.what()));
+		msgBox.exec();
+	}
 }
 
 

@@ -106,6 +106,7 @@ private slots:;
 	void on_actionAddHypercard_triggered();
 	void on_actionAdd_Voxels_triggered();
 	void on_actionAdd_Spotlight_triggered();
+	void on_actionAdd_Web_View_triggered();
 	void on_actionAdd_Audio_Source_triggered();
 	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
@@ -527,7 +528,8 @@ public:
 
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 
-	// QImage webview_qimage;
+	QImage webview_qimage;
+	Timer time_since_last_webview_display;
 
 	Reference<GLObject> mouseover_selected_gl_ob;
 };
