@@ -91,4 +91,10 @@ private:
 	QTimer* edit_timer;
 
 	ShaderEditorDialog* shader_editor;
+
+	// Store the ratios between the scale components, used when link-scales is enabled.
+	// Store ratios instead of individual values, as this allows us to preserve the rations if the scales are set to zero at some point.
+	double last_x_scale_over_z_scale;
+	double last_x_scale_over_y_scale;
+	double last_y_scale_over_z_scale;
 };

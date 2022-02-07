@@ -53,8 +53,10 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->modelFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->scriptTextEdit,			SIGNAL(textChanged()),				this, SLOT(scriptTextEditChanged()));
 	connect(this->contentTextEdit,			SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
-	connect(this->targetURLLineEdit,		SIGNAL(textChanged()),				this, SIGNAL(objectChanged()));
-	connect(this->targetURLLineEdit,		SIGNAL(textChanged()),				this, SLOT(targetURLChanged()));
+	
+	connect(this->targetURLLineEdit,		SIGNAL(editingFinished()),			this, SIGNAL(objectChanged()));
+	connect(this->targetURLLineEdit,		SIGNAL(editingFinished()),			this, SLOT(targetURLChanged()));
+
 
 	connect(this->audioFileWidget,			SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->volumeDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
@@ -151,6 +153,10 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	SignalBlocker::setValue(this->scaleYDoubleSpinBox, ob.scale.y);
 	SignalBlocker::setValue(this->scaleZDoubleSpinBox, ob.scale.z);
 
+	this->last_x_scale_over_z_scale = ob.scale.x / ob.scale.z;
+	this->last_x_scale_over_y_scale = ob.scale.x / ob.scale.y;
+	this->last_y_scale_over_z_scale = ob.scale.y / ob.scale.z;
+
 
 	const Matrix3f rot_mat = Matrix3f::rotationMatrix(normalise(ob.axis), ob.angle);
 
@@ -213,7 +219,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->audioGroupBox->show();
 	}
 
-	if(ob.object_type == WorldObject::ObjectType_VoxelGroup || ob.object_type == WorldObject::ObjectType_Spotlight || ob.object_type == WorldObject::ObjectType_Generic)
+	if(ob.object_type == WorldObject::ObjectType_VoxelGroup || ob.object_type == WorldObject::ObjectType_Spotlight || ob.object_type == WorldObject::ObjectType_Generic || ob.object_type == WorldObject::ObjectType_WebView)
 	{
 		this->matEditor->setFromMaterial(*selected_mat);
 
@@ -258,7 +264,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
 	ob_out.script     = QtUtils::toIndString(this->scriptTextEdit->toPlainText());
 	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
-	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->toPlainText());
+	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 
 	ob_out.pos.x = this->posXDoubleSpinBox->value();
 	ob_out.pos.y = this->posYDoubleSpinBox->value();
@@ -396,7 +402,7 @@ void ObjectEditor::setControlsEditable(bool editable)
 
 void ObjectEditor::on_visitURLLabel_linkActivated(const QString&)
 {
-	std::string url = QtUtils::toStdString(this->targetURLLineEdit->toPlainText());
+	std::string url = QtUtils::toStdString(this->targetURLLineEdit->text());
 	if(StringUtils::containsString(url, "://"))
 	{
 		// URL already has protocol prefix
@@ -491,7 +497,7 @@ void ObjectEditor::on_removeLightmapPushButton_clicked(bool checked)
 
 void ObjectEditor::targetURLChanged()
 {
-	this->visitURLLabel->setVisible(!this->targetURLLineEdit->toPlainText().isEmpty());
+	this->visitURLLabel->setVisible(!this->targetURLLineEdit->text().isEmpty());
 }
 
 
@@ -545,39 +551,85 @@ void ObjectEditor::materialSelectedInBrowser(const std::string& path)
 }
 
 
-void ObjectEditor::xScaleChanged(double val)
+void ObjectEditor::xScaleChanged(double new_x)
 {
 	if(this->linkScaleCheckBox->isChecked())
 	{
-		// Set y and z scales
-		SignalBlocker::setValue(scaleYDoubleSpinBox, val);
-		SignalBlocker::setValue(scaleZDoubleSpinBox, val);
+		// Update y and z scales to maintain the previous ratios between scales.
+		
+		// we want new_y / new_x = old_y / old_x
+		// new_y = (old_y / old_x) * new_x
+		// new_y = new_x * old_y / old_x = new_x * (old_y / old_x) = new_x / (old_x / old_y)
+		double new_y = new_x / last_x_scale_over_y_scale;
+
+		// new_z = (old_z / old_x) * new_x = new_x / (old_x / old_z)
+		double new_z = new_x / last_x_scale_over_z_scale;
+
+		SignalBlocker::setValue(scaleYDoubleSpinBox, new_y);
+		SignalBlocker::setValue(scaleZDoubleSpinBox, new_z);
+	}
+	else
+	{
+		// x value has changed, so update ratios.
+		this->last_x_scale_over_z_scale = new_x / scaleZDoubleSpinBox->value();
+		this->last_x_scale_over_y_scale = new_x / scaleYDoubleSpinBox->value();
 	}
 
 	emit objectChanged();
 }
 
 
-void ObjectEditor::yScaleChanged(double val)
+void ObjectEditor::yScaleChanged(double new_y)
 {
 	if(this->linkScaleCheckBox->isChecked())
 	{
-		// Set x and z scales
-		SignalBlocker::setValue(scaleXDoubleSpinBox, val);
-		SignalBlocker::setValue(scaleZDoubleSpinBox, val);
+		// Update x and z scales to maintain the previous ratios between scales.
+
+		// we want new_x / new_y = old_x / old_y
+		// new_x = (old_x / old_y) * new_y
+		double new_x = last_x_scale_over_y_scale * new_y;
+
+		// we want new_z / new_y = old_z / old_y
+		// new_z = (old_z / old_y) * new_y = new_y / (old_y / old_z)
+		double new_z = new_y / last_y_scale_over_z_scale;
+
+		SignalBlocker::setValue(scaleXDoubleSpinBox, new_x);
+		SignalBlocker::setValue(scaleZDoubleSpinBox, new_z);
+	}
+	else
+	{
+		// y value has changed, so update ratios.
+		this->last_x_scale_over_y_scale = scaleXDoubleSpinBox->value() / new_y;
+		this->last_y_scale_over_z_scale = new_y / scaleZDoubleSpinBox->value();
 	}
 
 	emit objectChanged();
 }
 
 
-void ObjectEditor::zScaleChanged(double val)
+void ObjectEditor::zScaleChanged(double new_z)
 {
 	if(this->linkScaleCheckBox->isChecked())
 	{
+		// Update x and y scales to maintain the previous ratios between scales.
+		
+		// we want new_x / new_z = old_x / old_z
+		// new_x = (old_x / old_z) * new_z
+		double new_x = last_x_scale_over_z_scale * new_z;
+
+		// we want new_y / new_z = old_y / old_z
+		// new_y = (old_y / old_z) * new_z
+		double new_y = last_y_scale_over_z_scale * new_z;
+
 		// Set x and y scales
-		SignalBlocker::setValue(scaleXDoubleSpinBox, val);
-		SignalBlocker::setValue(scaleYDoubleSpinBox, val);
+		SignalBlocker::setValue(scaleXDoubleSpinBox, new_x);
+		SignalBlocker::setValue(scaleYDoubleSpinBox, new_y);
+	}
+	else
+	{
+		// z value has changed, so update ratios.
+		this->last_x_scale_over_z_scale = scaleXDoubleSpinBox->value() / new_z;
+		this->last_y_scale_over_z_scale = scaleYDoubleSpinBox->value() / new_z;
 	}
 
 	emit objectChanged();
