@@ -295,7 +295,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			{
 				const int W = video_surface->current_format.frameWidth();
 				const int H = video_surface->current_format.frameHeight();
-				makeMeshForWidthAndHeight(local_path, W, H);
+				makeMeshForWidthAndHeight(task_manager, local_path, W, H);
 
 				// Load frame 0 into opengl texture
 				preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, objectPreviewGLWidget->opengl_engine.ptr(), 
@@ -312,7 +312,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			}
 			else
 			{
-				makeMeshForWidthAndHeight(local_path, 1024, 1024);
+				makeMeshForWidthAndHeight(task_manager, local_path, 1024, 1024);
 			}
 
 			delete media_player;
