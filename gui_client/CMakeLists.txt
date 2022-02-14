@@ -35,6 +35,7 @@ addMocFileRule(gui_client GoToParcelDialog)
 addMocFileRule(gui_client FindObjectDialog)
 addMocFileRule(gui_client ListObjectsNearbyDialog)
 addMocFileRule(gui_client LogWindow)
+addMocFileRule(gui_client WebViewData)
 
 addMocFileRule(qt FileSelectWidget)
 addMocFileRule(qt RealControl)
@@ -96,6 +97,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_FindObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ListObjectsNearbyDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_LogWindow.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_WebViewData.cpp
 
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AddObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AvatarSettingsDialog.h
@@ -580,8 +582,10 @@ if(WIN32)
 		#optimized Qt6Multimedia
 		#optimized Qt6OpenGLWidgets
 		#optimized Qt6Core5Compat
+		#optimized Qt6WebEngineCore
 		#optimized Qt6WebEngineWidgets
 		#optimized Qt6WebEngineQuick
+		#optimized Qt6Network # just for QNetworkProxyFactory
 		#debug Qt6Guid
 		#debug Qt6Cored
 		#debug Qt6OpenGLd
@@ -589,8 +593,10 @@ if(WIN32)
 		#debug Qt6Multimediad
 		#debug Qt6OpenGLWidgetsd
 		#debug Qt6Core5Compatd
+		#debug Qt6WebEngineCored
 		#debug Qt6WebEngineWidgetsd
 		#debug Qt6WebEngineQuickd
+		#optimized Qt6Networkd # just for QNetworkProxyFactory
 		
 		# Qt 5:
 		optimized qtmain
