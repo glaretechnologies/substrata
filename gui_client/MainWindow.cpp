@@ -11,13 +11,6 @@ Copyright Glare Technologies Limited 2020 -
 #ifdef _MSC_VER // Qt headers suppress some warnings on Windows, make sure the warning suppression doesn't propagate to our code. See https://bugreports.qt.io/browse/QTBUG-26877
 #pragma warning(push, 0) // Disable warnings
 #endif
-//#include <QtOpenGL/QGLWidget>
-//#include <QtOpenGLWidgets/QOpenGLWidget>
-//#include <QtWebEngineQuick/qtwebenginequickglobal.h>
-//#include <QtWebEngineWidgets/QWebEngineView>
-//#include <QtWebEngineCore/QWebEngineSettings>
-//#include <QtNetwork/QNetworkProxyFactory>
-
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "AboutDialog.h"
@@ -29,6 +22,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "ListObjectsNearbyDialog.h"
 #include "ModelLoading.h"
 #include "TestSuite.h"
+#include "MeshBuilding.h"
 #include "CredentialManager.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
@@ -49,6 +43,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "SaveResourcesDBThread.h"
 #include "CameraController.h"
 #include "BiomeManager.h"
+#include "WebViewData.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -359,8 +354,6 @@ static const char* default_help_info_message = "Use the W/A/S/D keys and arrow k
 	"Double-click an object to select it.";
 
 
-//static QWebEngineView* webview = NULL;//TEMP
-
 void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
@@ -456,30 +449,6 @@ void MainWindow::initialise()
 		screenshot_command_socket->setUseNetworkByteOrder(false);
 		conPrint("Got screenshot command connection.");
 	}
-
-#if 0
-	{
-		webview = new QWebEngineView(/*ui->diagnosticsDockWidgetContents*/);
-		webview->setAttribute(Qt::WA_DontShowOnScreen);
-		webview->setFixedSize(1920, 1080);
-		webview->load(QUrl("https://www.youtube.com/watch?v=LT3cERVRoQo&autoplay=1"));
-		//webview->load(QUrl("https://youtu.be/Djr71gUtzLM&autoplay=1"));
-		//webview->load(QUrl("https://www.youtube.com/watch?v=0vfJP1v954A&autoplay=1"));
-		//webview->load(QUrl("https://www.twitch.tv/kritikal"));
-		//https://www.youtube.com/watch?v=0vfJP1v954A
-		// Set settings so that auto-play works.  (see https://stackoverflow.com/a/58120230)
-		webview->page()->settings()->setAttribute(QWebEngineSettings::PlaybackRequiresUserGesture, false);
-
-	//	//webview->defa
-	//	QWebEngineSettings::defaultSettings()-> 
-	//	// https://stackoverflow.com/a/58120230
-	//	//new QWebEngineProfile(
-	//	//QWebEnginePage* 
-	//	//webpage.settings().setAttribute(QWebEngineSettings.PlaybackRequiresUserGesture, False)
-
-		webview->show();
-	}
-#endif
 }
 
 
@@ -657,6 +626,14 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 
 	texture_loaded_messages_to_process.clear();
+
+
+	// Clear web_view_obs - will close QWebEngineViews
+	for(auto entry : web_view_obs)
+	{
+		entry->web_view_data = NULL;
+	}
+	web_view_obs.clear();
 
 
 	// Clear obs_with_animated_tex - will close video readers
@@ -1313,30 +1290,37 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		}
 		else if(ob->object_type == WorldObject::ObjectType_WebView)
 		{
-			removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+			//removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-			physics_ob->geometry = this->hypercard_quad_raymesh;
-			physics_ob->ob_to_world = ob_to_world_matrix;
-			physics_ob->userdata = ob;
-			physics_ob->userdata_type = 0;
+			if(ob->opengl_engine_ob.isNull())
+			{
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob->geometry = this->image_cube_raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
 
-			GLObjectRef opengl_ob = new GLObject();
-			opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-			opengl_ob->materials.resize(1);
-			opengl_ob->materials[0].albedo_rgb = Colour3f(1.f);
-			//opengl_ob->materials[0].albedo_texture = this->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
-			opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+				GLObjectRef opengl_ob = new GLObject();
+				opengl_ob->mesh_data = this->image_cube_opengl_mesh;
+				opengl_ob->materials.resize(2);
+				opengl_ob->materials[0].albedo_rgb = Colour3f(1.f);
+				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
-			ob->opengl_engine_ob = opengl_ob;
-			ob->physics_object = physics_ob;
-			ob->loaded_content = ob->content;
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+				ob->loaded_content = ob->content;
 
-			ui->glWidget->addObject(ob->opengl_engine_ob);
+				ui->glWidget->addObject(ob->opengl_engine_ob);
 
-			physics_world->addObject(ob->physics_object);
-			physics_world->rebuild(task_manager, print_output);
+				physics_world->addObject(ob->physics_object);
+				physics_world->rebuild(task_manager, print_output);
+
+				ob->web_view_data = new WebViewData();
+				connect(ob->web_view_data.ptr(), SIGNAL(linkHoveredSignal(const QString&)), this, SLOT(webViewDataLinkHovered(const QString&)));
+				connect(ob->web_view_data.ptr(), SIGNAL(mouseDoubleClickedSignal(QMouseEvent*)), this, SLOT(webViewMouseDoubleClicked(QMouseEvent*)));
+				this->web_view_obs.insert(ob);
+			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		{
@@ -2640,63 +2624,8 @@ struct CloserToCamComparator
 };
 
 
-
-//static GLObjectRef webview_gl_ob; // TEMP
-
 void MainWindow::timerEvent(QTimerEvent* event)
 {
-	//-------------------------------------------------------------------------------------------
-#if 0
-	if(time_since_last_webview_display.elapsed() > 0.0333)
-	{
-		if(webview_qimage.size() != webview->size())
-		{
-			webview_qimage = QImage(webview->size(), QImage::/*Format_RGB888*//*Format_RGB32*/Format_RGBA8888); // The 32 bit Qt formats seem faster than the 24 bit formats.
-		}
-
-		// https://doc.qt.io/qt-6/qwebengineview.html
-		QPainter painter(&webview_qimage);
-		webview->render(&painter);
-		painter.end();
-
-
-		const int W = webview->size().width();
-		const int H = webview->size().height();
-
-		if(webview_gl_ob.isNull())
-		{
-			webview_gl_ob = new GLObject();
-			webview_gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-			webview_gl_ob->materials.resize(1);
-			webview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, ui->glWidget->opengl_engine.ptr(), OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
-			webview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
-			webview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, 2) * Matrix4f::scaleMatrix(1920.f / 1080.f, 1, 1) * Matrix4f::rotationAroundZAxis(Maths::pi<float>());
-
-			ui->glWidget->opengl_engine->addObject(webview_gl_ob);
-		}
-
-		// Make nametag texture
-//		ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
-//
-//		// Copy to map
-//		for(int y=0; y<H; ++y)
-//		{
-//			const QRgb* line = (const QRgb*)webview_qimage.scanLine(y);
-//			std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
-//		}
-//
-//		webview_gl_ob->materials[0].albedo_texture->load(W, H, /*row stride B=*/W * 3, ArrayRef<uint8>(map->getData(), map->getDataSize()));
-
-		webview_gl_ob->materials[0].albedo_texture->load(W, H, /*row stride B=*/webview_qimage.bytesPerLine(), ArrayRef<uint8>(webview_qimage.constBits(), webview_qimage.sizeInBytes()));
-
-		time_since_last_webview_display.reset();
-	}
-#endif
-	//-------------------------------------------------------------------------------------------
-
-
-
-
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
@@ -2838,18 +2767,30 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		const double anim_time = total_timer.elapsed();
 
-		Lock lock(this->world_state->mutex); // NOTE: This lock needed?
-
-		for(auto it = this->obs_with_animated_tex.begin(); it != this->obs_with_animated_tex.end(); ++it)
 		{
-			WorldObject* ob = it->first.ptr();
-			AnimatedTexObData& animation_data = it->second;
+			Lock lock(this->world_state->mutex); // NOTE: This lock needed?
 
-			animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
-		}
+			for(auto it = this->obs_with_animated_tex.begin(); it != this->obs_with_animated_tex.end(); ++it)
+			{
+				WorldObject* ob = it->first.ptr();
+				AnimatedTexObData& animation_data = it->second;
+
+				animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+			}
+		 } // End lock scope
 
 		//animated_tex_time = timer.elapsed();
+
+
+		// Process web-view objects
+		for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)
+		{
+			WorldObject* ob = it->ptr();
+
+			ob->web_view_data->process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+		}
 	}
+
 
 	if(run_as_screenshot_slave)
 	{
@@ -5575,11 +5516,12 @@ void MainWindow::on_actionAddObject_triggered()
 				// Compute hash over model
 				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
 
-				const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
+				const std::string original_filename = d.loaded_mesh_is_image_cube ? "image_cube" : FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
 				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
 
-				// Copy model to local resources dir.  UploadResourceThread will read from here.
-				this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+				// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+				if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+					this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
 
 				new_world_object->model_url = mesh_URL;
 
@@ -5801,11 +5743,15 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
 	new_world_object->angle = 0;
-	new_world_object->scale = Vec3f(1.f);
-	new_world_object->target_url = "https://www.youtube.com/watch?v=LT3cERVRoQo";
+	new_world_object->scale = Vec3f(/*width=*/1.f, /*depth=*/0.02f, /*height=*/1080.f / 1920.f);
+	new_world_object->max_model_lod_level = 0;
 
-	const float fixture_w = 0.1;
-	const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
+	new_world_object->materials.resize(2);
+	new_world_object->materials[0] = new WorldMaterial();
+	new_world_object->materials[0]->colour_rgb = Colour3f(1.f);
+	new_world_object->materials[1] = new WorldMaterial();
+
+	const js::AABBox aabb_os = this->image_cube_raymesh->getAABBox();
 	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 
@@ -7686,6 +7632,27 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 
 void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 {
+	// Trace through scene to see if we are clicking on a web-view
+	{
+		// Trace ray through scene
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
+
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+
+		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
+		{
+			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+			if(ob->web_view_data.nonNull()) // If this is a web-view object:
+			{
+				const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+				ob->web_view_data->mousePressed(e, uvs);
+			}
+		}
+	}
+
 	if(this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull())
 	{
 		// Don't try and grab an axis etc.. when we are clicking on a voxel group to add/remove voxels.
@@ -7801,6 +7768,29 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 	{
 		selected_ob->decompressVoxels(); // Make sure voxels are decompressed for this object.
 	}
+
+
+	// Trace through scene to see if we are clicking on a web-view
+	{
+		// Trace ray through scene
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
+
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+
+		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
+		{
+			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+			if(ob->web_view_data.nonNull()) // If this is a web-view object:
+			{
+				const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+				ob->web_view_data->mouseReleased(e, uvs);
+			}
+		}
+	}
+
 
 	if(areEditingVoxels())
 	{
@@ -8049,25 +8039,9 @@ void MainWindow::setUIForSelectedObject() // Enable/disable delete object action
 }
 
 
-
-void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
+void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 {
-	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
-
-	const Vec2f widget_pos((float)e->pos().x(), (float)e->pos().y());
-	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, widget_pos);
-
-	if(gl_ui.nonNull())
-	{
-		const bool accepted = gl_ui->handleMouseClick(gl_coords);
-		if(accepted)
-		{
-			e->accept();
-			return;
-		}
-	}
-
-	// Trace ray through scene
+	// Trace ray through scene, select object (if any) that is clicked on.
 	const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 	const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
@@ -8081,7 +8055,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 		// Store the object-space selection point.  This will be used for moving the object.
 		this->selection_point_os = results.hit_object->world_to_ob * selection_point_ws;
 
-		// Add an object at the hit point
+		// Debugging: Add an object at the hit point
 		//this->glWidget->addObject(glWidget->opengl_engine->makeAABBObject(this->selection_point_ws - Vec4f(0.03f, 0.03f, 0.03f, 0.f), this->selection_point_ws + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f)));
 
 		// Deselect any currently selected object
@@ -8109,7 +8083,7 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 			ui->objectEditor->hide();
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
 		}
-		else
+		else // Else if the trace didn't hit anything:
 		{
 			ui->objectEditor->setEnabled(false);
 		}
@@ -8120,6 +8094,14 @@ void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
 		deselectObject();
 		deselectParcel();
 	}
+}
+
+
+void MainWindow::glWidgetMouseDoubleClicked(QMouseEvent* e)
+{
+	//conPrint("MainWindow::glWidgetMouseDoubleClicked()");
+
+	doObjectSelectionTraceForMouseEvent(e);
 }
 
 
@@ -8154,6 +8136,8 @@ inline static bool clipLineToPlaneBackHalfSpace(const Planef& plane, Vec4f& a, V
 
 void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 {
+	this->last_gl_widget_mouse_move_pos = e->pos();
+
 	if(ui->glWidget->opengl_engine.isNull() || !ui->glWidget->opengl_engine->initSucceeded())
 		return;
 
@@ -8171,8 +8155,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 	}
 
 
-	// New for object mouseover hyperlink showing:
-	if((e->buttons() & Qt::LeftButton) == 0) // If left mouse button is not pressed down:
+	// New for object mouseover hyperlink showing, and webview mouse-move events:
 	{
 		// Trace ray through scene
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
@@ -8188,30 +8171,39 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 			{
 				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
 
-				if(!ob->target_url.empty())
+				if(ob->web_view_data.nonNull()) // If this is a web-view object:
 				{
-					// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
-					const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
-
-					if(!selected_editable_ob)
+					const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+					ob->web_view_data->mouseMoved(e, uvs);
+				}
+				else 
+				{
+					if((e->buttons() & Qt::LeftButton) == 0 && // If left mouse button is not pressed down (e.g. not drag-moving camera),
+						!ob->target_url.empty()) // And the object has a target URL:
 					{
-						ob_info_ui.showHyperLink(ob->target_url, gl_coords);
+						// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
+						const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
 
-						// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
-						if(this->mouseover_selected_gl_ob.nonNull())
+						if(!selected_editable_ob)
 						{
-							if(ob != this->selected_ob.ptr()) 
-								ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
-							this->mouseover_selected_gl_ob = NULL;
-						}
+							ob_info_ui.showHyperLink(ob->target_url, gl_coords);
 
-						// Add outline around object
-						if(ob->opengl_engine_ob.nonNull())
-						{
-							this->mouseover_selected_gl_ob = ob->opengl_engine_ob;
-							ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+							// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
+							if(this->mouseover_selected_gl_ob.nonNull())
+							{
+								if(ob != this->selected_ob.ptr()) 
+									ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
+								this->mouseover_selected_gl_ob = NULL;
+							}
+
+							// Add outline around object
+							if(ob->opengl_engine_ob.nonNull())
+							{
+								this->mouseover_selected_gl_ob = ob->opengl_engine_ob;
+								ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+							}
+							show_hyperlink_ui = true;
 						}
-						show_hyperlink_ui = true;
 					}
 				}
 			}
@@ -8619,7 +8611,18 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		if(this->selected_parcel.nonNull())
 			deselectParcel();
 	}
-	else if(keyIsDeleteKey(e->key()))
+
+	if(selected_ob.nonNull() && selected_ob->web_view_data.nonNull()) // If we have a web-view object selected, send keyboard input to it:
+	{
+		ui->glWidget->setKeyboardCameraMoveEnabled(false); // We don't want WASD keys etc. to move the camera while we enter text into the webview, so disable camera moving from the keyboard.
+		selected_ob->web_view_data->keyPressed(e);
+		return;
+	}
+	else
+		ui->glWidget->setKeyboardCameraMoveEnabled(true);
+
+	
+	if(keyIsDeleteKey(e->key()))
 	{
 		if(this->selected_ob.nonNull())
 		{
@@ -8724,6 +8727,33 @@ void MainWindow::glWidgetkeyReleased(QKeyEvent* e)
 
 void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 {
+	// Trace through scene to see if the mouse is over a web-view
+	{
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+
+#if QT_VERSION_MAJOR >= 6
+		const Vec4f dir = getDirForPixelTrace((int)e->position().x(), (int)e->position().y());
+#else
+		const Vec4f dir = getDirForPixelTrace((int)e->pos().x(), (int)e->pos().y());
+#endif
+	
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+	
+		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
+		{
+			WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+	
+			if(ob->web_view_data.nonNull()) // If this is a web-view object:
+			{
+				const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+				ob->web_view_data->wheelEvent(e, uvs);
+				e->accept();
+				return;
+			}
+		}
+	}
+
 	if(this->selected_ob.nonNull())
 	{
 		this->selection_vec_cs[1] *= (1.0f + e->angleDelta().y() * 0.0005f);
@@ -9257,6 +9287,26 @@ void MainWindow::handleURL(const QUrl &url)
 }
 
 
+void MainWindow::webViewDataLinkHovered(const QString& url)
+{
+	if(url.isEmpty())
+	{
+		ui->glWidget->setCursor(Qt::ArrowCursor);
+	}
+	else
+	{
+		ui->glWidget->setCursor(Qt::PointingHandCursor);
+	}
+}
+
+
+// The mouse was double-clicked on a web-view object
+void MainWindow::webViewMouseDoubleClicked(QMouseEvent* e)
+{
+	doObjectSelectionTraceForMouseEvent(e);
+}
+
+
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 typedef qintptr NativeEventArgType;
 #else
@@ -9765,101 +9815,21 @@ int main(int argc, char *argv[])
 
 			// Make spotlight meshes
 			{
-				const float fixture_w = 0.1;
-			 
-				// Build Indigo::Mesh
-				mw.spotlight_mesh = new Indigo::Mesh();
-				mw.spotlight_mesh->num_uv_mappings = 1;
-
-				mw.spotlight_mesh->vert_positions.resize(4);
-				mw.spotlight_mesh->vert_normals.resize(4);
-				mw.spotlight_mesh->uv_pairs.resize(4);
-				mw.spotlight_mesh->quads.resize(1);
-
-				mw.spotlight_mesh->vert_positions[0] = Indigo::Vec3f(-fixture_w/2, -fixture_w/2, 0.f);
-				mw.spotlight_mesh->vert_positions[1] = Indigo::Vec3f(-fixture_w/2,  fixture_w/2, 0.f); // + y
-				mw.spotlight_mesh->vert_positions[2] = Indigo::Vec3f( fixture_w/2,  fixture_w/2, 0.f);
-				mw.spotlight_mesh->vert_positions[3] = Indigo::Vec3f( fixture_w/2, -fixture_w/2, 0.f); // + x
-
-				mw.spotlight_mesh->vert_normals[0] = Indigo::Vec3f(0, 0, -1);
-				mw.spotlight_mesh->vert_normals[1] = Indigo::Vec3f(0, 0, -1);
-				mw.spotlight_mesh->vert_normals[2] = Indigo::Vec3f(0, 0, -1);
-				mw.spotlight_mesh->vert_normals[3] = Indigo::Vec3f(0, 0, -1);
-
-				mw.spotlight_mesh->uv_pairs[0] = Indigo::Vec2f(0, 0);
-				mw.spotlight_mesh->uv_pairs[1] = Indigo::Vec2f(0, 1);
-				mw.spotlight_mesh->uv_pairs[2] = Indigo::Vec2f(1, 1);
-				mw.spotlight_mesh->uv_pairs[3] = Indigo::Vec2f(1, 0);
-
-				mw.spotlight_mesh->quads[0].mat_index = 0;
-				mw.spotlight_mesh->quads[0].vertex_indices[0] = 0;
-				mw.spotlight_mesh->quads[0].vertex_indices[1] = 1;
-				mw.spotlight_mesh->quads[0].vertex_indices[2] = 2;
-				mw.spotlight_mesh->quads[0].vertex_indices[3] = 3;
-				mw.spotlight_mesh->quads[0].uv_indices[0] = 0;
-				mw.spotlight_mesh->quads[0].uv_indices[1] = 1;
-				mw.spotlight_mesh->quads[0].uv_indices[2] = 2;
-				mw.spotlight_mesh->quads[0].uv_indices[3] = 3;
-
-				mw.spotlight_mesh->endOfModel();
-
-				mw.spotlight_opengl_mesh = OpenGLEngine::buildIndigoMesh(mw.spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
-
-				// Build RayMesh (for physics)
-				mw.spotlight_raymesh = new RayMesh("mesh", false);
-				mw.spotlight_raymesh->fromIndigoMesh(*mw.spotlight_mesh);
-
-				mw.spotlight_raymesh->buildTrisFromQuads();
-				Geometry::BuildOptions options;
-				DummyShouldCancelCallback should_cancel_callback;
-				mw.spotlight_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
+				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(mw.task_manager);
+				mw.spotlight_opengl_mesh = results.opengl_mesh_data;
+				mw.spotlight_raymesh = results.raymesh;
+				mw.spotlight_mesh = results.indigo_mesh;
 			}
 
-
+			// Make image cube meshes
+			{
+				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(mw.task_manager);
+				mw.image_cube_opengl_mesh = results.opengl_mesh_data;
+				mw.image_cube_raymesh = results.raymesh;
+			}
 
 			// Make unit-cube raymesh (used for placeholder model)
-			{
-				mw.unit_cube_raymesh = new RayMesh("mesh", false);
-				mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 0));
-				mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 0));
-				mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 0));
-				mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 0));
-				mw.unit_cube_raymesh->addVertex(Vec3f(0, 0, 1));
-				mw.unit_cube_raymesh->addVertex(Vec3f(1, 0, 1));
-				mw.unit_cube_raymesh->addVertex(Vec3f(1, 1, 1));
-				mw.unit_cube_raymesh->addVertex(Vec3f(0, 1, 1));
-
-				unsigned int uv_i[] ={ 0, 0, 0, 0 };
-				{
-					unsigned int v_i[] ={ 0, 3, 2, 1 };
-					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 0 quad
-				}
-				{
-					unsigned int v_i[] ={ 4, 5, 6, 7 };
-					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 1 quad
-				}
-				{
-					unsigned int v_i[] ={ 0, 1, 5, 4 };
-					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 0 quad
-				}
-				{
-					unsigned int v_i[] ={ 2, 3, 7, 6 };
-					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 1 quad
-				}
-				{
-					unsigned int v_i[] ={ 0, 4, 7, 3 };
-					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 0 quad
-				}
-				{
-					unsigned int v_i[] ={ 1, 2, 6, 5 };
-					mw.unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 1 quad
-				}
-
-				mw.unit_cube_raymesh->buildTrisFromQuads();
-				Geometry::BuildOptions options;
-				DummyShouldCancelCallback should_cancel_callback;
-				mw.unit_cube_raymesh->build(options, should_cancel_callback, mw.print_output, /*verbose=*/false, mw.task_manager);
-			}
+			mw.unit_cube_raymesh = MeshBuilding::makeUnitCubeRayMesh(mw.task_manager);
 
 			// Make object-placement beam model
 			{

@@ -8,6 +8,7 @@ Code By Nicholas Chapman.
 
 
 #include "ModelLoading.h"
+#include "MeshBuilding.h"
 #include "NetDownloadResourcesThread.h"
 #include "SubstrataVideoSurface.h"
 #include "../shared/LODGeneration.h"
@@ -15,6 +16,7 @@ Code By Nicholas Chapman.
 #include "../dll/include/IndigoException.h"
 #include "../graphics/formatdecoderobj.h"
 #include "../graphics/imformatdecoder.h"
+#include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
 #include "../utils/Exception.h"
@@ -38,7 +40,8 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 :	settings(settings_),
 	resource_manager(resource_manager_),
 	base_dir_path(base_dir_path_),
-	dev_manager(dev_manager_)
+	dev_manager(dev_manager_),
+	loaded_mesh_is_image_cube(false)
 {
 	setupUi(this);
 
@@ -152,7 +155,7 @@ void AddObjectDialog::filenameChanged(QString& filename)
 }
 
 
-void AddObjectDialog::makeMeshForWidthAndHeight(const std::string& local_path, int w, int h)
+void AddObjectDialog::makeMeshForWidthAndHeight(glare::TaskManager& task_manager, const std::string& local_path, int w, int h)
 {
 	float use_w, use_h;
 	if(w > h)
@@ -166,111 +169,7 @@ void AddObjectDialog::makeMeshForWidthAndHeight(const std::string& local_path, i
 		use_w = (float)w / (float)h;
 	}
 
-
-	Indigo::MeshRef mesh = new Indigo::Mesh();
-	mesh->num_uv_mappings = 1;
-
-	// The y=0 and y=1 faces are the ones the image is actually applied to.
-
-	// x=0 face
-	unsigned int v_start = 0;
-	{
-		mesh->addVertex(Indigo::Vec3f(0,0,0));
-		mesh->addVertex(Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f(0,1,1));
-		mesh->addVertex(Indigo::Vec3f(0,1,0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-		mesh->addTriangle(vertex_indices, vertex_indices, 1);
-		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-		v_start += 4;
-	}
-	// x=1 face
-	{
-		mesh->addVertex(Indigo::Vec3f(1,0,0));
-		mesh->addVertex(Indigo::Vec3f(1,1,0));
-		mesh->addVertex(Indigo::Vec3f(1,1,1));
-		mesh->addVertex(Indigo::Vec3f(1,0,1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-		mesh->addTriangle(vertex_indices, vertex_indices, 1);
-		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-		v_start += 4;
-	}
-	// y=0 face
-	{
-		mesh->addVertex(Indigo::Vec3f(0,0,0));
-		mesh->addVertex(Indigo::Vec3f(1,0,0));
-		mesh->addVertex(Indigo::Vec3f(1,0,1));
-		mesh->addVertex(Indigo::Vec3f(0,0,1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-		mesh->addTriangle(vertex_indices, vertex_indices, 0);
-		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
-		v_start += 4;
-	}
-	// y=1 face
-	{
-		mesh->addVertex(Indigo::Vec3f(0,1,0));
-		mesh->addVertex(Indigo::Vec3f(0,1,1));
-		mesh->addVertex(Indigo::Vec3f(1,1,1));
-		mesh->addVertex(Indigo::Vec3f(1,1,0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-		mesh->addTriangle(vertex_indices, vertex_indices, 0);
-		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
-		v_start += 4;
-	}
-	// z=0 face
-	{
-		mesh->addVertex(Indigo::Vec3f(0,0,0));
-		mesh->addVertex(Indigo::Vec3f(0,1,0));
-		mesh->addVertex(Indigo::Vec3f(1,1,0));
-		mesh->addVertex(Indigo::Vec3f(1,0,0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-		mesh->addTriangle(vertex_indices, vertex_indices, 1);
-		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-		v_start += 4;
-	}
-	// z=1 face
-	{
-		mesh->addVertex(Indigo::Vec3f(0,0,1));
-		mesh->addVertex(Indigo::Vec3f(1,0,1));
-		mesh->addVertex(Indigo::Vec3f(1,1,1));
-		mesh->addVertex(Indigo::Vec3f(0,1,1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-		mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-		mesh->addTriangle(vertex_indices, vertex_indices, 1);
-		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-		v_start += 4;
-	}
-
-	mesh->endOfModel();
+	MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager);
 
 	const float depth = 0.02f;
 	const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
@@ -280,7 +179,7 @@ void AddObjectDialog::makeMeshForWidthAndHeight(const std::string& local_path, i
 
 	this->preview_gl_ob = new GLObject();
 	preview_gl_ob->ob_to_world_matrix = use_matrix;
-	preview_gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+	preview_gl_ob->mesh_data = results.opengl_mesh_data;
 	preview_gl_ob->materials.resize(2);
 
 	preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
@@ -309,13 +208,15 @@ void AddObjectDialog::makeMeshForWidthAndHeight(const std::string& local_path, i
 	loaded_object->materials[1]->roughness = ScalarVal(0.5f);
 
 	this->loaded_mesh = new BatchedMesh();
-	loaded_mesh->buildFromIndigoMesh(*mesh);
+	loaded_mesh->buildFromIndigoMesh(*results.indigo_mesh);
 }
 
 
 void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 {
 	this->objectPreviewGLWidget->makeCurrent();
+
+	this->loaded_mesh_is_image_cube = false;
 
 	this->ob_cam_right_translation = 0;
 	this->ob_cam_up_translation = 0;
@@ -348,7 +249,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			if(frameinfo.isNull())
 				throw glare::Exception("frame was null. (EOS?)");
 
-			makeMeshForWidthAndHeight(local_path, (int)frameinfo->width, (int)frameinfo->height);
+			makeMeshForWidthAndHeight(task_manager, local_path, (int)frameinfo->width, (int)frameinfo->height);
 
 			// Load frame 0 into opengl texture
 			preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(frameinfo->width, frameinfo->height, objectPreviewGLWidget->opengl_engine.ptr(), 
@@ -360,6 +261,8 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 			ArrayRef<uint8> tex_data_arrayref(frameinfo->frame_buffer, frameinfo->height * frameinfo->stride_B);
 			preview_gl_ob->materials[0].albedo_texture->load(frameinfo->width, frameinfo->height, frameinfo->stride_B, tex_data_arrayref);
+
+			this->loaded_mesh_is_image_cube = true;
 
 #else
 			SubstrataVideoSurface* video_surface = new SubstrataVideoSurface(NULL);
@@ -434,111 +337,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				use_w = (float)im->getMapWidth() / (float)im->getMapHeight();
 			}
 
-
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-			mesh->num_uv_mappings = 1;
-
-			// The y=0 and y=1 faces are the ones the image is actually applied to.
-
-			// x=0 face
-			unsigned int v_start = 0;
-			{
-				mesh->addVertex(Indigo::Vec3f(0,0,0));
-				mesh->addVertex(Indigo::Vec3f(0,0,1));
-				mesh->addVertex(Indigo::Vec3f(0,1,1));
-				mesh->addVertex(Indigo::Vec3f(0,1,0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-				const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-				mesh->addTriangle(vertex_indices, vertex_indices, 1);
-				const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-				mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-				v_start += 4;
-			}
-			// x=1 face
-			{
-				mesh->addVertex(Indigo::Vec3f(1,0,0));
-				mesh->addVertex(Indigo::Vec3f(1,1,0));
-				mesh->addVertex(Indigo::Vec3f(1,1,1));
-				mesh->addVertex(Indigo::Vec3f(1,0,1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-				const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-				mesh->addTriangle(vertex_indices, vertex_indices, 1);
-				const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-				mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-				v_start += 4;
-			}
-			// y=0 face
-			{
-				mesh->addVertex(Indigo::Vec3f(0,0,0));
-				mesh->addVertex(Indigo::Vec3f(1,0,0));
-				mesh->addVertex(Indigo::Vec3f(1,0,1));
-				mesh->addVertex(Indigo::Vec3f(0,0,1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-				const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-				mesh->addTriangle(vertex_indices, vertex_indices, 0);
-				const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-				mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
-				v_start += 4;
-			}
-			// y=1 face
-			{
-				mesh->addVertex(Indigo::Vec3f(0,1,0));
-				mesh->addVertex(Indigo::Vec3f(0,1,1));
-				mesh->addVertex(Indigo::Vec3f(1,1,1));
-				mesh->addVertex(Indigo::Vec3f(1,1,0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-				const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-				mesh->addTriangle(vertex_indices, vertex_indices, 0);
-				const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-				mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
-				v_start += 4;
-			}
-			// z=0 face
-			{
-				mesh->addVertex(Indigo::Vec3f(0,0,0));
-				mesh->addVertex(Indigo::Vec3f(0,1,0));
-				mesh->addVertex(Indigo::Vec3f(1,1,0));
-				mesh->addVertex(Indigo::Vec3f(1,0,0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-				const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-				mesh->addTriangle(vertex_indices, vertex_indices, 1);
-				const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-				mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-				v_start += 4;
-			}
-			// z=1 face
-			{
-				mesh->addVertex(Indigo::Vec3f(0,0,1));
-				mesh->addVertex(Indigo::Vec3f(1,0,1));
-				mesh->addVertex(Indigo::Vec3f(1,1,1));
-				mesh->addVertex(Indigo::Vec3f(0,1,1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 0));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(1, 1));
-				mesh->uv_pairs.push_back(Indigo::Vec2f(0, 1));
-				const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
-				mesh->addTriangle(vertex_indices, vertex_indices, 1);
-				const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
-				mesh->addTriangle(vertex_indices_2, vertex_indices_2, 1);
-				v_start += 4;
-			}
-
-			mesh->endOfModel();
+			MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager);
 
 			const float depth = 0.02f;
 			const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
@@ -548,7 +347,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 			preview_gl_ob = new GLObject();
 			preview_gl_ob->ob_to_world_matrix = use_matrix;
-			preview_gl_ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+			preview_gl_ob->mesh_data = results.opengl_mesh_data;
 			preview_gl_ob->materials.resize(2);
 
 			preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
@@ -578,7 +377,9 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			loaded_object->materials[1]->roughness = ScalarVal(0.5f);
 
 			loaded_mesh = new BatchedMesh();
-			loaded_mesh->buildFromIndigoMesh(*mesh);
+			loaded_mesh->buildFromIndigoMesh(*results.indigo_mesh);
+
+			this->loaded_mesh_is_image_cube = true;
 		}
 		else // Else is not an image or an MP4 file:
 		{

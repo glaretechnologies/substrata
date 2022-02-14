@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../audio/AudioEngine.h"
 #include <SceneNodeModel.h>
 #include "../gui_client/WinterShaderEvaluator.h"
+#include "../gui_client/WebViewData.h"
 #endif
 #include "../gui_client/PhysicsObject.h"
 #include "../shared/ResourceManager.h"

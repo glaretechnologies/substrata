@@ -93,6 +93,7 @@ GlWidget::GlWidget(QWidget *parent)
 	cam_controller(NULL),
 	current_time(0.f),
 	cam_rot_on_mouse_move_enabled(true),
+	cam_move_on_key_input_enabled(true),
 	near_draw_dist(0.22f), // As large as possible as we can get without clipping becoming apparent.
 	max_draw_dist(1000.f),
 	//gamepad(NULL),
@@ -349,13 +350,17 @@ void GlWidget::setEnvMat(OpenGLMaterial& mat)
 
 void GlWidget::keyPressEvent(QKeyEvent* e)
 {
+	emit keyPressed(e);
+
+	// Update our key-state variables, jump if space was pressed.
 	if(this->player_physics)
 	{
 		SHIFT_down = (e->modifiers() & Qt::ShiftModifier);
 
 		if(e->key() == Qt::Key::Key_Space)
 		{
-			this->player_physics->processJump(*this->cam_controller);
+			if(cam_move_on_key_input_enabled)
+				this->player_physics->processJump(*this->cam_controller);
 			space_down = true;
 		}
 		else if(e->key() == Qt::Key::Key_W)
@@ -387,13 +392,13 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 			right_down = true;
 		}
 	}
-
-	emit keyPressed(e);
 }
 
 
 void GlWidget::keyReleaseEvent(QKeyEvent* e)
 {
+	emit keyReleased(e);
+
 	if(this->player_physics)
 	{
 		SHIFT_down = (e->modifiers() & Qt::ShiftModifier);
@@ -431,8 +436,6 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 			right_down = false;
 		}
 	}
-
-	emit keyReleased(e);
 }
 
 
@@ -479,7 +482,7 @@ void GlWidget::playerPhyicsThink(float dt)
 
 
 #ifdef _WIN32
-	if(hasFocus())
+	if(hasFocus() && cam_move_on_key_input_enabled)
 	{
 		SHIFT_down = GetAsyncKeyState(VK_SHIFT);
 
@@ -512,27 +515,30 @@ void GlWidget::playerPhyicsThink(float dt)
 	}
 #else
 
-	if(W_down)
-	{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-	if(S_down)
-	{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-	if(A_down)
-	{	this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-	if(D_down)
-	{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+	if(cam_move_on_key_input_enabled)
+	{
+		if(W_down)
+		{	this->player_physics->processMoveForwards(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		if(S_down)
+		{	this->player_physics->processMoveForwards(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		if(A_down)
+		{	this->player_physics->processStrafeRight(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		if(D_down)
+		{	this->player_physics->processStrafeRight(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
-	// Move vertically up or down in flymode.
-	if(space_down)
-	{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-	if(C_down)
-	{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		// Move vertically up or down in flymode.
+		if(space_down)
+		{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
+		if(C_down)
+		{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
-	// Turn left or right
-	const float base_rotate_speed = 200;
-	if(left_down)
-	{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
-	if(right_down)
-	{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
+		// Turn left or right
+		const float base_rotate_speed = 200;
+		if(left_down)
+		{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt * -base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
+		if(right_down)
+		{	this->cam_controller->update(/*pos delta=*/Vec3d(0.0), Vec2d(0, dt *  base_rotate_speed * (SHIFT_down ? 3.0 : 1.0))); cam_changed = true; }
+	}
 #endif
 
 #if 0

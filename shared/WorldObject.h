@@ -31,6 +31,7 @@ class WinterShaderEvaluator;
 class Matrix4f;
 namespace Indigo { class SceneNodeModel; }
 namespace js { class AABBox; }
+class WebViewData;
 
 
 class Voxel
@@ -227,6 +228,9 @@ public:
 	int loaded_model_lod_level; // If we have loaded a model for this object, this is the LOD level of the model.
 	// This may differ from current_lod_level, for example if the new LOD level model needs to be downloaded from the server, then loaded_lod_level will be the previous level.
 	int loaded_lod_level; // Level for textures etc..  Actually this is more like what lod level we have requested textures at.  TODO: clarify and improve.
+
+
+	Reference<WebViewData> web_view_data;
 #endif
 
 	float max_load_dist2;
