@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <opengl/WGL.h>
 #include <video/VideoReader.h>
 #include <utils/Timer.h>
-#include <QtGui/QImage.h>
+#include <QtGui/QImage>
 #include <QtCore/QObject>
 #include <map>
 class MainWindow;
