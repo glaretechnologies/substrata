@@ -159,7 +159,9 @@ private slots:;
 	void URLChangedSlot();
 	void materialSelectedInBrowser(const std::string& path);
 	void sendLightmapNeededFlagsSlot();
-	void handleURL(const QUrl &url);
+	void handleURL(const QUrl& url);
+	void webViewDataLinkHovered(const QString& url);
+	void webViewMouseDoubleClicked(QMouseEvent* e);
 private:
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 	bool nativeEvent(const QByteArray& event_type, void* message, qintptr* result);
@@ -175,6 +177,7 @@ private:
 	void deselectParcel();
 	void visitSubURL(const std::string& URL); // Visit a substrata 'sub://' URL.  Checks hostname and only reconnects if the hostname is different from the current one.
 	GLObjectRef makeNameTagGLObject(const std::string& nametag);
+	void doObjectSelectionTraceForMouseEvent(QMouseEvent* e);
 public:
 	virtual OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
 private:
@@ -324,6 +327,8 @@ public:
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> active_objects; // Objects that have moved recently and so need interpolation done on them.
 	std::unordered_map<WorldObjectRef, AnimatedTexObData, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs)
 
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> web_view_obs;
+
 	ThreadContext thread_context;
 
 	//std::ofstream logfile;
@@ -359,6 +364,9 @@ public:
 
 	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
 	Reference<RayMesh> hypercard_quad_raymesh;
+
+	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh; // For images, web-views etc.
+	Reference<RayMesh> image_cube_raymesh;
 
 	Reference<Indigo::Mesh> spotlight_mesh;
 	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
@@ -532,4 +540,6 @@ public:
 	Timer time_since_last_webview_display;
 
 	Reference<GLObject> mouseover_selected_gl_ob;
+
+	QPoint last_gl_widget_mouse_move_pos;
 };

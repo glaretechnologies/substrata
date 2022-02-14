@@ -30,7 +30,7 @@ class QSettings;
 
 
 class GlWidget : public
-#if (QT_VERSION >= 393216) // QT_VERSION_CHECK(6, 0, 0))
+#if 0 // (QT_VERSION_MAJOR >= 6)
 	QOpenGLWidget
 #else
 	QGLWidget
@@ -59,7 +59,8 @@ public:
 	void setCurrentTime(float time) { current_time = time; }
 	void playerPhyicsThink(float dt); // Process keys held down.
 
-	void setCamRotationOnMouseMoveEnabled(float enabled) { cam_rot_on_mouse_move_enabled = enabled; }
+	void setCamRotationOnMouseMoveEnabled(bool enabled) { cam_rot_on_mouse_move_enabled = enabled; }
+	void setKeyboardCameraMoveEnabled(bool enabled) { cam_move_on_key_input_enabled = enabled; }
 	void hideCursor();
 
 	static float sensorWidth() { return 0.035f; }
@@ -112,6 +113,7 @@ private:
 	Timer timer;
 	float current_time;
 	bool cam_rot_on_mouse_move_enabled;
+	bool cam_move_on_key_input_enabled;
 
 	//QGamepad* gamepad;
 

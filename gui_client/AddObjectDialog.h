@@ -59,12 +59,13 @@ public:
 	//uint64 model_hash;
 	BatchedMeshRef loaded_mesh;
 	WorldObjectRef loaded_object; // May by NULL if a valid object was not loaded.
+	bool loaded_mesh_is_image_cube;
 
 	float ob_cam_right_translation; // Amount the object position for the new object should be translated along the camera right vector.
 	float ob_cam_up_translation;
 
 private:
-	void makeMeshForWidthAndHeight(const std::string& local_path, int w, int h);
+	void makeMeshForWidthAndHeight(glare::TaskManager& task_manager, const std::string& local_path, int w, int h);
 
 	std::string base_dir_path;
 	std::vector<std::string> models;

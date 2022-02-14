@@ -147,7 +147,6 @@ void MeshLODGenThread::doRun()
 						}
 						else if(ob->object_type == WorldObject::ObjectType_WebView)
 						{
-							const float fixture_w = 0.1;
 							aabb_os = js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
 						}
 						else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
