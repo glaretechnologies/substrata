@@ -497,6 +497,8 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 // We will do this by using a checksum and checking the file length.
 static void updateToUseImageCubeMeshes(ServerAllWorldsState& all_worlds_state)
 {
+	Timer timer;
+
 	/*const std::string image_cube_mesh_path = "C:\\Users\\nick\\AppData\\Roaming\\Cyberspace\\resources\\image_cube_5438347426447337425.bmesh";
 	const uint64 image_cube_mesh_checksum = FileChecksum::fileChecksum(image_cube_mesh_path);
 	const uint64 image_cube_mesh_filesize = FileUtils::getFileSize(image_cube_mesh_path);*/
@@ -515,7 +517,7 @@ static void updateToUseImageCubeMeshes(ServerAllWorldsState& all_worlds_state)
 			{
 				WorldObject* ob = i->second.ptr();
 
-				if(!ob->model_url.empty() && all_worlds_state.resource_manager->isFileForURLPresent(ob->model_url))
+				if(!ob->model_url.empty() && all_worlds_state.resource_manager->isFileForURLPresent(ob->model_url) && hasExtension(ob->model_url, "bmesh"))
 				{
 					try
 					{
@@ -527,7 +529,7 @@ static void updateToUseImageCubeMeshes(ServerAllWorldsState& all_worlds_state)
 							const uint64 checksum = FileChecksum::fileChecksum(local_path);
 							if(checksum == image_cube_mesh_checksum)
 							{
-								conPrint("Updating model_url '" + ob->model_url + "' to 'image_cube_5438347426447337425.bmesh'.");
+								conPrint("updateToUseImageCubeMeshes(): Updating model_url '" + ob->model_url + "' to 'image_cube_5438347426447337425.bmesh'.");
 								ob->model_url = "image_cube_5438347426447337425.bmesh";
 
 								world_state->addWorldObjectAsDBDirty(ob);
@@ -547,7 +549,7 @@ static void updateToUseImageCubeMeshes(ServerAllWorldsState& all_worlds_state)
 	if(num_updated > 0)
 		all_worlds_state.markAsChanged();
 
-	conPrint("updateToUseImageCubeMeshes(): Updated " + toString(num_updated) + " objects to use image_cube_5438347426447337425.bmesh");
+	conPrint("updateToUseImageCubeMeshes(): Updated " + toString(num_updated) + " objects to use image_cube_5438347426447337425.bmesh.  Elapsed: " + timer.elapsedStringNSigFigs(3));
 }
 
 
