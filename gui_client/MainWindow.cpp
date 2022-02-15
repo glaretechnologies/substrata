@@ -4593,6 +4593,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								recreated_ob_uid[last_restored_ob_uid_in_edit] = ob->uid;
 								last_restored_ob_uid_in_edit = UID::invalidUID();
 							}
+
+							if(ob->creator_id == this->logged_in_user_id) // If this object was (just) created by this user:
+								selectObject(ob, /*selected_tri_index=*/0); // select it
 						}
 
 						loadAudioForObject(ob);
@@ -5563,9 +5566,8 @@ void MainWindow::on_actionAddObject_triggered()
 			new_world_object->uid = UID(0); // Will be set by server
 			new_world_object->materials = d.loaded_object->materials;//d.loaded_materials;
 			new_world_object->pos = ob_pos + cam_controller.getRightVec() * d.ob_cam_right_translation + cam_controller.getUpVec() * d.ob_cam_up_translation;
-			new_world_object->axis = d.loaded_object->axis;
-			//new_world_object->angle = (float)this->cam_controller.getAngles().x - Maths::pi_2<float>();
-			new_world_object->angle = d.loaded_object->angle;
+			new_world_object->axis = Vec3f(0,0,1);
+			new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
 			new_world_object->scale = d.loaded_object->scale;
 			
 			new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
@@ -5655,7 +5657,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	new_world_object->object_type = WorldObject::ObjectType_Hypercard;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
-	new_world_object->angle = (float)this->cam_controller.getAngles().x - Maths::pi_2<float>();
+	new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
 	new_world_object->scale = Vec3f(0.4f);
 	new_world_object->content = "Select the object \nto edit this text";
 
@@ -5742,7 +5744,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	new_world_object->object_type = WorldObject::ObjectType_WebView;
 	new_world_object->pos = ob_pos;
 	new_world_object->axis = Vec3f(0, 0, 1);
-	new_world_object->angle = 0;
+	new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
 	new_world_object->scale = Vec3f(/*width=*/1.f, /*depth=*/0.02f, /*height=*/1080.f / 1920.f);
 	new_world_object->max_model_lod_level = 0;
 
