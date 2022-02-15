@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Exception.h>
 #include <Parser.h>
 #include <Base64.h>
+#include <FileChecksum.h>
 #include <CryptoRNG.h>
 #include <SHA256.h> //TEMP for testing
 #include <DatabaseTests.h> //TEMP for testing
@@ -490,6 +491,66 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 }
 
 
+// For some past versions, when users added images or video objects, The same image-cube mesh was created but with different filenames, like 'bitdriver_gif_5438347426447337425.bmesh'.
+// Go over the objects and change the use of such meshes to just use 'image_cube_5438347426447337425.bmesh', to reduce the number of files.
+// We will detect the use of such meshes by loading the mesh and seeing if the content is the same as for 'image_cube_5438347426447337425.bmesh'.
+// We will do this by using a checksum and checking the file length.
+static void updateToUseImageCubeMeshes(ServerAllWorldsState& all_worlds_state)
+{
+	/*const std::string image_cube_mesh_path = "C:\\Users\\nick\\AppData\\Roaming\\Cyberspace\\resources\\image_cube_5438347426447337425.bmesh";
+	const uint64 image_cube_mesh_checksum = FileChecksum::fileChecksum(image_cube_mesh_path);
+	const uint64 image_cube_mesh_filesize = FileUtils::getFileSize(image_cube_mesh_path);*/
+	const uint64 image_cube_mesh_checksum = 5438347426447337425ull; // The result of the code above
+	const uint64 image_cube_mesh_filesize = 210; // The result of the code above
+
+	size_t num_updated = 0;
+	{
+		Lock lock(all_worlds_state.mutex);
+		
+		for(auto world_it = all_worlds_state.world_states.begin(); world_it != all_worlds_state.world_states.end(); ++world_it)
+		{
+			Reference<ServerWorldState> world_state = world_it->second;
+
+			for(auto i = world_state->objects.begin(); i != world_state->objects.end(); ++i)
+			{
+				WorldObject* ob = i->second.ptr();
+
+				if(!ob->model_url.empty() && all_worlds_state.resource_manager->isFileForURLPresent(ob->model_url))
+				{
+					try
+					{
+						const std::string local_path = all_worlds_state.resource_manager->pathForURL(ob->model_url);
+
+						const uint64 filesize = FileUtils::getFileSize(local_path); // Check file size first as it just uses file metadata, without loading the whole file.
+						if(filesize == image_cube_mesh_filesize)
+						{
+							const uint64 checksum = FileChecksum::fileChecksum(local_path);
+							if(checksum == image_cube_mesh_checksum)
+							{
+								conPrint("Updating model_url '" + ob->model_url + "' to 'image_cube_5438347426447337425.bmesh'.");
+								ob->model_url = "image_cube_5438347426447337425.bmesh";
+
+								world_state->addWorldObjectAsDBDirty(ob);
+								num_updated++;
+							}
+						}
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("updateToUseImageCubeMeshes(): Error: " + e.what());
+					}
+				}
+			}
+		}
+	}
+
+	if(num_updated > 0)
+		all_worlds_state.markAsChanged();
+
+	conPrint("updateToUseImageCubeMeshes(): Updated " + toString(num_updated) + " objects to use image_cube_5438347426447337425.bmesh");
+}
+
+
 static void updatePacketLengthField(SocketBufferOutStream& packet)
 {
 	// length field is second uint32
@@ -675,6 +736,8 @@ int main(int argc, char *argv[])
 
 
 		updateMapTiles(*server.world_state);
+
+		updateToUseImageCubeMeshes(*server.world_state);
 		
 
 		// Add 'town square' parcels
