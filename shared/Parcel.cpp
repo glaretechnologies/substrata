@@ -26,7 +26,8 @@ Parcel::Parcel()
 	all_writeable(false),
 	nft_status(NFTStatus_NotNFT),
 	minting_transaction_id(std::numeric_limits<uint64>::max()),
-	flags(0)
+	flags(0),
+	spawn_point(1000000000.000000)
 {
 }
 
@@ -143,13 +144,18 @@ void Parcel::getFarScreenShotPosAndAngles(Vec3d& pos_out, Vec3d& angles_out) con
 
 Vec3d Parcel::getVisitPosition() const
 {
-	const Vec3d parcel_centre = (aabb_min + aabb_max) * 0.5;
+	if(std::fabs(spawn_point.x) < 100000.000000) // If spawn point has been set:
+		return spawn_point;
+	else
+	{
+		const Vec3d parcel_centre = (aabb_min + aabb_max) * 0.5;
 
-	// Make sure at least 2m off ground
-	Vec3d p = parcel_centre;
-	p.z = myMax(p.z, 2.0);
+		// Make sure at least 2m off ground
+		Vec3d p = parcel_centre;
+		p.z = myMax(p.z, 2.0);
 
-	return p;
+		return p;
+	}
 }
 
 
@@ -487,7 +493,7 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 #endif // GUI_CLIENT
 
 
-static const uint32 PARCEL_SERIALISATION_VERSION = 8;
+static const uint32 PARCEL_SERIALISATION_VERSION = 9;
 /*
 Version 3: added all_writeable.
 Version 4: Added auction data
@@ -495,6 +501,7 @@ Version 5: Removed auction data, added parcel_auction_ids
 Version 6: Added screenshot_ids (serialised to disk only, not over network)
 Version 7: Added nft_status, minting_transaction_id (serialised to disk only, not over network)
 Version 8: Added flags
+Version 9: Added spawn_point
 */
 
 
@@ -540,6 +547,15 @@ static void writeToStreamCommon(const Parcel& parcel, OutStream& stream, bool wr
 	}
 	else
 		stream.writeUInt32(parcel.flags); // Always write flags to disk.
+
+	if(writing_to_network_stream)
+	{
+		// Only write spawn_point if the other end is using protocol version >= 33.
+		if(peer_protocol_version >= 33) // spawn_point was added in protocol version 33.
+			writeToStream(parcel.spawn_point, stream);
+	}
+	else
+		writeToStream(parcel.spawn_point, stream); // Always write spawn point to disk.
 }
 
 
@@ -601,6 +617,7 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 			parcel.parcel_auction_ids[i] = stream.readUInt32();
 	}
 
+	// Read flags
 	if(reading_network_stream)
 	{
 		if(peer_protocol_version >= 32)
@@ -610,6 +627,18 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Parcel& parce
 	{
 		if(version >= 8)
 			parcel.flags = stream.readUInt32();
+	}
+
+	// Read spawn_point
+	if(reading_network_stream)
+	{
+		if(peer_protocol_version >= 33) // spawn_point was added in protocol version 33.
+			parcel.spawn_point = readVec3FromStream<double>(stream);
+	}
+	else
+	{
+		if(version >= 9)
+			parcel.spawn_point = readVec3FromStream<double>(stream);
 	}
 
 	parcel.build();
@@ -742,6 +771,8 @@ void Parcel::copyNetworkStateFrom(const Parcel& other, bool restrict_changes)
 	if(allow_all_changes)
 		parcel_auction_ids = other.parcel_auction_ids;
 	flags = other.flags;
+
+	spawn_point = other.spawn_point;
 
 	owner_name = other.owner_name;
 	admin_names = other.admin_names;
