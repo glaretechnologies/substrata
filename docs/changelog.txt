@@ -1,3 +1,24 @@
+0.88
+====
+Select just-created objects.
+Orient newly created objects towards camera, rounding to nearest multiple of 45 degrees.
+When creating image or mp4 objects, use a standard image_cube mesh.
+ObjectEditor: maintain ratios between scale components when link-scales is enabled.
+Changed target_url to a line edit from a text edit control.
+Added some initial webview code.
+Disabled gamepad support for now.
+Added spawn point setting to parcels - determines where a user will spawn (join the world) when they use Go > Go to parcel.
+Added UI for setting it to the in-world parcel editor.
+
+0.87
+====
+Added mouse-over hyperlink showing for object target URLs.
+Optimised initial query for objects, fixes disconnection bug when object load distance is too large.
+Improvements to PlayerPhysics to reduce sliding down ramps, also to reduce getting stuck in objects.
+Fixed avatar forwards/back lean direction for flying.
+Turning off selfie mode when turning off third-person camera mode.
+Fixed some server mem leaks.
+
 0.86
 ====
 Tweaked player physics to avoid avatar getting stuck in objects.
