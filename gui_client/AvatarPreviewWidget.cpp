@@ -86,9 +86,16 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 	viewport_w = width_;
 	viewport_h = height_;
 
-	glViewport(0, 0, width_, height_);
+	this->opengl_engine->setViewport(viewport_w, viewport_h);
+
+	this->opengl_engine->setMainViewport(viewport_w, viewport_h);
 
 	viewport_aspect_ratio = (double)width_ / (double)height_;
+
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+	// In Qt6, the GL widget uses a custom framebuffer (defaultFramebufferObject).  We want to make sure we draw to this.
+	this->opengl_engine->setTargetFrameBuffer(new FrameBuffer(this->defaultFramebufferObject()));
+#endif
 }
 
 
