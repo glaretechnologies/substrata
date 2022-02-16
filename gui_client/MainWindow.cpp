@@ -4594,7 +4594,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								last_restored_ob_uid_in_edit = UID::invalidUID();
 							}
 
-							if(ob->creator_id == this->logged_in_user_id) // If this object was (just) created by this user:
+							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects be checking numSecondsAgo().
+							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30)) 
 								selectObject(ob, /*selected_tri_index=*/0); // select it
 						}
 
