@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include <opengl/OpenGLEngine.h>
+#include <opengl/GLMeshBuilding.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <simpleraytracer/raymesh.h>
@@ -123,7 +124,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager
 
 	mesh->endOfModel();
 
-	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh = OpenGLEngine::buildIndigoMesh(mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh = GLMeshBuilding::buildIndigoMesh(mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
 
 	// Build RayMesh (for physics)
 	Reference<RayMesh> image_cube_raymesh = new RayMesh("image_cube_mesh", /*enable shading normals=*/false);
@@ -183,7 +184,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(glare::TaskM
 
 	spotlight_mesh->endOfModel();
 
-	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = OpenGLEngine::buildIndigoMesh(spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildIndigoMesh(spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
 
 	// Build RayMesh (for physics)
 	RayMeshRef spotlight_raymesh = new RayMesh("mesh", /*enable shading normals=*/false);
