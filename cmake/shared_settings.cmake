@@ -354,6 +354,10 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/gl3w.c
 #${INDIGO_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/FrameBuffer.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/FrameBuffer.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/VAO.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/VAO.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/VBO.cpp 

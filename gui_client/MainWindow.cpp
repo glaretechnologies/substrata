@@ -111,6 +111,8 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/imformatdecoder.h"
 #include "../graphics/PNGDecoder.h"
 #include "../graphics/jpegdecoder.h"
+#include "../opengl/GLMeshBuilding.h"
+#include "../opengl/MeshPrimitiveBuilding.h"
 #if defined(_WIN32)
 #include "../video/WMFVideoReader.h"
 #endif
@@ -9775,7 +9777,7 @@ int main(int argc, char *argv[])
 				mw.ground_quad_mesh->endOfModel();
 
 				// Build OpenGLMeshRenderData
-				mw.ground_quad_mesh_opengl_data = OpenGLEngine::buildIndigoMesh(mw.ground_quad_mesh, false);
+				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(mw.ground_quad_mesh, false);
 
 				// Build RayMesh (for physics)
 				mw.ground_quad_raymesh = new RayMesh("mesh", false);
@@ -9814,7 +9816,7 @@ int main(int argc, char *argv[])
 				mw.hypercard_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
 			}
 
-			mw.hypercard_quad_opengl_mesh = OpenGLEngine::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
+			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
 
 			// Make spotlight meshes
 			{
@@ -10031,7 +10033,7 @@ int main(int argc, char *argv[])
 					ob->materials[0].roughness = 0.3f;
 
 					ob->ob_to_world_matrix = Matrix4f::translationMatrix(10, 10, 0) * Matrix4f::uniformScaleMatrix(100.f);
-					ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+					ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, false);
 
 					mw.ui->glWidget->addObject(ob);
 

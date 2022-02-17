@@ -28,6 +28,7 @@ Code By Nicholas Chapman.
 #include "../utils/HashMapInsertOnly2.h"
 #include "../utils/Sort.h"
 #include "../utils/IncludeHalf.h"
+#include "../opengl/GLMeshBuilding.h"
 #include "../indigo/UVUnwrapper.h"
 #include <limits>
 
@@ -578,7 +579,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		GLObjectRef ob = new GLObject();
 		ob->ob_to_world_matrix = use_matrix;
-		ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+		ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, false);
 
 		ob->materials.resize(mesh->num_materials_referenced);
 		loaded_object_out.materials/*loaded_materials_out*/.resize(mesh->num_materials_referenced);
@@ -650,7 +651,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = obToWorldMatrix(loaded_object_out);
-		gl_ob->mesh_data = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
 		gl_ob->mesh_data->animation_data = batched_mesh->animation_data;// gltf_data.anim_data;
 
@@ -716,7 +717,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 			GLObjectRef ob = new GLObject();
 			ob->ob_to_world_matrix = use_matrix;
-			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
+			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
 			loaded_object_out.materials.resize(mesh->num_materials_referenced);
@@ -752,7 +753,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			
 			GLObjectRef ob = new GLObject();
 			ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-			ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, /*skip_opengl_calls=*/false);
+			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, /*skip_opengl_calls=*/false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
 			loaded_object_out.materials.resize(mesh->num_materials_referenced);
@@ -791,7 +792,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-		gl_ob->mesh_data = OpenGLEngine::buildBatchedMesh(bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
 		const size_t num_mats = bmesh->numMaterialsReferenced();
 		gl_ob->materials.resize(num_mats);
@@ -918,7 +919,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			if(batched_mesh->animation_data.vrm_data.nonNull())
 				rotateVRMMesh(*batched_mesh);
 
-		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+		gl_meshdata = GLMeshBuilding::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
 
 		gl_meshdata->animation_data = batched_mesh->animation_data;
 
@@ -1078,7 +1079,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelUR
 			if(batched_mesh->animation_data.vrm_data.nonNull())
 				rotateVRMMesh(*batched_mesh);
 
-		gl_meshdata = OpenGLEngine::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+		gl_meshdata = GLMeshBuilding::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
 
 		gl_meshdata->animation_data = batched_mesh->animation_data;
 
