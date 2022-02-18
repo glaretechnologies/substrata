@@ -505,6 +505,8 @@ public:
 	int last_foostep_side;
 
 	double last_timerEvent_CPU_work_elapsed;
+	double last_animated_tex_time;
+	double last_model_and_tex_loading_time;
 
 	Timer time_since_object_edited; // For undo edit merging.
 	bool force_new_undo_edit; // // Multiple edits using the object editor, in a short timespan, will be merged together, unless force_new_undo_edit is true (is set when undo or redo is issued).
