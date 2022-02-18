@@ -405,10 +405,16 @@ endif()
 set(opengl_shaders
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_vert_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/downsize_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/downsize_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/env_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/env_vert_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_vert_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/outline_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/outline_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/overlay_frag_shader.glsl
@@ -417,6 +423,8 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_vert_shader.glsl
 
 ../shaders/parcel_frag_shader.glsl
 ../shaders/parcel_vert_shader.glsl
