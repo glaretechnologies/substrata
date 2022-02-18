@@ -7324,7 +7324,8 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 	proximity_loader.physics_world = physics_world.ptr();
 
-	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getPosition().toVec4fPoint());
+	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
+	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
 
 	// Send QueryObjectsInAABB for initial volume around camera to server
 	{
