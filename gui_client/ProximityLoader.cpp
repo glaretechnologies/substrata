@@ -282,12 +282,14 @@ js::AABBox ProximityLoader::setCameraPosForNewConnection(const Vec4f& initial_ca
 {
 	this->last_cam_pos = initial_cam_pos;
 
-	// The initial AABB load distance needs to be rounded up to CELL_WIDTH, otherwise we will miss objects around the edge of the initial AABB when starting to load adjacent cells.
-	const float use_load_dist = Maths::roundUpToMultipleFloating(load_distance, CELL_WIDTH);
+	// NOTE: Important to use the same maths here for determining which cells to load as we use in updateCamPos() above.
+	// Otherwise some objects will not be loaded in some circumstances.
+	const Vec4i begin = ob_grid.bucketIndicesForPoint(initial_cam_pos - Vec4f(load_distance, load_distance, load_distance, 0));
+	const Vec4i end   = ob_grid.bucketIndicesForPoint(initial_cam_pos + Vec4f(load_distance, load_distance, load_distance, 0)); // inclusive
 
 	return js::AABBox(
-		initial_cam_pos - Vec4f(use_load_dist, use_load_dist, use_load_dist, 0),
-		initial_cam_pos + Vec4f(use_load_dist, use_load_dist, use_load_dist, 0)
+		Vec4f((float)begin[0]     * CELL_WIDTH, (float)begin[1]     * CELL_WIDTH, (float)begin[2]    * CELL_WIDTH, 1.f),
+		Vec4f((float)(end[0] + 1) * CELL_WIDTH, (float)(end[1] + 1) * CELL_WIDTH, (float)(end[2] + 1) * CELL_WIDTH, 1.f)
 	);
 }
 
