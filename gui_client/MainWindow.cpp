@@ -178,6 +178,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	client_tls_config(NULL),
 	last_foostep_side(0),
 	last_timerEvent_CPU_work_elapsed(0),
+	last_animated_tex_time(0),
+	last_model_and_tex_loading_time(0),
 	grabbed_axis(-1),
 	grabbed_angle(0),
 #if defined(_WIN32)
@@ -2654,6 +2656,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		std::string msg;
 		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
+		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
+		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
 
 		if(ui->glWidget->opengl_engine.nonNull())
 		{
@@ -2781,9 +2785,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 		 } // End lock scope
 
-		//animated_tex_time = timer.elapsed();
-
-
 		// Process web-view objects
 		for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)
 		{
@@ -2791,6 +2792,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			ob->web_view_data->process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
 		}
+
+		this->last_animated_tex_time = timer.elapsed();
 	}
 
 
@@ -3099,7 +3102,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// We don't want to do too much at one time or it will cause hitches.
 		// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
 		// We alternate for fairness.
-		const double MAX_LOADING_TIME = 0.010;// 10 ms
+		const double MAX_LOADING_TIME = 0.005;// 5 ms
 		Timer loading_timer;
 		int num_models_loaded = 0;
 		int num_textures_loaded = 0;
@@ -3394,6 +3397,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//	conPrint("Done loading, num_textures_loaded: " + toString(num_textures_loaded) + ", num_models_loaded: " + toString(num_models_loaded) + ", elapsed: " + loading_timer.elapsedStringNPlaces(4));
 
 		//frame_loading_time = loading_timer.elapsed();
+
+		this->last_model_and_tex_loading_time = loading_timer.elapsed();
 	}
 	
 	// Handle any messages (chat messages etc..)
