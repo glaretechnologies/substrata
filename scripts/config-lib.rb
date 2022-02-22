@@ -9,6 +9,9 @@
 
 $vs_version = 2022 # Visual studio option used to build distribution.  Used in build.rb
 
+$libs_vs_version = 2019 # VS version used to build libraries - Qt etc.  Can be lower than $vs_version.
+# NOTE: should match CYBERSPACE_LIBS_VS_VER in Cmakelists.txt
+
 
 $qt_version = "5.13.2" if OS.windows?
 #$qt_version = "6.2.2" if OS.windows?
