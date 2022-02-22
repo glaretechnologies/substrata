@@ -73,6 +73,7 @@ struct AnimatedTexData : public RefCounted
 
 	Reference<TextureData> texdata;
 	std::string texdata_tex_path; // The path that texdata corresponds to.
+	int last_loaded_frame_i;
 	int cur_frame_i; // -1 = reached EOS
 	bool at_vidreader_EOS; // Has the vid reader sent us a NULL sample (signifying EOS)?
 	int num_samples_pending; // Number of samples we have started reading, that we have not read back from the sample_queue yet.

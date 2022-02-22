@@ -403,6 +403,8 @@ endif()
 
 
 set(opengl_shaders
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/clear_frag_shader.glsl
+${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/clear_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/downsize_frag_shader.glsl
