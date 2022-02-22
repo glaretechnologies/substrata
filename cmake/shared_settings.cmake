@@ -423,8 +423,8 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_vert_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_frag_shader.glsl
 ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_vert_shader.glsl
+#${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_frag_shader.glsl
+#${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_vert_shader.glsl
 
 ../shaders/parcel_frag_shader.glsl
 ../shaders/parcel_vert_shader.glsl
