@@ -7,10 +7,11 @@
 
 # The config options
 
-$vs_version = 2019 # Visual studio option used to build distribution.  Used in build.rb
+$vs_version = 2022 # Visual studio option used to build distribution.  Used in build.rb
 
 
 $qt_version = "5.13.2" if OS.windows?
+#$qt_version = "6.2.2" if OS.windows?
 $qt_version = "5.15.2" if OS.mac?
 $qt_version = "5.13.2" if OS.linux?
 
