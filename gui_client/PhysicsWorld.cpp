@@ -76,6 +76,12 @@ void PhysicsWorld::rebuild(glare::TaskManager& task_manager, PrintOutput& print_
 }
 
 
+void PhysicsWorld::clear()
+{
+	this->objects_set.clear();
+}
+
+
 PhysicsWorld::MemUsageStats PhysicsWorld::getTotalMemUsage() const
 {
 	HashMapInsertOnly2<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());

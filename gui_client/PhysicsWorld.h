@@ -58,10 +58,9 @@ public:
 
 	void updateObjectTransformData(PhysicsObject& object);
 
-
 	void rebuild(glare::TaskManager& task_manager, PrintOutput& print_output);
 
-	
+	void clear(); // Remove all objects
 
 	//----------------------------------- Diagnostics ----------------------------------------
 	struct MemUsageStats
