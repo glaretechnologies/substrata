@@ -15,16 +15,19 @@ if(WIN32)
 		message(FATAL_ERROR "Only 64 bit builds supported")
 	endif()
 	
+	# See https://cmake.org/cmake/help/latest/variable/MSVC_VERSION.html, https://en.wikipedia.org/wiki/Microsoft_Visual_Studio
 	if(MSVC_VERSION EQUAL 1700) # VS2012
 		set(CYBERSPACE_VS_VER 2012)
 	elseif(MSVC_VERSION EQUAL 1800) # VS2013
 		set(CYBERSPACE_VS_VER 2013)
 	elseif(MSVC_VERSION EQUAL 1900) # VS2015
 		set(CYBERSPACE_VS_VER 2015)
-		elseif(MSVC_VERSION GREATER_EQUAL 1911 AND MSVC_VERSION LESS 1920) # VS2017 has several version numbers 1911, 1912, 1915
+	elseif(MSVC_VERSION GREATER_EQUAL 1911 AND MSVC_VERSION LESS 1920) # VS2017 has several version numbers 1911, 1912, 1915
 		set(CYBERSPACE_VS_VER 2017)
-	elseif(MSVC_VERSION GREATER_EQUAL 1920)
+	elseif(MSVC_VERSION GREATER_EQUAL 1920 AND MSVC_VERSION LESS 1930)
 		set(CYBERSPACE_VS_VER 2019)
+	elseif(MSVC_VERSION GREATER_EQUAL 1930 AND MSVC_VERSION LESS 1940)
+		set(CYBERSPACE_VS_VER 2022)
 	else()
 		message(FATAL_ERROR "Unhandled MSVC version")
 	endif()
@@ -277,5 +280,7 @@ ADD_SUBDIRECTORY(server server)
 #ADD_SUBDIRECTORY(eth_bot eth_bot)
 
 #ADD_SUBDIRECTORY(backup_bot backup_bot)
+
+#ADD_SUBDIRECTORY(webclient webclient)
 
 #ADD_SUBDIRECTORY(stress_test stress_test)
