@@ -1,4 +1,7 @@
-#version 330 core
+
+#if USE_BINDLESS_TEXTURES
+#extension GL_ARB_bindless_texture : require
+#endif
 
 in vec3 normal_cs;
 in vec3 normal_ws;
@@ -13,7 +16,9 @@ in vec3 cam_to_pos_ws;
 in float flogz;
 #endif
 
+#if !USE_BINDLESS_TEXTURES
 uniform sampler2D diffuse_tex;
+#endif
 uniform sampler2DShadow dynamic_depth_tex;
 uniform sampler2DShadow static_depth_tex;
 uniform samplerCube cosine_env_tex;
@@ -25,6 +30,20 @@ layout (std140) uniform PhongUniforms
 	vec4 sundir_cs;
 	vec4 diffuse_colour;
 	mat3 texture_matrix;
+
+#if USE_BINDLESS_TEXTURES
+	sampler2D diffuse_tex;
+	sampler2D metallic_roughness_tex;
+	sampler2D lightmap_tex;
+#else
+	float padding0;
+	float padding1;
+	float padding2;
+	float padding3;
+	float padding4;
+	float padding5;
+#endif
+
 	int have_shading_normals;
 	int have_texture;
 	int have_metallic_roughness_tex;

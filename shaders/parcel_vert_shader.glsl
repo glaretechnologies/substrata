@@ -1,4 +1,3 @@
-#version 150
 
 in vec3 position_in;
 in vec3 normal_in;

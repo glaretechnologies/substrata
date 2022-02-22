@@ -1,4 +1,3 @@
-#version 330 core
 
 in vec3 position_in; // object-space position
 in vec3 normal_in;

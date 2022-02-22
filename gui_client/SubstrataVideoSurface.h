@@ -11,7 +11,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <QtMultimedia/QVideoSurfaceFormat>
 #include <QtMultimedia/QMediaPlayer>
 
-
+#if 1
 class SubstrataVideoSurface : public QAbstractVideoSurface
 {
 public:
@@ -41,7 +41,7 @@ public:
 			if(load_into_opengl_tex)
 			{
 				if(opengl_tex.nonNull())
-					opengl_tex->load(frame.width(), frame.height(), frame.bytesPerLine(),
+					opengl_tex->loadIntoExistingTexture(frame.width(), frame.height(), frame.bytesPerLine(),
 						ArrayRef<uint8>(bits, frame.height() * frame.bytesPerLine()));
 			}
 			else
@@ -93,6 +93,7 @@ public:
 			opengl_tex = new OpenGLTexture(
 				format.frameWidth(), format.frameHeight(),
 				NULL, // opengl engine
+				ArrayRef<uint8>(NULL, 0), // tex data
 				OpenGLTexture::Format_SRGB_Uint8,
 				GL_RGB, // GL internal format (num channels)
 				GL_BGRA, // GL pixel format.  Video frames are BGRA.
@@ -184,3 +185,4 @@ public:
 	bool load_into_opengl_tex; // If false, just map frame and copy into frame_copy
 	std::vector<uint8> frame_copy;
 };
+#endif

@@ -13,8 +13,6 @@ Copyright Glare Technologies Limited 2021-
 #include "../qt/QtUtils.h"
 #include "Escaping.h"
 #include "../direct3d/Direct3DUtils.h"
-#include <QtMultimedia/QAbstractVideoSurface>
-#include <QtMultimedia/QVideoSurfaceFormat>
 #include <QtMultimedia/QMediaPlayer>
 #include "FileInStream.h"
 
@@ -23,7 +21,7 @@ class ResourceVidReaderByteStream;
 
 
 AnimatedTexData::AnimatedTexData()
-:	media_player(NULL), video_surface(NULL), cur_frame_i(0), in_anim_time(0), encounted_error(false), at_vidreader_EOS(false), num_samples_pending(0)
+:	media_player(NULL), video_surface(NULL), last_loaded_frame_i(-1), cur_frame_i(0), in_anim_time(0), encounted_error(false), at_vidreader_EOS(false), num_samples_pending(0)
 #ifdef _WIN32
 	, locked_interop_tex_ob(0)
 #endif
@@ -359,6 +357,8 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 {
 	if(ob->opengl_engine_ob.nonNull())
 	{
+		const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+
 		AnimatedTexObData& animation_data = *this;
 		animation_data.mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
 
@@ -375,6 +375,9 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 				// Note that mat.tex_path may change due to LOD changes.
 				if(animtexdata.texdata.isNull() || (animtexdata.texdata_tex_path != mat.tex_path))
 				{
+					//if(animtexdata.texdata_tex_path != mat.tex_path)
+					//	conPrint("AnimatedTexObData::process(): tex_path changed from '" + animtexdata.texdata_tex_path + "' to '" + mat.tex_path + "'.");
+
 					// Only replace the tex data if the new tex data is non-null.
 					// new tex data may take a while to load after LOD changes.
 					Reference<TextureData> new_tex_data = opengl_engine->texture_data_manager->getTextureData(mat.tex_path);
@@ -408,7 +411,21 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 						animtexdata.cur_frame_i = 0;
 
 					if(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < (int)texdata->frames.size()) // Make sure in bounds
-						TextureLoading::loadIntoExistingOpenGLTexture(mat.albedo_texture, *texdata, animtexdata.cur_frame_i, opengl_engine);
+					{
+						if(ob_visible && animtexdata.cur_frame_i != animtexdata.last_loaded_frame_i) // TODO: avoid more work when object is not visible.
+						{
+							//printVar(animtexdata.cur_frame_i);
+							
+							// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
+							// Don't try and upload the wrong size or we will get an OpenGL error or crash.
+							if(mat.albedo_texture->xRes() == texdata->W && mat.albedo_texture->yRes() == texdata->H)
+								TextureLoading::loadIntoExistingOpenGLTexture(mat.albedo_texture, *texdata, animtexdata.cur_frame_i, opengl_engine);
+							//else
+							//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
+
+							animtexdata.last_loaded_frame_i = animtexdata.cur_frame_i;
+						}
+					}
 				}
 			}
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
@@ -426,6 +443,18 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 				if(animtexdata.media_player != NULL)
 				{
 					// Pause when out of range and playing, resume when in range and paused.
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+					if(!in_process_dist && (animtexdata.media_player->playbackState() == QMediaPlayer::PlayingState))
+					{
+						//conPrint("Pausing");
+						animtexdata.media_player->pause();
+					}
+					else if (in_process_dist && (animtexdata.media_player->playbackState() == QMediaPlayer::PausedState))
+					{
+						animtexdata.media_player->play();
+						//conPrint("Playing");
+					}
+#else
 					if(!in_process_dist && (animtexdata.media_player->state() == QMediaPlayer::PlayingState))
 					{
 						//conPrint("Pausing");
@@ -436,6 +465,7 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 						animtexdata.media_player->play();
 						//conPrint("Playing");
 					}
+#endif
 				}
 
 				if(in_process_dist)
@@ -449,6 +479,7 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 					try
 					{
 						// Qt MediaPlayer playback:
+#if 1
 						if(USE_QT_TO_PLAY_MP4S)
 						{
 							if(animtexdata.media_player == NULL)
@@ -507,6 +538,7 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 							}
 						}
 						else // Else !USE_QT_TO_PLAY_MP4S, use WMFVideoReader to play mp4s:
+#endif
 						{
 #if defined(_WIN32)
 							if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error) // If vid reader has not been created yet (and we haven't failed trying to create it):

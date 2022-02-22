@@ -1,4 +1,3 @@
-#version 150
 
 in vec3 normal_cs; // cam (view) space
 in vec3 normal_ws; // world space

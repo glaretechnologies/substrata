@@ -7298,6 +7298,11 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	
 	world_state = NULL;
 
+	if(physics_world.nonNull())
+	{
+		physics_world->clear();
+	}
+
 	//-------------------------------- End disconnect process --------------------------------
 
 
@@ -9906,11 +9911,13 @@ int main(int argc, char *argv[])
 			{
 				const std::string use_shader_dir = cyberspace_base_dir_path + "/data/shaders";
 
+				const std::string version_directive    = mw.ui->glWidget->opengl_engine->getVersionDirective();
 				const std::string preprocessor_defines = mw.ui->glWidget->opengl_engine->getPreprocessorDefines();
+				
 				mw.parcel_shader_prog = new OpenGLProgram(
 					"parcel hologram prog",
-					new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", preprocessor_defines, GL_VERTEX_SHADER),
-					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", preprocessor_defines, GL_FRAGMENT_SHADER)
+					new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
+					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER)
 				);
 				// Let any glare::Exception thrown fall through to below.
 			}
