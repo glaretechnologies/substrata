@@ -24,7 +24,7 @@ class EnvEmitter;
 
 
 class AddObjectPreviewWidget : public 
-#if 0 // QT_VERSION >= 393216
+#if 0 // QT_VERSION_MAJOR >= 6
 	QOpenGLWidget
 #else
 	QGLWidget

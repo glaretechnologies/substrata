@@ -299,7 +299,8 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				makeMeshForWidthAndHeight(task_manager, local_path, W, H);
 
 				// Load frame 0 into opengl texture
-				preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, objectPreviewGLWidget->opengl_engine.ptr(), 
+				preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, objectPreviewGLWidget->opengl_engine.ptr(),
+					ArrayRef<uint8>(NULL, 0), // tex data
 					OpenGLTexture::Format_SRGB_Uint8, // Just report a format without alpha so we cast shadows.
 					GL_SRGB8_ALPHA8, // GL internal format
 					GL_BGRA, // GL format.  Video frames are BGRA.  NOTE: FIXME for what qt returns
@@ -308,8 +309,8 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				
 				ArrayRef<uint8> tex_data_arrayref(video_surface->frame_copy);
 
-				const int stride_B = video_surface->frame_copy.size() / H;
-				preview_gl_ob->materials[0].albedo_texture->load(W, H, stride_B, tex_data_arrayref);
+				const size_t stride_B = video_surface->frame_copy.size() / H;
+				preview_gl_ob->materials[0].albedo_texture->loadIntoExistingTexture(W, H, stride_B, tex_data_arrayref);
 			}
 			else
 			{
