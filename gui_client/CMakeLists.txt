@@ -636,6 +636,7 @@ if(WIN32)
 elseif(APPLE)
 	
 	add_definitions(-D__MACOSX_CORE__) # Add CoreAudio config choice define for RTAudio
+	add_definitions(-DGL_SILENCE_DEPRECATION) # Tell Mac to shut up about OpenGL being deprecated
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
