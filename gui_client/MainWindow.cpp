@@ -1654,7 +1654,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				// If the opengl ob has been recreated, we need to recreate the instance_matrices VBO
 				if(ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
 				{
-					ob->opengl_engine_ob->enableInstancing(new VBO(ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size()));
+					ob->opengl_engine_ob->enableInstancing(ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
 
 					ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
 				}
@@ -1738,7 +1738,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 
 					if(ob->opengl_engine_ob.nonNull())
 					{
-						ob->opengl_engine_ob->enableInstancing(new VBO(ob->instance_matrices.data(), sizeof(Matrix4f) * count));
+						ob->opengl_engine_ob->enableInstancing(ob->instance_matrices.data(), sizeof(Matrix4f) * count);
 						
 						ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
 					}
@@ -7649,6 +7649,7 @@ int MainWindow::mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& clo
 void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 {
 	// Trace through scene to see if we are clicking on a web-view
+	if(this->physics_world.nonNull())
 	{
 		// Trace ray through scene
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
@@ -7787,6 +7788,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 
 	// Trace through scene to see if we are clicking on a web-view
+	if(this->physics_world.nonNull())
 	{
 		// Trace ray through scene
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
@@ -8172,6 +8174,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 
 	// New for object mouseover hyperlink showing, and webview mouse-move events:
+	if(this->physics_world.nonNull())
 	{
 		// Trace ray through scene
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
@@ -8744,6 +8747,7 @@ void MainWindow::glWidgetkeyReleased(QKeyEvent* e)
 void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 {
 	// Trace through scene to see if the mouse is over a web-view
+	if(this->physics_world.nonNull())
 	{
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 
