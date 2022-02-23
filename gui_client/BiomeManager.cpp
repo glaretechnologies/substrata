@@ -370,7 +370,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 			tree_opengl_ob->instance_info[z].to_world = ob_instances[z].to_world;
 		}
 
-		tree_opengl_ob->enableInstancing(new VBO(instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size()));
+		tree_opengl_ob->enableInstancing(instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size());
 		
 		opengl_engine.addObject(tree_opengl_ob);
 		tree_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
@@ -390,7 +390,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 			tree_imposter_opengl_ob->instance_info[z].to_world = imposter_matrices[z];
 		}
-		tree_imposter_opengl_ob->enableInstancing(new VBO(imposter_matrices.data(), sizeof(Matrix4f) * imposter_matrices.size()));
+		tree_imposter_opengl_ob->enableInstancing(imposter_matrices.data(), sizeof(Matrix4f) * imposter_matrices.size());
 
 		opengl_engine.addObject(tree_imposter_opengl_ob);
 		tree_imposter_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
@@ -532,7 +532,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 					gl_ob->ob_to_world_matrix.setToTranslationMatrix(new_quad.x * patch_w, new_quad.y * patch_w, 0);
 					gl_ob->mesh_data = this->grass_ob->mesh_data;
 
-					gl_ob->enableInstancing(new VBO(instance_matrices_temp.data(), sizeof(Matrix4f) * num_scatter_points));
+					gl_ob->enableInstancing(instance_matrices_temp.data(), sizeof(Matrix4f) * num_scatter_points);
 
 					opengl_engine.addObject(gl_ob);
 					
