@@ -25,15 +25,17 @@ PhysicsObject::~PhysicsObject()
 }
 
 
-void PhysicsObject::traceRay(const Ray& ray_, RayTraceResult& results_out) const
+void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 {
 	results_out.hitdist_ws = -1;
 	results_out.hit_object = NULL;
 
 	// Test ray against object AABB.  Updates ray near and far distances if it intersects the AABB.
-	Ray ray = ray_;
-	if(this->aabb_ws.traceRay(ray) == 0)
+	Ray clipped_ray = ray;
+	if(this->aabb_ws.traceRay(clipped_ray) == 0)
 		return;
+
+	// NOTE: using clipped ray results in missed intersections with a flat plane, due to precision issues.  So just use the original ray below.
 	
 	const Vec4f dir_os = this->world_to_ob.mul3Vector(ray.unitDirF());
 	const Vec4f pos_os = this->world_to_ob.mul3Point(ray.startPosF());
