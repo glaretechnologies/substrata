@@ -93,7 +93,7 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 										bool constrain_to_vertical, bool do_fast_mode);
 
 
-UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float raw_dtime, ThreadContext& thread_context, Vec4f& campos_in_out)
+UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float raw_dtime, Vec4f& campos_in_out)
 {
 	//printVar(onground);
 	//conPrint("lastgroundnormal: " + lastgroundnormal.toString());
@@ -240,7 +240,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float raw_dtime,
 				//trace sphere through world
 				//-----------------------------------------------------------------
 				SphereTraceResult traceresults;
-				physics_world.traceSphere(playersphere, dpos.toVec4fVector(), thread_context, traceresults);
+				physics_world.traceSphere(playersphere, dpos.toVec4fVector(), traceresults);
 
 				if(traceresults.hit_object)
 				{
@@ -304,7 +304,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float raw_dtime,
 					const Vec3f spherepos = Vec3f(campos.x, campos.y, campos.z - EYE_HEIGHT + SPHERE_RAD * 5); // Upper sphere centre
 					const js::BoundingSphere playersphere(spherepos.toVec4fPoint(), SPHERE_RAD);
 					SphereTraceResult traceresults;
-					physics_world.traceSphere(playersphere, /*translation_ws=*/Vec4f(0, 0, jump_up_amount, 0), thread_context, traceresults); // Trace sphere through world
+					physics_world.traceSphere(playersphere, /*translation_ws=*/Vec4f(0, 0, jump_up_amount, 0), traceresults); // Trace sphere through world
 
 					if(!traceresults.hit_object)
 					{
@@ -385,7 +385,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float raw_dtime,
 				//-----------------------------------------------------------------
 				//get the collision points
 				//-----------------------------------------------------------------
-				physics_world.getCollPoints(bigsphere, thread_context, springspheresets[s].collpoints);
+				physics_world.getCollPoints(bigsphere, springspheresets[s].collpoints);
 				
 			}
 

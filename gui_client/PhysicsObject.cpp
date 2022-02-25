@@ -25,13 +25,18 @@ PhysicsObject::~PhysicsObject()
 }
 
 
-void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
+void PhysicsObject::traceRay(const Ray& ray_, RayTraceResult& results_out) const
 {
 	results_out.hitdist_ws = -1;
 	results_out.hit_object = NULL;
 
+	// Test ray against object AABB.  Updates ray near and far distances if it intersects the AABB.
+	Ray ray = ray_;
+	if(this->aabb_ws.traceRay(ray) == 0)
+		return;
+	
 	const Vec4f dir_os = this->world_to_ob.mul3Vector(ray.unitDirF());
-	const Vec4f pos_os = this->world_to_ob * ray.startPosF();
+	const Vec4f pos_os = this->world_to_ob.mul3Point(ray.startPosF());
 
 	const Ray localray(
 		pos_os, // origin

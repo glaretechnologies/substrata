@@ -45,7 +45,7 @@ public:
 	void processMoveUp(float factor, bool runpressed, CameraController& cam);
 	void processJump(CameraController& cam);
 
-	UpdateEvents update(PhysicsWorld& physics_world, float dtime, ThreadContext& thread_context, Vec4f& campos_in_out);
+	UpdateEvents update(PhysicsWorld& physics_world, float dtime, Vec4f& campos_in_out);
 
 	void setFlyModeEnabled(bool enabled);
 	bool flyModeEnabled() const { return flymode; }

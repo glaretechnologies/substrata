@@ -329,8 +329,6 @@ public:
 
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> web_view_obs;
 
-	ThreadContext thread_context;
-
 	//std::ofstream logfile;
 
 	UserDetailsWidget* user_details;

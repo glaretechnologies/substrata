@@ -1458,7 +1458,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 {
 	//Timer timer;
 
-	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor);
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, /*generate_shading_normals=*/false);
+	// We will compute geometric normals in the opengl shader, so don't need to compute them here.
 
 	// UV unwrap it:
 	StandardPrintOutput print_output;
@@ -1507,7 +1508,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		}
 
 		mesh_data->vert_vbo = new VBO(mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
-		mesh_data->vert_vao = new VAO(mesh_data->vert_vbo, mesh_data->vertex_spec);
+		mesh_data->vert_vao = new VAO(mesh_data->vert_vbo, mesh_data->vert_indices_buf, mesh_data->vertex_spec);
 
 		mesh_data->vert_data.clearAndFreeMem();
 		mesh_data->vert_index_buffer.clearAndFreeMem();
