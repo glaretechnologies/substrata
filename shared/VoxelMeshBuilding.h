@@ -20,7 +20,7 @@ so it can be used in LightMapperBot as well as gui_client.
 class VoxelMeshBuilding
 {
 public:
-	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor);
+	static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, bool generate_shading_normals);
 
 	static void test();
 };
