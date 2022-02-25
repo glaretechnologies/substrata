@@ -75,11 +75,13 @@ public:
 	std::string getLoadedMeshes() const;
 	//----------------------------------------------------------------------------------------
 
-	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const;
+	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const;
 
-	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, SphereTraceResult& results_out) const;
+	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const;
 
-	void getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const;
+	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, SphereTraceResult& results_out) const;
+
+	void getCollPoints(const js::BoundingSphere& sphere, std::vector<Vec4f>& points_out) const;
 
 private:
 	std::unordered_set<Reference<PhysicsObject>, PhysicsObjectHash> objects_set;

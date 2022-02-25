@@ -2108,7 +2108,7 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
 		const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0, 0, 1, 0) * (up_beam_len - 0.001f);
-		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e10f, thread_context, trace_results);
+		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e10f, trace_results);
 		const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
 		const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0, 0, 1, 0);
 
@@ -4015,7 +4015,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		// Process player physics
 		const Vec4f last_campos = campos;
-		const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, this->thread_context, /*campos_out=*/campos);
+		const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, /*campos_out=*/campos);
 		this->cam_controller.setPosition(toVec3d(campos));
 
 
@@ -4168,9 +4168,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				const Vec4f trace_start = campos;
 
-				RayTraceResult results;
-				physics_world->traceRay(trace_start, trace_dir, use_dist, thread_context, results);
-				if(results.hit_object)
+				const bool hit_object = physics_world->doesRayHitAnything(trace_start, trace_dir, use_dist);
+				if(hit_object)
 				{
 					//conPrint("hit aabb: " + results.hit_object->aabb_ws.toStringNSigFigs(4));
 					//printVar(results.hit_object->userdata_type);
@@ -4333,7 +4332,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 							RayTraceResult trace_results;
-							physics_world->traceRay(use_target_pos, normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() + 1.f, thread_context, trace_results);
+							physics_world->traceRay(use_target_pos, normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() + 1.f, trace_results);
 
 							if(trace_results.hit_object)
 							{
@@ -4997,7 +4996,7 @@ void MainWindow::updateVoxelEditMarkers()
 			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 			const Vec4f dir = getDirForPixelTrace(mouse_point.x(), mouse_point.y());
 			RayTraceResult results;
-			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
 			if(results.hit_object)
 			{
 				const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
@@ -7660,7 +7659,7 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -7681,7 +7680,7 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 		//if(areEditingVoxels())
 		//{
 		//	RayTraceResult results;
-		//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, thread_context, results);
+		//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, results);
 		//	
 		//	mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
 		//		static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
@@ -7799,7 +7798,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -7819,7 +7818,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
 		if(results.hit_object)
 		{
 			const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
@@ -8068,7 +8067,7 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 	const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 	RayTraceResult results;
-	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
 
 	if(results.hit_object)
 	{
@@ -8185,7 +8184,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
 
 		bool show_hyperlink_ui = false;
 		if(results.hit_object)
@@ -8352,7 +8351,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		//if(areEditingVoxels())
 		//{
 		//	RayTraceResult results;
-		//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, thread_context, results);
+		//	this->physics_world->traceRay(cam_controller.getPosition().toVec4fPoint(), getDirForPixelTrace(e->pos().x(), e->pos().y()), /*max_t=*/1.0e10f, results);
 		//
 		//	mouse_trace_hit_selected_ob = results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0 && // If we hit an object,
 		//		static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
@@ -8762,7 +8761,7 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 #endif
 	
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, thread_context, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
 	
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{

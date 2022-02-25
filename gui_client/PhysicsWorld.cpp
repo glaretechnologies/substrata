@@ -134,12 +134,34 @@ std::string PhysicsWorld::getLoadedMeshes() const
 }
 
 
-void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, ThreadContext& thread_context, RayTraceResult& results_out) const
+void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
 
 	float closest_dist = std::numeric_limits<float>::infinity();
 
+	Ray ray(origin, dir, 0.f, max_t);
+
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	{
+		const PhysicsObject* object = it->ptr();
+
+		RayTraceResult ob_results;
+		object->traceRay(ray, ob_results);
+		if(ob_results.hit_object && ob_results.hitdist_ws < closest_dist)
+		{
+			results_out = ob_results;
+			results_out.hit_object = object;
+			closest_dist = ob_results.hitdist_ws;
+
+			ray.max_t = ob_results.hitdist_ws; // Now that we have hit something, we only need to consider closer hits.
+		}
+	}
+}
+
+
+bool PhysicsWorld::doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const
+{
 	const Ray ray(origin, dir, 0.f, max_t);
 
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
@@ -148,17 +170,14 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 
 		RayTraceResult ob_results;
 		object->traceRay(ray, ob_results);
-		if(ob_results.hit_object && ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist)
-		{
-			results_out = ob_results;
-			results_out.hit_object = object;
-			closest_dist = ob_results.hitdist_ws;
-		}
+		if(ob_results.hit_object)
+			return true;
 	}
+	return false;
 }
 
 
-void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, ThreadContext& thread_context, SphereTraceResult& results_out) const
+void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, SphereTraceResult& results_out) const
 {
 	results_out.hit_object = NULL;
 
@@ -187,7 +206,7 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 }
 
 
-void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, ThreadContext& thread_context, std::vector<Vec4f>& points_out) const
+void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, std::vector<Vec4f>& points_out) const
 {
 	points_out.resize(0);
 
