@@ -56,7 +56,7 @@ void LoadModelTask::run(size_t thread_index)
 
 				// conPrint("Loading vox model for LOD level " + toString(use_lod_level) + ", using subsample_factor " + toString(subsample_factor));
 
-				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*do_opengl_stuff=*/false, raymesh);
+				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
 			}
 		}
 		else // Else not voxel ob, just loading a model:
@@ -70,6 +70,7 @@ void LoadModelTask::run(size_t thread_index)
 				// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
 				gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager, *this->mesh_manager, 
 					*model_building_task_manager, 
+					/*vert_buf_allocator=*/NULL, 
 					true, // skip_opengl_calls - we need to do these on the main thread.
 					raymesh);
 			}

@@ -19,6 +19,7 @@ class Matrix4f;
 class ResourceManager;
 class RayMesh;
 class VoxelGroup;
+class VertexBufferAllocator;
 namespace Indigo { class TaskManager; }
 
 
@@ -90,7 +91,7 @@ public:
 	// May set a scale on loaded_object_out.
 	//
 	// Throws glare::Exception on invalid mesh.
-	static GLObjectRef makeGLObjectForModelFile(glare::TaskManager& task_manager, const std::string& path,
+	static GLObjectRef makeGLObjectForModelFile(VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, const std::string& path,
 		BatchedMeshRef& mesh_out,
 		WorldObject& loaded_object_out);
 
@@ -99,15 +100,16 @@ public:
 	//
 	// Throws glare::Exception on invalid mesh.
 	static GLObjectRef makeGLObjectForModelURLAndMaterials(const std::string& lod_model_URL, int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
-		ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
+		ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
 		const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out);
 
 	static Reference<OpenGLMeshRenderData> makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
-		ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
+		ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
 		bool skip_opengl_calls, Reference<RayMesh>& raymesh_out);
 
 
-	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);
+	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
+		glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out);
 
 	//static Reference<BatchedMesh> makeBatchedMeshForVoxelGroup(const VoxelGroup& voxel_group);
 	//static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group);

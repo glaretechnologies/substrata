@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 class OpenGLMeshRenderData;
+class VertexBufferAllocator;
 class RayMesh;
 namespace glare { class TaskManager; }
 namespace Indigo { class Mesh; }
@@ -35,9 +36,9 @@ public:
 
 	// Make a cube with the first material on the front and back faces (-y and +y directions), and the second material on the side faces.
 	// Loads mesh data into current OpenGL context.
-	static MeshBuildingResults makeImageCube(glare::TaskManager& task_manager);
+	static MeshBuildingResults makeImageCube(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 
-	static MeshBuildingResults makeSpotlightMeshes(glare::TaskManager& task_manager);
+	static MeshBuildingResults makeSpotlightMeshes(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 
-	static Reference<RayMesh> makeUnitCubeRayMesh(glare::TaskManager& task_manager);
+	static Reference<RayMesh> makeUnitCubeRayMesh(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 };

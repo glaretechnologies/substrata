@@ -1389,12 +1389,15 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 							// Create gl and physics object now
 							Reference<RayMesh> raymesh;
-							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, 
+								&ui->glWidget->opengl_engine->vert_buf_allocator,
+								ob_to_world_matrix,
 								false, // skip opengl calls
 								raymesh);
 
-							if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
-								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+							if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+
 
 							assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
@@ -1560,7 +1563,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 					// Create gl and physics object now
 					Reference<RayMesh> raymesh;
 					avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *resource_manager, mesh_manager, 
-						task_manager, ob_to_world_matrix,
+						task_manager, &ui->glWidget->opengl_engine->vert_buf_allocator, ob_to_world_matrix,
 						false, // skip opengl calls
 						raymesh);
 
@@ -1573,8 +1576,8 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 
 					avatar->graphics.build();
 
-					if(avatar->graphics.skinned_gl_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
-						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*avatar->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
+					if(!avatar->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *avatar->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
 
 					assignedLoadedOpenGLTexturesToMats(avatar, *ui->glWidget->opengl_engine, *resource_manager);
 
@@ -1658,7 +1661,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				// If the opengl ob has been recreated, we need to recreate the instance_matrices VBO
 				if(ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
 				{
-					ob->opengl_engine_ob->enableInstancing(ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
+					ob->opengl_engine_ob->enableInstancing(ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
 
 					ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
 				}
@@ -1742,7 +1745,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 
 					if(ob->opengl_engine_ob.nonNull())
 					{
-						ob->opengl_engine_ob->enableInstancing(ob->instance_matrices.data(), sizeof(Matrix4f) * count);
+						ob->opengl_engine_ob->enableInstancing(ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * count);
 						
 						ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
 					}
@@ -3158,8 +3161,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							voxel_ob->opengl_engine_ob = opengl_ob;
 							voxel_ob->physics_object = physics_ob;
 
-							if(opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*opengl_ob->mesh_data); // Load mesh data into OpenGL
+							if(!opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *opengl_ob->mesh_data); // Load mesh data into OpenGL
 
 							physics_ob->userdata = voxel_ob.ptr();
 							physics_ob->userdata_type = 0;
@@ -3230,7 +3233,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
 
 												Reference<RayMesh> raymesh;
-												ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, ob_to_world_matrix,
+												ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, 
+													mesh_manager, task_manager, &ui->glWidget->opengl_engine->vert_buf_allocator, ob_to_world_matrix,
 													false, // skip opengl calls
 													raymesh);
 
@@ -3243,8 +3247,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 												ob->loaded_model_lod_level = loaded_model_lod_level;//message->model_lod_level;
 
-												if(ob->opengl_engine_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-													OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+												if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+													OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
 												assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
@@ -3309,8 +3313,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
 
 												Reference<RayMesh> raymesh;
-												av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, av_lod_level, av->avatar_settings.materials, /*lightmap_url=*/std::string(), 
-													*resource_manager, mesh_manager, task_manager, ob_to_world_matrix, /*skip opengl calls=*/false, raymesh);
+												av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, av_lod_level, av->avatar_settings.materials, 
+													/*lightmap_url=*/std::string(), 
+													*resource_manager, mesh_manager, task_manager, &ui->glWidget->opengl_engine->vert_buf_allocator, ob_to_world_matrix, /*skip opengl calls=*/false, raymesh);
 
 												// Load animation data for ready-player-me type avatars
 												if(!av->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
@@ -3323,8 +3328,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										
 												//TEMP av->loaded_lod_level = ob_lod_level;
 
-												if(av->graphics.skinned_gl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-													OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*av->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
+												if(!av->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+													OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *av->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
 
 												assignedLoadedOpenGLTexturesToMats(av, *ui->glWidget->opengl_engine, *resource_manager);
 
@@ -7939,7 +7944,8 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		// Add updated model!
 		Reference<RayMesh> raymesh;
 		const int subsample_factor = 1;
-		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, /*do_opengl_stuff=*/true, raymesh);
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, 
+			&ui->glWidget->opengl_engine->vert_buf_allocator, /*do_opengl_stuff=*/true, raymesh);
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;
@@ -9038,7 +9044,7 @@ void MainWindow::updateGroundPlane()
 }
 
 
-static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(float arc_end_angle)
+static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(VertexBufferAllocator& allocator, float arc_end_angle)
 {
 	Reference<OpenGLMeshRenderData> mesh_data = new OpenGLMeshRenderData();
 
@@ -9213,7 +9219,7 @@ static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(float arc_e
 		}
 	}
 
-	OpenGLEngine::buildMeshRenderData(*mesh_data, verts, normals, uvs, indices);
+	OpenGLEngine::buildMeshRenderData(allocator, *mesh_data, verts, normals, uvs, indices);
 	return mesh_data;
 }
 
@@ -9669,7 +9675,7 @@ int main(int argc, char *argv[])
 			{
 				GLObjectRef ob = new GLObject();
 				ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)i * 3, 0, 2);
-				ob->mesh_data = makeRotationArcHandleMeshData(arc_handle_half_angle * 2);
+				ob->mesh_data = makeRotationArcHandleMeshData(mw.ui->glWidget->opengl_engine->vert_buf_allocator, arc_handle_half_angle * 2);
 				ob->materials.resize(1);
 				ob->always_visible = true;
 				mw.rot_handle_arc_objects[i] = ob;
@@ -9795,7 +9801,7 @@ int main(int argc, char *argv[])
 				mw.ground_quad_mesh->endOfModel();
 
 				// Build OpenGLMeshRenderData
-				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(mw.ground_quad_mesh, false);
+				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(&mw.ui->glWidget->opengl_engine->vert_buf_allocator, mw.ground_quad_mesh, false);
 
 				// Build RayMesh (for physics)
 				mw.ground_quad_raymesh = new RayMesh("mesh", false);
@@ -9834,11 +9840,11 @@ int main(int argc, char *argv[])
 				mw.hypercard_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
 			}
 
-			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
+			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(mw.ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
 
 			// Make spotlight meshes
 			{
-				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(mw.task_manager);
+				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(mw.task_manager, mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 				mw.spotlight_opengl_mesh = results.opengl_mesh_data;
 				mw.spotlight_raymesh = results.raymesh;
 				mw.spotlight_mesh = results.indigo_mesh;
@@ -9846,13 +9852,13 @@ int main(int argc, char *argv[])
 
 			// Make image cube meshes
 			{
-				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(mw.task_manager);
+				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(mw.task_manager, mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 				mw.image_cube_opengl_mesh = results.opengl_mesh_data;
 				mw.image_cube_raymesh = results.raymesh;
 			}
 
 			// Make unit-cube raymesh (used for placeholder model)
-			mw.unit_cube_raymesh = MeshBuilding::makeUnitCubeRayMesh(mw.task_manager);
+			mw.unit_cube_raymesh = MeshBuilding::makeUnitCubeRayMesh(mw.task_manager, mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 
 			// Make object-placement beam model
 			{
@@ -10004,7 +10010,8 @@ int main(int argc, char *argv[])
 					Reference<RayMesh> raymesh;
 					test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(mesh_URL, /*ob_lod_level*/0, test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
 						*mw.resource_manager, mw.mesh_manager, 
-						mw.task_manager, ob_to_world_matrix,
+						mw.task_manager, &mw.ui->glWidget->opengl_engine->vert_buf_allocator, 
+						ob_to_world_matrix,
 						false, // skip opengl calls
 						raymesh);
 
@@ -10027,8 +10034,8 @@ int main(int argc, char *argv[])
 						test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
 					}
 
-					if(test_avatar->graphics.skinned_gl_ob->mesh_data->vert_vbo.isNull()) // If the mesh data has not been loaded into OpenGL yet:
-						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*test_avatar->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
+					if(!test_avatar->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(mw.ui->glWidget->opengl_engine->vert_buf_allocator, *test_avatar->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
 
 					assignedLoadedOpenGLTexturesToMats(test_avatar.ptr(), *mw.ui->glWidget->opengl_engine, *mw.resource_manager);
 
@@ -10053,7 +10060,7 @@ int main(int argc, char *argv[])
 					ob->materials[0].roughness = 0.3f;
 
 					ob->ob_to_world_matrix = Matrix4f::translationMatrix(10, 10, 0) * Matrix4f::uniformScaleMatrix(100.f);
-					ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, false);
+					ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&mw.ui->glWidget->opengl_engine->vert_buf_allocator, mesh, false);
 
 					mw.ui->glWidget->addObject(ob);
 
@@ -10076,7 +10083,7 @@ int main(int argc, char *argv[])
 					const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
 
 					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
 						//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
 						mesh,
 						*world_object
@@ -10124,7 +10131,7 @@ int main(int argc, char *argv[])
 					WorldObjectRef proto_world_object = new WorldObject();
 					BatchedMeshRef mesh;
 					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
 						mesh,
 						*proto_world_object
 					);
@@ -10161,7 +10168,7 @@ int main(int argc, char *argv[])
 					const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";
 
 					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(task_manager, path,
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
 						mesh,
 						*world_object
 					);

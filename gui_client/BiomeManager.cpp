@@ -224,7 +224,7 @@ finished_looping:
 }
 
 
-static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef grass_tex)
+static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef grass_tex)
 {
 	std::vector<WorldMaterialRef> materials(1);
 	materials[0] = new WorldMaterial();
@@ -234,7 +234,8 @@ static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& ta
 	materials[0]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
 
 	RayMeshRef raymesh;
-	GLObjectRef grass_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("grass_2819211535648845788.bmesh"/*"Quad_obj_17249492137259942610.bmesh"*/, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
+	GLObjectRef grass_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("grass_2819211535648845788.bmesh"/*"Quad_obj_17249492137259942610.bmesh"*/, /*ob lod level=*/0, materials, /*lightmap URL=*/"", 
+		resource_manager, mesh_manager, task_manager, &vert_buf_allocator,
 		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh);
 
 	for(size_t i=0; i<grass_ob->materials.size(); ++i)
@@ -246,8 +247,9 @@ static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& ta
 		grass_ob->materials[i].use_wind_vert_shader = true;
 	}
 
-	if(grass_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*grass_ob->mesh_data); // Load mesh data into OpenGL
+	assert(0);
+	//if(grass_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
+	//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*grass_ob->mesh_data); // Load mesh data into OpenGL
 
 	grass_ob->materials[0].albedo_texture = grass_tex;
 	grass_ob->materials[0].backface_albedo_texture = grass_tex;
@@ -259,7 +261,7 @@ static GLObjectRef makeGrassOb(MeshManager& mesh_manager, glare::TaskManager& ta
 }
 
 
-GLObjectRef BiomeManager::makeElmTreeOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
+GLObjectRef BiomeManager::makeElmTreeOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
 {
 	std::vector<WorldMaterialRef> materials(2);
 	materials[0] = new WorldMaterial();
@@ -273,6 +275,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(MeshManager& mesh_manager, glare::TaskMa
 	materials[1]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
 
 	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("elm_RT_glb_3393252396927074015.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
+		&vert_buf_allocator,
 		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh_out);
 
 	for(size_t i=0; i<tree_opengl_ob->materials.size(); ++i)
@@ -287,8 +290,8 @@ GLObjectRef BiomeManager::makeElmTreeOb(MeshManager& mesh_manager, glare::TaskMa
 	tree_opengl_ob->materials[1].transmission_texture = elm_leaf_transmission_tex;
 
 
-	if(tree_opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*tree_opengl_ob->mesh_data); // Load mesh data into OpenGL
+	if(!tree_opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(vert_buf_allocator, *tree_opengl_ob->mesh_data); // Load mesh data into OpenGL
 
 	tree_opengl_ob->is_instanced_ob_with_imposters = true;
 
@@ -296,7 +299,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(MeshManager& mesh_manager, glare::TaskMa
 }
 
 
-static GLObjectRef makeElmTreeImposterOb(MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef elm_imposters_tex)
+static GLObjectRef makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef elm_imposters_tex)
 {
 	std::vector<WorldMaterialRef> materials(1);
 	materials[0] = new WorldMaterial();
@@ -305,14 +308,15 @@ static GLObjectRef makeElmTreeImposterOb(MeshManager& mesh_manager, glare::TaskM
 	materials[0]->flags = WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG;
 
 	RayMeshRef raymesh;
-	GLObjectRef tree_imposter_opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("Quad_obj_17249492137259942610.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
+	GLObjectRef tree_imposter_opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("Quad_obj_17249492137259942610.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
+		mesh_manager, task_manager, &vert_buf_allocator,
 		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh);
 
 	for(size_t i=0; i<tree_imposter_opengl_ob->materials.size(); ++i)
 		tree_imposter_opengl_ob->materials[i].imposter = true; // Mark mats as imposters so they use the imposter shader
 
-	if(tree_imposter_opengl_ob->mesh_data->vert_vbo.isNull()) // If this data has not been loaded into OpenGL yet:
-		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*tree_imposter_opengl_ob->mesh_data); // Load mesh data into OpenGL
+	if(!tree_imposter_opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(vert_buf_allocator, *tree_imposter_opengl_ob->mesh_data); // Load mesh data into OpenGL
 
 	tree_imposter_opengl_ob->materials[0].albedo_texture = elm_imposters_tex;
 	tree_imposter_opengl_ob->is_imposter = true;
@@ -343,7 +347,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 		{
 
 		RayMeshRef tree_raymesh;
-		GLObjectRef tree_opengl_ob = makeElmTreeOb(mesh_manager, task_manager, resource_manager, tree_raymesh);
+		GLObjectRef tree_opengl_ob = makeElmTreeOb(opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, tree_raymesh);
 
 		// Compute some tree instance points
 		// Scatter elm tree
@@ -370,7 +374,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 			tree_opengl_ob->instance_info[z].to_world = ob_instances[z].to_world;
 		}
 
-		tree_opengl_ob->enableInstancing(instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size());
+		tree_opengl_ob->enableInstancing(opengl_engine.vert_buf_allocator, instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size());
 		
 		opengl_engine.addObject(tree_opengl_ob);
 		tree_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
@@ -378,7 +382,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 
 		// Add the imposter instances to the opengl engine as well
-		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(mesh_manager, task_manager, resource_manager, elm_imposters_tex);
+		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, elm_imposters_tex);
 
 		tree_imposter_opengl_ob->instance_info.resize(ob_instances.size());
 		js::Vector<Matrix4f, 16> imposter_matrices(ob_instances.size());
@@ -390,7 +394,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 			tree_imposter_opengl_ob->instance_info[z].to_world = imposter_matrices[z];
 		}
-		tree_imposter_opengl_ob->enableInstancing(imposter_matrices.data(), sizeof(Matrix4f) * imposter_matrices.size());
+		tree_imposter_opengl_ob->enableInstancing(opengl_engine.vert_buf_allocator, imposter_matrices.data(), sizeof(Matrix4f) * imposter_matrices.size());
 
 		opengl_engine.addObject(tree_imposter_opengl_ob);
 		tree_imposter_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
@@ -532,7 +536,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 					gl_ob->ob_to_world_matrix.setToTranslationMatrix(new_quad.x * patch_w, new_quad.y * patch_w, 0);
 					gl_ob->mesh_data = this->grass_ob->mesh_data;
 
-					gl_ob->enableInstancing(instance_matrices_temp.data(), sizeof(Matrix4f) * num_scatter_points);
+					gl_ob->enableInstancing(opengl_engine.vert_buf_allocator, instance_matrices_temp.data(), sizeof(Matrix4f) * num_scatter_points);
 
 					opengl_engine.addObject(gl_ob);
 					
