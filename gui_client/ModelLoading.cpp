@@ -1511,6 +1511,10 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 
 		mesh_data->vbo_handle = vert_buf_allocator->allocate(mesh_data->vertex_spec, mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
 
+#if DO_INDIVIDUAL_VAO_ALLOC
+		mesh_data->individual_vao = new VAO(mesh_data->vbo_handle.vbo, mesh_data->indices_vbo_handle.index_vbo, mesh_data->vertex_spec);
+#endif
+
 		mesh_data->vert_data.clearAndFreeMem();
 		mesh_data->vert_index_buffer.clearAndFreeMem();
 		mesh_data->vert_index_buffer_uint16.clearAndFreeMem();
