@@ -17,7 +17,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/StandardPrintOutput.h>
 
 
-MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager& task_manager)
+MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
 {
 	Indigo::MeshRef mesh = new Indigo::Mesh();
 	mesh->num_uv_mappings = 1;
@@ -124,7 +124,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager
 
 	mesh->endOfModel();
 
-	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh = GLMeshBuilding::buildIndigoMesh(mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh = GLMeshBuilding::buildIndigoMesh(&allocator, mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
 
 	// Build RayMesh (for physics)
 	Reference<RayMesh> image_cube_raymesh = new RayMesh("image_cube_mesh", /*enable shading normals=*/false);
@@ -144,7 +144,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager
 }
 
 
-MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(glare::TaskManager& task_manager)
+MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
 {
 	const float fixture_w = 0.1;
 
@@ -184,7 +184,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(glare::TaskM
 
 	spotlight_mesh->endOfModel();
 
-	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildIndigoMesh(spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
+	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildIndigoMesh(&allocator, spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
 
 	// Build RayMesh (for physics)
 	RayMeshRef spotlight_raymesh = new RayMesh("mesh", /*enable shading normals=*/false);
@@ -204,7 +204,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(glare::TaskM
 }
 
 
-Reference<RayMesh> MeshBuilding::makeUnitCubeRayMesh(glare::TaskManager& task_manager)
+Reference<RayMesh> MeshBuilding::makeUnitCubeRayMesh(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
 {
 	RayMeshRef unit_cube_raymesh = new RayMesh("mesh", false);
 	unit_cube_raymesh->addVertex(Vec3f(0, 0, 0));

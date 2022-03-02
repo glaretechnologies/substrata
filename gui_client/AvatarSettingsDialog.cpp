@@ -145,7 +145,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 
 		glare::TaskManager task_manager;
 
-		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(task_manager, use_local_path,
+		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(avatarPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, use_local_path,
 			this->loaded_mesh, // mesh out
 			*this->loaded_object
 		);

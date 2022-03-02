@@ -484,6 +484,7 @@ static void rotateVRMMesh(BatchedMesh& mesh)
 
 // We don't have a material file, just the model file:
 GLObjectRef ModelLoading::makeGLObjectForModelFile(
+	VertexBufferAllocator& vert_buf_allocator,
 	glare::TaskManager& task_manager, 
 	const std::string& model_path,
 	BatchedMeshRef& mesh_out,
@@ -534,7 +535,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		Reference<RayMesh> raymesh;
 		const int subsample_factor = 1;
-		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), subsample_factor, ob->ob_to_world_matrix, task_manager, /*do opengl stuff=*/true, raymesh);
+		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), subsample_factor, ob->ob_to_world_matrix, task_manager, &vert_buf_allocator, /*do opengl stuff=*/true, raymesh);
 
 		ob->materials.resize(loaded_object_out.materials.size());
 		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
@@ -579,7 +580,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		GLObjectRef ob = new GLObject();
 		ob->ob_to_world_matrix = use_matrix;
-		ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, false);
+		ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip opengl calls=*/false);
 
 		ob->materials.resize(mesh->num_materials_referenced);
 		loaded_object_out.materials/*loaded_materials_out*/.resize(mesh->num_materials_referenced);
@@ -651,7 +652,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = obToWorldMatrix(loaded_object_out);
-		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
 		gl_ob->mesh_data->animation_data = batched_mesh->animation_data;// gltf_data.anim_data;
 
@@ -717,7 +718,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 			GLObjectRef ob = new GLObject();
 			ob->ob_to_world_matrix = use_matrix;
-			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, false);
+			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
 			loaded_object_out.materials.resize(mesh->num_materials_referenced);
@@ -753,7 +754,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			
 			GLObjectRef ob = new GLObject();
 			ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mesh, /*skip_opengl_calls=*/false);
+			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip_opengl_calls=*/false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
 			loaded_object_out.materials.resize(mesh->num_materials_referenced);
@@ -792,7 +793,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		GLObjectRef gl_ob = new GLObject();
 		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
-		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
+		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
 		const size_t num_mats = bmesh->numMaterialsReferenced();
 		gl_ob->materials.resize(num_mats);
@@ -820,7 +821,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 
 GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& lod_model_URL, int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
-												ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
+												ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
 												const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
@@ -919,7 +920,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			if(batched_mesh->animation_data.vrm_data.nonNull())
 				rotateVRMMesh(*batched_mesh);
 
-		gl_meshdata = GLMeshBuilding::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+		gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
 
 		gl_meshdata->animation_data = batched_mesh->animation_data;
 
@@ -996,7 +997,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
-	ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager,
+	ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
 	bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
@@ -1079,7 +1080,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelUR
 			if(batched_mesh->animation_data.vrm_data.nonNull())
 				rotateVRMMesh(*batched_mesh);
 
-		gl_meshdata = GLMeshBuilding::buildBatchedMesh(batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+		gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
 
 		gl_meshdata->animation_data = batched_mesh->animation_data;
 
@@ -1454,7 +1455,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, glare::TaskManager& task_manager, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
+Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
+	glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
 	//Timer timer;
 
@@ -1493,22 +1495,21 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	{
 		if(!mesh_data->vert_index_buffer_uint8.empty())
 		{
-			mesh_data->vert_indices_buf = new VBO(mesh_data->vert_index_buffer_uint8.data(), mesh_data->vert_index_buffer_uint8.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint8.data(), mesh_data->vert_index_buffer_uint8.dataSizeBytes());
 			assert(mesh_data->index_type == GL_UNSIGNED_BYTE);
 		}
 		else if(!mesh_data->vert_index_buffer_uint16.empty())
 		{
-			mesh_data->vert_indices_buf = new VBO(mesh_data->vert_index_buffer_uint16.data(), mesh_data->vert_index_buffer_uint16.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint16.data(), mesh_data->vert_index_buffer_uint16.dataSizeBytes());
 			assert(mesh_data->index_type == GL_UNSIGNED_SHORT);
 		}
 		else
 		{
-			mesh_data->vert_indices_buf = new VBO(mesh_data->vert_index_buffer.data(), mesh_data->vert_index_buffer.dataSizeBytes(), GL_ELEMENT_ARRAY_BUFFER);
+			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer.data(), mesh_data->vert_index_buffer.dataSizeBytes());
 			assert(mesh_data->index_type == GL_UNSIGNED_INT);
 		}
 
-		mesh_data->vert_vbo = new VBO(mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
-		mesh_data->vert_vao = new VAO(mesh_data->vert_vbo, mesh_data->vert_indices_buf, mesh_data->vertex_spec);
+		mesh_data->vbo_handle = vert_buf_allocator->allocate(mesh_data->vertex_spec, mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
 
 		mesh_data->vert_data.clearAndFreeMem();
 		mesh_data->vert_index_buffer.clearAndFreeMem();
@@ -1560,7 +1561,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1575,7 +1576,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1590,7 +1591,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1606,7 +1607,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1621,7 +1622,7 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
 
 		Reference<RayMesh> raymesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
 
 		testEqual(data->getNumVerts(), (size_t)(2 * 4 + 8 * 4));
 		testAssert(raymesh->getNumVerts() == 4 * 3);
@@ -1645,7 +1646,7 @@ void ModelLoading::test()
 			Timer timer;
 
 			Reference<RayMesh> raymesh;
-			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*do_opengl_stuff=*/false, raymesh);
+			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
 
 			conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 			conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
