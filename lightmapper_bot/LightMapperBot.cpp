@@ -306,7 +306,7 @@ public:
 			const VoxelGroup& voxel_group = ob->getDecompressedVoxelGroup();
 
 			// Iterate over voxels and get voxel position bounds
-			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, /*subsample factor=*/1);
+			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, /*subsample factor=*/1, /*generate_shading_normals=*/false);
 			use_shading_normals = false;
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
