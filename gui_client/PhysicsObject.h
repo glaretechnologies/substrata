@@ -32,6 +32,8 @@ class PhysicsObject : public ThreadSafeRefCounted
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
+	friend class PhysicsWorld;
+
 	PhysicsObject(bool collidable);
 	~PhysicsObject();
 
@@ -43,6 +45,10 @@ public:
 	void appendCollPoints(const js::BoundingSphere& sphere, const js::AABBox& sphere_aabb_ws, std::vector<Vec4f>& points_ws_in_out) const;
 
 	const js::AABBox& getAABBoxWS() const { return aabb_ws; }
+
+	const js::AABBox getAABBoxOS() const { return geometry->getAABBox(); }
+
+	void setAABBoxWS(const js::AABBox& aabb) { aabb_ws = aabb; }
 
 	void buildUniformSampler();
 
@@ -62,6 +68,8 @@ public:
 	Matrix4f ob_to_world;
 	Matrix4f world_to_ob;
 	js::AABBox aabb_ws;
+	//js::AABBox aabb_os;
+	
 
 	Reference<RayMesh> geometry;
 
