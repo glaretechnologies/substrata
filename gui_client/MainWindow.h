@@ -324,10 +324,12 @@ public:
 	std::string resources_dir;
 	Reference<ResourceManager> resource_manager;
 
+	// NOTE: these object sets need to be cleared in connectToServer(), also when removing a dead object in ob->state == WorldObject::State_Dead case in timerEvent, the object needs to be removed
+	// from any of these sets it is in.
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> active_objects; // Objects that have moved recently and so need interpolation done on them.
 	std::unordered_map<WorldObjectRef, AnimatedTexObData, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs)
-
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> web_view_obs;
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> obs_with_scripts; // Objects with non-null script_evaluator
 
 	//std::ofstream logfile;
 

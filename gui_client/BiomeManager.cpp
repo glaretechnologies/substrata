@@ -146,7 +146,7 @@ static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, 
 
 	const float min_dist_2 = min_dist * min_dist;
 
-	HashedGrid<Vec3f> hashed_grid(world_ob.physics_object->aabb_ws, cell_w,
+	HashedGrid<Vec3f> hashed_grid(world_ob.physics_object->getAABBoxWS(), cell_w,
 		N // Expected num items
 	);
 
@@ -485,7 +485,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 			);
 			physics_obs.resize(0);
 			for(size_t q=0; q<park_biome_physics_objects.size(); ++q)
-				if(patch_consider_aabb.intersectsAABB(park_biome_physics_objects[q]->aabb_ws))
+				if(patch_consider_aabb.intersectsAABB(park_biome_physics_objects[q]->getAABBoxWS()))
 					physics_obs.push_back(park_biome_physics_objects[q].ptr());
 
 			if(!physics_obs.empty())

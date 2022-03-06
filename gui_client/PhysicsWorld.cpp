@@ -39,6 +39,8 @@ void PhysicsWorld::updateObjectTransformData(PhysicsObject& object)
 
 void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 {
+	//object->aabb_os = object->geometry->getAABBox();
+
 	// Compute world space AABB of object
 	updateObjectTransformData(*object.getPointer());
 	

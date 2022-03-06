@@ -1651,8 +1651,12 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 	{
 		if(ob->script.empty())
 		{
-			ob->script_evaluator = NULL;
-			ob->loaded_script = ob->script;
+			if(ob->script_evaluator.nonNull())
+			{
+				ob->script_evaluator = NULL;
+				this->obs_with_scripts.erase(ob);
+				ob->loaded_script.clear();
+			}
 		}
 		else
 		{
@@ -1696,6 +1700,9 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 
 				//Timer timer;
 				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
+
+				this->obs_with_scripts.insert(ob);
+
 				//conPrint("WinterShaderEvaluator creation took " + timer.elapsedStringNSigFigs(4));
 				ob->num_instances = count;
 
@@ -2014,19 +2021,89 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
 	}
 
+	// Compute object-to-world matrix, similarly to obToWorldMatrix().  Do it here so we can reuse some components of the computation.
+	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+	const Vec4f translation = pos + ob->translation;
+
+	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
+	Vec4f use_scale = ob->scale.toVec4fVector();
+	if(use_scale[0] == 0) use_scale[0] = 1.0e-6f;
+	if(use_scale[1] == 0) use_scale[1] = 1.0e-6f;
+	if(use_scale[2] == 0) use_scale[2] = 1.0e-6f;
+	
+
+	const Matrix4f rot = Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle);
+	Matrix4f ob_to_world;
+	ob_to_world.setColumn(0, rot.getColumn(0) * use_scale[0]);
+	ob_to_world.setColumn(1, rot.getColumn(1) * use_scale[1]);
+	ob_to_world.setColumn(2, rot.getColumn(2) * use_scale[2]);
+	ob_to_world.setColumn(3, translation);
+
+	/* Compute upper-left inverse transpose matrix.
+	upper left inverse transpose:
+	= ((RS)^-1)^T
+	= (S^1 R^1)^T
+	= R^1^T S^1^T
+	= R S^1
+	*/
+
+	const Vec4f recip_scale = maskWToZero(div(Vec4f(1.f), use_scale));
+
+	// Right-multiplying with a scale matrix is equivalent to multiplying column 0 with scale_x, column 1 with scale_y etc.
+	Matrix4f ob_to_world_inv_transpose;
+	ob_to_world_inv_transpose.setColumn(0, rot.getColumn(0) * recip_scale[0]);
+	ob_to_world_inv_transpose.setColumn(1, rot.getColumn(1) * recip_scale[1]);
+	ob_to_world_inv_transpose.setColumn(2, rot.getColumn(2) * recip_scale[2]);
+	ob_to_world_inv_transpose.setColumn(3, Vec4f(0, 0, 0, 1));
+
+#ifndef NDEBUG
+	Matrix4f ob_to_world_inv_transpose_ref;
+	const bool invertible = ob_to_world.getUpperLeftInverseTranspose(ob_to_world_inv_transpose_ref);
+	assert(invertible);
+	if(invertible)
+		assert(epsEqual(ob_to_world_inv_transpose, ob_to_world_inv_transpose_ref));
+#endif
+
+
 	// Update transform in 3d engine
 	if(ob->opengl_engine_ob.nonNull())
 	{
-		ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
+		ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
+		ob->opengl_engine_ob->ob_to_world_inv_transpose_matrix = ob_to_world_inv_transpose;
+		ob->opengl_engine_ob->aabb_ws = ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
 
-		ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+		//ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 	}
 
 	// Update in physics engine
 	if(ob->physics_object.nonNull())
 	{
-		ob->physics_object->ob_to_world = obToWorldMatrix(*ob);
-		physics_world->updateObjectTransformData(*ob->physics_object);
+		/*
+		inverse:
+		= (TRS)^-1
+		= S^-1 R^-1 T^-1
+		= S^-1 R^T T^-1
+		*/
+		const Matrix4f rot_inv = rot.getTranspose();
+		Matrix4f S_inv_R_inv;
+
+		// left-multiplying with a scale matrix is equivalent to multiplying column 0 with the scale vector (s_x, s_y, s_z, 0) etc.
+		S_inv_R_inv.setColumn(0, rot_inv.getColumn(0) * recip_scale);
+		S_inv_R_inv.setColumn(1, rot_inv.getColumn(1) * recip_scale);
+		S_inv_R_inv.setColumn(2, rot_inv.getColumn(2) * recip_scale);
+		S_inv_R_inv.setColumn(3, Vec4f(0, 0, 0, 1));
+
+		assert(epsEqual(S_inv_R_inv, Matrix4f::scaleMatrix(recip_scale[0], recip_scale[1], recip_scale[2]) * rot_inv));
+
+		Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
+		assert(Matrix4f::isInverse(world_to_ob, ob_to_world));
+
+		ob->physics_object->ob_to_world = ob_to_world;
+		ob->physics_object->world_to_ob = world_to_ob;
+		ob->physics_object->setAABBoxWS(ob->physics_object->getAABBoxOS().transformedAABBFast(ob_to_world));
+		//ob->physics_object->aabb_ws = ob->physics_object->geometry->getAABBox().transformedAABBFast(ob_to_world);
+
+		//physics_world->updateObjectTransformData(*ob->physics_object);
 
 		// TODO: Update physics world accel structure?
 	}
@@ -3968,10 +4045,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// and then cast to float.
 		const float use_global_time = (float)Maths::doubleMod(global_time, 3600 * 24);
 
-		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+		for(auto it = this->obs_with_scripts.begin(); it != this->obs_with_scripts.end(); ++it)
 		{
-			WorldObject* ob = it->second.getPointer();
+			WorldObject* ob = it->getPointer();
 
+			assert(ob->script_evaluator.nonNull());
 			if(ob->script_evaluator.nonNull())
 			{
 				evalObjectScript(ob, use_global_time);
@@ -4536,6 +4614,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						active_objects.erase(ob);
 						obs_with_animated_tex.erase(ob);
+						web_view_obs.erase(ob);
+						obs_with_scripts.erase(ob);
 					}
 					else
 					{
@@ -7281,6 +7361,8 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 	active_objects.clear();
 	obs_with_animated_tex.clear();
+	web_view_obs.clear();
+	obs_with_scripts.clear();
 
 	proximity_loader.clearAllObjects();
 
