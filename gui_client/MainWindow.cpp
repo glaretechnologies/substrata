@@ -9930,7 +9930,8 @@ int main(int argc, char *argv[])
 				mw.parcel_shader_prog = new OpenGLProgram(
 					"parcel hologram prog",
 					new OpenGLShader(use_shader_dir + "/parcel_vert_shader.glsl", version_directive, preprocessor_defines, GL_VERTEX_SHADER),
-					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER)
+					new OpenGLShader(use_shader_dir + "/parcel_frag_shader.glsl", version_directive, preprocessor_defines, GL_FRAGMENT_SHADER),
+					mw.ui->glWidget->opengl_engine->getAndIncrNextProgramIndex()
 				);
 				// Let any glare::Exception thrown fall through to below.
 			}
