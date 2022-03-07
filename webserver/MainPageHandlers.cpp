@@ -59,7 +59,7 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" style=\"padding-bottom:20px\" />";
 
 
-	const std::string deployed_version = "0.88";// ::cyberspace_version;
+	const std::string deployed_version = "0.89";// ::cyberspace_version;
 
 	std::string auction_html;
 	{ // lock scope
