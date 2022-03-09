@@ -9,7 +9,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "MainWindow.h"
 #include <ConPrint.h>
 #include <PlatformUtils.h>
-#include <audio/AudioFileReader.h>
+#include "../audio/AudioFileReader.h"
 
 
 LoadAudioTask::LoadAudioTask()
@@ -30,37 +30,34 @@ void LoadAudioTask::run(size_t thread_index)
 
 	try
 	{
-		AudioFileReader::AudioFileContent content;
-		AudioFileReader::readAudioFile(audio_source_path, content);
+		glare::SoundFileRef sound_file = glare::AudioFileReader::readAudioFile(audio_source_path);
 
 		Reference<AudioLoadedThreadMessage> msg = new AudioLoadedThreadMessage();
 		msg->audio_source_url = audio_source_url;
 
-		// Mix down to mono
-		if(content.num_channels == 1)
+		
+		if(sound_file->num_channels == 1)
 		{
-			const size_t num_mono_samples = content.data.size();
-
-			glare::AudioBufferRef buffer = new glare::AudioBuffer();
-			msg->audio_buffer = buffer;
-			buffer->buffer.resize(num_mono_samples);
-
-			for(size_t i=0; i<num_mono_samples; ++i)
-				buffer->buffer[i] = (float)content.data[i] * (1.f / 32768.f);
+			msg->audio_buffer = sound_file->buf;
 		}
-		else if(content.num_channels == 2)
+		else if(sound_file->num_channels == 2)
 		{
-			const size_t num_mono_samples = content.data.size() / 2;
+			// Mix down to mono
+			const size_t num_mono_samples = sound_file->buf->buffer.size() / 2;
+			if(sound_file->buf->buffer.size() != num_mono_samples * 2)
+				throw glare::Exception("invalid number of samples for stereo file (not even)");
 
 			glare::AudioBufferRef buffer = new glare::AudioBuffer();
 			msg->audio_buffer = buffer;
 			buffer->buffer.resize(num_mono_samples);
 
+			const float* const src = sound_file->buf->buffer.data();
+			float* const dst = buffer->buffer.data();
 			for(size_t i=0; i<num_mono_samples; ++i)
-				buffer->buffer[i] = ((float)content.data[i*2 + 0] + (float)content.data[i*2 + 1]) * (0.5f / 32768.f); // Take average, scale to [-1, 1].
+				dst[i] = (src[i*2 + 0] + src[i*2 + 1]) * 0.5f; // Take average
 		}
 		else
-			throw glare::Exception("Unhandled num channels " + toString(content.num_channels));
+			throw glare::Exception("Unhandled num channels " + toString(sound_file->num_channels));
 
 		// conPrint("Loaded audio data '" + audio_source_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
 

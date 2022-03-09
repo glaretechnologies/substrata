@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <utils/Mutex.h>
 #include <utils/ThreadManager.h>
 #include <utils/Vector.h>
+#include <utils/VRef.h>
 #include <vector>
 #include <set>
 #include <map>
@@ -36,6 +37,7 @@ struct AudioBuffer : public ThreadSafeRefCounted
 	js::Vector<float, 16> buffer;
 };
 typedef Reference<AudioBuffer> AudioBufferRef;
+typedef VRef<AudioBuffer> AudioBufferVRef;
 
 
 class AudioSource : public ThreadSafeRefCounted
@@ -108,12 +110,14 @@ struct AudioCallbackData
 
 struct SoundFile : public ThreadSafeRefCounted
 {
+	SoundFile() : buf(new AudioBuffer()) {}
+
 	float maxVal() const;
 	float minVal() const;
 
-	std::vector<float> buf;
+	AudioBufferVRef buf;
 	uint32 num_channels;
-	uint32 sample_rate;
+	uint32 sample_rate; // in hz
 };
 typedef Reference<SoundFile> SoundFileRef;
 
@@ -153,7 +157,6 @@ public:
 
 	static void test();
 private:
-	SoundFileRef loadWavFile(const std::string& sound_file_path);
 	SoundFileRef loadSoundFile(const std::string& sound_file_path);
 
 	RtAudio* audio;
