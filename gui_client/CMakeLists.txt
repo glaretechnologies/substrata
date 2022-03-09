@@ -193,11 +193,6 @@ ${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.cpp
 ${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.h
 )
 
-SET(indigo_audio
-${INDIGO_TRUNK_DIR_ENV}/audio/AudioFileReader.cpp
-${INDIGO_TRUNK_DIR_ENV}/audio/AudioFileReader.h
-)
-
 SET(rtaudio
 ../rtaudio/RtAudio.cpp
 ../rtaudio/RtAudio.h
@@ -206,6 +201,12 @@ SET(rtaudio
 SET(audio
 ../audio/AudioEngine.cpp
 ../audio/AudioEngine.h
+../audio/AudioFileReader.cpp
+../audio/AudioFileReader.h
+../audio/MP3AudioFileReader.cpp
+../audio/MP3AudioFileReader.h
+../audio/WavAudioFileReader.cpp
+../audio/WavAudioFileReader.h
 )
 
 include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
@@ -575,27 +576,27 @@ if(WIN32)
 		OpenGL32
 
 		# Qt 6:
-		#optimized Qt6Gui
-		#optimized Qt6Core
-		#optimized Qt6OpenGL
-		#optimized Qt6Widgets
-		#optimized Qt6Multimedia
-		#optimized Qt6OpenGLWidgets
-		#optimized Qt6Core5Compat
-		#optimized Qt6WebEngineCore
-		#optimized Qt6WebEngineWidgets
-		#optimized Qt6WebEngineQuick
-		#optimized Qt6Network # just for QNetworkProxyFactory
-		#debug Qt6Guid
-		#debug Qt6Cored
-		#debug Qt6OpenGLd
-		#debug Qt6Widgetsd
-		#debug Qt6Multimediad
-		#debug Qt6OpenGLWidgetsd
-		#debug Qt6Core5Compatd
-		#debug Qt6WebEngineCored
-		#debug Qt6WebEngineWidgetsd
-		#debug Qt6WebEngineQuickd
+	#	optimized Qt6Gui
+	#	optimized Qt6Core
+	#	optimized Qt6OpenGL
+	#	optimized Qt6Widgets
+	#	optimized Qt6Multimedia
+	#	optimized Qt6OpenGLWidgets
+	#	optimized Qt6Core5Compat
+	#	optimized Qt6WebEngineCore
+	#	optimized Qt6WebEngineWidgets
+	#	optimized Qt6WebEngineQuick
+	#	#optimized Qt6Network # just for QNetworkProxyFactory
+	#	debug Qt6Guid
+	#	debug Qt6Cored
+	#	debug Qt6OpenGLd
+	#	debug Qt6Widgetsd
+	#	debug Qt6Multimediad
+	#	debug Qt6OpenGLWidgetsd
+	#	debug Qt6Core5Compatd
+	#	debug Qt6WebEngineCored
+	#	debug Qt6WebEngineWidgetsd
+	#	debug Qt6WebEngineQuickd
 		#optimized Qt6Networkd # just for QNetworkProxyFactory
 		
 		# Qt 5:
@@ -628,6 +629,10 @@ if(WIN32)
 		ole32
 		winmm 
 		dsound
+		
+		# Superluminal profiler:
+#		optimized "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MD.lib"
+#		debug "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MDd.lib"
 	)
 
 	# Disable ASLR (/DYNAMICBASE)
