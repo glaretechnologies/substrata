@@ -24,7 +24,11 @@ glare::SoundFileRef glare::MP3AudioFileReader::readAudioFile(const std::string& 
 	mp3dec_t mp3d;
 	mp3dec_file_info_t info;
 	std::memset(&info, 0, sizeof(info));
+#ifdef _WIN32
 	const int res = mp3dec_load_w(&mp3d, StringUtils::UTF8ToPlatformUnicodeEncoding(path).c_str(), &info, NULL, NULL);
+#else
+	const int res = mp3dec_load  (&mp3d, StringUtils::UTF8ToPlatformUnicodeEncoding(path).c_str(), &info, NULL, NULL);
+#endif
 	if(res != 0)
 	{
 		// TODO: need to free buffer here?
