@@ -23,6 +23,10 @@ SoundFileRef AudioFileReader::readAudioFile(const std::string& path)
 {
 	//PERFORMANCEAPI_INSTRUMENT_COLOR("AudioFileReader::readAudioFile", PERFORMANCEAPI_MAKE_COLOR(0, 100, 255));
 
+	// NOTE: Using WMFVideoReader (windows media foundation) for audio file reading was causing the rendering to stutter - something in nvopengl.dll was waiting for something the WMF was doing
+	// when decoding an Mp3.
+	// minimp3 is way faster than WMF also.
+
 	if(::hasExtension(path, "mp3"))
 	{
 		return MP3AudioFileReader::readAudioFile(path);
