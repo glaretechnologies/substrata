@@ -48,8 +48,8 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFile(const std::string& 
 		if(audio_format != 1)
 			throw glare::Exception("Unhandled audio format, only 1 (PCM) handled.");
 		const uint16 wav_num_channels = file.readUInt16();
-		const uint32 sample_rate = file.readUInt32();
-		const uint32 byte_rate = file.readUInt32(); // TODO: handle this by resampling to target rate.
+		const uint32 sample_rate = file.readUInt32(); // TODO: handle this by resampling to target rate.
+		/*const uint32 byte_rate =*/ file.readUInt32();
 		/*const uint16 block_align =*/ file.readUInt16(); // TODO: handle this?
 		const uint16 bits_per_sample = file.readUInt16();
 
