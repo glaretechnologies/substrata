@@ -48,7 +48,7 @@ double ParcelAuction::computeAuctionPrice(TimeStamp time) const
 
 	const double cur_time = (double)time.time;
 
-	double last_resume_time = auction_start_time.time; // end time of lock[i-1], or auction start time if i = 0.
+	double last_resume_time = (double)auction_start_time.time; // end time of lock[i-1], or auction start time if i = 0.
 	double sum_unlocked_time = 0;
 	for(size_t i=0; i<auction_locks.size(); ++i)
 	{
