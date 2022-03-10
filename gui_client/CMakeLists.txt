@@ -630,10 +630,16 @@ if(WIN32)
 		winmm 
 		dsound
 		
-		# Superluminal profiler:
-#		optimized "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MD.lib"
-#		debug "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MDd.lib"
 	)
+
+	# Superluminal profiler:
+	if(PERFORMANCEAPI_ENABLED)
+		SET(QT_WIN32_LIBS
+			${QT_WIN32_LIBS}
+			optimized "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MD.lib"
+			debug "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MDd.lib"
+		)
+	endif()
 
 	# Disable ASLR (/DYNAMICBASE)
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
