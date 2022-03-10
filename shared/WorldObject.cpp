@@ -694,7 +694,11 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 
 	ob.lightmap_url = stream.readStringLengthFirst(10000);
 
-	ob.script = stream.readStringLengthFirst(10000);
+	const std::string new_script = stream.readStringLengthFirst(10000);
+	if(ob.script != new_script)
+		ob.changed_flags |= WorldObject::SCRIPT_CHANGED;
+	ob.script = new_script;
+
 	ob.content = stream.readStringLengthFirst(10000);
 	ob.target_url = stream.readStringLengthFirst(10000);
 

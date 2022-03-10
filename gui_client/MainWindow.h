@@ -58,6 +58,7 @@ struct tls_config;
 class SubstrataVideoReaderCallback;
 struct CreateVidReaderTask;
 class BiomeManager;
+class ScriptLoadedThreadMessage;
 
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
@@ -185,6 +186,7 @@ private:
 	void loadModelForObject(WorldObject* ob);
 	void loadModelForAvatar(Avatar* ob);
 	void loadScriptForObject(WorldObject* ob);
+	void handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob);
 	void doBiomeScatteringForObject(WorldObject* ob);
 	void loadAudioForObject(WorldObject* ob);
 	void showErrorNotification(const std::string& message);
@@ -247,7 +249,10 @@ public:
 	bool isModelProcessed(const std::string& url) const;
 
 	bool checkAddAudioToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool isAudioProcessed(const std::string& url) const;
+	//bool isAudioProcessed(const std::string& url) const;
+
+	bool checkAddScriptToProcessedSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
+
 
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level);
@@ -457,6 +462,8 @@ private:
 	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
 	std::unordered_set<std::string> audio_processed;
 
+	std::unordered_set<std::string> script_content_processed;
+
 
 	QTimer* lightmap_flag_timer;
 
@@ -544,4 +551,12 @@ public:
 	Reference<GLObject> mouseover_selected_gl_ob;
 
 	QPoint last_gl_widget_mouse_move_pos;
+
+	MeshDataLoadingProgress mesh_data_loading_progress;
+	Reference<OpenGLMeshRenderData> cur_loading_mesh_data;
+	std::string cur_loading_lod_model_url;
+	WorldObjectRef cur_loading_voxel_ob;
+	int cur_loading_voxel_subsample_factor;
+	Reference<RayMesh> cur_loading_voxel_raymesh;
+	int cur_loading_voxel_ob_lod_level;
 };

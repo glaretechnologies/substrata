@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "ModelLoading.h"
 #include "TestSuite.h"
 #include "MeshBuilding.h"
+#include "LoadScriptTask.h"
 #include "CredentialManager.h"
 #include "UploadResourceThread.h"
 #include "DownloadResourcesThread.h"
@@ -121,6 +122,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <clocale>
 #include <zlib.h>
 #include <tls.h>
+//#include "Superluminal/PerformanceAPI.h"
 
 
 #ifdef _WIN32
@@ -806,11 +808,18 @@ bool MainWindow::checkAddAudioToProcessedSet(const std::string& url)
 }
 
 
-bool MainWindow::isAudioProcessed(const std::string& url) const
+bool MainWindow::checkAddScriptToProcessedSet(const std::string& script_content) // returns true if was not in processed set (and hence this call added it), false if it was.
 {
-	Lock lock(audio_processed_mutex);
-	return audio_processed.count(url) > 0;
+	auto res = script_content_processed.insert(script_content);
+	return res.second; // Was inserted? (will be false if already present in set)
 }
+
+
+//bool MainWindow::isAudioProcessed(const std::string& url) const
+//{
+//	Lock lock(audio_processed_mutex);
+//	return audio_processed.count(url) > 0;
+//}
 
 
 void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level)
@@ -1385,46 +1394,61 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					
 						if(mesh_manager.isMeshDataInserted(lod_model_url)) // If model mesh data is already loaded:
 						{
-							removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+							bool is_meshdata_loaded_into_opengl = false;
+							{
+								Lock lock(mesh_manager.getMutex());
 
-							// Create gl and physics object now
-							Reference<RayMesh> raymesh;
-							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, 
-								&ui->glWidget->opengl_engine->vert_buf_allocator,
-								ob_to_world_matrix,
-								false, // skip opengl calls
-								raymesh);
+								auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_url);
+								if(res != mesh_manager.model_URL_to_mesh_map.end())
+								{
+									is_meshdata_loaded_into_opengl = res->second.gl_meshdata->vbo_handle.valid();
+								}
+							}
 
-							if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+							if(is_meshdata_loaded_into_opengl)
+							{
+								removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+								// Create gl and physics object now
+								Reference<RayMesh> raymesh;
+								ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, 
+									&ui->glWidget->opengl_engine->vert_buf_allocator,
+									ob_to_world_matrix,
+									false, // skip opengl calls
+									raymesh);
+
+								assert(ob->opengl_engine_ob->mesh_data->vbo_handle.valid());
+								if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
 
-							assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+								assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
-							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-							ob->physics_object->geometry = raymesh;
-							ob->physics_object->ob_to_world = ob_to_world_matrix;
-							ob->physics_object->userdata = ob;
-							ob->physics_object->userdata_type = 0;
+								ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+								ob->physics_object->geometry = raymesh;
+								ob->physics_object->ob_to_world = ob_to_world_matrix;
+								ob->physics_object->userdata = ob;
+								ob->physics_object->userdata_type = 0;
 
-							ob->loaded_model_lod_level = ob_model_lod_level;
+								ob->loaded_model_lod_level = ob_model_lod_level;
 
-							//Timer timer;
-							ui->glWidget->addObject(ob->opengl_engine_ob);
-							//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+								//Timer timer;
+								ui->glWidget->addObject(ob->opengl_engine_ob);
+								//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
 
-							physics_world->addObject(ob->physics_object);
-							physics_world->rebuild(task_manager, print_output);
+								physics_world->addObject(ob->physics_object);
+								physics_world->rebuild(task_manager, print_output);
 
-							ui->indigoView->objectAdded(*ob, *this->resource_manager);
+								ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
-							loadScriptForObject(ob); // Load any script for the object.
+								loadScriptForObject(ob); // Load any script for the object.
 
-							doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
+								doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
 
-							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-							if(this->selected_ob == ob)
-								ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+								// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+								if(this->selected_ob == ob)
+									ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+							}
 						}
 						else
 						{
@@ -1647,132 +1671,143 @@ void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 
 void MainWindow::loadScriptForObject(WorldObject* ob)
 {
+	//PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+
+	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
+	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
+	{
+		// conPrint("MainWindow::loadAudioForObject(): SCRIPT_CHANGED bit was set, destroying script_evaluator.");
+		
+		removeInstancesOfObject(ob);
+		ob->script_evaluator = NULL;
+		this->obs_with_scripts.erase(ob);
+
+		BitUtils::zeroBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
+	}
+
+
+	// If we have a script evaluator already, but the opengl ob has been recreated (due to LOD level changes), we need to recreate the instance_matrices VBO
+	if(ob->script_evaluator.nonNull() && ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
+	{
+		ob->opengl_engine_ob->enableInstancing(ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
+
+		ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
+	}
+
+
+	if(!ob->script.empty() && ob->script_evaluator.isNull())
+	{
+		const bool just_inserted = checkAddScriptToProcessedSet(ob->script); // Mark script as being processed so another LoadScriptTask doesn't try and process it also.
+		if(just_inserted)
+		{
+			Reference<LoadScriptTask> task = new LoadScriptTask();
+			task->main_window = this;
+			task->script_content = ob->script;
+			model_and_texture_loader_task_manager.addTask(task);
+		}
+	}
+}
+
+
+void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* loaded_msg, WorldObject* ob)
+{
+	assert(loaded_msg->script == ob->script);
+	assert(loaded_msg->script_evaluator.nonNull());
+
 	try
 	{
-		if(ob->script.empty())
+		ob->script_evaluator = loaded_msg->script_evaluator;
+
+		const std::string script_content = loaded_msg->script;
+
+		// Handle instancing command if present
+		int count = 0;
+		const std::vector<std::string> lines = StringUtils::splitIntoLines(script_content);
+		for(size_t z=0; z<lines.size(); ++z)
 		{
-			if(ob->script_evaluator.nonNull())
+			if(::hasPrefix(lines[z], "#instancing"))
 			{
-				ob->script_evaluator = NULL;
-				this->obs_with_scripts.erase(ob);
-				ob->loaded_script.clear();
+				Parser parser(lines[z].data(), lines[z].size());
+				parser.parseString("#instancing");
+				parser.parseWhiteSpace();
+				if(!parser.parseInt(count))
+					throw glare::Exception("Failed to parse count after #instancing.");
 			}
 		}
-		else
+
+		const int MAX_COUNT = 1000;
+		count = myMin(count, MAX_COUNT);
+
+		this->obs_with_scripts.insert(ob);
+
+		//conPrint("WinterShaderEvaluator creation took " + timer.elapsedStringNSigFigs(4));
+		ob->num_instances = count;
+
+		if(count > 0) // If instancing was requested:
 		{
-			if(ob->script == ob->loaded_script)
-			{
-				// If the opengl ob has been recreated, we need to recreate the instance_matrices VBO
-				if(ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
-				{
-					ob->opengl_engine_ob->enableInstancing(ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
+			// conPrint("Doing instancing with count " + toString(count));
 
-					ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
+			ob->instance_matrices.resize(count);
+			ob->instances.resize(count);
+
+			// Create a bunch of copies of this object
+			for(size_t z=0; z<(size_t)count; ++z)
+			{
+				WorldObjectRef instance = new WorldObject();
+				instance->instance_index = (int)z;
+				instance->num_instances = count;
+				instance->script_evaluator = ob->script_evaluator;
+				instance->prototype_object = ob;
+
+				instance->uid = UID::invalidUID();
+				instance->object_type = ob->object_type;
+				instance->model_url = ob->model_url;
+				instance->materials = ob->materials;
+				instance->content = ob->content;
+				instance->target_url = ob->target_url;
+				instance->pos = ob->pos;
+				instance->axis = ob->axis;
+				instance->angle = ob->angle;
+				instance->scale = ob->scale;
+				instance->flags = ob->flags;
+
+				instance->state = WorldObject::State_Alive;
+
+				// Make physics object
+				if(ob->physics_object.nonNull())
+				{
+					PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
+					physics_ob->geometry = ob->physics_object->geometry;
+					physics_ob->ob_to_world = ob->physics_object->ob_to_world;
+
+					instance->physics_object = physics_ob;
+
+					physics_ob->userdata = instance.ptr();
+					physics_ob->userdata_type = 0;
+					physics_world->addObject(physics_ob);
 				}
 
-				return;
+				ob->instances[z] = instance;
+				ob->instance_matrices[z] = obToWorldMatrix(*instance);
 			}
 
-			ob->loaded_script = ob->script;
-			try
+			if(ob->opengl_engine_ob.nonNull())
 			{
-				removeInstancesOfObject(ob);
-
-				const std::string script_content = ob->script;
-
-				// Handle instancing command if present
-				int count = 0;
-				const std::vector<std::string> lines = StringUtils::splitIntoLines(script_content);
-				for(size_t z=0; z<lines.size(); ++z)
-				{
-					if(::hasPrefix(lines[z], "#instancing"))
-					{
-						Parser parser(lines[z].data(), (unsigned int)lines[z].size());
-						parser.parseString("#instancing");
-						parser.parseWhiteSpace();
-						if(!parser.parseInt(count))
-							throw glare::Exception("Failed to parse count after #instancing.");
-					}
-				}
-
-				const int MAX_COUNT = 1000;
-				count = myMin(count, MAX_COUNT);
-
-				//Timer timer;
-				ob->script_evaluator = new WinterShaderEvaluator(this->base_dir_path, script_content);
-
-				this->obs_with_scripts.insert(ob);
-
-				//conPrint("WinterShaderEvaluator creation took " + timer.elapsedStringNSigFigs(4));
-				ob->num_instances = count;
-
-				if(count > 0) // If instancing was requested:
-				{
-					conPrint("Doing instancing with count " + toString(count));
-
-					ob->instance_matrices.resize(count);
-					ob->instances.resize(count);
-
-					// Create a bunch of copies of this object
-					for(size_t z=0; z<(size_t)count; ++z)
-					{
-						WorldObjectRef instance = new WorldObject();
-						instance->instance_index = (int)z;
-						instance->num_instances = count;
-						instance->script_evaluator = ob->script_evaluator;
-						instance->prototype_object = ob;
-
-						instance->uid = UID::invalidUID();
-						instance->object_type = ob->object_type;
-						instance->model_url = ob->model_url;
-						instance->materials = ob->materials;
-						instance->content = ob->content;
-						instance->target_url = ob->target_url;
-						instance->pos = ob->pos;// +Vec3d((double)z * 0.2, 0, 0); // TEMP HACK
-						instance->axis = ob->axis;
-						instance->angle = ob->angle;
-						instance->scale = ob->scale;
-						instance->flags = ob->flags;
-
-						instance->state = WorldObject::State_Alive;
-
-						// Make physics object
-						PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-						physics_ob->geometry = ob->physics_object->geometry;
-						physics_ob->ob_to_world = ob->physics_object->ob_to_world;
-
-						instance->physics_object = physics_ob;
-						physics_ob->userdata = instance.ptr();
-						physics_ob->userdata_type = 0;
-						physics_world->addObject(physics_ob);
-
-						ob->instances[z] = instance;
-						ob->instance_matrices[z] = obToWorldMatrix(*instance);
-					}
-
-					if(ob->opengl_engine_ob.nonNull())
-					{
-						ob->opengl_engine_ob->enableInstancing(ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * count);
+				ob->opengl_engine_ob->enableInstancing(ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * count);
 						
-						ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
-					}
-				}
-			}
-			catch(glare::Exception& e)
-			{
-				// If this user created this model, show the error message.
-				if(ob->creator_id == this->logged_in_user_id)
-				{
-					// showErrorNotification("Error while loading script '" + ob->script + "': " + e.what());
-				}
-
-				throw glare::Exception("Error while loading script '" + ob->script + "': " + e.what());
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
 			}
 		}
 	}
 	catch(glare::Exception& e)
 	{
-		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+		// If this user created this model, show the error message.
+		//if(ob->creator_id == this->logged_in_user_id)
+		//{
+		//	// showErrorNotification("Error while loading script '" + ob->script + "': " + e.what());
+		//}
+
+		print("Error while loading script '" + ob->script + "': " + e.what());
 	}
 }
 
@@ -1780,6 +1815,8 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 // Object model has been loaded, now do biome scattering over it, if not done already for this object
 void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 {
+	//PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+
 	assert(!ob->using_placeholder_model);
 		
 	//biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
@@ -1864,7 +1901,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 				{
 					//if(!isAudioProcessed(ob->audio_source_url)) // If we are not already loading the audio:
 
-					const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadTextureTask doesn't try and process it also.
+					const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 					if(just_inserted)
 					{
 						// conPrint("Launching LoadAudioTask");
@@ -1912,7 +1949,7 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 
 void MainWindow::logMessage(const std::string& msg) // Print to stdout and append to LogWindow log display
 {
-	conPrint(msg);
+	//conPrint(msg);
 	//this->logfile << msg << "\n";
 	if(this->log_window && !running_destructor)
 		this->log_window->appendLine(msg);
@@ -2058,10 +2095,10 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 
 #ifndef NDEBUG
 	Matrix4f ob_to_world_inv_transpose_ref;
-	const bool invertible = ob_to_world.getUpperLeftInverseTranspose(ob_to_world_inv_transpose_ref);
-	assert(invertible);
-	if(invertible)
-		assert(epsEqual(ob_to_world_inv_transpose, ob_to_world_inv_transpose_ref));
+	/*const bool invertible = */ob_to_world.getUpperLeftInverseTranspose(ob_to_world_inv_transpose_ref);
+	//assert(invertible);
+	//if(invertible)
+	//	assert(epsEqual(ob_to_world_inv_transpose, ob_to_world_inv_transpose_ref));
 #endif
 
 
@@ -2096,7 +2133,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 		assert(epsEqual(S_inv_R_inv, Matrix4f::scaleMatrix(recip_scale[0], recip_scale[1], recip_scale[2]) * rot_inv));
 
 		Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
-		assert(Matrix4f::isInverse(world_to_ob, ob_to_world));
+//		assert(Matrix4f::isInverse(world_to_ob, ob_to_world));
 
 		ob->physics_object->ob_to_world = ob_to_world;
 		ob->physics_object->world_to_ob = world_to_ob;
@@ -2714,6 +2751,8 @@ struct CloserToCamComparator
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
+	//PERFORMANCEAPI_INSTRUMENT("timerEvent");
+
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
@@ -2851,6 +2890,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	//double animated_tex_time = 0;
 	if(world_state.nonNull())
 	{
+		//PERFORMANCEAPI_INSTRUMENT("set anim data");
 		Timer timer;
 		//Timer tex_upload_timer;
 		//tex_upload_timer.pause();
@@ -3177,318 +3217,440 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		num_frames_since_fps_timer_reset = 0;
 		fps_display_timer.reset();
 	}
-	
-	//double frame_loading_time = 0;
+
+
+	double frame_loading_time = 0;
 	//std::vector<std::string> loading_times; // TEMP just for profiling/debugging
 	if(world_state.nonNull())
 	{
+		//PERFORMANCEAPI_INSTRUMENT("process loading msgs");
+
 		// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
 		// We don't want to do too much at one time or it will cause hitches.
 		// We'll alternate between processing model loaded and texture loaded messages, using process_model_loaded_next.
 		// We alternate for fairness.
 		const double MAX_LOADING_TIME = 0.005;// 5 ms
 		Timer loading_timer;
+		//int max_items_to_process = 10;
+		//int num_items_processed = 0;
+
 		int num_models_loaded = 0;
 		int num_textures_loaded = 0;
-		while((!model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
+		//while((cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
+		while((cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && 
+			(loading_timer.elapsed() < MAX_LOADING_TIME) //&&
+			/*(num_items_processed < max_items_to_process)*/)
 		{
-			// ui->glWidget->makeCurrent();
+			//num_items_processed++;
 
-			if(process_model_loaded_next && !model_loaded_messages_to_process.empty())
+			// If we are still loading some mesh data into OpenGL (uploading to GPU):
+			if(cur_loading_mesh_data.nonNull() && cur_loading_voxel_ob.isNull()) // If we are currently loading a non-voxel mesh:
 			{
-				const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
-				model_loaded_messages_to_process.pop_front();
+				Timer load_item_timer;
+				const std::string loading_item_name = cur_loading_lod_model_url;
 
-				//Timer load_item_timer;
-				//const std::string loading_item = message->loaded_voxels ? "voxels" : message->lod_model_url;
+				// Upload a chunk of data to the GPU
+				ui->glWidget->opengl_engine->partialLoadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *cur_loading_mesh_data, mesh_data_loading_progress);
 
-				// conPrint("Handling model loaded message, model_url: " + message->model_url);
-				num_models_loaded++;
+				//logMessage("Loaded a chunk of mesh '" + cur_loading_lod_model_url + "': " + mesh_data_loading_progress.summaryString());
 
-				try
+				if(mesh_data_loading_progress.done())
 				{
-					if(message->voxel_ob.nonNull()) // If we loaded a voxel object:
+					assert(!cur_loading_lod_model_url.empty());
+					//logMessage("Finished loading mesh '" + cur_loading_lod_model_url + "'.");
+
+					// Data is uploaded - assign to any waiting objects
+					const int loaded_model_lod_level = WorldObject::getLODLevelForURL(cur_loading_lod_model_url/*message->lod_model_url*/);
+
+					// Assign the loaded model for any objects using waiting for this model:
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->loading_model_URL_to_world_ob_UID_map.find(cur_loading_lod_model_url);
+					if(res != this->loading_model_URL_to_world_ob_UID_map.end())
 					{
-						// Handle loading a voxel group
-						WorldObjectRef voxel_ob = message->voxel_ob;
-
-						removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
-
-						if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
+						std::set<UID>& waiting_obs = res->second;
+						for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
 						{
-							const int ob_lod_level = voxel_ob->getLODLevel(cam_controller.getPosition());
+							const UID waiting_uid = *it;
 
-							const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
-							const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)message->subsample_factor);
-
-							PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
-							physics_ob->geometry = message->raymesh;
-							physics_ob->ob_to_world = use_ob_to_world_matrix;
-
-							GLObjectRef opengl_ob = new GLObject();
-							opengl_ob->mesh_data = message->gl_meshdata;
-							opengl_ob->materials.resize(voxel_ob->materials.size());
-							for(uint32 i=0; i<voxel_ob->materials.size(); ++i)
+							auto res2 = this->world_state->objects.find(waiting_uid);
+							if(res2 != this->world_state->objects.end())
 							{
-								ModelLoading::setGLMaterialFromWorldMaterial(*voxel_ob->materials[i], ob_lod_level, voxel_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
-								opengl_ob->materials[i].gen_planar_uvs = true;
-							}
-							opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
+								WorldObject* ob = res2->second.ptr();
 
-							voxel_ob->opengl_engine_ob = opengl_ob;
-							voxel_ob->physics_object = physics_ob;
-
-							if(!opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *opengl_ob->mesh_data); // Load mesh data into OpenGL
-
-							physics_ob->userdata = voxel_ob.ptr();
-							physics_ob->userdata_type = 0;
-
-							// Add this object to the GL engine and physics engine.
-							if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
-							{
-								assignedLoadedOpenGLTexturesToMats(voxel_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
-
-								ui->glWidget->addObject(opengl_ob);
-
-								physics_world->addObject(physics_ob);
-								physics_world->rebuild(task_manager, print_output);
-
-								ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
-
-								loadScriptForObject(voxel_ob.ptr()); // Load any script for the object.
-
-								doBiomeScatteringForObject(voxel_ob.ptr()); // Scatter any biome stuff over it
-							}
-
-							voxel_ob->loaded_model_lod_level = message->voxel_ob_lod_level/*model_lod_level*/;
-
-							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-							if(this->selected_ob == voxel_ob)
-								ui->glWidget->opengl_engine->selectObject(voxel_ob->opengl_engine_ob);
-						} // End proximity_loader.isObjectInLoadProximity()
-					}
-					else // Else didn't load voxels, loaded a model:
-					{
-						const int loaded_model_lod_level = WorldObject::getLODLevelForURL(message->lod_model_url);
-
-						// Assign the loaded model for any objects using waiting for this model:
-						Lock lock(this->world_state->mutex);
-
-						auto res = this->loading_model_URL_to_world_ob_UID_map.find(message->lod_model_url);
-						if(res != this->loading_model_URL_to_world_ob_UID_map.end())
-						{
-							std::set<UID>& waiting_obs = res->second;
-							for(auto it = waiting_obs.begin(); it != waiting_obs.end(); ++it)
-							{
-								const UID waiting_uid = *it;
-
-								auto res2 = this->world_state->objects.find(waiting_uid);
-								if(res2 != this->world_state->objects.end())
+								if(ob->in_proximity)
 								{
-									WorldObject* ob = res2->second.ptr();
-
-									if(ob->in_proximity)
-									{
-										const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
-										const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
+									const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+									const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 								
-										// Check the object wants this particular LOD level model right now:
-										const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
-										if(current_desired_model_LOD_URL == message->lod_model_url)
+									// Check the object wants this particular LOD level model right now:
+									const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
+									if(current_desired_model_LOD_URL == cur_loading_lod_model_url)
+									{
+										try
 										{
-											try
-											{
-												if(!isFinite(ob->angle) || !ob->axis.isFinite())
-													throw glare::Exception("Invalid angle or axis");
+											if(!isFinite(ob->angle) || !ob->axis.isFinite())
+												throw glare::Exception("Invalid angle or axis");
 
-												removeAndDeleteGLAndPhysicsObjectsForOb(*ob); // Remove any existing OpenGL and physics model
+											removeAndDeleteGLAndPhysicsObjectsForOb(*ob); // Remove any existing OpenGL and physics model
 
-												// Create GLObject and PhysicsObjects for this world object.  The loaded mesh should be in the mesh_manager.
-												const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
+											// Create GLObject and PhysicsObjects for this world object.  The loaded mesh should be in the mesh_manager.
+											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-												assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
+											assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
 
-												Reference<RayMesh> raymesh;
-												ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, 
-													mesh_manager, task_manager, &ui->glWidget->opengl_engine->vert_buf_allocator, ob_to_world_matrix,
-													false, // skip opengl calls
-													raymesh);
+											Reference<RayMesh> raymesh;
+											ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, 
+												mesh_manager, task_manager, &ui->glWidget->opengl_engine->vert_buf_allocator, ob_to_world_matrix,
+												false, // skip opengl calls
+												raymesh);
 
-												ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-												ob->physics_object->geometry = raymesh;
-												ob->physics_object->ob_to_world = ob_to_world_matrix;
-												ob->physics_object->userdata = ob;
-												ob->physics_object->userdata_type = 0;
+											ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+											ob->physics_object->geometry = raymesh;
+											ob->physics_object->ob_to_world = ob_to_world_matrix;
+											ob->physics_object->userdata = ob;
+											ob->physics_object->userdata_type = 0;
 
 
-												ob->loaded_model_lod_level = loaded_model_lod_level;//message->model_lod_level;
+											ob->loaded_model_lod_level = loaded_model_lod_level;//message->model_lod_level;
 
-												if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-													OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+											assert(ob->opengl_engine_ob->mesh_data->vbo_handle.valid());
+											//if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+											//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
-												assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+											//loaded_size_B = ob->opengl_engine_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
 
-												ui->glWidget->addObject(ob->opengl_engine_ob);
+											assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
-												physics_world->addObject(ob->physics_object);
-												physics_world->rebuild(task_manager, print_output);
+											ui->glWidget->addObject(ob->opengl_engine_ob);
 
-												ui->indigoView->objectAdded(*ob, *this->resource_manager);
+											physics_world->addObject(ob->physics_object);
+											physics_world->rebuild(task_manager, print_output);
 
-												loadScriptForObject(ob); // Load any script for the object.
+											ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
-												doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
+											loadScriptForObject(ob); // Load any script for the object.
 
-												// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-												if(this->selected_ob == ob)
-													ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
-											}
-											catch(glare::Exception& e)
-											{
-												print("Error while loading model: " + e.what());
-											}
+											doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
+
+											// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+											if(this->selected_ob == ob)
+												ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+										}
+										catch(glare::Exception& e)
+										{
+											print("Error while loading model: " + e.what());
 										}
 									}
 								}
 							}
-
-							loading_model_URL_to_world_ob_UID_map.erase(message->lod_model_url); // Now that this model has been downloaded, remove from map
 						}
 
-						// Assign the loaded model to any avatars waiting for this model:
-						auto waiting_av_res = this->loading_model_URL_to_avatar_UID_map.find(message->lod_model_url);
-						if(waiting_av_res != this->loading_model_URL_to_avatar_UID_map.end())
+						loading_model_URL_to_world_ob_UID_map.erase(cur_loading_lod_model_url); // Now that this model has been downloaded, remove from map
+					}
+
+					// Assign the loaded model to any avatars waiting for this model:
+					auto waiting_av_res = this->loading_model_URL_to_avatar_UID_map.find(cur_loading_lod_model_url);
+					if(waiting_av_res != this->loading_model_URL_to_avatar_UID_map.end())
+					{
+						std::set<UID>& waiting_avatars = waiting_av_res->second;
+						for(auto it = waiting_avatars.begin(); it != waiting_avatars.end(); ++it)
 						{
-							std::set<UID>& waiting_avatars = waiting_av_res->second;
-							for(auto it = waiting_avatars.begin(); it != waiting_avatars.end(); ++it)
+							const UID waiting_uid = *it;
+
+							auto res2 = this->world_state->avatars.find(waiting_uid);
+							if(res2 != this->world_state->avatars.end())
 							{
-								const UID waiting_uid = *it;
-
-								auto res2 = this->world_state->avatars.find(waiting_uid);
-								if(res2 != this->world_state->avatars.end())
-								{
-									Avatar* av = res2->second.ptr();
+								Avatar* av = res2->second.ptr();
 						
-									const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
-									if((cam_controller.thirdPersonEnabled() || !our_avatar)) // Don't load graphics for our avatar
+								const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
+								if((cam_controller.thirdPersonEnabled() || !our_avatar)) // Don't load graphics for our avatar
+								{
+									const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
+
+									// Check the avatar wants this particular LOD level model right now:
+									const std::string current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level);
+									if(current_desired_model_LOD_URL == cur_loading_lod_model_url)
 									{
-										const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
-
-										// Check the avatar wants this particular LOD level model right now:
-										const std::string current_desired_model_LOD_URL = av->getLODModelURLForLevel(av->avatar_settings.model_url, av_lod_level);
-										if(current_desired_model_LOD_URL == message->lod_model_url)
+										try
 										{
-											try
+											// Remove any existing OpenGL and physics model
+											removeAndDeleteGLObjectForAvatar(*av);
+
+											// Create GLObject for this avatar
+											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*av);
+
+											assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
+
+											Reference<RayMesh> raymesh;
+											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, av_lod_level, av->avatar_settings.materials, 
+												/*lightmap_url=*/std::string(), 
+												*resource_manager, mesh_manager, task_manager, &ui->glWidget->opengl_engine->vert_buf_allocator, ob_to_world_matrix, /*skip opengl calls=*/false, raymesh);
+
+											// Load animation data for ready-player-me type avatars
+											if(!av->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
 											{
-												// Remove any existing OpenGL and physics model
-												removeAndDeleteGLObjectForAvatar(*av);
+												FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
+												av->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+											}
 
-												// Create GLObject for this avatar
-												const Matrix4f ob_to_world_matrix = obToWorldMatrix(*av);
-
-												assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
-
-												Reference<RayMesh> raymesh;
-												av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, av_lod_level, av->avatar_settings.materials, 
-													/*lightmap_url=*/std::string(), 
-													*resource_manager, mesh_manager, task_manager, &ui->glWidget->opengl_engine->vert_buf_allocator, ob_to_world_matrix, /*skip opengl calls=*/false, raymesh);
-
-												// Load animation data for ready-player-me type avatars
-												if(!av->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
-												{
-													FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
-													av->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
-												}
-
-												av->graphics.build();
+											av->graphics.build();
 										
-												//TEMP av->loaded_lod_level = ob_lod_level;
+											//TEMP av->loaded_lod_level = ob_lod_level;
 
-												if(!av->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-													OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *av->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
+											assert(av->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid());
+											//if(!av->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+											//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *av->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
 
-												assignedLoadedOpenGLTexturesToMats(av, *ui->glWidget->opengl_engine, *resource_manager);
+											assignedLoadedOpenGLTexturesToMats(av, *ui->glWidget->opengl_engine, *resource_manager);
 
-												ui->glWidget->addObject(av->graphics.skinned_gl_ob);
+											ui->glWidget->addObject(av->graphics.skinned_gl_ob);
 
-												// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
-												if(our_avatar)
+											// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
+											if(our_avatar)
+											{
+												std::string gesture_name;
+												bool animate_head, loop_anim;
+												if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
 												{
-													std::string gesture_name;
-													bool animate_head, loop_anim;
-													if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
-													{
-														av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
-													}
+													av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
 												}
 											}
-											catch(glare::Exception& e)
-											{
-												print("Error while loading avatar model: " + e.what());
-											}
+										}
+										catch(glare::Exception& e)
+										{
+											print("Error while loading avatar model: " + e.what());
 										}
 									}
 								}
 							}
 						}
 					}
-				}
-				catch(glare::Exception& e)
-				{
-					print("Error while loading model: " + e.what());
-				}
 
-				//loading_times.push_back(loading_item + ": " + doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 4) + " ms");
+					cur_loading_mesh_data = NULL;
+					cur_loading_lod_model_url.clear();
+				} // end if(mesh_data_loading_progress.done())
+
+
+				//const std::string loading_item = "Initialised load of " + (message->voxel_ob.nonNull() ? "voxels" : message->lod_model_url);
+				//loading_times.push_back(doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 3) + " ms, loaded chunk of " + loading_item_name + ": " + mesh_data_loading_progress.summaryString());
 			}
-
-			if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
+			else if(cur_loading_voxel_ob.nonNull()) // else if we are currently loading a voxel mesh:
 			{
-				//Timer load_item_timer;
+				Timer load_item_timer;
 
-				// Process any loaded textures
-				const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
-				texture_loaded_messages_to_process.pop_front();
+				// Upload a chunk of data to the GPU
+				ui->glWidget->opengl_engine->partialLoadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *cur_loading_mesh_data, mesh_data_loading_progress);
 
-				num_textures_loaded++;
+				//logMessage("Loaded a chunk of voxel mesh: " + mesh_data_loading_progress.summaryString());
 
-				// Now that this texture is loaded, removed from textures_processed set.
-				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+				if(mesh_data_loading_progress.done())
 				{
-					Lock lock(textures_processed_mutex);
-					textures_processed.erase(message->tex_key);
-				}
+					//logMessage("Finished loading voxel mesh.");
 
-				// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
+					WorldObjectRef voxel_ob = this->cur_loading_voxel_ob;
 
-				//Timer timer;
-				try
-				{
-					// ui->glWidget->makeCurrent();
-					ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key), message->use_sRGB);
-				}
-				catch(glare::Exception& e)
-				{
-					print("Error while loading texture: " + e.what());
-				}
-				//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
+					const int ob_lod_level = voxel_ob->getLODLevel(cam_controller.getPosition());
 
-				//loading_times.push_back("Texture " + message->tex_key + ": " + doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 4) + " ms");
+					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
+					const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)cur_loading_voxel_subsample_factor/*message->subsample_factor*/);
+
+					PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
+					physics_ob->geometry = cur_loading_voxel_raymesh; // message->raymesh;
+					physics_ob->ob_to_world = use_ob_to_world_matrix;
+
+					GLObjectRef opengl_ob = new GLObject();
+					opengl_ob->mesh_data = cur_loading_mesh_data;// message->gl_meshdata;
+					opengl_ob->materials.resize(voxel_ob->materials.size());
+					for(uint32 i=0; i<voxel_ob->materials.size(); ++i)
+					{
+						ModelLoading::setGLMaterialFromWorldMaterial(*voxel_ob->materials[i], ob_lod_level, voxel_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+						opengl_ob->materials[i].gen_planar_uvs = true;
+					}
+					opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
+
+					voxel_ob->opengl_engine_ob = opengl_ob;
+					voxel_ob->physics_object = physics_ob;
+
+					assert(opengl_ob->mesh_data->vbo_handle.valid());
+					//if(!opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+					//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *opengl_ob->mesh_data); // Load mesh data into OpenGL
+
+					//loaded_size_B = opengl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
+
+					physics_ob->userdata = voxel_ob.ptr();
+					physics_ob->userdata_type = 0;
+
+					// Add this object to the GL engine and physics engine.
+					if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
+					{
+						assignedLoadedOpenGLTexturesToMats(voxel_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
+
+						ui->glWidget->addObject(opengl_ob);
+
+						physics_world->addObject(physics_ob);
+						physics_world->rebuild(task_manager, print_output);
+
+						ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
+
+						loadScriptForObject(voxel_ob.ptr()); // Load any script for the object.
+
+						doBiomeScatteringForObject(voxel_ob.ptr()); // Scatter any biome stuff over it
+					}
+
+					voxel_ob->loaded_model_lod_level = cur_loading_voxel_ob_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
+
+					// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+					if(this->selected_ob == voxel_ob)
+						ui->glWidget->opengl_engine->selectObject(voxel_ob->opengl_engine_ob);
+
+
+					cur_loading_mesh_data = NULL;
+					cur_loading_voxel_ob = NULL;
+				} // end if(mesh_data_loading_progress.done())
+
+				//loading_times.push_back(doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 3) + " ms, loaded chunk of voxel mesh: " + mesh_data_loading_progress.summaryString());
 			}
+			else // else if !loading_mesh_data:
+			{
+				// ui->glWidget->makeCurrent();
 
-			process_model_loaded_next = !process_model_loaded_next;
+				if(process_model_loaded_next && !model_loaded_messages_to_process.empty())
+				{
+					const Reference<ModelLoadedThreadMessage> message = model_loaded_messages_to_process.front();
+					model_loaded_messages_to_process.pop_front();
+
+					Timer load_item_timer;
+					//size_t loaded_size_B = 0;
+
+					// conPrint("Handling model loaded message, model_url: " + message->model_url);
+					num_models_loaded++;
+
+					try
+					{
+						if(message->voxel_ob.nonNull()) // If we loaded a voxel object:
+						{
+							// Handle loading a voxel group
+							WorldObjectRef voxel_ob = message->voxel_ob;
+
+							removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
+
+							if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
+							{
+								if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
+								{
+									this->cur_loading_mesh_data = message->gl_meshdata;
+									this->cur_loading_voxel_ob = voxel_ob;
+									this->cur_loading_voxel_subsample_factor = message->subsample_factor;
+									this->cur_loading_voxel_raymesh = message->raymesh;
+									this->cur_loading_voxel_ob_lod_level = message->voxel_ob_lod_level;
+									ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
+
+									//logMessage("Initialised loading of voxel mesh: " + mesh_data_loading_progress.summaryString());
+								}
+								else
+								{
+									//logMessage("Voxel mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
+								}
+
+							} // End proximity_loader.isObjectInLoadProximity()
+						}
+						else // Else didn't load voxels, loaded a model:
+						{
+							// Start loading mesh data into OpenGL.
+							// The LoadModelTask should have inserted the mesh data into the mesh manager
+
+							{
+								Lock lock(mesh_manager.getMutex());
+
+								auto res = mesh_manager.model_URL_to_mesh_map.find(message->lod_model_url);
+								if(res != mesh_manager.model_URL_to_mesh_map.end())
+								{
+									if(!res->second.gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
+									{
+										this->cur_loading_mesh_data = res->second.gl_meshdata;
+										this->cur_loading_lod_model_url = message->lod_model_url;
+										ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
+
+										//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
+									}
+									else
+									{
+										//logMessage("Mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
+									}
+								}
+								else
+								{
+									assert(0);
+									this->cur_loading_mesh_data = NULL;
+								}
+							}
+						}
+					}
+					catch(glare::Exception& e)
+					{
+						print("Error while loading model: " + e.what());
+					}
+
+					//const std::string loading_item = "Initialised load of " + (message->voxel_ob.nonNull() ? "voxels" : message->lod_model_url);
+					//loading_times.push_back(doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 3) + " ms, " + getNiceByteSize(loaded_size_B) + ", " + loading_item);
+				}
+
+				if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
+				{
+					Timer load_item_timer;
+
+					// Process any loaded textures
+					const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
+					texture_loaded_messages_to_process.pop_front();
+
+					num_textures_loaded++;
+
+					// Now that this texture is loaded, removed from textures_processed set.
+					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+					{
+						Lock lock(textures_processed_mutex);
+						textures_processed.erase(message->tex_key);
+					}
+
+					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
+
+					//Timer timer;
+					try
+					{
+						// ui->glWidget->makeCurrent();
+						ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key), message->use_sRGB);
+					}
+					catch(glare::Exception& e)
+					{
+						print("Error while loading texture: " + e.what());
+					}
+					//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
+
+					//size_t tex_size_B = 0;
+					//{
+					//	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message->tex_key), /*use srgb=*/true);
+					//	tex_size_B = tex->getByteSize();
+					//}
+					//loading_times.push_back(doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 3) + " ms, " + getNiceByteSize(tex_size_B) + ", Texture " + message->tex_key);
+				}
+
+				process_model_loaded_next = !process_model_loaded_next;
+			}
 		}
 
 		//if(num_models_loaded > 0 || num_textures_loaded > 0)
 		//	conPrint("Done loading, num_textures_loaded: " + toString(num_textures_loaded) + ", num_models_loaded: " + toString(num_models_loaded) + ", elapsed: " + loading_timer.elapsedStringNPlaces(4));
 
-		//frame_loading_time = loading_timer.elapsed();
+		frame_loading_time = loading_timer.elapsed();
 
 		this->last_model_and_tex_loading_time = loading_timer.elapsed();
 	}
 	
 	// Handle any messages (chat messages etc..)
 	{
+		//PERFORMANCEAPI_INSTRUMENT("handle msgs");
+
 		// Remove any messages
 		std::vector<Reference<ThreadMessage> > msgs;
 		{
@@ -3582,6 +3744,31 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					Lock lock(audio_processed_mutex);
 					audio_processed.erase(loaded_msg->audio_source_url);
 				}
+			}
+			else if(dynamic_cast<ScriptLoadedThreadMessage*>(msg.getPointer()))
+			{
+				ScriptLoadedThreadMessage* loaded_msg = static_cast<ScriptLoadedThreadMessage*>(msg.ptr());
+
+				// conPrint("ScriptLoadedThreadMessage");
+
+				if(world_state.nonNull())
+				{
+					// Iterate over objects and assign the script evaluator for any object using this script.
+					{
+						Lock lock(this->world_state->mutex);
+
+						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						{
+							WorldObject* ob = it->second.getPointer();
+							if(ob->script == loaded_msg->script)
+								handleScriptLoadedForObUsingScript(loaded_msg, ob);
+						}
+					}
+				}
+
+				// Now that this script is loaded, removed from script_content_processed set.
+				// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
+				script_content_processed.erase(loaded_msg->script);
 			}
 			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
@@ -4038,6 +4225,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Evaluate scripts on objects
 	if(world_state.nonNull())
 	{
+		//PERFORMANCEAPI_INSTRUMENT("eval scripts");
+
 		Lock lock(this->world_state->mutex);
 
 		// When float values get too large, the gap between successive values gets greater than the frame period,
@@ -4096,6 +4285,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(physics_world.nonNull())
 	{
+		//PERFORMANCEAPI_INSTRUMENT("player physics");
+
 		// Process player physics
 		const Vec4f last_campos = campos;
 		const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, /*campos_out=*/campos);
@@ -4235,6 +4426,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Set audio source occlusions and check for muting audio sources not in current parcel.
 	{
+		//PERFORMANCEAPI_INSTRUMENT("audio occlusions");
+
 		Lock lock(audio_engine.mutex);
 		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
 		{
@@ -4295,6 +4488,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	temp_av_positions.clear();
 	if(world_state.nonNull())
 	{
+		//PERFORMANCEAPI_INSTRUMENT("avatar graphics");
+
 		try
 		{
 			Lock lock(this->world_state->mutex);
@@ -4575,6 +4770,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 	if(world_state.nonNull())
 	{
+		//PERFORMANCEAPI_INSTRUMENT("object graphics");
+
 		try
 		{
 			Lock lock(this->world_state->mutex);
@@ -4772,6 +4969,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 		try
 		{
+			//PERFORMANCEAPI_INSTRUMENT("parcel graphics");
+
 			Lock lock(this->world_state->mutex);
 
 			for(auto it = this->world_state->dirty_from_remote_parcels.begin(); it != this->world_state->dirty_from_remote_parcels.end(); ++it)
@@ -4949,6 +5148,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Send an AvatarTransformUpdate packet to the server if needed.
 	if(client_thread.nonNull() && (time_since_update_packet_sent.elapsed() > 0.1))
 	{
+		//PERFORMANCEAPI_INSTRUMENT("sending packets");
+
 		// Send AvatarTransformUpdate packet
 		{
 			/*Vec3d axis;
@@ -5032,20 +5233,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	/*if(last_timerEvent_CPU_work_elapsed > 0.010)
 	{
-		conPrint("Frame CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1.0e3, 4) + " ms");
-		conPrint("\tloading time: " + doubleToStringNSigFigs(frame_loading_time * 1.0e3, 4) + " ms");
+		logMessage("=============Long frame==================");
+		logMessage("Frame CPU time: " + doubleToStringNSigFigs(last_timerEvent_CPU_work_elapsed * 1.0e3, 4) + " ms");
+		logMessage("loading time: " + doubleToStringNSigFigs(frame_loading_time * 1.0e3, 4) + " ms");
 		for(size_t i=0; i<loading_times.size(); ++i)
-			conPrint("\t\t" + loading_times[i]);
-		conPrint("\tprocessing animated textures took " + doubleToStringNSigFigs(animated_tex_time * 1.0e3, 4) + " ms");
+			logMessage("\t" + loading_times[i]);
+		//conPrint("\tprocessing animated textures took " + doubleToStringNSigFigs(animated_tex_time * 1.0e3, 4) + " ms");
 	}*/
 
 	ui->glWidget->makeCurrent();
 
+	{
+		//PERFORMANCEAPI_INSTRUMENT("updateGL()");
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-	ui->glWidget->update();
+		ui->glWidget->update();
 #else
-	ui->glWidget->updateGL();
+		ui->glWidget->updateGL();
 #endif
+	}
 
 	if(need_physics_world_rebuild)
 	{
@@ -5893,7 +6098,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 		QString filename = QFileDialog::getOpenFileName(this,
 			tr("Select audio file..."),
 			qpath,
-			tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
+			tr("Audio file (*.mp3 *.wav)"), // tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
 			&selected_filter,
 			options
 		);
@@ -7022,6 +7227,9 @@ void MainWindow::objectEditedSlot()
 
 		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
 			loadAudioForObject(this->selected_ob.getPointer());
+
+		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
+			loadScriptForObject(this->selected_ob.getPointer());
 
 		if(this->selected_ob->audio_source.nonNull())
 		{
