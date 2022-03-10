@@ -176,7 +176,8 @@ public:
 	bool from_local_transform_dirty;  // Transformation has been changed locally
 	bool from_local_other_dirty;      // Something else has been changed locally
 
-	static const uint32 AUDIO_SOURCE_URL_CHANGED = 1; // Set when audio_source_url is changed
+	static const uint32 AUDIO_SOURCE_URL_CHANGED	= 1; // Set when audio_source_url is changed
+	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed
 	uint32 changed_flags;
 
 	bool using_placeholder_model;
@@ -186,7 +187,7 @@ public:
 
 	//std::string loaded_audio_source_url;
 
-	std::string loaded_script;
+	//std::string loaded_script;
 	int instance_index;
 	int num_instances; // number of instances of the prototype object that this is object is an instance of.
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.

@@ -262,7 +262,12 @@ void ObjectEditor::updateObjectPos(const WorldObject& ob)
 void ObjectEditor::toObject(WorldObject& ob_out)
 {
 	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
-	ob_out.script     = QtUtils::toIndString(this->scriptTextEdit->toPlainText());
+
+	const std::string new_script =  QtUtils::toIndString(this->scriptTextEdit->toPlainText());
+	if(ob_out.script != new_script)
+		ob_out.changed_flags |= WorldObject::SCRIPT_CHANGED;
+	ob_out.script = new_script;
+
 	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 
