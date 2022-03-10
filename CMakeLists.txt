@@ -159,6 +159,8 @@ SET(INDIGO_OPENSSL_VERSION 1.0.2a)
 
 SET(INDIGO_USE_SANITIZER "")
 
+SET(PERFORMANCEAPI_ENABLED 0) # Superluminal instrumentation support
+
 if(WIN32)
 	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_LIBS_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
 else()
@@ -186,6 +188,7 @@ MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
 MESSAGE("OpenSSL version: ${INDIGO_OPENSSL_VERSION}")
 MESSAGE("QT dir: ${INDIGO_QT_DIR}")
 MESSAGE("LibJPEG Turbo dir: ${jpegturbodir}")
+MESSAGE("PERFORMANCEAPI_ENABLED: ${PERFORMANCEAPI_ENABLED}")
 
 # LLVM, LibreSSL, OpenSSL
 if(WIN32)

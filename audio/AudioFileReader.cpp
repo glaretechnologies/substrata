@@ -12,7 +12,6 @@ Copyright Glare Technologies Limited 2022 -
 #include "../utils/ConPrint.h"
 #include "../utils/PlatformUtils.h"
 #include "../utils/StringUtils.h"
-//#include "Superluminal/PerformanceAPI.h"
 
 
 namespace glare
@@ -21,8 +20,6 @@ namespace glare
 
 SoundFileRef AudioFileReader::readAudioFile(const std::string& path)
 {
-	//PERFORMANCEAPI_INSTRUMENT_COLOR("AudioFileReader::readAudioFile", PERFORMANCEAPI_MAKE_COLOR(0, 100, 255));
-
 	// NOTE: Using WMFVideoReader (windows media foundation) for audio file reading was causing the rendering to stutter - something in nvopengl.dll was waiting for something the WMF was doing
 	// when decoding an Mp3.
 	// minimp3 is way faster than WMF also.

@@ -129,6 +129,8 @@ if(WIN32)
 	add_definitions(/std:c++17)
 	add_definitions(/Zc:__cplusplus) # Qt wants this for some reason
 	
+	add_definitions(-DPERFORMANCEAPI_ENABLED=${PERFORMANCEAPI_ENABLED})
+	
 	# Consider some options.
 	if(NO_WHOLE_PROGRAM_OPT)
 		SET(GL_OPT)

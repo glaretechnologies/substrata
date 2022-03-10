@@ -122,7 +122,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <clocale>
 #include <zlib.h>
 #include <tls.h>
-//#include "Superluminal/PerformanceAPI.h"
+#include "superluminal/PerformanceAPI.h"
 
 
 #ifdef _WIN32
@@ -1671,7 +1671,7 @@ void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 
 void MainWindow::loadScriptForObject(WorldObject* ob)
 {
-	//PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
 	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
 	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
@@ -1815,7 +1815,7 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 // Object model has been loaded, now do biome scattering over it, if not done already for this object
 void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 {
-	//PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
 	assert(!ob->using_placeholder_model);
 		
@@ -2751,7 +2751,7 @@ struct CloserToCamComparator
 
 void MainWindow::timerEvent(QTimerEvent* event)
 {
-	//PERFORMANCEAPI_INSTRUMENT("timerEvent");
+	PERFORMANCEAPI_INSTRUMENT("timerEvent");
 
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
@@ -2890,7 +2890,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	//double animated_tex_time = 0;
 	if(world_state.nonNull())
 	{
-		//PERFORMANCEAPI_INSTRUMENT("set anim data");
+		PERFORMANCEAPI_INSTRUMENT("set anim data");
 		Timer timer;
 		//Timer tex_upload_timer;
 		//tex_upload_timer.pause();
@@ -3223,7 +3223,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	//std::vector<std::string> loading_times; // TEMP just for profiling/debugging
 	if(world_state.nonNull())
 	{
-		//PERFORMANCEAPI_INSTRUMENT("process loading msgs");
+		PERFORMANCEAPI_INSTRUMENT("process loading msgs");
 
 		// Process ModelLoadedThreadMessages and TextureLoadedThreadMessages until we have consumed a certain amount of time.
 		// We don't want to do too much at one time or it will cause hitches.
@@ -3649,7 +3649,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	
 	// Handle any messages (chat messages etc..)
 	{
-		//PERFORMANCEAPI_INSTRUMENT("handle msgs");
+		PERFORMANCEAPI_INSTRUMENT("handle msgs");
 
 		// Remove any messages
 		std::vector<Reference<ThreadMessage> > msgs;
@@ -4225,7 +4225,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Evaluate scripts on objects
 	if(world_state.nonNull())
 	{
-		//PERFORMANCEAPI_INSTRUMENT("eval scripts");
+		PERFORMANCEAPI_INSTRUMENT("eval scripts");
 
 		Lock lock(this->world_state->mutex);
 
@@ -4285,7 +4285,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(physics_world.nonNull())
 	{
-		//PERFORMANCEAPI_INSTRUMENT("player physics");
+		PERFORMANCEAPI_INSTRUMENT("player physics");
 
 		// Process player physics
 		const Vec4f last_campos = campos;
@@ -4426,7 +4426,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Set audio source occlusions and check for muting audio sources not in current parcel.
 	{
-		//PERFORMANCEAPI_INSTRUMENT("audio occlusions");
+		PERFORMANCEAPI_INSTRUMENT("audio occlusions");
 
 		Lock lock(audio_engine.mutex);
 		for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
@@ -4488,7 +4488,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	temp_av_positions.clear();
 	if(world_state.nonNull())
 	{
-		//PERFORMANCEAPI_INSTRUMENT("avatar graphics");
+		PERFORMANCEAPI_INSTRUMENT("avatar graphics");
 
 		try
 		{
@@ -4770,7 +4770,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 	if(world_state.nonNull())
 	{
-		//PERFORMANCEAPI_INSTRUMENT("object graphics");
+		PERFORMANCEAPI_INSTRUMENT("object graphics");
 
 		try
 		{
@@ -4969,7 +4969,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// Update parcel graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 		try
 		{
-			//PERFORMANCEAPI_INSTRUMENT("parcel graphics");
+			PERFORMANCEAPI_INSTRUMENT("parcel graphics");
 
 			Lock lock(this->world_state->mutex);
 
@@ -5148,7 +5148,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Send an AvatarTransformUpdate packet to the server if needed.
 	if(client_thread.nonNull() && (time_since_update_packet_sent.elapsed() > 0.1))
 	{
-		//PERFORMANCEAPI_INSTRUMENT("sending packets");
+		PERFORMANCEAPI_INSTRUMENT("sending packets");
 
 		// Send AvatarTransformUpdate packet
 		{
@@ -5244,7 +5244,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	ui->glWidget->makeCurrent();
 
 	{
-		//PERFORMANCEAPI_INSTRUMENT("updateGL()");
+		PERFORMANCEAPI_INSTRUMENT("updateGL()");
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 		ui->glWidget->update();
 #else
