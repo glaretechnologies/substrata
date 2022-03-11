@@ -22,7 +22,7 @@ LoadScriptTask::~LoadScriptTask()
 
 void LoadScriptTask::run(size_t thread_index)
 {
-	conPrint("LoadScriptTask: Loading script...");
+	// conPrint("LoadScriptTask: Loading script...");
 
 	try
 	{

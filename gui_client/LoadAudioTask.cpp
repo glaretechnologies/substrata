@@ -26,7 +26,7 @@ void LoadAudioTask::run(size_t thread_index)
 	//if(!just_inserted)
 	//	return;
 
-	conPrint("LoadAudioTask: Loading '" + audio_source_path + "'...");
+	// conPrint("LoadAudioTask: Loading '" + audio_source_path + "'...");
 
 	try
 	{
