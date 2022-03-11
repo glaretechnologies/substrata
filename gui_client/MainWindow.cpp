@@ -41,6 +41,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "LoadModelTask.h"
 #include "LoadTextureTask.h"
 #include "LoadAudioTask.h"
+#include "MakeHypercardTextureTask.h"
 #include "SaveResourcesDBThread.h"
 #include "CameraController.h"
 #include "BiomeManager.h"
@@ -739,7 +740,7 @@ void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& p
 	ResourceRef resource = resource_manager->getOrCreateResourceForURL(url);
 	if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
 	{
-		conPrint("Already present or being downloaded, skipping...");
+		//conPrint("Already present or being downloaded, skipping...");
 		return;
 	}
 
@@ -1253,8 +1254,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 		if(ob->object_type == WorldObject::ObjectType_Hypercard)
 		{
-			// Since makeHypercardTexMap does OpenGL calls, do this in the main thread for now.
-
 			removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
 			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
@@ -1267,9 +1266,29 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
 			opengl_ob->materials.resize(1);
 			opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-			opengl_ob->materials[0].albedo_texture = this->makeHypercardTexMap(ob->content, /*uint8map_out=*/ob->hypercard_map);
 			opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+
+			const std::string tex_key = "hypercard_" + ob->content;
+
+			// If the hypercard texture is already loaded, use it
+			opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+			opengl_ob->materials[0].tex_path = tex_key;
+
+			if(opengl_ob->materials[0].albedo_texture.isNull())
+			{
+				const bool just_added = checkAddTextureToProcessedSet(tex_key);
+				if(just_added) // not being loaded already:
+				{
+					Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
+					task->main_window = this;
+					task->hypercard_content = ob->content;
+					task->opengl_engine = ui->glWidget->opengl_engine;
+					this->model_and_texture_loader_task_manager.addTask(task);
+				}
+			}
+
 
 			ob->opengl_engine_ob = opengl_ob;
 			ob->physics_object = physics_ob;
@@ -1861,7 +1880,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 {
 	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
 	{
-		conPrint("MainWindow::loadAudioForObject(): AUDIO_SOURCE_URL_CHANGED bit was set, setting state to AudioState_NotLoaded.");
+		//conPrint("MainWindow::loadAudioForObject(): AUDIO_SOURCE_URL_CHANGED bit was set, setting state to AudioState_NotLoaded.");
 		ob->audio_state = WorldObject::AudioState_NotLoaded;
 		BitUtils::zeroBit(ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED);
 	}
@@ -3770,6 +3789,31 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
 				script_content_processed.erase(loaded_msg->script);
 			}
+			else if(dynamic_cast<HypercardTexMadeMessage*>(msg.getPointer()))
+			{
+				HypercardTexMadeMessage* loaded_msg = static_cast<HypercardTexMadeMessage*>(msg.ptr());
+
+				const std::string tex_key = "hypercard_" + loaded_msg->hypercard_content;
+				// Now that this texture is loaded, removed from textures_processed set.
+				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+				{
+					Lock lock(textures_processed_mutex);
+					textures_processed.erase(tex_key);
+				}
+
+				// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
+
+				//Timer timer;
+				try
+				{
+					// ui->glWidget->makeCurrent();
+					ui->glWidget->opengl_engine->textureLoaded(/*path=*/tex_key, OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+				}
+				catch(glare::Exception& e)
+				{
+					print("Error while loading texture: " + e.what());
+				}
+			}
 			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
 				this->connection_state = ServerConnectionState_Connected;
@@ -4819,7 +4863,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// Decompress voxel group
 						//ob->decompressVoxels();
 
-						proximity_loader.checkAddObject(ob); // Calls loadModelForObject() if it is within load distance.
+						proximity_loader.checkAddObject(ob); // Calls loadModelForObject() and loadAudioForObject() if it is within load distance.
 
 						//bool reload_opengl_model = false; // Do we need to load or reload model?
 						//if(ob->opengl_engine_ob.isNull())
@@ -4850,6 +4894,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						//}
 						//else
 						//{
+						
+						if(ob->state != WorldObject::State_JustCreated) // Don't reload materials when we just created the object.
+						{
 							// Update transform for object in OpenGL engine
 							if(ob->opengl_engine_ob.nonNull() && (ob != selected_ob.getPointer())) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
 							{
@@ -4867,13 +4914,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								active_objects.insert(ob);
 							}
+
+							if(ob == selected_ob.ptr())
+								ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
+
+							loadAudioForObject(ob); // Check for re-loading audio if audio URL changed.
+						}
 						//}
 
-						ob->from_remote_other_dirty = false;
-						ob->from_remote_model_url_dirty = false;
-
-						if(ob == selected_ob.ptr())
-							ui->objectEditor->objectModelURLUpdated(*ob); // Update model URL in UI if we have selected the object.
+						
 
 						if(ob->state == WorldObject::State_JustCreated)
 						{
@@ -4891,7 +4940,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								selectObject(ob, /*selected_tri_index=*/0); // select it
 						}
 
-						loadAudioForObject(ob);
+						ob->from_remote_other_dirty = false;
+						ob->from_remote_model_url_dirty = false;
 					}
 				}
 				else if(ob->from_remote_lightmap_url_dirty)
@@ -7168,8 +7218,26 @@ void MainWindow::objectEditedSlot()
 						ui->glWidget->makeCurrent();
 
 						opengl_ob->materials.resize(1);
-						opengl_ob->materials[0].albedo_texture = makeHypercardTexMap(selected_ob->content, /*uint8map_out=*/selected_ob->hypercard_map);
 						opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+
+						const std::string tex_key = "hypercard_" + selected_ob->content;
+
+						// If the hypercard texture is already loaded, use it
+						opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+						opengl_ob->materials[0].tex_path = tex_key;
+
+						if(opengl_ob->materials[0].albedo_texture.isNull())
+						{
+							const bool just_added = checkAddTextureToProcessedSet(tex_key);
+							if(just_added) // not being loaded already:
+							{
+								Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
+								task->main_window = this;
+								task->hypercard_content = selected_ob->content;
+								task->opengl_engine = ui->glWidget->opengl_engine;
+								this->model_and_texture_loader_task_manager.addTask(task);
+							}
+						}
 
 						opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
 						selected_ob->opengl_engine_ob = opengl_ob;
@@ -9190,44 +9258,6 @@ OpenGLTextureRef MainWindow::makeToolTipTexture(const std::string& tooltip_text)
 
 	return ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("tooltip_" + tooltip_text), *map,
 		OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Clamp, /*allow compression=*/false);
-}
-
-
-Reference<OpenGLTexture> MainWindow::makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out)
-{
-	//conPrint("makeHypercardGLObject(), content: " + content);
-	
-	//Timer timer;
-	const int W = 512;
-	const int H = 512;
-
-	// Make hypercard texture
-
-	ImageMapUInt8Ref map = new ImageMapUInt8(W, H, 3);
-
-	QImage image(W, H, QImage::Format_RGB888);
-	image.fill(QColor(220, 220, 220));
-	QPainter painter(&image);
-	painter.setPen(QPen(QColor(30, 30, 30)));
-	painter.setFont(QFont("helvetica", 30, QFont::Normal));
-	const int padding = 20;
-	painter.drawText(QRect(padding, padding, W - padding*2, H - padding*2), Qt::AlignLeft/* | Qt::AlignVCenter*/, QtUtils::toQString(content));
-
-	// Copy to map
-	for(int y=0; y<H; ++y)
-	{
-		const QRgb* line = (const QRgb*)image.scanLine(y);
-		std::memcpy(map->getPixel(0, y), line, 3*W);
-	}
-	//conPrint("drawing text took " + timer.elapsedString());
-	//timer.reset();
-	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("hypercard_" + content), *map/*, this->build_uint8_map_scratch_state*/);
-	
-	//conPrint("getOrLoadOpenGLTexture took " + timer.elapsedString());
-
-	uint8_map_out = map;
-
-	return tex;
 }
 
 

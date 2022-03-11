@@ -182,7 +182,6 @@ private:
 public:
 	virtual OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
 private:
-	Reference<OpenGLTexture> makeHypercardTexMap(const std::string& content, ImageMapUInt8Ref& uint8_map_out);
 	void loadModelForObject(WorldObject* ob);
 	void loadModelForAvatar(Avatar* ob);
 	void loadScriptForObject(WorldObject* ob);
