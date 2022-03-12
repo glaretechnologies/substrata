@@ -64,30 +64,23 @@ void LoadModelTask::run(size_t thread_index)
 			assert(!lod_model_url.empty());
 
 			// We want to load and build the mesh at lod_model_url.
-			const bool just_inserted = main_window->checkAddModelToProcessedSet(lod_model_url); // Mark model as being processed so another LoadModelTask doesn't try and process it also.
-			if(just_inserted)
-			{
-				// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
-				gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager, *this->mesh_manager, 
-					*model_building_task_manager, 
-					/*vert_buf_allocator=*/NULL, 
-					true, // skip_opengl_calls - we need to do these on the main thread.
-					raymesh);
-			}
+			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
+			gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager, *this->mesh_manager, 
+				*model_building_task_manager, 
+				/*vert_buf_allocator=*/NULL, 
+				true, // skip_opengl_calls - we need to do these on the main thread.
+				raymesh);
 		}
 
-		if(gl_meshdata.nonNull()) // If we actually loaded a model (may have already been loaded):
-		{
-			// Send a ModelLoadedThreadMessage back to main window.
-			Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
-			msg->gl_meshdata = gl_meshdata;
-			msg->raymesh = raymesh;
-			msg->lod_model_url = lod_model_url;
-			msg->voxel_ob = voxel_ob;
-			msg->voxel_ob_lod_level = voxel_ob_lod_level;
-			msg->subsample_factor = subsample_factor;
-			main_window->msg_queue.enqueue(msg);
-		}
+		// Send a ModelLoadedThreadMessage back to main window.
+		Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
+		msg->gl_meshdata = gl_meshdata;
+		msg->raymesh = raymesh;
+		msg->lod_model_url = lod_model_url;
+		msg->voxel_ob = voxel_ob;
+		msg->voxel_ob_lod_level = voxel_ob_lod_level;
+		msg->subsample_factor = subsample_factor;
+		main_window->msg_queue.enqueue(msg);
 	}
 	catch(glare::Exception& e)
 	{

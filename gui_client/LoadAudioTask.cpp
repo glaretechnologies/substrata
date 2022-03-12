@@ -22,10 +22,6 @@ LoadAudioTask::~LoadAudioTask()
 
 void LoadAudioTask::run(size_t thread_index)
 {
-	//const bool just_inserted = main_window->checkAddAudioToProcessedSet(audio_source_url); // Mark audio as being processed so another LoadTextureTask doesn't try and process it also.
-	//if(!just_inserted)
-	//	return;
-
 	// conPrint("LoadAudioTask: Loading '" + audio_source_path + "'...");
 
 	try

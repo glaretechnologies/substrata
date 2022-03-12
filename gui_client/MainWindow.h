@@ -242,14 +242,8 @@ private:
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 public:
 	bool checkAddTextureToProcessedSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool isTextureProcessed(const std::string& path) const;
-	
 	bool checkAddModelToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool isModelProcessed(const std::string& url) const;
-
 	bool checkAddAudioToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
-	//bool isAudioProcessed(const std::string& url) const;
-
 	bool checkAddScriptToProcessedSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
 
@@ -446,17 +440,14 @@ private:
 
 
 
-	mutable Mutex textures_processed_mutex;
 	// Textures being loaded or already loaded.
 	// We have this set so that we don't process the same texture from multiple LoadTextureTasks running in parallel.
 	std::unordered_set<std::string> textures_processed;
 
-	mutable Mutex models_processed_mutex;
 	// Models being loaded or already loaded.
 	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
 	std::unordered_set<std::string> models_processed;
 
-	mutable Mutex audio_processed_mutex;
 	// Audio files being loaded or already loaded.
 	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
 	std::unordered_set<std::string> audio_processed;

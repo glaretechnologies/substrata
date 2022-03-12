@@ -32,15 +32,12 @@ void LoadTextureTask::run(size_t thread_index)
 		if(main_window->texture_server->isTextureLoadedForRawName(key)) // If this texture is already loaded, return.
 			return;
 
-		const bool just_inserted = main_window->checkAddTextureToProcessedSet(path); // Mark texture as being processed so another LoadTextureTask doesn't try and process it also.
-		if(!just_inserted)
-			return;
-
+		// Load texture from disk and decode it.
 		Reference<Map2D> map;
 		if(hasExtension(key, "gif"))
 			map = GIFDecoder::decodeImageSequence(key);
 		else
-			map = ImFormatDecoder::decodeImage(".", key); // Load texture from disk and decode it.
+			map = ImFormatDecoder::decodeImage(".", key);
 
 		// Process 8-bit textures (do DXT compression, mip-map computation etc..) in this thread.
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))

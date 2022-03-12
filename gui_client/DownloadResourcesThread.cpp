@@ -256,7 +256,7 @@ void DownloadResourcesThread::doRun()
 						else
 						{
 							resource->setState(Resource::State_NotPresent);
-							conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "' (Result=" + toString(result) + ")");
+							//conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "' (Result=" + toString(result) + ")");
 						}
 
 						(*this->num_resources_downloading)--;
