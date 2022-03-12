@@ -773,37 +773,20 @@ void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& p
 
 bool MainWindow::checkAddTextureToProcessedSet(const std::string& path)
 {
-	Lock lock(textures_processed_mutex);
 	auto res = textures_processed.insert(path);
 	return res.second; // Was texture inserted? (will be false if already present in set)
 }
 
 
-bool MainWindow::isTextureProcessed(const std::string& path) const
-{
-	Lock lock(textures_processed_mutex);
-	return textures_processed.count(path) > 0;
-}
-
-
 bool MainWindow::checkAddModelToProcessedSet(const std::string& url)
 {
-	Lock lock(models_processed_mutex);
 	auto res = models_processed.insert(url);
 	return res.second; // Was model inserted? (will be false if already present in set)
 }
 
 
-bool MainWindow::isModelProcessed(const std::string& url) const
-{
-	Lock lock(models_processed_mutex);
-	return models_processed.count(url) > 0;
-}
-
-
 bool MainWindow::checkAddAudioToProcessedSet(const std::string& url)
 {
-	Lock lock(audio_processed_mutex);
 	auto res = audio_processed.insert(url);
 	return res.second; // Was audio inserted? (will be false if already present in set)
 }
@@ -834,10 +817,11 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
-				!this->isTextureProcessed(tex_path)) // and not being loaded already:
+				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
 			{
-				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				if(just_added)
+					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
 			}
 		}
 
@@ -848,10 +832,11 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
-				!this->isTextureProcessed(tex_path)) // and not being loaded already:
+				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
 			{
-				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
+				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				if(just_added)
+					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
 			}
 		}
 	}
@@ -864,10 +849,11 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 		if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
-			!this->isTextureProcessed(tex_path)) // and not being loaded already:
+			!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
 		{
-			this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+			const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+			if(just_added)
+				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
 		}
 	}
 #endif
@@ -885,10 +871,11 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
-				!this->isTextureProcessed(tex_path)) // and not being loaded already:
+				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already,
 			{
-				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				if(just_added)
+					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
 			}
 		}
 
@@ -898,10 +885,11 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
-				!this->isTextureProcessed(tex_path)) // and not being loaded already:
+				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
 			{
-				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
+				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				if(just_added)
+					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
 			}
 		}
 	}
@@ -1381,6 +1369,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 			if(!ob->model_url.empty())
 			{
+				bool added_opengl_ob = false;
 				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
 
 				ob->current_lod_level = ob_lod_level;
@@ -1389,99 +1378,90 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 				if(resource_manager->isFileForURLPresent(lod_model_url))
 				{
-					const bool load_in_task = !(this->isModelProcessed(lod_model_url) || mesh_manager.isMeshDataInserted(lod_model_url)); // Is model not being loaded or is not loaded already.
-
-					if(load_in_task)
+					const bool in_mesh_manager = mesh_manager.isMeshDataInserted(lod_model_url); // Has mesh been loaded from disk into host mem?
+					if(!in_mesh_manager)
 					{
-						// Do the model loading in a different thread
-						Reference<LoadModelTask> load_model_task = new LoadModelTask();
+						const bool just_added = this->checkAddModelToProcessedSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
+						if(just_added)
+						{
+							// Do the model loading in a different thread
+							Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-						load_model_task->lod_model_url = lod_model_url;
-						load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-						load_model_task->main_window = this;
-						load_model_task->mesh_manager = &mesh_manager;
-						load_model_task->resource_manager = resource_manager;
-						load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
+							load_model_task->lod_model_url = lod_model_url;
+							load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
+							load_model_task->main_window = this;
+							load_model_task->mesh_manager = &mesh_manager;
+							load_model_task->resource_manager = resource_manager;
+							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-						model_and_texture_loader_task_manager.addTask(load_model_task);
-
-						load_placeholder = true;
+							model_and_texture_loader_task_manager.addTask(load_model_task);
+						}
 					}
 					else
 					{
-						// Model is either being loaded, or is already loaded.
-					
-						if(mesh_manager.isMeshDataInserted(lod_model_url)) // If model mesh data is already loaded:
+						// Model is loaded into the mesh manager (host mem), but it may not be loaded into OpenGL yet.
+						bool is_meshdata_loaded_into_opengl = false;
 						{
-							bool is_meshdata_loaded_into_opengl = false;
-							{
-								Lock lock(mesh_manager.getMutex());
+							Lock lock(mesh_manager.getMutex());
 
-								auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_url);
-								if(res != mesh_manager.model_URL_to_mesh_map.end())
-								{
-									is_meshdata_loaded_into_opengl = res->second.gl_meshdata->vbo_handle.valid();
-								}
-							}
-
-							if(is_meshdata_loaded_into_opengl)
-							{
-								removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-								// Create gl and physics object now
-								Reference<RayMesh> raymesh;
-								ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, 
-									&ui->glWidget->opengl_engine->vert_buf_allocator,
-									ob_to_world_matrix,
-									false, // skip opengl calls
-									raymesh);
-
-								assert(ob->opengl_engine_ob->mesh_data->vbo_handle.valid());
-								if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-									OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
-
-
-								assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
-
-								ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-								ob->physics_object->geometry = raymesh;
-								ob->physics_object->ob_to_world = ob_to_world_matrix;
-								ob->physics_object->userdata = ob;
-								ob->physics_object->userdata_type = 0;
-
-								ob->loaded_model_lod_level = ob_model_lod_level;
-
-								//Timer timer;
-								ui->glWidget->addObject(ob->opengl_engine_ob);
-								//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
-
-								physics_world->addObject(ob->physics_object);
-								physics_world->rebuild(task_manager, print_output);
-
-								ui->indigoView->objectAdded(*ob, *this->resource_manager);
-
-								loadScriptForObject(ob); // Load any script for the object.
-
-								doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
-
-								// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-								if(this->selected_ob == ob)
-									ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
-							}
+							auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_url);
+							if(res != mesh_manager.model_URL_to_mesh_map.end())
+								is_meshdata_loaded_into_opengl = res->second.gl_meshdata->vbo_handle.valid();
 						}
-						else
+
+						if(is_meshdata_loaded_into_opengl)
 						{
-							load_placeholder = true;
+							removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+							// Create gl and physics object now
+							Reference<RayMesh> raymesh;
+							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, 
+								&ui->glWidget->opengl_engine->vert_buf_allocator,
+								ob_to_world_matrix,
+								false, // skip opengl calls
+								raymesh);
+
+							assert(ob->opengl_engine_ob->mesh_data->vbo_handle.valid());
+							if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
+
+
+							assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+
+							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+							ob->physics_object->geometry = raymesh;
+							ob->physics_object->ob_to_world = ob_to_world_matrix;
+							ob->physics_object->userdata = ob;
+							ob->physics_object->userdata_type = 0;
+
+							ob->loaded_model_lod_level = ob_model_lod_level;
+
+							//Timer timer;
+							ui->glWidget->addObject(ob->opengl_engine_ob);
+							//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+
+							physics_world->addObject(ob->physics_object);
+							physics_world->rebuild(task_manager, print_output);
+
+							ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+							loadScriptForObject(ob); // Load any script for the object.
+
+							doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
+
+							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+							if(this->selected_ob == ob)
+								ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+
+							added_opengl_ob = true;
 						}
 					}
 				} 
-				else // else if(!resource_manager->isFileForURLPresent(lod_model_url)):
-				{
-					load_placeholder = true;
-				}
 
-				if(load_placeholder)
+				if(!added_opengl_ob)
 					this->loading_model_URL_to_world_ob_UID_map[lod_model_url].insert(ob->uid);
+
+				load_placeholder = !added_opengl_ob;
 			}
 		}
 		else
@@ -1565,7 +1545,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 		}*/
 
 
-		bool load_placeholder = false;
+		bool added_opengl_ob = false;
 
 		const std::string lod_model_url = WorldObject::getLODModelURLForLevel(avatar->avatar_settings.model_url, ob_model_lod_level);
 
@@ -1575,29 +1555,38 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 
 		if(resource_manager->isFileForURLPresent(lod_model_url))
 		{
-			const bool load_in_task = !(this->isModelProcessed(lod_model_url) || mesh_manager.isMeshDataInserted(lod_model_url)); // Is model not being loaded or is not loaded already.
-
-			if(load_in_task)
+			const bool in_mesh_manager = mesh_manager.isMeshDataInserted(lod_model_url); // Has mesh been loaded from disk into host mem?
+			if(!in_mesh_manager)
 			{
-				// Do the model loading in a different thread
-				Reference<LoadModelTask> load_model_task = new LoadModelTask();
+				const bool just_added = this->checkAddModelToProcessedSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
+				if(just_added)
+				{
+					// Do the model loading in a different thread
+					Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-				load_model_task->lod_model_url = lod_model_url;
-				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-				load_model_task->main_window = this;
-				load_model_task->mesh_manager = &mesh_manager;
-				load_model_task->resource_manager = resource_manager;
-				load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
+					load_model_task->lod_model_url = lod_model_url;
+					load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
+					load_model_task->main_window = this;
+					load_model_task->mesh_manager = &mesh_manager;
+					load_model_task->resource_manager = resource_manager;
+					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-				model_and_texture_loader_task_manager.addTask(load_model_task);
-
-				load_placeholder = true;
+					model_and_texture_loader_task_manager.addTask(load_model_task);
+				}
 			}
 			else
 			{
-				// Model is either being loaded, or is already loaded.
+				// Model is loaded into the mesh manager (host mem), but it may not be loaded into OpenGL yet.
+				bool is_meshdata_loaded_into_opengl = false;
+				{
+					Lock lock(mesh_manager.getMutex());
 
-				if(mesh_manager.isMeshDataInserted(lod_model_url)) // If model mesh data is already loaded:
+					auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_url);
+					if(res != mesh_manager.model_URL_to_mesh_map.end())
+						is_meshdata_loaded_into_opengl = res->second.gl_meshdata->vbo_handle.valid();
+				}
+
+				if(is_meshdata_loaded_into_opengl)
 				{
 					removeAndDeleteGLObjectForAvatar(*avatar);
 
@@ -1640,19 +1629,13 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 							avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
 						}
 					}
-				}
-				else
-				{
-					load_placeholder = true;
+
+					added_opengl_ob = true;
 				}
 			}
-		} 
-		else // else if(!resource_manager->isFileForURLPresent(lod_model_url)):
-		{
-			load_placeholder = true;
 		}
 
-		if(load_placeholder)
+		if(!added_opengl_ob)
 		{
 			this->loading_model_URL_to_avatar_UID_map[lod_model_url].insert(avatar->uid);
 
@@ -3627,10 +3610,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					// Now that this texture is loaded, removed from textures_processed set.
 					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-					{
-						Lock lock(textures_processed_mutex);
-						textures_processed.erase(message->tex_key);
-					}
+					textures_processed.erase(message->tex_key);
 
 					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 
@@ -3759,10 +3739,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				// Now that this audio is loaded, removed from audio_processed set.
 				// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
-				{
-					Lock lock(audio_processed_mutex);
-					audio_processed.erase(loaded_msg->audio_source_url);
-				}
+				audio_processed.erase(loaded_msg->audio_source_url);
 			}
 			else if(dynamic_cast<ScriptLoadedThreadMessage*>(msg.getPointer()))
 			{
@@ -3796,10 +3773,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const std::string tex_key = "hypercard_" + loaded_msg->hypercard_content;
 				// Now that this texture is loaded, removed from textures_processed set.
 				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-				{
-					Lock lock(textures_processed_mutex);
-					textures_processed.erase(tex_key);
-				}
+				textures_processed.erase(tex_key);
 
 				// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 
@@ -4218,10 +4192,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						
 							const std::string tex_path = local_path;
 
-							if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded
-								!this->isTextureProcessed(tex_path)) // and not being loaded already:
+							if(!this->texture_server->isTextureLoadedForPath(tex_path)) // If not loaded
 							{
-								this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/use_SRGB)); 
+								const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+								if(just_added)
+									this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/use_SRGB)); 
 							}
 						}
 						else if(hasAudioFileExtension(local_path))
@@ -7655,10 +7630,10 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	this->ui->indigoView->shutdown();
 
 	// Clear textures_processed set.
-	{
-		Lock lock(textures_processed_mutex);
-		textures_processed.clear();
-	}
+	textures_processed.clear();
+	models_processed.clear();
+	audio_processed.clear();
+	script_content_processed.clear();
 
 	texture_server->clear();
 	
