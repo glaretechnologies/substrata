@@ -169,7 +169,7 @@ void AddObjectDialog::makeMeshForWidthAndHeight(glare::TaskManager& task_manager
 		use_w = (float)w / (float)h;
 	}
 
-	MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, objectPreviewGLWidget->opengl_engine->vert_buf_allocator);
+	MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator);
 
 	const float depth = 0.02f;
 	const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
@@ -339,7 +339,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				use_w = (float)im->getMapWidth() / (float)im->getMapHeight();
 			}
 
-			MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, objectPreviewGLWidget->opengl_engine->vert_buf_allocator);
+			MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator);
 
 			const float depth = 0.02f;
 			const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
@@ -385,7 +385,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		}
 		else // Else is not an image or an MP4 file:
 		{
-			preview_gl_ob = ModelLoading::makeGLObjectForModelFile(objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_path,
+			preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_path,
 				this->loaded_mesh, // mesh out
 				*this->loaded_object
 			);

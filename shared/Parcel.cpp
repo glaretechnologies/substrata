@@ -356,7 +356,7 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 				normals[face*4 + z] = normalise(crossProduct(v1 - v0, v2 - v0));
 		}
 
-		opengl_engine->buildMeshRenderData(opengl_engine->vert_buf_allocator, *mesh_data, mesh_verts, normals, uvs, indices);
+		opengl_engine->buildMeshRenderData(*opengl_engine->vert_buf_allocator, *mesh_data, mesh_verts, normals, uvs, indices);
 
 		Reference<GLObject> ob = new GLObject();
 

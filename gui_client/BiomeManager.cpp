@@ -347,7 +347,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 		{
 
 		RayMeshRef tree_raymesh;
-		GLObjectRef tree_opengl_ob = makeElmTreeOb(opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, tree_raymesh);
+		GLObjectRef tree_opengl_ob = makeElmTreeOb(*opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, tree_raymesh);
 
 		// Compute some tree instance points
 		// Scatter elm tree
@@ -374,7 +374,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 			tree_opengl_ob->instance_info[z].to_world = ob_instances[z].to_world;
 		}
 
-		tree_opengl_ob->enableInstancing(opengl_engine.vert_buf_allocator, instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size());
+		tree_opengl_ob->enableInstancing(*opengl_engine.vert_buf_allocator, instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size());
 		
 		opengl_engine.addObject(tree_opengl_ob);
 		tree_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
@@ -382,7 +382,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 
 		// Add the imposter instances to the opengl engine as well
-		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, elm_imposters_tex);
+		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(*opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, elm_imposters_tex);
 
 		tree_imposter_opengl_ob->instance_info.resize(ob_instances.size());
 		js::Vector<Matrix4f, 16> imposter_matrices(ob_instances.size());
@@ -394,7 +394,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 			tree_imposter_opengl_ob->instance_info[z].to_world = imposter_matrices[z];
 		}
-		tree_imposter_opengl_ob->enableInstancing(opengl_engine.vert_buf_allocator, imposter_matrices.data(), sizeof(Matrix4f) * imposter_matrices.size());
+		tree_imposter_opengl_ob->enableInstancing(*opengl_engine.vert_buf_allocator, imposter_matrices.data(), sizeof(Matrix4f) * imposter_matrices.size());
 
 		opengl_engine.addObject(tree_imposter_opengl_ob);
 		tree_imposter_opengl_ob->aabb_ws = ob_trees_aabb_ws; // override AABB with AABB of all instances
@@ -536,7 +536,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 					gl_ob->ob_to_world_matrix.setToTranslationMatrix(new_quad.x * patch_w, new_quad.y * patch_w, 0);
 					gl_ob->mesh_data = this->grass_ob->mesh_data;
 
-					gl_ob->enableInstancing(opengl_engine.vert_buf_allocator, instance_matrices_temp.data(), sizeof(Matrix4f) * num_scatter_points);
+					gl_ob->enableInstancing(*opengl_engine.vert_buf_allocator, instance_matrices_temp.data(), sizeof(Matrix4f) * num_scatter_points);
 
 					opengl_engine.addObject(gl_ob);
 					
