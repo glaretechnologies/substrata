@@ -138,6 +138,8 @@ ${INDIGO_UTILS_DIR}/Array2D.h
 ${INDIGO_UTILS_DIR}/Array3D.h
 ${INDIGO_UTILS_DIR}/Base64.cpp
 ${INDIGO_UTILS_DIR}/Base64.h
+${INDIGO_UTILS_DIR}/BestFitAllocator.cpp
+${INDIGO_UTILS_DIR}/BestFitAllocator.h
 ${INDIGO_UTILS_DIR}/BitField.cpp
 ${INDIGO_UTILS_DIR}/BitField.h
 ${INDIGO_UTILS_DIR}/BitUtils.cpp
