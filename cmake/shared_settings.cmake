@@ -281,6 +281,8 @@ ${INDIGO_UTILS_DIR}/Database.cpp
 ${INDIGO_UTILS_DIR}/Database.h
 ${INDIGO_UTILS_DIR}/DatabaseTests.cpp
 ${INDIGO_UTILS_DIR}/DatabaseTests.h
+${INDIGO_UTILS_DIR}/BufferViewInStream.cpp
+${INDIGO_UTILS_DIR}/BufferViewInStream.h
 )
 
 
