@@ -96,7 +96,7 @@ void TestSuite::test(const std::string& appdata_path)
 	
 	runTest([&]() { ModelLoading::test(); });
 
-	runTest([&]() { AudioFileReader::test(); });
+	runTest([&]() { glare::AudioFileReader::test(); });
 
 	//TLSSocketTests::test();
 	//URLParser::test();
