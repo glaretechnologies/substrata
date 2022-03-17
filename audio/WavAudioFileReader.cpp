@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "../utils/StringUtils.h"
 #include "../utils/FileInStream.h"
+#include "../utils/BufferViewInStream.h"
 #include "../utils/Check.h"
 
 
@@ -27,11 +28,19 @@ static inline int32 signExtend24BitValue(int32 x)
 
 glare::SoundFileRef glare::WavAudioFileReader::readAudioFile(const std::string& sound_file_path)
 {
+	FileInStream file(sound_file_path);
+
+	return readAudioFileFromBuffer((const uint8*)file.fileData(), file.fileSize());
+}
+
+
+glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uint8* data, size_t len)
+{
 	try
 	{
-		SoundFileRef sound = new SoundFile();
+		BufferViewInStream file(ArrayRef<uint8>(data, len));
 
-		FileInStream file(sound_file_path);
+		SoundFileRef sound = new SoundFile();
 
 		const uint32 riff_chunk_id = file.readUInt32();
 		if(riff_chunk_id != 0x46464952) // big endian: 0x52494646
@@ -76,11 +85,15 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFile(const std::string& 
 				// Read actual data, convert to float and resample to target sample rate
 				const uint32 num_samples = chunk_size / bytes_per_sample;
 
+				const uint32 MAX_NUM_SAMPLES = 1 << 27; // ~536 MB
+				if(num_samples > MAX_NUM_SAMPLES)
+					throw glare::Exception("too many samples: " + toString(num_samples));
+
 				//const uint32 num_samples = num_samples / wav_num_channels;
 				sound->buf->buffer.resize(num_samples / wav_num_channels); // TEMP: mix down to mono
 
 				const size_t expected_remaining = bytes_per_sample * num_samples;
-				if(file.getReadIndex() + expected_remaining > file.fileSize())
+				if(file.getReadIndex() + expected_remaining > file.size())
 					throw glare::Exception("not enough data in file.");
 
 				if(bytes_per_sample == 2)
@@ -110,7 +123,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFile(const std::string& 
 				{
 					if(wav_num_channels == 1)
 					{
-						doRuntimeCheck(file.getReadIndex() + num_samples * 3 <= file.fileSize());
+						doRuntimeCheck(file.getReadIndex() + num_samples * 3 <= file.size());
 						const uint8* src = (const uint8*)file.currentReadPtr();
 						for(uint32 i=0; i<num_samples; ++i)
 						{
@@ -125,7 +138,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFile(const std::string& 
 					else if(wav_num_channels == 2)
 					{
 						// Mix down to mono
-						doRuntimeCheck(file.getReadIndex() + num_samples * 3 <= file.fileSize());
+						doRuntimeCheck(file.getReadIndex() + num_samples * 3 <= file.size());
 						const uint8* src = (const uint8*)file.currentReadPtr();
 						for(uint32 i=0; i<num_samples / wav_num_channels; ++i)
 						{
@@ -178,9 +191,9 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFile(const std::string& 
 
 		return sound;
 	}
-	catch(glare::Exception& e)
+	catch(std::bad_alloc&)
 	{
-		throw e;
+		throw glare::Exception("bad alloc");
 	}
 }
 
@@ -192,6 +205,32 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFile(const std::string& 
 #include "../utils/ConPrint.h"
 #include "../utils/Timer.h"
 #include "../utils/FileUtils.h"
+
+
+#if 0
+// Command line:
+// C:\fuzz_corpus\wav -max_len=1000000 -seed=1
+
+extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv)
+{
+	return 0;
+}
+
+
+// We will use the '!' character to break apart the input buffer into different 'packets'.
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+	try
+	{
+		glare::WavAudioFileReader::readAudioFileFromBuffer(data, size);
+	}
+	catch(glare::Exception&)
+	{
+	}
+	
+	return 0;  // Non-zero return values are reserved for future use.
+}
+#endif
 
 
 static void checkSound(glare::SoundFileRef sound_file)
