@@ -14,7 +14,6 @@ Code By Nicholas Chapman.
 #include "../shared/LODGeneration.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
-#include "../graphics/formatdecoderobj.h"
 #include "../graphics/imformatdecoder.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"

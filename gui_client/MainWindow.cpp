@@ -100,7 +100,6 @@ Copyright Glare Technologies Limited 2020 -
 //#include "../networking/TLSSocketTests.h" // Just for testing
 
 #include "../simpleraytracer/ray.h"
-#include "../graphics/formatdecoderobj.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
 //#include "../opengl/EnvMapProcessing.h"
@@ -682,25 +681,6 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 		this->ui->indigoView->shutdown();
 	}
 }
-
-
-//static Reference<GLObject> loadAvatarModel(const std::string& model_url)
-//{
-//	// TEMP HACK: Just load a teapot for now :)
-//
-//	Indigo::MeshRef mesh = new Indigo::Mesh();
-//	MLTLibMaterials mats;
-//	FormatDecoderObj::streamModel("teapot.obj", *mesh, 1.f, true, mats);
-//
-//	GLObjectRef ob = new GLObject();
-//	ob->materials.resize(1);
-//	ob->materials[0].albedo_rgb = Colour3f(0.3f, 0.5f, 0.4f);
-//	ob->materials[0].fresnel_scale = 1;
-//
-//	ob->ob_to_world_matrix.setToTranslationMatrix(0, 0, 0);
-//	ob->mesh_data = OpenGLEngine::buildIndigoMesh(mesh, false);
-//	return ob;
-//}
 
 
 /*static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const Vec3f& rotation)
