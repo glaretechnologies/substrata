@@ -98,8 +98,8 @@ extern "C" {
 int mp3dec_detect_buf(const uint8_t *buf, size_t buf_size);
 int mp3dec_detect_cb(mp3dec_io_t *io, uint8_t *buf, size_t buf_size);
 /* decode whole buffer block */
-int mp3dec_load_buf(mp3dec_t *dec, const uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data);
-int mp3dec_load_cb(mp3dec_t *dec, mp3dec_io_t *io, uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data);
+int mp3dec_load_buf(mp3dec_t *dec, const uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data, size_t max_alloc);
+int mp3dec_load_cb(mp3dec_t *dec, mp3dec_io_t *io, uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data, size_t max_alloc);
 /* iterate through frames */
 int mp3dec_iterate_buf(const uint8_t *buf, size_t buf_size, MP3D_ITERATE_CB callback, void *user_data);
 int mp3dec_iterate_cb(mp3dec_io_t *io, uint8_t *buf, size_t buf_size, MP3D_ITERATE_CB callback, void *user_data);
@@ -280,12 +280,12 @@ int mp3dec_detect_cb(mp3dec_io_t *io, uint8_t *buf, size_t buf_size)
     return MP3D_E_USER;
 }
 
-int mp3dec_load_buf(mp3dec_t *dec, const uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data)
+int mp3dec_load_buf(mp3dec_t *dec, const uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data, size_t max_alloc)
 {
-    return mp3dec_load_cb(dec, 0, (uint8_t *)buf, buf_size, info, progress_cb, user_data);
+    return mp3dec_load_cb(dec, 0, (uint8_t *)buf, buf_size, info, progress_cb, user_data, max_alloc);
 }
 
-int mp3dec_load_cb(mp3dec_t *dec, mp3dec_io_t *io, uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data)
+int mp3dec_load_cb(mp3dec_t *dec, mp3dec_io_t *io, uint8_t *buf, size_t buf_size, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data, size_t max_alloc)
 {
     if (!dec || !buf || !info || (size_t)-1 == buf_size || (io && buf_size < MINIMP3_BUF_SIZE))
         return MP3D_E_PARAM;
@@ -408,6 +408,8 @@ int mp3dec_load_cb(mp3dec_t *dec, mp3dec_io_t *io, uint8_t *buf, size_t buf_size
         allocated += detected_samples*sizeof(mp3d_sample_t);
     else
         allocated += (buf_size/frame_info.frame_bytes)*samples*sizeof(mp3d_sample_t);
+    if (allocated > max_alloc) // GLARE NEWCODE
+         return MP3D_E_MEMORY;
     info->buffer = (mp3d_sample_t*)malloc(allocated);
     if (!info->buffer)
         return MP3D_E_MEMORY;
@@ -422,6 +424,8 @@ int mp3dec_load_cb(mp3dec_t *dec, mp3dec_io_t *io, uint8_t *buf, size_t buf_size
         if ((allocated - info->samples*sizeof(mp3d_sample_t)) < MINIMP3_MAX_SAMPLES_PER_FRAME*sizeof(mp3d_sample_t))
         {
             allocated *= 2;
+            if (allocated > max_alloc) // GLARE NEWCODE
+                return MP3D_E_MEMORY;
             mp3d_sample_t *alloc_buf = (mp3d_sample_t*)realloc(info->buffer, allocated);
             if (!alloc_buf)
                 return MP3D_E_MEMORY;
@@ -489,6 +493,9 @@ int mp3dec_load_cb(mp3dec_t *dec, mp3dec_io_t *io, uint8_t *buf, size_t buf_size
     /* reallocate to normal buffer size */
     if (allocated != info->samples*sizeof(mp3d_sample_t))
     {
+        if (info->samples*sizeof(mp3d_sample_t) > max_alloc) // GLARE NEWCODE
+            return MP3D_E_MEMORY;
+
         mp3d_sample_t *alloc_buf = (mp3d_sample_t*)realloc(info->buffer, info->samples*sizeof(mp3d_sample_t));
         if (!alloc_buf && info->samples)
             return MP3D_E_MEMORY;
@@ -654,6 +661,11 @@ static int mp3dec_load_index(void *user_data, const uint8_t *frame, int frame_si
             dec->index.capacity = 4096;
         else
             dec->index.capacity *= 2;
+
+        const size_t MAX_INDEX_ALLOC = 1 << 20;
+        if (sizeof(mp3dec_frame_t)*dec->index.capacity > MAX_INDEX_ALLOC) // GLARE NEWCODE
+            return MP3D_E_MEMORY;
+
         mp3dec_frame_t *alloc_buf = (mp3dec_frame_t *)realloc((void*)dec->index.frames, sizeof(mp3dec_frame_t)*dec->index.capacity);
         if (!alloc_buf)
             return MP3D_E_MEMORY;
@@ -1266,9 +1278,9 @@ static int mp3dec_detect_mapinfo(mp3dec_map_info_t *map_info)
     return ret;
 }
 
-static int mp3dec_load_mapinfo(mp3dec_t *dec, mp3dec_map_info_t *map_info, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data)
+static int mp3dec_load_mapinfo(mp3dec_t *dec, mp3dec_map_info_t *map_info, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data, size_t max_alloc)
 {
-    int ret = mp3dec_load_buf(dec, map_info->buffer, map_info->size, info, progress_cb, user_data);
+    int ret = mp3dec_load_buf(dec, map_info->buffer, map_info->size, info, progress_cb, user_data, max_alloc);
     mp3dec_close_file(map_info);
     return ret;
 }
@@ -1298,13 +1310,13 @@ int mp3dec_detect(const char *file_name)
     return mp3dec_detect_mapinfo(&map_info);
 }
 
-int mp3dec_load(mp3dec_t *dec, const char *file_name, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data)
+int mp3dec_load(mp3dec_t *dec, const char *file_name, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data, size_t max_alloc)
 {
     int ret;
     mp3dec_map_info_t map_info;
     if ((ret = mp3dec_open_file(file_name, &map_info)))
         return ret;
-    return mp3dec_load_mapinfo(dec, &map_info, info, progress_cb, user_data);
+    return mp3dec_load_mapinfo(dec, &map_info, info, progress_cb, user_data, max_alloc);
 }
 
 int mp3dec_iterate(const char *file_name, MP3D_ITERATE_CB callback, void *user_data)
@@ -1352,13 +1364,13 @@ int mp3dec_detect_w(const wchar_t *file_name)
     return mp3dec_detect_mapinfo(&map_info);
 }
 
-int mp3dec_load_w(mp3dec_t *dec, const wchar_t *file_name, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data)
+int mp3dec_load_w(mp3dec_t *dec, const wchar_t *file_name, mp3dec_file_info_t *info, MP3D_PROGRESS_CB progress_cb, void *user_data, size_t max_alloc)
 {
     int ret;
     mp3dec_map_info_t map_info;
     if ((ret = mp3dec_open_file_w(file_name, &map_info)))
         return ret;
-    return mp3dec_load_mapinfo(dec, &map_info, info, progress_cb, user_data);
+    return mp3dec_load_mapinfo(dec, &map_info, info, progress_cb, user_data, max_alloc);
 }
 
 int mp3dec_iterate_w(const wchar_t *file_name, MP3D_ITERATE_CB callback, void *user_data)

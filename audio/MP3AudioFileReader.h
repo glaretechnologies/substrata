@@ -23,6 +23,8 @@ class MP3AudioFileReader
 public:
 	static SoundFileRef readAudioFile(const std::string& path);
 
+	static SoundFileRef readAudioFileFromBuffer(const uint8* data, size_t len);
+
 	static void test();
 };
 
