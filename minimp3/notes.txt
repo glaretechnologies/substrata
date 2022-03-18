@@ -1,1 +1,4 @@
 From https://github.com/lieff/minimp3, Revision afb604c on Dec 1, 2021
+
+Added some code to bound the maximum allocation size - search for max_alloc and GLARE_NEWCODE in minimp3_ex.h.
+
