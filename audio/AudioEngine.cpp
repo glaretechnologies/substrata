@@ -298,32 +298,65 @@ public:
 						}
 						if(source->type == AudioSource::SourceType_OneShot)
 						{
-							if(source->cur_read_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
+							if(source->shared_buffer.nonNull()) // If we are reading from shared_buffer:
 							{
-								const float* bufptr = &source->buffer[0]/*source->buffer.data()*/ + source->cur_read_i; // NOTE: bit of a hack here, assuming layout of circular buffer (e.g. no wrapping)
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								if(source->cur_read_i + frames_per_buffer <= source->shared_buffer->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
+								{
+									const float* bufptr = &source->shared_buffer->buffer[source->cur_read_i];
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 
-								source->cur_read_i += frames_per_buffer;
+									source->cur_read_i += frames_per_buffer;
+								}
+								else
+								{
+									// Copy data to a temporary contiguous buffer
+									size_t cur_i = source->cur_read_i;
+
+									for(size_t i=0; i<frames_per_buffer; ++i)
+									{
+										if(cur_i < source->shared_buffer->buffer.size())
+											buf[i] = source->shared_buffer->buffer[cur_i++];
+										else
+											buf[i] = 0;
+									}
+
+									source->cur_read_i = cur_i;
+
+									remove_source = source->remove_on_finish && (cur_i >= source->buffer.size()); // Remove the source if we reached the end of the buffer.
+
+									const float* bufptr = buf;
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								}
 							}
 							else
 							{
-								// Copy data to a temporary contiguous buffer
-								size_t cur_i = source->cur_read_i;
-
-								for(size_t i=0; i<frames_per_buffer; ++i)
+								if(source->cur_read_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
 								{
-									if(cur_i < source->buffer.size())
-										buf[i] = source->buffer[cur_i++];
-									else
-										buf[i] = 0;
+									const float* bufptr = &source->buffer[0]/*source->buffer.data()*/ + source->cur_read_i; // NOTE: bit of a hack here, assuming layout of circular buffer (e.g. no wrapping)
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+
+									source->cur_read_i += frames_per_buffer;
 								}
+								else
+								{
+									// Copy data to a temporary contiguous buffer
+									size_t cur_i = source->cur_read_i;
 
-								source->cur_read_i = cur_i;
+									for(size_t i=0; i<frames_per_buffer; ++i)
+									{
+										if(cur_i < source->buffer.size())
+											buf[i] = source->buffer[cur_i++];
+										else
+											buf[i] = 0;
+									}
 
-								remove_source = source->remove_on_finish && (cur_i >= source->buffer.size()); // Remove the source if we reached the end of the buffer.
+									source->cur_read_i = cur_i;
 
-								const float* bufptr = buf;
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+									remove_source = source->remove_on_finish && (cur_i >= source->buffer.size()); // Remove the source if we reached the end of the buffer.
+
+									const float* bufptr = buf;
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								}
 							}
 						}
 						else if(source->type == AudioSource::SourceType_Streaming)
