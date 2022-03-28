@@ -43,7 +43,7 @@ void LoadItemQueue::enqueueItem(const Avatar& ob, const glare::TaskRef& task)
 
 void LoadItemQueue::enqueueItem(const Vec3d& pos, float size_factor, const glare::TaskRef& task)
 {
-	assert(item.pos.isFinite());
+	assert(pos.isFinite());
 
 	LoadItemQueueItem item;
 	item.pos = pos.toVec4fPoint();
