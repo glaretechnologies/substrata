@@ -28,7 +28,7 @@ struct DownloadQueueItem
 
 		// 1 / theta = 1 / (aabb_ws.longestLength() / ob_dist) = ob_dist / aabb_ws.longestLength()
 
-		const float min_len = 0.5f; // Objects smaller than 0.5m are considered just as important as 0.5m wide objects.
+		const float min_len = 1.0f; // Objects smaller than 1 m are considered just as important as 1 m wide objects.
 
 		return 1.f / myMax(min_len, aabb_ws.longestLength());
 	}
