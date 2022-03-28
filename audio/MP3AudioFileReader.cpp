@@ -73,12 +73,6 @@ glare::SoundFileRef glare::MP3AudioFileReader::readAudioFileFromBuffer(const uin
 // or
 // C:\fuzz_corpus\mp3 -max_len=1000000 -jobs=16
 
-extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv)
-{
-	return 0;
-}
-
-
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
 	try
