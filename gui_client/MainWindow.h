@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "ObInfoUI.h"
 #include "MiscInfoUI.h"
 #include "DownloadingResourceQueue.h"
+#include "LoadItemQueue.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/WGL.h"
@@ -69,6 +70,9 @@ struct DownloadingResourceInfo
 	DownloadingResourceInfo() : use_sRGB(true) {}
 
 	bool use_sRGB; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
+
+	Vec3d pos; // Position of object using the resource
+	float size_factor;
 };
 
 
@@ -523,6 +527,9 @@ public:
 
 	DownloadingResourceQueue download_queue;
 	Timer download_queue_sort_timer;
+	Timer load_item_queue_sort_timer;
+
+	LoadItemQueue load_item_queue;
 
 	SocketBufferOutStream scratch_packet;
 

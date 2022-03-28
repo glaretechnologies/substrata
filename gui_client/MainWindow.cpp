@@ -582,6 +582,7 @@ MainWindow::~MainWindow()
 
 	//model_building_task_manager.removeQueuedTasks();
 	//model_building_task_manager.waitForTasksToComplete();
+	load_item_queue.clear();
 
 	model_and_texture_loader_task_manager.removeQueuedTasks();
 	model_and_texture_loader_task_manager.waitForTasksToComplete();
@@ -626,6 +627,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	//model_building_task_manager.waitForTasksToComplete();
 
 	model_loaded_messages_to_process.clear();
+
+	load_item_queue.clear();
 
 	model_and_texture_loader_task_manager.removeQueuedTasks();
 	model_and_texture_loader_task_manager.waitForTasksToComplete();
@@ -801,7 +804,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
 			}
 		}
 
@@ -816,7 +819,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
 			}
 		}
 	}
@@ -833,7 +836,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 		{
 			const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 			if(just_added)
-				this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+				load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
 		}
 	}
 #endif
@@ -855,7 +858,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
 			}
 		}
 
@@ -869,7 +872,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
 			}
 		}
 	}
@@ -972,6 +975,8 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 		{
 			DownloadingResourceInfo info;
 			info.use_sRGB = url_info.use_sRGB;
+			info.pos = ob->pos;
+			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
 
 			js::AABBox aabb_ws = ob->aabb_ws;
 			if(aabb_ws.isEmpty())
@@ -1010,6 +1015,9 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 
 			DownloadingResourceInfo info;
 			info.use_sRGB = url_info.use_sRGB;
+			info.pos = ob->pos;
+			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws);
+
 
 			startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
 		}
@@ -1253,7 +1261,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					task->main_window = this;
 					task->hypercard_content = ob->content;
 					task->opengl_engine = ui->glWidget->opengl_engine;
-					this->model_and_texture_loader_task_manager.addTask(task);
+					load_item_queue.enqueueItem(*ob, task);
 				}
 			}
 
@@ -1339,7 +1347,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			load_model_task->voxel_ob = ob;
 			load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-			model_and_texture_loader_task_manager.addTask(load_model_task);
+			load_item_queue.enqueueItem(*ob, load_model_task);
 
 			load_placeholder = ob->getCompressedVoxels().size() != 0;
 		}
@@ -1374,7 +1382,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-							model_and_texture_loader_task_manager.addTask(load_model_task);
+							load_item_queue.enqueueItem(*ob, load_model_task);
 						}
 					}
 					else
@@ -1551,7 +1559,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-					model_and_texture_loader_task_manager.addTask(load_model_task);
+					load_item_queue.enqueueItem(*avatar, load_model_task);
 				}
 			}
 			else
@@ -1685,7 +1693,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 			Reference<LoadScriptTask> task = new LoadScriptTask();
 			task->main_window = this;
 			task->script_content = ob->script;
-			model_and_texture_loader_task_manager.addTask(task);
+			load_item_queue.enqueueItem(*ob, task);
 		}
 	}
 }
@@ -1813,11 +1821,13 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 			{
 				const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
 				if(resource_manager->isFileForURLPresent(URL))
-					this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL), /*use_sRGB=*/true));
+					load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL), /*use_sRGB=*/true));
 				else
 				{
 					DownloadingResourceInfo info;
 					info.use_sRGB = true;
+					info.pos = ob->pos;
+					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
 
 					startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
 				}
@@ -1894,7 +1904,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 						load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
 						load_audio_task->main_window = this;
 
-						model_and_texture_loader_task_manager.addTask(load_audio_task);
+						load_item_queue.enqueueItem(*ob, load_audio_task);
 					}
 
 					//ob->loaded_audio_source_url = ob->audio_source_url;
@@ -2738,6 +2748,61 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
+
+	/*
+	Flow of loading models, textures etc.
+
+	|
+	|	load_item_queue.enqueueItem()
+	|
+	v
+	load_item_queue
+	|
+	|	code below to add items to model_and_texture_loader_task_manager
+	|
+	v
+	model_and_texture_loader_task_manager
+	|
+	|	TaskManager queue code
+	|
+	v
+	LoadTextureTask					LoadModelTask				etc..
+	|
+	|	Code in LoadTextureTask etc.. adds to main_window->msg_queue
+	|
+	v
+	main_window->msg_queue
+	|
+	|	Code further below in timerEvent() reads messages from msg_queue, appends to texture_loaded_messages_to_process etc.
+	|
+	v
+	model_loaded_messages_to_process, texture_loaded_messages_to_process
+	|
+	|	Code to load OpenGL data to device mem
+	|
+	v
+
+	*/
+
+	while(!load_item_queue.empty() &&  // While there are items to remove from the load item queue,
+		(model_and_texture_loader_task_manager.getNumUnfinishedTasks() < 32) &&  // and we don't have too many tasks queued and ready to be executed by the task manager
+		(msg_queue.size() + model_loaded_messages_to_process.size() + texture_loaded_messages_to_process.size() < 10) // And we don't have too many completed load tasks:
+		)
+	{
+		// Pop a task from the load item queue, and pass it to the model_and_texture_loader_task_manager.
+		glare::TaskRef task = load_item_queue.dequeueFront(); 
+		model_and_texture_loader_task_manager.addTask(task);
+	}
+
+
+	// Sort load_item_queue every now and then
+	if(load_item_queue_sort_timer.elapsed() > 0.1)
+	{
+		this->load_item_queue.sortQueue(cam_controller.getPosition());
+		load_item_queue_sort_timer.reset();
+	}
+
+
 	// Sort download queue every now and then
 	if(download_queue_sort_timer.elapsed() > 2.0)
 	{
@@ -2763,6 +2828,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
 		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
+		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
+		msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
+		msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
+		msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
 
 		if(ui->glWidget->opengl_engine.nonNull())
 		{
@@ -3020,7 +3089,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		ui->glWidget->take_map_screenshot = map_screenshot;
 		ui->glWidget->screenshot_ortho_sensor_width_m = screenshot_ortho_sensor_width_m;
 
-		const size_t num_model_and_tex_tasks = model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
+		const size_t num_model_and_tex_tasks = load_item_queue.size() + model_and_texture_loader_task_manager.getNumUnfinishedTasks() + model_loaded_messages_to_process.size();
 
 		if(time_since_last_waiting_msg.elapsed() > 2.0)
 		{
@@ -4159,24 +4228,28 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// in the net download case.
 						const std::string local_path = resource->getLocalPath();
 
+						bool use_SRGB = true;
+						Vec3d pos(0, 0, 0);
+						float size_factor = 1;
+						// Look up in our map of downloading resources
+						auto res = URL_to_downloading_info.find(URL);
+						if(res != URL_to_downloading_info.end())
+						{
+							const DownloadingResourceInfo& info = res->second;
+							use_SRGB = info.use_sRGB;
+							pos = info.pos;
+							size_factor = info.size_factor;
+						}
+						else
+						{
+							assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
+						}
+
 						// If we just downloaded a texture, start loading it.
 						// NOTE: Do we want to check this texture is actually used by an object?
 						if(ImFormatDecoder::hasImageExtension(local_path))
 						{
 							//conPrint("Downloaded texture resource, loading it...");
-
-							bool use_SRGB = true;
-							// Look up in our map of downloading resources
-							auto res = URL_to_downloading_info.find(URL);
-							if(res != URL_to_downloading_info.end())
-							{
-								const DownloadingResourceInfo& info = res->second;
-								use_SRGB = info.use_sRGB;
-							}
-							else
-							{
-								assert(0); // If we downloaded the resource we should have added it to URL_to_downloading_info.  NOTE: will this work with NewResourceOnServerMessage tho?
-							}
 						
 							const std::string tex_path = local_path;
 
@@ -4184,7 +4257,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 								if(just_added)
-									this->model_and_texture_loader_task_manager.addTask(new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/use_SRGB)); 
+									load_item_queue.enqueueItem(pos, size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/use_SRGB)); 
 							}
 						}
 						else if(hasAudioFileExtension(local_path))
@@ -4216,7 +4289,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								load_model_task->resource_manager = resource_manager;
 								load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-								model_and_texture_loader_task_manager.addTask(load_model_task);
+								load_item_queue.enqueueItem(pos, size_factor, load_model_task);
 							}
 							catch(glare::Exception& e)
 							{
@@ -5464,7 +5537,7 @@ void MainWindow::updateStatusBar()
 	if(num_resources_uploading > 0)
 		status += " | Uploading " + toString(num_resources_uploading) + ((num_resources_uploading == 1) ? " resource..." : " resources...");
 
-	const size_t num_model_and_tex_tasks = model_and_texture_loader_task_manager.getNumUnfinishedTasks() + (model_loaded_messages_to_process.size() + texture_loaded_messages_to_process.size());
+	const size_t num_model_and_tex_tasks = load_item_queue.size() + model_and_texture_loader_task_manager.getNumUnfinishedTasks() + (model_loaded_messages_to_process.size() + texture_loaded_messages_to_process.size());
 	if(num_model_and_tex_tasks > 0)
 		status += " | Loading " + toString(num_model_and_tex_tasks) + ((num_model_and_tex_tasks == 1) ? " model or texture..." : " models and textures...");
 
@@ -7198,7 +7271,7 @@ void MainWindow::objectEditedSlot()
 								task->main_window = this;
 								task->hypercard_content = selected_ob->content;
 								task->opengl_engine = ui->glWidget->opengl_engine;
-								this->model_and_texture_loader_task_manager.addTask(task);
+								load_item_queue.enqueueItem(*this->selected_ob, task);
 							}
 						}
 
@@ -7539,6 +7612,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	}
 
 	//-------------------------------- Do disconnect process --------------------------------
+	load_item_queue.clear();
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete(); 
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
