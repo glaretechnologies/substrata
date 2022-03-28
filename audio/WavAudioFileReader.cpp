@@ -211,12 +211,6 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 // Command line:
 // C:\fuzz_corpus\wav -max_len=1000000 -seed=1
 
-extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv)
-{
-	return 0;
-}
-
-
 // We will use the '!' character to break apart the input buffer into different 'packets'.
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
