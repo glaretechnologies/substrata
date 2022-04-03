@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "Imposter.h"
 
 
-#include <graphics/imformatdecoder.h>
+#include "../shared/ImageDecoding.h"
 #include <graphics/ImageMap.h>
 #include <graphics/PNGDecoder.h>
 #include <AESEncryption.h>
@@ -17,7 +17,7 @@ Copyright Glare Technologies Limited 2021 -
 
 void Imposter::floodFillColourInTransparentRegions(const std::string& image_path_in, const std::string& image_path_out)
 {
-	Reference<Map2D> map = ImFormatDecoder::decodeImage(".", image_path_in);
+	Reference<Map2D> map = ImageDecoding::decodeImage(".", image_path_in);
 
 	if(!map.isType<ImageMapUInt8>())
 		throw glare::Exception("not ImageMapUInt8");

@@ -12,9 +12,9 @@ Code By Nicholas Chapman.
 #include "NetDownloadResourcesThread.h"
 #include "SubstrataVideoSurface.h"
 #include "../shared/LODGeneration.h"
+#include "../shared/ImageDecoding.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/include/IndigoException.h"
-#include "../graphics/imformatdecoder.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/FileUtils.h"
@@ -320,11 +320,11 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			delete video_surface;
 #endif
 		}
-		else if(ImFormatDecoder::hasImageExtension(local_path))
+		else if(ImageDecoding::hasSupportedImageExtension(local_path))
 		{
 			// Load image to get aspect ratio of image.
 			// We will scale our model so it has the same aspect ratio.
-			Reference<Map2D> im = ImFormatDecoder::decodeImage(base_dir_path, local_path);
+			Reference<Map2D> im = ImageDecoding::decodeImage(base_dir_path, local_path);
 
 			float use_w, use_h;
 			if(im->getMapWidth() > im->getMapHeight())

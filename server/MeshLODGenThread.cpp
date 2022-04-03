@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "ServerWorldState.h"
 #include "../shared/LODGeneration.h"
+#include "../shared/ImageDecoding.h"
 #include <ConPrint.h>
 #include <Exception.h>
 #include <Lock.h>
@@ -23,7 +24,6 @@ Copyright Glare Technologies Limited 2021 -
 #include <graphics/GifDecoder.h>
 #include <graphics/jpegdecoder.h>
 #include <graphics/PNGDecoder.h>
-#include <graphics/imformatdecoder.h>
 #include <graphics/Map2D.h>
 #include <graphics/ImageMap.h>
 #include <dll/include/IndigoMesh.h>
@@ -333,7 +333,7 @@ void MeshLODGenThread::doRun()
 												auto res = tex_info.find(tex_path);
 												if(res == tex_info.end())
 												{
-													Reference<Map2D> map = ImFormatDecoder::decodeImage(".", tex_path); // Load texture from disk and decode it.
+													Reference<Map2D> map = ImageDecoding::decodeImage(".", tex_path); // Load texture from disk and decode it.
 													const bool is_hi_res = map->getMapWidth() > 1024 || map->getMapHeight() > 1024;
 													const bool has_alpha = textureHasAlphaChannel(map);
 

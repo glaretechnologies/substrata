@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "LODGeneration.h"
 
 
+#include "ImageDecoding.h"
 #include "../server/ServerWorldState.h"
 #include <ConPrint.h>
 #include <Exception.h>
@@ -22,7 +23,6 @@ Copyright Glare Technologies Limited 2021 -
 #include <graphics/GifDecoder.h>
 #include <graphics/jpegdecoder.h>
 #include <graphics/PNGDecoder.h>
-#include <graphics/imformatdecoder.h>
 #include <graphics/Map2D.h>
 #include <graphics/ImageMap.h>
 #include <graphics/ImageMapSequence.h>
@@ -125,7 +125,7 @@ bool textureHasAlphaChannel(const std::string& tex_path)
 		return false;
 	else
 	{
-		Reference<Map2D> map = ImFormatDecoder::decodeImage(".", tex_path); // Load texture from disk and decode it.
+		Reference<Map2D> map = ImageDecoding::decodeImage(".", tex_path); // Load texture from disk and decode it.
 
 		return map->hasAlphaChannel() && !map->isAlphaChannelAllWhite();
 	}
@@ -157,7 +157,7 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 	}
 	else
 	{
-		map = ImFormatDecoder::decodeImage(".", base_tex_path); // Load texture from disk and decode it.
+		map = ImageDecoding::decodeImage(".", base_tex_path); // Load texture from disk and decode it.
 
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
 		{

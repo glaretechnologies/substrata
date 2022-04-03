@@ -7,10 +7,11 @@ Copyright Glare Technologies Limited 2019 -
 
 
 #include "MainWindow.h"
+#include "../shared/ImageDecoding.h""
 #include <indigo/TextureServer.h>
-#include <graphics/imformatdecoder.h>
 #include <graphics/ImageMapSequence.h>
 #include <graphics/GifDecoder.h>
+#include <graphics/imformatdecoder.h> // For ImFormatExcep
 #include <opengl/OpenGLEngine.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
@@ -37,7 +38,7 @@ void LoadTextureTask::run(size_t thread_index)
 		if(hasExtension(key, "gif"))
 			map = GIFDecoder::decodeImageSequence(key);
 		else
-			map = ImFormatDecoder::decodeImage(".", key);
+			map = ImageDecoding::decodeImage(".", key);
 
 		// Process 8-bit textures (do DXT compression, mip-map computation etc..) in this thread.
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))

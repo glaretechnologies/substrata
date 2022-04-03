@@ -5,7 +5,6 @@
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
 #include "../graphics/Map2D.h"
-#include "../graphics/imformatdecoder.h"
 #include "../graphics/ImageMap.h"
 #include "../maths/vec3.h"
 #include "../maths/GeometrySampling.h"
