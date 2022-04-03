@@ -49,6 +49,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
+#include "../shared/ImageDecoding.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -109,7 +110,6 @@ Copyright Glare Technologies Limited 2020 -
 #include "../indigo/TextureServer.h"
 #include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
-#include "../graphics/imformatdecoder.h"
 #include "../graphics/PNGDecoder.h"
 #include "../graphics/jpegdecoder.h"
 #include "../opengl/GLMeshBuilding.h"
@@ -2848,6 +2848,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += physics_world->getDiagnostics() + "\n";
 		}
 
+		const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
+		msg += "mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()) + "\n";
+		msg += "mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()) + "\n";
+
+
 		{
 			msg += "Proximity loader:\n";
 			msg += proximity_loader.getDiagnostics() + "\n";
@@ -4247,7 +4252,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						// If we just downloaded a texture, start loading it.
 						// NOTE: Do we want to check this texture is actually used by an object?
-						if(ImFormatDecoder::hasImageExtension(local_path))
+						if(ImageDecoding::hasSupportedImageExtension(local_path))
 						{
 							//conPrint("Downloaded texture resource, loading it...");
 						

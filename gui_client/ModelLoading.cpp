@@ -54,6 +54,7 @@ GLMemUsage MeshManager::getTotalMemUsage() const
 	GLMemUsage sum;
 	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
 	{
+		sum.geom_cpu_usage += it->second.raymesh->getTotalMemUsage();
 		sum += it->second.gl_meshdata->getTotalMemUsage();
 	}
 	return sum;

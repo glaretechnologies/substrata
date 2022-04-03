@@ -9,7 +9,6 @@ Copyright Glare Technologies Limited 2021 -
 #include "MainWindow.h"
 #include "LoadTextureTask.h"
 #include <indigo/TextureServer.h>
-#include <graphics/imformatdecoder.h>
 #include <opengl/OpenGLEngine.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>

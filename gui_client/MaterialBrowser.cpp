@@ -23,7 +23,6 @@ Copyright Glare Technologies Limited 2019 -
 #include <opengl/OpenGLEngine.h>
 #include <opengl/FrameBuffer.h>
 #include <graphics/PNGDecoder.h>
-#include <graphics/imformatdecoder.h>
 #include <qt/QtUtils.h>
 #include <FileUtils.h>
 #include <StringUtils.h>
