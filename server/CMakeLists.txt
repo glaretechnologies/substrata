@@ -14,6 +14,8 @@ FILE(GLOB docs "../docs/*.txt")
 SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/ImageDecoding.cpp
+../shared/ImageDecoding.h
 ../shared/LODGeneration.cpp
 ../shared/LODGeneration.h
 ../shared/Parcel.cpp
@@ -28,6 +30,8 @@ SET(shared_files
 ../shared/TimeStamp.h
 ../shared/UID.h
 ../shared/UserID.h
+../shared/VoxelMeshBuilding.cpp
+../shared/VoxelMeshBuilding.h
 ../shared/WorldObject.cpp
 ../shared/WorldObject.h
 ../shared/WorldMaterial.cpp
