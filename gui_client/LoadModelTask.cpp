@@ -64,7 +64,7 @@ void LoadModelTask::run(size_t thread_index)
 
 			// We want to load and build the mesh at lod_model_url.
 			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
-			gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager, *this->mesh_manager, 
+			gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager,
 				*model_building_task_manager, 
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.

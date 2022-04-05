@@ -10,6 +10,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "WorldMaterial.h"
 #if GUI_CLIENT
 #include "../gui_client/AvatarGraphics.h"
+#include "../gui_client/MeshManager.h"
 #endif
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
@@ -109,6 +110,8 @@ public:
 	float nametag_z_offset; // To adjust nametag up when animation requires.  Smoothed over time value.
 
 	AvatarGraphics graphics;
+
+	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 #endif
 

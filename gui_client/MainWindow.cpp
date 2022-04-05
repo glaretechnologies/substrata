@@ -889,6 +889,8 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 
 	ob.opengl_engine_ob = NULL;
 	ob.physics_object = NULL;
+	
+	ob.mesh_data = NULL;
 
 	ob.loaded_model_lod_level = -10;
 	ob.using_placeholder_model = false;
@@ -898,6 +900,8 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 void MainWindow::removeAndDeleteGLObjectForAvatar(Avatar& av)
 {
 	av.graphics.destroy(*ui->glWidget->opengl_engine);
+
+	av.mesh_data = NULL;
 }
 
 
@@ -1342,7 +1346,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			load_model_task->voxel_ob_lod_level = ob_model_lod_level;
 			load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 			load_model_task->main_window = this;
-			load_model_task->mesh_manager = &mesh_manager;
 			load_model_task->resource_manager = resource_manager;
 			load_model_task->voxel_ob = ob;
 			load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
@@ -1364,10 +1367,52 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
-				if(resource_manager->isFileForURLPresent(lod_model_url))
+				Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
+				if(mesh_data.nonNull())
 				{
-					const bool in_mesh_manager = mesh_manager.isMeshDataInserted(lod_model_url); // Has mesh been loaded from disk into host mem?
-					if(!in_mesh_manager)
+					const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
+					if(is_meshdata_loaded_into_opengl)
+					{
+						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+						// Create gl and physics object now
+						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
+						
+						ob->mesh_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+						assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+
+						ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+						ob->physics_object->geometry = mesh_data->raymesh;
+						ob->physics_object->ob_to_world = ob_to_world_matrix;
+						ob->physics_object->userdata = ob;
+						ob->physics_object->userdata_type = 0;
+
+						ob->loaded_model_lod_level = ob_model_lod_level;
+
+						//Timer timer;
+						ui->glWidget->addObject(ob->opengl_engine_ob);
+						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
+
+						physics_world->addObject(ob->physics_object);
+						physics_world->rebuild(task_manager, print_output);
+
+						ui->indigoView->objectAdded(*ob, *this->resource_manager);
+
+						loadScriptForObject(ob); // Load any script for the object.
+
+						doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
+
+						// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+						if(this->selected_ob == ob)
+							ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+
+						added_opengl_ob = true;
+					}
+				}
+				else // else if mesh data is not in mesh manager:
+				{
+					if(resource_manager->isFileForURLPresent(lod_model_url))
 					{
 						const bool just_added = this->checkAddModelToProcessedSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
 						if(just_added)
@@ -1378,74 +1423,15 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							load_model_task->lod_model_url = lod_model_url;
 							load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 							load_model_task->main_window = this;
-							load_model_task->mesh_manager = &mesh_manager;
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
 							load_item_queue.enqueueItem(*ob, load_model_task);
 						}
 					}
-					else
-					{
-						// Model is loaded into the mesh manager (host mem), but it may not be loaded into OpenGL yet.
-						bool is_meshdata_loaded_into_opengl = false;
-						{
-							Lock lock(mesh_manager.getMutex());
+				}
 
-							auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_url);
-							if(res != mesh_manager.model_URL_to_mesh_map.end())
-								is_meshdata_loaded_into_opengl = res->second.gl_meshdata->vbo_handle.valid();
-						}
-
-						if(is_meshdata_loaded_into_opengl)
-						{
-							removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-							// Create gl and physics object now
-							Reference<RayMesh> raymesh;
-							ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, mesh_manager, task_manager, 
-								ui->glWidget->opengl_engine->vert_buf_allocator.ptr(),
-								ob_to_world_matrix,
-								false, // skip opengl calls
-								raymesh);
-
-							assert(ob->opengl_engine_ob->mesh_data->vbo_handle.valid());
-							if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-								OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
-
-
-							assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
-
-							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-							ob->physics_object->geometry = raymesh;
-							ob->physics_object->ob_to_world = ob_to_world_matrix;
-							ob->physics_object->userdata = ob;
-							ob->physics_object->userdata_type = 0;
-
-							ob->loaded_model_lod_level = ob_model_lod_level;
-
-							//Timer timer;
-							ui->glWidget->addObject(ob->opengl_engine_ob);
-							//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
-
-							physics_world->addObject(ob->physics_object);
-							physics_world->rebuild(task_manager, print_output);
-
-							ui->indigoView->objectAdded(*ob, *this->resource_manager);
-
-							loadScriptForObject(ob); // Load any script for the object.
-
-							doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
-
-							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-							if(this->selected_ob == ob)
-								ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
-
-							added_opengl_ob = true;
-						}
-					}
-				} 
-
+				// If the mesh wasn't loaded onto the GPU yet, add this object to the wait list, for when the mesh is loaded.
 				if(!added_opengl_ob)
 					this->loading_model_URL_to_world_ob_UID_map[lod_model_url].insert(ob->uid);
 
@@ -1541,10 +1527,57 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 
 		// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
-		if(resource_manager->isFileForURLPresent(lod_model_url))
+
+		Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
+		if(mesh_data.nonNull())
 		{
-			const bool in_mesh_manager = mesh_manager.isMeshDataInserted(lod_model_url); // Has mesh been loaded from disk into host mem?
-			if(!in_mesh_manager)
+			const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
+			if(is_meshdata_loaded_into_opengl)
+			{
+				removeAndDeleteGLObjectForAvatar(*avatar);
+
+				const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
+
+				// Create gl and physics object now
+				avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(mesh_data->gl_meshdata, ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
+					*resource_manager, ob_to_world_matrix);
+
+				avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+				// Load animation data for ready-player-me type avatars
+				if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
+				{
+					FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
+					avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+				}
+
+				avatar->graphics.build();
+
+				assignedLoadedOpenGLTexturesToMats(avatar, *ui->glWidget->opengl_engine, *resource_manager);
+
+				avatar->graphics.loaded_lod_level = ob_lod_level;
+
+				ui->glWidget->addObject(avatar->graphics.skinned_gl_ob);
+
+				// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
+				const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+				if(our_avatar)
+				{
+					std::string gesture_name;
+					bool animate_head, loop_anim;
+					if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
+					{
+						const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
+						avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
+					}
+				}
+
+				added_opengl_ob = true;
+			}
+		}
+		else
+		{
+			if(resource_manager->isFileForURLPresent(lod_model_url))
 			{
 				const bool just_added = this->checkAddModelToProcessedSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
 				if(just_added)
@@ -1555,70 +1588,10 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 					load_model_task->lod_model_url = lod_model_url;
 					load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 					load_model_task->main_window = this;
-					load_model_task->mesh_manager = &mesh_manager;
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
 					load_item_queue.enqueueItem(*avatar, load_model_task);
-				}
-			}
-			else
-			{
-				// Model is loaded into the mesh manager (host mem), but it may not be loaded into OpenGL yet.
-				bool is_meshdata_loaded_into_opengl = false;
-				{
-					Lock lock(mesh_manager.getMutex());
-
-					auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_url);
-					if(res != mesh_manager.model_URL_to_mesh_map.end())
-						is_meshdata_loaded_into_opengl = res->second.gl_meshdata->vbo_handle.valid();
-				}
-
-				if(is_meshdata_loaded_into_opengl)
-				{
-					removeAndDeleteGLObjectForAvatar(*avatar);
-
-					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
-
-					// Create gl and physics object now
-					Reference<RayMesh> raymesh;
-					avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(lod_model_url, ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *resource_manager, mesh_manager, 
-						task_manager, ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), ob_to_world_matrix,
-						false, // skip opengl calls
-						raymesh);
-
-					// Load animation data for ready-player-me type avatars
-					if(!avatar->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
-					{
-						FileInStream file(base_dir_path + "/resources/extracted_avatar_anim.bin");
-						avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
-					}
-
-					avatar->graphics.build();
-
-					if(!avatar->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-						OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*ui->glWidget->opengl_engine->vert_buf_allocator, *avatar->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
-
-					assignedLoadedOpenGLTexturesToMats(avatar, *ui->glWidget->opengl_engine, *resource_manager);
-
-					avatar->graphics.loaded_lod_level = ob_lod_level;
-
-					ui->glWidget->addObject(avatar->graphics.skinned_gl_ob);
-
-					// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
-					const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
-					if(our_avatar)
-					{
-						std::string gesture_name;
-						bool animate_head, loop_anim;
-						if(gesture_ui.getCurrentGesturePlaying(gesture_name, animate_head, loop_anim)) // If we should be playing a gesture according to the UI:
-						{
-							const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-							avatar->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
-						}
-					}
-
-					added_opengl_ob = true;
 				}
 			}
 		}
@@ -2019,7 +1992,7 @@ void MainWindow::showInfoNotification(const std::string& message)
 }
 
 
-void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
+void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, Matrix4f& ob_to_world_out)
 {
 	CybWinterEnv winter_env;
 	winter_env.instance_index = ob->instance_index;
@@ -2136,6 +2109,8 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time)
 
 		// TODO: Update physics world accel structure?
 	}
+
+	ob_to_world_out = ob_to_world;
 }
 
 
@@ -3203,7 +3178,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 
 		
-		conPrint("mesh_manager num meshes:                " + toString(this->mesh_manager.model_URL_to_mesh_map.size()));
+		//conPrint("mesh_manager num meshes:                " + toString(this->mesh_manager.model_URL_to_mesh_map.size()));
 
 		const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
 		conPrint("mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()));
@@ -3323,6 +3298,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					assert(!cur_loading_lod_model_url.empty());
 					//logMessage("Finished loading mesh '" + cur_loading_lod_model_url + "'.");
 
+
+					// Now that this model is loaded, removed from models_processed set.
+					// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
+					models_processed.erase(cur_loading_lod_model_url);
+
+
+					// Add meshes to mesh manager
+					Reference<MeshData> mesh_data = mesh_manager.insertMeshes(cur_loading_lod_model_url, cur_loading_mesh_data, cur_loading_raymesh);
+
 					// Data is uploaded - assign to any waiting objects
 					const int loaded_model_lod_level = WorldObject::getLODLevelForURL(cur_loading_lod_model_url/*message->lod_model_url*/);
 
@@ -3361,16 +3345,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											// Create GLObject and PhysicsObjects for this world object.  The loaded mesh should be in the mesh_manager.
 											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-											assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
+											ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(cur_loading_mesh_data, ob_lod_level, ob->materials, ob->lightmap_url,
+												*resource_manager, ob_to_world_matrix);
 
-											Reference<RayMesh> raymesh;
-											ob->opengl_engine_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, 
-												mesh_manager, task_manager, ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), ob_to_world_matrix,
-												false, // skip opengl calls
-												raymesh);
+											ob->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 											ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-											ob->physics_object->geometry = raymesh;
+											ob->physics_object->geometry = this->cur_loading_raymesh;
 											ob->physics_object->ob_to_world = ob_to_world_matrix;
 											ob->physics_object->userdata = ob;
 											ob->physics_object->userdata_type = 0;
@@ -3379,8 +3360,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											ob->loaded_model_lod_level = loaded_model_lod_level;//message->model_lod_level;
 
 											assert(ob->opengl_engine_ob->mesh_data->vbo_handle.valid());
-											//if(!ob->opengl_engine_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-											//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *ob->opengl_engine_ob->mesh_data); // Load mesh data into OpenGL
 
 											//loaded_size_B = ob->opengl_engine_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
 
@@ -3444,12 +3423,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											// Create GLObject for this avatar
 											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*av);
 
-											assert(mesh_manager.isMeshDataInserted(current_desired_model_LOD_URL)); // Mesh should have been loaded and inserted into the mesh manager in the LoadModelTask.
+											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(cur_loading_mesh_data, av_lod_level, av->avatar_settings.materials, /*lightmap_url=*/std::string(),
+												*resource_manager, ob_to_world_matrix);
 
-											Reference<RayMesh> raymesh;
-											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(current_desired_model_LOD_URL, av_lod_level, av->avatar_settings.materials, 
-												/*lightmap_url=*/std::string(), 
-												*resource_manager, mesh_manager, task_manager, ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), ob_to_world_matrix, /*skip opengl calls=*/false, raymesh);
+											av->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 											// Load animation data for ready-player-me type avatars
 											if(!av->graphics.skinned_gl_ob->mesh_data->animation_data.retarget_adjustments_set)
@@ -3463,8 +3440,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											//TEMP av->loaded_lod_level = ob_lod_level;
 
 											assert(av->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid());
-											//if(!av->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-											//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *av->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
 
 											assignedLoadedOpenGLTexturesToMats(av, *ui->glWidget->opengl_engine, *resource_manager);
 
@@ -3493,6 +3468,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					cur_loading_mesh_data = NULL;
 					cur_loading_lod_model_url.clear();
+					cur_loading_raymesh = NULL;
 				} // end if(mesh_data_loading_progress.done())
 
 
@@ -3514,63 +3490,73 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					WorldObjectRef voxel_ob = this->cur_loading_voxel_ob;
 
-					const int ob_lod_level = voxel_ob->getLODLevel(cam_controller.getPosition());
-
-					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
-					const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)cur_loading_voxel_subsample_factor/*message->subsample_factor*/);
-
-					PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
-					physics_ob->geometry = cur_loading_voxel_raymesh; // message->raymesh;
-					physics_ob->ob_to_world = use_ob_to_world_matrix;
-
-					GLObjectRef opengl_ob = new GLObject();
-					opengl_ob->mesh_data = cur_loading_mesh_data;// message->gl_meshdata;
-					opengl_ob->materials.resize(voxel_ob->materials.size());
-					for(uint32 i=0; i<voxel_ob->materials.size(); ++i)
+					if(voxel_ob->in_proximity)
 					{
-						ModelLoading::setGLMaterialFromWorldMaterial(*voxel_ob->materials[i], ob_lod_level, voxel_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
-						opengl_ob->materials[i].gen_planar_uvs = true;
-					}
-					opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
+						const int ob_lod_level = voxel_ob->getLODLevel(cam_controller.getPosition());
+						const int ob_model_lod_level = myClamp(ob_lod_level, 0, voxel_ob->max_model_lod_level);
 
-					voxel_ob->opengl_engine_ob = opengl_ob;
-					voxel_ob->physics_object = physics_ob;
+						// Check the object wants this particular LOD level model right now:
+						if(ob_model_lod_level == cur_loading_voxel_ob_lod_level)
+						{
+							removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove any existing OpenGL and physics model
 
-					assert(opengl_ob->mesh_data->vbo_handle.valid());
-					//if(!opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
-					//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *opengl_ob->mesh_data); // Load mesh data into OpenGL
+							const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
+							const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)cur_loading_voxel_subsample_factor/*message->subsample_factor*/);
 
-					//loaded_size_B = opengl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
+							PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
+							physics_ob->geometry = cur_loading_raymesh;
+							physics_ob->ob_to_world = use_ob_to_world_matrix;
 
-					physics_ob->userdata = voxel_ob.ptr();
-					physics_ob->userdata_type = 0;
+							GLObjectRef opengl_ob = new GLObject();
+							opengl_ob->mesh_data = cur_loading_mesh_data;
+							opengl_ob->materials.resize(voxel_ob->materials.size());
+							for(uint32 i=0; i<voxel_ob->materials.size(); ++i)
+							{
+								ModelLoading::setGLMaterialFromWorldMaterial(*voxel_ob->materials[i], ob_lod_level, voxel_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
+								opengl_ob->materials[i].gen_planar_uvs = true;
+							}
+							opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
 
-					// Add this object to the GL engine and physics engine.
-					if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
-					{
-						assignedLoadedOpenGLTexturesToMats(voxel_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
+							voxel_ob->opengl_engine_ob = opengl_ob;
+							voxel_ob->physics_object = physics_ob;
 
-						ui->glWidget->addObject(opengl_ob);
+							assert(opengl_ob->mesh_data->vbo_handle.valid());
+							//if(!opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+							//	OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(ui->glWidget->opengl_engine->vert_buf_allocator, *opengl_ob->mesh_data); // Load mesh data into OpenGL
 
-						physics_world->addObject(physics_ob);
-						physics_world->rebuild(task_manager, print_output);
+							//loaded_size_B = opengl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
 
-						ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
+							physics_ob->userdata = voxel_ob.ptr();
+							physics_ob->userdata_type = 0;
 
-						loadScriptForObject(voxel_ob.ptr()); // Load any script for the object.
+							// Add this object to the GL engine and physics engine.
+							if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
+							{
+								assignedLoadedOpenGLTexturesToMats(voxel_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 
-						doBiomeScatteringForObject(voxel_ob.ptr()); // Scatter any biome stuff over it
-					}
+								ui->glWidget->addObject(opengl_ob);
 
-					voxel_ob->loaded_model_lod_level = cur_loading_voxel_ob_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
+								physics_world->addObject(physics_ob);
+								physics_world->rebuild(task_manager, print_output);
 
-					// If we replaced the model for selected_ob, reselect it in the OpenGL engine
-					if(this->selected_ob == voxel_ob)
-						ui->glWidget->opengl_engine->selectObject(voxel_ob->opengl_engine_ob);
+								ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
 
+								loadScriptForObject(voxel_ob.ptr()); // Load any script for the object.
+
+								doBiomeScatteringForObject(voxel_ob.ptr()); // Scatter any biome stuff over it
+							}
+
+							voxel_ob->loaded_model_lod_level = cur_loading_voxel_ob_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
+
+							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
+							if(this->selected_ob == voxel_ob)
+								ui->glWidget->opengl_engine->selectObject(voxel_ob->opengl_engine_ob);
+						}
+					}	
 
 					cur_loading_mesh_data = NULL;
 					cur_loading_voxel_ob = NULL;
+					cur_loading_raymesh = NULL;
 				} // end if(mesh_data_loading_progress.done())
 
 				//loading_times.push_back(doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 3) + " ms, loaded chunk of voxel mesh: " + mesh_data_loading_progress.summaryString());
@@ -3597,7 +3583,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// Handle loading a voxel group
 							WorldObjectRef voxel_ob = message->voxel_ob;
 
-							removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
+							//removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
 
 							if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
 							{
@@ -3606,7 +3592,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									this->cur_loading_mesh_data = message->gl_meshdata;
 									this->cur_loading_voxel_ob = voxel_ob;
 									this->cur_loading_voxel_subsample_factor = message->subsample_factor;
-									this->cur_loading_voxel_raymesh = message->raymesh;
+									this->cur_loading_raymesh = message->raymesh;
 									this->cur_loading_voxel_ob_lod_level = message->voxel_ob_lod_level;
 									ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
@@ -3622,32 +3608,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						else // Else didn't load voxels, loaded a model:
 						{
 							// Start loading mesh data into OpenGL.
-							// The LoadModelTask should have inserted the mesh data into the mesh manager
-
+							if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
 							{
-								Lock lock(mesh_manager.getMutex());
+								this->cur_loading_mesh_data = message->gl_meshdata;
+								this->cur_loading_raymesh = message->raymesh;
+								this->cur_loading_lod_model_url = message->lod_model_url;
+								ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
-								auto res = mesh_manager.model_URL_to_mesh_map.find(message->lod_model_url);
-								if(res != mesh_manager.model_URL_to_mesh_map.end())
-								{
-									if(!res->second.gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
-									{
-										this->cur_loading_mesh_data = res->second.gl_meshdata;
-										this->cur_loading_lod_model_url = message->lod_model_url;
-										ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
-
-										//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
-									}
-									else
-									{
-										//logMessage("Mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
-									}
-								}
-								else
-								{
-									assert(0);
-									this->cur_loading_mesh_data = NULL;
-								}
+								//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
+							}
+							else
+							{
+								//logMessage("Mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
 							}
 						}
 					}
@@ -4290,7 +4262,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								load_model_task->lod_model_url = URL;
 								load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 								load_model_task->main_window = this;
-								load_model_task->mesh_manager = &mesh_manager;
 								load_model_task->resource_manager = resource_manager;
 								load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
@@ -4326,7 +4297,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			assert(ob->script_evaluator.nonNull());
 			if(ob->script_evaluator.nonNull())
 			{
-				evalObjectScript(ob, use_global_time);
+				Matrix4f ob_to_world;
+				evalObjectScript(ob, use_global_time, ob_to_world);
 
 				// If this object has instances (and has a graphics ob):
 				if(!ob->instances.empty() && ob->opengl_engine_ob.nonNull())
@@ -4337,12 +4309,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					for(size_t z=0; z<ob->instances.size(); ++z)
 					{
 						WorldObject* instance = ob->instances[z].ptr();
-						evalObjectScript(instance, use_global_time); // Updates instance->physics_object->ob_to_world
+						Matrix4f instance_ob_to_world;
+						evalObjectScript(instance, use_global_time, instance_ob_to_world); // Updates instance->physics_object->ob_to_world
 
-						const Matrix4f& instance_to_world = instance->physics_object->ob_to_world;
-						all_instances_aabb_ws.enlargeToHoldAABBox(ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(instance_to_world));
+						all_instances_aabb_ws.enlargeToHoldAABBox(ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(instance_ob_to_world));
 
-						ob->instance_matrices[z] = instance_to_world;
+						ob->instance_matrices[z] = instance_ob_to_world;
 					}
 
 					// Manually set AABB of instanced object.
@@ -10371,12 +10343,12 @@ int main(int argc, char *argv[])
 
 					// Create gl and physics object now
 					Reference<RayMesh> raymesh;
-					test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(mesh_URL, /*ob_lod_level*/0, test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
-						*mw.resource_manager, mw.mesh_manager, 
-						mw.task_manager, mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(),
-						ob_to_world_matrix,
-						false, // skip opengl calls
-						raymesh);
+					//test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(mesh_URL, /*ob_lod_level*/0, test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
+					//	*mw.resource_manager,
+					//	mw.task_manager, mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(),
+					//	ob_to_world_matrix,
+					//	false, // skip opengl calls
+					//	raymesh);
 
 					test_avatar->graphics.build();
 

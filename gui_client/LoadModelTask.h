@@ -62,7 +62,6 @@ public:
 
 	Reference<OpenGLEngine> opengl_engine;
 	MainWindow* main_window;
-	MeshManager* mesh_manager;
 	Reference<ResourceManager> resource_manager;
 	glare::TaskManager* model_building_task_manager;
 };
