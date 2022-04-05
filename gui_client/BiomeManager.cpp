@@ -234,9 +234,13 @@ static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshMa
 	materials[0]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
 
 	RayMeshRef raymesh;
-	GLObjectRef grass_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("grass_2819211535648845788.bmesh"/*"Quad_obj_17249492137259942610.bmesh"*/, /*ob lod level=*/0, materials, /*lightmap URL=*/"", 
-		resource_manager, mesh_manager, task_manager, &vert_buf_allocator,
-		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh);
+	Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL("grass_2819211535648845788.bmesh", resource_manager, task_manager, &vert_buf_allocator, /*skip opengl calls=*/false, raymesh);
+
+	GLObjectRef grass_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, /*ob to world matrix=*/Matrix4f::identity());
+
+	//GLObjectRef grass_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("grass_2819211535648845788.bmesh"/*"Quad_obj_17249492137259942610.bmesh"*/, /*ob lod level=*/0, materials, /*lightmap URL=*/"", 
+	//	resource_manager, /*mesh_manager, */task_manager, &vert_buf_allocator,
+	//	/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh);
 
 	for(size_t i=0; i<grass_ob->materials.size(); ++i)
 	{
@@ -274,9 +278,26 @@ GLObjectRef BiomeManager::makeElmTreeOb(VertexBufferAllocator& vert_buf_allocato
 	materials[1]->colour_texture_url = "elm_leaf_new_png_17162787394814938526.png";
 	materials[1]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
 
-	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("elm_RT_glb_3393252396927074015.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, mesh_manager, task_manager, 
-		&vert_buf_allocator,
-		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh_out);
+	if(elm_tree_mesh_data.isNull())
+	{
+		const std::string model_URL = "elm_RT_glb_3393252396927074015.bmesh";
+
+		elm_tree_mesh_data = mesh_manager.getMeshData(model_URL);
+		if(elm_tree_mesh_data.isNull())
+		{
+			Reference<RayMesh> raymesh;
+			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(model_URL, resource_manager, task_manager,
+				&vert_buf_allocator, /*skip opengl calls=*/false, raymesh);
+
+			// Add to mesh manager
+			elm_tree_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, raymesh);
+		}
+	}
+
+	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(elm_tree_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
+		/*ob to world matrix=*/Matrix4f::identity());
+
+	raymesh_out = elm_tree_mesh_data->raymesh;
 
 	for(size_t i=0; i<tree_opengl_ob->materials.size(); ++i)
 	{
@@ -299,7 +320,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(VertexBufferAllocator& vert_buf_allocato
 }
 
 
-static GLObjectRef makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef elm_imposters_tex)
+GLObjectRef BiomeManager::makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/)
 {
 	std::vector<WorldMaterialRef> materials(1);
 	materials[0] = new WorldMaterial();
@@ -307,10 +328,24 @@ static GLObjectRef makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocat
 	materials[0]->roughness.val = 0.f;
 	materials[0]->flags = WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG;
 
-	RayMeshRef raymesh;
-	GLObjectRef tree_imposter_opengl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials("Quad_obj_17249492137259942610.bmesh", /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
-		mesh_manager, task_manager, &vert_buf_allocator,
-		/*ob to world matrix=*/Matrix4f::identity(), /*skip opengl calls=*/false, raymesh);
+	if(elm_tree_imposter_mesh_data.isNull())
+	{
+		const std::string model_URL = "Quad_obj_17249492137259942610.bmesh";
+
+		elm_tree_imposter_mesh_data = mesh_manager.getMeshData(model_URL);
+		if(elm_tree_imposter_mesh_data.isNull())
+		{
+			Reference<RayMesh> raymesh;
+			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(model_URL, resource_manager, task_manager,
+				&vert_buf_allocator, /*skip opengl calls=*/false, raymesh);
+
+			// Add to mesh manager
+			elm_tree_imposter_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, raymesh);
+		}
+	}
+
+	GLObjectRef tree_imposter_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(elm_tree_imposter_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
+		/*ob to world matrix=*/Matrix4f::identity());
 
 	for(size_t i=0; i<tree_imposter_opengl_ob->materials.size(); ++i)
 		tree_imposter_opengl_ob->materials[i].imposter = true; // Mark mats as imposters so they use the imposter shader
@@ -382,7 +417,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 
 		// Add the imposter instances to the opengl engine as well
-		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(*opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, elm_imposters_tex);
+		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(*opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager/*, elm_imposters_tex*/);
 
 		tree_imposter_opengl_ob->instance_info.resize(ob_instances.size());
 		js::Vector<Matrix4f, 16> imposter_matrices(ob_instances.size());

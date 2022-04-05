@@ -33,47 +33,6 @@ Code By Nicholas Chapman.
 #include <limits>
 
 
-bool MeshManager::isMeshDataInserted(const std::string& model_url) const
-{
-	Lock lock(mutex);
-
-	return model_URL_to_mesh_map.count(model_url) > 0;
-}
-
-
-/*bool MeshManager::isMeshDataInsertedNoLock(const std::string& model_url) const
-{
-	return model_URL_to_mesh_map.count(model_url) > 0;
-}*/
-
-
-GLMemUsage MeshManager::getTotalMemUsage() const
-{
-	Lock lock(mutex);
-
-	GLMemUsage sum;
-	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
-	{
-		sum.geom_cpu_usage += it->second.raymesh->getTotalMemUsage();
-		sum += it->second.gl_meshdata->getTotalMemUsage();
-	}
-	return sum;
-}
-
-
-//size_t MeshManager::getTotalGPUMemUsage() const
-//{
-//	Lock lock(mutex);
-//
-//	size_t sum = 0;
-//	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
-//	{
-//		sum += it->second.gl_meshdata->getTotalGPUMemUsage();
-//	}
-//	return sum;
-//}
-
-
 void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat)
 {
 	opengl_mat.albedo_rgb = mat.colour_rgb;
@@ -821,139 +780,17 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 }
 
 
-GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string& lod_model_URL, int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
-												ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
-												const Matrix4f& ob_to_world_matrix, bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
+GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(const Reference<OpenGLMeshRenderData> gl_meshdata, //size_t num_materials_referenced,
+	int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
+	ResourceManager& resource_manager,
+	const Matrix4f& ob_to_world_matrix)
 {
-	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
-	size_t num_materials_referenced = 0;
-	Reference<OpenGLMeshRenderData> gl_meshdata;
-	Reference<RayMesh> raymesh;
-
-	{
-		Lock lock(mesh_manager.getMutex());
-
-		auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_URL);
-		if(res != mesh_manager.model_URL_to_mesh_map.end())
-		{
-			num_materials_referenced = res->second.num_materials_referenced;
-			gl_meshdata  = res->second.gl_meshdata;
-			raymesh      = res->second.raymesh;
-		}
-	}
-
-	if(gl_meshdata.isNull())
-	{
-		// Load mesh from disk:
-		const std::string model_path = resource_manager.pathForURL(lod_model_URL);
-		
-		BatchedMeshRef batched_mesh = new BatchedMesh();
-
-		//if(hasExtension(model_path, "vox"))
-		//{
-		//	VoxFileContents vox_content;
-		//	FormatDecoderVox::loadModel(model_path, vox_content);
-
-		//	// Convert voxels
-		//	const VoxModel& model = vox_contents.models[0];
-		//	loaded_object_out.voxel_group.voxels.resize(model.voxels.size());
-		//	for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
-		//	{
-		//		loaded_object_out.voxel_group.voxels[i].pos = Vec3<int>(model.voxels[i].x, model.voxels[i].y, model.voxels[i].z);
-		//		loaded_object_out.voxel_group.voxels[i].mat_index = model.voxels[i].mat_index;
-		//	}
-		//}
-		//else 
-		
-		if(hasExtension(model_path, "obj"))
-		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-
-			MLTLibMaterials mats;
-			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
-
-			batched_mesh->buildFromIndigoMesh(*mesh);
-		}
-		else if(hasExtension(model_path, "stl"))
-		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-
-			FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
-
-			batched_mesh->buildFromIndigoMesh(*mesh);
-		}
-		else if(hasExtension(model_path, "gltf"))
-		{
-			GLTFLoadedData gltf_data;
-			batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data);
-		}
-		else if(hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
-		{
-			GLTFLoadedData gltf_data;
-			batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
-		}
-		else if(hasExtension(model_path, "igmesh"))
-		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-
-			try
-			{
-				Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
-			}
-			catch(Indigo::IndigoException& e)
-			{
-				throw glare::Exception(toStdString(e.what()));
-			}
-
-			batched_mesh->buildFromIndigoMesh(*mesh);
-		}
-		else if(hasExtension(model_path, "bmesh"))
-		{
-			BatchedMesh::readFromFile(model_path, *batched_mesh);
-		}
-		else
-			throw glare::Exception("Format not supported: " + getExtension(model_path));
-
-
-		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
-
-		if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
-			if(batched_mesh->animation_data.vrm_data.nonNull())
-				rotateVRMMesh(*batched_mesh);
-
-		gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
-
-		gl_meshdata->animation_data = batched_mesh->animation_data;
-
-		// Build RayMesh from our batched mesh (used for physics + picking)
-		raymesh = new RayMesh(/*name=*/FileUtils::getFilename(model_path), false);
-		raymesh->fromBatchedMesh(*batched_mesh);
-
-		Geometry::BuildOptions options;
-		options.compute_is_planar = false;
-		DummyShouldCancelCallback should_cancel_callback;
-		StandardPrintOutput print_output;
-		raymesh->build(options, should_cancel_callback, print_output, false, task_manager);
-
-		num_materials_referenced = batched_mesh->numMaterialsReferenced();
-
-		// Add to map
-		MeshData mesh_data;
-		mesh_data.num_materials_referenced = num_materials_referenced;
-		mesh_data.gl_meshdata = gl_meshdata;
-		mesh_data.raymesh = raymesh;
-		{
-			Lock lock(mesh_manager.mutex);
-			mesh_manager.model_URL_to_mesh_map[lod_model_URL] = mesh_data;
-		}
-	}
-
 	// Make the GLObject
 	GLObjectRef ob = new GLObject();
 	ob->ob_to_world_matrix = ob_to_world_matrix;
 	ob->mesh_data = gl_meshdata;
 
-	ob->materials.resize(num_materials_referenced);
+	ob->materials.resize(gl_meshdata->num_materials_referenced);
 	for(uint32 i=0; i<ob->materials.size(); ++i)
 	{
 		if(i < materials.size())
@@ -972,7 +809,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 	// Show LOD level by tinting materials
 	if(false)
 	{
-		const int lod_level = StringUtils::containsString(lod_model_URL, "_lod1") ? 1 : (StringUtils::containsString(lod_model_URL, "_lod2") ? 2 : 0);
+		const int lod_level = 0;// StringUtils::containsString(lod_model_URL, "_lod1") ? 1 : (StringUtils::containsString(lod_model_URL, "_lod2") ? 2 : 0);
 		if(lod_level == 1)
 		{
 			for(uint32 i=0; i<ob->materials.size(); ++i)
@@ -990,15 +827,13 @@ GLObjectRef ModelLoading::makeGLObjectForModelURLAndMaterials(const std::string&
 			}
 		}
 	}
-
-
-	raymesh_out = raymesh;
+	
 	return ob;
 }
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
-	ResourceManager& resource_manager, MeshManager& mesh_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
+	ResourceManager& resource_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
 	bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
@@ -1006,107 +841,84 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelUR
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 	Reference<RayMesh> raymesh;
 
+	// Load mesh from disk:
+	const std::string model_path = resource_manager.pathForURL(lod_model_URL);
+
+	BatchedMeshRef batched_mesh = new BatchedMesh();
+
+	if(hasExtension(model_path, "obj"))
 	{
-		Lock lock(mesh_manager.getMutex());
+		Indigo::MeshRef mesh = new Indigo::Mesh();
 
-		auto res = mesh_manager.model_URL_to_mesh_map.find(lod_model_URL);
-		if(res != mesh_manager.model_URL_to_mesh_map.end())
-		{
-			num_materials_referenced = res->second.num_materials_referenced;
-			gl_meshdata  = res->second.gl_meshdata;
-			raymesh      = res->second.raymesh;
-		}
+		MLTLibMaterials mats;
+		FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
+
+		batched_mesh->buildFromIndigoMesh(*mesh);
 	}
-
-	if(gl_meshdata.isNull())
+	else if(hasExtension(model_path, "stl"))
 	{
-		// Load mesh from disk:
-		const std::string model_path = resource_manager.pathForURL(lod_model_URL);
+		Indigo::MeshRef mesh = new Indigo::Mesh();
 
-		BatchedMeshRef batched_mesh = new BatchedMesh();
+		FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
 
-		if(hasExtension(model_path, "obj"))
-		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-
-			MLTLibMaterials mats;
-			FormatDecoderObj::streamModel(model_path, *mesh, 1.f, /*parse mtllib=*/false, mats); // Throws glare::Exception on failure.
-
-			batched_mesh->buildFromIndigoMesh(*mesh);
-		}
-		else if(hasExtension(model_path, "stl"))
-		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-
-			FormatDecoderSTL::streamModel(model_path, *mesh, 1.f);
-
-			batched_mesh->buildFromIndigoMesh(*mesh);
-		}
-		else if(hasExtension(model_path, "gltf"))
-		{
-			GLTFLoadedData gltf_data;
-			batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data);
-		}
-		else if(hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
-		{
-			GLTFLoadedData gltf_data;
-			batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
-		}
-		else if(hasExtension(model_path, "igmesh"))
-		{
-			Indigo::MeshRef mesh = new Indigo::Mesh();
-
-			try
-			{
-				Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
-			}
-			catch(Indigo::IndigoException& e)
-			{
-				throw glare::Exception(toStdString(e.what()));
-			}
-
-			batched_mesh->buildFromIndigoMesh(*mesh);
-		}
-		else if(hasExtension(model_path, "bmesh"))
-		{
-			BatchedMesh::readFromFile(model_path, *batched_mesh);
-		}
-		else
-			throw glare::Exception("Format not supported: " + getExtension(model_path));
-
-
-		checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
-
-		if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
-			if(batched_mesh->animation_data.vrm_data.nonNull())
-				rotateVRMMesh(*batched_mesh);
-
-		gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
-
-		gl_meshdata->animation_data = batched_mesh->animation_data;
-
-		// Build RayMesh from our batched mesh (used for physics + picking)
-		raymesh = new RayMesh(/*name=*/FileUtils::getFilename(model_path), false);
-		raymesh->fromBatchedMesh(*batched_mesh);
-
-		Geometry::BuildOptions options;
-		options.compute_is_planar = false;
-		DummyShouldCancelCallback should_cancel_callback;
-		StandardPrintOutput print_output;
-		raymesh->build(options, should_cancel_callback, print_output, false, task_manager);
-
-		num_materials_referenced = batched_mesh->numMaterialsReferenced();
-
-		// Add to map
-		MeshData mesh_data;
-		mesh_data.num_materials_referenced = num_materials_referenced;
-		mesh_data.gl_meshdata = gl_meshdata;
-		mesh_data.raymesh = raymesh;
-		{
-			Lock lock(mesh_manager.mutex);
-			mesh_manager.model_URL_to_mesh_map[lod_model_URL] = mesh_data;
-		}
+		batched_mesh->buildFromIndigoMesh(*mesh);
 	}
+	else if(hasExtension(model_path, "gltf"))
+	{
+		GLTFLoadedData gltf_data;
+		batched_mesh = FormatDecoderGLTF::loadGLTFFile(model_path, gltf_data);
+	}
+	else if(hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
+	{
+		GLTFLoadedData gltf_data;
+		batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
+	}
+	else if(hasExtension(model_path, "igmesh"))
+	{
+		Indigo::MeshRef mesh = new Indigo::Mesh();
+
+		try
+		{
+			Indigo::Mesh::readFromFile(toIndigoString(model_path), *mesh);
+		}
+		catch(Indigo::IndigoException& e)
+		{
+			throw glare::Exception(toStdString(e.what()));
+		}
+
+		batched_mesh->buildFromIndigoMesh(*mesh);
+	}
+	else if(hasExtension(model_path, "bmesh"))
+	{
+		BatchedMesh::readFromFile(model_path, *batched_mesh);
+	}
+	else
+		throw glare::Exception("Format not supported: " + getExtension(model_path));
+
+
+	checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
+
+	if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
+		if(batched_mesh->animation_data.vrm_data.nonNull())
+			rotateVRMMesh(*batched_mesh);
+
+	gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+
+	gl_meshdata->animation_data = batched_mesh->animation_data;
+
+	// Build RayMesh from our batched mesh (used for physics + picking)
+	raymesh = new RayMesh(/*name=*/FileUtils::getFilename(model_path), false);
+	raymesh->fromBatchedMesh(*batched_mesh);
+
+	Geometry::BuildOptions options;
+	options.compute_is_planar = false;
+	DummyShouldCancelCallback should_cancel_callback;
+	StandardPrintOutput print_output;
+	raymesh->build(options, should_cancel_callback, print_output, false, task_manager);
+
+	num_materials_referenced = batched_mesh->numMaterialsReferenced();
+
+	gl_meshdata->num_materials_referenced = num_materials_referenced;
 
 	raymesh_out = raymesh;
 	return gl_meshdata;

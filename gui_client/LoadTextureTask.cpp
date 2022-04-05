@@ -7,7 +7,7 @@ Copyright Glare Technologies Limited 2019 -
 
 
 #include "MainWindow.h"
-#include "../shared/ImageDecoding.h""
+#include "../shared/ImageDecoding.h"
 #include <indigo/TextureServer.h>
 #include <graphics/ImageMapSequence.h>
 #include <graphics/GifDecoder.h>

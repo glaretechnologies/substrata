@@ -65,7 +65,8 @@ public:
 
 private:
 	GLObjectRef makeElmTreeOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out);
-	
+	GLObjectRef makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
+
 	struct Patch;
 	void updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w, const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine);
 
@@ -89,4 +90,8 @@ private:
 	//std::vector<GLObjectRef> opengl_obs; // Tree obs (not from patches) that have been added to the opengl engine.
 
 	std::map<WorldObject*, Reference<ObBiomeData> > ob_to_biome_data;
+
+
+	Reference<MeshData> elm_tree_mesh_data;
+	Reference<MeshData> elm_tree_imposter_mesh_data;
 };

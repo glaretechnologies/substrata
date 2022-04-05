@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "vec3.h"
 #include <physics/jscol_aabbox.h>
 #if GUI_CLIENT
+#include "../gui_client/MeshManager.h"
 #include <graphics/ImageMap.h>
 #endif
 #include <string>
@@ -200,6 +201,8 @@ public:
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
 	Reference<glare::AudioSource> audio_source;
+
+	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 	enum AudioState
 	{

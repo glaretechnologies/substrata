@@ -21,6 +21,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "MiscInfoUI.h"
 #include "DownloadingResourceQueue.h"
 #include "LoadItemQueue.h"
+#include "MeshManager.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
 #include "../opengl/WGL.h"
@@ -197,7 +198,7 @@ private:
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level);
 	void startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
-	void evalObjectScript(WorldObject* ob, float use_global_time);
+	void evalObjectScript(WorldObject* ob, float use_global_time, Matrix4f& ob_to_world_out);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
@@ -554,6 +555,6 @@ public:
 	std::string cur_loading_lod_model_url;
 	WorldObjectRef cur_loading_voxel_ob;
 	int cur_loading_voxel_subsample_factor;
-	Reference<RayMesh> cur_loading_voxel_raymesh;
+	Reference<RayMesh> cur_loading_raymesh;
 	int cur_loading_voxel_ob_lod_level;
 };
