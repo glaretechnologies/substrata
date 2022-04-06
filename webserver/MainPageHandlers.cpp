@@ -564,7 +564,7 @@ void renderFAQ(ServerAllWorldsState& world_state, const web::RequestInfo& reques
 "	OBJ, GLTF, GLB, VOX, STL and IGMESH</span></p>																		"
 "	<p>																													"
 "	<span>Supported image formats are:													"
-"	JPG, TGA, BMP, PNG, TIF, EXR, GIF, KTX, KTX2</span></p>																"
+"	JPG, PNG, GIF, TIF, EXR, KTX, KTX2</span></p>																"
 "	<p>																													"
 "	<span>Supported video formats are:													"
 "	MP4</span></p>																										"
