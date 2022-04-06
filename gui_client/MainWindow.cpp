@@ -1159,6 +1159,8 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 // If so, load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the model download.
 // Also enqueue any downloads for missing resources such as textures.
+//
+// Also called from checkForLODChanges() when the object LOD level changes, and so we may need to load a new model and/or textures.
 void MainWindow::loadModelForObject(WorldObject* ob)
 {
 	// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
@@ -1234,75 +1236,81 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 		if(ob->object_type == WorldObject::ObjectType_Hypercard)
 		{
-			removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
-			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-			physics_ob->geometry = this->hypercard_quad_raymesh;
-			physics_ob->ob_to_world = ob_to_world_matrix;
-			physics_ob->userdata = ob;
-			physics_ob->userdata_type = 0;
-
-			GLObjectRef opengl_ob = new GLObject();
-			opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
-			opengl_ob->materials.resize(1);
-			opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-			opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
-
-
-			const std::string tex_key = "hypercard_" + ob->content;
-
-			// If the hypercard texture is already loaded, use it
-			opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
-			opengl_ob->materials[0].tex_path = tex_key;
-
-			if(opengl_ob->materials[0].albedo_texture.isNull())
+			if(ob->opengl_engine_ob.isNull())
 			{
-				const bool just_added = checkAddTextureToProcessedSet(tex_key);
-				if(just_added) // not being loaded already:
+				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob->geometry = this->hypercard_quad_raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
+
+				GLObjectRef opengl_ob = new GLObject();
+				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
+				opengl_ob->materials.resize(1);
+				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+
+
+				const std::string tex_key = "hypercard_" + ob->content;
+
+				// If the hypercard texture is already loaded, use it
+				opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+				opengl_ob->materials[0].tex_path = tex_key;
+
+				if(opengl_ob->materials[0].albedo_texture.isNull())
 				{
-					Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
-					task->main_window = this;
-					task->hypercard_content = ob->content;
-					task->opengl_engine = ui->glWidget->opengl_engine;
-					load_item_queue.enqueueItem(*ob, task);
+					const bool just_added = checkAddTextureToProcessedSet(tex_key);
+					if(just_added) // not being loaded already:
+					{
+						Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
+						task->main_window = this;
+						task->hypercard_content = ob->content;
+						task->opengl_engine = ui->glWidget->opengl_engine;
+						load_item_queue.enqueueItem(*ob, task);
+					}
 				}
+
+
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+				ob->loaded_content = ob->content;
+
+				ui->glWidget->addObject(ob->opengl_engine_ob);
+
+				physics_world->addObject(ob->physics_object);
+				physics_world->rebuild(task_manager, print_output);
 			}
-
-
-			ob->opengl_engine_ob = opengl_ob;
-			ob->physics_object = physics_ob;
-			ob->loaded_content = ob->content;
-
-			ui->glWidget->addObject(ob->opengl_engine_ob);
-
-			physics_world->addObject(ob->physics_object);
-			physics_world->rebuild(task_manager, print_output);
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
 		{
-			removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+			if(ob->opengl_engine_ob.isNull())
+			{
+				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-			physics_ob->geometry = this->spotlight_raymesh;
-			physics_ob->ob_to_world = ob_to_world_matrix;
-			physics_ob->userdata = ob;
-			physics_ob->userdata_type = 0;
+				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
+				physics_ob->geometry = this->spotlight_raymesh;
+				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->userdata = ob;
+				physics_ob->userdata_type = 0;
 
-			GLObjectRef opengl_ob = new GLObject();
-			opengl_ob->mesh_data = this->spotlight_opengl_mesh;
-			opengl_ob->materials.resize(1);
-			opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-			opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
+				GLObjectRef opengl_ob = new GLObject();
+				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
+				opengl_ob->materials.resize(1);
+				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
-			ob->opengl_engine_ob = opengl_ob;
-			ob->physics_object = physics_ob;
-			ob->loaded_content = ob->content;
+				ob->opengl_engine_ob = opengl_ob;
+				ob->physics_object = physics_ob;
+				ob->loaded_content = ob->content;
 
-			ui->glWidget->addObject(ob->opengl_engine_ob);
+				ui->glWidget->addObject(ob->opengl_engine_ob);
 
-			physics_world->addObject(ob->physics_object);
-			physics_world->rebuild(task_manager, print_output);
+				physics_world->addObject(ob->physics_object);
+				physics_world->rebuild(task_manager, print_output);
+			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_WebView)
 		{
@@ -1340,30 +1348,42 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		}
 		else if(ob->object_type == WorldObject::ObjectType_VoxelGroup)
 		{
-			// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
-			Reference<LoadModelTask> load_model_task = new LoadModelTask();
+			if(ob->loaded_model_lod_level != ob_model_lod_level) // We may already have the correct LOD model loaded, don't reload if so.
+			{
+				// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
+				Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-			load_model_task->voxel_ob_lod_level = ob_model_lod_level;
-			load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-			load_model_task->main_window = this;
-			load_model_task->resource_manager = resource_manager;
-			load_model_task->voxel_ob = ob;
-			load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
+				load_model_task->voxel_ob_lod_level = ob_model_lod_level;
+				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
+				load_model_task->main_window = this;
+				load_model_task->resource_manager = resource_manager;
+				load_model_task->voxel_ob = ob;
+				load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-			load_item_queue.enqueueItem(*ob, load_model_task);
+				load_item_queue.enqueueItem(*ob, load_model_task);
 
-			load_placeholder = ob->getCompressedVoxels().size() != 0;
+				load_placeholder = ob->getCompressedVoxels().size() != 0;
+			}
+			else
+			{
+				// Update textures to correct LOD-level textures.
+				if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
+				{
+					ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager);
+					assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+				}
+			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Generic)
 		{
 			assert(ob->object_type == WorldObject::ObjectType_Generic);
 
-			if(!ob->model_url.empty())
+			if(!ob->model_url.empty() && 
+				(ob->loaded_model_lod_level != ob_model_lod_level)) // We may already have the correct LOD model loaded, don't reload if so.
+				// (The object LOD level might have changed, but the model LOD level may be the same due to max model lod level, for example for simple cube models.)
 			{
 				bool added_opengl_ob = false;
 				const std::string lod_model_url = WorldObject::getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
-
-				ob->current_lod_level = ob_lod_level;
 
 				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
@@ -1436,6 +1456,15 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					this->loading_model_URL_to_world_ob_UID_map[lod_model_url].insert(ob->uid);
 
 				load_placeholder = !added_opengl_ob;
+			}
+			else
+			{
+				// Update textures to correct LOD-level textures.
+				if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model)
+				{
+					ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager);
+					assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+				}
 			}
 		}
 		else
