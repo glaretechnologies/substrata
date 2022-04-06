@@ -832,6 +832,17 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(const Reference<Op
 }
 
 
+void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_level, const std::vector<WorldMaterialRef>& materials,
+	const std::string& lightmap_url, ResourceManager& resource_manager)
+{
+	for(size_t i=0; i<gl_ob.materials.size(); ++i)
+	{
+		if(i < materials.size())
+			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, resource_manager, gl_ob.materials[i]);
+	}
+}
+
+
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
 	ResourceManager& resource_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
 	bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
