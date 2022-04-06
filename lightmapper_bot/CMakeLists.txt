@@ -30,6 +30,8 @@ SET(gui_client_files
 SET(shared_files
 ../shared/Avatar.cpp
 ../shared/Avatar.h
+../shared/ImageDecoding.cpp
+../shared/ImageDecoding.h
 ../shared/GroundPatch.cpp
 ../shared/GroundPatch.h
 ../shared/LODGeneration.cpp
