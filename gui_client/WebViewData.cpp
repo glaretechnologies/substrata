@@ -12,15 +12,15 @@ Copyright Glare Technologies Limited 2022 -
 #include <Escaping.h>
 #include <FileInStream.h>
 #include <PlatformUtils.h>
-#include <cef_app.h>
-//#include <cef_sandbox_win.h>
-#include <cef_client.h>
-#include <wrapper/cef_helpers.h>
-//#include <QtGui/QPainter>
-
 
 #if defined(_WIN32)
 #define CEF_SUPPORT 1
+#endif
+
+#if CEF_SUPPORT
+#include <cef_app.h>
+#include <cef_client.h>
+#include <wrapper/cef_helpers.h>
 #endif
 
 
