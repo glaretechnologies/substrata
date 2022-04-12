@@ -557,4 +557,7 @@ public:
 	int cur_loading_voxel_subsample_factor;
 	Reference<RayMesh> cur_loading_raymesh;
 	int cur_loading_voxel_ob_lod_level;
+
+	bool in_CEF_message_loop;
+	bool should_close;
 };

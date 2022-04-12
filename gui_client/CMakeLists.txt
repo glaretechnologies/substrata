@@ -460,6 +460,10 @@ include_directories(../resonance-audio/third_party/eigen)
 include_directories(../resonance-audio/third_party/pffft)
 
 
+include_directories(${cef_binary_dist_dir}/include)
+include_directories(${cef_binary_dist_dir})
+
+
 #include_directories(../meshoptimizer/src)
 
 # Definitions that Resonance Audio needs:
@@ -632,6 +636,12 @@ if(WIN32)
 		winmm 
 		dsound
 		
+		# Chromium embedded framework
+		debug 		${cef_binary_dist_dir}/Debug/libcef.lib
+		optimized 	${cef_binary_dist_dir}/Release/libcef.lib
+		
+		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Debug/libcef_dll_wrapper.lib
+		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib
 	)
 
 	# Superluminal profiler:

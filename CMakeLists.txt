@@ -143,6 +143,8 @@ set(pngdir		"${INDIGO_TRUNK_DIR_ENV}/libpng-1.6.37")
 set(zstddir		"${INDIGO_TRUNK_DIR_ENV}/zstd-1.5.2")
 set(resonance_audio_dir "${INDIGO_LIBS_ENV}/resonance-audio/trunk/install/resonance_audio")
 
+set(cef_binary_dist_dir C:/cef/chromium/src/cef/binary_distrib/cef_binary_101.0.3+g68a0a11+chromium-101.0.4951.26_windows64)
+
 # The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
 # So get via getConfigOption()
 getConfigOption("--qtversion" INDIGO_QT_VERSION)
@@ -195,7 +197,9 @@ if(WIN32)
 	# VS subdir
 	set(VS_SUB_DIR "vs${CYBERSPACE_VS_VER}")
 	
-	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_LIBS_VS_VER}_${CYBERSPACE_BITNESS}")
+	set(LLVM_BUILD_VS_VER 2019)
+	
+	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${LLVM_BUILD_VS_VER}_${CYBERSPACE_BITNESS}")
 	set(libressldir "${INDIGO_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}-install")
 	set(openssldir "${INDIGO_LIBS_ENV}/OpenSSL/openssl-${INDIGO_OPENSSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}")
 		
@@ -279,3 +283,5 @@ ADD_SUBDIRECTORY(server server)
 #ADD_SUBDIRECTORY(webclient webclient)
 
 #ADD_SUBDIRECTORY(stress_test stress_test)
+
+ADD_SUBDIRECTORY(browser_process browser_process)

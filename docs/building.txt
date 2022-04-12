@@ -1,4 +1,58 @@
 
+Building Chromium Embedded Framework (CEF)
+==========================================
+
+We want to build CEF ourselves so we can compile in proprietary_codecs (in particular h264 support)
+
+Building CEF from source
+------------------------
+Following https://bitbucket.org/chromiumembedded/cef/wiki/AutomatedBuildSetup roughly:
+
+set GN_DEFINES=is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome use_thin_lto=false
+set GYP_MSVS_VERSION=2019
+set CEF_ARCHIVE_FORMAT=tar.bz2
+C:\programming>python automate-git.py --download-dir=c:/cef --branch=4951 --minimal-distrib --client-distrib --force-clean --x64-build 
+
+Note that GYP_MSVS_VERSION=2022 doesn't work (brotli compile/link errors)
+
+Branch 4951 is march 2022, see https://bitbucket.org/chromiumembedded/cef/wiki/BranchesAndBuilding.md
+
+
+
+To build binary distribution
+----------------------------
+cd C:\cef\chromium\src\cef\tools
+make_distrib.bat --ninja-build --x64-build
+
+Builds to something like:
+C:\cef\chromium\src\cef\binary_distrib\cef_binary_101.0.3+g68a0a11+chromium-101.0.4951.26_windows64\
+
+
+
+
+Rebuild libcef C++ dll wrapper
+------------------------------
+Change into the binary distribution directory we just built:
+
+cd C:\cef\chromium\src\cef\binary_distrib\cef_binary_101.0.3+g68a0a11+chromium-101.0.4951.26_windows64
+mkdir libcef_dll_build
+cd libcef_dll_build
+cmake ../
+# Open in Visual Studio:
+&"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe" cef.sln
+
+For libcef_dll_wrapper project:
+Debug config:
+remove _HAS_ITERATOR_DEBUGGING=0 from libcef_dll_wrapper c++ preprocess defs
+Change debug C++ code generation  / Runtime Library to "Multi-threaded Debug DLL (/MDd)"
+
+Release config:
+Change debug C++ code generation  / Runtime Library to "Multi-threaded DLL (/MD)"
+
+
+
+
+
 
 Building LLVM
 ===================

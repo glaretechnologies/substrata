@@ -195,7 +195,9 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	running_destructor(false),
 	biome_manager(NULL),
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
-	screenshot_width_px(1024)
+	screenshot_width_px(1024),
+	in_CEF_message_loop(false),
+	should_close(false)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
@@ -615,6 +617,16 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
+	// Don't try and close everything down while we're in the message loop in the chromium embedded framework (CEF) code,
+	// because that will try and close CEF down, which leads to problems.
+	// Instead set a flag (should_close), and close the mainwindow when we're back in the main message loop and not the CEF loop.
+	if(in_CEF_message_loop)
+	{
+		should_close = true;
+		event->ignore();
+		return;
+	}
+
 	// Save main window geometry and state.  See http://doc.qt.io/archives/qt-4.8/qmainwindow.html#saveState
 	settings->setValue("mainwindow/geometry", saveGeometry());
 	settings->setValue("mainwindow/windowState", saveState());
@@ -661,6 +673,10 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	obs_with_animated_tex.clear();
 
 	if(log_window) log_window->close();
+
+	in_CEF_message_loop = true;
+	WebViewData::shutdownCEF();
+	in_CEF_message_loop = false;
 
 	QMainWindow::closeEvent(event);
 }
@@ -2751,6 +2767,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+
+	// We don't want to do the closeEvent stuff in the CEF message loop.  
+	// If we got a close event in there, handle it now when we're in the main message loop, and not the CEF message loop.
+	if(should_close && !in_CEF_message_loop)
+	{
+		should_close = false;
+		this->close();
+		return;
+	}
+
+	in_CEF_message_loop = true;
+	WebViewData::doMessageLoopWork();
+	in_CEF_message_loop = false;
+	
 
 
 	/*
