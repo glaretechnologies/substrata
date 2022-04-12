@@ -8,18 +8,18 @@ Copyright Glare Technologies Limited 2022 -
 
 #include <opengl/OpenGLEngine.h>
 #include <opengl/WGL.h>
-#include <video/VideoReader.h>
 #include <utils/Timer.h>
 #include <QtGui/QImage>
 #include <QtCore/QObject>
 #include <map>
 class MainWindow;
 class WorldObject;
-class QWebEngineView;
 class QMouseEvent;
 class QEvent;
 class QKeyEvent;
 class QWheelEvent;
+class WebViewDataCEFApp;
+class WebViewCEFBrowser;
 
 
 class WebViewData : public QObject, public RefCounted
@@ -31,15 +31,11 @@ public:
 
 	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
-	static const double maxVidPlayDist() { return 20.0; }
+	static void doMessageLoopWork();
 
+	static void shutdownCEF();
 
-	std::string loaded_target_url;
-	QWebEngineView* webview;
-
-	QImage webview_qimage;
-	Timer time_since_last_webview_display;
-
+	//static const double maxVidPlayDist() { return 20.0; }
 
 	void mousePressed(QMouseEvent* e, const Vec2f& uv_coords);
 	void mouseReleased(QMouseEvent* e, const Vec2f& uv_coords);
@@ -65,15 +61,14 @@ private slots:
 
 
 private:
-	void postMouseEventToWebView(QMouseEvent* e, /*QEvent::Type use_event_type, */const Vec2f& uv_coords);
-	void postKeyEventToWebView(QKeyEvent* e);
-
-	Timer time_since_last_mouse_click;
+	std::string loaded_target_url;
 
 	QString current_hovered_URL;
 
 	int cur_load_progress;
 	bool loading_in_progress;
+
+	WebViewCEFBrowser* browser;
 };
 
 
