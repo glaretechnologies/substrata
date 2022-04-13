@@ -128,6 +128,8 @@ MESSAGE("INDIGO_TRUNK_DIR: ${INDIGO_TRUNK_DIR_ENV}")
 checkAndGetEnvVar(WEBSITE_CORE_TRUNK_DIR WEBSITE_CORE_TRUNK_DIR_ENV)
 MESSAGE("WEBSITE_CORE_TRUNK_DIR: ${WEBSITE_CORE_TRUNK_DIR_ENV}")
 
+SET(CEF_BINARY_DISTRIB_DIR_ENV $ENV{CEF_BINARY_DISTRIB_DIR})
+MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
 
 MESSAGE("
 Library versions:")
@@ -143,7 +145,7 @@ set(pngdir		"${INDIGO_TRUNK_DIR_ENV}/libpng-1.6.37")
 set(zstddir		"${INDIGO_TRUNK_DIR_ENV}/zstd-1.5.2")
 set(resonance_audio_dir "${INDIGO_LIBS_ENV}/resonance-audio/trunk/install/resonance_audio")
 
-set(cef_binary_dist_dir C:/cef/chromium/src/cef/binary_distrib/cef_binary_101.0.3+g68a0a11+chromium-101.0.4951.26_windows64)
+set(cef_binary_dist_dir ${CEF_BINARY_DISTRIB_DIR_ENV})
 
 # The version of Qt we use needs to be accessed by both CMake and ruby build_dist script etc..
 # So get via getConfigOption()
