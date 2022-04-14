@@ -27,7 +27,11 @@ class WebViewDataCEFApp : public CefApp, public CefBrowserProcessHandler
 
 
 // See https://bitbucket.org/chromiumembedded/cef/wiki/GeneralUsage.md#markdown-header-entry-point-function
+#if defined(_WIN32)
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) // use WinMain on Windows, otherwise we get a console window showing when browser_process is run.
+#else
 int main(int argc, char* argv[])
+#endif
 {
 	// std::cout << "BrowserProcess!!!" << std::endl;
 

@@ -10,7 +10,7 @@ FILE(GLOB browser_process "./*.cpp" "./*.h")
 
 SOURCE_GROUP(browser_process FILES ${browser_process})
 
-add_executable(${CURRENT_TARGET}
+add_executable(${CURRENT_TARGET} WIN32 # WIN32 to make it use Windows subsystem
 ${browser_process}
 )
 
