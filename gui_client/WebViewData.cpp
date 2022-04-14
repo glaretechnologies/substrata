@@ -546,6 +546,11 @@ public:
 	CefRefPtr<LifeSpanHandler> lifespan_handler;
 };
 
+#else // else if !CEF_SUPPORT: 
+
+class WebViewCEFBrowser : public RefCounted
+{};
+
 #endif // CEF_SUPPORT
 
 
