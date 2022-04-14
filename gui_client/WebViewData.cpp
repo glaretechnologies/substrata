@@ -28,15 +28,6 @@ static bool CEF_initialised = false;
 static WebViewDataCEFApp* app = NULL; // Shared among all WebViewData objects.
 
 
-WebViewData::WebViewData()
-:	cur_load_progress(0),
-	loading_in_progress(false),
-	browser(NULL)
-{
-
-}
-
-
 #if CEF_SUPPORT
 
 
@@ -542,13 +533,21 @@ public:
 #endif // CEF_SUPPORT
 
 
+WebViewData::WebViewData()
+:	cur_load_progress(0),
+	loading_in_progress(false),
+	browser(NULL)
+{
+
+}
+
+
 WebViewData::~WebViewData()
 {
 #if CEF_SUPPORT
 	if(browser)
 	{
 		browser->requestExit();
-
 		browser->Release(); // We just hold a pointer to the browser, not a CefRefPtr, so manually release.
 	}
 #endif
@@ -584,46 +583,64 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 	const int width = 1920;
 	const int height = 1080;
 
-	if(ob->opengl_engine_ob->materials[0].albedo_texture.isNull())
+	const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
+	const double max_play_dist = maxBrowserDist();
+	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
+	if(in_process_dist)
 	{
-		ob->opengl_engine_ob->materials[0].albedo_texture = new OpenGLTexture(width, height, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8,
-			GL_SRGB8_ALPHA8, // GL internal format
-			GL_BGRA, // GL format.
-			OpenGLTexture::Filtering_Bilinear);
-
-		ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
-	}
-
-	if(!app)
-	{
-		app = new WebViewDataCEFApp();
-		app->AddRef(); // Since we are just storing a pointer to WebViewDataCEFApp, manually increment ref count.
-
-		app->initialise(main_window->base_dir_path);
-	}
-
-	if(app)
-	{
-		if(!browser)
+		if(ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->materials[0].albedo_texture.isNull())
 		{
-			CefRefPtr<WebViewCEFBrowser> browser_ = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
-			browser = browser_.get();
-			browser->AddRef();
+			ob->opengl_engine_ob->materials[0].albedo_texture = new OpenGLTexture(width, height, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8,
+				GL_SRGB8_ALPHA8, // GL internal format
+				GL_BGRA, // GL format.
+				OpenGLTexture::Filtering_Bilinear);
 
-			this->loaded_target_url = ob->target_url;
+			ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
 		}
 
-		// If target url has changed, tell webview to load it
-		if(browser && (ob->target_url != this->loaded_target_url))
+		if(!app)
 		{
-			// conPrint("Webview loading URL '" + ob->target_url + "'...");
+			app = new WebViewDataCEFApp();
+			app->AddRef(); // Since we are just storing a pointer to WebViewDataCEFApp, manually increment ref count.
 
-			browser->navigate(ob->target_url);
+			app->initialise(main_window->base_dir_path);
+		}
 
-			this->loaded_target_url = ob->target_url;
+		if(app)
+		{
+			if(!browser && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
+			{
+				main_window->logMessage("Creating browser, target_url: " + ob->target_url);
+
+				CefRefPtr<WebViewCEFBrowser> browser_ = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
+				browser = browser_.get();
+				browser->AddRef();
+
+				this->loaded_target_url = ob->target_url;
+			}
+
+			// If target url has changed, tell webview to load it
+			if(browser && (ob->target_url != this->loaded_target_url))
+			{
+				// conPrint("Webview loading URL '" + ob->target_url + "'...");
+
+				browser->navigate(ob->target_url);
+
+				this->loaded_target_url = ob->target_url;
+			}
 		}
 	}
-#endif
+	else // else if !in_process_dist:
+	{
+		if(browser)
+		{
+			main_window->logMessage("Closing browser (out of view distance), target_url: " + ob->target_url);
+			browser->requestExit();
+			browser->Release(); // We just hold a pointer to the browser, not a CefRefPtr, so manually release.
+			browser = NULL;
+		}
+	}
+#endif // CEF_SUPPORT
 
 #if 0
 	{

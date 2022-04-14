@@ -35,7 +35,7 @@ public:
 
 	static void shutdownCEF();
 
-	//static const double maxVidPlayDist() { return 20.0; }
+	static const double maxBrowserDist() { return 20.0; }
 
 	void mousePressed(QMouseEvent* e, const Vec2f& uv_coords);
 	void mouseReleased(QMouseEvent* e, const Vec2f& uv_coords);
