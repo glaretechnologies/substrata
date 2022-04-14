@@ -37,6 +37,8 @@ class RenderHandler : public CefRenderHandler
 public:
 	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_) {}
 
+	~RenderHandler() {}
+
 	void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) override
 	{
 		CEF_REQUIRE_UI_THREAD();
@@ -206,16 +208,9 @@ public:
 };
 
 
-class WebViewCEFBrowser : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler
+class WebDataCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler
 {
 public:
-	WebViewCEFBrowser(WebViewData* web_view_data_, RenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
-	:	web_view_data(web_view_data_),
-		mRenderHandler(render_handler),
-		mLifeSpanHandler(lifespan_handler)
-	{
-	}
-
 	CefRefPtr<CefRenderHandler> GetRenderHandler() override
 	{
 		return mRenderHandler;
@@ -241,29 +236,10 @@ public:
 		return this;
 	}
 
-
-	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
-		const CefString& value)
-	{
-		if(value.c_str())
-		{
-			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
-
-			web_view_data->linkHoveredSignal(QtUtils::toQString(StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str())));
-		}
-		else
-		{
-			//conPrint("OnStatusMessage: NULL");
-
-			web_view_data->linkHoveredSignal("");
-		}
-	}
-
-
 	virtual bool OnCursorChange(CefRefPtr<CefBrowser> browser,
 		CefCursorHandle cursor,
 		cef_cursor_type_t type,
-		const CefCursorInfo& custom_cursor_info)
+		const CefCursorInfo& custom_cursor_info) override
 	{
 		return false;
 	}
@@ -296,7 +272,7 @@ public:
 		return false;
 	}
 
-	
+
 
 	void OnLoadStart(CefRefPtr<CefBrowser> browser,
 		CefRefPtr<CefFrame> frame,
@@ -321,6 +297,48 @@ public:
 			const std::string url = frame->GetURL();
 
 			conPrint("Load ended for URL: " + std::string(url) + " with HTTP status code: " + toString(httpStatusCode));
+		}
+	}
+
+
+	CefRefPtr<RenderHandler> mRenderHandler;
+	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
+
+	IMPLEMENT_REFCOUNTING(WebDataCefClient);
+};
+
+
+class WebViewCEFBrowser : public RefCounted
+{
+public:
+	WebViewCEFBrowser(WebViewData* web_view_data_, RenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
+	:	web_view_data(web_view_data_),
+		mRenderHandler(render_handler),
+		mLifeSpanHandler(lifespan_handler)
+	{
+		cef_client = new WebDataCefClient();
+		cef_client->mRenderHandler = mRenderHandler;
+		cef_client->mLifeSpanHandler = lifespan_handler;
+	}
+
+	~WebViewCEFBrowser()
+	{
+	}
+
+	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
+		const CefString& value)
+	{
+		if(value.c_str())
+		{
+			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
+
+			web_view_data->linkHoveredSignal(QtUtils::toQString(StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str())));
+		}
+		else
+		{
+			//conPrint("OnStatusMessage: NULL");
+
+			web_view_data->linkHoveredSignal("");
 		}
 	}
 
@@ -431,11 +449,9 @@ public:
 
 	CefRefPtr<RenderHandler> mRenderHandler;
 	CefRefPtr<CefBrowser> cef_browser;
-	
-	CefLifeSpanHandler* mLifeSpanHandler;
+	CefRefPtr<WebDataCefClient> cef_client;
 
-
-	IMPLEMENT_REFCOUNTING(WebViewCEFBrowser);
+	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler;
 };
 
 
@@ -498,9 +514,9 @@ public:
 	}
 
 
-	CefRefPtr<WebViewCEFBrowser> createBrowser(WebViewData* web_view_data, const std::string& URL, Reference<OpenGLTexture> opengl_tex)
+	Reference<WebViewCEFBrowser> createBrowser(WebViewData* web_view_data, const std::string& URL, Reference<OpenGLTexture> opengl_tex)
 	{
-		CefRefPtr<WebViewCEFBrowser> browser = new WebViewCEFBrowser(web_view_data, new RenderHandler(opengl_tex), lifespan_handler.get());
+		Reference<WebViewCEFBrowser> browser = new WebViewCEFBrowser(web_view_data, new RenderHandler(opengl_tex), lifespan_handler.get());
 
 		CefWindowInfo window_info;
 		window_info.windowless_rendering_enabled = true;
@@ -509,7 +525,7 @@ public:
 		browser_settings.windowless_frame_rate = 60;
 		browser_settings.background_color = CefColorSetARGB(255, 100, 100, 100);
 
-		browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser, CefString(URL), browser_settings, nullptr, nullptr);
+		browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
 		return browser;
 	}
 
@@ -545,10 +561,10 @@ WebViewData::WebViewData()
 WebViewData::~WebViewData()
 {
 #if CEF_SUPPORT
-	if(browser)
+	if(browser.nonNull())
 	{
 		browser->requestExit();
-		browser->Release(); // We just hold a pointer to the browser, not a CefRefPtr, so manually release.
+		browser = NULL;
 	}
 #endif
 }
@@ -608,19 +624,17 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 
 		if(app)
 		{
-			if(!browser && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
+			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
 				main_window->logMessage("Creating browser, target_url: " + ob->target_url);
 
-				CefRefPtr<WebViewCEFBrowser> browser_ = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
-				browser = browser_.get();
-				browser->AddRef();
+				browser = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
 
 				this->loaded_target_url = ob->target_url;
 			}
 
 			// If target url has changed, tell webview to load it
-			if(browser && (ob->target_url != this->loaded_target_url))
+			if(browser.nonNull() && (ob->target_url != this->loaded_target_url))
 			{
 				// conPrint("Webview loading URL '" + ob->target_url + "'...");
 
@@ -632,11 +646,10 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 	}
 	else // else if !in_process_dist:
 	{
-		if(browser)
+		if(browser.nonNull())
 		{
 			main_window->logMessage("Closing browser (out of view distance), target_url: " + ob->target_url);
 			browser->requestExit();
-			browser->Release(); // We just hold a pointer to the browser, not a CefRefPtr, so manually release.
 			browser = NULL;
 		}
 	}
@@ -752,7 +765,7 @@ void WebViewData::mouseReleased(QMouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mouseReleased()");
 #if CEF_SUPPORT
-	if(browser)
+	if(browser.nonNull())
 	{
 		if(e->button() == Qt::BackButton) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.  Nothing to do for mouse-up
 		{}
@@ -771,7 +784,7 @@ void WebViewData::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mousePressed()");
 #if CEF_SUPPORT
-	if(browser)
+	if(browser.nonNull())
 	{
 		if(e->button() == Qt::BackButton) // bottom thumb button.  Not a CEF mouse button option, so handle explicitly.
 		{
@@ -800,7 +813,7 @@ void WebViewData::mouseMoved(QMouseEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("mouseMoved(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
-	if(browser)
+	if(browser.nonNull())
 		browser->sendMouseMoveEvent(uv_coords.x, uv_coords.y, convertToCEFModifiers(e->modifiers()));
 #endif
 }
@@ -810,7 +823,7 @@ void WebViewData::wheelEvent(QWheelEvent* e, const Vec2f& uv_coords)
 {
 	//conPrint("wheelEvent(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
-	if(browser)
+	if(browser.nonNull())
 		browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, e->angleDelta().x(), e->angleDelta().y(), convertToCEFModifiers(e->modifiers()));
 #endif
 }
@@ -823,13 +836,13 @@ void WebViewData::keyPressed(QKeyEvent* e)
 
 	// This song and dance of sending two events seems to be needed to type both punctuation and alphabetic characters.
 
-	if(browser)
+	if(browser.nonNull())
 		browser->sendKeyEvent(KEYEVENT_RAWKEYDOWN, e->key(), e->nativeVirtualKey(), modifiers);
 
 	if(!e->text().isEmpty())
 	{
 		//conPrint(QtUtils::toStdString(e->text()));
-		if(browser)
+		if(browser.nonNull())
 			browser->sendKeyEvent(KEYEVENT_CHAR, e->text().at(0).toLatin1(), e->nativeVirtualKey(), modifiers);
 	}
 #endif
@@ -841,7 +854,7 @@ void WebViewData::keyReleased(QKeyEvent* e)
 #if CEF_SUPPORT
 	const uint32 modifiers = convertToCEFModifiers(e->modifiers());
 
-	if(browser)
+	if(browser.nonNull())
 		browser->sendKeyEvent(KEYEVENT_KEYUP, e->key(), e->nativeVirtualKey(), modifiers);
 #endif
 }

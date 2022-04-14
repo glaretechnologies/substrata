@@ -68,7 +68,7 @@ private:
 	int cur_load_progress;
 	bool loading_in_progress;
 
-	WebViewCEFBrowser* browser;
+	Reference<WebViewCEFBrowser> browser;
 };
 
 
