@@ -18,7 +18,7 @@ void URLWhitelist::loadDefaultWhitelist()
 {
 	const char* prefix_list[] = {
 		// Video streaming
-		"youtube.com/",
+		"www.youtube.com/",
 		"vimeo.com/",
 		"twitch.tv/",
 

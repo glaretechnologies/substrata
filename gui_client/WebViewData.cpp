@@ -532,6 +532,9 @@ public:
 
 	void OnBeforeCommandLineProcessing(const CefString& process_type, CefRefPtr<CefCommandLine> command_line) override
 	{
+		// See https://www.magpcss.org/ceforum/viewtopic.php?f=6&t=16517
+		command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
+
 		/*if(process_type.empty())
 		{
 			command_line->AppendSwitch("disable-gpu");
