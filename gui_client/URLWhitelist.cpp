@@ -55,6 +55,7 @@ void URLWhitelist::loadDefaultWhitelist()
 		"www.cryptovoxels.com/",
 		"forwardscattering.org/",
 		"github.com/",
+		"www.tempeltuttle.com/",
 
 		NULL
 	};
