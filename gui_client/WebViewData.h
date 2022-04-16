@@ -69,6 +69,9 @@ private:
 	bool loading_in_progress;
 
 	Reference<WebViewCEFBrowser> browser;
+
+	bool showing_click_to_load_text;
+	bool user_clicked_to_load;
 };
 
 

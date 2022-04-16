@@ -7,6 +7,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #pragma once
 
 
+#include "URLWhitelist.h"
 #include "../shared/Avatar.h"
 #include "../shared/WorldObject.h"
 #include "../shared/Parcel.h"
@@ -57,6 +58,8 @@ public:
 
 	double correction_start_time; // Time we started correcting/skewing to the target time, as measured with Clock::getCurTimeRealSec().
 	double correction_amount; // Clock delta.  At the end of the correction time we want to have changed the current time by this much.
+
+	URLWhitelist url_whitelist;
 private:
 
 };
