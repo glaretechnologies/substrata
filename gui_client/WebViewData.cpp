@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Escaping.h>
 #include <FileInStream.h>
 #include <PlatformUtils.h>
+#include <QtGui/QPainter>
 
 #if defined(_WIN32)
 #define CEF_SUPPORT 1
@@ -557,7 +558,9 @@ class WebViewCEFBrowser : public RefCounted
 WebViewData::WebViewData()
 :	cur_load_progress(0),
 	loading_in_progress(false),
-	browser(NULL)
+	browser(NULL),
+	showing_click_to_load_text(false),
+	user_clicked_to_load(false)
 {
 
 }
@@ -598,6 +601,50 @@ void WebViewData::shutdownCEF()
 }
 
 
+static const int text_tex_W = 512;
+static const int button_W = 200;
+static const int button_left_x = text_tex_W/2 - button_W/2;
+static const int button_top_y = (int)((1080.0 / 1920) * text_tex_W) - 120;
+static const int button_H = 60;
+
+static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::string& text)
+{
+	const int W = text_tex_W;
+	const int H = (int)((1080.0 / 1920) * W);
+
+	QImage qimage(W, H, QImage::Format_RGBA8888); // The 32 bit Qt formats seem faster than the 24 bit formats.
+	qimage.fill(QColor(220, 220, 220));
+	QPainter painter(&qimage);
+	painter.setPen(QPen(QColor(30, 30, 30)));
+	painter.setFont(QFont("helvetica", 20, QFont::Normal));
+	const int padding = 20;
+	painter.drawText(QRect(padding, padding, W - padding*2, H - padding*2), Qt::TextWordWrap | Qt::AlignLeft, QtUtils::toQString(text));
+
+	painter.drawRect(W/2 - 100, button_top_y, 200, button_H);
+
+	//painter.setPen(QPen(QColor(30, 30, 30)));
+	//painter.setFont(QFont("helvetica", 20, QFont::Normal));
+	painter.drawText(QRect(button_left_x, button_top_y, /*width=*/button_W, /*height=*/button_H), Qt::AlignVCenter | Qt::AlignHCenter, "Load"); // y=0 at top
+
+	OpenGLTextureRef tex = new OpenGLTexture(W, H, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
+	tex->loadIntoExistingTexture(W, H, /*row stride B=*/qimage.bytesPerLine(), ArrayRef<uint8>(qimage.constBits(), qimage.sizeInBytes()));
+	return tex;
+}
+
+
+static bool uvsAreOnLoadButton(float uv_x, float uv_y)
+{
+	const int W = text_tex_W;
+	const int H = (int)((1080.0 / 1920) * W);
+	const int x = (int)(uv_x * W);
+	const int y = (int)((1.f - uv_y) * H);
+	
+	return
+		x >= button_left_x && x <= (button_left_x + button_W) &&
+		y >= button_top_y && y <= (button_top_y + button_H);
+}
+
+
 void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 #if CEF_SUPPORT
@@ -609,16 +656,6 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
 	if(in_process_dist)
 	{
-		if(ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->materials[0].albedo_texture.isNull())
-		{
-			ob->opengl_engine_ob->materials[0].albedo_texture = new OpenGLTexture(width, height, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8,
-				GL_SRGB8_ALPHA8, // GL internal format
-				GL_BGRA, // GL format.
-				OpenGLTexture::Filtering_Bilinear);
-
-			ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
-		}
-
 		if(!app)
 		{
 			app = new WebViewDataCEFApp();
@@ -631,9 +668,32 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
-				main_window->logMessage("Creating browser, target_url: " + ob->target_url);
+				const bool URL_in_whitelist = main_window->world_state->url_whitelist.isURLPrefixInWhitelist(ob->target_url);
+				if(user_clicked_to_load || URL_in_whitelist)
+				{
+					main_window->logMessage("Creating browser, target_url: " + ob->target_url);
 
-				browser = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
+					if(ob->opengl_engine_ob.nonNull())
+					{
+						ob->opengl_engine_ob->materials[0].albedo_texture = new OpenGLTexture(width, height, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8,
+							GL_SRGB8_ALPHA8, // GL internal format
+							GL_BGRA, // GL format.
+							OpenGLTexture::Filtering_Bilinear);
+
+						ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
+					}
+
+					browser = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
+				}
+				else
+				{
+					if(ob->opengl_engine_ob->materials[0].albedo_texture.isNull())
+					{
+						assert(!showing_click_to_load_text);
+						ob->opengl_engine_ob->materials[0].albedo_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url); // TEMP
+						showing_click_to_load_text = true;
+					}
+				}
 
 				this->loaded_target_url = ob->target_url;
 			}
@@ -643,9 +703,24 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 			{
 				// conPrint("Webview loading URL '" + ob->target_url + "'...");
 
-				browser->navigate(ob->target_url);
+				const bool URL_in_whitelist = main_window->world_state->url_whitelist.isURLPrefixInWhitelist(ob->target_url);
+				if(URL_in_whitelist)
+				{
+					browser->navigate(ob->target_url);
 
-				this->loaded_target_url = ob->target_url;
+					this->loaded_target_url = ob->target_url;
+				}
+				else
+				{
+					main_window->logMessage("Closing browser (URL changed), target_url: " + ob->target_url);
+					browser->requestExit();
+					browser = NULL;
+
+					user_clicked_to_load = false;
+					ob->opengl_engine_ob->materials[0].albedo_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url);
+					showing_click_to_load_text = true;
+				}
+
 			}
 		}
 	}
@@ -741,6 +816,7 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 #endif
 }
 
+
 #if CEF_SUPPORT
 static uint32 convertToCEFModifiers(Qt::KeyboardModifiers modifiers)
 {
@@ -787,6 +863,9 @@ void WebViewData::mouseReleased(QMouseEvent* e, const Vec2f& uv_coords)
 
 void WebViewData::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
 {
+	if(showing_click_to_load_text && uvsAreOnLoadButton(uv_coords.x, uv_coords.y))
+		user_clicked_to_load = true;
+
 	//conPrint("mousePressed()");
 #if CEF_SUPPORT
 	if(browser.nonNull())

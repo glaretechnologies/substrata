@@ -7752,6 +7752,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	this->cam_controller.resetRotation();
 
 	world_state = new WorldState();
+	world_state->url_whitelist.loadDefaultWhitelist();
 
 	const std::string avatar_path = QtUtils::toStdString(settings->value("avatarPath").toString());
 
