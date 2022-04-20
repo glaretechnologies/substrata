@@ -13,6 +13,8 @@ SET(gui_client_files
 ../gui_client/ClientThread.h
 ../gui_client/WorldState.cpp
 ../gui_client/WorldState.h
+../gui_client/URLWhitelist.cpp
+../gui_client/URLWhitelist.h
 ../gui_client/DownloadResourcesThread.cpp
 ../gui_client/DownloadResourcesThread.h
 ../gui_client/NetDownloadResourcesThread.cpp
@@ -142,6 +144,6 @@ endif()
 
 target_link_libraries(${CURRENT_TARGET}
 #${MYSQL_CONNECTOR_LIB}
-debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
-optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
+debug 		C:/programming/indigo/output/vs2022/indigo_x64/Debug/indigo_sdk_lib.lib
+optimized 	C:/programming/indigo/output/vs2022/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
 )
