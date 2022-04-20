@@ -114,7 +114,7 @@ public:
 
 	void startDownloadingResource(const std::string& url)
 	{
-		//conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
+		//conPrint("-------------------startDownloadingResource()-------------------\nURL: " + url);
 
 		ResourceRef resource = resource_manager->getOrCreateResourceForURL(url);
 		if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
@@ -133,7 +133,15 @@ public:
 				num_net_resources_downloading++;
 			}
 			else
-				this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(url));
+			{
+				conPrint("Adding resource to download queue: " + url);
+
+				DownloadQueueItem item;
+				item.pos = Vec4f(0, 0, 0, 1);// ob_aabb_ws.centroid();
+				item.size_factor = 1.f;// DownloadQueueItem::sizeFactorForAABBWS(ob_aabb_ws);
+				item.URL = url;
+				this->download_queue.enqueueItem(item);
+			}
 		}
 		catch(glare::Exception& e)
 		{
@@ -557,6 +565,8 @@ public:
 					//obs_to_render.insert(it->second);
 				}
 
+				conPrint("Downloading any resources needed...");
+
 				// Start downloading any resources we don't have that the object uses.
 				for(auto it = obs_to_render.begin(); it != obs_to_render.end(); ++it)
 				{
@@ -581,7 +591,7 @@ public:
 					//if(wait_timer.elapsed() > 30)
 					//	throw glare::Exception("Failed to download all resources for objects");// with UID " + ob->uid.toString());
 
-					if(wait_timer.elapsed() > 5)//15)
+					if((download_queue.size() == 0) && (wait_timer.elapsed() > 15))
 					{
 						conPrint("Failed to download all resources for objects, continuing anyway...");
 						break;
@@ -905,7 +915,7 @@ public:
 
 				Timer indigo_exec_timer;
 
-				const std::string indigo_exe_path = "C:\\programming\\indigo\\output\\vs2019\\indigo_x64\\RelWithDebInfo\\indigo_gui.exe";
+				const std::string indigo_exe_path = "C:\\programming\\indigo\\output\\vs2022\\indigo_x64\\RelWithDebInfo\\indigo_gui.exe";
 				std::vector<std::string> command_line_args;
 				command_line_args.push_back(indigo_exe_path);
 				command_line_args.push_back(scene_path);
