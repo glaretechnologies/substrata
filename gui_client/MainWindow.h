@@ -492,8 +492,9 @@ private:
 	WGL wgl_funcs;
 #endif
 
+public:
 	glare::AudioEngine audio_engine;
-
+private:
 	UndoBuffer undo_buffer;
 
 	LogWindow* log_window;

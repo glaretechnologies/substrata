@@ -153,6 +153,8 @@ public:
 
 	void setRoomEffectsEnabled(bool enabled);
 	void setCurentRoomDimensions(const js::AABBox& room_aabb);
+
+	uint32 getSampleRate() const { return sample_rate; }
 	
 
 	static void test();
@@ -173,6 +175,9 @@ public:
 	ThreadManager resonance_thread_manager;
 
 	std::map<std::string, SoundFileRef> sound_files;
+
+private:
+	uint32 sample_rate;
 };
 
 

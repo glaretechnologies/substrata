@@ -474,13 +474,12 @@ void AudioEngine::init()
 	if(!info.isDefaultOutput)
 		throw glare::Exception("Failed to find output audio device");
 
-	unsigned int use_sample_rate = 44100;// info.preferredSampleRate;
+	unsigned int desired_sample_rate = 44100;// info.preferredSampleRate;
 
 	RtAudio::StreamParameters parameters;
 	parameters.deviceId = audio->getDefaultOutputDevice();
 	parameters.nChannels = 2;
 	parameters.firstChannel = 0;
-	unsigned int sample_rate = use_sample_rate;
 	unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
 
 	// conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
@@ -490,12 +489,16 @@ void AudioEngine::init()
 
 	try
 	{
-		audio->openStream(&parameters, /*input parameters=*/NULL, RTAUDIO_FLOAT32, sample_rate, &buffer_frames, rtAudioCallback, /*userdata=*/&callback_data);
+		audio->openStream(&parameters, /*input parameters=*/NULL, RTAUDIO_FLOAT32, desired_sample_rate, &buffer_frames, rtAudioCallback, /*userdata=*/&callback_data);
+
+		this->sample_rate = audio->getStreamSampleRate(); // Get actual sample rate used.
 	}
 	catch(RtAudioError& e)
 	{
 		throw glare::Exception(e.what());
 	}
+
+	// conPrint("Using sample rate of " + toString(sample_rate) + " hz");
 	
 
 	// Resonance audio
