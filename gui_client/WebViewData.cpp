@@ -482,6 +482,7 @@ public:
 			//mBrowser->GetHost()->SendFocusEvent(true);
 
 			CefMouseEvent cef_mouse_event;
+			cef_mouse_event.Reset();
 			cef_mouse_event.x = uv_x         * mRenderHandler->opengl_tex->xRes();
 			cef_mouse_event.y = (1.f - uv_y) * mRenderHandler->opengl_tex->yRes();
 			cef_mouse_event.modifiers = cef_modifiers;
@@ -496,6 +497,7 @@ public:
 		if(cef_browser && cef_browser->GetHost())
 		{
 			CefMouseEvent cef_mouse_event;
+			cef_mouse_event.Reset();
 			cef_mouse_event.x = uv_x         * mRenderHandler->opengl_tex->xRes();
 			cef_mouse_event.y = (1.f - uv_y) * mRenderHandler->opengl_tex->yRes();
 			cef_mouse_event.modifiers = cef_modifiers;
@@ -561,7 +563,6 @@ public:
 		if(cef_browser)
 			cef_browser->GoForward();
 	}
-
 
 	void navigate(const std::string& url)
 	{
@@ -664,12 +665,14 @@ public:
 		browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
 
 		// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
+		// See https://bitbucket.org/chromiumembedded/cef/issues/3319/burst-of-uncaptured-audio-after-creating
 		browser->cef_browser->GetHost()->SetAudioMuted(true);
 		return browser;
 	}
 
 	void OnBeforeCommandLineProcessing(const CefString& process_type, CefRefPtr<CefCommandLine> command_line) override
 	{
+		// To allow autoplaying videos etc. without having to click:
 		// See https://www.magpcss.org/ceforum/viewtopic.php?f=6&t=16517
 		command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
 
