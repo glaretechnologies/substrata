@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Escaping.h>
 #include <FileInStream.h>
 #include <PlatformUtils.h>
+#include "../audio/AudioEngine.h"
 #include <QtGui/QPainter>
 
 #if defined(_WIN32)
@@ -57,16 +58,20 @@ public:
 		// whole page was updated
 		if(type == PET_VIEW)
 		{
-			for(size_t i=0; i<dirty_rects.size(); ++i)
+			const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+			if(ob_visible)
 			{
-				const CefRect& rect = dirty_rects[i];
+				for(size_t i=0; i<dirty_rects.size(); ++i)
+				{
+					const CefRect& rect = dirty_rects[i];
 
-				//conPrint("Updating dirty rect " + toString(rect.x) + ", " + toString(rect.y) + ", w: " + toString(rect.width) + ", h: " + toString(rect.height));
+					//conPrint("Updating dirty rect " + toString(rect.x) + ", " + toString(rect.y) + ", w: " + toString(rect.width) + ", h: " + toString(rect.height));
 
-				// Copy dirty rect data into a packed buffer
+					// Copy dirty rect data into a packed buffer
 
-				const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
-				opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
+					const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
+					opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
+				}
 			}
 
 
@@ -134,6 +139,8 @@ public:
 	}
 
 	Reference<OpenGLTexture> opengl_tex;
+	OpenGLEngine* opengl_engine;
+	WorldObject* ob;
 
 	IMPLEMENT_REFCOUNTING(RenderHandler);
 };
@@ -209,9 +216,11 @@ public:
 };
 
 
-class WebDataCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler
+class WebDataCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler
 {
 public:
+	WebDataCefClient() : num_channels(0), sample_rate(0) {}
+
 	CefRefPtr<CefRenderHandler> GetRenderHandler() override
 	{
 		return mRenderHandler;
@@ -233,6 +242,11 @@ public:
 	}
 
 	CefRefPtr<CefLoadHandler> GetLoadHandler() override
+	{
+		return this;
+	}
+
+	CefRefPtr<CefAudioHandler> GetAudioHandler() override
 	{
 		return this;
 	}
@@ -302,8 +316,126 @@ public:
 	}
 
 
+	//--------------------- AudioHandler ----------------------------
+	// Called on the UI thread to allow configuration of audio stream parameters.
+	// Return true to proceed with audio stream capture, or false to cancel it.
+	// All members of |params| can optionally be configured here, but they are
+	// also pre-filled with some sensible defaults.
+	virtual bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
+		CefAudioParameters& params) override 
+	{
+		params.sample_rate = main_window->audio_engine.getSampleRate();
+		return true;
+	}
+
+	// Called on a browser audio capture thread when the browser starts
+	// streaming audio.
+	virtual void OnAudioStreamStarted(CefRefPtr<CefBrowser> browser,
+		const CefAudioParameters& params,
+		int channels) override
+	{
+		// Create audio source
+		if(ob->audio_source.isNull())
+		{
+			// conPrint("OnAudioStreamStarted(), creating audio src");
+
+			// Create a streaming audio source.
+			glare::AudioSourceRef audio_source = new glare::AudioSource();
+			audio_source->type = glare::AudioSource::SourceType_Streaming;
+			audio_source->pos = ob->aabb_ws.centroid();
+			audio_source->debugname = ob->target_url;
+
+			{
+				Lock lock(main_window->world_state->mutex);
+
+				const Parcel* parcel = main_window->world_state->getParcelPointIsIn(ob->pos);
+				audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+			}
+
+			ob->audio_source = audio_source;
+			main_window->audio_engine.addSource(audio_source);
+		}
+
+		sample_rate = params.sample_rate;
+		num_channels = channels;
+	}
+
+	// Called on the audio stream thread when a PCM packet is received for the
+	// stream. |data| is an array representing the raw PCM data as a floating
+	// point type, i.e. 4-byte value(s). |frames| is the number of frames in the
+	// PCM packet. |pts| is the presentation timestamp (in milliseconds since the
+	// Unix Epoch) and represents the time at which the decompressed packet should
+	// be presented to the user. Based on |frames| and the |channel_layout| value
+	// passed to OnAudioStreamStarted you can calculate the size of the |data|
+	// array in bytes.
+	virtual void OnAudioStreamPacket(CefRefPtr<CefBrowser> browser,
+		const float** data,
+		int frames,
+		int64 pts) override
+	{
+		// Copy to our audio source
+		if(ob->audio_source.nonNull())
+		{
+			const int num_samples = frames;
+			temp_buf.resize(num_samples);
+
+			if(num_channels == 1)
+			{
+				const float* const data0 = data[0];
+				for(int z=0; z<num_samples; ++z)
+					temp_buf[z] =  data0[z];
+			}
+			else if(num_channels == 2)
+			{
+				const float* const data0 = data[0];
+				const float* const data1 = data[1];
+
+				for(int z=0; z<num_samples; ++z)
+				{
+					const float left =  data0[z];
+					const float right = data1[z];
+					temp_buf[z] = (left + right) * 0.5f;
+				}
+			}
+			else
+			{
+				for(int z=0; z<num_samples; ++z)
+					temp_buf[z] = 0.f;
+			}
+
+
+			{
+				Lock mutex(main_window->audio_engine.mutex);
+				ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+			}
+		}
+	}
+
+	virtual void OnAudioStreamStopped(CefRefPtr<CefBrowser> browser) override
+	{
+		if(ob && ob->audio_source.nonNull())
+		{
+			main_window->audio_engine.removeSource(ob->audio_source);
+			ob->audio_source = NULL;
+		}
+	}
+
+	virtual void OnAudioStreamError(CefRefPtr<CefBrowser> browser, const CefString& message) override
+	{
+		conPrint("=========================================\nOnAudioStreamError: " + message.ToString());
+	}
+	// ----------------------------------------------------------------------------
+
+
 	CefRefPtr<RenderHandler> mRenderHandler;
 	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
+
+	MainWindow* main_window;
+	WorldObject* ob;
+	int num_channels;
+	int sample_rate;
+
+	std::vector<float> temp_buf;
 
 	IMPLEMENT_REFCOUNTING(WebDataCefClient);
 };
@@ -378,6 +510,7 @@ public:
 		if(cef_browser && cef_browser->GetHost())
 		{
 			CefMouseEvent cef_mouse_event;
+			cef_mouse_event.Reset();
 			cef_mouse_event.x = uv_x         * mRenderHandler->opengl_tex->xRes();
 			cef_mouse_event.y = (1.f - uv_y) * mRenderHandler->opengl_tex->yRes();
 			cef_mouse_event.modifiers = cef_modifiers;
@@ -447,6 +580,8 @@ public:
 	}
 
 	WebViewData* web_view_data;
+	MainWindow* main_window;
+	WorldObject* ob;
 
 	CefRefPtr<RenderHandler> mRenderHandler;
 	CefRefPtr<CefBrowser> cef_browser;
@@ -527,6 +662,9 @@ public:
 		browser_settings.background_color = CefColorSetARGB(255, 100, 100, 100);
 
 		browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
+
+		// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
+		browser->cef_browser->GetHost()->SetAudioMuted(true);
 		return browser;
 	}
 
@@ -651,8 +789,10 @@ static bool uvsAreOnLoadButton(float uv_x, float uv_y)
 void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 #if CEF_SUPPORT
-	const int width = 1920;
-	const int height = 1080;
+	/*const int width = 1920;
+	const int height = 1080;*/
+	const int width = 1024;
+	const int height = (int)(1024.f / 1920.f * 1080.f); // Webview uses 1920 : 1080 aspect ratio.  (See MainWindow::on_actionAdd_Web_View_triggered())
 
 	const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
 	const double max_play_dist = maxBrowserDist();
@@ -687,6 +827,12 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 					}
 
 					browser = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
+					browser->main_window = main_window;
+					browser->ob = ob;
+					browser->cef_client->main_window = main_window;
+					browser->cef_client->ob = ob;
+					browser->mRenderHandler->opengl_engine = opengl_engine;
+					browser->mRenderHandler->ob = ob;
 				}
 				else
 				{
@@ -719,6 +865,13 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 					browser->requestExit();
 					browser = NULL;
 
+					// Remove audio source
+					if(ob->audio_source.nonNull())
+					{
+						main_window->audio_engine.removeSource(ob->audio_source);
+						ob->audio_source = NULL;
+					}
+
 					user_clicked_to_load = false;
 					ob->opengl_engine_ob->materials[0].albedo_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url);
 					showing_click_to_load_text = true;
@@ -734,6 +887,13 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 			main_window->logMessage("Closing browser (out of view distance), target_url: " + ob->target_url);
 			browser->requestExit();
 			browser = NULL;
+
+			// Remove audio source
+			if(ob->audio_source.nonNull())
+			{
+				main_window->audio_engine.removeSource(ob->audio_source);
+				ob->audio_source = NULL;
+			}
 		}
 	}
 #endif // CEF_SUPPORT
@@ -821,14 +981,6 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 
 
 #if CEF_SUPPORT
-static uint32 convertToCEFModifiers(Qt::KeyboardModifiers modifiers)
-{
-	uint32 m = 0;
-	if(modifiers.testFlag(Qt::ShiftModifier))	m |= EVENTFLAG_SHIFT_DOWN;
-	if(modifiers.testFlag(Qt::ControlModifier)) m |= EVENTFLAG_CONTROL_DOWN;
-	if(modifiers.testFlag(Qt::AltModifier))		m |= EVENTFLAG_ALT_DOWN;
-	return m;
-}
 
 
 static CefBrowserHost::MouseButtonType convertToCEFMouseButton(Qt::MouseButton button)
@@ -842,6 +994,28 @@ static CefBrowserHost::MouseButtonType convertToCEFMouseButton(Qt::MouseButton b
 	else
 		return MBT_LEFT;
 }
+
+
+static uint32 convertToCEFModifiers(Qt::KeyboardModifiers modifiers)
+{
+	uint32 m = 0;
+	if(modifiers.testFlag(Qt::ShiftModifier))	m |= EVENTFLAG_SHIFT_DOWN;
+	if(modifiers.testFlag(Qt::ControlModifier)) m |= EVENTFLAG_CONTROL_DOWN;
+	if(modifiers.testFlag(Qt::AltModifier))		m |= EVENTFLAG_ALT_DOWN;
+	return m;
+}
+
+
+static uint32 convertToCEFModifiers(Qt::KeyboardModifiers modifiers, Qt::MouseButtons mouse_buttons)
+{
+	uint32 m = convertToCEFModifiers(modifiers);
+
+	if(mouse_buttons.testFlag(Qt::LeftButton))	m |= EVENTFLAG_LEFT_MOUSE_BUTTON;
+	if(mouse_buttons.testFlag(Qt::RightButton))	m |= EVENTFLAG_RIGHT_MOUSE_BUTTON;
+	return m;
+}
+
+
 #endif // CEF_SUPPORT
 
 
@@ -857,7 +1031,7 @@ void WebViewData::mouseReleased(QMouseEvent* e, const Vec2f& uv_coords)
 		{}
 		else
 		{
-			browser->sendMouseClickEvent(convertToCEFMouseButton(e->button()), uv_coords.x, uv_coords.y, /*mouse_up=*/true, convertToCEFModifiers(e->modifiers()));
+			browser->sendMouseClickEvent(convertToCEFMouseButton(e->button()), uv_coords.x, uv_coords.y, /*mouse_up=*/true, convertToCEFModifiers(e->modifiers(), e->buttons()));
 		}
 	}
 #endif
@@ -883,7 +1057,7 @@ void WebViewData::mousePressed(QMouseEvent* e, const Vec2f& uv_coords)
 		}
 		else
 		{
-			browser->sendMouseClickEvent(convertToCEFMouseButton(e->button()), uv_coords.x, uv_coords.y, /*mouse_up=*/false, convertToCEFModifiers(e->modifiers()));
+			browser->sendMouseClickEvent(convertToCEFMouseButton(e->button()), uv_coords.x, uv_coords.y, /*mouse_up=*/false, convertToCEFModifiers(e->modifiers(), e->buttons()));
 		}
 	}
 #endif
@@ -901,7 +1075,7 @@ void WebViewData::mouseMoved(QMouseEvent* e, const Vec2f& uv_coords)
 	//conPrint("mouseMoved(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
 	if(browser.nonNull())
-		browser->sendMouseMoveEvent(uv_coords.x, uv_coords.y, convertToCEFModifiers(e->modifiers()));
+		browser->sendMouseMoveEvent(uv_coords.x, uv_coords.y, convertToCEFModifiers(e->modifiers(), e->buttons()));
 #endif
 }
 
@@ -911,7 +1085,7 @@ void WebViewData::wheelEvent(QWheelEvent* e, const Vec2f& uv_coords)
 	//conPrint("wheelEvent(), uv_coords: " + uv_coords.toString());
 #if CEF_SUPPORT
 	if(browser.nonNull())
-		browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, e->angleDelta().x(), e->angleDelta().y(), convertToCEFModifiers(e->modifiers()));
+		browser->sendMouseWheelEvent(uv_coords.x, uv_coords.y, e->angleDelta().x(), e->angleDelta().y(), convertToCEFModifiers(e->modifiers(), e->buttons()));
 #endif
 }
 
