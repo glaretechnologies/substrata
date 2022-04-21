@@ -9,7 +9,10 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include <cef_app.h>
-#include <cef_sandbox_win.h>
+#ifdef OSX
+#include <cef_sandbox_mac.h>
+#include <wrapper/cef_library_loader.h>
+#endif
 #include <iostream>
 
 
