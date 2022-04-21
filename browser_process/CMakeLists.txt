@@ -34,7 +34,17 @@ if(WIN32)
 	)
 elseif(APPLE)
 	# NOTE: -stdlib=libc++ is needed for C++11.
-#	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++11 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework OpenCL -framework CoreServices")
+	
+	set(OSX_LIBS
+		# Chromium embedded framework
+		#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
+		#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
+		
+		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+	)
+	
+#	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++14 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework OpenCL -framework CoreServices")
 else()
 	# Linux
 #	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib'")
@@ -45,5 +55,6 @@ target_sources(${CURRENT_TARGET} PRIVATE manifest.manifest)
 target_link_libraries(${CURRENT_TARGET}
 #indigo_libs
 ${INDIGO_WIN32_LIBS}
+${OSX_LIBS}
 ${LINUX_LIBS}
 )

@@ -663,6 +663,14 @@ elseif(APPLE)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
+	set(QT_OSX_LIBS
+		# Chromium embedded framework
+		#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
+		#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
+		
+		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+		)
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtMultimedia -framework QtGamepad -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox")
@@ -690,6 +698,7 @@ endif()
 target_link_libraries(${CURRENT_TARGET}
 ${QT_WIN32_LIBS}
 ${QT_LINUX_LIBS}
+${QT_OSX_LIBS}
 #debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
 #optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
 )
