@@ -15,7 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../audio/AudioEngine.h"
 #include <QtGui/QPainter>
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(OSX)
 #define CEF_SUPPORT 1
 #endif
 
@@ -168,7 +168,7 @@ public:
 		CefRefPtr<CefClient>& client,
 		CefBrowserSettings& settings,
 		CefRefPtr<CefDictionaryValue>& extra_info,
-		bool* no_javascript_access)
+		bool* no_javascript_access) override
 	{
 		CEF_REQUIRE_UI_THREAD();
 
@@ -454,7 +454,7 @@ public:
 		cef_client->mLifeSpanHandler = lifespan_handler;
 	}
 
-	~WebViewCEFBrowser()
+	virtual ~WebViewCEFBrowser()
 	{
 	}
 
@@ -465,7 +465,7 @@ public:
 		{
 			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
 
-			web_view_data->linkHoveredSignal(QtUtils::toQString(StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str())));
+			web_view_data->linkHoveredSignal(QtUtils::toQString(value.ToString()));
 		}
 		else
 		{
@@ -617,7 +617,7 @@ public:
 	{
 		assert(!CEF_initialised);
 
-		CefMainArgs args(GetModuleHandle(NULL));
+		CefMainArgs args;// (GetModuleHandle(NULL));
 
 		CefSettings settings;
 		settings.no_sandbox = true;
