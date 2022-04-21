@@ -23,6 +23,9 @@ Copyright Glare Technologies Limited 2022 -
 #include <cef_app.h>
 #include <cef_client.h>
 #include <wrapper/cef_helpers.h>
+#ifdef OSX
+#include <wrapper/cef_library_loader.h>
+#endif
 #endif
 
 
@@ -615,8 +618,19 @@ public:
 
 	void initialiseCEF(const std::string& base_dir_path)
 	{
-		assert(!CEF_initialised);
-
+		//assert(!CEF_initialised);
+		
+#ifdef OSX
+		// Load the CEF framework library at runtime instead of linking directly
+		// as required by the macOS sandbox implementation.
+		CefScopedLibraryLoader library_loader;
+		if(!library_loader.LoadInHelper())
+		{
+			conPrint("CefScopedLibraryLoader LoadInHelper failed.");
+			throw glare::Exception("CefScopedLibraryLoader LoadInHelper failed.");
+		}
+#endif
+		
 		CefMainArgs args;// (GetModuleHandle(NULL));
 
 		CefSettings settings;
@@ -810,7 +824,7 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 			app->initialise(main_window->base_dir_path);
 		}
 
-		if(app)
+		if(app && CEF_initialised)
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
