@@ -45,11 +45,13 @@ int main(int argc, char* argv[])
 
 	// See https://bitbucket.org/chromiumembedded/cef/wiki/GeneralUsage#markdown-header-separate-sub-process-executable
 	
+#if defined(CEF_USE_SANDBOX)
 	// Initialize the macOS sandbox for this helper process.
 	CefScopedSandboxContext sandbox_context;
 	if(!sandbox_context.Initialize(argc, argv))
 		return 1;
-
+#endif
+	
 	// Load the CEF framework library at runtime instead of linking directly
 	// as required by the macOS sandbox implementation.
 	CefScopedLibraryLoader library_loader;
