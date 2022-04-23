@@ -624,10 +624,10 @@ public:
 		// Load the CEF framework library at runtime instead of linking directly
 		// as required by the macOS sandbox implementation.
 		CefScopedLibraryLoader library_loader;
-		if(!library_loader.LoadInHelper())
+		if(!library_loader.LoadInMain())
 		{
-			conPrint("CefScopedLibraryLoader LoadInHelper failed.");
-			throw glare::Exception("CefScopedLibraryLoader LoadInHelper failed.");
+			conPrint("CefScopedLibraryLoader LoadInMain failed.");
+			throw glare::Exception("CefScopedLibraryLoader LoadInMain failed.");
 		}
 #endif
 		
