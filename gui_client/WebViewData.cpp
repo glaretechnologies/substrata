@@ -635,7 +635,11 @@ public:
 
 		CefSettings settings;
 		settings.no_sandbox = true;
+#ifdef OSX
+		const std::string browser_process_path = base_dir_path + "/../Frameworks/cefclient Helper.app"; // On mac, base_dir_path is the path to Resources.
+#else
 		const std::string browser_process_path = base_dir_path + "/browser_process.exe";
+#endif
 		CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
 
 		bool result = CefInitialize(args, settings, this, /*windows sandbox info=*/NULL);
