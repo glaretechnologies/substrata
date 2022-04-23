@@ -3004,7 +3004,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			WorldObject* ob = it->ptr();
 
-			ob->web_view_data->process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+			try
+			{
+				ob->web_view_data->process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+			}
+			catch(glare::Exception& e)
+			{
+				logMessage("Excep while processing webview: " + e.what());
+			}
 		}
 
 		this->last_animated_tex_time = timer.elapsed();
