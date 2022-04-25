@@ -286,6 +286,30 @@ ADD_SUBDIRECTORY(server server)
 
 #ADD_SUBDIRECTORY(stress_test stress_test)
 
-if(WIN32 OR APPLE)
+if(WIN32)
+	SET(browser_process_suffix "")
 	ADD_SUBDIRECTORY(browser_process browser_process)
+endif()
+
+if(APPLE)
+	# Build all the helper processes that CEF requires.
+	SET(browser_process_suffix "")
+	ADD_SUBDIRECTORY(browser_process
+		browser_process # binary (output) dir
+	)
+	
+	SET(browser_process_suffix " (GPU)")
+	ADD_SUBDIRECTORY(browser_process
+		browser_process_gpu # binary dir
+	)
+	
+	SET(browser_process_suffix " (Renderer)")
+	ADD_SUBDIRECTORY(browser_process
+		browser_process_renderer
+	)
+	
+	SET(browser_process_suffix " (Plugin)")
+	ADD_SUBDIRECTORY(browser_process
+		browser_process_plugin
+	)
 endif()
