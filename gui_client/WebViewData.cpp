@@ -631,16 +631,18 @@ public:
 		}
 #endif
 		
-		CefMainArgs args;// (GetModuleHandle(NULL));
+		CefMainArgs args;
 
 		CefSettings settings;
-		settings.no_sandbox = true;
+		
 #ifdef OSX
-		const std::string browser_process_path = base_dir_path + "/../Frameworks/cefclient Helper.app"; // On mac, base_dir_path is the path to Resources.
+		//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
 #else
+		settings.no_sandbox = true;
 		const std::string browser_process_path = base_dir_path + "/browser_process.exe";
-#endif
+		conPrint("Using browser_process_path '" + browser_process_path + "'...");
 		CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
+#endif
 
 		bool result = CefInitialize(args, settings, this, /*windows sandbox info=*/NULL);
 		if(result)
@@ -694,6 +696,11 @@ public:
 		// See https://www.magpcss.org/ceforum/viewtopic.php?f=6&t=16517
 		command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
 
+
+		//TEMP:
+		//command_line->AppendSwitch("enable-logging");
+		//command_line->AppendSwitchWithValue("v", "2");
+		
 		/*if(process_type.empty())
 		{
 			command_line->AppendSwitch("disable-gpu");
