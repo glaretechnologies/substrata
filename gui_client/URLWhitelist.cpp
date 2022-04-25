@@ -56,6 +56,9 @@ void URLWhitelist::loadDefaultWhitelist()
 		"forwardscattering.org/",
 		"github.com/",
 		"www.tempeltuttle.com/",
+		"www.shadertoy.com/",
+		"www.mindfly.art/",
+		"html5test.com/",
 
 		NULL
 	};
