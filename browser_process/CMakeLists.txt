@@ -1,6 +1,10 @@
 # browser_process
 
-set(CURRENT_TARGET "gui_client Helper${browser_process_suffix}")
+if(APPLE)
+	set(CURRENT_TARGET "gui_client Helper${browser_process_suffix}")
+else()
+	set(CURRENT_TARGET "browser_process")
+endif()
 
 include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
