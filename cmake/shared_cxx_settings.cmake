@@ -63,6 +63,9 @@ addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
 # Add OpenCL paths
 addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opencl/khronos")
 
+# BugSplat
+addIncludeDirectory("${INDIGO_LIBS_ENV}/BugSplat/inc")
+
 
 #addIncludeDirectory("${MYSQL_CONNECTOR_DIR}/include")
 
@@ -88,6 +91,10 @@ if(INDIGO_USE_LIBRESSL)
 endif()
 
 if(WIN32)
+	# TEMP: needed for building LLVM with address sanitizer on Windows, which has:
+	# include <sanitizer/asan_interface.h>
+	# addIncludeDirectory("C:/Program Files/Microsoft Visual Studio/2022/Preview/VC/Tools/MSVC/14.32.31302/crt/src")
+
 	add_definitions(-DUNICODE -D_UNICODE)
 	add_definitions(/MP)
 	
