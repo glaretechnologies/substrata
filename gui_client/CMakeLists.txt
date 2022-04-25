@@ -577,6 +577,8 @@ include(../cmake/shared_target_settings.cmake)
 if(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
+	
+	add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
 
 	SET(QT_WIN32_LIBS
 		OpenGL32
@@ -642,6 +644,9 @@ if(WIN32)
 		
 		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Debug/libcef_dll_wrapper.lib
 		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib
+		
+		# BugSplat
+		${INDIGO_LIBS_ENV}/BugSplat/lib64/BugSplat64.lib
 	)
 
 	# Superluminal profiler:

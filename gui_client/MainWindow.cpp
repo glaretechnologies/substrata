@@ -123,6 +123,9 @@ Copyright Glare Technologies Limited 2020 -
 #include <zlib.h>
 #include <tls.h>
 #include "superluminal/PerformanceAPI.h"
+#if BUGSPLAT_SUPPORT
+#include <BugSplat.h>
+#endif
 
 
 #ifdef _WIN32
@@ -9820,6 +9823,24 @@ public:
 
 int main(int argc, char *argv[])
 {
+#ifdef _WIN32
+	// BugSplat initialization.
+	new MiniDmpSender(
+		L"Substrata", // database
+		L"Substrata", // app
+		StringUtils::UTF8ToPlatformUnicodeEncoding(cyberspace_version).c_str(), // version
+		NULL, // app identifier
+		MDSF_USEGUARDMEMORY | MDSF_LOGFILE | MDSF_PREVENTHIJACKING // flags
+	);
+
+	// The following calls add support for collecting crashes for abort(), vectored exceptions, out of memory,
+	// pure virtual function calls, and for invalid parameters for OS functions.
+	// These calls should be used for each module that links with a separate copy of the CRT.
+	SetGlobalCRTExceptionBehavior();
+	SetPerThreadCRTExceptionBehavior(); // This call needed in each thread of your app
+#endif
+
+
 	QApplication::setAttribute(Qt::AA_UseDesktopOpenGL); // See https://forum.qt.io/topic/73255/qglwidget-blank-screen-on-different-computer/7
 
 	//QtWebEngine::initialize();
