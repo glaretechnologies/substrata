@@ -66,6 +66,8 @@ MeshManager
 -----------
 Caches meshes and OpenGL data loaded from disk and built.
 RayMesh and OpenGLMeshRenderData in particular.
+
+NOTE: Do we need to make this class threadsafe?  Or are all methods called on the main thread (in particular meshDataBecameUnused()?)
 =====================================================================*/
 class MeshManager
 {
