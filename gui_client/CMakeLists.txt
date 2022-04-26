@@ -519,7 +519,7 @@ if(APPLE)
 
 	# Plist stuff.
 	SET(MACOSX_BUNDLE_ICON_FILE Cyberspace.icns)
-	SET(MACOSX_BUNDLE_COPYRIGHT "Copyright 2021 Glare Technologies Ltd.")
+	SET(MACOSX_BUNDLE_COPYRIGHT "Copyright 2022 Glare Technologies Ltd.")
 	SET(MACOSX_BUNDLE_BUNDLE_NAME "Substrata")
 	SET(MACOSX_BUNDLE_BUNDLE_VERSION "${SUBSTRATA_VERSION}")
 	SET(MACOSX_BUNDLE_SHORT_VERSION_STRING "${SUBSTRATA_VERSION}")
@@ -579,6 +579,8 @@ if(WIN32)
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
 	
 	add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
+	
+	add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
 
 	SET(QT_WIN32_LIBS
 		OpenGL32
@@ -673,8 +675,8 @@ elseif(APPLE)
 		#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
 		#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
 		
-		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+#TEMP NO CEF ON MAC		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+#TEMP NO CEF ON MAC		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 		)
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
