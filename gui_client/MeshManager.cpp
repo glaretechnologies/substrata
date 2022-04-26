@@ -46,15 +46,34 @@ Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, cons
 	// conPrint("Inserting mesh '" + model_url + "' into mesh manager.");
 	//assert((model_url == "Quad_obj_17249492137259942610.bmesh") || getMeshData(model_url).isNull());
 
-	Reference<MeshData> mesh_data = new MeshData();
-	mesh_data->gl_meshdata = gl_meshdata;
-	mesh_data->raymesh = raymesh;
-	mesh_data->mesh_manager = this;
-	mesh_data->model_url = model_url;
+	// Simpler code than below:
+	auto res = model_URL_to_mesh_map.find(model_url);
+	if(res == model_URL_to_mesh_map.end())
+	{
+		Reference<MeshData> mesh_data = new MeshData();
+		mesh_data->gl_meshdata = gl_meshdata;
+		mesh_data->raymesh = raymesh;
+		mesh_data->mesh_manager = this;
+		mesh_data->model_url = model_url;
 
-	const auto res = model_URL_to_mesh_map.insert(std::make_pair(model_url, mesh_data));
+		model_URL_to_mesh_map.insert(std::make_pair(model_url, mesh_data));
+		return mesh_data;
+	}
+	else
+	{
+		return res->second;
+	}
 
-	return res.first->second; // Return existing mesh_data, or new mesh_data if it was inserted.
+
+	// Reference<MeshData> mesh_data = new MeshData();
+	// mesh_data->gl_meshdata = gl_meshdata;
+	// mesh_data->raymesh = raymesh;
+	// mesh_data->mesh_manager = this;
+	// mesh_data->model_url = model_url;
+	// 
+	// const auto res = model_URL_to_mesh_map.insert(std::make_pair(model_url, mesh_data));
+	// 
+	// return res.first->second; // Return existing mesh_data, or new mesh_data if it was inserted.
 }
 
 
@@ -72,6 +91,8 @@ Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
 
 void MeshManager::meshDataBecameUnused(const MeshData* meshdata)
 {
+	Lock lock(mutex);
+
 	// conPrint("meshDataBecameUnused(): Removing mesh '" + meshdata->model_url + "' from mesh manager.");
 
 	//assert(model_URL_to_mesh_map.count(meshdata->model_url) > 0);

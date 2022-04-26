@@ -265,8 +265,6 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 	}
 	else
 	{
-		Reference<OpenGLMeshRenderData> mesh_data = new OpenGLMeshRenderData();
-
 		js::Vector<Vec3f, 16> mesh_verts;
 		mesh_verts.resize(24); // 6 faces * 4 verts/face
 		js::Vector<Vec3f, 16> normals;
@@ -356,7 +354,7 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 				normals[face*4 + z] = normalise(crossProduct(v1 - v0, v2 - v0));
 		}
 
-		opengl_engine->buildMeshRenderData(*opengl_engine->vert_buf_allocator, *mesh_data, mesh_verts, normals, uvs, indices);
+		Reference<OpenGLMeshRenderData> mesh_data = opengl_engine->buildMeshRenderData(*opengl_engine->vert_buf_allocator, mesh_verts, normals, uvs, indices);
 
 		Reference<GLObject> ob = new GLObject();
 
