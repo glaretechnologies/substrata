@@ -9450,8 +9450,6 @@ void MainWindow::updateGroundPlane()
 
 static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(VertexBufferAllocator& allocator, float arc_end_angle)
 {
-	Reference<OpenGLMeshRenderData> mesh_data = new OpenGLMeshRenderData();
-
 	const int arc_res = 32;
 	const int res = 20; // Number of vertices round cylinder
 
@@ -9623,8 +9621,7 @@ static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(VertexBuffe
 		}
 	}
 
-	OpenGLEngine::buildMeshRenderData(allocator, *mesh_data, verts, normals, uvs, indices);
-	return mesh_data;
+	return OpenGLEngine::buildMeshRenderData(allocator, verts, normals, uvs, indices);
 }
 
 
