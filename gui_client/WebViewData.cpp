@@ -15,11 +15,8 @@ Copyright Glare Technologies Limited 2022 -
 #include "../audio/AudioEngine.h"
 #include <QtGui/QPainter>
 
-#if defined(_WIN32) || defined(OSX)
-#define CEF_SUPPORT 1
-#endif
 
-#if CEF_SUPPORT
+#if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
 #include <cef_app.h>
 #include <cef_client.h>
 #include <wrapper/cef_helpers.h>
