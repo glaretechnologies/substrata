@@ -54,6 +54,7 @@ AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget *parent)
 	OpenGLEngineSettings settings;
 	settings.shadow_mapping = true;
 	settings.compress_textures = true;
+	settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
 	opengl_engine = new OpenGLEngine(settings);
 
 	viewport_w = viewport_h = 100;
