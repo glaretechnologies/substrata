@@ -54,6 +54,25 @@ Change debug C++ code generation  / Runtime Library to "Multi-threaded DLL (/MD)
 
 
 
+CEF on Mac
+===========
+To allow the pre-built spotify binaries to be loaded:
+cd /Users/nick/programming/cyberspace_output/test_builds
+xattr -d com.apple.quarantine Chromium\ Embedded\ Framework.framework/Chromium\ Embedded\ Framework
+
+
+
+https://developer.apple.com/documentation/security/disabling_and_enabling_system_integrity_protection
+
+
+
+cd /Users/nick/programming/cef_binary_100.0.24+g0783cf8+chromium-100.0.4896.127_macosx64/libcef_dll_build/tests/cefclient/Release
+codesign --options runtime --deep --force --verify --verbose --sign "Developer ID Application: Glare Technologies UK Limited" "cefclient Helper.app"
+
+
+codesign --options runtime --deep --force --verify --verbose --sign "Developer ID Application: Glare Technologies UK Limited" "/Users/nick/programming/cyberspace_output/test_builds/gui_client.app/Contents/Frameworks/Chromium Embedded Framework.framework"
+
+
 Building LLVM
 ===================
 from indigo trunk scripts dir:
