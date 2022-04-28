@@ -90,6 +90,8 @@ if(INDIGO_USE_LIBRESSL)
 	add_definitions(-DUSING_LIBRESSL)
 endif()
 
+add_definitions(-DCMS_NO_REGISTER_KEYWORD) # Tell Little CMS not to use the register keyword, gives warnings and/or errors.
+
 if(WIN32)
 	# TEMP: needed for building LLVM with address sanitizer on Windows, which has:
 	# include <sanitizer/asan_interface.h>
