@@ -596,6 +596,8 @@ MainWindow::~MainWindow()
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
 
+	//mesh_manager.clear();
+
 	if(this->client_tls_config)
 		tls_config_free(this->client_tls_config);
 
@@ -743,6 +745,12 @@ void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& p
 	if(resource->getState() != Resource::State_NotPresent) // If it is getting downloaded, or is downloaded:
 	{
 		//conPrint("Already present or being downloaded, skipping...");
+		return;
+	}
+
+	if(resource_manager->isInDownloadFailedURLs(url))
+	{
+		//conPrint("startDownloadingResource(): Skipping download due to having failed: " + url);
 		return;
 	}
 
@@ -909,7 +917,7 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 	ob.opengl_engine_ob = NULL;
 	ob.physics_object = NULL;
 	
-	ob.mesh_data = NULL;
+	ob.mesh_manager_data = NULL;
 
 	ob.loaded_model_lod_level = -10;
 	ob.using_placeholder_model = false;
@@ -1417,7 +1425,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						// Create gl and physics object now
 						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
 						
-						ob->mesh_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+						ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 						assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
@@ -3417,7 +3425,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(cur_loading_mesh_data, ob_lod_level, ob->materials, ob->lightmap_url,
 												*resource_manager, ob_to_world_matrix);
 
-											ob->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 											ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 											ob->physics_object->geometry = this->cur_loading_raymesh;
@@ -4062,6 +4070,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const ErrorMessage* m = static_cast<const ErrorMessage*>(msg.getPointer());
 				showErrorNotification(m->msg);
 			}
+			else if(dynamic_cast<const LogMessage*>(msg.getPointer()))
+			{
+				const LogMessage* m = static_cast<const LogMessage*>(msg.getPointer());
+				logMessage(m->msg);
+			}
 			else if(dynamic_cast<const LoggedInMessage*>(msg.getPointer()))
 			{
 				const LoggedInMessage* m = static_cast<const LoggedInMessage*>(msg.getPointer());
@@ -4262,7 +4275,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const ResourceDownloadedMessage* m = static_cast<const ResourceDownloadedMessage*>(msg.getPointer());
 				const std::string& URL = m->URL;
-				//conPrint("ResourceDownloadedMessage, URL: " + URL);
+				logMessage("Resource downloaded: '" + URL + "'");
 
 				if(world_state.nonNull())
 				{

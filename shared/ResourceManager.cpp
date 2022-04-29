@@ -248,6 +248,21 @@ void ResourceManager::markAsChanged() // Thread-safe
 }
 
 
+void ResourceManager::addToDownloadFailedURLs(const std::string& URL)
+{
+	// conPrint("addToDownloadFailedURLs: " + URL);
+	Lock lock(mutex);
+	download_failed_URLs.insert(URL);
+}
+
+
+bool ResourceManager::isInDownloadFailedURLs(const std::string& URL) const
+{
+	Lock lock(mutex);
+	return download_failed_URLs.count(URL) >= 1;
+}
+
+
 static const uint32 RESOURCE_MANAGER_MAGIC_NUMBER = 587732371;
 static const uint32 RESOURCE_MANAGER_SERIALISATION_VERSION = 1;
 static const uint32 RESOURCE_CHUNK = 103;
