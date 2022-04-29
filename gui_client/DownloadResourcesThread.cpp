@@ -122,7 +122,10 @@ void DownloadResourcesThread::doRun()
 
 				download_queue->dequeueItemsWithTimeOut(/*wait_time_s=*/0.1, /*max_num_items=*/4, queue_items);
 				for(size_t i=0; i<queue_items.size(); ++i)
-					URLs_to_get.insert(queue_items[i].URL);
+				{
+					if(!resource_manager->isInDownloadFailedURLs(queue_items[i].URL)) // Don't try to re-download if we already failed to download this session.
+						URLs_to_get.insert(queue_items[i].URL);
+				}
 
 
 				// Get any more messages from the queue while we're woken up.
@@ -238,7 +241,7 @@ void DownloadResourcesThread::doRun()
 											resource->buffer.clearAndFreeMem(); // TODO: clear resource buffer later when num readers drops to zero.
 									}
 
-									conPrint("DownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(file_len) + ") ");
+									//conPrint("DownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(file_len) + ") ");
 
 									resource->setState(Resource::State_Present);
 
@@ -247,16 +250,20 @@ void DownloadResourcesThread::doRun()
 								catch(FileUtils::FileUtilsExcep& e)
 								{
 									resource->setState(Resource::State_NotPresent);
-									conPrint("DownloadResourcesThread: Error while writing file to disk: " + e.what());
+									//conPrint("DownloadResourcesThread: Error while writing file to disk: " + e.what());
+									out_msg_queue->enqueue(new LogMessage("DownloadResourcesThread: Error while writing file to disk: " + e.what()));
 								}
 							}
 
-							conPrint("DownloadResourcesThread: Got file '" + URL + "'.");
+							//conPrint("DownloadResourcesThread: Got file '" + URL + "'.");
 						}
 						else
 						{
+							resource_manager->addToDownloadFailedURLs(URL);
+
 							resource->setState(Resource::State_NotPresent);
 							//conPrint("DownloadResourcesThread: Server couldn't send file '" + URL + "' (Result=" + toString(result) + ")");
+							out_msg_queue->enqueue(new LogMessage("Server couldn't send resource '" + URL + "' (resource not found)"));
 						}
 
 						(*this->num_resources_downloading)--;

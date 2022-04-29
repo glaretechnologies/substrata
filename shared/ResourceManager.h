@@ -13,6 +13,7 @@ Generated at 2016-01-12 12:22:34 +1300
 #include <ThreadSafeRefCounted.h>
 #include <Reference.h>
 #include <map>
+#include <unordered_set>
 #include <Mutex.h>
 #include <AtomicInt.h>
 
@@ -60,6 +61,10 @@ public:
 
 	bool isFileForURLPresent(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
+
+	void addToDownloadFailedURLs(const std::string& URL);
+	bool isInDownloadFailedURLs(const std::string& URL) const;
+
 	// Used for deserialising resource objects from serialised server state.
 	void addResource(ResourceRef& res);
 	const std::map<std::string, ResourceRef>& getResourcesForURL() const { return resource_for_url; }
@@ -77,9 +82,12 @@ public:
 private:
 	std::string base_resource_dir;
 
-	Mutex mutex;
+	mutable Mutex mutex;
 	std::map<std::string, ResourceRef> resource_for_url;
 	glare::AtomicInt changed;
+
+
+	std::unordered_set<std::string> download_failed_URLs; // Ephemeral state, used to prevent trying to download the same resource over and over again in one client execution.
 };
 
 
