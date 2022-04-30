@@ -166,6 +166,7 @@ private slots:;
 	void materialSelectedInBrowser(const std::string& path);
 	void sendLightmapNeededFlagsSlot();
 	void handleURL(const QUrl& url);
+public:
 	void webViewDataLinkHovered(const QString& url);
 	void webViewMouseDoubleClicked(QMouseEvent* e);
 private:
