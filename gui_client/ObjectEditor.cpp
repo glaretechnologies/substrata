@@ -94,11 +94,16 @@ void ObjectEditor::init() // settings should be set before this.
 {
 	show3DControlsCheckBox->setChecked(settings->value("objectEditor/show3DControlsCheckBoxChecked", /*default val=*/true).toBool());
 	SignalBlocker::setChecked(linkScaleCheckBox, settings->value("objectEditor/linkScaleCheckBoxChecked", /*default val=*/true).toBool());
+
+	SignalBlocker::setValue(gridSpacingDoubleSpinBox, settings->value("objectEditor/gridSpacing", /*default val=*/1.0).toDouble());
+	SignalBlocker::setChecked(snapToGridCheckBox, settings->value("objectEditor/snapToGridCheckBoxChecked", /*default val=*/false).toBool());
 }
 
 
 ObjectEditor::~ObjectEditor()
 {
+	settings->setValue("objectEditor/gridSpacing", gridSpacingDoubleSpinBox->value());
+	settings->setValue("objectEditor/snapToGridCheckBoxChecked", snapToGridCheckBox->isChecked());
 }
 
 

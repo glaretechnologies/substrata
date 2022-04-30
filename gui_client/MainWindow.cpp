@@ -2776,12 +2776,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 {
 	PERFORMANCEAPI_INSTRUMENT("timerEvent");
 
+	if(in_CEF_message_loop)
+		return;
+
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
 
 	// We don't want to do the closeEvent stuff in the CEF message loop.  
 	// If we got a close event in there, handle it now when we're in the main message loop, and not the CEF message loop.
-	if(should_close && !in_CEF_message_loop)
+	assert(!in_CEF_message_loop);
+	if(should_close)
 	{
 		should_close = false;
 		this->close();
@@ -4936,6 +4940,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						ui->indigoView->objectRemoved(*ob);
 
+						ob->web_view_data = NULL;
+
 						if(ob->audio_source.nonNull())
 						{
 							audio_engine.removeSource(ob->audio_source);
@@ -6193,6 +6199,8 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
 	new_world_object->scale = Vec3f(/*width=*/1.f, /*depth=*/0.02f, /*height=*/1080.f / 1920.f);
 	new_world_object->max_model_lod_level = 0;
+
+	new_world_object->target_url = "https://substrata.info/"; // Use a default URL - indicates to users how to set the URL.
 
 	new_world_object->materials.resize(2);
 	new_world_object->materials[0] = new WorldMaterial();
@@ -8756,6 +8764,14 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 				tentative_new_ob_p = ob_origin_at_grab + (tentative_new_ob_p - ob_origin_at_grab) * MAX_MOVE_DIST / (tentative_new_ob_p - ob_origin_at_grab).length();
 
 			assert(tentative_new_ob_p.isFinite());
+
+			// Snap to grid
+			if(ui->objectEditor->snapToGridCheckBox->isChecked())
+			{
+				const double grid_spacing = ui->objectEditor->gridSpacingDoubleSpinBox->value();
+				if(grid_spacing > 1.0e-5)
+					tentative_new_ob_p[grabbed_axis] = (float)Maths::roundToMultipleFloating((double)tentative_new_ob_p[grabbed_axis], grid_spacing);
+			}
 
 			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
 			//tentative_new_to_world.setColumn(3, tentative_new_ob_p);
