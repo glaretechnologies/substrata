@@ -37,9 +37,16 @@ static WebViewDataCEFApp* app = NULL; // Shared among all WebViewData objects.
 class RenderHandler : public CefRenderHandler
 {
 public:
-	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_) {}
+	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), ob(NULL) {}
 
 	~RenderHandler() {}
+
+	void onWebViewDataDestroyed()
+	{
+		opengl_tex = NULL;
+		opengl_engine = NULL;
+		ob = NULL;
+	}
 
 	void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) override
 	{
@@ -53,62 +60,65 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		//conPrint("OnPaint()");
-
-		// whole page was updated
-		if(type == PET_VIEW)
+		if(opengl_engine && ob)
 		{
-			const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
-			if(ob_visible)
+			//conPrint("OnPaint()");
+
+			// whole page was updated
+			if(type == PET_VIEW)
 			{
-				for(size_t i=0; i<dirty_rects.size(); ++i)
+				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+				if(ob_visible)
 				{
-					const CefRect& rect = dirty_rects[i];
+					for(size_t i=0; i<dirty_rects.size(); ++i)
+					{
+						const CefRect& rect = dirty_rects[i];
 
-					//conPrint("Updating dirty rect " + toString(rect.x) + ", " + toString(rect.y) + ", w: " + toString(rect.width) + ", h: " + toString(rect.height));
+						//conPrint("Updating dirty rect " + toString(rect.x) + ", " + toString(rect.y) + ", w: " + toString(rect.width) + ", h: " + toString(rect.height));
 
-					// Copy dirty rect data into a packed buffer
+						// Copy dirty rect data into a packed buffer
 
-					const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
-					opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
+						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
+						opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
+					}
 				}
+
+
+				// if there is still a popup open, write it into the page too (it's pixels will have been
+				// copied into it's buffer by a call to OnPaint with type of PET_POPUP earlier)
+				//if(gPopupPixels != nullptr)
+				//{
+				//    unsigned char* dst = gPagePixels + gPopupRect.y * gWidth * gDepth + gPopupRect.x * gDepth;
+				//    unsigned char* src = (unsigned char*)gPopupPixels;
+				//    while(src < (unsigned char*)gPopupPixels + gPopupRect.width * gPopupRect.height * gDepth)
+				//    {
+				//        memcpy(dst, src, gPopupRect.width * gDepth);
+				//        src += gPopupRect.width * gDepth;
+				//        dst += gWidth * gDepth;
+				//    }
+				//}
+
 			}
+			// popup was updated
+			else if(type == PET_POPUP)
+			{
+				//std::cout << "OnPaint() for popup: " << width << " x " << height << " at " << gPopupRect.x << " x " << gPopupRect.y << std::endl;
 
-
-			// if there is still a popup open, write it into the page too (it's pixels will have been
-			// copied into it's buffer by a call to OnPaint with type of PET_POPUP earlier)
-			//if(gPopupPixels != nullptr)
-			//{
-			//    unsigned char* dst = gPagePixels + gPopupRect.y * gWidth * gDepth + gPopupRect.x * gDepth;
-			//    unsigned char* src = (unsigned char*)gPopupPixels;
-			//    while(src < (unsigned char*)gPopupPixels + gPopupRect.width * gPopupRect.height * gDepth)
-			//    {
-			//        memcpy(dst, src, gPopupRect.width * gDepth);
-			//        src += gPopupRect.width * gDepth;
-			//        dst += gWidth * gDepth;
-			//    }
-			//}
-
-		}
-		// popup was updated
-		else if(type == PET_POPUP)
-		{
-			//std::cout << "OnPaint() for popup: " << width << " x " << height << " at " << gPopupRect.x << " x " << gPopupRect.y << std::endl;
-		
-			// copy over the popup pixels into it's buffer
-			// (popup buffer created in onPopupSize() as we know the size there)
-			//memcpy(gPopupPixels, buffer, width * height * gDepth);
-			//
-			//// copy over popup pixels into page pixels. We need this for when popup is changing (e.g. highlighting or scrolling)
-			//// when the containing page is not changing and therefore doesn't get an OnPaint update
-			//unsigned char* src = (unsigned char*)gPopupPixels;
-			//unsigned char* dst = gPagePixels + gPopupRect.y * gWidth * gDepth + gPopupRect.x * gDepth;
-			//while(src < (unsigned char*)gPopupPixels + gPopupRect.width * gPopupRect.height * gDepth)
-			//{
-			//    memcpy(dst, src, gPopupRect.width * gDepth);
-			//    src += gPopupRect.width * gDepth;
-			//    dst += gWidth * gDepth;
-			//}
+				// copy over the popup pixels into it's buffer
+				// (popup buffer created in onPopupSize() as we know the size there)
+				//memcpy(gPopupPixels, buffer, width * height * gDepth);
+				//
+				//// copy over popup pixels into page pixels. We need this for when popup is changing (e.g. highlighting or scrolling)
+				//// when the containing page is not changing and therefore doesn't get an OnPaint update
+				//unsigned char* src = (unsigned char*)gPopupPixels;
+				//unsigned char* dst = gPagePixels + gPopupRect.y * gWidth * gDepth + gPopupRect.x * gDepth;
+				//while(src < (unsigned char*)gPopupPixels + gPopupRect.width * gPopupRect.height * gDepth)
+				//{
+				//    memcpy(dst, src, gPopupRect.width * gDepth);
+				//    src += gPopupRect.width * gDepth;
+				//    dst += gWidth * gDepth;
+				//}
+			}
 		}
 	}
 
@@ -219,7 +229,13 @@ public:
 class WebDataCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler
 {
 public:
-	WebDataCefClient() : num_channels(0), sample_rate(0) {}
+	WebDataCefClient() : num_channels(0), sample_rate(0), main_window(NULL), ob(NULL) {}
+
+	void onWebViewDataDestroyed()
+	{
+		main_window = NULL;
+		ob = NULL;
+	}
 
 	CefRefPtr<CefRenderHandler> GetRenderHandler() override
 	{
@@ -316,6 +332,30 @@ public:
 	}
 
 
+	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
+		const CefString& value) override
+	{
+		if(value.c_str())
+		{
+			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
+
+			if(main_window)
+				main_window->webViewDataLinkHovered(QtUtils::toQString(value.ToString()));
+			//if(web_view_data)
+			//	web_view_data->linkHoveredSignal(QtUtils::toQString(value.ToString()));
+		}
+		else
+		{
+			//conPrint("OnStatusMessage: NULL");
+
+			//if(web_view_data)
+			//	web_view_data->linkHoveredSignal("");
+			if(main_window)
+				main_window->webViewDataLinkHovered("");
+		}
+	}
+
+
 	//--------------------- AudioHandler ----------------------------
 	// Called on the UI thread to allow configuration of audio stream parameters.
 	// Return true to proceed with audio stream capture, or false to cancel it.
@@ -335,7 +375,7 @@ public:
 		int channels) override
 	{
 		// Create audio source
-		if(ob->audio_source.isNull())
+		if(ob && ob->audio_source.isNull())
 		{
 			// conPrint("OnAudioStreamStarted(), creating audio src");
 
@@ -374,7 +414,7 @@ public:
 		int64 pts) override
 	{
 		// Copy to our audio source
-		if(ob->audio_source.nonNull())
+		if(ob && ob->audio_source.nonNull())
 		{
 			const int num_samples = frames;
 			temp_buf.resize(num_samples);
@@ -458,22 +498,16 @@ public:
 	{
 	}
 
-	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
-		const CefString& value)
+	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
+	void onWebViewDataDestroyed()
 	{
-		if(value.c_str())
-		{
-			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
+		conPrint("WebViewCEFBrowser::onWebViewDataDestroyed()");
 
-			web_view_data->linkHoveredSignal(QtUtils::toQString(value.ToString()));
-		}
-		else
-		{
-			//conPrint("OnStatusMessage: NULL");
-
-			web_view_data->linkHoveredSignal("");
-		}
+		cef_client->onWebViewDataDestroyed();
+		mRenderHandler->onWebViewDataDestroyed();
+		web_view_data = NULL;
 	}
+
 
 	void sendMouseClickEvent(CefBrowserHost::MouseButtonType btn_type, float uv_x, float uv_y, bool mouse_up, uint32 cef_modifiers)
 	{
@@ -737,6 +771,7 @@ WebViewData::~WebViewData()
 #if CEF_SUPPORT
 	if(browser.nonNull())
 	{
+		browser->onWebViewDataDestroyed(); // The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 		browser->requestExit();
 		browser = NULL;
 	}
