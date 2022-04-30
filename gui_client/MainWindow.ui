@@ -410,6 +410,9 @@
    <property name="text">
     <string>Clone Object</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+D</string>
+   </property>
   </action>
   <action name="actionLogIn">
    <property name="text">

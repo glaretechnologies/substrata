@@ -257,6 +257,13 @@
         </layout>
        </widget>
       </item>
+      <item row="9" column="1">
+       <widget class="QCheckBox" name="linkScaleCheckBox">
+        <property name="text">
+         <string>Link x/y/z scale</string>
+        </property>
+       </widget>
+      </item>
       <item row="10" column="0">
        <widget class="QLabel" name="label_5">
         <property name="text">
@@ -330,22 +337,63 @@
         </layout>
        </widget>
       </item>
-      <item row="13" column="0">
-       <widget class="QLabel" name="label_6">
+      <item row="11" column="1">
+       <widget class="QCheckBox" name="show3DControlsCheckBox">
         <property name="text">
-         <string>Collidable</string>
+         <string>Show 3D pos/rot controls</string>
         </property>
        </widget>
       </item>
-      <item row="13" column="1">
-       <widget class="QCheckBox" name="collidableCheckBox">
-        <property name="text">
-         <string/>
-        </property>
+      <item row="12" column="1">
+       <widget class="QWidget" name="widget_8" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_7">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QCheckBox" name="snapToGridCheckBox">
+           <property name="text">
+            <string>Snap to grid</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_15">
+           <property name="text">
+            <string>Grid spacing:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="IndigoDoubleSpinBox" name="gridSpacingDoubleSpinBox">
+           <property name="suffix">
+            <string>m</string>
+           </property>
+           <property name="minimum">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
       <item row="14" column="1">
-       <spacer name="verticalSpacer_3">
+       <spacer name="verticalSpacer_2">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
         </property>
@@ -361,13 +409,43 @@
        </spacer>
       </item>
       <item row="15" column="0">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Collidable</string>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="1">
+       <widget class="QCheckBox" name="collidableCheckBox">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="16" column="1">
+       <spacer name="verticalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+        <property name="sizeType">
+         <enum>QSizePolicy::Fixed</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>20</width>
+          <height>10</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="17" column="0">
        <widget class="QLabel" name="label_9">
         <property name="text">
          <string>Script</string>
         </property>
        </widget>
       </item>
-      <item row="15" column="1">
+      <item row="17" column="1">
        <widget class="QWidget" name="widget_5" native="true">
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <property name="spacing">
@@ -420,14 +498,14 @@
         </layout>
        </widget>
       </item>
-      <item row="17" column="0">
+      <item row="19" column="0">
        <widget class="QLabel" name="label_12">
         <property name="text">
          <string>Content</string>
         </property>
        </widget>
       </item>
-      <item row="17" column="1">
+      <item row="19" column="1">
        <widget class="QTextEdit" name="contentTextEdit">
         <property name="minimumSize">
          <size>
@@ -437,90 +515,31 @@
         </property>
        </widget>
       </item>
-      <item row="18" column="0">
+      <item row="20" column="0">
        <widget class="QLabel" name="targetURLLabel">
         <property name="text">
          <string>Target URL</string>
         </property>
        </widget>
       </item>
-      <item row="19" column="1">
+      <item row="20" column="1">
+       <widget class="QLineEdit" name="targetURLLineEdit"/>
+      </item>
+      <item row="21" column="1">
        <widget class="QLabel" name="visitURLLabel">
         <property name="text">
          <string>&lt;a href=&quot;#boo&quot;&gt;Open URL in web browser&lt;/a&gt;</string>
         </property>
        </widget>
       </item>
-      <item row="20" column="0">
+      <item row="22" column="0">
        <widget class="QLabel" name="label_7">
         <property name="text">
          <string>Lightmap URL:</string>
         </property>
        </widget>
       </item>
-      <item row="21" column="1">
-       <widget class="QWidget" name="widget_6" native="true">
-        <layout class="QHBoxLayout" name="horizontalLayout_5">
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QPushButton" name="bakeLightmapPushButton">
-           <property name="text">
-            <string>Bake lightmap (fast)</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="bakeLightmapHighQualPushButton">
-           <property name="text">
-            <string>Bake lightmap (high qual)</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
       <item row="22" column="1">
-       <widget class="QLabel" name="lightmapBakeStatusLabel">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="12" column="1">
-       <spacer name="verticalSpacer_2">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>10</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="11" column="1">
-       <widget class="QCheckBox" name="show3DControlsCheckBox">
-        <property name="text">
-         <string>Show 3D pos/rot controls</string>
-        </property>
-       </widget>
-      </item>
-      <item row="20" column="1">
        <widget class="QWidget" name="widget_7" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_6">
          <property name="leftMargin">
@@ -558,15 +577,44 @@
         </layout>
        </widget>
       </item>
-      <item row="9" column="1">
-       <widget class="QCheckBox" name="linkScaleCheckBox">
-        <property name="text">
-         <string>Link x/y/z scale</string>
-        </property>
+      <item row="23" column="1">
+       <widget class="QWidget" name="widget_6" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QPushButton" name="bakeLightmapPushButton">
+           <property name="text">
+            <string>Bake lightmap (fast)</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="bakeLightmapHighQualPushButton">
+           <property name="text">
+            <string>Bake lightmap (high qual)</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
-      <item row="18" column="1">
-       <widget class="QLineEdit" name="targetURLLineEdit"/>
+      <item row="24" column="1">
+       <widget class="QLabel" name="lightmapBakeStatusLabel">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>
