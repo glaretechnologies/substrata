@@ -27,7 +27,7 @@ if(WIN32)
 		)
 elseif(APPLE)
 	# NOTE: -stdlib=libc++ is needed for C++11.
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++11 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework OpenCL -framework CoreServices")
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++11 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices")
 else()
 	# Linux
 	# Add required Sanitizer link flags
