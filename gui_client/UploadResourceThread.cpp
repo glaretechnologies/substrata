@@ -97,7 +97,7 @@ void UploadResourceThread::doRun()
 		else
 		{
 			const std::string msg = socket->readStringLengthFirst(1000);
-			conPrint("UploadResourceThread: received code " + toString(response) + " while trying to upload resource: '" + msg + "'");
+			conPrint("UploadResourceThread: received error code " + toString(response) + " while trying to upload resource: '" + msg + "'");
 		}
 	}
 	catch(MySocketExcep& e)
