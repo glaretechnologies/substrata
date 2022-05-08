@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2022 -
 #include "MeshManager.h"
 
 
+#include <utils/PlatformUtils.h>
+
+
 void MeshData::meshDataBecameUnused() const
 {
 	if(mesh_manager)
@@ -13,35 +16,35 @@ void MeshData::meshDataBecameUnused() const
 }
 
 
-/*bool MeshManager::isMeshDataInserted(const std::string& model_url) const
-{
-	Lock lock(mutex);
-
-	return model_URL_to_mesh_map.count(model_url) > 0;
-}
-
-
-bool MeshManager::isMeshDataInsertedNoLock(const std::string& model_url) const
-{
-	return model_URL_to_mesh_map.count(model_url) > 0;
-}*/
-
-
 MeshManager::MeshManager()
-{}
+{
+	main_thread_id = PlatformUtils::getCurrentThreadID();
+}
 
 
 MeshManager::~MeshManager()
 {
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	clear();
+}
+
+
+void MeshManager::clear()
+{
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+
 	// Before we clear model_URL_to_mesh_map, NULL out references to mesh_manager so meshDataBecameUnused() doesn't trigger.
 	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
 		it->second->mesh_manager = NULL;
+
+	model_URL_to_mesh_map.clear();
 }
 
 
 Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata, Reference<RayMesh>& raymesh)
 {
-	Lock lock(mutex);
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	//Lock lock(mutex);
 
 	// conPrint("Inserting mesh '" + model_url + "' into mesh manager.");
 	//assert((model_url == "Quad_obj_17249492137259942610.bmesh") || getMeshData(model_url).isNull());
@@ -79,7 +82,8 @@ Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, cons
 
 Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
 {
-	Lock lock(mutex);
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	//Lock lock(mutex);
 
 	auto res = model_URL_to_mesh_map.find(model_url);
 	if(res != model_URL_to_mesh_map.end())
@@ -91,7 +95,8 @@ Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
 
 void MeshManager::meshDataBecameUnused(const MeshData* meshdata)
 {
-	Lock lock(mutex);
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	//Lock lock(mutex);
 
 	// conPrint("meshDataBecameUnused(): Removing mesh '" + meshdata->model_url + "' from mesh manager.");
 
@@ -103,7 +108,8 @@ void MeshManager::meshDataBecameUnused(const MeshData* meshdata)
 
 GLMemUsage MeshManager::getTotalMemUsage() const
 {
-	Lock lock(mutex);
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+	//Lock lock(mutex);
 
 	GLMemUsage sum;
 	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)

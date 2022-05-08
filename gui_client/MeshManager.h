@@ -74,8 +74,8 @@ class MeshManager
 public:
 	MeshManager();
 	~MeshManager();
-	//bool isMeshDataInserted(const std::string& model_url) const;
-	//bool isMeshDataInsertedNoLock(const std::string& model_url) const;
+
+	void clear();
 
 	Reference<MeshData> insertMeshes(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata, Reference<RayMesh>& raymesh);
 
@@ -85,13 +85,9 @@ public:
 
 	GLMemUsage getTotalMemUsage() const;
 
-	Mutex& getMutex() { return mutex; }
-
-	//MeshData& operator [] (const std::string& model_url) { return model_URL_to_mesh_map[model_url]; }
-
-	//std::map<std::string, MeshData>::iterator find(const std::string& model_url) { return model_URL_to_mesh_map.find(model_url); }
-
+	//Mutex& getMutex() { return mutex; }
 private:
-	mutable Mutex mutex;
+	//mutable Mutex mutex;
 	std::map<std::string, Reference<MeshData> > model_URL_to_mesh_map;
+	uint64 main_thread_id;
 };

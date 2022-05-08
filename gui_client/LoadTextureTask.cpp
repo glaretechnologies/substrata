@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <opengl/OpenGLEngine.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
+#include <IncludeHalf.h>
 
 
 LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, const std::string& path_, bool use_sRGB_)
@@ -26,7 +27,7 @@ void LoadTextureTask::run(size_t thread_index)
 {
 	try
 	{
-		//conPrint("LoadTextureTask: processing texture '" + path + "'");
+		// conPrint("LoadTextureTask: processing texture '" + path + "'");
 
 		const std::string key = main_window->texture_server->keyForPath(path); // Get canonical path.  May throw TextureServerExcep
 
@@ -41,6 +42,7 @@ void LoadTextureTask::run(size_t thread_index)
 			map = ImageDecoding::decodeImage(".", key);
 
 		// Process 8-bit textures (do DXT compression, mip-map computation etc..) in this thread.
+		bool is_8_bit = true;
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
 		{
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
@@ -61,6 +63,24 @@ void LoadTextureTask::run(size_t thread_index)
 		}
 		else
 		{
+			is_8_bit = false;
+
+			// Convert 32-bit floating point images to half-precision floating point (16-bit) images.
+			if(map.isType<ImageMapFloat>())
+			{
+				const ImageMapFloat* const image_map_float = map.downcastToPtr<ImageMapFloat>();
+				Reference<ImageMap<half, HalfComponentValueTraits> > half_image = new ImageMap<half, HalfComponentValueTraits>(map->getMapWidth(), map->getMapHeight(), map->numChannels());
+				
+				const float* const src = image_map_float->getData();
+				      half*  const dst = half_image->getData();
+				const size_t data_size = image_map_float->numPixels() * map->numChannels();
+				for(size_t i=0; i<data_size; ++i)
+					dst[i] = half(src[i]);
+
+				map = half_image;
+			}
+
+
 			main_window->texture_server->insertTextureForRawName(map, key);
 		}
 
@@ -69,6 +89,7 @@ void LoadTextureTask::run(size_t thread_index)
 		msg->tex_path = path;
 		msg->tex_key = key;
 		msg->use_sRGB = use_sRGB;
+		msg->tex_is_8_bit = is_8_bit;
 		main_window->msg_queue.enqueue(msg);
 	}
 	catch(TextureServerExcep& e)

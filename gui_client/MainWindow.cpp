@@ -827,7 +827,8 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
+				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already into the texture server
+				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
@@ -842,7 +843,8 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
+				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already
+				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
@@ -859,7 +861,8 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 		if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-			!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
+			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already
+			!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
 		{
 			const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 			if(just_added)
@@ -881,7 +884,8 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already,
+				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
+				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
@@ -895,7 +899,8 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
 			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path)) // and if not loaded already
+				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already
+				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
@@ -1077,7 +1082,7 @@ static Reference<OpenGLTexture> getBestLightmapLOD(const std::string& base_light
 	for(int lvl=0; lvl<=2; ++lvl)
 	{
 		const std::string tex_lod_path = WorldObject::getLODLightmapURL(base_lightmap_path, lvl);
-		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path), /*use_sRGB=*/true);
+		Reference<OpenGLTexture> tex = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(tex_lod_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
 		if(tex.nonNull())
 			return tex;
 	}
@@ -1124,7 +1129,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		if(!opengl_mat.lightmap_path.empty())
 		{
 			//conPrint("Trying to use " + opengl_mat.lightmap_path);
-			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true);
+			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
 
 			//printVar(opengl_mat.lightmap_texture.isNull());
 			if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
@@ -2891,6 +2896,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
 		}
 
+		if(texture_server)
+			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
+
 		if(physics_world.nonNull())
 		{
 			msg += "Physics:\n";
@@ -3729,11 +3737,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 
+					const bool use_mipmaps = message->tex_is_8_bit;
+
 					//Timer timer;
 					try
 					{
 						// ui->glWidget->makeCurrent();
-						ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key), message->use_sRGB);
+						ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key), message->use_sRGB, use_mipmaps);
 					}
 					catch(glare::Exception& e)
 					{
@@ -3896,7 +3906,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				try
 				{
 					// ui->glWidget->makeCurrent();
-					ui->glWidget->opengl_engine->textureLoaded(/*path=*/tex_key, OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+					ui->glWidget->opengl_engine->textureLoaded(/*path=*/tex_key, OpenGLTextureKey(tex_key), /*use_sRGB=*/true, /*use_mipmaps=*/true);
 				}
 				catch(glare::Exception& e)
 				{

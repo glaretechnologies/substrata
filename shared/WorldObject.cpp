@@ -158,9 +158,9 @@ std::string WorldObject::getLODLightmapURL(const std::string& base_lightmap_url,
 	if(level <= 0)
 		return base_lightmap_url;
 	else if(level == 1)
-		return removeDotAndExtension(base_lightmap_url) + "_lod1.ktx2";
+		return removeDotAndExtension(base_lightmap_url) + "_lod1." + getExtension(base_lightmap_url);
 	else
-		return removeDotAndExtension(base_lightmap_url) + "_lod2.ktx2";
+		return removeDotAndExtension(base_lightmap_url) + "_lod2." + getExtension(base_lightmap_url);
 }
 
 

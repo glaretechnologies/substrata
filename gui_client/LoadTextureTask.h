@@ -19,6 +19,7 @@ public:
 	std::string tex_path;
 	std::string tex_key;
 	bool use_sRGB;
+	bool tex_is_8_bit;
 };
 
 
