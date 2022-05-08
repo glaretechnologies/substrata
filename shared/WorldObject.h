@@ -202,7 +202,7 @@ public:
 	Reference<PhysicsObject> physics_object;
 	Reference<glare::AudioSource> audio_source;
 
-	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+	Reference<MeshData> mesh_manager_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 	enum AudioState
 	{
