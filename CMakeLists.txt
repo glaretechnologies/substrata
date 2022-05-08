@@ -137,7 +137,7 @@ Library versions:")
 
 # External library directory (apart from llvm, openssl and Qt)
 set(tiffdir		"${INDIGO_TRUNK_DIR_ENV}/tiff-3.8.2/libtiff")
-set(ilmbasedir	"${INDIGO_TRUNK_DIR_ENV}/IlmBase")
+set(imathdir	"${INDIGO_TRUNK_DIR_ENV}/Imath")
 set(openexrdir	"${INDIGO_TRUNK_DIR_ENV}/OpenEXR")
 set(zlibdir		"${INDIGO_TRUNK_DIR_ENV}/zlib-1.2.11")
 set(pugixmldir	"${INDIGO_TRUNK_DIR_ENV}/pugixml-1.9/src")
