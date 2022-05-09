@@ -854,7 +854,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	}
 
 	// Start loading lightmap
-#if !defined(OSX) // We don't support lightmaps on Mac due to lack of BC6H texture support.
+#if 1 //!defined(OSX) // We don't support lightmaps on Mac due to lack of BC6H texture support.
 	if(!ob.lightmap_url.empty())
 	{
 		const std::string lod_tex_url = WorldObject::getLODLightmapURL(ob.lightmap_url, ob_lod_level);
@@ -1125,7 +1125,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			}
 		}
 
-#if !defined(OSX)
+#if 1 // !defined(OSX)
 		if(!opengl_mat.lightmap_path.empty())
 		{
 			//conPrint("Trying to use " + opengl_mat.lightmap_path);
