@@ -89,6 +89,10 @@ if(WIN32)
 	SET(ilmthread
 	${ilmthread}
 	${openexrdir}/src/lib/IlmThread/IlmThreadSemaphoreWin32.cpp)
+elseif(APPLE)
+	SET(ilmthread
+	${ilmthread}
+	${openexrdir}/src/lib/IlmThread/IlmThreadSemaphoreOSX.cpp)
 endif()
 
 SET(openexr
