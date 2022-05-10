@@ -93,7 +93,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 				sound->buf->buffer.resize(num_samples / wav_num_channels); // TEMP: mix down to mono
 
 				const size_t expected_remaining = bytes_per_sample * num_samples;
-				if(file.getReadIndex() + expected_remaining > file.size())
+				if(!file.canReadNBytes(expected_remaining))
 					throw glare::Exception("not enough data in file.");
 
 				if(bytes_per_sample == 2)
@@ -123,7 +123,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 				{
 					if(wav_num_channels == 1)
 					{
-						doRuntimeCheck(file.getReadIndex() + num_samples * 3 <= file.size());
+						doRuntimeCheck(file.canReadNBytes(num_samples * 3));
 						const uint8* src = (const uint8*)file.currentReadPtr();
 						for(uint32 i=0; i<num_samples; ++i)
 						{
@@ -133,12 +133,12 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 							assert(val >= -8388608 && val < 8388608);
 							sound->buf->buffer[i] = val * (1.f / 8388608);
 						}
-						file.setReadIndex(file.getReadIndex() + expected_remaining);
+						file.advanceReadIndex(expected_remaining);
 					}
 					else if(wav_num_channels == 2)
 					{
 						// Mix down to mono
-						doRuntimeCheck(file.getReadIndex() + num_samples * 3 <= file.size());
+						doRuntimeCheck(file.canReadNBytes(num_samples * 3));
 						const uint8* src = (const uint8*)file.currentReadPtr();
 						for(uint32 i=0; i<num_samples / wav_num_channels; ++i)
 						{
@@ -150,7 +150,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 							//sound->buf[i] = ((left + right) - 16777216) * (1.f / 16777216); // values seem to be in [0, 16777216), so map to [-8388608, 8388607)
 							sound->buf->buffer[i] = (signExtend24BitValue(left) + signExtend24BitValue(right)) * (1.f / 16777216); // values seem to be in [0, 16777216), so map to [-8388608, 8388607)
 						}
-						file.setReadIndex(file.getReadIndex() + expected_remaining);
+						file.advanceReadIndex(expected_remaining);
 					}
 				}
 				else if(bytes_per_sample == 4)
@@ -182,7 +182,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 			else
 			{
 				// Unknown chunk, skip it
-				file.setReadIndex(file.getReadIndex() + chunk_size);
+				file.advanceReadIndex(chunk_size);
 			}
 		}
 
