@@ -21,6 +21,7 @@ limitations under the License.
 #include <cstdint>
 #include <functional>
 #include <vector>
+#include <stdlib.h>
 
 namespace vraudio {
 
