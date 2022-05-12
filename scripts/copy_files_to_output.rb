@@ -23,7 +23,7 @@ end
 
 if OS.windows?
 	copy_files(2019)
-else
+elif OS.mac?
 	begin
 		output_dir = getCmakeBuildDir(0, "Debug") + "/gui_client.app/Contents/MacOS/../Resources"
 
@@ -35,4 +35,8 @@ else
 
 		#copyCyberspaceResources(output_dir)
 	end
+else
+	output_dir = getCmakeBuildDir(0, "Debug")
+	puts "output_dir: #{output_dir}"
+	copyCyberspaceResources(output_dir)
 end
