@@ -683,7 +683,7 @@ elseif(APPLE)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox")
 else() # linux
 
-	add_definitions(-D__LINUX_ALSA__) # Add ALSA config choice define for RTAudio
+	add_definitions(-D__LINUX_PULSE__) # Add config choice define for RTAudio
 
 	SET(QT_LINUX_LIBS GL
 		Qt5Gui
@@ -694,7 +694,9 @@ else() # linux
 		Qt5Network
 		Qt5Gamepad
 		dl
-		asound # ALSA lib required by RTAudio
+		#asound # ALSA lib required by RTAudio
+		pulse # PulseAudio lib required by RTAudio
+		pulse-simple # PulseAudio lib required by RTAudio
 	)
 
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
