@@ -62,7 +62,7 @@ bool ImageDecoding::hasSupportedImageExtension(const std::string& path)
 	return
 		hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
 		hasExtension(path, "png") ||
-		hasExtension(path, "tif") || hasExtension(path, "tiff") ||
+		//hasExtension(path, "tif") || hasExtension(path, "tiff") ||
 		hasExtension(path, "exr") ||
 		hasExtension(path, "gif") ||
 		hasExtension(path, "ktx") || 
