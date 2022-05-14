@@ -29,10 +29,11 @@ Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, 
 	{
 		return PNGDecoder::decode(path);
 	}
-	else if(hasExtension(path, "tif") || hasExtension(path, "tiff"))
+	// Disable TIFF loading until we fuzz it etc.
+	/*else if(hasExtension(path, "tif") || hasExtension(path, "tiff"))
 	{
 		return TIFFDecoder::decode(path);
-	}
+	}*/
 	else if(hasExtension(path, "exr"))
 	{
 		return EXRDecoder::decode(path);
