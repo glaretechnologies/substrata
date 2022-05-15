@@ -4054,7 +4054,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(world_state.nonNull())
 				{
 					// Look up sending avatar name colour.  TODO: could do this with sending avatar UID, would be faster + simpler.
-					Colour3f col;
+					Colour3f col(0.8f);
 					{
 						Lock lock(this->world_state->mutex);
 
