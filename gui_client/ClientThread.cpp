@@ -47,6 +47,8 @@ ClientThread::~ClientThread()
 void ClientThread::kill()
 {
 	should_die = glare::atomic_int(1);
+	
+	event_fd.notify(); // Make the blocking readable call stop.
 }
 
 
