@@ -12,8 +12,6 @@ macro(addIncludeDirectory dir_to_include)
 endmacro(addIncludeDirectory)
 
 
-MESSAGE("jpegturbodir: ${jpegturbodir}")
-
 addIncludeDirectory("${fftssdir}/include")
 addIncludeDirectory(${jpegturbodir}/include)
 #addIncludeDirectory(${jpegturbodir}) # This one works on linux/mac

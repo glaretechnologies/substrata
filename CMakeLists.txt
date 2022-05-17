@@ -21,7 +21,7 @@ if(WIN32)
 		set(CYBERSPACE_LIBS_VS_VER 2019)
 	elseif(MSVC_VERSION GREATER_EQUAL 1930 AND MSVC_VERSION LESS 1940)
 		set(CYBERSPACE_VS_VER 2022)
-		set(CYBERSPACE_LIBS_VS_VER 2019) # NOTE: Just use VS 2019 libs for now
+		set(CYBERSPACE_LIBS_VS_VER 2022)
 	else()
 		message(FATAL_ERROR "Unhandled MSVC version")
 	endif()
@@ -69,9 +69,6 @@ if(WIN32)
 	MESSAGE("Platform toolset: ${USED_PLATFORM_TOOLSET}")
 endif()
 
-MESSAGE("
-Options:")
-
 
 
 # To use a Clang sanitizer, for example address sanitizer, set on command line like so:
@@ -81,7 +78,7 @@ Options:")
 #MESSAGE("INDIGO_USE_SANITIZER: ${INDIGO_USE_SANITIZER}")
 
 SET(INDIGO_USE_LIBRESSL TRUE)
-MESSAGE("INDIGO_USE_LIBRESSL: ${INDIGO_USE_LIBRESSL}")
+#MESSAGE("INDIGO_USE_LIBRESSL: ${INDIGO_USE_LIBRESSL}")
 
 if(NOT WIN32)
 	if("${CMAKE_BUILD_TYPE}" STREQUAL "")
@@ -107,10 +104,7 @@ include("functions.cmake")
 # Make sure stuff exists.
 programAvailable("ruby")
 
-
-MESSAGE("
-Env vars:")
-
+MESSAGE("\n----------Env vars:----------")
 
 # Get env vars
 checkAndGetEnvVar(INDIGO_LIBS INDIGO_LIBS_ENV)
@@ -131,8 +125,7 @@ MESSAGE("WEBSITE_CORE_TRUNK_DIR: ${WEBSITE_CORE_TRUNK_DIR_ENV}")
 SET(CEF_BINARY_DISTRIB_DIR_ENV $ENV{CEF_BINARY_DISTRIB_DIR})
 MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
 
-MESSAGE("
-Library versions:")
+
 
 
 # External library directory (apart from llvm, openssl and Qt)
@@ -154,16 +147,17 @@ getConfigOption("--qtdir" INDIGO_QT_DIR)
 
 getConfigOption("--version" SUBSTRATA_VERSION)
 
+message("")
 message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 
 
 SET(INDIGO_LLVM_VERSION 6.0.0)
-SET(INDIGO_LIBRESSL_VERSION 3.3.5)
-SET(INDIGO_OPENSSL_VERSION 1.0.2a)
+SET(INDIGO_LIBRESSL_VERSION 3.5.2)
 
 SET(INDIGO_USE_SANITIZER "")
 
 SET(PERFORMANCEAPI_ENABLED 0) # Superluminal instrumentation support
+MESSAGE("PERFORMANCEAPI_ENABLED (Superluminal instrumentation support): ${PERFORMANCEAPI_ENABLED}")
 
 if(WIN32)
 	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_LIBS_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
@@ -186,13 +180,11 @@ endif()
 set(INDIGO_QT_INCLUDE_DIR	"${INDIGO_QT_DIR}/include")
 set(INDIGO_QT_LIB_DIR	"${INDIGO_QT_DIR}/lib")
 
+MESSAGE("\n----------Library versions:----------")
 MESSAGE("QT version: ${INDIGO_QT_VERSION}")
 MESSAGE("LLVM version: ${INDIGO_LLVM_VERSION}")
 MESSAGE("LibreSSL version: ${INDIGO_LIBRESSL_VERSION}")
-MESSAGE("OpenSSL version: ${INDIGO_OPENSSL_VERSION}")
-MESSAGE("QT dir: ${INDIGO_QT_DIR}")
-MESSAGE("LibJPEG Turbo dir: ${jpegturbodir}")
-MESSAGE("PERFORMANCEAPI_ENABLED: ${PERFORMANCEAPI_ENABLED}")
+
 
 # LLVM, LibreSSL, OpenSSL
 if(WIN32)
@@ -203,7 +195,6 @@ if(WIN32)
 	
 	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${LLVM_BUILD_VS_VER}_${CYBERSPACE_BITNESS}")
 	set(libressldir "${INDIGO_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}-install")
-	set(openssldir "${INDIGO_LIBS_ENV}/OpenSSL/openssl-${INDIGO_OPENSSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}")
 		
 	# Set the output directory.  Cmake will append the configuration string to this.
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "$ENV{CYBERSPACE_OUTPUT}/${VS_SUB_DIR}/cyberspace_${CYBERSPACE_PLATFORM}")
@@ -219,7 +210,6 @@ else() # Mac or Linux.
 		set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_dylib_install") # Use dylib build
 	endif()
 	set(libressldir	"${INDIGO_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-install")
-	set(openssldir "${INDIGO_LIBS_ENV}/OpenSSL/openssl-${INDIGO_OPENSSL_VERSION}-install")
 	
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "$ENV{CYBERSPACE_OUTPUT}/test_builds")
 	set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "$ENV{CYBERSPACE_OUTPUT}/test_builds")
@@ -250,7 +240,16 @@ else() # Mac or Linux.
 
 endif()
 
-message("ACTUAL_FUCKING_OUTPUT_DIR: ${ACTUAL_FUCKING_OUTPUT_DIR}")
+MESSAGE("\n----------Library dirs:----------")
+MESSAGE("QT dir: ${INDIGO_QT_DIR}")
+MESSAGE("LibJPEG Turbo dir: ${jpegturbodir}")
+MESSAGE("llvmdir: ${llvmdir}")
+MESSAGE("libressldir: ${libressldir}")
+MESSAGE("openssldir: ${openssldir}")
+MESSAGE("jpegturbodir: ${jpegturbodir}")
+
+MESSAGE("")
+MESSAGE("ACTUAL_FUCKING_OUTPUT_DIR: ${ACTUAL_FUCKING_OUTPUT_DIR}")
 
 
 # The custom prebuild step target.
