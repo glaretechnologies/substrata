@@ -11,19 +11,23 @@ def copy_files(vs_version)
 		output_dir = getCmakeBuildDir(vs_version, "Debug")
 
 		copyCyberspaceResources(output_dir)
+		copyCEFRedistWindows(output_dir)
+		copyBugSplatRedist(output_dir)
 	end
 
 	begin
 		output_dir = getCmakeBuildDir(vs_version, "RelWithDebInfo")
 
 		copyCyberspaceResources(output_dir)
+		copyCEFRedistWindows(output_dir)
+		copyBugSplatRedist(output_dir)
 	end
 end
 
 
 if OS.windows?
-	copy_files(2019)
-elif OS.mac?
+	copy_files(2022)
+elsif OS.mac?
 	begin
 		output_dir = getCmakeBuildDir(0, "Debug") + "/gui_client.app/Contents/MacOS/../Resources"
 
