@@ -275,6 +275,8 @@ public:
 	void stopGesture();
 	void setSelfieModeEnabled(bool enabled);
 
+	QPoint getGlWidgetPosInGlobalSpace(); // Get top left of the GLWidget in global screen coordinates.
+
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
 	std::string base_dir_path;

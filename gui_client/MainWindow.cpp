@@ -46,6 +46,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "CameraController.h"
 #include "BiomeManager.h"
 #include "WebViewData.h"
+#include "CEF.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
@@ -632,6 +633,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 		return;
 	}
 
+	ui->glWidget->makeCurrent();
+
 	// Save main window geometry and state.  See http://doc.qt.io/archives/qt-4.8/qmainwindow.html#saveState
 	settings->setValue("mainwindow/geometry", saveGeometry());
 	settings->setValue("mainwindow/windowState", saveState());
@@ -680,7 +683,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	if(log_window) log_window->close();
 
 	in_CEF_message_loop = true;
-	WebViewData::shutdownCEF();
+	CEF::shutdownCEF();
 	in_CEF_message_loop = false;
 
 	QMainWindow::closeEvent(event);
@@ -2798,7 +2801,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	in_CEF_message_loop = true;
-	WebViewData::doMessageLoopWork();
+	CEF::doMessageLoopWork();
 	in_CEF_message_loop = false;
 	
 
@@ -9746,6 +9749,12 @@ void MainWindow::setSelfieModeEnabled(bool enabled)
 		if(!ui->actionThird_Person_Camera->isChecked())
 			ui->actionThird_Person_Camera->trigger();
 	}
+}
+
+
+QPoint MainWindow::getGlWidgetPosInGlobalSpace()
+{
+	return this->ui->glWidget->mapToGlobal(this->ui->glWidget->pos());
 }
 
 
