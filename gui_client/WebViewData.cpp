@@ -35,7 +35,7 @@ Copyright Glare Technologies Limited 2022 -
 class RenderHandler : public CefRenderHandler
 {
 public:
-	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), ob(NULL) {}
+	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), ob(NULL), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
 
 	~RenderHandler() {}
 
@@ -79,6 +79,18 @@ public:
 						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
 						opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
 					}
+				}
+				else
+				{
+					//conPrint("Discarded a dirty rect update");
+					discarded_dirty_updates = true;
+
+					//for(size_t i=0; i<dirty_rects.size(); ++i)
+					//{
+					//	const CefRect& rect = dirty_rects[i];
+					//	
+					//	//discarded_dirty_rect.enlargeToHoldRect(Rect2i(Vec2i(rect.x, rect.y), Vec2i(rect.x + rect.width, rect.y + rect.height)));
+					//}
 				}
 
 
@@ -189,6 +201,9 @@ public:
 	OpenGLEngine* opengl_engine;
 	MainWindow* main_window;
 	WorldObject* ob;
+	bool discarded_dirty_updates; // Set to true if we didn't update the buffer when a rectangle was dirty, because the webview object was not visible by the camera.
+	//Rect2i discarded_dirty_rect;
+
 
 	IMPLEMENT_REFCOUNTING(RenderHandler);
 };
@@ -650,7 +665,8 @@ WebViewData::WebViewData()
 	loading_in_progress(false),
 	browser(NULL),
 	showing_click_to_load_text(false),
-	user_clicked_to_load(false)
+	user_clicked_to_load(false),
+	previous_is_visible(true)
 {
 
 }
@@ -828,6 +844,31 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 					showing_click_to_load_text = true;
 				}
 
+			}
+
+			// While the webview is not visible by the camera, we discard any dirty-rect updates.  
+			// When the webview becomes visible again, if there were any discarded dirty rects, then we know our buffer is out of date.
+			// So invalidate the whole buffer.
+			// Note that CEF only allows us to invalidate the whole buffer - see https://magpcss.org/ceforum/viewtopic.php?f=6&t=15079
+			// If we could invalidate part of it, then we can maintain the actual discarded dirty rectangles (or a bounding rectangle around them)
+			// and use that to just invalidate the dirty part.
+			if(browser.nonNull())
+			{
+				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+				if(ob_visible && !previous_is_visible) // If webview just became visible:
+				{
+					//conPrint("Browser became visible!");
+					if(browser->mRenderHandler->discarded_dirty_updates)
+					{
+						//conPrint("Browser had disacarded dirty updates, invalidating...");
+						browser->mRenderHandler->discarded_dirty_updates = false;
+
+						if(browser->cef_browser && browser->cef_browser->GetHost())
+							browser->cef_browser->GetHost()->Invalidate(PET_VIEW);
+					}
+				}
+
+				previous_is_visible = ob_visible;
 			}
 		}
 	}
