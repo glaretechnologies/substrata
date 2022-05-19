@@ -31,10 +31,6 @@ public:
 
 	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
-	static void doMessageLoopWork();
-
-	static void shutdownCEF();
-
 	static const double maxBrowserDist() { return 20.0; }
 
 	void mousePressed(QMouseEvent* e, const Vec2f& uv_coords);

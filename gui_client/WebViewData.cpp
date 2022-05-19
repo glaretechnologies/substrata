@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "MainWindow.h"
+#include "CEFInternal.h"
+#include "CEF.h"
 #include "../shared/WorldObject.h"
 #include "../qt/QtUtils.h"
 #include <Escaping.h>
@@ -24,10 +26,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <wrapper/cef_library_loader.h>
 #endif
 #endif
-
-
-static bool CEF_initialised = false;
-static WebViewDataCEFApp* app = NULL; // Shared among all WebViewData objects.
 
 
 #if CEF_SUPPORT
@@ -122,6 +120,45 @@ public:
 		}
 	}
 
+
+	// Called to retrieve the translation from view coordinates to actual screen
+	// coordinates. Return true if the screen coordinates were provided.
+	virtual bool GetScreenPoint(CefRefPtr<CefBrowser> browser, int viewX, int viewY, int& screenX, int& screenY) override
+	{
+		//conPrint("GetScreenPoint: viewX: " + toString(viewX) + ", viewY: " + toString(viewY));
+		
+		const Matrix4f ob_to_world = obToWorldMatrix(*this->ob);
+
+		// Work out if the camera is viewing the front face or the back face of the webview object.
+		const Vec4f campos_ws = opengl_engine->getCameraPositionWS();
+		const Vec4f obpos_ws = ob_to_world * Vec4f(0, 0, 0, 1);
+		const Vec4f ob_to_cam_ws = campos_ws - obpos_ws;
+
+		const Vec4f frontface_vec_os = Vec4f(0, -1, 0, 0); // Vector pointing out of the webview front face
+		const Vec4f frontface_vec_ws = ob_to_world * frontface_vec_os;
+
+		const bool viewing_frontface = dot(frontface_vec_ws, ob_to_cam_ws) > 0;
+
+		float u = viewX / (float)opengl_tex->xRes();
+		if(!viewing_frontface) // Flip u coordinate if we are viewing the backface.
+			u = 1 - u;
+		const float v = 1.f - viewY / (float)opengl_tex->yRes();
+
+		const Vec4f pos_os(u, 0, v, 1);
+
+		const Vec4f pos_ws = ob_to_world * pos_os;
+
+		Vec2f window_coords;
+		opengl_engine->getWindowCoordsForWSPos(pos_ws, window_coords);
+
+		const QPoint gl_widget_pos = main_window->getGlWidgetPosInGlobalSpace();
+
+		screenX = (int)(window_coords.x + gl_widget_pos.x());
+		screenY = (int)(window_coords.y + gl_widget_pos.y());
+
+		return true;
+	}
+
 	void OnPopupShow(CefRefPtr<CefBrowser> browser, bool show) override
 	{
 		CEF_REQUIRE_UI_THREAD();
@@ -150,83 +187,16 @@ public:
 
 	Reference<OpenGLTexture> opengl_tex;
 	OpenGLEngine* opengl_engine;
+	MainWindow* main_window;
 	WorldObject* ob;
 
 	IMPLEMENT_REFCOUNTING(RenderHandler);
 };
 
 
-// This class is shared among all browser instances, the browser the callback applies to is passed in as arg 0.
-class LifeSpanHandler : public CefLifeSpanHandler
-{
-public:
-	LifeSpanHandler()
-	{
-	}
-	virtual ~LifeSpanHandler()
-	{
-	}
-
-	virtual bool OnBeforePopup(CefRefPtr<CefBrowser> browser,
-		CefRefPtr<CefFrame> frame,
-		const CefString& target_url,
-		const CefString& target_frame_name,
-		WindowOpenDisposition target_disposition,
-		bool user_gesture,
-		const CefPopupFeatures& popupFeatures,
-		CefWindowInfo& windowInfo,
-		CefRefPtr<CefClient>& client,
-		CefBrowserSettings& settings,
-		CefRefPtr<CefDictionaryValue>& extra_info,
-		bool* no_javascript_access) override
-	{
-		CEF_REQUIRE_UI_THREAD();
-
-		conPrint("Page wants to open a popup: " + std::string(target_url));
-
-		// If this was an explicit click on a link, just visit the popup link directly, since we don't want to open in a new tab or window.
-		if(user_gesture) // user_gesture is true if the popup was opened via explicit user gesture.
-		{
-			if(browser && browser->GetHost())
-			{
-				browser->GetMainFrame()->LoadURL(target_url);
-			}
-		}
-
-		return true; // "To cancel creation of the popup browser return true"
-	}
-
-	void OnAfterCreated(CefRefPtr<CefBrowser> browser) override
-	{
-		CEF_REQUIRE_UI_THREAD();
-
-		mBrowserList.push_back(browser);
-	}
-
-	void OnBeforeClose(CefRefPtr<CefBrowser> browser) override
-	{
-		CEF_REQUIRE_UI_THREAD();
-
-		BrowserList::iterator bit = mBrowserList.begin();
-		for(; bit != mBrowserList.end(); ++bit)
-		{
-			if((*bit)->IsSame(browser))
-			{
-				mBrowserList.erase(bit);
-				break;
-			}
-		}
-	}
-
-	IMPLEMENT_REFCOUNTING(LifeSpanHandler);
-
-public:
-	typedef std::list<CefRefPtr<CefBrowser>> BrowserList;
-	BrowserList mBrowserList;
-};
 
 
-class WebDataCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler
+class WebDataCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler, public CefCommandHandler, public CefContextMenuHandler
 {
 public:
 	WebDataCefClient() : num_channels(0), sample_rate(0), main_window(NULL), ob(NULL) {}
@@ -237,35 +207,22 @@ public:
 		ob = NULL;
 	}
 
-	CefRefPtr<CefRenderHandler> GetRenderHandler() override
-	{
-		return mRenderHandler;
-	}
+	CefRefPtr<CefRenderHandler> GetRenderHandler() override { return mRenderHandler; }
 
-	CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override
-	{
-		return mLifeSpanHandler;
-	}
+	CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return mLifeSpanHandler; }
 
-	CefRefPtr<CefRequestHandler> GetRequestHandler() override
-	{
-		return this;
-	}
+	CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
 
-	CefRefPtr<CefDisplayHandler> GetDisplayHandler() override
-	{
-		return this;
-	}
+	CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
 
-	CefRefPtr<CefLoadHandler> GetLoadHandler() override
-	{
-		return this;
-	}
+	CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
 
-	CefRefPtr<CefAudioHandler> GetAudioHandler() override
-	{
-		return this;
-	}
+	CefRefPtr<CefAudioHandler> GetAudioHandler() override { return this; }
+
+	CefRefPtr<CefCommandHandler> GetCommandHandler() override { return this; }
+
+	CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
+
 
 	virtual bool OnCursorChange(CefRefPtr<CefBrowser> browser,
 		CefCursorHandle cursor,
@@ -353,6 +310,30 @@ public:
 			if(main_window)
 				main_window->webViewDataLinkHovered("");
 		}
+	}
+
+	//--------------------- CefCommandHandler ----------------------------
+	// Called to execute a Chrome command triggered via menu selection or keyboard
+	// shortcut. Values for |command_id| can be found in the cef_command_ids.h
+	// file. |disposition| provides information about the intended command target.
+	// Return true if the command was handled or false for the default
+	// implementation. For context menu commands this will be called after
+	// CefContextMenuHandler::OnContextMenuCommand. Only used with the Chrome
+	// runtime.
+	virtual bool OnChromeCommand(CefRefPtr<CefBrowser> browser, int command_id, cef_window_open_disposition_t disposition) override
+	{
+		return false;
+	}
+
+
+	//--------------------- CefContextMenuHandler ----------------------------
+	// Called before a context menu is displayed. |params| provides information
+	// about the context menu state. |model| initially contains the default
+	// context menu. The |model| can be cleared to show no context menu or
+	// modified to show a custom menu. Do not keep references to |params| or
+	// |model| outside of this callback.
+	virtual void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model) override
+	{
 	}
 
 
@@ -481,11 +462,13 @@ public:
 };
 
 
+
+
 class WebViewCEFBrowser : public RefCounted
 {
 public:
-	WebViewCEFBrowser(WebViewData* web_view_data_, RenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
-	:	web_view_data(web_view_data_),
+	WebViewCEFBrowser(/*WebViewData* web_view_data_, */RenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
+	:	//web_view_data(web_view_data_),
 		mRenderHandler(render_handler),
 		mLifeSpanHandler(lifespan_handler)
 	{
@@ -505,7 +488,7 @@ public:
 
 		cef_client->onWebViewDataDestroyed();
 		mRenderHandler->onWebViewDataDestroyed();
-		web_view_data = NULL;
+		//web_view_data = NULL;
 	}
 
 
@@ -614,7 +597,7 @@ public:
 		}
 	}
 
-	WebViewData* web_view_data;
+	//WebViewData* web_view_data;
 	MainWindow* main_window;
 	WorldObject* ob;
 
@@ -626,126 +609,29 @@ public:
 };
 
 
-class WebViewDataCEFApp : public CefApp, public RefCounted
+
+Reference<WebViewCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex)
 {
-public:
-	WebViewDataCEFApp()
-	{
-		lifespan_handler = new LifeSpanHandler();
-	}
+	Reference<WebViewCEFBrowser> browser = new WebViewCEFBrowser(/*web_view_data, */new RenderHandler(opengl_tex), CEF::getLifespanHandler());
 
-	~WebViewDataCEFApp()
-	{
-		if(CEF_initialised)
-			shutdownCEF();
-	}
+	CefWindowInfo window_info;
+	window_info.windowless_rendering_enabled = true;
 
-	void initialise(const std::string& base_dir_path)
-	{
-		// Initialise CEF if not already done so.
-		if(!CEF_initialised)
-			initialiseCEF(base_dir_path);
-	}
+	CefBrowserSettings browser_settings;
+	browser_settings.windowless_frame_rate = 60;
+	browser_settings.background_color = CefColorSetARGB(255, 100, 100, 100);
 
-	void initialiseCEF(const std::string& base_dir_path)
-	{
-		//assert(!CEF_initialised);
-		
-#ifdef OSX
-		// Load the CEF framework library at runtime instead of linking directly
-		// as required by the macOS sandbox implementation.
-		CefScopedLibraryLoader library_loader;
-		if(!library_loader.LoadInMain())
-		{
-			conPrint("CefScopedLibraryLoader LoadInMain failed.");
-			throw glare::Exception("CefScopedLibraryLoader LoadInMain failed.");
-		}
-#endif
-		
-		CefMainArgs args;
+	browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
 
-		CefSettings settings;
-		
-#ifdef OSX
-		//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
-#else
-		settings.no_sandbox = true;
-		const std::string browser_process_path = base_dir_path + "/browser_process.exe";
-		conPrint("Using browser_process_path '" + browser_process_path + "'...");
-		CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
-#endif
-
-		bool result = CefInitialize(args, settings, this, /*windows sandbox info=*/NULL);
-		if(result)
-			CEF_initialised = true;
-		else
-		{
-			conPrint("CefInitialize failed.");
-		}
-	}
-
-	void shutdownCEF()
-	{
-		assert(CEF_initialised);
-		
-		// Wait until browser processes are shut down
-		while(!lifespan_handler->mBrowserList.empty())
-		{
-			PlatformUtils::Sleep(1);
-			CefDoMessageLoopWork();
-		}
-
-		lifespan_handler = CefRefPtr<LifeSpanHandler>();
-
-		CEF_initialised = false;
-		CefShutdown();
-	}
+	// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
+	// See https://bitbucket.org/chromiumembedded/cef/issues/3319/burst-of-uncaptured-audio-after-creating
+	browser->cef_browser->GetHost()->SetAudioMuted(true);
+	return browser;
+}
 
 
-	Reference<WebViewCEFBrowser> createBrowser(WebViewData* web_view_data, const std::string& URL, Reference<OpenGLTexture> opengl_tex)
-	{
-		Reference<WebViewCEFBrowser> browser = new WebViewCEFBrowser(web_view_data, new RenderHandler(opengl_tex), lifespan_handler.get());
-
-		CefWindowInfo window_info;
-		window_info.windowless_rendering_enabled = true;
-
-		CefBrowserSettings browser_settings;
-		browser_settings.windowless_frame_rate = 60;
-		browser_settings.background_color = CefColorSetARGB(255, 100, 100, 100);
-
-		browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
-
-		// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
-		// See https://bitbucket.org/chromiumembedded/cef/issues/3319/burst-of-uncaptured-audio-after-creating
-		browser->cef_browser->GetHost()->SetAudioMuted(true);
-		return browser;
-	}
-
-	void OnBeforeCommandLineProcessing(const CefString& process_type, CefRefPtr<CefCommandLine> command_line) override
-	{
-		// To allow autoplaying videos etc. without having to click:
-		// See https://www.magpcss.org/ceforum/viewtopic.php?f=6&t=16517
-		command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
 
 
-		//TEMP:
-		//command_line->AppendSwitch("enable-logging");
-		//command_line->AppendSwitchWithValue("v", "2");
-		
-		/*if(process_type.empty())
-		{
-			command_line->AppendSwitch("disable-gpu");
-			command_line->AppendSwitch("disable-gpu-compositing");
-		}*/
-	}
-
-	
-	IMPLEMENT_REFCOUNTING(WebViewDataCEFApp);
-
-public:
-
-	CefRefPtr<LifeSpanHandler> lifespan_handler;
-};
 
 #else // else if !CEF_SUPPORT: 
 
@@ -753,6 +639,10 @@ class WebViewCEFBrowser : public RefCounted
 {};
 
 #endif // CEF_SUPPORT
+
+
+
+
 
 
 WebViewData::WebViewData()
@@ -779,27 +669,21 @@ WebViewData::~WebViewData()
 }
 
 
-void WebViewData::doMessageLoopWork()
-{
-#if CEF_SUPPORT
-	if(CEF_initialised)
-		CefDoMessageLoopWork();
-#endif
-}
 
 
-void WebViewData::shutdownCEF()
-{
-	//conPrint("===========================WebViewData::shutdownCEF()===========================");
-#if CEF_SUPPORT
-	if(app)
-	{
-		delete app;
-		app = NULL;
-	}
-#endif
-	//conPrint("===========================WebViewData::shutdownCEF() done===========================");
-}
+
+//void WebViewData::shutdownCEF()
+//{
+//	//conPrint("===========================WebViewData::shutdownCEF()===========================");
+//#if CEF_SUPPORT
+//	if(app)
+//	{
+//		delete app;
+//		app = NULL;
+//	}
+//#endif
+//	//conPrint("===========================WebViewData::shutdownCEF() done===========================");
+//}
 
 
 static const int text_tex_W = 512;
@@ -859,15 +743,21 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
 	if(in_process_dist)
 	{
-		if(!app)
+		if(!CEF::isInitialised())
 		{
-			app = new WebViewDataCEFApp();
-			app->AddRef(); // Since we are just storing a pointer to WebViewDataCEFApp, manually increment ref count.
-
-			app->initialise(main_window->base_dir_path);
+			CEF::initialiseCEF(main_window->base_dir_path);
 		}
 
-		if(app && CEF_initialised)
+		//if(!app)
+		//{
+		//	app = new WebViewDataCEFApp();
+		//	app->AddRef(); // Since we are just storing a pointer to WebViewDataCEFApp, manually increment ref count.
+
+		//	app->initialise(main_window->base_dir_path);
+		//}
+
+		//if(app && CEF_initialised)
+		if(CEF::isInitialised())
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
@@ -886,12 +776,13 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 						ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
 					}
 
-					browser = app->createBrowser(this, ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
+					browser = createBrowser(/*this, */ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
 					browser->main_window = main_window;
 					browser->ob = ob;
 					browser->cef_client->main_window = main_window;
 					browser->cef_client->ob = ob;
 					browser->mRenderHandler->opengl_engine = opengl_engine;
+					browser->mRenderHandler->main_window = main_window;
 					browser->mRenderHandler->ob = ob;
 				}
 				else
