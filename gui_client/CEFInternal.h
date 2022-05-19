@@ -18,6 +18,9 @@ Copyright Glare Technologies Limited 2022 -
 #include <string>
 
 
+#if CEF_SUPPORT
+
+
 // This class is shared among all browser instances, the browser the callback applies to is passed in as arg 0.
 class LifeSpanHandler : public CefLifeSpanHandler
 {
@@ -48,3 +51,6 @@ public:
 	typedef std::list<CefRefPtr<CefBrowser>> BrowserList;
 	BrowserList mBrowserList;
 };
+
+
+#endif // CEF_SUPPORT

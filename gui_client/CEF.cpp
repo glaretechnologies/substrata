@@ -18,6 +18,9 @@ Copyright Glare Technologies Limited 2022 -
 #endif
 
 
+#if CEF_SUPPORT
+
+
 class GlareCEFApp : public CefApp, public RefCounted
 {
 public:
@@ -52,7 +55,6 @@ public:
 	
 	IMPLEMENT_REFCOUNTING(GlareCEFApp);
 };
-
 
 
 static bool CEF_initialised = false;
@@ -135,8 +137,36 @@ LifeSpanHandler* CEF::getLifespanHandler()
 
 void CEF::doMessageLoopWork()
 {
-#if CEF_SUPPORT
 	if(CEF_initialised)
 		CefDoMessageLoopWork();
-#endif
 }
+
+
+#else // else if !CEF_SUPPORT:
+
+
+bool CEF::isInitialised()
+{
+	return false;
+}
+
+
+void CEF::initialiseCEF(const std::string& base_dir_path)
+{}
+
+
+void CEF::shutdownCEF()
+{}
+
+
+LifeSpanHandler* CEF::getLifespanHandler()
+{
+	return NULL;
+}
+
+
+void CEF::doMessageLoopWork()
+{}
+
+
+#endif // end if !CEF_SUPPORT

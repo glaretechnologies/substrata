@@ -14,6 +14,8 @@ Copyright Glare Technologies Limited 2022 -
 #endif
 
 
+#if CEF_SUPPORT
+
 
 LifeSpanHandler::LifeSpanHandler()
 {
@@ -77,3 +79,6 @@ void LifeSpanHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser)
 		}
 	}
 }
+
+
+#endif // CEF_SUPPORT
