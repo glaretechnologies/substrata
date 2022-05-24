@@ -1,376 +1,710 @@
 /*=====================================================================
 AnimatedTextureManager.cpp
 --------------------------
-Copyright Glare Technologies Limited 2021-
+Copyright Glare Technologies Limited 2022-
 =====================================================================*/
 #include "AnimatedTextureManager.h"
 
 
 #include "MainWindow.h"
-#include "SubstrataVideoSurface.h"
 #include "../shared/WorldObject.h"
-#include "../video/WMFVideoReader.h"
 #include "../qt/QtUtils.h"
-#include "Escaping.h"
-#include "../direct3d/Direct3DUtils.h"
-#include <QtMultimedia/QMediaPlayer>
 #include "FileInStream.h"
+#include "CEFInternal.h"
+#include "CEF.h"
+#include <utils/Base64.h>
+#include <utils/StringUtils.h>
+#include <utils/ConPrint.h>
+#include <utils/PlatformUtils.h>
+#include <Escaping.h>
+#include <xxhash.h>
 
 
-class ResourceVidReaderByteStream;
+#if CEF_SUPPORT
 
 
-AnimatedTexData::AnimatedTexData()
-:	media_player(NULL), video_surface(NULL), last_loaded_frame_i(-1), cur_frame_i(0), in_anim_time(0), encounted_error(false), at_vidreader_EOS(false), num_samples_pending(0)
-#ifdef _WIN32
-	, locked_interop_tex_ob(0)
-#endif
-{}
-
-AnimatedTexData::~AnimatedTexData()
-{}
-
-
-void AnimatedTexData::shutdown(
-#ifdef _WIN32
-	WGL& wgl_funcs, HANDLE interop_device_handle
-#endif
-)
-{
-	delete media_player;
-	media_player = NULL;
-
-	delete video_surface;
-	video_surface = NULL;
-
-	resource_io_wrapper = NULL;
-
-
-	video_reader = NULL; // Make sure to destroy video reader before frameinfos queue as it has a pointer to frameinfos.
-
-#ifdef _WIN32
-	// Unlock the currently locked interop handle, if we have a locked one.
-	if(locked_interop_tex_ob != NULL)
-	{
-		const BOOL res = wgl_funcs.wglDXUnlockObjectsNV(interop_device_handle, /*count=*/1, &locked_interop_tex_ob);
-		if(!res)
-			conPrint("Warning: wglDXUnlockObjectsNV failed.");
-		locked_interop_tex_ob = NULL;
-	}
-
-	// Free interop handles
-	for(auto entry : opengl_tex_for_d3d_tex)
-	{
-		const BOOL res = wgl_funcs.wglDXUnregisterObjectNV(interop_device_handle, entry.second.interop_handle);
-		if(!res)
-			conPrint("Warning: wglDXUnregisterObjectNV failed.");
-	}
-
-	opengl_tex_for_d3d_tex.clear();
-#endif
-}
-
-
-class SubstrataVideoReaderCallback : public VideoReaderCallback
+// This class is shared among all browser instances, the browser the callback applies to is passed in as arg 0.
+class AnimatedTexRenderHandler : public CefRenderHandler
 {
 public:
-	virtual void frameDecoded(VideoReader* vid_reader, const SampleInfoRef& frameinfo)
-	{
-		//conPrint("frameDecoded, time " + toString(frameinfo.frame_time));
+	AnimatedTexRenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), main_window(NULL), ob(NULL) {}
 
-		sample_queue->enqueue(frameinfo);
+	~AnimatedTexRenderHandler() {}
+
+	void onWebViewDataDestroyed()
+	{
+		opengl_tex = NULL;
+		opengl_engine = NULL;
+		ob = NULL;
 	}
 
-
-	virtual void endOfStream(VideoReader* vid_reader)
+	void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) override
 	{
-		//conPrint("endOfStream()");
+		CEF_REQUIRE_UI_THREAD();
 
-		// insert an empty FrameInfo to signify EOS
-		sample_queue->enqueue(NULL);
+		rect = CefRect(0, 0, (int)opengl_tex->xRes(), (int)opengl_tex->yRes());
 	}
 
-	ThreadSafeQueue<SampleInfoRef>* sample_queue;
+	// "|buffer| will be |width|*|height|*4 bytes in size and represents a BGRA image with an upper-left origin"
+	void OnPaint(CefRefPtr<CefBrowser> browser, PaintElementType type, const RectList& dirty_rects, const void* buffer, int width, int height) override
+	{
+		CEF_REQUIRE_UI_THREAD();
+
+		//conPrint("OnPaint()");
+
+		if(opengl_engine && ob)
+		{
+			if(type == PET_VIEW) // whole page was updated
+			{
+				const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+				if(ob_visible)
+				{
+					for(size_t i=0; i<dirty_rects.size(); ++i)
+					{
+						const CefRect& rect = dirty_rects[i];
+
+						//conPrint("Updating dirty rect " + toString(rect.x) + ", " + toString(rect.y) + ", w: " + toString(rect.width) + ", h: " + toString(rect.height));
+
+						// Copy dirty rect data into a packed buffer
+
+						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
+						opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
+					}
+				}
+			}
+		}
+	}
+
+	Reference<OpenGLTexture> opengl_tex;
+	OpenGLEngine* opengl_engine;
+	MainWindow* main_window;
+	WorldObject* ob;
+
+	IMPLEMENT_REFCOUNTING(AnimatedTexRenderHandler);
 };
 
 
-// For constructing WMFVideoReader not in a main thread, since the constructor takes a while.
-struct CreateVidReaderTask : public glare::Task
-{
-	virtual void run(size_t thread_index)
-	{
-		try
-		{
-#if defined(_WIN32)
-			Reference<WMFVideoReader> vid_reader_ = new WMFVideoReader(/*read from vid device=*/false, /*just_read_audio=*/false, URL, /*vid_reader_byte_stream, */callback, dev_manager, /*decode_to_d3d_tex=*/true);
-
-			Lock lock(mutex);
-			this->vid_reader = vid_reader_;
-#endif
-		}
-		catch(glare::Exception& e)
-		{
-			Lock lock(mutex);
-			error_msg = e.what();
-		}
-	}
-
-	//Reference<VidReaderByteStream> vid_reader_byte_stream;
-	std::string URL;
-	SubstrataVideoReaderCallback* callback;
-	IMFDXGIDeviceManager* dev_manager;
-
-	Mutex mutex; // protects vid_reader and error_msg
-	Reference<VideoReader> vid_reader;
-	std::string error_msg; // Set to a non-empty string on failure.
-};
-
-
-// A wrapper around a resource in-mem buffer that implements the QIODevice interface, which is used by QMediaPlayer.
-// See D:\programming\qt\qt-everywhere-src-5.15.2\qtbase\src\corelib\io\qbuffer.cpp for similar example implementation.
-class ResourceIODeviceWrapper : public QIODevice, public ThreadSafeRefCounted
+// Reads a resource off disk and returns the data to CEF.
+class AnimatedTexResourceHandler : public CefResourceHandler
 {
 public:
-	ResourceIODeviceWrapper(ResourceRef resource_) : resource(resource_)
+	AnimatedTexResourceHandler(Reference<ResourceManager> resource_manager_) : file_in_stream(NULL), resource_manager(resource_manager_) {}
+	~AnimatedTexResourceHandler() { delete file_in_stream; }
+
+	// Open the response stream. To handle the request immediately set
+	// |handle_request| to true and return true. To decide at a later time set
+	// |handle_request| to false, return true, and execute |callback| to continue
+	// or cancel the request. To cancel the request immediately set
+	// |handle_request| to true and return false. This method will be called in
+	// sequence but not from a dedicated thread. For backwards compatibility set
+	// |handle_request| to false and return false and the ProcessRequest method
+	// will be called.
+	virtual bool Open(CefRefPtr<CefRequest> request, bool& handle_request, CefRefPtr<CefCallback> callback) override
 	{
-		open(QIODevice::ReadOnly);
+		handle_request = false; // May be overwritten below
 
-		Lock lock(resource->buffer_mutex);
-		resource->num_buffer_readers++; // Increase reader count, so buffer is not cleared while we are reading from it.
-	}
+ 		const std::string URL = request->GetURL().ToString();
 
-	virtual ~ResourceIODeviceWrapper()
-	{
-		Lock lock(resource->buffer_mutex);
-		resource->num_buffer_readers--;
-	}
+		//conPrint("\n" + doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 2) + ":------------------AnimatedTexResourceHandler::Open(): URL: " + URL + "------------------");
 
-	// "Subclasses of QIODevice are only required to implement the protected readData() and writeData() functions"
-	// It seems we needd to implement size() as well however.
-
-	virtual qint64 readData(char* data, qint64 maxSize) override
-	{
-		const int64 cur_pos = pos();
-
-		Lock lock(resource->buffer_mutex);
-		const int64 available = (int64)resource->buffer.size() - cur_pos;
-		if(available > 0)
+		if(hasPrefix(URL, "http://resource/"))
 		{
-			const int64 read_amount = myMin<int64>(maxSize, available);
-			std::memcpy(data, &resource->buffer[cur_pos], read_amount);
-			return read_amount;
-		}
-		else // else no bytes available currently:
-		{
-			if(resource->buffer.size() == resource->buffer.capacity()) // If the resource is already completely downloaded to buffer:
-				return -1;
+			const std::string resource_URL = eatPrefix(URL, "http://resource/");
+			//conPrint("resource_URL: " + resource_URL);
+
+			ResourceRef resource = resource_manager->getExistingResourceForURL(resource_URL);
+			if(resource.nonNull())
+			{
+				const std::string path = resource->getLocalPath();
+				//conPrint("path: " + path);
+				try
+				{
+					file_in_stream = new FileInStream(path);
+
+					handle_request = true;
+					return true;
+				}
+				catch(glare::Exception&)
+				{
+					return false;
+				}
+			}
 			else
-				return 0; // else still downloading, might be readable data later.
+			{
+				// No such resource present.
+				return false;
+			}
+		}
+
+		return false;
+	}
+
+
+	// Retrieve response header information. If the response length is not known
+	// set |response_length| to -1 and ReadResponse() will be called until it
+	// returns false. If the response length is known set |response_length|
+	// to a positive value and ReadResponse() will be called until it returns
+	// false or the specified number of bytes have been read. Use the |response|
+	// object to set the mime type, http status code and other optional header
+	// values. To redirect the request to a new URL set |redirectUrl| to the new
+	// URL. |redirectUrl| can be either a relative or fully qualified URL.
+	// It is also possible to set |response| to a redirect http status code
+	// and pass the new URL via a Location header. Likewise with |redirectUrl| it
+	// is valid to set a relative or fully qualified URL as the Location header
+	// value. If an error occured while setting up the request you can call
+	// SetError() on |response| to indicate the error condition.
+	virtual void GetResponseHeaders(CefRefPtr<CefResponse> response, int64& response_length, CefString& redirectUrl) override
+	{
+		if(file_in_stream)
+		{
+			response_length = (int64)this->file_in_stream->fileSize();
+		}
+		else
+		{
+			response_length = -1;
 		}
 	}
 
-	virtual qint64 writeData(const char *data, qint64 maxSize) override
+
+	// Skip response data when requested by a Range header. Skip over and discard
+	// |bytes_to_skip| bytes of response data. If data is available immediately
+	// set |bytes_skipped| to the number of bytes skipped and return true. To
+	// read the data at a later time set |bytes_skipped| to 0, return true and
+	// execute |callback| when the data is available. To indicate failure set
+	// |bytes_skipped| to < 0 (e.g. -2 for ERR_FAILED) and return false. This
+	// method will be called in sequence but not from a dedicated thread.
+	virtual bool Skip(int64 bytes_to_skip,
+		int64& bytes_skipped,
+		CefRefPtr<CefResourceSkipCallback> callback) override
 	{
-		return -1;
+		if(file_in_stream)
+		{
+			try
+			{
+				file_in_stream->setReadIndex(file_in_stream->getReadIndex() + bytes_to_skip);
+				bytes_skipped = bytes_to_skip;
+				return true;
+			}
+			catch(glare::Exception&)
+			{
+				bytes_skipped = -2;
+				return false;
+			}
+		}
+		else
+		{
+			bytes_skipped = -2;
+			return false;
+		}
 	}
 
-	virtual qint64 size() const override
+
+	// Read response data. If data is available immediately copy up to
+	// |bytes_to_read| bytes into |data_out|, set |bytes_read| to the number of
+	// bytes copied, and return true. To read the data at a later time keep a
+	// pointer to |data_out|, set |bytes_read| to 0, return true and execute
+	// |callback| when the data is available (|data_out| will remain valid until
+	// the callback is executed). To indicate response completion set |bytes_read|
+	// to 0 and return false. To indicate failure set |bytes_read| to < 0 (e.g. -2
+	// for ERR_FAILED) and return false. This method will be called in sequence
+	// but not from a dedicated thread. For backwards compatibility set
+	// |bytes_read| to -1 and return false and the ReadResponse method will be
+	// called.
+	virtual bool Read(void* data_out, int bytes_to_read, int& bytes_read, CefRefPtr<CefResourceReadCallback> callback) override
 	{
-		Lock lock(resource->buffer_mutex);
-		return resource->buffer.capacity();
+		if(file_in_stream)
+		{
+			try
+			{
+				const size_t bytes_available = file_in_stream->fileSize() - file_in_stream->getReadIndex(); // bytes still available to read in the file
+				if(bytes_available == 0)
+				{
+					bytes_read = 0; // indicate response completion (EOF)
+					return false;
+				}
+				else
+				{
+					const size_t use_bytes_to_read = myMin((size_t)bytes_to_read, bytes_available);
+					file_in_stream->readData(data_out, use_bytes_to_read);
+					bytes_read = (int)use_bytes_to_read;
+					return true;
+				}
+			}
+			catch(glare::Exception&)
+			{
+				bytes_read = -2;
+				return false;
+			}
+		}
+		else
+		{
+			bytes_read = -2;
+			return false;
+		}
 	}
 
-	virtual bool isSequential() const override
+
+	// Request processing has been canceled.
+	virtual void Cancel() override
+	{
+		// conPrint("\n" + doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 2) + "------------------AnimatedTexResourceHandler::Cancel()------------------");
+	}
+
+	FileInStream* file_in_stream;
+	Reference<ResourceManager> resource_manager;
+
+	IMPLEMENT_REFCOUNTING(AnimatedTexResourceHandler);
+};
+
+
+
+class AnimatedTexCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler, public CefCommandHandler, public CefContextMenuHandler, public CefResourceRequestHandler
+{
+public:
+	AnimatedTexCefClient() : num_channels(0), sample_rate(0), main_window(NULL), ob(NULL) {}
+
+	void onWebViewDataDestroyed()
+	{
+		main_window = NULL;
+		ob = NULL;
+	}
+
+	CefRefPtr<CefRenderHandler> GetRenderHandler() override { return mRenderHandler; }
+
+	CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return mLifeSpanHandler; }
+
+	CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
+
+	CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
+
+	CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+
+	CefRefPtr<CefAudioHandler> GetAudioHandler() override { return this; }
+
+	CefRefPtr<CefCommandHandler> GetCommandHandler() override { return this; }
+
+	CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
+
+
+	virtual bool OnCursorChange(CefRefPtr<CefBrowser> browser,
+		CefCursorHandle cursor,
+		cef_cursor_type_t type,
+		const CefCursorInfo& custom_cursor_info) override
 	{
 		return false;
 	}
 
-	ResourceRef resource;
-};
+	//-----------------------CefRequestHandler-----------------------------
 
-
-#if 0
-class ResourceVidReaderByteStream : public VidReaderByteStream, public ResourceDownloadListener
-{
-public:
-	ResourceVidReaderByteStream(ResourceRef resource_) : resource(resource_), cur_i(0)
+	bool OnOpenURLFromTab(CefRefPtr<CefBrowser> browser,
+		CefRefPtr<CefFrame> frame,
+		const CefString& target_url,
+		CefRequestHandler::WindowOpenDisposition target_disposition,
+		bool user_gesture) override
 	{
-		Lock lock(resource->buffer_mutex);
-		resource->num_buffer_readers++; // Increase reader count, so buffer is not cleared while we are reading from it.
-
-		resource->addDownloadListener(this);
+		return true;
 	}
 
-	virtual ~ResourceVidReaderByteStream()
-	{
-		resource->removeDownloadListener(this);
+	bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser,
+		CefRefPtr<CefFrame> frame,
+		CefRefPtr<CefRequest> request,
+		bool user_gesture,
+		bool is_redirect) override
 
-		Lock lock(resource->buffer_mutex);
-		resource->num_buffer_readers--;
+	{
+		return false;
 	}
 
-	virtual bool isNetworkSource() const override { return true; }
 
-	virtual uint64 currentPos() const override
+	// Called on the browser process IO thread before a resource request is
+	// initiated. The |browser| and |frame| values represent the source of the
+	// request. |request| represents the request contents and cannot be modified
+	// in this callback. |is_navigation| will be true if the resource request is a
+	// navigation. |is_download| will be true if the resource request is a
+	// download. |request_initiator| is the origin (scheme + domain) of the page
+	// that initiated the request. Set |disable_default_handling| to true to
+	// disable default handling of the request, in which case it will need to be
+	// handled via CefResourceRequestHandler::GetResourceHandler or it will be
+	// canceled. To allow the resource load to proceed with default handling
+	// return NULL. To specify a handler for the resource return a
+	// CefResourceRequestHandler object. If this callback returns NULL the same
+	// method will be called on the associated CefRequestContextHandler, if any.
+	virtual CefRefPtr<CefResourceRequestHandler> GetResourceRequestHandler(
+		CefRefPtr<CefBrowser> browser,
+		CefRefPtr<CefFrame> frame,
+		CefRefPtr<CefRequest> request,
+		bool is_navigation,
+		bool is_download,
+		const CefString& request_initiator,
+		bool& disable_default_handling) override
 	{
-		return cur_i;
-	}
+		// conPrint("Request URL: " + request->GetURL().ToString());
 
-	virtual uint64 length() const override
-	{
-		Lock lock(resource->buffer_mutex);
-		return resource->buffer.capacity();
-	}
-
-	virtual uint64 readableLength() const override
-	{
-		Lock lock(resource->buffer_mutex);
-		return resource->buffer.size();
-	}
-
-	virtual bool readable() const override
-	{
-		Lock lock(resource->buffer_mutex);
-		return cur_i < resource->buffer.size();
-	}
-
-	virtual uint64 read(uint8* buffer, uint64 buffer_len) override // Returns amount of data read.
-	{
-		conPrint("ResourceVidReaderByteStream: reading up to " + toString(buffer_len) + " B at offset " + toString(cur_i) + "... (cur buf size: " + toString(resource->buffer.size()) + ")");
-		Lock lock(resource->buffer_mutex);
-		const int64 available = (int64)resource->buffer.size() - cur_i;
-		if(available > 0)
+		if(hasPrefix(request->GetURL().ToString(), "http://resource/"))
 		{
-			const int64 read_amount = myMin((int64)buffer_len, available);
-			std::memcpy(buffer, &resource->buffer[cur_i], read_amount);
-			conPrint("	read " + toString(read_amount) + " B");
-			cur_i += read_amount;
-			return read_amount;
+			// conPrint("interecepting resource request");
+			disable_default_handling = true;
+			return this;
 		}
-		else // else no bytes available currently:
+		return nullptr;
+	}
+
+	void OnLoadStart(CefRefPtr<CefBrowser> browser,
+		CefRefPtr<CefFrame> frame,
+		TransitionType transition_type) override
+	{
+		CEF_REQUIRE_UI_THREAD();
+
+		if(frame->IsMain())
 		{
-			conPrint("	read 0 B");
-			//if(resource->buffer.size() == resource->buffer.capacity()) // If the resource is already completely downloaded to buffer:
-			//	return -1;
-			//else
-				return 0; // else still downloading, might be readable data later.
+			//conPrint("Loading started");
 		}
 	}
 
-	virtual uint64 readAtPos(size_t pos, uint8* buffer, uint64 buffer_len) // Returns amount of data read. don't advance read position
+	void OnLoadEnd(CefRefPtr<CefBrowser> browser,
+		CefRefPtr<CefFrame> frame,
+		int httpStatusCode) override
 	{
-		conPrint("ResourceVidReaderByteStream: readAtPos(): reading up to " + toString(buffer_len) + " B at offset " + toString(pos) + "... (cur buf size: " + toString(resource->buffer.size()) + ")");
-		Lock lock(resource->buffer_mutex);
-		const int64 available = (int64)resource->buffer.size() - pos;
-		if(available > 0)
+		CEF_REQUIRE_UI_THREAD();
+
+		if(frame->IsMain())
 		{
-			const int64 read_amount = myMin((int64)buffer_len, available);
-			conPrint("Copying " + toString(read_amount) + " B to buffer " + toHexString((uint64)buffer));
-			std::memcpy(buffer, &resource->buffer[pos], read_amount);
-			conPrint("	read " + toString(read_amount) + " B");
-			return read_amount;
-		}
-		else // else no bytes available currently:
-		{
-			conPrint("	read 0 B");
-			//if(resource->buffer.size() == resource->buffer.capacity()) // If the resource is already completely downloaded to buffer:
-			//	return -1;
-			//else
-			return 0; // else still downloading, might be readable data later.
+			const std::string url = frame->GetURL();
+
+			//conPrint("Load ended for URL: " + std::string(url) + " with HTTP status code: " + toString(httpStatusCode));
 		}
 	}
 
 
-	virtual void setCurrentPos(uint64 p) override
+	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
+		const CefString& value) override
 	{
-		conPrint("Seeking to " + toString(p));
-		cur_i = p;
-	}
-
-
-	virtual void addListener(VidReaderByteStreamListener* listener) override
-	{
-		listeners.insert(listener);
-	}
-	virtual void removeListener(VidReaderByteStreamListener* listener) override
-	{
-		listeners.erase(listener);
-	}
-
-	//-------------------------- ResourceDownloadListener interface --------------------------
-	virtual void dataReceived()
-	{
-		for(auto it : listeners)
-			it->dataReceived();
-		//this->doDataReceived();
-	}
-
-
-	std::set<VidReaderByteStreamListener*> listeners;
-	ResourceRef resource;
-	uint64 cur_i;
-};
-#endif
-
-#if 0
-class FileInStreamByteStream : public VidReaderByteStream
-{
-public:
-	FileInStreamByteStream(const std::string& path) : file(path) {}
-
-	virtual bool isNetworkSource() const override { return false; }
-
-	virtual uint64 currentPos() const override
-	{
-		return file.getReadIndex();
-	}
-
-	virtual uint64 length() const override
-	{
-		return file.fileSize();
-	}
-
-	virtual uint64 read(uint8* buffer, uint64 buffer_len) override // Returns amount of data read.
-	{
-		const int64 read_size = myMin((int64)buffer_len, (int64)file.fileSize() - (int64)file.getReadIndex());
-
-		if(read_size > 0)
+		if(value.c_str())
 		{
-			file.readData(buffer, read_size);
-			return read_size;
+			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
+
+			if(main_window)
+				main_window->webViewDataLinkHovered(QtUtils::toQString(value.ToString()));
+			//if(web_view_data)
+			//	web_view_data->linkHoveredSignal(QtUtils::toQString(value.ToString()));
 		}
 		else
-			return 0;
+		{
+			//conPrint("OnStatusMessage: NULL");
+
+			//if(web_view_data)
+			//	web_view_data->linkHoveredSignal("");
+			if(main_window)
+				main_window->webViewDataLinkHovered("");
+		}
 	}
 
-	virtual void setCurrentPos(uint64 p) override
+	//---------------------------- CefResourceRequestHandler ----------------------------
+	// Called on the IO thread before a resource is loaded. The |browser| and
+	// |frame| values represent the source of the request, and may be NULL for
+	// requests originating from service workers or CefURLRequest. To allow the
+	// resource to load using the default network loader return NULL. To specify a
+	// handler for the resource return a CefResourceHandler object. The |request|
+	// object cannot not be modified in this callback.
+	virtual CefRefPtr<CefResourceHandler> GetResourceHandler(
+		CefRefPtr<CefBrowser> browser,
+		CefRefPtr<CefFrame> frame,
+		CefRefPtr<CefRequest> request) override
 	{
-		file.setReadIndex(p);
+		conPrint("GetResourceHandler() Request URL: " + request->GetURL().ToString());
+
+		// TODO: check URL prefix for http://resource/, return new AnimatedTexResourceHandler only in that case?
+		// Will we need to handle other URLS here?
+
+		return new AnimatedTexResourceHandler(main_window->resource_manager);
+		//return nullptr;
 	}
 
-	FileInStream file;
+	//--------------------- CefCommandHandler ----------------------------
+	// Called to execute a Chrome command triggered via menu selection or keyboard
+	// shortcut. Values for |command_id| can be found in the cef_command_ids.h
+	// file. |disposition| provides information about the intended command target.
+	// Return true if the command was handled or false for the default
+	// implementation. For context menu commands this will be called after
+	// CefContextMenuHandler::OnContextMenuCommand. Only used with the Chrome
+	// runtime.
+	virtual bool OnChromeCommand(CefRefPtr<CefBrowser> browser, int command_id, cef_window_open_disposition_t disposition) override
+	{
+		return false;
+	}
+
+
+	//--------------------- CefContextMenuHandler ----------------------------
+	// Called before a context menu is displayed. |params| provides information
+	// about the context menu state. |model| initially contains the default
+	// context menu. The |model| can be cleared to show no context menu or
+	// modified to show a custom menu. Do not keep references to |params| or
+	// |model| outside of this callback.
+	virtual void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model) override
+	{
+	}
+
+
+	//--------------------- AudioHandler ----------------------------
+	// Called on the UI thread to allow configuration of audio stream parameters.
+	// Return true to proceed with audio stream capture, or false to cancel it.
+	// All members of |params| can optionally be configured here, but they are
+	// also pre-filled with some sensible defaults.
+	virtual bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
+		CefAudioParameters& params) override 
+	{
+		params.sample_rate = main_window->audio_engine.getSampleRate();
+		return true;
+	}
+
+	// Called on a browser audio capture thread when the browser starts
+	// streaming audio.
+	virtual void OnAudioStreamStarted(CefRefPtr<CefBrowser> browser,
+		const CefAudioParameters& params,
+		int channels) override
+	{
+		// Create audio source
+		if(ob && ob->audio_source.isNull())
+		{
+			// conPrint("OnAudioStreamStarted(), creating audio src");
+
+			// Create a streaming audio source.
+			glare::AudioSourceRef audio_source = new glare::AudioSource();
+			audio_source->type = glare::AudioSource::SourceType_Streaming;
+			audio_source->pos = ob->aabb_ws.centroid();
+			audio_source->debugname = ob->target_url;
+
+			{
+				Lock lock(main_window->world_state->mutex);
+
+				const Parcel* parcel = main_window->world_state->getParcelPointIsIn(ob->pos);
+				audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+			}
+
+			ob->audio_source = audio_source;
+			main_window->audio_engine.addSource(audio_source);
+		}
+
+		sample_rate = params.sample_rate;
+		num_channels = channels;
+	}
+
+	// Called on the audio stream thread when a PCM packet is received for the
+	// stream. |data| is an array representing the raw PCM data as a floating
+	// point type, i.e. 4-byte value(s). |frames| is the number of frames in the
+	// PCM packet. |pts| is the presentation timestamp (in milliseconds since the
+	// Unix Epoch) and represents the time at which the decompressed packet should
+	// be presented to the user. Based on |frames| and the |channel_layout| value
+	// passed to OnAudioStreamStarted you can calculate the size of the |data|
+	// array in bytes.
+	virtual void OnAudioStreamPacket(CefRefPtr<CefBrowser> browser,
+		const float** data,
+		int frames,
+		int64 pts) override
+	{
+		// Copy to our audio source
+		if(ob && ob->audio_source.nonNull())
+		{
+			const int num_samples = frames;
+			temp_buf.resize(num_samples);
+
+			if(num_channels == 1)
+			{
+				const float* const data0 = data[0];
+				for(int z=0; z<num_samples; ++z)
+					temp_buf[z] =  data0[z];
+			}
+			else if(num_channels == 2)
+			{
+				const float* const data0 = data[0];
+				const float* const data1 = data[1];
+
+				for(int z=0; z<num_samples; ++z)
+				{
+					const float left =  data0[z];
+					const float right = data1[z];
+					temp_buf[z] = (left + right) * 0.5f;
+				}
+			}
+			else
+			{
+				for(int z=0; z<num_samples; ++z)
+					temp_buf[z] = 0.f;
+			}
+
+
+			{
+				Lock mutex(main_window->audio_engine.mutex);
+				ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+			}
+		}
+	}
+
+	virtual void OnAudioStreamStopped(CefRefPtr<CefBrowser> browser) override
+	{
+		if(ob && ob->audio_source.nonNull())
+		{
+			main_window->audio_engine.removeSource(ob->audio_source);
+			ob->audio_source = NULL;
+		}
+	}
+
+	virtual void OnAudioStreamError(CefRefPtr<CefBrowser> browser, const CefString& message) override
+	{
+		conPrint("=========================================\nOnAudioStreamError: " + message.ToString());
+	}
+	// ----------------------------------------------------------------------------
+
+
+	CefRefPtr<AnimatedTexRenderHandler> mRenderHandler;
+	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
+
+	MainWindow* main_window;
+	WorldObject* ob;
+	int num_channels;
+	int sample_rate;
+
+	std::vector<float> temp_buf;
+
+	IMPLEMENT_REFCOUNTING(AnimatedTexCefClient);
 };
+
+
+
+
+class AnimatedTexCEFBrowser : public RefCounted
+{
+public:
+	AnimatedTexCEFBrowser(AnimatedTexRenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
+	:	mRenderHandler(render_handler)
+	{
+		cef_client = new AnimatedTexCefClient();
+		cef_client->mRenderHandler = mRenderHandler;
+		cef_client->mLifeSpanHandler = lifespan_handler;
+	}
+
+	virtual ~AnimatedTexCEFBrowser()
+	{
+	}
+
+	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
+	void onWebViewDataDestroyed()
+	{
+		// conPrint("AnimatedTexCEFBrowser::onWebViewDataDestroyed()");
+
+		cef_client->onWebViewDataDestroyed();
+		mRenderHandler->onWebViewDataDestroyed();
+	}
+
+
+	void navigate(const std::string& url)
+	{
+		if(cef_browser && cef_browser->GetHost())
+		{
+			cef_browser->GetMainFrame()->LoadURL(url);
+		}
+	}
+
+	void requestExit()
+	{
+		if(cef_browser.get() && cef_browser->GetHost())
+		{
+			cef_browser->GetHost()->CloseBrowser(/*force_close=*/true);
+		}
+	}
+
+	CefRefPtr<AnimatedTexRenderHandler> mRenderHandler;
+	CefRefPtr<CefBrowser> cef_browser;
+	CefRefPtr<AnimatedTexCefClient> cef_client;
+};
+
+
+
+Reference<AnimatedTexCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex)
+{
+	Reference<AnimatedTexCEFBrowser> browser = new AnimatedTexCEFBrowser(new AnimatedTexRenderHandler(opengl_tex), CEF::getLifespanHandler());
+
+	CefWindowInfo window_info;
+	window_info.windowless_rendering_enabled = true;
+
+	CefBrowserSettings browser_settings;
+	browser_settings.windowless_frame_rate = 60;
+	browser_settings.background_color = CefColorSetARGB(255, 100, 100, 100);
+
+	browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
+
+	// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
+	// See https://bitbucket.org/chromiumembedded/cef/issues/3319/burst-of-uncaptured-audio-after-creating
+	browser->cef_browser->GetHost()->SetAudioMuted(true);
+	return browser;
+}
+
+
+#else // else if !CEF_SUPPORT: 
+
+class WebViewCEFBrowser : public RefCounted
+{};
+
+#endif // CEF_SUPPORT
+
+
+AnimatedTexData::AnimatedTexData()
+{}
+
+AnimatedTexData::~AnimatedTexData()
+{
+#if CEF_SUPPORT
+	if(browser.nonNull())
+	{
+		browser->onWebViewDataDestroyed(); // The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
+		browser->requestExit();
+		browser = NULL;
+	}
 #endif
+}
+
+
+static const std::string makeDataURL(const std::string& html)
+{
+	std::string html_base64;
+	Base64::encode(html.data(), html.size(), html_base64);
+
+	return "data:text/html;base64," + html_base64;
+}
 
 
 void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
-	if(ob->opengl_engine_ob.nonNull())
-	{
-		const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+	if(ob->opengl_engine_ob.isNull())
+		return;
 
+#if CEF_SUPPORT
+	/*const int width = 1920;
+	const int height = 1080;*/
+	const int width = 1024;
+	const int height = (int)(1024.f / 1920.f * 1080.f); // Webview uses 1920 : 1080 aspect ratio.  (See MainWindow::on_actionAdd_Web_View_triggered())
+
+	const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
+	const double max_play_dist = AnimatedTexData::maxVidPlayDist();
+	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
+
+	const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+
+	if(in_process_dist)
+	{
 		AnimatedTexObData& animation_data = *this;
 		animation_data.mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
 
 		for(size_t m=0; m<ob->opengl_engine_ob->materials.size(); ++m)
 		{
 			OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
-			if(animation_data.mat_animtexdata[m].isNull())
-				animation_data.mat_animtexdata[m] = new AnimatedTexData(); // TODO: not needed for all mats
-			AnimatedTexData& animtexdata = *animation_data.mat_animtexdata[m];
-
+			
 			if(mat.albedo_texture.nonNull() && hasExtensionStringView(mat.tex_path, "gif"))
 			{
+				if(animation_data.mat_animtexdata[m].isNull())
+					animation_data.mat_animtexdata[m] = new AnimatedTexData();
+				AnimatedTexData& animtexdata = *animation_data.mat_animtexdata[m];
+
 				// Fetch the texdata for this texture if we haven't already
 				// Note that mat.tex_path may change due to LOD changes.
 				if(animtexdata.texdata.isNull() || (animtexdata.texdata_tex_path != mat.tex_path))
@@ -415,7 +749,7 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 						if(ob_visible && animtexdata.cur_frame_i != animtexdata.last_loaded_frame_i) // TODO: avoid more work when object is not visible.
 						{
 							//printVar(animtexdata.cur_frame_i);
-							
+
 							// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
 							// Don't try and upload the wrong size or we will get an OpenGL error or crash.
 							if(mat.albedo_texture->xRes() == texdata->W && mat.albedo_texture->yRes() == texdata->H)
@@ -430,378 +764,104 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 			}
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
 			{
-				const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
-				const double max_play_dist = AnimatedTexData::maxVidPlayDist();
-				const bool in_process_dist = ob_dist_from_cam < max_play_dist; // Only play videos within X metres for now.
-				
-#if defined(_WIN32)
-				const bool USE_QT_TO_PLAY_MP4S = false; // Use WMFVideoReader instead.
-#else
-				const bool USE_QT_TO_PLAY_MP4S = true;
-#endif
+				if(animation_data.mat_animtexdata[m].isNull())
+					animation_data.mat_animtexdata[m] = new AnimatedTexData();
+				AnimatedTexData& animtexdata = *animation_data.mat_animtexdata[m];
 
-				if(animtexdata.media_player != NULL)
+				if(!CEF::isInitialised())
 				{
-					// Pause when out of range and playing, resume when in range and paused.
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-					if(!in_process_dist && (animtexdata.media_player->playbackState() == QMediaPlayer::PlayingState))
-					{
-						//conPrint("Pausing");
-						animtexdata.media_player->pause();
-					}
-					else if (in_process_dist && (animtexdata.media_player->playbackState() == QMediaPlayer::PausedState))
-					{
-						animtexdata.media_player->play();
-						//conPrint("Playing");
-					}
-#else
-					if(!in_process_dist && (animtexdata.media_player->state() == QMediaPlayer::PlayingState))
-					{
-						//conPrint("Pausing");
-						animtexdata.media_player->pause();
-					}
-					else if (in_process_dist && (animtexdata.media_player->state() == QMediaPlayer::PausedState))
-					{
-						animtexdata.media_player->play();
-						//conPrint("Playing");
-					}
-#endif
+					CEF::initialiseCEF(main_window->base_dir_path);
 				}
 
-				if(in_process_dist)
+				if(CEF::isInitialised())
 				{
-					if(in_process_dist && ob->audio_source.nonNull())
+					if(animtexdata.browser.isNull() && !mat.tex_path.empty() && ob->opengl_engine_ob.nonNull())
 					{
-						ob->audio_source->pos = ob->opengl_engine_ob->aabb_ws.centroid();
-						main_window->audio_engine.sourcePositionUpdated(*ob->audio_source);
-					}
+						main_window->logMessage("Creating browser to play vid, URL: " + mat.tex_path);
 
-					try
-					{
-						// Qt MediaPlayer playback:
-#if 1
-						if(USE_QT_TO_PLAY_MP4S)
+						if(ob->opengl_engine_ob.nonNull())
 						{
-							if(animtexdata.media_player == NULL)
+							mat.albedo_texture = new OpenGLTexture(width, height, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8,
+								GL_SRGB8_ALPHA8, // GL internal format
+								GL_BGRA, // GL format.
+								OpenGLTexture::Filtering_Bilinear);
+
+							mat.fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
+						}
+
+						ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(mat.tex_path);
+
+						// if the resource is downloaded already, read video off disk:
+						std::string use_URL;
+						if(resource.nonNull() && resource->getState() == Resource::State_Present)
+						{
+							use_URL = "http://resource/" + web::Escaping::URLEscape(mat.tex_path);// resource->getLocalPath();
+						}
+						else // Otherwise use streaming via HTTP
+						{
+							if(hasPrefix(mat.tex_path, "http://") || hasPrefix(mat.tex_path, "https://"))
 							{
-								ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(mat.tex_path);
-								if(resource.nonNull())
-								{
-									if(resource->getState() == Resource::State_Transferring)
-									{
-										animtexdata.resource_io_wrapper = new ResourceIODeviceWrapper(resource);
-
-										animtexdata.video_surface = new SubstrataVideoSurface(NULL);
-							
-										animtexdata.media_player = new QMediaPlayer(NULL, QMediaPlayer::VideoSurface);
-										animtexdata.media_player->setVideoOutput(animtexdata.video_surface);
-										animtexdata.media_player->setMedia(QUrl(QtUtils::toQString(mat.tex_path)), animtexdata.resource_io_wrapper.getPointer()); // Read using our resource IO wrapper
-										animtexdata.media_player->play();
-									}
-									else if(resource->getState() == Resource::State_Present)
-									{
-										// Read off disk
-										const std::string disk_path = resource->getLocalPath();
-
-										animtexdata.video_surface = new SubstrataVideoSurface(NULL);
-
-										animtexdata.media_player = new QMediaPlayer(NULL, QMediaPlayer::VideoSurface);
-										animtexdata.media_player->setVideoOutput(animtexdata.video_surface);
-										animtexdata.media_player->setMedia(QUrl::fromLocalFile(QtUtils::toQString(disk_path)));
-										animtexdata.media_player->play();
-									}
-								}
+								use_URL = mat.tex_path;
 							}
-							else // else if animtexdata.media_player != NULL
+							else
 							{
-								//printVar(animtexdata.media_player->isSeekable());
-								if(animtexdata.media_player->mediaStatus() == QMediaPlayer::EndOfMedia)
-								{
-									animtexdata.media_player->setPosition(0); // Seek to beginning
-									animtexdata.media_player->play();
-									//conPrint("Seeked to beginning");
-								}
-
-								// Vaguely try and match the volume of the spatial audio and WMFVideoReader code.
-								const Vec3d campos = main_window->cam_controller.getPosition();
-								const double dist = ob->pos.getDist(campos);
-
-								// Subtract 100/max_play_dist so at dist = max_play_dist the volume is zero.
-								const double vol = myMin(100.0, 100 / dist - 100.0 / max_play_dist);
-								animtexdata.media_player->setVolume((int)vol);
-
-								if(animtexdata.video_surface->opengl_tex.nonNull())
-								{
-									mat.albedo_texture = animtexdata.video_surface->opengl_tex;
-									animtexdata.cur_frame_i++;
-								}
+								// If the URL does not have an HTTP prefix (e.g. is just a normal resource URL), rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
+								use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
 							}
 						}
-						else // Else !USE_QT_TO_PLAY_MP4S, use WMFVideoReader to play mp4s:
-#endif
-						{
-#if defined(_WIN32)
-							if(animtexdata.video_reader.isNull() && !animtexdata.encounted_error) // If vid reader has not been created yet (and we haven't failed trying to create it):
-							{
-								if(animtexdata.create_vid_reader_task.isNull()) // If we have not created a CreateVidReaderTask yet:
-								{
-									ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(mat.tex_path);
-									
-									// if the resource is downloaded already, read video off disk:
-									std::string use_URL;
-									if(resource.nonNull() && resource->getState() == Resource::State_Present)
-									{
-										use_URL = resource->getLocalPath();
-									}
-									else // Otherwise use streaming via HTTP
-									{
-										// If the URL does not have an HTTP prefix, rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
-										if(!(hasPrefix(mat.tex_path, "http") || hasPrefix(mat.tex_path, "https")))
-										{
-											use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
-										}
-										else
-											use_URL = mat.tex_path;
-									}
 
+						// NOTE: We will use a custom HTML page with the loop attribute set to true.  Can also add 'controls' attribute to debug stuff.
+						const std::string html =
+							"<html>"
+							"<head>"
+							"</head>"
+							"<body style=\"margin:0\">"
+							"<video autoplay loop name=\"media\" id=\"thevid\" width=\"1024px\" height=\"576px\">"
+							"<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"video/mp4\" />"
+							"</video>"
+							"</body>"
+							"</html>";
 
-									animtexdata.callback = new SubstrataVideoReaderCallback();
-									animtexdata.callback->sample_queue = &animtexdata.sample_queue;
+						const std::string data_URL = makeDataURL(html);
 
-									// Create and launch a CreateVidReaderTask to create the video reader off the main thread.
-									Reference<CreateVidReaderTask> create_vid_reader_task = new CreateVidReaderTask();
-									create_vid_reader_task->callback = animtexdata.callback;
-									create_vid_reader_task->URL = use_URL;
-									create_vid_reader_task->dev_manager = main_window->device_manager.ptr;
+						Reference<AnimatedTexCEFBrowser> browser = createBrowser(data_URL, ob->opengl_engine_ob->materials[0].albedo_texture);
+						browser->cef_client->main_window = main_window;
+						browser->cef_client->ob = ob;
+						browser->mRenderHandler->opengl_engine = opengl_engine;
+						browser->mRenderHandler->main_window = main_window;
+						browser->mRenderHandler->ob = ob;
 
-									animtexdata.create_vid_reader_task = create_vid_reader_task;
+						animtexdata.browser = browser;
 
-									main_window->task_manager.addTask(create_vid_reader_task);
-								}
-								else // Else CreateVidReaderTask has been created already as is executing or has executed:
-								{
-									// See if the CreateVidReaderTask has completed:
-									Reference<VideoReader> vid_reader;
-									{
-										Lock lock2(animtexdata.create_vid_reader_task->mutex);
-										if(!animtexdata.create_vid_reader_task->error_msg.empty())
-											throw glare::Exception(animtexdata.create_vid_reader_task->error_msg);
-										vid_reader = animtexdata.create_vid_reader_task->vid_reader;
-									}
-
-									if(vid_reader.nonNull()) // If vid reader has been created by the CreateVidReaderTask:
-									{
-										animtexdata.create_vid_reader_task = Reference<CreateVidReaderTask>(); // Free CreateVidReaderTask.
-										animtexdata.video_reader = vid_reader;
-										animtexdata.in_anim_time = 0;
-									}
-								}
-							}
-
-							if(animtexdata.video_reader.nonNull())
-							{
-								WMFVideoReader* vid_reader = animtexdata.video_reader.downcastToPtr<WMFVideoReader>();
-
-								animtexdata.in_anim_time += dt;
-								const double in_anim_time = animtexdata.in_anim_time;
-							
-								/*
-								Read frames from animtexdata.sample_queue queue. 
-								If they are audio frames, copy audio data to audio source buffer.
-								If they are vid frames, enqueue onto vid_frame_queue.
-								We read ahead like this a bit so that we can get audio samples to the audio_source buffer ahead of time,
-								to avoid stutters.
-							
-
-								Vid Reader ----------------------->   this code (AnimatedTextureManger) -------------------------> AudioEngine
-										  animtexdata.sample_queue                    |                  ob->audio_source->buffer
-																					  |
-																					  |
-																					   \
-																						 ----------------------------------------->this code (AnimatedTextureManger) 
-																								 animtexdata.vid_frame_queue
-								*/
-
-								Lock lock2(animtexdata.sample_queue.getMutex());
-								while(animtexdata.sample_queue.unlockedNonEmpty())
-								{
-									SampleInfoRef sample;
-									animtexdata.sample_queue.unlockedDequeue(sample);
-
-									animtexdata.num_samples_pending--;
-									//conPrint("Dequeued sample, num_samples_pending: " + toString(animtexdata.num_samples_pending));
-									//if(frame.nonNull()) animtexdata.video_reader->startReadingNextFrame(); // We dequeued an actual frame, start reading a new frame.
-
-									if(sample.nonNull())
-									{
-										if(sample->is_audio)
-										{
-											// Copy to our audio source
-											if(ob->audio_source.nonNull())
-											{
-												// Convert to float data
-												const uint32 bytes_per_sample  = sample->bits_per_sample / 8;
-												const size_t num_sample_frames = sample->buffer_len_B / bytes_per_sample;
-												const size_t num_samples = num_sample_frames / sample->num_channels;
-
-												temp_buf.resize(num_samples);
-
-												for(size_t z=0; z<num_samples; ++z)
-												{
-													const float left =  ((const int16*)sample->frame_buffer)[z*2 + 0] * (1.f / 32768.f);
-													const float right = ((const int16*)sample->frame_buffer)[z*2 + 1] * (1.f / 32768.f);
-													temp_buf[z] = (left + right) * 0.5f;
-												}
-
-												{
-													Lock mutex(main_window->audio_engine.mutex);
-													ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
-												}
-											}
-										}
-										else
-										{
-											animtexdata.vid_frame_queue.push_back(sample);
-										}
-									}
-									else // Frame is null: we have reached EOS
-									{
-										animtexdata.at_vidreader_EOS = true;
-									}
-								}
-
-								// Queue up some sample reads, so that the video decoder has decoded a few frames ahead of what we are showing currently.
-								if(!animtexdata.at_vidreader_EOS) // If we reached EOS, don't queue up any more sample reads
-								{
-									const int target_num_vid_frames = 10;
-									const int decoded_and_reading_vid_frames = (int)animtexdata.vid_frame_queue.size() + (int)vid_reader->num_pending_reads;
-							
-									//printVar(animtexdata.vid_frame_queue.size());
-									//printVar(vid_reader->num_pending_reads);
-									//printVar(decoded_and_reading_vid_frames);
-
-									const int num_extra_reads = target_num_vid_frames - decoded_and_reading_vid_frames;
-									for(int i=0; i<num_extra_reads; ++i)
-									{
-										vid_reader->startReadingNextSample();
-										animtexdata.num_samples_pending++;
-									}
-								}
-
-
-								// Is it time to display the next frame?
-								// NOTE: cur_frame_i == -1 means we have seeked back to the beginning of the file (note we will still be displaying the last frame as current_video_frame)
-								const bool need_new_vid_frame = (animtexdata.cur_frame_i == -1) || animtexdata.current_video_frame.isNull() || (in_anim_time >= (animtexdata.current_video_frame->frame_time + animtexdata.current_video_frame->frame_duration));
-
-								//printVar(animtexdata.cur_frame_i);
-								//printVar(animtexdata.in_anim_time);
-								//if(animtexdata.current_video_frame.nonNull())
-								//{
-								//	printVar(animtexdata.current_video_frame->frame_time);
-								//	printVar(animtexdata.current_video_frame->frame_duration);
-								//}
-								//printVar(need_new_vid_frame);
-
-								bool got_new_vid_frame = false; // Did we get a video frame from vid_frame_queue?
-								if(need_new_vid_frame && animtexdata.vid_frame_queue.nonEmpty())
-								{
-									animtexdata.current_video_frame = animtexdata.vid_frame_queue.front();
-									animtexdata.vid_frame_queue.pop_front();
-
-									assert(animtexdata.current_video_frame.nonNull()); // We only push non-null frames into queue.
-									got_new_vid_frame = true;
-								}
-
-							
-								if(got_new_vid_frame)
-								{
-									animtexdata.cur_frame_i++;
-									//printVar(animtexdata.current_video_frame->frame_time);
-
-									// Convert it to an OpenGL texture and apply to the current material
-									WMFSampleInfo* wmf_cur_frame = animtexdata.current_video_frame.downcastToPtr<WMFSampleInfo>();
-
-									assert(!wmf_cur_frame->is_audio);
-								
-									// Unlock previous OpenGL/d3d texture via locked_interop_tex_ob
-									if(animtexdata.locked_interop_tex_ob)
-									{
-										BOOL res = main_window->wgl_funcs.wglDXUnlockObjectsNV(main_window->interop_device_handle, 1, &animtexdata.locked_interop_tex_ob);
-										if(!res)
-											conPrint("Warning: wglDXUnlockObjectsNV failed.");
-										animtexdata.locked_interop_tex_ob = NULL;
-										mat.albedo_texture = NULL;
-									}
-
-									// Direct3DUtils::saveTextureToBmp("frames/frame_" + toString(animtexdata.cur_frame_i) + ".bmp", wmf_cur_frame->d3d_tex.ptr);
-
-									OpenGLAndD3DTex info;
-									auto tex_res = animtexdata.opengl_tex_for_d3d_tex.find(wmf_cur_frame->d3d_tex.ptr);
-									if(tex_res == animtexdata.opengl_tex_for_d3d_tex.end())
-									{
-										// Create an OpenGL texture that will correspond to the d3d texture
-										OpenGLTextureRef opengl_tex = new OpenGLTexture();
-										glGenTextures(1, &opengl_tex->texture_handle);
-									
-										//conPrint("making new OpenGL for d3d tex " + toHexString((uint64)wmf_cur_frame->d3d_tex.ptr) + ", texture_handle: " + toString(opengl_tex->texture_handle));
-									
-										// Unforuntately this doesn't work: (not supported by driver?)
-										// const int GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT = 0x8FBF;
-										// glTexParameteri(opengl_tex->texture_handle, GL_TEXTURE_FORMAT_SRGB_OVERRIDE_EXT, GL_SRGB);
-									
-										const GLenum WGL_ACCESS_READ_ONLY_NV = 0x0;
-										HANDLE interop_tex_ob = main_window->wgl_funcs.wglDXRegisterObjectNV(main_window->interop_device_handle, wmf_cur_frame->d3d_tex.ptr,
-											opengl_tex->texture_handle, GL_TEXTURE_2D, WGL_ACCESS_READ_ONLY_NV);
-									
-										info.opengl_tex = opengl_tex;
-										info.interop_handle = interop_tex_ob;
-										animtexdata.opengl_tex_for_d3d_tex[wmf_cur_frame->d3d_tex.ptr] = info;
-									}
-									else
-										info = tex_res->second;
-
-									if(info.interop_handle)
-									{
-										//conPrint("Locking interop_handle " + toString((uint64)info.interop_handle));
-										const BOOL res = main_window->wgl_funcs.wglDXLockObjectsNV(main_window->interop_device_handle, 1, &info.interop_handle);
-										if(res)
-										{
-											animtexdata.locked_interop_tex_ob = info.interop_handle;
-											mat.albedo_texture = info.opengl_tex; // Apply to material
-										}
-										else
-										{
-											conPrint("warning: failed to lock object");
-										}
-									}
-								}
-
-								// If the video reader has read all video frames, and signalled EOS, and there are no queued sample reads,
-								// and we have no outstanding video frames to display, 
-								// then we can seek back to the start.
-								// Note that IMFSourceReader will return an error if we try to seek while there are sample reads queued.
-								if(animtexdata.at_vidreader_EOS && (animtexdata.num_samples_pending == 0) && 
-									animtexdata.vid_frame_queue.empty())
-								{
-									animtexdata.cur_frame_i = -1;
-									animtexdata.in_anim_time = 0;
-									
-									//conPrint("Seeking to 0.0");
-									vid_reader->seek(0.0);
-									animtexdata.at_vidreader_EOS = false;
-								}
-							}
-#endif // #if defined(_WIN32)
-						} // End if !USE_QT_TO_PLAY_MP4S
+						animtexdata.texdata_tex_path = mat.tex_path;
 					}
-					catch(glare::Exception& e)
+				}
+			}
+		}
+	}
+	else // else if !in_process_dist:
+	{
+		// Close any browsers for animated textures on this object.
+		for(size_t m=0; m<this->mat_animtexdata.size(); ++m)
+		{
+			if(this->mat_animtexdata[m].nonNull())
+			{
+				AnimatedTexData& animtexdata = *this->mat_animtexdata[m];
+				if(animtexdata.browser.nonNull())
+				{
+					main_window->logMessage("Closing vid playback browser (out of view distance).");
+					animtexdata.browser->requestExit();
+					animtexdata.browser = NULL;
+
+					// Remove audio source
+					if(ob->audio_source.nonNull())
 					{
-						animtexdata.encounted_error = true;
-						conPrint(e.what());
-						main_window->showErrorNotification(e.what());
+						main_window->audio_engine.removeSource(ob->audio_source);
+						ob->audio_source = NULL;
 					}
-				} // end if(in_process_dist)
-			} // end if(hasExtensionStringView(mat.tex_path, "mp4"))
-		} // end for each material
-	} // end if(ob->opengl_engine_ob.nonNull())
+				}
+			}
+		}
+	}
+#endif // CEF_SUPPORT
 }

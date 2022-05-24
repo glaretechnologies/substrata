@@ -333,7 +333,7 @@ public:
 	// NOTE: these object sets need to be cleared in connectToServer(), also when removing a dead object in ob->state == WorldObject::State_Dead case in timerEvent, the object needs to be removed
 	// from any of these sets it is in.
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> active_objects; // Objects that have moved recently and so need interpolation done on them.
-	std::unordered_map<WorldObjectRef, AnimatedTexObData, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs)
+	std::unordered_set<WorldObjectRef, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> web_view_obs;
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> obs_with_scripts; // Objects with non-null script_evaluator
 
@@ -490,9 +490,9 @@ private:
 #if defined(_WIN32)
 	ComObHandle<ID3D11Device> d3d_device;
 	ComObHandle<IMFDXGIDeviceManager> device_manager;
-	HANDLE interop_device_handle;
+	//HANDLE interop_device_handle;
 
-	WGL wgl_funcs;
+	//WGL wgl_funcs;
 #endif
 
 public:

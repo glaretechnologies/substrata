@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <SceneNodeModel.h>
 #include "../gui_client/WinterShaderEvaluator.h"
 #include "../gui_client/WebViewData.h"
+#include "../gui_client/AnimatedTextureManager.h"
 #endif
 #include "../gui_client/PhysicsObject.h"
 #include "../shared/ResourceManager.h"
