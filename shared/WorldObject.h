@@ -33,6 +33,7 @@ class Matrix4f;
 namespace Indigo { class SceneNodeModel; }
 namespace js { class AABBox; }
 class WebViewData;
+struct AnimatedTexObData;
 
 
 class Voxel
@@ -235,6 +236,7 @@ public:
 
 
 	Reference<WebViewData> web_view_data;
+	Reference<AnimatedTexObData> animated_tex_data;
 #endif
 
 	float max_load_dist2;

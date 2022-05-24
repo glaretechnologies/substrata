@@ -46,6 +46,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "CameraController.h"
 #include "BiomeManager.h"
 #include "WebViewData.h"
+#include "AnimatedTextureManager.h"
 #include "CEF.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
@@ -189,7 +190,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	grabbed_axis(-1),
 	grabbed_angle(0),
 #if defined(_WIN32)
-	interop_device_handle(NULL),
+	//interop_device_handle(NULL),
 #endif
 	force_new_undo_edit(false),
 	log_window(NULL),
@@ -485,11 +486,11 @@ void MainWindow::afterGLInitInitialise()
 
 #ifdef _WIN32
 	// Prepare for D3D interoperability with opengl
-	wgl_funcs.init();
-
-	interop_device_handle = wgl_funcs.wglDXOpenDeviceNV(d3d_device.ptr); // prepare for interoperability with opengl
-	if(interop_device_handle == 0)
-		throw glare::Exception("wglDXOpenDeviceNV failed.");
+	//wgl_funcs.init();
+	//
+	//interop_device_handle = wgl_funcs.wglDXOpenDeviceNV(d3d_device.ptr); // prepare for interoperability with opengl
+	//if(interop_device_handle == 0)
+	//	throw glare::Exception("wglDXOpenDeviceNV failed.");
 #endif
 
 
@@ -604,11 +605,11 @@ MainWindow::~MainWindow()
 
 
 #ifdef _WIN32
-	if(this->interop_device_handle)
-	{
-		const BOOL res = wgl_funcs.wglDXCloseDeviceNV(this->interop_device_handle); // close interoperability with opengl
-		assertOrDeclareUsed(res);
-	}
+	//if(this->interop_device_handle)
+	//{
+	//	const BOOL res = wgl_funcs.wglDXCloseDeviceNV(this->interop_device_handle); // close interoperability with opengl
+	//	assertOrDeclareUsed(res);
+	//}
 #endif
 
 	// Free direct3d device and device manager
@@ -668,15 +669,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	// Clear obs_with_animated_tex - will close video readers
 	for(auto entry : obs_with_animated_tex)
 	{
-		for(size_t i=0; i<entry.second.mat_animtexdata.size(); ++i)
-		{
-			if(entry.second.mat_animtexdata[i].nonNull())
-				entry.second.mat_animtexdata[i]->shutdown(
-#ifdef _WIN32
-					wgl_funcs, this->interop_device_handle
-#endif
-				);
-		}
+		entry->animated_tex_data = NULL;
 	}
 	obs_with_animated_tex.clear();
 
@@ -1101,15 +1094,18 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
 		if(!opengl_mat.tex_path.empty())
 		{
-			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
-
-			if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			if(!::hasExtensionStringView(ob->materials[z]->colour_texture_url, "mp4")) // If not an animated texture:  TODO Improve this
 			{
-				if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
+				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+
+				if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 				{
-					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
-					opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+					if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
+					{
+						// Try and use a different LOD level of the texture, that is actually loaded.
+						opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
+						opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+					}
 				}
 			}
 		}
@@ -1228,13 +1224,16 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 		ob->loaded_lod_level = ob_lod_level;
 
-		// Add any objects with gif or mp4 textures to the set of animated objects.
+		// Add any objects with gif or mp4 textures to the set of animated objects. (if not already)
 		for(size_t i=0; i<ob->materials.size(); ++i)
 		{
 			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "gif") || ::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
 			{
-				//Reference<AnimatedTexObData> anim_data = new AnimatedTexObData();
-				this->obs_with_animated_tex.insert(std::make_pair(ob, AnimatedTexObData()));
+				if(ob->animated_tex_data.isNull())
+				{
+					ob->animated_tex_data = new AnimatedTexObData();
+					this->obs_with_animated_tex.insert(ob);
+				}
 			}
 
 			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
@@ -3018,8 +3017,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			for(auto it = this->obs_with_animated_tex.begin(); it != this->obs_with_animated_tex.end(); ++it)
 			{
-				WorldObject* ob = it->first.ptr();
-				AnimatedTexObData& animation_data = it->second;
+				WorldObject* ob = it->ptr();
+				AnimatedTexObData& animation_data = *ob->animated_tex_data;
 
 				animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
 			}
