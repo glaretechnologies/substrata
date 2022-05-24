@@ -11,10 +11,10 @@ Copyright Glare Technologies Limited 2022 -
 #include "CEF.h"
 #include "../shared/WorldObject.h"
 #include "../qt/QtUtils.h"
+#include "../audio/AudioEngine.h"
 #include <Escaping.h>
 #include <FileInStream.h>
 #include <PlatformUtils.h>
-#include "../audio/AudioEngine.h"
 #include <QtGui/QPainter>
 
 
@@ -35,7 +35,7 @@ Copyright Glare Technologies Limited 2022 -
 class RenderHandler : public CefRenderHandler
 {
 public:
-	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), ob(NULL), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
+	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), main_window(NULL), ob(NULL), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
 
 	~RenderHandler() {}
 
@@ -253,7 +253,7 @@ public:
 		CefRequestHandler::WindowOpenDisposition target_disposition,
 		bool user_gesture) override
 	{
-		conPrint("OnOpenURLFromTab is called");
+		//conPrint("OnOpenURLFromTab is called");
 
 		return true;
 	}
@@ -265,12 +265,12 @@ public:
 		bool is_redirect) override
 
 	{
-		std::string frame_name = frame->GetName();
+		/*std::string frame_name = frame->GetName();
 		std::string frame_url = frame->GetURL();
 
 		conPrint("OnBeforeBrowse  is called: ");
 		conPrint("                  Name is: " + std::string(frame_name));
-		conPrint("                   URL is: " + std::string(frame_url));
+		conPrint("                   URL is: " + std::string(frame_url));*/
 
 		return false;
 	}
@@ -285,7 +285,7 @@ public:
 
 		if(frame->IsMain())
 		{
-			conPrint("Loading started");
+			//conPrint("Loading started");
 		}
 	}
 
@@ -299,7 +299,7 @@ public:
 		{
 			const std::string url = frame->GetURL();
 
-			conPrint("Load ended for URL: " + std::string(url) + " with HTTP status code: " + toString(httpStatusCode));
+			//conPrint("Load ended for URL: " + std::string(url) + " with HTTP status code: " + toString(httpStatusCode));
 		}
 	}
 
@@ -484,8 +484,8 @@ class WebViewCEFBrowser : public RefCounted
 public:
 	WebViewCEFBrowser(/*WebViewData* web_view_data_, */RenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
 	:	//web_view_data(web_view_data_),
-		mRenderHandler(render_handler),
-		mLifeSpanHandler(lifespan_handler)
+		mRenderHandler(render_handler)
+		//mLifeSpanHandler(lifespan_handler)
 	{
 		cef_client = new WebDataCefClient();
 		cef_client->mRenderHandler = mRenderHandler;
@@ -499,7 +499,7 @@ public:
 	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 	void onWebViewDataDestroyed()
 	{
-		conPrint("WebViewCEFBrowser::onWebViewDataDestroyed()");
+		//conPrint("WebViewCEFBrowser::onWebViewDataDestroyed()");
 
 		cef_client->onWebViewDataDestroyed();
 		mRenderHandler->onWebViewDataDestroyed();
@@ -620,7 +620,7 @@ public:
 	CefRefPtr<CefBrowser> cef_browser;
 	CefRefPtr<WebDataCefClient> cef_client;
 
-	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler;
+	//CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler;
 };
 
 
@@ -645,19 +645,12 @@ Reference<WebViewCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const
 }
 
 
-
-
-
 #else // else if !CEF_SUPPORT: 
 
 class WebViewCEFBrowser : public RefCounted
 {};
 
 #endif // CEF_SUPPORT
-
-
-
-
 
 
 WebViewData::WebViewData()
@@ -685,28 +678,12 @@ WebViewData::~WebViewData()
 }
 
 
-
-
-
-//void WebViewData::shutdownCEF()
-//{
-//	//conPrint("===========================WebViewData::shutdownCEF()===========================");
-//#if CEF_SUPPORT
-//	if(app)
-//	{
-//		delete app;
-//		app = NULL;
-//	}
-//#endif
-//	//conPrint("===========================WebViewData::shutdownCEF() done===========================");
-//}
-
-
 static const int text_tex_W = 512;
 static const int button_W = 200;
 static const int button_left_x = text_tex_W/2 - button_W/2;
 static const int button_top_y = (int)((1080.0 / 1920) * text_tex_W) - 120;
 static const int button_H = 60;
+
 
 static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::string& text)
 {
@@ -764,15 +741,6 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 			CEF::initialiseCEF(main_window->base_dir_path);
 		}
 
-		//if(!app)
-		//{
-		//	app = new WebViewDataCEFApp();
-		//	app->AddRef(); // Since we are just storing a pointer to WebViewDataCEFApp, manually increment ref count.
-
-		//	app->initialise(main_window->base_dir_path);
-		//}
-
-		//if(app && CEF_initialised)
 		if(CEF::isInitialised())
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
