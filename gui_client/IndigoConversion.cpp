@@ -40,10 +40,10 @@ inline static const Indigo::String toIndigoString(const std::string& s)
 }
 
 
-static Indigo::String convertURLToPath(const std::string& URL, ResourceManager& resource_manager)
-{
-	return toIndigoString(resource_manager.pathForURL(URL));
-}
+//static Indigo::String convertURLToPath(const std::string& URL, ResourceManager& resource_manager)
+//{
+//	return toIndigoString(resource_manager.pathForURL(URL));
+//}
 
 
 static Indigo::WavelengthDependentParamRef getAlbedoParam(const WorldMaterial& mat, ResourceManager& resource_manager)
@@ -56,12 +56,29 @@ static Indigo::WavelengthDependentParamRef getAlbedoParam(const WorldMaterial& m
 	}
 	else
 	{
-		Indigo::Texture tex(convertURLToPath(mat.colour_texture_url, resource_manager));
-		tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
-			Indigo::Matrix2(mat.tex_matrix.e),
-			Indigo::Vec2d(0.0)
-		);
-		return new Indigo::TextureWavelengthDependentParam(tex, rgb_spect);
+		const std::string path = resource_manager.pathForURL(mat.colour_texture_url);
+
+		// Image formats that are supported by Indigo.  NOTE: no ktx!
+		const bool is_allowed_file_type =
+			hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
+			hasExtension(path, "png") ||
+			hasExtension(path, "tif") || hasExtension(path, "tiff") ||
+			hasExtension(path, "exr") ||
+			hasExtension(path, "gif");
+
+		if(is_allowed_file_type)
+		{
+			Indigo::Texture tex(toIndigoString(path));
+			tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
+				Indigo::Matrix2(mat.tex_matrix.e),
+				Indigo::Vec2d(0.0)
+			);
+			return new Indigo::TextureWavelengthDependentParam(tex, rgb_spect);
+		}
+		else
+		{
+			return new Indigo::ConstantWavelengthDependentParam(rgb_spect);
+		}
 	}
 }
 
