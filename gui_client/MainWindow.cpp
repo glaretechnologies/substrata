@@ -3035,7 +3035,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				WorldObject* ob = it->ptr();
 				AnimatedTexObData& animation_data = *ob->animated_tex_data;
 
-				animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+				try
+				{
+					animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Excep while processing animation data: " + e.what());
+				}
 			}
 		 } // End lock scope
 
