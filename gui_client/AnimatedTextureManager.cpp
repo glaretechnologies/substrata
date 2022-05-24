@@ -632,6 +632,8 @@ Reference<AnimatedTexCEFBrowser> createBrowser(const std::string& URL, Reference
 	browser_settings.background_color = CefColorSetARGB(255, 100, 100, 100);
 
 	browser->cef_browser = CefBrowserHost::CreateBrowserSync(window_info, browser->cef_client, CefString(URL), browser_settings, nullptr, nullptr);
+	if(!browser->cef_browser)
+		throw glare::Exception("Failed to create CEF browser");
 
 	// There is a brief period before the audio capture kicks in, resulting in a burst of loud sound.  We can work around this by setting to mute here.
 	// See https://bitbucket.org/chromiumembedded/cef/issues/3319/burst-of-uncaptured-audio-after-creating
@@ -781,7 +783,8 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 
 						if(ob->opengl_engine_ob.nonNull())
 						{
-							mat.albedo_texture = new OpenGLTexture(width, height, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8,
+							std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
+							mat.albedo_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
 								GL_SRGB8_ALPHA8, // GL internal format
 								GL_BGRA, // GL format.
 								OpenGLTexture::Filtering_Bilinear);
