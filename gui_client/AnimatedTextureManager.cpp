@@ -411,7 +411,7 @@ public:
 		CefRefPtr<CefFrame> frame,
 		CefRefPtr<CefRequest> request) override
 	{
-		conPrint("GetResourceHandler() Request URL: " + request->GetURL().ToString());
+		//conPrint("GetResourceHandler() Request URL: " + request->GetURL().ToString());
 
 		// TODO: check URL prefix for http://resource/, return new AnimatedTexResourceHandler only in that case?
 		// Will we need to handle other URLS here?

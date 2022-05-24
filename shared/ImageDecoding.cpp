@@ -59,12 +59,14 @@ Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, 
 
 bool ImageDecoding::hasSupportedImageExtension(const std::string& path)
 {
+	const string_view extension = getExtensionStringView(path);
+
 	return
-		hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
-		hasExtension(path, "png") ||
+		extension == "jpg" || extension == "jpeg" ||
+		extension == "png" ||
 		//hasExtension(path, "tif") || hasExtension(path, "tiff") ||
-		hasExtension(path, "exr") ||
-		hasExtension(path, "gif") ||
-		hasExtension(path, "ktx") || 
-		hasExtension(path, "ktx2");
+		extension == "exr" ||
+		extension == "gif" ||
+		extension == "ktx" ||
+		extension == "ktx2";
 }
