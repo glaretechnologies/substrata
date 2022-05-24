@@ -80,14 +80,14 @@ void DownloadResourcesThread::doRun()
 
 	try
 	{
-		conPrint("DownloadResourcesThread: Connecting to " + hostname + ":" + toString(port) + "...");
+		// conPrint("DownloadResourcesThread: Connecting to " + hostname + ":" + toString(port) + "...");
 
 		MySocketRef plain_socket = new MySocket(hostname, port);
 		plain_socket->setUseNetworkByteOrder(false);
 
 		TLSSocketRef socket = new TLSSocket(plain_socket, config, hostname);
 
-		conPrint("DownloadResourcesThread: Connected to " + hostname + ":" + toString(port) + "!");
+		// conPrint("DownloadResourcesThread: Connected to " + hostname + ":" + toString(port) + "!");
 
 		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
 		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
