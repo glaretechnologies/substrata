@@ -16,6 +16,7 @@ URLWhitelist::URLWhitelist()
 
 void URLWhitelist::loadDefaultWhitelist()
 {
+	// Should have no protocol scheme, should have a at least a slash for a path (important!), not just a raw domain
 	const char* prefix_list[] = {
 		// Video streaming
 		"www.youtube.com/",
@@ -59,6 +60,7 @@ void URLWhitelist::loadDefaultWhitelist()
 		"www.shadertoy.com/",
 		"www.mindfly.art/",
 		"html5test.com/",
+		"www.google.com/",
 
 		NULL
 	};
