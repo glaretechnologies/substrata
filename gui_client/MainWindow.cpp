@@ -812,12 +812,20 @@ bool MainWindow::checkAddScriptToProcessedSet(const std::string& script_content)
 //}
 
 
+// Is non-empty and has a supported image extension.
+// Mp4 files will be handled with other code, not loaded in a LoadTextureTask, so we want to return false for mp4 extensions.
+static inline bool isValidImageTextureURL(const std::string& URL)
+{
+	return !URL.empty() && ImageDecoding::hasSupportedImageExtension(URL);
+}
+
+
 void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level)
 {
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		if(!ob.materials[i]->colour_texture_url.empty())
+		if(isValidImageTextureURL(ob.materials[i]->colour_texture_url))
 		{
 			const std::string lod_tex_url = ob.materials[i]->getLODTextureURLForLevel(ob.materials[i]->colour_texture_url, ob_lod_level, ob.materials[i]->colourTexHasAlpha());
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
@@ -833,7 +841,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 		}
 
 		// Load metallic-roughness texture, if used
-		if(!ob.materials[i]->roughness.texture_url.empty())
+		if(isValidImageTextureURL(ob.materials[i]->roughness.texture_url))
 		{
 			const std::string lod_tex_url = ob.materials[i]->getLODTextureURLForLevel(ob.materials[i]->roughness.texture_url, ob_lod_level, /*has_alpha=*/false);
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
@@ -851,7 +859,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 
 	// Start loading lightmap
 #if 1 //!defined(OSX) // We don't support lightmaps on Mac due to lack of BC6H texture support.
-	if(!ob.lightmap_url.empty())
+	if(isValidImageTextureURL(ob.lightmap_url))
 	{
 		const std::string lod_tex_url = WorldObject::getLODLightmapURL(ob.lightmap_url, ob_lod_level);
 		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
@@ -874,7 +882,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.avatar_settings.materials.size(); ++i)
 	{
-		if(!ob.avatar_settings.materials[i]->colour_texture_url.empty())
+		if(isValidImageTextureURL(ob.avatar_settings.materials[i]->colour_texture_url))
 		{
 			const std::string lod_tex_url = ob.avatar_settings.materials[i]->getLODTextureURLForLevel(ob.avatar_settings.materials[i]->colour_texture_url, ob_lod_level, ob.avatar_settings.materials[i]->colourTexHasAlpha());
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
@@ -889,7 +897,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			}
 		}
 
-		if(!ob.avatar_settings.materials[i]->roughness.texture_url.empty())
+		if(isValidImageTextureURL(ob.avatar_settings.materials[i]->roughness.texture_url))
 		{
 			const std::string lod_tex_url = ob.avatar_settings.materials[i]->getLODTextureURLForLevel(ob.avatar_settings.materials[i]->roughness.texture_url, ob_lod_level, /*has_alpha=*/false);
 			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
@@ -1087,14 +1095,21 @@ static Reference<OpenGLTexture> getBestLightmapLOD(const std::string& base_light
 }
 
 
+// If not a mp4 texture - we won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
+static inline bool isNonEmptyAndNotMp4(const std::string& path)
+{
+	return !path.empty() && !::hasExtensionStringView(path, "mp4");
+}
+
+
 static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
 	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
 	{
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
-		if(!opengl_mat.tex_path.empty())
+		if(isNonEmptyAndNotMp4(opengl_mat.tex_path))
 		{
-			if(!::hasExtensionStringView(ob->materials[z]->colour_texture_url, "mp4")) // If not an animated texture:  TODO Improve this
+			if(!::hasExtensionStringView(ob->materials[z]->colour_texture_url, "mp4")) // If not a mp4 texture - we won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
 			{
 				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
 
@@ -1110,7 +1125,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			}
 		}
 
-		if(!opengl_mat.metallic_roughness_tex_path.empty())
+		if(isNonEmptyAndNotMp4(opengl_mat.metallic_roughness_tex_path))
 		{
 			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
 
@@ -1125,7 +1140,7 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		}
 
 #if 1 // !defined(OSX)
-		if(!opengl_mat.lightmap_path.empty())
+		if(isNonEmptyAndNotMp4(opengl_mat.lightmap_path))
 		{
 			//conPrint("Trying to use " + opengl_mat.lightmap_path);
 			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
@@ -1154,7 +1169,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 	for(size_t z=0; z<gl_ob->materials.size(); ++z)
 	{
 		OpenGLMaterial& opengl_mat = gl_ob->materials[z];
-		if(!opengl_mat.tex_path.empty())
+		if(isNonEmptyAndNotMp4(opengl_mat.tex_path))
 		{
 			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
 
@@ -1169,7 +1184,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 			}
 		}
 
-		if(!opengl_mat.metallic_roughness_tex_path.empty())
+		if(isNonEmptyAndNotMp4(opengl_mat.metallic_roughness_tex_path))
 		{
 			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
 
