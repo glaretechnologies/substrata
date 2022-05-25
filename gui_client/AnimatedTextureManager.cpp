@@ -644,7 +644,7 @@ Reference<AnimatedTexCEFBrowser> createBrowser(const std::string& URL, Reference
 
 #else // else if !CEF_SUPPORT: 
 
-class WebViewCEFBrowser : public RefCounted
+class AnimatedTexCEFBrowser : public RefCounted
 {};
 
 #endif // CEF_SUPPORT
