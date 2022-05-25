@@ -5428,6 +5428,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	ui->glWidget->makeCurrent();
 
+	//Timer timer;
 	{
 		PERFORMANCEAPI_INSTRUMENT("updateGL()");
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -5435,6 +5436,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 #else
 		ui->glWidget->updateGL();
 #endif
+		//if(timer.elapsed() > 0.020)
+		//	conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": updateGL() took " + timer.elapsedStringNSigFigs(4));
 	}
 
 	if(need_physics_world_rebuild)
@@ -9887,23 +9890,41 @@ public:
 };
 
 
+// Enable bugsplat unless the DISABLE_BUGSPLAT env var is set to a non-zero value.
+static bool shouldEnableBugSplat()
+{
+	try
+	{
+		const std::string val = PlatformUtils::getEnvironmentVariable("DISABLE_BUGSPLAT");
+		return val == "0";
+	}
+	catch(glare::Exception&)
+	{
+		return true;
+	}
+}
+
+
 int main(int argc, char *argv[])
 {
 #ifdef _WIN32
-	// BugSplat initialization.
-	new MiniDmpSender(
-		L"Substrata", // database
-		L"Substrata", // app
-		StringUtils::UTF8ToPlatformUnicodeEncoding(cyberspace_version).c_str(), // version
-		NULL, // app identifier
-		MDSF_USEGUARDMEMORY | MDSF_LOGFILE | MDSF_PREVENTHIJACKING // flags
-	);
+	if(shouldEnableBugSplat())
+	{
+		// BugSplat initialization.
+		new MiniDmpSender(
+			L"Substrata", // database
+			L"Substrata", // app
+			StringUtils::UTF8ToPlatformUnicodeEncoding(cyberspace_version).c_str(), // version
+			NULL, // app identifier
+			MDSF_USEGUARDMEMORY | MDSF_LOGFILE | MDSF_PREVENTHIJACKING // flags
+		);
 
-	// The following calls add support for collecting crashes for abort(), vectored exceptions, out of memory,
-	// pure virtual function calls, and for invalid parameters for OS functions.
-	// These calls should be used for each module that links with a separate copy of the CRT.
-	SetGlobalCRTExceptionBehavior();
-	SetPerThreadCRTExceptionBehavior(); // This call needed in each thread of your app
+		// The following calls add support for collecting crashes for abort(), vectored exceptions, out of memory,
+		// pure virtual function calls, and for invalid parameters for OS functions.
+		// These calls should be used for each module that links with a separate copy of the CRT.
+		SetGlobalCRTExceptionBehavior();
+		SetPerThreadCRTExceptionBehavior(); // This call needed in each thread of your app
+	}
 #endif
 
 
