@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <wrapper/cef_library_loader.h>
 #endif
 #endif
+#include "superluminal/PerformanceAPI.h"
 
 
 #if CEF_SUPPORT
@@ -39,6 +40,9 @@ public:
 		// See https://www.magpcss.org/ceforum/viewtopic.php?f=6&t=16517
 		command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
 
+
+		// command_line->AppendSwitch("disable-gpu");
+		// command_line->AppendSwitch("disable-gpu-compositing");
 
 		//TEMP:
 		//command_line->AppendSwitch("enable-logging");
@@ -87,6 +91,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path)
 	CefMainArgs args;
 
 	CefSettings settings;
+	settings.log_severity = LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
 
 #ifdef OSX
 	//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
@@ -137,6 +142,8 @@ LifeSpanHandler* CEF::getLifespanHandler()
 
 void CEF::doMessageLoopWork()
 {
+	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+
 	if(CEF_initialised)
 		CefDoMessageLoopWork();
 }
