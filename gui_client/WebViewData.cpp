@@ -625,7 +625,7 @@ public:
 
 
 
-Reference<WebViewCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex)
+static Reference<WebViewCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex)
 {
 	Reference<WebViewCEFBrowser> browser = new WebViewCEFBrowser(/*web_view_data, */new RenderHandler(opengl_tex), CEF::getLifespanHandler());
 
