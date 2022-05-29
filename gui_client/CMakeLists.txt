@@ -582,7 +582,7 @@ if(WIN32)
 	
 	add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
 
-	SET(QT_WIN32_LIBS
+	target_link_libraries(${CURRENT_TARGET}
 		OpenGL32
 
 		# Qt 6:
@@ -625,8 +625,9 @@ if(WIN32)
 		debug Qt5Multimediad
 		debug Qt5Gamepadd
 		
-#		debug "C:/programming/indigo/output/vs2015/indigo_x64/Debug/indigo_sdk_lib.lib" # TEMP
-#		optimized "C:/programming/indigo/output/vs2015/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib" # TEMP
+		#debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
+		#optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
+
 
 		# Media foundation video reading:
 		mfplat.lib 
@@ -653,8 +654,7 @@ if(WIN32)
 
 	# Superluminal profiler:
 	if(PERFORMANCEAPI_ENABLED)
-		SET(QT_WIN32_LIBS
-			${QT_WIN32_LIBS}
+		target_link_libraries(${CURRENT_TARGET}
 			optimized "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MD.lib"
 			debug "C:/Program Files/Superluminal/Performance/API/lib/x64/PerformanceAPI_MDd.lib"
 		)
@@ -670,7 +670,7 @@ elseif(APPLE)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
-	set(QT_OSX_LIBS
+	target_link_libraries(${CURRENT_TARGET}
 		# Chromium embedded framework
 		#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
 		#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
@@ -689,9 +689,12 @@ elseif(APPLE)
      
 else() # linux
 
+	add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
+
 	add_definitions(-D__LINUX_PULSE__) # Add config choice define for RTAudio
 
-	SET(QT_LINUX_LIBS GL
+	target_link_libraries(${CURRENT_TARGET}
+		GL
 		Qt5Gui
 		Qt5Core
 		Qt5OpenGL
@@ -703,17 +706,19 @@ else() # linux
 		#asound # ALSA lib required by RTAudio
 		pulse # PulseAudio lib required by RTAudio
 		pulse-simple # PulseAudio lib required by RTAudio
+		
+		${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+
+		#debug ${cef_binary_dist_dir}/Debug/libcef_dll_wrapper.a
+		debug ${cef_binary_dist_dir}/Debug/libcef.so
+		#optimized ${cef_binary_dist_dir}/Release/libcef_dll_wrapper.a
+		#/home/nick/cef/chromium/src/out/Release_GN_x64/obj/cef/libcef_dll_wrapper.a
+		#/home/nick/cef/chromium/src/out/Release_GN_x64/obj/cef/libcef_static.a
+		optimized ${cef_binary_dist_dir}/Release/libcef.so
+		
+		
 	)
 
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN/lib'")
 endif()
-
-
-target_link_libraries(${CURRENT_TARGET}
-${QT_WIN32_LIBS}
-${QT_LINUX_LIBS}
-${QT_OSX_LIBS}
-#debug 		C:/programming/indigo/output/vs2019/indigo_x64/Debug/indigo_sdk_lib.lib
-#optimized 	C:/programming/indigo/output/vs2019/indigo_x64/RelWithDebInfo/indigo_sdk_lib.lib
-)
