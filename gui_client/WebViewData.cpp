@@ -16,6 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <FileInStream.h>
 #include <PlatformUtils.h>
 #include <QtGui/QPainter>
+#include "superluminal/PerformanceAPI.h"
 
 
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
@@ -349,6 +350,11 @@ public:
 	// |model| outside of this callback.
 	virtual void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model) override
 	{
+		// Context menus are crashing CEF on mac currently, see https://magpcss.org/ceforum/viewtopic.php?f=10&t=17959
+		// This is probably fixable somehow, but for now just don't pop up context menus on mac.
+#ifdef OSX
+		model->Clear();
+#endif
 	}
 
 
@@ -627,6 +633,8 @@ public:
 
 static Reference<WebViewCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex)
 {
+	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+
 	Reference<WebViewCEFBrowser> browser = new WebViewCEFBrowser(/*web_view_data, */new RenderHandler(opengl_tex), CEF::getLifespanHandler());
 
 	CefWindowInfo window_info;
@@ -727,6 +735,8 @@ static bool uvsAreOnLoadButton(float uv_x, float uv_y)
 
 void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
+	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+
 #if CEF_SUPPORT
 	/*const int width = 1920;
 	const int height = 1080;*/
