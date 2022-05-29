@@ -285,7 +285,8 @@ ADD_SUBDIRECTORY(server server)
 
 #ADD_SUBDIRECTORY(stress_test stress_test)
 
-if(WIN32)
+if(APPLE)
+else()
 	SET(browser_process_suffix "")
 	ADD_SUBDIRECTORY(browser_process browser_process)
 endif()
