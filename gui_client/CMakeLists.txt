@@ -593,9 +593,6 @@ if(WIN32)
 	#	optimized Qt6Multimedia
 	#	optimized Qt6OpenGLWidgets
 	#	optimized Qt6Core5Compat
-	#	optimized Qt6WebEngineCore
-	#	optimized Qt6WebEngineWidgets
-	#	optimized Qt6WebEngineQuick
 	#	#optimized Qt6Network # just for QNetworkProxyFactory
 	#	debug Qt6Guid
 	#	debug Qt6Cored
@@ -604,10 +601,7 @@ if(WIN32)
 	#	debug Qt6Multimediad
 	#	debug Qt6OpenGLWidgetsd
 	#	debug Qt6Core5Compatd
-	#	debug Qt6WebEngineCored
-	#	debug Qt6WebEngineWidgetsd
-	#	debug Qt6WebEngineQuickd
-		#optimized Qt6Networkd # just for QNetworkProxyFactory
+	#	#optimized Qt6Networkd # just for QNetworkProxyFactory
 		
 		# Qt 5:
 		optimized qtmain
