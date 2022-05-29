@@ -31,11 +31,11 @@ if OS.windows?
 	copy_files(2022)
 elsif OS.mac?
 	begin
-        appdir = getCmakeBuildDir(0, "Debug") + "/gui_client.app"
+		appdir = getCmakeBuildDir(0, "Debug") + "/gui_client.app"
 		output_dir = getCmakeBuildDir(0, "Debug") + "/gui_client.app/Contents/MacOS/../Resources"
 
 		copyCyberspaceResources(output_dir)
-        copyCEFRedistMac(appdir)
+		copyCEFRedistMac(appdir)
 	end
 
 	begin
@@ -43,7 +43,7 @@ elsif OS.mac?
 
 		#copyCyberspaceResources(output_dir)
 	end
-else
+else # else Linux:
 	output_dir = getCmakeBuildDir(0, "Debug")
 	puts "output_dir: #{output_dir}"
 	copyCyberspaceResources(output_dir)
