@@ -9891,6 +9891,7 @@ public:
 
 
 // Enable bugsplat unless the DISABLE_BUGSPLAT env var is set to a non-zero value.
+#ifdef _WIN32
 static bool shouldEnableBugSplat()
 {
 	try
@@ -9903,6 +9904,7 @@ static bool shouldEnableBugSplat()
 		return true;
 	}
 }
+#endif
 
 
 int main(int argc, char *argv[])
