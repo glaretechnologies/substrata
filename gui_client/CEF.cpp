@@ -40,6 +40,10 @@ public:
 		// See https://www.magpcss.org/ceforum/viewtopic.php?f=6&t=16517
 		command_line->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
 
+		// On Mac, we get a message box popping up saying "gui_client wants to use your confidential information stored in "Chromium Safe Storage" in your keychain."
+		// every time a browser process starts, unless we have this switch.  See https://bitbucket.org/chromiumembedded/cef/issues/2692/mac-networkservice-allow-custom-service#comment-52655833
+		// "This prompt can be disabled and cookies will not be encrypted if you pass the --use-mock-keychain command-line flag."
+		command_line->AppendSwitch("use-mock-keychain");
 
 		// command_line->AppendSwitch("disable-gpu");
 		// command_line->AppendSwitch("disable-gpu-compositing");
@@ -121,21 +125,22 @@ void CEF::initialiseCEF(const std::string& base_dir_path)
 
 void CEF::shutdownCEF()
 {
-	assert(CEF_initialised);
-
-	// Wait until browser processes are shut down
-	while(!glare_cef_app->lifespan_handler->mBrowserList.empty())
+	if(CEF_initialised && glare_cef_app)
 	{
-		PlatformUtils::Sleep(1);
-		CefDoMessageLoopWork();
+		// Wait until browser processes are shut down
+		while(!glare_cef_app->lifespan_handler->mBrowserList.empty())
+		{
+			PlatformUtils::Sleep(1);
+			CefDoMessageLoopWork();
+		}
+
+		glare_cef_app->lifespan_handler = CefRefPtr<LifeSpanHandler>();
+
+		CEF_initialised = false;
+		CefShutdown();
+
+		glare_cef_app = CefRefPtr<GlareCEFApp>();
 	}
-
-	glare_cef_app->lifespan_handler = CefRefPtr<LifeSpanHandler>();
-
-	CEF_initialised = false;
-	CefShutdown();
-
-	glare_cef_app = CefRefPtr<GlareCEFApp>();
 }
 
 
