@@ -1,5 +1,7 @@
 #
-#  Copies various files that are need to run Substrata into the CYBERSPACE_OUTPUT directories.
+# Copies various files that are need to run Substrata into the CYBERSPACE_OUTPUT directories.
+#
+# Note that copyCyberspaceResources() is defined dist_utils.rb
 #
 
 require './dist_utils.rb'
@@ -43,4 +45,5 @@ else
 	output_dir = getCmakeBuildDir(0, "Debug")
 	puts "output_dir: #{output_dir}"
 	copyCyberspaceResources(output_dir)
+	copyCEFRedistLinux(output_dir)
 end
