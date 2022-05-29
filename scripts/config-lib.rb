@@ -15,7 +15,7 @@ $libs_vs_version = 2019 # VS version used to build libraries - Qt etc.  Can be l
 
 $qt_version = "5.13.2" if OS.windows?
 #$qt_version = "6.2.2" if OS.windows?
-$qt_version = "5.15.2" if OS.mac?
+$qt_version = "5.15.4" if OS.mac?
 $qt_version = "5.13.2" if OS.linux?
 
 
