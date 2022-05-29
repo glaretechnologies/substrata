@@ -2,11 +2,13 @@
 Building Chromium Embedded Framework (CEF)
 ==========================================
 
-We want to build CEF ourselves so we can compile in proprietary_codecs (in particular h264 support)
+We want to build CEF ourselves so we can compile in proprietary_codecs (in particular h264 support) 
 
 Building CEF from source
 ------------------------
 Following https://bitbucket.org/chromiumembedded/cef/wiki/AutomatedBuildSetup roughly:
+
+In cmd.exe shell:
 
 set GN_DEFINES=is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome use_thin_lto=false
 set GYP_MSVS_VERSION=2019
