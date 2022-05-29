@@ -317,7 +317,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 					sellable_parcels.push_back(parcel);
 			}
 
-			// Permute parcels (Fisher–Yates shuffle).  NOTE: kinda slow if we have lots of sellable parcels.
+			// Permute parcels (Fisher-Yates shuffle).  NOTE: kinda slow if we have lots of sellable parcels.
 			/*for(int i=(int)sellable_parcels.size()-1; i>0; --i)
 			{
 				const uint32 k = rng.nextUInt((uint32)i + 1);
@@ -857,6 +857,7 @@ int main(int argc, char *argv[])
 			int next_id = start_id;
 
 			// Make market district
+			if(false)
 			{
 				PCG32 rng(1);
 
@@ -1289,7 +1290,17 @@ int main(int argc, char *argv[])
 		if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
 			throw glare::Exception("tls_config_set_key_file failed.");
 #else
-		if(FileUtils::fileExists(certdir))
+		if(false) // For local testing:
+		{
+			conPrint("Using MyCertificate.crt etc.");
+			
+			if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
+				throw glare::Exception("tls_config_set_cert_file failed.");
+		
+			if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
+				throw glare::Exception("tls_config_set_key_file failed.");
+		}
+		else if(FileUtils::fileExists(certdir))
 		{
 			conPrint("Using godaddy certs");
 
