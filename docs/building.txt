@@ -83,10 +83,12 @@ export GN_DEFINES="is_official_build=true use_sysroot=true use_allocator=none sy
 export CEF_ARCHIVE_FORMAT=tar.bz2
 python3 automate-git.py --download-dir=/home/nick/cef --branch=4951 --minimal-distrib --client-distrib --force-clean --build-target=cefsimple --x64-build
 
-# Copy libcef_dll_wrapper.a into the binary distribution dirs: (So we can use the single ENV var)
-cp /home/nick/cef/chromium/src/out/Debug_GN_x64/obj/cef/libcef_dll_wrapper.a   /home/nick/cef/chromium/src/cef/binary_distrib/cef_binary_101.0.18+g367b4a0+chromium-101.0.4951.67_linux64/Debug
-cp /home/nick/cef/chromium/src/out/Release_GN_x64/obj/cef/libcef_dll_wrapper.a /home/nick/cef/chromium/src/cef/binary_distrib/cef_binary_101.0.18+g367b4a0+chromium-101.0.4951.67_linux64/Release
 
+# Change dir into the just-build binary distribution dir (path may differ), and build libcef_dll wrapper:
+cd ~/cef/chromium/src/cef/binary_distrib/cef_binary_101.0.18+g367b4a0+chromium-101.0.4951.67_linux64
+mkdir libcef_dll_build && cd libcef_dll_build
+cmake ../
+make libcef_dll_wrapper -j 12
 
 
 
