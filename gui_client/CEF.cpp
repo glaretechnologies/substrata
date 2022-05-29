@@ -93,11 +93,16 @@ void CEF::initialiseCEF(const std::string& base_dir_path)
 	CefSettings settings;
 	settings.log_severity = LOGSEVERITY_DISABLE; // Disable writing to logfile on disk (and to stderr), apart from FATAL messages.
 
-#ifdef OSX
+#if defined(OSX)
 	//const std::string browser_process_path = base_dir_path + "/../Frameworks/gui_client Helper.app"; // On mac, base_dir_path is the path to Resources.
-#else
+#elif defined(_WIN32)
 	settings.no_sandbox = true;
 	const std::string browser_process_path = base_dir_path + "/browser_process.exe";
+	conPrint("Using browser_process_path '" + browser_process_path + "'...");
+	CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
+
+#else // else Linux:
+	const std::string browser_process_path = base_dir_path + "/browser_process";
 	conPrint("Using browser_process_path '" + browser_process_path + "'...");
 	CefString(&settings.browser_subprocess_path).FromString(browser_process_path);
 #endif
