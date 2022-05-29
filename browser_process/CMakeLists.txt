@@ -79,11 +79,11 @@ else()
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "-std=c++14 ${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
 	
 	target_link_libraries(${CURRENT_TARGET}
-		#dl
-		#debug 		${cef_binary_dist_dir}/Debug/libcef.so
 		
 		${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-		optimized 	${cef_binary_dist_dir}/Release/libcef.so
+		
+		debug		${cef_binary_dist_dir}/Debug/libcef.so
+		optimized	${cef_binary_dist_dir}/Release/libcef.so
 	)
 endif()
 

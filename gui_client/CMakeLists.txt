@@ -707,12 +707,8 @@ else() # linux
 		
 		${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 
-		#debug ${cef_binary_dist_dir}/Debug/libcef_dll_wrapper.a
-		debug ${cef_binary_dist_dir}/Debug/libcef.so
-		#optimized ${cef_binary_dist_dir}/Release/libcef_dll_wrapper.a
-		#/home/nick/cef/chromium/src/out/Release_GN_x64/obj/cef/libcef_dll_wrapper.a
-		#/home/nick/cef/chromium/src/out/Release_GN_x64/obj/cef/libcef_static.a
-		optimized ${cef_binary_dist_dir}/Release/libcef.so
+		debug		${cef_binary_dist_dir}/Debug/libcef.so
+		optimized	${cef_binary_dist_dir}/Release/libcef.so
 		
 		
 	)
