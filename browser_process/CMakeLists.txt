@@ -2,7 +2,8 @@
 
 
 if(APPLE)
-	set(CURRENT_TARGET "gui_client Helper${browser_process_suffix}") # Apple requires a very particular naming scheme for CEF helper processes.
+	#set(CURRENT_TARGET "gui_client Helper${browser_process_suffix}") # Apple requires a very particular naming scheme for CEF helper processes.
+	set(CURRENT_TARGET "${BROWSER_PROCESS_TARGET_NAME}") # Apple requires a very particular naming scheme for CEF helper processes.
 else()
 	set(CURRENT_TARGET "browser_process")
 endif()
@@ -55,6 +56,7 @@ elseif(APPLE)
 		MACOSX_BUNDLE_BUNDLE_VERSION "0.1"
 		MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
 		MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/scripts/osx/browser_process.plist.in"
+		OUTPUT_NAME "${BROWSER_PROCESS_OUTPUT_NAME}" # CEF on Mac requires a very particular naming scheme for CEF helper processes.
 	)
 	
 	target_link_libraries(${CURRENT_TARGET}
