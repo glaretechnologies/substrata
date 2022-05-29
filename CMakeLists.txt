@@ -293,22 +293,27 @@ endif()
 
 if(APPLE)
 	# Build all the helper processes that CEF requires.
-	SET(browser_process_suffix "")
+	#SET(browser_process_suffix "")
+	SET(BROWSER_PROCESS_TARGET_NAME, "gui_client_Helper") # Target names shouldn't have spaces in them.
+	SET(BROWSER_PROCESS_OUTPUT_NAME, "gui_client Helper") # CEF on Mac requires a very particular naming scheme for CEF helper processes.
 	ADD_SUBDIRECTORY(browser_process
 		browser_process # binary (output) dir
 	)
 	
-	SET(browser_process_suffix " (GPU)")
+	SET(BROWSER_PROCESS_TARGET_NAME, "gui_client_Helper_GPU")
+	SET(BROWSER_PROCESS_OUTPUT_NAME, "gui_client Helper (GPU)")
 	ADD_SUBDIRECTORY(browser_process
 		browser_process_gpu # binary dir
 	)
 	
-	SET(browser_process_suffix " (Renderer)")
+	SET(BROWSER_PROCESS_TARGET_NAME, "gui_client_Helper_Renderer")
+	SET(BROWSER_PROCESS_OUTPUT_NAME, "gui_client Helper (Renderer)")
 	ADD_SUBDIRECTORY(browser_process
 		browser_process_renderer
 	)
 	
-	SET(browser_process_suffix " (Plugin)")
+	SET(BROWSER_PROCESS_TARGET_NAME, "gui_client_Helper_Plugin")
+	SET(BROWSER_PROCESS_OUTPUT_NAME, "gui_client Helper (Plugin)")
 	ADD_SUBDIRECTORY(browser_process
 		browser_process_plugin
 	)
