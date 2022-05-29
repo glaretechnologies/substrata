@@ -43,7 +43,9 @@ public:
 		// On Mac, we get a message box popping up saying "gui_client wants to use your confidential information stored in "Chromium Safe Storage" in your keychain."
 		// every time a browser process starts, unless we have this switch.  See https://bitbucket.org/chromiumembedded/cef/issues/2692/mac-networkservice-allow-custom-service#comment-52655833
 		// "This prompt can be disabled and cookies will not be encrypted if you pass the --use-mock-keychain command-line flag."
+#ifdef OSX
 		command_line->AppendSwitch("use-mock-keychain");
+#endif
 
 		// command_line->AppendSwitch("disable-gpu");
 		// command_line->AppendSwitch("disable-gpu-compositing");
