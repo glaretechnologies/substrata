@@ -56,7 +56,11 @@ int main(int argc, char* argv[])
 	CefScopedLibraryLoader library_loader;
 	if(!library_loader.LoadInHelper())
 		return 1;
-#endif
+#else // Else on Linux:
+
+	CefMainArgs main_args(argc, argv);
+	
+#endif // Endif on linux/
 
 	// Implementation of the CefApp interface.
 	CefRefPtr<WebViewDataCEFApp> app = new WebViewDataCEFApp();
