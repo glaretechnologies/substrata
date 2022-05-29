@@ -665,6 +665,8 @@ if(WIN32)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} /DYNAMICBASE:NO")
 elseif(APPLE)
 	
+    add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
+     
 	add_definitions(-D__MACOSX_CORE__) # Add CoreAudio config choice define for RTAudio
 	add_definitions(-DGL_SILENCE_DEPRECATION) # Tell Mac to shut up about OpenGL being deprecated
 	
@@ -675,8 +677,8 @@ elseif(APPLE)
 		#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
 		#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
 		
-#TEMP NO CEF ON MAC		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-#TEMP NO CEF ON MAC		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+        debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+        optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 		)
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
@@ -686,6 +688,8 @@ elseif(APPLE)
  
     #Qt 6:
      #set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -F${INDIGO_QT_LIB_DIR} -framework QtCore -framework QtGui -framework QtWidgets -framework QtNetwork -framework QtOpenGL -framework QtOpenGLWidgets -framework QtMultimedia -framework OpenGL -framework Security -framework CoreAudio -framework CoreFoundation -framework AudioToolbox -framework QtCore5Compat")
+     
+     #add_dependencies(${CURRENT_TARGET} "gui_client Helper.app")
      
 else() # linux
 
