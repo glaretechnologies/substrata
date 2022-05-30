@@ -21,7 +21,7 @@ void URLWhitelist::loadDefaultWhitelist()
 		// Video streaming
 		"www.youtube.com/",
 		"vimeo.com/",
-		"twitch.tv/",
+		"www.twitch.tv/",
 
 		// Audio streaming
 		"open.spotify.com/",
