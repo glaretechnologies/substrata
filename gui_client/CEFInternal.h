@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #endif
 #endif
 #include <string>
+#include <list>
 
 
 #if CEF_SUPPORT
