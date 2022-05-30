@@ -13,7 +13,6 @@ Copyright Glare Technologies Limited 2021 -
 #include <Task.h>
 #include <ThreadMessage.h>
 #include <string>
-class MainWindow;
 class OpenGLEngine;
 class MeshManager;
 class ResourceManager;
@@ -42,7 +41,7 @@ For the WorldObject ob,
 Builds the OpenGL mesh and Physics mesh for it.
 
 Once it's done, sends a ModelLoadedThreadMessage back to the main window
-via main_window->msg_queue.
+via result_msg_queue.
 
 Note for making the OpenGL Mesh, data isn't actually loaded into OpenGL in this task,
 since that needs to be done on the main thread.
@@ -60,8 +59,9 @@ public:
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
 	int voxel_ob_lod_level; // If we are loading a voxel model, the LOD level of the object.
 
+	Reference<RayMesh> unit_cube_raymesh;
 	Reference<OpenGLEngine> opengl_engine;
-	MainWindow* main_window;
 	Reference<ResourceManager> resource_manager;
 	glare::TaskManager* model_building_task_manager;
+	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };

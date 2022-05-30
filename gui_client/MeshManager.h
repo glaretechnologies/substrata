@@ -6,10 +6,10 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
-#include <opengl/OpenGLEngine.h>
+#include <opengl/GLMemUsage.h>
 #include <simpleraytracer/raymesh.h>
-
-
+#include <map>
+class OpenGLMeshRenderData;
 class MeshManager;
 
 

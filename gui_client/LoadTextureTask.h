@@ -8,9 +8,10 @@ Copyright Glare Technologies Limited 2019 -
 
 #include <Task.h>
 #include <ThreadMessage.h>
+#include <ThreadSafeQueue.h>
 #include <string>
-class MainWindow;
 class OpenGLEngine;
+class TextureServer;
 
 
 class TextureLoadedThreadMessage : public ThreadMessage
@@ -31,13 +32,14 @@ LoadTextureTask
 class LoadTextureTask : public glare::Task
 {
 public:
-	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, const std::string& path_, bool use_sRGB);
+	LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, bool use_sRGB);
 
 	virtual void run(size_t thread_index);
 
 private:
 	Reference<OpenGLEngine> opengl_engine;
-	MainWindow* main_window;
+	TextureServer* texture_server;
+	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 	std::string path;
 	bool use_sRGB;
 };

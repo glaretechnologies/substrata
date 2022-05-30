@@ -18,8 +18,8 @@ Copyright Glare Technologies Limited 2016 -
 #include "vec3.h"
 #include <physics/jscol_aabbox.h>
 #if GUI_CLIENT
-#include "../gui_client/MeshManager.h"
-#include <graphics/ImageMap.h>
+//#include "../gui_client/MeshManager.h"
+//#include <graphics/ImageMap.h>
 #endif
 #include <string>
 #include <vector>
@@ -34,6 +34,9 @@ namespace Indigo { class SceneNodeModel; }
 namespace js { class AABBox; }
 class WebViewData;
 struct AnimatedTexObData;
+struct MeshData;
+class UInt8ComponentValueTraits;
+template <class V, class ComponentValueTraits> class ImageMap;
 
 
 class Voxel
@@ -213,7 +216,7 @@ public:
 	};
 	AudioState audio_state;
 
-	ImageMapUInt8Ref hypercard_map;
+	Reference<ImageMap<uint8, UInt8ComponentValueTraits> > hypercard_map;
 
 	Reference<Indigo::SceneNodeModel> indigo_model_node;
 

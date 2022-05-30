@@ -6,7 +6,6 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
-#include "MainWindow.h"
 #if CEF_SUPPORT  // CEF_SUPPORT will be defined in CMake (or not).
 #include <cef_app.h>
 #include <cef_client.h>

@@ -9,9 +9,12 @@ Copyright Glare Technologies Limited 2022 -
 #include "MainWindow.h"
 #include "CEFInternal.h"
 #include "CEF.h"
+#include "URLWhitelist.h"
 #include "../shared/WorldObject.h"
 #include "../qt/QtUtils.h"
 #include "../audio/AudioEngine.h"
+#include <opengl/OpenGLEngine.h>
+#include <opengl/IncludeOpenGL.h>
 #include <Escaping.h>
 #include <FileInStream.h>
 #include <PlatformUtils.h>
@@ -757,7 +760,7 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 		{
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
-				const bool URL_in_whitelist = main_window->world_state->url_whitelist.isURLPrefixInWhitelist(ob->target_url);
+				const bool URL_in_whitelist = main_window->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
 				if(user_clicked_to_load || URL_in_whitelist)
 				{
 					main_window->logMessage("Creating browser, target_url: " + ob->target_url);
@@ -800,7 +803,7 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 			{
 				// conPrint("Webview loading URL '" + ob->target_url + "'...");
 
-				const bool URL_in_whitelist = main_window->world_state->url_whitelist.isURLPrefixInWhitelist(ob->target_url);
+				const bool URL_in_whitelist = main_window->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
 				if(URL_in_whitelist)
 				{
 					browser->navigate(ob->target_url);

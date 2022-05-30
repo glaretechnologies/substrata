@@ -4,7 +4,9 @@ MainWindow.cpp
 Copyright Glare Technologies Limited 2020 -
 =====================================================================*/
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #endif
 
 
@@ -37,6 +39,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "ResetPasswordDialog.h"
 #include "ChangePasswordDialog.h"
 #include "URLWidget.h"
+#include "URLWhitelist.h"
 #include "URLParser.h"
 #include "LoadModelTask.h"
 #include "LoadTextureTask.h"
@@ -116,6 +119,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../graphics/jpegdecoder.h"
 #include "../opengl/GLMeshBuilding.h"
 #include "../opengl/MeshPrimitiveBuilding.h"
+#include <opengl/OpenGLMeshRenderData.h>
 #if defined(_WIN32)
 #include "../video/WMFVideoReader.h"
 #endif
@@ -836,7 +840,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
 			}
 		}
 
@@ -852,7 +856,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/false));
 			}
 		}
 	}
@@ -870,7 +874,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 		{
 			const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 			if(just_added)
-				load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+				load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
 		}
 	}
 #endif
@@ -893,7 +897,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/true));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
 			}
 		}
 
@@ -908,7 +912,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_leve
 			{
 				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/false));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/false));
 			}
 		}
 	}
@@ -1315,7 +1319,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					if(just_added) // not being loaded already:
 					{
 						Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
-						task->main_window = this;
+						task->result_msg_queue = &this->msg_queue;
 						task->hypercard_content = ob->content;
 						task->opengl_engine = ui->glWidget->opengl_engine;
 						load_item_queue.enqueueItem(*ob, task);
@@ -1404,7 +1408,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 				load_model_task->voxel_ob_lod_level = ob_model_lod_level;
 				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-				load_model_task->main_window = this;
+				load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+				load_model_task->result_msg_queue = &this->msg_queue;
 				load_model_task->resource_manager = resource_manager;
 				load_model_task->voxel_ob = ob;
 				load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
@@ -1491,7 +1496,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 							load_model_task->lod_model_url = lod_model_url;
 							load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-							load_model_task->main_window = this;
+							load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
@@ -1665,7 +1671,8 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 
 					load_model_task->lod_model_url = lod_model_url;
 					load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-					load_model_task->main_window = this;
+					load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
@@ -1742,7 +1749,8 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 		if(just_inserted)
 		{
 			Reference<LoadScriptTask> task = new LoadScriptTask();
-			task->main_window = this;
+			task->base_dir_path = base_dir_path;
+			task->result_msg_queue = &msg_queue;
 			task->script_content = ob->script;
 			load_item_queue.enqueueItem(*ob, task);
 		}
@@ -1872,7 +1880,7 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 			{
 				const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
 				if(resource_manager->isFileForURLPresent(URL))
-					load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this, /*path=*/resource_manager->pathForURL(URL), /*use_sRGB=*/true));
+					load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/resource_manager->pathForURL(URL), /*use_sRGB=*/true));
 				else
 				{
 					DownloadingResourceInfo info;
@@ -1953,7 +1961,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 
 						load_audio_task->audio_source_url = ob->audio_source_url;
 						load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
-						load_audio_task->main_window = this;
+						load_audio_task->result_msg_queue = &this->msg_queue;
 
 						load_item_queue.enqueueItem(*ob, load_audio_task);
 					}
@@ -4354,7 +4362,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
 								if(just_added)
-									load_item_queue.enqueueItem(pos, size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this, tex_path, /*use_sRGB=*/use_SRGB)); 
+									load_item_queue.enqueueItem(pos, size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_SRGB)); 
 							}
 						}
 						else if(hasAudioFileExtension(local_path))
@@ -4381,7 +4389,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								load_model_task->lod_model_url = URL;
 								load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-								load_model_task->main_window = this;
+								load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+								load_model_task->result_msg_queue = &this->msg_queue;
 								load_model_task->resource_manager = resource_manager;
 								load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
@@ -7372,7 +7381,7 @@ void MainWindow::objectEditedSlot()
 							if(just_added) // not being loaded already:
 							{
 								Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
-								task->main_window = this;
+								task->result_msg_queue = &this->msg_queue;
 								task->hypercard_content = selected_ob->content;
 								task->opengl_engine = ui->glWidget->opengl_engine;
 								load_item_queue.enqueueItem(*this->selected_ob, task);
@@ -7820,7 +7829,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	this->cam_controller.resetRotation();
 
 	world_state = new WorldState();
-	world_state->url_whitelist.loadDefaultWhitelist();
+	world_state->url_whitelist->loadDefaultWhitelist();
 
 	const std::string avatar_path = QtUtils::toStdString(settings->value("avatarPath").toString());
 

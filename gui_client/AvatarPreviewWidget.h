@@ -3,6 +3,7 @@
 
 #include "../utils/IncludeWindows.h" // This needs to go first for NOMINMAX.
 #include "../opengl/OpenGLEngine.h"
+#include "../opengl/OpenGLMeshRenderData.h"
 #include "../maths/vec2.h"
 #include "../maths/vec3.h"
 #include "../utils/Timer.h"

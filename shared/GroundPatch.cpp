@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <ShouldCancelCallback.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
+#include "opengl/OpenGLMeshRenderData.h"
 #endif
 #include "../gui_client/PhysicsObject.h"
 #include <StandardPrintOutput.h>

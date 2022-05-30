@@ -6,6 +6,8 @@ Copyright Glare Technologies Limited 2022 -
 #include "MeshManager.h"
 
 
+#include <opengl/OpenGLEngine.h>
+#include <opengl/OpenGLMeshRenderData.h>
 #include <utils/PlatformUtils.h>
 
 

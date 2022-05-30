@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include <Task.h>
 #include <ThreadMessage.h>
+#include <ThreadSafeQueue.h>
 #include <string>
 #include <vector>
 class MainWindow;
@@ -37,6 +38,6 @@ public:
 	virtual void run(size_t thread_index);
 
 	Reference<OpenGLEngine> opengl_engine;
-	MainWindow* main_window;
 	std::string hypercard_content;
+	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };

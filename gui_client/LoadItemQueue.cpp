@@ -8,6 +8,8 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "../shared/WorldObject.h"
 #include "../shared/Avatar.h"
+#include <opengl/OpenGLMeshRenderData.h>
+#include <graphics/BatchedMesh.h>
 #include <ConPrint.h>
 #include <Timer.h>
 #include <Lock.h>

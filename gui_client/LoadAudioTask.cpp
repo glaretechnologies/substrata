@@ -6,9 +6,10 @@ Copyright Glare Technologies Limited 2021 -
 #include "LoadAudioTask.h"
 
 
-#include "MainWindow.h"
 #include <ConPrint.h>
+#include <StringUtils.h>
 #include <PlatformUtils.h>
+#include <ThreadSafeQueue.h>
 #include "../audio/AudioFileReader.h"
 
 
@@ -57,7 +58,7 @@ void LoadAudioTask::run(size_t thread_index)
 
 		// conPrint("Loaded audio data '" + audio_source_path + "': " + toString(msg->data.size() * sizeof(float)) + " B");
 
-		main_window->msg_queue.enqueue(msg);
+		result_msg_queue->enqueue(msg);
 	}
 	catch(glare::Exception& e)
 	{
