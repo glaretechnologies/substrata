@@ -289,6 +289,8 @@ if(APPLE)
 else()
 	SET(browser_process_suffix "")
 	ADD_SUBDIRECTORY(browser_process browser_process)
+
+	add_dependencies("gui_client" "browser_process")
 endif()
 
 if(APPLE)
@@ -318,8 +320,8 @@ if(APPLE)
 		browser_process_plugin
 	)
  
-    add_dependencies("gui_client" "gui_client_Helper")
-    add_dependencies("gui_client" "gui_client_Helper_GPU")
-    add_dependencies("gui_client" "gui_client_Helper_Renderer")
-    add_dependencies("gui_client" "gui_client_Helper_Plugin")
+	add_dependencies("gui_client" "gui_client_Helper")
+	add_dependencies("gui_client" "gui_client_Helper_GPU")
+	add_dependencies("gui_client" "gui_client_Helper_Renderer")
+	add_dependencies("gui_client" "gui_client_Helper_Plugin")
 endif()
