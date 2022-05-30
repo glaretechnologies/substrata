@@ -8337,7 +8337,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		}
 	}
 
-	if(grabbed_axis != -1)
+	if(grabbed_axis != -1 && selected_ob.nonNull())
 	{
 		undo_buffer.finishWorldObjectEdit(*selected_ob);
 		grabbed_axis = -1;
@@ -9153,6 +9153,8 @@ void MainWindow::deselectObject()
 		ui->objectEditor->setEnabled(false);
 
 		this->selected_ob = NULL;
+
+		grabbed_axis = -1;
 
 		this->shown_object_modification_error_msg = false;
 
