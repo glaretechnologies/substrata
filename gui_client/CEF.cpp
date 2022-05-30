@@ -70,6 +70,7 @@ public:
 
 
 static bool CEF_initialised = false;
+static bool CEF_initialisation_failed = false;
 CefRefPtr<GlareCEFApp> glare_cef_app;
 
 
@@ -82,7 +83,7 @@ bool CEF::isInitialised()
 void CEF::initialiseCEF(const std::string& base_dir_path)
 {
 	assert(!CEF_initialised);
-	if(CEF_initialised)
+	if(CEF_initialised || CEF_initialisation_failed)
 		return;
 
 #ifdef OSX
@@ -123,6 +124,7 @@ void CEF::initialiseCEF(const std::string& base_dir_path)
 	else
 	{
 		conPrint("CefInitialize failed.");
+		CEF_initialisation_failed = true;
 	}
 }
 
