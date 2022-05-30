@@ -8,6 +8,8 @@ Copyright Glare Technologies Limited 2019 -
 
 #include "PhysicsObject.h"
 #include "../shared/ResourceManager.h"
+#include <opengl/OpenGLMeshRenderData.h>
+#include <graphics/BatchedMesh.h>
 #include <maths/matrix3.h>
 #include <maths/Matrix4f.h>
 #include <ConPrint.h>

@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2021 -
 #include "BiomeManager.h"
 
 
+#include <opengl/OpenGLEngine.h>
+#include <opengl/OpenGLMeshRenderData.h>
+#include "MeshManager.h"
 #include "WorldState.h"
 #include "PhysicsObject.h"
 #include "PhysicsWorld.h"
@@ -224,6 +227,7 @@ finished_looping:
 }
 
 
+#if 0
 static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, OpenGLTextureRef grass_tex)
 {
 	std::vector<WorldMaterialRef> materials(1);
@@ -263,6 +267,7 @@ static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshMa
 
 	return grass_ob;
 }
+#endif
 
 
 GLObjectRef BiomeManager::makeElmTreeOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)

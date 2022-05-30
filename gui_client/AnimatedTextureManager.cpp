@@ -12,6 +12,8 @@ Copyright Glare Technologies Limited 2022-
 #include "FileInStream.h"
 #include "CEFInternal.h"
 #include "CEF.h"
+#include <opengl/OpenGLEngine.h>
+#include <opengl/IncludeOpenGL.h>
 #include <utils/Base64.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
@@ -453,6 +455,8 @@ public:
 	virtual bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
 		CefAudioParameters& params) override 
 	{
+		// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": GetAudioParameters().");
+
 		params.sample_rate = main_window->audio_engine.getSampleRate();
 		return true;
 	}
@@ -463,6 +467,8 @@ public:
 		const CefAudioParameters& params,
 		int channels) override
 	{
+		// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": OnAudioStreamStarted().");
+
 		// Create audio source
 		if(ob && ob->audio_source.isNull())
 		{
@@ -622,6 +628,8 @@ public:
 
 static Reference<AnimatedTexCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex)
 {
+	// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": creating browser.");
+
 	Reference<AnimatedTexCEFBrowser> browser = new AnimatedTexCEFBrowser(new AnimatedTexRenderHandler(opengl_tex), CEF::getLifespanHandler());
 
 	CefWindowInfo window_info;

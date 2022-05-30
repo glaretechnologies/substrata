@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "opengl/OpenGLEngine.h"
 #include "opengl/MeshPrimitiveBuilding.h"
+#include "opengl/OpenGLMeshRenderData.h"
 #include "../dll/include/IndigoMesh.h"
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>

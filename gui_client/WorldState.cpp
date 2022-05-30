@@ -1,12 +1,12 @@
 /*=====================================================================
 WorldState.cpp
--------------------
-Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-12 12:22:34 +1300
+--------------
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "WorldState.h"
 
 
+#include "URLWhitelist.h"
 #include <ConPrint.h>
 #include <StringUtils.h>
 #include <Clock.h>
@@ -19,12 +19,13 @@ WorldState::WorldState()
 	correction_start_time(0),
 	correction_amount(0)
 {
+	url_whitelist = new URLWhitelist();
 }
 
 
 WorldState::~WorldState()
 {
-
+	delete url_whitelist;
 }
 
 

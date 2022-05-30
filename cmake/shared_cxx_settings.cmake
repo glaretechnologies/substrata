@@ -99,6 +99,8 @@ if(WIN32)
 	# include <sanitizer/asan_interface.h>
 	# addIncludeDirectory("C:/Program Files/Microsoft Visual Studio/2022/Preview/VC/Tools/MSVC/14.32.31302/crt/src")
 
+	add_definitions(-DWIN32_LEAN_AND_MEAN) # Speed up parsing of Windows.h
+
 	add_definitions(-DUNICODE -D_UNICODE)
 	add_definitions(/MP)
 	

@@ -6,12 +6,14 @@ Copyright Glare Technologies Limited 2022 -
 #include "MakeHypercardTextureTask.h"
 
 
-#include "MainWindow.h"
 #include "WinterShaderEvaluator.h"
-#include <QtGui/QPainter>
 #include "../qt/QtUtils.h"
-#include <ConPrint.h>
-#include <PlatformUtils.h>
+#include <graphics/ImageMap.h>
+#include <opengl/TextureLoading.h>
+#include <opengl/OpenGLEngine.h>
+#include <utils/ConPrint.h>
+#include <utils/PlatformUtils.h>
+#include <QtGui/QPainter>
 
 
 MakeHypercardTextureTask::MakeHypercardTextureTask()
@@ -57,7 +59,7 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 
 		Reference<HypercardTexMadeMessage> msg = new HypercardTexMadeMessage();
 		msg->hypercard_content = hypercard_content;
-		main_window->msg_queue.enqueue(msg);
+		result_msg_queue->enqueue(msg);
 	}
 	catch(glare::Exception& e)
 	{

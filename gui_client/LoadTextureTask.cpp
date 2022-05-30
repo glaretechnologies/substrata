@@ -6,7 +6,6 @@ Copyright Glare Technologies Limited 2019 -
 #include "LoadTextureTask.h"
 
 
-#include "MainWindow.h"
 #include "../shared/ImageDecoding.h"
 #include <indigo/TextureServer.h>
 #include <graphics/ImageMapSequence.h>
@@ -18,8 +17,8 @@ Copyright Glare Technologies Limited 2019 -
 #include <IncludeHalf.h>
 
 
-LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, MainWindow* main_window_, const std::string& path_, bool use_sRGB_)
-:	opengl_engine(opengl_engine_), main_window(main_window_), path(path_), use_sRGB(use_sRGB_)
+LoadTextureTask::LoadTextureTask(const Reference<OpenGLEngine>& opengl_engine_, TextureServer* texture_server_, ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue_, const std::string& path_, bool use_sRGB_)
+:	opengl_engine(opengl_engine_), texture_server(texture_server_), result_msg_queue(result_msg_queue_), path(path_), use_sRGB(use_sRGB_)
 {}
 
 
@@ -29,9 +28,9 @@ void LoadTextureTask::run(size_t thread_index)
 	{
 		// conPrint("LoadTextureTask: processing texture '" + path + "'");
 
-		const std::string key = main_window->texture_server->keyForPath(path); // Get canonical path.  May throw TextureServerExcep
+		const std::string key = texture_server->keyForPath(path); // Get canonical path.  May throw TextureServerExcep
 
-		if(main_window->texture_server->isTextureLoadedForRawName(key)) // If this texture is already loaded, return.
+		if(texture_server->isTextureLoadedForRawName(key)) // If this texture is already loaded, return.
 			return;
 
 		// Load texture from disk and decode it.
@@ -81,7 +80,7 @@ void LoadTextureTask::run(size_t thread_index)
 			}
 
 
-			main_window->texture_server->insertTextureForRawName(map, key);
+			texture_server->insertTextureForRawName(map, key);
 		}
 
 		// Send a message to MainWindow saying the texture has been loaded
@@ -90,7 +89,7 @@ void LoadTextureTask::run(size_t thread_index)
 		msg->tex_key = key;
 		msg->use_sRGB = use_sRGB;
 		msg->tex_is_8_bit = is_8_bit;
-		main_window->msg_queue.enqueue(msg);
+		result_msg_queue->enqueue(msg);
 	}
 	catch(TextureServerExcep& e)
 	{

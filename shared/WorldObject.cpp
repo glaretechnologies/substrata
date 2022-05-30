@@ -15,11 +15,14 @@ Copyright Glare Technologies Limited 2016 -
 #include <BufferInStream.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
+#include "opengl/OpenGLMeshRenderData.h"
 #include "../audio/AudioEngine.h"
 #include <SceneNodeModel.h>
 #include "../gui_client/WinterShaderEvaluator.h"
 #include "../gui_client/WebViewData.h"
 #include "../gui_client/AnimatedTextureManager.h"
+#include "../gui_client/MeshManager.h"
+#include <graphics/ImageMap.h>
 #endif
 #include "../gui_client/PhysicsObject.h"
 #include "../shared/ResourceManager.h"

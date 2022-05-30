@@ -10,6 +10,8 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "ResourceManager.h"
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
+#include "opengl/OpenGLMeshRenderData.h"
+#include "../gui_client/MeshManager.h"
 #include "../gui_client/AvatarGraphics.h"
 #endif
 #include <utils/ConPrint.h>

@@ -29,6 +29,7 @@ Code By Nicholas Chapman.
 #include "../utils/Sort.h"
 #include "../utils/IncludeHalf.h"
 #include "../opengl/GLMeshBuilding.h"
+#include "../opengl/IncludeOpenGL.h"
 #include "../indigo/UVUnwrapper.h"
 #include <limits>
 

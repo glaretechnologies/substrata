@@ -6,12 +6,15 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
-#include <opengl/OpenGLEngine.h>
-
-
+#include <utils/RefCounted.h>
+#include <utils/Reference.h>
+#include <string>
+#include <vector>
 class MainWindow;
 class WorldObject;
 class AnimatedTexCEFBrowser;
+class OpenGLEngine;
+class TextureData;
 
 
 // Each material can potentially have its own animation.  This is thus per-material data.

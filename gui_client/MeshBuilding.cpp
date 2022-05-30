@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include <opengl/OpenGLEngine.h>
 #include <opengl/GLMeshBuilding.h>
+#include <opengl/OpenGLMeshRenderData.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <simpleraytracer/raymesh.h>

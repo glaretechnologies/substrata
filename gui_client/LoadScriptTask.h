@@ -8,9 +8,9 @@ Copyright Glare Technologies Limited 2022 -
 
 #include <Task.h>
 #include <ThreadMessage.h>
+#include <ThreadSafeQueue.h>
 #include <string>
 #include <vector>
-class MainWindow;
 class WinterShaderEvaluator;
 
 
@@ -25,7 +25,7 @@ public:
 /*=====================================================================
 LoadScriptTask
 --------------
-
+Loads a Winter script.
 =====================================================================*/
 class LoadScriptTask : public glare::Task
 {
@@ -36,5 +36,6 @@ public:
 	virtual void run(size_t thread_index);
 
 	std::string script_content;
-	MainWindow* main_window;
+	std::string base_dir_path;
+	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };

@@ -6,9 +6,10 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
-#include <opengl/OpenGLEngine.h>
-#include <opengl/WGL.h>
 #include <utils/Timer.h>
+#include <utils/RefCounted.h>
+#include <utils/Reference.h>
+#include <maths/vec2.h>
 #include <QtGui/QImage>
 #include <QtCore/QObject>
 #include <map>
@@ -20,6 +21,7 @@ class QKeyEvent;
 class QWheelEvent;
 class WebViewDataCEFApp;
 class WebViewCEFBrowser;
+class OpenGLEngine;
 
 
 class WebViewData : public QObject, public RefCounted

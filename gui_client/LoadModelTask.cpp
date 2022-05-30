@@ -6,10 +6,12 @@ Copyright Glare Technologies Limited 2021 -
 #include "LoadModelTask.h"
 
 
-#include "MainWindow.h"
 #include "LoadTextureTask.h"
+#include "ModelLoading.h"
+#include "../shared/ResourceManager.h"
 #include <indigo/TextureServer.h>
 #include <opengl/OpenGLEngine.h>
+#include <opengl/OpenGLMeshRenderData.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 
@@ -38,7 +40,7 @@ void LoadModelTask::run(size_t thread_index)
 			{
 				// Add dummy cube marker for zero-voxel case.
 				gl_meshdata = opengl_engine->getCubeMeshData();
-				raymesh = main_window->unit_cube_raymesh;
+				raymesh = unit_cube_raymesh;
 			}
 			else
 			{
@@ -79,7 +81,7 @@ void LoadModelTask::run(size_t thread_index)
 		msg->voxel_ob = voxel_ob;
 		msg->voxel_ob_lod_level = voxel_ob_lod_level;
 		msg->subsample_factor = subsample_factor;
-		main_window->msg_queue.enqueue(msg);
+		result_msg_queue->enqueue(msg);
 	}
 	catch(glare::Exception& e)
 	{

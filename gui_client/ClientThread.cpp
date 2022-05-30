@@ -10,7 +10,8 @@ Generated at 2016-01-16 22:59:23 +1300
 #include "WorldState.h"
 #include <MySocket.h>
 #include <TLSSocket.h>
-#include "MainWindow.h"
+#include <opengl/OpenGLMeshRenderData.h>
+#include <graphics/BatchedMesh.h>
 #include "../shared/Protocol.h"
 #include "../shared/Parcel.h"
 #include <vec3.h>
@@ -19,6 +20,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <StringUtils.h>
 #include <PlatformUtils.h>
 #include <ConPrint.h>
+#include <Clock.h>
 
 
 static const bool VERBOSE = false;

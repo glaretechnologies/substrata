@@ -24,7 +24,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "MeshManager.h"
 #include "../opengl/OpenGLEngine.h"
 #include "../opengl/TextureLoading.h"
-#include "../opengl/WGL.h"
+//#include "../opengl/WGL.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
 #include "../indigo/ThreadContext.h"

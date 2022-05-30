@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
-#include <opengl/OpenGLEngine.h>
+
 #include "../shared/WorldObject.h"
 #include "../simpleraytracer/raymesh.h"
 #include <map>
@@ -17,6 +17,8 @@ class PhysicsWorld;
 class MeshManager;
 class OpenGLEngine;
 class VertexBufferAllocator;
+struct GLObject;
+class OpenGLTexture;
 
 
 struct BiomeObInstance
@@ -28,7 +30,7 @@ struct BiomeObInstance
 
 struct ObBiomeData : public RefCounted
 {
-	std::vector<GLObjectRef> opengl_obs;
+	std::vector<Reference<GLObject> > opengl_obs;
 	std::vector<Reference<PhysicsObject>> physics_objects;
 };
 
@@ -53,28 +55,28 @@ public:
 
 	bool isObjectInBiome(WorldObject* world_ob) const { return ob_to_biome_data.count(world_ob) > 0; }
 
-	OpenGLTextureRef elm_imposters_tex;
-	OpenGLTextureRef elm_leaf_tex;
-	OpenGLTextureRef elm_leaf_backface_tex;
-	OpenGLTextureRef elm_leaf_transmission_tex;
-	OpenGLTextureRef grass_tex;
+	Reference<OpenGLTexture> elm_imposters_tex;
+	Reference<OpenGLTexture> elm_leaf_tex;
+	Reference<OpenGLTexture> elm_leaf_backface_tex;
+	Reference<OpenGLTexture> elm_leaf_transmission_tex;
+	Reference<OpenGLTexture> grass_tex;
 
 	void update(const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine);
 
 	
 
 private:
-	GLObjectRef makeElmTreeOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out);
-	GLObjectRef makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
+	Reference<GLObject> makeElmTreeOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out);
+	Reference<GLObject> makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
 
 	struct Patch;
 	void updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w, const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine);
 
-	GLObjectRef grass_ob;
+	Reference<GLObject> grass_ob;
 
 	struct Patch
 	{
-		std::vector<GLObjectRef> opengl_obs;
+		std::vector<Reference<GLObject> > opengl_obs;
 		bool in_new_set;
 	};
 	std::map<Vec2i, Patch> patches_a;
