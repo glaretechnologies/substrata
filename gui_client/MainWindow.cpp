@@ -824,6 +824,23 @@ static inline bool isValidImageTextureURL(const std::string& URL)
 }
 
 
+static inline bool isValidLightMapURL(const std::string& URL)
+{
+	if(URL.empty())
+		return false;
+	else
+	{
+#ifdef OSX
+		// KTX and KTX2 files used for lightmaps use bc6h compression, which mac doesn't support.  So don't try and load them on Mac.
+		const string_view extension = getExtensionStringView(URL);
+		return ImageDecoding::hasSupportedImageExtension(URL) && (extension != "ktx") && (extension != "ktx2");
+#else
+		return ImageDecoding::hasSupportedImageExtension(URL);
+#endif
+	}
+}
+
+
 void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level)
 {
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
@@ -862,8 +879,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	}
 
 	// Start loading lightmap
-#if 1 //!defined(OSX) // We don't support lightmaps on Mac due to lack of BC6H texture support.
-	if(isValidImageTextureURL(ob.lightmap_url))
+	if(isValidLightMapURL(ob.lightmap_url))
 	{
 		const std::string lod_tex_url = WorldObject::getLODLightmapURL(ob.lightmap_url, ob_lod_level);
 		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
@@ -877,7 +893,6 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 				load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
 		}
 	}
-#endif
 }
 
 
@@ -1115,50 +1130,69 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		{
 			if(!::hasExtensionStringView(ob->materials[z]->colour_texture_url, "mp4")) // If not a mp4 texture - we won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
 			{
-				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
-
-				if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+				try
 				{
-					if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
+					opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+
+					if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 					{
-						// Try and use a different LOD level of the texture, that is actually loaded.
-						opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
-						opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+						if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
+						{
+							// Try and use a different LOD level of the texture, that is actually loaded.
+							opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
+							opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+						}
 					}
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("error loading texture: " + e.what());
 				}
 			}
 		}
 
 		if(isNonEmptyAndNotMp4(opengl_mat.metallic_roughness_tex_path))
 		{
-			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
-
-			if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			try
 			{
-				if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
+				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
+
+				if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 				{
-					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+					if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
+					{
+						// Try and use a different LOD level of the texture, that is actually loaded.
+						opengl_mat.metallic_roughness_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+					}
 				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
 			}
 		}
 
-#if 1 // !defined(OSX)
-		if(isNonEmptyAndNotMp4(opengl_mat.lightmap_path))
+		if(isValidLightMapURL(opengl_mat.lightmap_path))//  isNonEmptyAndNotMp4(opengl_mat.lightmap_path))
 		{
-			//conPrint("Trying to use " + opengl_mat.lightmap_path);
-			opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
-
-			//printVar(opengl_mat.lightmap_texture.isNull());
-			if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			try
 			{
-				// Try and use a different LOD level of the lightmap, that is actually loaded.
-				opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine);
+				//conPrint("Trying to use " + opengl_mat.lightmap_path);
+				opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
+
+				//printVar(opengl_mat.lightmap_texture.isNull());
+				if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+				{
+					// Try and use a different LOD level of the lightmap, that is actually loaded.
+					opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine);
+				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
 			}
 		}
 		else
 			opengl_mat.lightmap_texture = NULL;
-#endif
 	}
 }
 
@@ -1175,30 +1209,44 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 		OpenGLMaterial& opengl_mat = gl_ob->materials[z];
 		if(isNonEmptyAndNotMp4(opengl_mat.tex_path))
 		{
-			opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
-
-			if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			try
 			{
-				if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
+				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+
+				if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 				{
-					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.albedo_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->colour_texture_url), av->avatar_settings.materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
-					opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+					if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
+					{
+						// Try and use a different LOD level of the texture, that is actually loaded.
+						opengl_mat.albedo_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->colour_texture_url), av->avatar_settings.materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
+						opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
+					}
 				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
 			}
 		}
 
 		if(isNonEmptyAndNotMp4(opengl_mat.metallic_roughness_tex_path))
 		{
-			opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
-
-			if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+			try
 			{
-				if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
+				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
+
+				if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 				{
-					// Try and use a different LOD level of the texture, that is actually loaded.
-					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+					if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
+					{
+						// Try and use a different LOD level of the texture, that is actually loaded.
+						opengl_mat.metallic_roughness_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+					}
 				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
 			}
 		}
 	}
