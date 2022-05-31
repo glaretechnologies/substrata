@@ -9211,6 +9211,9 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	{
 		ui->glWidget->setKeyboardCameraMoveEnabled(false); // We don't want WASD keys etc. to move the camera while we enter text into the webview, so disable camera moving from the keyboard.
 		selected_ob->web_view_data->keyPressed(e);
+
+		if(keyIsDeleteKey(e->key()))
+			showInfoNotification("Use Edit > Delete Object menu command to delete object.");
 		return;
 	}
 	else
