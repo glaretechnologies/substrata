@@ -1,3 +1,28 @@
+0.90, 0.91
+==========
+Added web view - embeds a web browser in an object.
+Made video (mp4) playback use embedded web browser.  Now works on all platforms (windows, mac, linux), fixes stutters on Windows.
+Allocating mesh data from 1 or a few VBOS: gives better FPS.
+Loading mesh data in chunks, reduces stuttering.
+Fixed issue with multiple LoadModelTasks being created for a single model, and hence not all placeholder box models showing up.
+Moved hypercard texture making off the main thread. (reduces stuttering)
+Moved script loading into a task. (reduces stuttering)
+Reduced list of accepted audio file formats to just .wav and .mp3 for now.
+Refactored and optimised audio file loading.
+Uploading lightmaps as DWAB exrs instead of bc6h ktx2 files.
+Fixed substrata not closing on linux properly
+Using pulse audio instead of alsa on linux.
+Enabling showing EXR lightmaps on mac.
+Don't try to re-download resources if we already failed to download this session.
+Added crash reporting with BugSplat on Windows.
+Removed BMP and TGA from list of supported image formats.
+Added LoadItemQueue. Sorting loading items by proximity to camera and size.
+
+0.89
+====
+Various 3d engine optimisations:
+VAO sharing, bindless textures etc.
+
 0.88
 ====
 Select just-created objects.
