@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../audio/AudioEngine.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/IncludeOpenGL.h>
+#include <maths/vec2.h>
 #include <Escaping.h>
 #include <FileInStream.h>
 #include <PlatformUtils.h>
