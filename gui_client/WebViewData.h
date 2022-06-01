@@ -9,7 +9,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/Timer.h>
 #include <utils/RefCounted.h>
 #include <utils/Reference.h>
-#include <maths/vec2.h>
 #include <QtGui/QImage>
 #include <QtCore/QObject>
 #include <map>
@@ -22,6 +21,7 @@ class QWheelEvent;
 class WebViewDataCEFApp;
 class WebViewCEFBrowser;
 class OpenGLEngine;
+template <class T> class Vec2;
 
 
 class WebViewData : public QObject, public RefCounted
@@ -35,12 +35,12 @@ public:
 
 	static const double maxBrowserDist() { return 20.0; }
 
-	void mousePressed(QMouseEvent* e, const Vec2f& uv_coords);
-	void mouseReleased(QMouseEvent* e, const Vec2f& uv_coords);
-	void mouseDoubleClicked(QMouseEvent* e, const Vec2f& uv_coords);
-	void mouseMoved(QMouseEvent* e, const Vec2f& uv_coords);
+	void mousePressed(QMouseEvent* e, const Vec2<float>& uv_coords);
+	void mouseReleased(QMouseEvent* e, const Vec2<float>& uv_coords);
+	void mouseDoubleClicked(QMouseEvent* e, const Vec2<float>& uv_coords);
+	void mouseMoved(QMouseEvent* e, const Vec2<float>& uv_coords);
 
-	void wheelEvent(QWheelEvent* e, const Vec2f& uv_coords);
+	void wheelEvent(QWheelEvent* e, const Vec2<float>& uv_coords);
 
 	void keyPressed(QKeyEvent* e);
 	void keyReleased(QKeyEvent* e);
