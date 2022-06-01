@@ -565,7 +565,7 @@ bool WebServerRequestHandler::handleWebSocketConnection(const web::RequestInfo& 
 	{
 		server->worker_thread_manager.addThread(worker_thread);
 	}
-	catch(MyThreadExcep& e)
+	catch(glare::Exception& e)
 	{
 		// Will get this when thread creation fails.
 		conPrint("ListenerThread failed to launch worker thread: " + e.what());
