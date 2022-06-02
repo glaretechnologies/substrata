@@ -23,6 +23,7 @@ Code By Nicholas Chapman.
 #include "../utils/StringUtils.h"
 #include "../utils/ConPrint.h"
 #include "../utils/FileChecksum.h"
+#include "../utils/TaskManager.h"
 #include "../indigo/TextureServer.h"
 #include "../qt/QtUtils.h"
 #include <QtWidgets/QMessageBox>
@@ -154,60 +155,11 @@ void AddObjectDialog::filenameChanged(QString& filename)
 }
 
 
-void AddObjectDialog::makeMeshForWidthAndHeight(glare::TaskManager& task_manager, const std::string& local_path, int w, int h)
+// Sets preview_gl_ob and loaded_object
+void AddObjectDialog::makeMeshForWidthAndHeight(glare::TaskManager& task_manager, const std::string& local_image_or_vid_path, int w, int h)
 {
-	float use_w, use_h;
-	if(w > h)
-	{
-		use_w = 1;
-		use_h = (float)h / (float)w;
-	}
-	else
-	{
-		use_h = 1;
-		use_w = (float)w / (float)h;
-	}
-
-	MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator);
-
-	const float depth = 0.02f;
-	const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
-
-	this->ob_cam_right_translation = -use_w/2;
-	this->ob_cam_up_translation   = -use_h/2;
-
-	this->preview_gl_ob = new GLObject();
-	preview_gl_ob->ob_to_world_matrix = use_matrix;
-	preview_gl_ob->mesh_data = results.opengl_mesh_data;
-	preview_gl_ob->materials.resize(2);
-
-	preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
-	preview_gl_ob->materials[0].tex_path = local_path;
-	preview_gl_ob->materials[0].roughness = 0.5f;
-	preview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
-
-	preview_gl_ob->materials[1].albedo_rgb = Colour3f(0.7f);
-	preview_gl_ob->materials[1].roughness = 0.5f;
-	preview_gl_ob->materials[1].tex_matrix = Matrix2f(1, 0, 0, -1);
-
-
-
-	this->loaded_object->scale = Vec3f(use_w, depth, use_h);
-	loaded_object->materials.resize(2);
-
-	loaded_object->materials[0] = new WorldMaterial();
-	loaded_object->materials[0]->colour_rgb = Colour3f(0.9f);
-	loaded_object->materials[0]->opacity = ScalarVal(1.f);
-	loaded_object->materials[0]->roughness = ScalarVal(0.5f);
-	loaded_object->materials[0]->colour_texture_url = local_path;
-
-	loaded_object->materials[1] = new WorldMaterial();
-	loaded_object->materials[1]->colour_rgb = Colour3f(0.7f);
-	loaded_object->materials[1]->opacity = ScalarVal(1.f);
-	loaded_object->materials[1]->roughness = ScalarVal(0.5f);
-
-	this->loaded_mesh = new BatchedMesh();
-	loaded_mesh->buildFromIndigoMesh(*results.indigo_mesh);
+	this->preview_gl_ob = ModelLoading::makeImageCube(*objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_or_vid_path, w, h,
+		this->loaded_mesh, *this->loaded_object);
 }
 
 
@@ -326,59 +278,9 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			// We will scale our model so it has the same aspect ratio.
 			Reference<Map2D> im = ImageDecoding::decodeImage(base_dir_path, local_path);
 
-			float use_w, use_h;
-			if(im->getMapWidth() > im->getMapHeight())
-			{
-				use_w = 1;
-				use_h = (float)im->getMapHeight() / (float)im->getMapWidth();
-			}
-			else
-			{
-				use_h = 1;
-				use_w = (float)im->getMapWidth() / (float)im->getMapHeight();
-			}
-
-			MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator);
-
-			const float depth = 0.02f;
-			const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
-
-			this->ob_cam_right_translation = -use_w/2;
-			this->ob_cam_up_translation    = -use_h/2;
-
-			preview_gl_ob = new GLObject();
-			preview_gl_ob->ob_to_world_matrix = use_matrix;
-			preview_gl_ob->mesh_data = results.opengl_mesh_data;
-			preview_gl_ob->materials.resize(2);
-
-			preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
-			preview_gl_ob->materials[0].tex_path = local_path;
-			preview_gl_ob->materials[0].roughness = 0.5f;
-			preview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
-
-			preview_gl_ob->materials[1].albedo_rgb = Colour3f(0.7f);
-			preview_gl_ob->materials[1].roughness = 0.5f;
-			preview_gl_ob->materials[1].tex_matrix = Matrix2f(1, 0, 0, -1);
-
-
-
-			loaded_object->scale = Vec3f(use_w, depth, use_h);
-			loaded_object->materials.resize(2);
-
-			loaded_object->materials[0] = new WorldMaterial();
-			loaded_object->materials[0]->colour_rgb = Colour3f(0.9f);
-			loaded_object->materials[0]->opacity = ScalarVal(1.f);
-			loaded_object->materials[0]->roughness = ScalarVal(0.5f);
-			loaded_object->materials[0]->colour_texture_url = local_path;
+			makeMeshForWidthAndHeight(task_manager, local_path, (int)im->getMapWidth(), (int)im->getMapHeight());
+			
 			BitUtils::setOrZeroBit(loaded_object->materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, LODGeneration::textureHasAlphaChannel(local_path, im)); // Set COLOUR_TEX_HAS_ALPHA_FLAG flag
-
-			loaded_object->materials[1] = new WorldMaterial();
-			loaded_object->materials[1]->colour_rgb = Colour3f(0.7f);
-			loaded_object->materials[1]->opacity = ScalarVal(1.f);
-			loaded_object->materials[1]->roughness = ScalarVal(0.5f);
-
-			loaded_mesh = new BatchedMesh();
-			loaded_mesh->buildFromIndigoMesh(*results.indigo_mesh);
 
 			this->loaded_mesh_is_image_cube = true;
 		}

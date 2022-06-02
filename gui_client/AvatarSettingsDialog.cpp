@@ -18,6 +18,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../utils/ConPrint.h"
 #include "../utils/FileChecksum.h"
 #include "../utils/FileInStream.h"
+#include "../utils/TaskManager.h"
 #include "../qt/QtUtils.h"
 #include "../qt/SignalBlocker.h"
 #include <QtWidgets/QMessageBox>

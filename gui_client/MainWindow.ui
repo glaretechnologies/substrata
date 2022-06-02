@@ -64,6 +64,8 @@
     <addaction name="actionAdd_Audio_Source"/>
     <addaction name="actionAdd_Web_View"/>
     <addaction name="separator"/>
+    <addaction name="actionCopy_Object"/>
+    <addaction name="actionPaste_Object"/>
     <addaction name="actionCloneObject"/>
     <addaction name="actionDeleteObject"/>
     <addaction name="separator"/>
@@ -565,6 +567,22 @@
   <action name="actionAdd_Web_View">
    <property name="text">
     <string>Add Web View</string>
+   </property>
+  </action>
+  <action name="actionCopy_Object">
+   <property name="text">
+    <string>Copy Object</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+C</string>
+   </property>
+  </action>
+  <action name="actionPaste_Object">
+   <property name="text">
+    <string>Paste Object</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+V</string>
    </property>
   </action>
  </widget>

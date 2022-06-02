@@ -3,11 +3,6 @@ MainWindow.cpp
 --------------
 Copyright Glare Technologies Limited 2020 -
 =====================================================================*/
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#endif
 
 
 #ifdef _MSC_VER // Qt headers suppress some warnings on Windows, make sure the warning suppression doesn't propagate to our code. See https://bugreports.qt.io/browse/QTBUG-26877
@@ -97,6 +92,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/CryptoRNG.h"
 #include "../utils/FileInStream.h"
 #include "../utils/FileOutStream.h"
+#include "../utils/BufferOutStream.h"
 #include "../networking/Networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -216,6 +212,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
+	setAcceptDrops(true);
 
 	// Add dock widgets to Window menu
 	ui->menuWindow->addSeparator();
@@ -1300,34 +1297,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				{
 					ob->animated_tex_data = new AnimatedTexObData();
 					this->obs_with_animated_tex.insert(ob);
-				}
-			}
-
-			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
-			{
-				// Only create if we have not already created an audio source for this object.  Check to avoid leaking previous audio sources, also to make sure we don't create duplicate audio sources
-				// as we transition between LOD levels.
-				if(ob->audio_source.isNull())
-				{
-					// Create a streaming audio source.
-					// In AnimatedTexObData::process(), audio will be piped from the video to the audio source buffer.
-
-					glare::AudioSourceRef audio_source = new glare::AudioSource();
-					audio_source->type = glare::AudioSource::SourceType_Streaming;
-					audio_source->pos = ob->aabb_ws.centroid();
-					audio_source->debugname = ob->materials[i]->colour_texture_url;
-
-					{
-						Lock lock(world_state->mutex);
-					
-						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
-						audio_source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
-					}
-
-					//std::vector<float> buf(48000.0 * 0.5, 0.f);
-					//audio_source->buffer.pushBackNItems(buf.data(), buf.size());
-					ob->audio_source = audio_source;
-					this->audio_engine.addSource(audio_source);
 				}
 			}
 		}
@@ -3026,14 +2995,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 		}
 
-		/*{
-			msg += "Audio sources\n";
+		{
+			msg += "\nAudio engine:\n";
+			msg += "Num audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
+			/*msg += "Audio sources\n";
 			Lock lock(audio_engine.mutex);
 			for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
 			{
 				msg += (*it)->debugname + "\n";
-			}
-		}*/
+			}*/
+		}
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
 		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())
@@ -6007,6 +5978,120 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 }
 
 
+// Create a voxel or generic (mesh) object on server.
+// Convert mesh to bmesh if needed, Generate mesh LODs if needed.
+// Copy files to resource dir if not there already.
+// Generate referenced texture LODs.
+// Send CreateObject message to server
+// Throws glare::Exception on failure.
+void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loaded_mesh, bool loaded_mesh_is_image_cube,
+	const js::Vector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials)
+{
+	WorldObjectRef new_world_object = new WorldObject();
+
+	js::AABBox aabb_os;
+	if(loaded_mesh.nonNull())
+	{
+		// If the user wants to load a mesh that is not a bmesh file already, convert it to bmesh.
+		std::string bmesh_disk_path;
+		if(!hasExtension(mesh_path, "bmesh")) 
+		{
+			// Save as bmesh in temp location
+			bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+
+			BatchedMesh::WriteOptions write_options;
+			write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+			// TODO: show 'processing...' dialog while it compresses and saves?
+			loaded_mesh->writeToFile(bmesh_disk_path, write_options);
+		}
+		else
+		{
+			bmesh_disk_path = mesh_path;
+		}
+
+		// Compute hash over model
+		const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+		const std::string original_filename = loaded_mesh_is_image_cube ? "image_cube" : FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
+		const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
+
+		// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+		if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+			this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+		new_world_object->model_url = mesh_URL;
+
+		aabb_os = loaded_mesh->aabb_os;
+
+		new_world_object->max_model_lod_level = (loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+
+		// Generate LOD models, to be uploaded to server also.
+		if(new_world_object->max_model_lod_level == 2)
+		{
+			for(int lvl = 1; lvl <= 2; ++lvl)
+			{
+				const std::string lod_URL  = WorldObject::getLODModelURLForLevel(new_world_object->model_url, lvl);
+
+				if(!resource_manager->isFileForURLPresent(lod_URL))
+				{
+					const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
+
+					LODGeneration::generateLODModel(loaded_mesh, lvl, local_lod_path);
+
+					resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
+				}
+			}
+		}
+	}
+	else
+	{
+		// We loaded a voxel model.
+		new_world_object->getDecompressedVoxels() = decompressed_voxels;
+		new_world_object->compressVoxels();
+		new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
+		new_world_object->max_model_lod_level = (new_world_object->getDecompressedVoxels().size() > 256) ? 2 : 0;
+
+		aabb_os = new_world_object->getDecompressedVoxelGroup().getAABB();
+	}
+
+	new_world_object->uid = UID(0); // A new UID will be assigned by server
+	new_world_object->materials = materials;
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = axis;
+	new_world_object->angle = angle;
+	new_world_object->scale = scale;
+
+	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+	std::set<DependencyURL> paths;
+	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, paths);
+	for(auto it = paths.begin(); it != paths.end(); ++it)
+	{
+		const std::string path = it->URL;
+		if(FileUtils::fileExists(path))
+		{
+			const uint64 hash = FileChecksum::fileChecksum(path);
+			const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
+			this->resource_manager->copyLocalFileToResourceDir(path, resource_URL);
+		}
+	}
+
+	// Convert texture paths on the object to URLs
+	new_world_object->convertLocalPathsToURLS(*this->resource_manager);
+
+	// Generate LOD textures for materials, if not already present on disk.
+	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, task_manager);
+
+	// Send CreateObject message to server
+	{
+		initPacket(scratch_packet, Protocol::CreateObject);
+		new_world_object->writeToNetworkStream(scratch_packet);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+}
+
 
 void MainWindow::on_actionAddObject_triggered()
 {
@@ -6040,132 +6125,33 @@ void MainWindow::on_actionAddObject_triggered()
 		// Try and load model
 		try
 		{
-			WorldObjectRef new_world_object = new WorldObject();
+			const Vec3d adjusted_ob_pos = ob_pos + cam_controller.getRightVec() * d.ob_cam_right_translation + cam_controller.getUpVec() * d.ob_cam_up_translation; // Centre object in front of camera
 
-			// If the user selected an obj, convert it to an indigo mesh file
-			std::string bmesh_disk_path = d.result_path;
-			js::AABBox aabb_os;
-			if(d.loaded_mesh.nonNull())
+			// Some mesh types have a rotation to bring them to our z-up convention.  Don't change the rotation on those.
+			Vec3f axis(0, 0, 1);
+			float angle = 0;
+			if(d.loaded_object->axis == Vec3f(0, 0, 1))
 			{
-				if(!hasExtension(d.result_path, "bmesh"))
-				{
-					// Save as bmesh in temp location
-					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
-
-					BatchedMesh::WriteOptions write_options;
-					write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
-					// TODO: show 'processing...' dialog while it compresses and saves?
-					d.loaded_mesh->writeToFile(bmesh_disk_path, write_options);
-				}
-				else
-				{
-					bmesh_disk_path = d.result_path;
-				}
-
-				// Compute hash over model
-				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
-
-				const std::string original_filename = d.loaded_mesh_is_image_cube ? "image_cube" : FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
-				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
-
-				// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
-				if(!this->resource_manager->isFileForURLPresent(mesh_URL))
-					this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
-
-				new_world_object->model_url = mesh_URL;
-
-				aabb_os = d.loaded_mesh->aabb_os;
-
-				new_world_object->max_model_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-
-				// Generate LOD models, to be uploaded to server also.
-				if(new_world_object->max_model_lod_level == 2)
-				{
-					for(int lvl = 1; lvl <= 2; ++lvl)
-					{
-						const std::string lod_URL  = WorldObject::getLODModelURLForLevel(new_world_object->model_url, lvl);
-
-						if(!resource_manager->isFileForURLPresent(lod_URL))
-						{
-							const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
-
-							LODGeneration::generateLODModel(d.loaded_mesh, lvl, local_lod_path);
-
-							resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
-						}
-					}
-				}
+				// If we don't have a rotation to z-up, make object face camera.
+				angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle, facing camera.
 			}
 			else
 			{
-				// We loaded a voxel model.
-				assert(!d.loaded_object->getDecompressedVoxelGroup().voxels.empty());
-
-				new_world_object->getDecompressedVoxels() = d.loaded_object->getDecompressedVoxels();
-				new_world_object->compressVoxels();
-				new_world_object->object_type = WorldObject::ObjectType_VoxelGroup;
-				new_world_object->max_model_lod_level = (new_world_object->getDecompressedVoxels().size() > 256) ? 2 : 0;
-
-				aabb_os = new_world_object->getDecompressedVoxelGroup().getAABB();
+				axis = d.loaded_object->axis;
+				angle = d.loaded_object->angle;
 			}
 
-			new_world_object->uid = UID(0); // Will be set by server
-			new_world_object->materials = d.loaded_object->materials;//d.loaded_materials;
-			new_world_object->pos = ob_pos + cam_controller.getRightVec() * d.ob_cam_right_translation + cam_controller.getUpVec() * d.ob_cam_up_translation;
-			new_world_object->axis = Vec3f(0,0,1);
-			new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
-			new_world_object->scale = d.loaded_object->scale;
-			
-			new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
-
-			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
-			std::set<DependencyURL> paths;
-			new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, paths);
-			for(auto it = paths.begin(); it != paths.end(); ++it)
-			{
-				const std::string path = it->URL;
-				if(FileUtils::fileExists(path))
-				{
-					const uint64 hash = FileChecksum::fileChecksum(path);
-					const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
-					this->resource_manager->copyLocalFileToResourceDir(path, resource_URL);
-				}
-			}
-
-
-			// Convert texture paths on the object to URLs
-			new_world_object->convertLocalPathsToURLS(*this->resource_manager);
-
-
-			// Generate LOD textures for materials, if not already present on disk.
-			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, task_manager);
-			
-
-			// Send CreateObject message to server
-			{
-				initPacket(scratch_packet, Protocol::CreateObject);
-				new_world_object->writeToNetworkStream(scratch_packet);
-
-				enqueueMessageToSend(*this->client_thread, scratch_packet);
-			}
-
-			showInfoNotification("Object created.");
-		}
-		catch(Indigo::IndigoException& e)
-		{
-			// Show error
-			print(toStdString(e.what()));
-			QErrorMessage m;
-			m.showMessage(QtUtils::toQString(e.what()));
-			m.exec();
-		}
-		catch(FileUtils::FileUtilsExcep& e)
-		{
-			// Show error
-			print(e.what());
-			QErrorMessage m;
-			m.showMessage(QtUtils::toQString(e.what()));
-			m.exec();
+			createObject(
+				d.result_path,
+				d.loaded_mesh,
+				d.loaded_mesh_is_image_cube,
+				d.loaded_object->getDecompressedVoxels(),
+				adjusted_ob_pos,
+				d.loaded_object->scale,
+				axis,
+				angle,
+				d.loaded_object->materials
+			);
 		}
 		catch(glare::Exception& e)
 		{
@@ -6466,6 +6452,281 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 bool MainWindow::areEditingVoxels()
 {
 	return this->selected_ob.nonNull() && this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup;
+}
+
+
+void MainWindow::on_actionCopy_Object_triggered()
+{
+	if(this->selected_ob.nonNull())
+	{
+		QClipboard* clipboard = QGuiApplication::clipboard();
+		QMimeData* mime_data = new QMimeData();
+
+		BufferOutStream temp_buf;
+		this->selected_ob->writeToStream(temp_buf);
+
+		mime_data->setData(/*mime-type:*/"x-substrata-object-binary", QByteArray((const char*)temp_buf.buf.data(), (int)temp_buf.buf.size()));
+		clipboard->setMimeData(mime_data);
+	}
+}
+
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+	if(event->mimeData()->hasImage() || event->mimeData()->hasUrls())
+		event->acceptProposedAction();
+}
+
+
+void MainWindow::dropEvent(QDropEvent* event)
+{
+	handlePasteOrDropMimeData(event->mimeData());
+}
+
+
+void MainWindow::createImageObject(const std::string& local_image_path)
+{
+	Reference<Map2D> im = ImageDecoding::decodeImage(base_dir_path, local_image_path);
+
+	createImageObjectForWidthAndHeight(local_image_path, (int)im->getMapWidth(), (int)im->getMapHeight(),
+		LODGeneration::textureHasAlphaChannel(local_image_path, im) // has alpha
+	);
+}
+
+
+// A model path has been drag-and-dropped or pasted.
+void MainWindow::createModelObject(const std::string& local_model_path)
+{
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f;
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+		return;
+	}
+
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->axis = Vec3f(0, 0, 1);
+	new_world_object->angle = 0;
+	new_world_object->scale = Vec3f(1, 1, 1);
+
+	// Load mesh.  Updates new_world_object scale etc.
+	BatchedMeshRef loaded_mesh;
+	GLObjectRef preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_model_path,
+		loaded_mesh, // mesh out
+		*new_world_object
+	);
+
+	const Vec3d adjusted_ob_pos = ob_pos;
+
+	createObject(
+		local_model_path, // mesh path
+		loaded_mesh,
+		false, // loaded_mesh_is_image_cube
+		new_world_object->getDecompressedVoxels(),
+		adjusted_ob_pos,
+		new_world_object->scale,
+		new_world_object->axis,
+		new_world_object->angle,
+		new_world_object->materials
+	);
+}
+
+
+void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_image_path, int w, int h, bool has_alpha)
+{
+	// NOTE: adapted from AddObjectDialog::makeMeshForWidthAndHeight()
+
+	BatchedMeshRef batched_mesh;
+	WorldObjectRef new_world_object = new WorldObject();
+	GLObjectRef gl_ob = ModelLoading::makeImageCube(*ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_path, w, h, batched_mesh, *new_world_object);
+
+	const float ob_cam_right_translation = -new_world_object->scale.x/2;
+	const float ob_cam_up_translation    = -new_world_object->scale.z/2;
+
+	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f + 
+		cam_controller.getRightVec() * ob_cam_right_translation + cam_controller.getUpVec() * ob_cam_up_translation; // Centre object in front of camera
+
+	// Check permissions
+	bool ob_pos_in_parcel;
+	const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+	if(!have_creation_perms)
+	{
+		if(ob_pos_in_parcel)
+			showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+		else
+			showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+		return;
+	}
+	
+	new_world_object->pos = ob_pos;
+	new_world_object->axis = Vec3f(0,0,1);
+	new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle, facing camera.
+
+	new_world_object->aabb_ws = batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+	new_world_object->model_url = "image_cube_5438347426447337425.bmesh";
+
+	BitUtils::setOrZeroBit(new_world_object->materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha); // Set COLOUR_TEX_HAS_ALPHA_FLAG flag
+
+	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+	std::set<DependencyURL> paths;
+	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, paths);
+	for(auto it = paths.begin(); it != paths.end(); ++it)
+	{
+		const std::string path = it->URL;
+		if(FileUtils::fileExists(path))
+		{
+			const uint64 hash = FileChecksum::fileChecksum(path);
+			const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
+			this->resource_manager->copyLocalFileToResourceDir(path, resource_URL);
+		}
+	}
+
+	// Convert texture paths on the object to URLs
+	new_world_object->convertLocalPathsToURLS(*this->resource_manager);
+
+	// Generate LOD textures for materials, if not already present on disk.
+	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, task_manager);
+
+
+	// Send CreateObject message to server
+	initPacket(scratch_packet, Protocol::CreateObject);
+	new_world_object->writeToNetworkStream(scratch_packet);
+	enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+	showInfoNotification("Object created.");
+}
+
+
+void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
+{
+	try
+	{
+		// const QStringList formats = mime_data->formats();
+		// for(auto it = formats.begin(); it != formats.end(); ++it)
+		// 	conPrint("Format: " + it->toStdString());
+
+		if(mime_data)
+		{
+			if(mime_data->hasUrls())
+			{
+				const QList<QUrl> urls = mime_data->urls();
+
+				std::string image_path_to_load;
+				std::string model_path_to_load;
+				for(auto it = urls.begin(); it != urls.end(); ++it)
+				{
+					const std::string url = it->toString().toStdString();
+					if(hasPrefix(url, "file:///"))
+					{
+						const std::string path = eatPrefix(url, "file:///");
+
+						if(FileUtils::fileExists(path))
+						{
+							if(ImageDecoding::hasSupportedImageExtension(path))
+								image_path_to_load = path;
+
+							if(ModelLoading::hasSupportedModelExtension(path))
+								model_path_to_load = path;
+						}
+					}
+				}
+
+				if(!image_path_to_load.empty())
+					createImageObject(image_path_to_load);
+
+				if(!model_path_to_load.empty())
+					createModelObject(model_path_to_load);
+
+				if(image_path_to_load.empty() && model_path_to_load.empty())
+					throw glare::Exception("Pasted files / URLs did not contain a supported image or model format.");
+			}
+			else if(mime_data->hasFormat("x-substrata-object-binary")) // Binary encoded substrata object, from a user copying a substrata object.
+			{
+				const QByteArray ob_data = mime_data->data("x-substrata-object-binary");
+
+				// Copy QByteArray to BufferInStream
+				BufferInStream in_stream_buf;
+				in_stream_buf.buf.resize(ob_data.size());
+				if(ob_data.size() > 0)
+					std::memcpy(in_stream_buf.buf.data(), ob_data.data(), ob_data.size());
+
+				try
+				{
+					// Deserialise object
+					Reference<WorldObject> pasted_ob = new WorldObject();
+					readFromStream(in_stream_buf, *pasted_ob);
+
+					// Position pasted object in front of the camera
+					const float ob_w = pasted_ob->aabb_ws.longestLength();
+					const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * myMax(2.f, ob_w * 2.0f);
+					pasted_ob->pos = ob_pos;
+
+					// Check permissions
+					bool ob_pos_in_parcel;
+					const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+					if(!have_creation_perms)
+					{
+						if(ob_pos_in_parcel)
+							showErrorNotification("You do not have write permissions, and are not an admin for this parcel.");
+						else
+							showErrorNotification("You can only create objects in a parcel that you have write permissions for.");
+						return;
+					}
+
+					// Create object, by sending CreateObject message to server
+					// Note that the recreated object will have a different ID than in the clipboard.
+					{
+						initPacket(scratch_packet, Protocol::CreateObject);
+						pasted_ob->writeToNetworkStream(scratch_packet);
+
+						enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+						showInfoNotification("Object pasted.");
+					}
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("Error while reading object from clipboard: " + e.what());
+				}
+			}
+			else if(mime_data->hasImage()) // Image data (for example from snip screen)
+			{
+				QImage image = qvariant_cast<QImage>(mime_data->imageData());
+
+				const std::string temp_path = PlatformUtils::getTempDirPath() + "/temp.jpg";
+				const bool res = image.save(QtUtils::toQString(temp_path), "JPG", 95);
+				if(!res)
+					throw glare::Exception("Failed to save image to disk.");
+
+				createImageObjectForWidthAndHeight(temp_path, image.width(), image.height(), /*has alpha=*/false);
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		// Show error
+		print(e.what());
+		QErrorMessage m;
+		m.showMessage(QtUtils::toQString(e.what()));
+		m.exec();
+	}
+}
+
+
+void MainWindow::on_actionPaste_Object_triggered()
+{
+	QClipboard* clipboard = QGuiApplication::clipboard();
+	const QMimeData* mime_data = clipboard->mimeData();
+
+	handlePasteOrDropMimeData(mime_data);
 }
 
 
@@ -9029,6 +9290,10 @@ void MainWindow::deleteSelectedObject()
 void MainWindow::selectObject(const WorldObjectRef& ob, int selected_tri_index)
 {
 	assert(ob.nonNull());
+
+	// Deselect any existing object
+	deselectObject();
+
 
 	this->selected_ob = ob;
 	assert(this->selected_ob->getRefCount() >= 0);

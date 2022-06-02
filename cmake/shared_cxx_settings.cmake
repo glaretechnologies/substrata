@@ -100,6 +100,7 @@ if(WIN32)
 	# addIncludeDirectory("C:/Program Files/Microsoft Visual Studio/2022/Preview/VC/Tools/MSVC/14.32.31302/crt/src")
 
 	add_definitions(-DWIN32_LEAN_AND_MEAN) # Speed up parsing of Windows.h
+	add_definitions(-DNOMINMAX) # Stop windows.h from defining the min() and max() macros
 
 	add_definitions(-DUNICODE -D_UNICODE)
 	add_definitions(/MP)

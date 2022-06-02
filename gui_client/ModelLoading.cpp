@@ -7,6 +7,7 @@ Code By Nicholas Chapman.
 #include "ModelLoading.h"
 
 
+#include "MeshBuilding.h"
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/VoxelMeshBuilding.h"
@@ -781,6 +782,66 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 }
 
 
+GLObjectRef ModelLoading::makeImageCube(VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, 
+	const std::string& image_path, int im_w, int im_h,
+	BatchedMeshRef& mesh_out,
+	WorldObject& loaded_object_out)
+{
+	float use_w, use_h;
+	if(im_w > im_h)
+	{
+		use_w = 1;
+		use_h = (float)im_h / (float)im_w;
+	}
+	else
+	{
+		use_h = 1;
+		use_w = (float)im_w / (float)im_h;
+	}
+
+	MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, vert_buf_allocator);
+
+	const float depth = 0.02f;
+	const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
+
+	GLObjectRef preview_gl_ob = new GLObject();
+	preview_gl_ob->ob_to_world_matrix = use_matrix;
+	preview_gl_ob->mesh_data = results.opengl_mesh_data;
+	preview_gl_ob->materials.resize(2);
+
+	// Front/back face material:
+	preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
+	preview_gl_ob->materials[0].tex_path = image_path;
+	preview_gl_ob->materials[0].roughness = 0.5f;
+	preview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
+
+	// Edge material:
+	preview_gl_ob->materials[1].albedo_rgb = Colour3f(0.7f);
+	preview_gl_ob->materials[1].roughness = 0.5f;
+	preview_gl_ob->materials[1].tex_matrix = Matrix2f(1, 0, 0, -1);
+
+
+	loaded_object_out.scale = Vec3f(use_w, depth, use_h);
+	loaded_object_out.materials.resize(2);
+
+	loaded_object_out.materials[0] = new WorldMaterial();
+	loaded_object_out.materials[0]->colour_rgb = Colour3f(0.9f);
+	loaded_object_out.materials[0]->opacity = ScalarVal(1.f);
+	loaded_object_out.materials[0]->roughness = ScalarVal(0.5f);
+	loaded_object_out.materials[0]->colour_texture_url = image_path;
+
+	loaded_object_out.materials[1] = new WorldMaterial();
+	loaded_object_out.materials[1]->colour_rgb = Colour3f(0.7f);
+	loaded_object_out.materials[1]->opacity = ScalarVal(1.f);
+	loaded_object_out.materials[1]->roughness = ScalarVal(0.5f);
+
+	mesh_out = new BatchedMesh();
+	mesh_out->buildFromIndigoMesh(*results.indigo_mesh);
+
+	return preview_gl_ob;
+}
+
+
 GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(const Reference<OpenGLMeshRenderData> gl_meshdata, //size_t num_materials_referenced,
 	int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
 	ResourceManager& resource_manager,
@@ -841,6 +902,22 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 		if(i < materials.size())
 			setGLMaterialFromWorldMaterial(*materials[i], ob_lod_level, lightmap_url, resource_manager, gl_ob.materials[i]);
 	}
+}
+
+
+bool ModelLoading::hasSupportedModelExtension(const std::string& path)
+{
+	const string_view extension = getExtensionStringView(path);
+
+	return
+		extension == "vox" ||
+		extension == "obj" ||
+		extension == "stl" ||
+		extension == "gltf" ||
+		extension == "glb" ||
+		extension == "vrm" ||
+		extension == "igmesh" ||
+		extension == "bmesh";
 }
 
 
