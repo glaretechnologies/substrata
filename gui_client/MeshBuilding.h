@@ -41,4 +41,6 @@ public:
 	static MeshBuildingResults makeSpotlightMeshes(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 
 	static Reference<RayMesh> makeUnitCubeRayMesh(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
+
+	static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(VertexBufferAllocator& allocator, float arc_end_angle);
 };
