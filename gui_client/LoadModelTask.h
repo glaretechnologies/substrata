@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <opengl/OpenGLEngine.h>
 #include <Task.h>
 #include <ThreadMessage.h>
+#include <ThreadSafeQueue.h>
 #include <string>
 class OpenGLEngine;
 class MeshManager;
