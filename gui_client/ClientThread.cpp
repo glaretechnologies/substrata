@@ -337,6 +337,10 @@ void ClientThread::doRun()
 						const Vec3f axis = readVec3FromStream<float>(msg_buffer);
 						const float angle = msg_buffer.readFloat();
 
+						float aabb_data[6];
+						if(peer_protocol_version >= 34) // AABB in ObjectTransformUpdate was added in protocol version 34.
+							msg_buffer.readData(aabb_data, sizeof(float)*6);
+
 						// Look up existing object in world state
 						{
 							Lock lock(world_state->mutex);
@@ -356,6 +360,12 @@ void ClientThread::doRun()
 									ob->pos = pos;
 									ob->axis = axis;
 									ob->angle = angle;
+
+									if(peer_protocol_version >= 34)
+									{
+										ob->aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
+										ob->aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
+									}
 									
 									ob->pos_snapshots  [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = pos;
 									ob->axis_snapshots [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = axis;

@@ -5414,6 +5414,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					writeToStream(Vec3f(world_ob->axis), scratch_packet);
 					scratch_packet.writeFloat(world_ob->angle);
 
+					const float aabb_data[6] = {
+						world_ob->aabb_ws.min_[0], world_ob->aabb_ws.min_[1], world_ob->aabb_ws.min_[2],
+						world_ob->aabb_ws.max_[0], world_ob->aabb_ws.max_[1], world_ob->aabb_ws.max_[2]
+					};
+					scratch_packet.writeData(aabb_data, sizeof(float) * 6);
+
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 					world_ob->from_local_transform_dirty = false;
