@@ -33,6 +33,7 @@ public:
 
 	~AnimatedTexRenderHandler() {}
 
+	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 	void onWebViewDataDestroyed()
 	{
 		opengl_tex = NULL;
@@ -265,6 +266,7 @@ class AnimatedTexCefClient : public CefClient, public CefRequestHandler, public 
 public:
 	AnimatedTexCefClient() : num_channels(0), sample_rate(0), main_window(NULL), ob(NULL) {}
 
+	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 	void onWebViewDataDestroyed()
 	{
 		main_window = NULL;
@@ -458,27 +460,17 @@ public:
 		// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": GetAudioParameters().");
 
 		params.sample_rate = main_window->audio_engine.getSampleRate();
-		return true;
-	}
 
-	// Called on a browser audio capture thread when the browser starts
-	// streaming audio.
-	virtual void OnAudioStreamStarted(CefRefPtr<CefBrowser> browser,
-		const CefAudioParameters& params,
-		int channels) override
-	{
-		// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": OnAudioStreamStarted().");
-
-		// Create audio source
+		// Create audio source.  Do this now while we're in the main (UI) thread.
 		if(ob && ob->audio_source.isNull())
 		{
 			// conPrint("OnAudioStreamStarted(), creating audio src");
 
 			// Create a streaming audio source.
-			glare::AudioSourceRef audio_source = new glare::AudioSource();
+			this->audio_source = new glare::AudioSource(); // Hang on to a reference we can use from the audio stream thread.
 			audio_source->type = glare::AudioSource::SourceType_Streaming;
 			audio_source->pos = ob->aabb_ws.centroid();
-			audio_source->debugname = ob->target_url;
+			audio_source->debugname = "animated tex: " + ob->target_url;
 
 			{
 				Lock lock(main_window->world_state->mutex);
@@ -491,6 +483,16 @@ public:
 			main_window->audio_engine.addSource(audio_source);
 		}
 
+		return true;
+	}
+
+	// Called on a browser audio capture thread when the browser starts
+	// streaming audio.
+	virtual void OnAudioStreamStarted(CefRefPtr<CefBrowser> browser,
+		const CefAudioParameters& params,
+		int channels) override
+	{
+		// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": OnAudioStreamStarted().");
 		sample_rate = params.sample_rate;
 		num_channels = channels;
 	}
@@ -508,8 +510,11 @@ public:
 		int frames,
 		int64 pts) override
 	{
+		// NOTE: this method is not called on the main thread!
+		// So we don't want to access ob or ob->audio_source as it may be being destroyed or modified on the main thread etc.
+
 		// Copy to our audio source
-		if(ob && ob->audio_source.nonNull())
+		if(main_window && this->audio_source.nonNull())
 		{
 			const int num_samples = frames;
 			temp_buf.resize(num_samples);
@@ -541,18 +546,18 @@ public:
 
 			{
 				Lock mutex(main_window->audio_engine.mutex);
-				ob->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+				this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
 			}
 		}
 	}
 
 	virtual void OnAudioStreamStopped(CefRefPtr<CefBrowser> browser) override
 	{
-		if(ob && ob->audio_source.nonNull())
+		/*if(ob && ob->audio_source.nonNull())
 		{
 			main_window->audio_engine.removeSource(ob->audio_source);
 			ob->audio_source = NULL;
-		}
+		}*/
 	}
 
 	virtual void OnAudioStreamError(CefRefPtr<CefBrowser> browser, const CefString& message) override
@@ -567,6 +572,7 @@ public:
 
 	MainWindow* main_window;
 	WorldObject* ob;
+	Reference<glare::AudioSource> audio_source;
 	int num_channels;
 	int sample_rate;
 
