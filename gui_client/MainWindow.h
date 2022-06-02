@@ -114,6 +114,8 @@ private slots:;
 	void on_actionAdd_Spotlight_triggered();
 	void on_actionAdd_Web_View_triggered();
 	void on_actionAdd_Audio_Source_triggered();
+	void on_actionCopy_Object_triggered();
+	void on_actionPaste_Object_triggered();
 	void on_actionCloneObject_triggered();
 	void on_actionDeleteObject_triggered();
 	void on_actionReset_Layout_triggered();
@@ -276,6 +278,17 @@ public:
 	void setSelfieModeEnabled(bool enabled);
 
 	QPoint getGlWidgetPosInGlobalSpace(); // Get top left of the GLWidget in global screen coordinates.
+
+	void createObject(const std::string& mesh_path, BatchedMeshRef loaded_mesh, bool loaded_mesh_is_image_cube,
+		const js::Vector<Voxel, 16>& decompressed_voxels, const Vec3d& ob_pos, const Vec3f& scale, const Vec3f& axis, float angle, const std::vector<WorldMaterialRef>& materials);
+	void createImageObject(const std::string& local_image_path);
+	void createModelObject(const std::string& local_model_path);
+	void createImageObjectForWidthAndHeight(const std::string& local_image_path, int w, int h, bool has_alpha);
+
+	virtual void dragEnterEvent(QDragEnterEvent* event);
+	virtual void dropEvent(QDropEvent* event);
+
+	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
