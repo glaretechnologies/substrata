@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "ListenerThread.h"
 #include "MeshLODGenThread.h"
+//#include "ChunkGenThread.h"
 #include "WorkerThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
@@ -658,10 +659,21 @@ int main(int argc, char *argv[])
 
 		conPrint("src_resource_dir: '" + src_resource_dir + "'");
 
+		Server server;
+
+		const ServerCredentials server_credentials = parseServerCredentials();
+		server.world_state->server_credentials = server_credentials;
+
 		// Run tests if --test is present.
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			//SafeBrowsingCheckerThread::test(server.world_state.ptr());
+			//GIFDecoder::test();
+			//PNGDecoder::test();
+			//BatchedMeshTests::test();
+			//glare::BestFitAllocator::test();
+			//Parser::doUnitTests();
 			//FormatDecoderGLTF::test();
 			//DatabaseTests::test();
 			//StringUtils::test();
@@ -685,7 +697,6 @@ int main(int argc, char *argv[])
 		//-----------------------------------------------------------------------------------------
 
 
-		const ServerCredentials server_credentials = parseServerCredentials();
 
 
 		const int listen_port = 7600;
@@ -707,10 +718,7 @@ int main(int argc, char *argv[])
 
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
 		
-		Server server;
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
-
-		server.world_state->server_credentials = server_credentials;
 
 #ifdef WIN32
 		server.screenshot_dir = "C:\\programming\\cyberspace\\webdata\\screenshots"; // Dir generated screenshots will be saved to.
@@ -1339,6 +1347,8 @@ int main(int argc, char *argv[])
 
 		thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
 
+		//thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
+
 		Timer save_state_timer;
 
 		// A map from world name to a vector of packets to send to clients connected to that world.
@@ -1516,6 +1526,15 @@ int main(int argc, char *argv[])
 								writeToStream(ob->pos, scratch_packet);
 								writeToStream(ob->axis, scratch_packet);
 								scratch_packet.writeFloat(ob->angle);
+
+								// Write aabb_data.  Although this was introduced in protocol version 34, clients using an older protocol version should be able to just ignore this data
+								// since it is at the end of the message and we use sized messages.
+								const float aabb_data[6] = {
+									ob->aabb_ws.min_[0], ob->aabb_ws.min_[1], ob->aabb_ws.min_[2],
+									ob->aabb_ws.max_[0], ob->aabb_ws.max_[1], ob->aabb_ws.max_[2]
+								};
+								scratch_packet.writeData(aabb_data, sizeof(float) * 6);
+
 								updatePacketLengthField(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);

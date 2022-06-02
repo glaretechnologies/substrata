@@ -1122,6 +1122,10 @@ void WorkerThread::doRun()
 							const Vec3f axis = readVec3FromStream<float>(msg_buffer);
 							const float angle = msg_buffer.readFloat();
 
+							float aabb_data[6];
+							if(client_protocol_version >= 34) // AABB in ObjectTransformUpdate was added in protocol version 34.
+								msg_buffer.readData(aabb_data, sizeof(float)*6);
+
 							// If client is not logged in, refuse object modification.
 							if(client_user.isNull())
 							{
@@ -1150,6 +1154,11 @@ void WorkerThread::doRun()
 											ob->pos = pos;
 											ob->axis = axis;
 											ob->angle = angle;
+											if(client_protocol_version >= 34)
+											{
+												ob->aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
+												ob->aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
+											}
 											ob->from_remote_transform_dirty = true;
 											cur_world_state->addWorldObjectAsDBDirty(ob);
 											cur_world_state->dirty_from_remote_objects.insert(ob);
