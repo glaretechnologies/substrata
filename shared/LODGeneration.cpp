@@ -83,6 +83,8 @@ BatchedMeshRef loadModel(const std::string& model_path)
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
 
+	batched_mesh->checkValidAndSanitiseMesh();
+
 	return batched_mesh;
 }
 

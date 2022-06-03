@@ -194,200 +194,6 @@ void ModelLoading::checkValidAndSanitiseMesh(Indigo::Mesh& mesh)
 }
 
 
-void ModelLoading::checkValidAndSanitiseMesh(BatchedMesh& mesh)
-{
-	if(mesh.numMaterialsReferenced() > 10000)
-		throw glare::Exception("Too many materials referenced.");
-
-	/*	if(mesh.vert_normals.size() == 0)
-		{
-			for(size_t i = 0; i < mesh.vert_positions.size(); ++i)
-			{
-				this->vertices[i].pos.set(mesh.vert_positions[i].x, mesh.vert_positions[i].y, mesh.vert_positions[i].z);
-				this->vertices[i].normal.set(0.f, 0.f, 0.f);
-			}
-
-			vertex_shading_normals_provided = false;
-		}
-		else
-		{
-			assert(mesh.vert_normals.size() == mesh.vert_positions.size());
-
-			for(size_t i = 0; i < mesh.vert_positions.size(); ++i)
-			{
-				this->vertices[i].pos.set(mesh.vert_positions[i].x, mesh.vert_positions[i].y, mesh.vert_positions[i].z);
-				this->vertices[i].normal.set(mesh.vert_normals[i].x, mesh.vert_normals[i].y, mesh.vert_normals[i].z);
-
-				assert(::isFinite(mesh.vert_normals[i].x) && ::isFinite(mesh.vert_normals[i].y) && ::isFinite(mesh.vert_normals[i].z));
-			}
-
-			vertex_shading_normals_provided = true;
-		}*/
-
-
-	// Check any supplied normals are valid.
-	// NOTE: since all batched meshes currently use packed normal encoding, we can skip this
-	
-	// Check all UVs are not NaNs, as NaN UVs cause NaN filtered texture values, which cause a crash in TextureUnit table look-up.  See https://bugs.glaretechnologies.com/issues/271
-	//const size_t uv_size = mesh.uv_pairs.size();
-	//for(size_t i=0; i<uv_size; ++i)
-	//{
-	//	if(!isFinite(mesh.uv_pairs[i].x))
-	//		mesh.uv_pairs[i].x = 0;
-	//	if(!isFinite(mesh.uv_pairs[i].y))
-	//		mesh.uv_pairs[i].y = 0;
-	//}
-
-	const uint32 num_verts = (uint32)mesh.numVerts();
-
-
-	const BatchedMesh::ComponentType index_type = mesh.index_type;
-	const size_t num_indices = mesh.numIndices();
-	const size_t num_tris = num_indices / 3;
-
-	const uint8* const index_data_uint8  = (const uint8*)mesh.index_data.data();
-	const uint16* const index_data_uint16 = (const uint16*)mesh.index_data.data();
-	const uint32* const index_data_uint32 = (const uint32*)mesh.index_data.data();
-
-	for(size_t t = 0; t < num_tris; ++t)
-	{
-		uint32 vertex_indices[3];
-		if(index_type == BatchedMesh::ComponentType_UInt8)
-		{
-			vertex_indices[0] = index_data_uint8[t*3 + 0];
-			vertex_indices[1] = index_data_uint8[t*3 + 1];
-			vertex_indices[2] = index_data_uint8[t*3 + 2];
-		}
-		else if(index_type == BatchedMesh::ComponentType_UInt16)
-		{
-			vertex_indices[0] = index_data_uint16[t*3 + 0];
-			vertex_indices[1] = index_data_uint16[t*3 + 1];
-			vertex_indices[2] = index_data_uint16[t*3 + 2];
-		}
-		else if(index_type == BatchedMesh::ComponentType_UInt32)
-		{
-			vertex_indices[0] = index_data_uint32[t*3 + 0];
-			vertex_indices[1] = index_data_uint32[t*3 + 1];
-			vertex_indices[2] = index_data_uint32[t*3 + 2];
-		}
-		else
-			throw glare::Exception("Invalid index_type.");
-
-		for(unsigned int v = 0; v < 3; ++v)
-			if(vertex_indices[v] >= num_verts)
-				throw glare::Exception("Triangle vertex index is out of bounds.  (vertex index=" + toString(vertex_indices[v]) + ", num verts: " + toString(num_verts) + ")");
-	}
-
-	js::Vector<uint8, 16>& vert_data = mesh.vertex_data;
-	const size_t vert_size_B = mesh.vertexSize();
-	const size_t num_joints = mesh.animation_data.joint_nodes.size();
-
-	// Check joint indices are valid for all vertices
-	const BatchedMesh::VertAttribute* joints_attr = mesh.findAttribute(BatchedMesh::VertAttribute_Joints);
-	if(joints_attr)
-	{
-		const size_t joint_offset_B = joints_attr->offset_B;
-		if(joints_attr->component_type == BatchedMesh::ComponentType_UInt8)
-		{
-			for(uint32 i=0; i<num_verts; ++i)
-			{
-				uint8 joints[4];
-				std::memcpy(joints, &vert_data[i * vert_size_B + joint_offset_B], sizeof(uint8) * 4);
-
-				for(int c=0; c<4; ++c)
-					if((size_t)joints[c] >= num_joints)
-						throw glare::Exception("Joint index is out of bounds");
-			}
-		}
-		else if(joints_attr->component_type == BatchedMesh::ComponentType_UInt16)
-		{
-			for(uint32 i=0; i<num_verts; ++i)
-			{
-				uint16 joints[4];
-				std::memcpy(joints, &vert_data[i * vert_size_B + joint_offset_B], sizeof(uint16) * 4);
-
-				for(int c=0; c<4; ++c)
-					if((size_t)joints[c] >= num_joints)
-						throw glare::Exception("Joint index is out of bounds");
-			}
-		}
-		else
-			throw glare::Exception("Invalid joint index component type: " + toString((uint32)joints_attr->component_type));
-	}
-
-	// Check weight data is valid for all vertices.
-	// For now we will just catch cases where all weights are zero, and set one of them to 1 (or the uint equiv).
-	// We could also normalise the weight sum but that would be slower.
-	// This prevents the rendering error with dancedevil_glb_16934124793649044515_lod2.bmesh.
-	const BatchedMesh::VertAttribute* weight_attr = mesh.findAttribute(BatchedMesh::VertAttribute_Weights);
-	if(weight_attr)
-	{
-		//conPrint("Checking weight data");
-		//Timer timer;
-
-		const size_t weights_offset_B = weight_attr->offset_B;
-		if(weight_attr->component_type == BatchedMesh::ComponentType_UInt8)
-		{
-			for(uint32 i=0; i<num_verts; ++i)
-			{
-				uint8 weights[4];
-				std::memcpy(weights, &vert_data[i * vert_size_B + weights_offset_B], sizeof(uint8) * 4);
-				if(weights[0] == 0 && weights[1] == 0 && weights[2] == 0 && weights[3] == 0)
-				{
-					weights[0] = 255;
-					std::memcpy(&vert_data[i * vert_size_B + weights_offset_B], weights, sizeof(uint8) * 4); // Copy back to vertex data
-				}
-			}
-		}
-		else if(weight_attr->component_type == BatchedMesh::ComponentType_UInt16)
-		{
-			for(uint32 i=0; i<num_verts; ++i)
-			{
-				uint16 weights[4];
-				std::memcpy(weights, &vert_data[i * vert_size_B + weights_offset_B], sizeof(uint16) * 4);
-				if(weights[0] == 0 && weights[1] == 0 && weights[2] == 0 && weights[3] == 0)
-				{
-					weights[0] = 65535;
-					std::memcpy(&vert_data[i * vert_size_B + weights_offset_B], weights, sizeof(uint16) * 4); // Copy back to vertex data
-				}
-			}
-		}
-		else if(weight_attr->component_type == BatchedMesh::ComponentType_Float)
-		{
-			for(uint32 i=0; i<num_verts; ++i)
-			{
-				float weights[4];
-				std::memcpy(weights, &vert_data[i * vert_size_B + weights_offset_B], sizeof(float) * 4);
-				/*const float sum = (weights[0] + weights[1]) + (weights[2] + weights[3]);
-				if(sum < 0.9999f || sum >= 1.0001f)
-				{
-					if(std::fabs(sum) < 1.0e-3f)
-					{
-						weights[0] = 1.f;
-						std::memcpy(&vert_data[i * vert_size_B + weights_offset_B], weights, sizeof(float) * 4); // Copy back to vertex data
-					}
-					else
-					{
-						const float scale = 1 / sum;
-						for(int c=0; c<4; ++c) weights[c] *= scale;
-						std::memcpy(&vert_data[i * vert_size_B + weights_offset_B], weights, sizeof(float) * 4); // Copy back to vertex data
-					}
-				}*/
-
-				if(weights[0] == 0 && weights[1] == 0 && weights[2] == 0 && weights[3] == 0)
-				{
-					weights[0] = 1.f;
-					std::memcpy(&vert_data[i * vert_size_B + weights_offset_B], weights, sizeof(float) * 4); // Copy back to vertex data
-				}
-			}
-		}
-
-		//conPrint("Checking weight data took " + timer.elapsedStringNSigFigs(4));
-	}
-
-}
-
-
 static float getScaleForMesh(const BatchedMesh& mesh)
 {
 	// Automatically scale object down until it is < x m across
@@ -707,7 +513,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		
 		conPrint("Loaded GLTF model in " + timer.elapsedString());
 
-		checkValidAndSanitiseMesh(*batched_mesh);
+		batched_mesh->checkValidAndSanitiseMesh();
 
 		if(batched_mesh->animation_data.vrm_data.nonNull())
 			rotateVRMMesh(*batched_mesh);
@@ -856,7 +662,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		BatchedMeshRef bmesh = new BatchedMesh();
 		BatchedMesh::readFromFile(model_path, *bmesh);
 
-		checkValidAndSanitiseMesh(*bmesh);
+		bmesh->checkValidAndSanitiseMesh();
 
 		// Automatically scale object down until it is < x m across
 		//scaleMesh(*bmesh);
@@ -1095,7 +901,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelUR
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
 
 
-	checkValidAndSanitiseMesh(*batched_mesh); // Throws glare::Exception on invalid mesh.
+	batched_mesh->checkValidAndSanitiseMesh(); // Throws glare::Exception on invalid mesh.
 
 	if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
 		if(batched_mesh->animation_data.vrm_data.nonNull())

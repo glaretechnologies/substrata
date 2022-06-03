@@ -36,7 +36,6 @@ public:
 
 
 	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);
-	static void checkValidAndSanitiseMesh(BatchedMesh& mesh);
 
 
 	static bool hasSupportedModelExtension(const std::string& path);
