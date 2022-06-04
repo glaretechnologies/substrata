@@ -191,9 +191,7 @@ if(WIN32)
 	# VS subdir
 	set(VS_SUB_DIR "vs${CYBERSPACE_VS_VER}")
 	
-	set(LLVM_BUILD_VS_VER 2022)
-	
-	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${LLVM_BUILD_VS_VER}_${CYBERSPACE_BITNESS}")
+	set(llvmdir "${INDIGO_LIBS_ENV}/llvm/llvm_${INDIGO_LLVM_VERSION_PATH}_install_vs${CYBERSPACE_LIBS_VS_VER}_${CYBERSPACE_BITNESS}")
 	set(libressldir "${INDIGO_LIBS_ENV}/LibreSSL/libressl-${INDIGO_LIBRESSL_VERSION}-${CYBERSPACE_PLATFORM}-vs${CYBERSPACE_LIBS_VS_VER}-install")
 		
 	# Set the output directory.  Cmake will append the configuration string to this.
