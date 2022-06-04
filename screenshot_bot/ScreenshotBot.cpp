@@ -150,7 +150,7 @@ int main(int argc, char* argv[])
 								angles_0 = Maths::pi_2<double>(); // TEMP HACK
 
 							const std::string screenshot_filename = "screenshot_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
-							screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
+							screenshot_path = PlatformUtils::getTempDirPath() + "/" + screenshot_filename;
 
 							packet.writeStringLengthFirst("takescreenshot");
 							packet.writeDouble(cam_x);
@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
 							conPrint("tile: (" + toString(tile_x) + ", " + toString(tile_y) + ", " + toString(tile_z) + ")");
 
 							const std::string screenshot_filename = "tile_" + toString(tile_x) + "_" + toString(tile_y) + "_" + toString(tile_z) + "_" + StringUtils::convertByteArrayToHexString(data, NUM_BYTES) + ".jpg";
-							screenshot_path = "D:/tempfiles/screenshots/" + screenshot_filename;
+							screenshot_path = PlatformUtils::getTempDirPath() + "/" + screenshot_filename;
 
 							packet.writeStringLengthFirst("takemapscreenshot");
 							packet.writeInt32(tile_x);
