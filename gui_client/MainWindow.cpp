@@ -10047,7 +10047,7 @@ public:
 
 
 // Enable bugsplat unless the DISABLE_BUGSPLAT env var is set to a non-zero value.
-#ifdef _WIN32
+#ifdef BUGSPLAT_SUPPORT
 static bool shouldEnableBugSplat()
 {
 	try
@@ -10065,7 +10065,7 @@ static bool shouldEnableBugSplat()
 
 int main(int argc, char *argv[])
 {
-#ifdef _WIN32
+#ifdef BUGSPLAT_SUPPORT
 	if(shouldEnableBugSplat())
 	{
 		// BugSplat initialization.
