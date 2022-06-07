@@ -49,8 +49,8 @@ public:
 
 	void replaceFinishWorldObjectEdit(const WorldObject& ob);
 
-	Reference<WorldObject> getUndoWorldObject();
-	Reference<WorldObject> getRedoWorldObject();
+	WorldObjectRef getUndoWorldObject();
+	WorldObjectRef getRedoWorldObject();
 
 private:
 	UndoBufferEdit current_edit;

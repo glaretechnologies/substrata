@@ -6683,7 +6683,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 				try
 				{
 					// Deserialise object
-					Reference<WorldObject> pasted_ob = new WorldObject();
+					WorldObjectRef pasted_ob = new WorldObject();
 					readFromStream(in_stream_buf, *pasted_ob);
 
 					// Position pasted object in front of the camera
@@ -7302,14 +7302,14 @@ void MainWindow::on_actionOptions_triggered()
 }
 
 
-void MainWindow::applyUndoOrRedoObject(const Reference<WorldObject>& restored_ob)
+void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 {
 	if(restored_ob.nonNull())
 	{
 		{
 			Lock lock(this->world_state->mutex);
 
-			Reference<WorldObject> in_world_ob;
+			WorldObjectRef in_world_ob;
 			bool voxels_different = false;
 
 			UID use_uid;
@@ -7413,7 +7413,7 @@ void MainWindow::on_actionUndo_triggered()
 {
 	try
 	{
-		Reference<WorldObject> ob = undo_buffer.getUndoWorldObject();
+		WorldObjectRef ob = undo_buffer.getUndoWorldObject();
 		applyUndoOrRedoObject(ob);
 	}
 	catch(glare::Exception& e)
@@ -7427,7 +7427,7 @@ void MainWindow::on_actionRedo_triggered()
 {
 	try
 	{
-		Reference<WorldObject> ob = undo_buffer.getRedoWorldObject();
+		WorldObjectRef ob = undo_buffer.getRedoWorldObject();
 		applyUndoOrRedoObject(ob);
 	}
 	catch(glare::Exception& e)
