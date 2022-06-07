@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <FileChecksum.h>
 #include <Sort.h>
 #include <BufferInStream.h>
+#include <PoolMap.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
@@ -29,7 +30,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <zstd.h>
 
 
-WorldObject::WorldObject()
+WorldObject::WorldObject() noexcept
 {
 	creator_id = UserID::invalidUserID();
 	flags = COLLIDABLE_FLAG;
@@ -69,6 +70,8 @@ WorldObject::WorldObject()
 	max_model_lod_level = 0;
 
 	audio_volume = 1;
+
+	object_pool_map = NULL;
 }
 
 
@@ -1017,4 +1020,13 @@ void checkTransformOK(const WorldObject* ob)
 	for(int i=0; i<16; ++i)
 		if(!::isFinite(world_to_ob.e[i]))
 			throw glare::Exception("world_to_ob had non-finite component.");
+}
+
+
+void doDestroyOb(WorldObject* ob)
+{
+	if(ob->object_pool_map)
+		ob->object_pool_map->erase(ob->uid);
+	else
+		delete ob;
 }

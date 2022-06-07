@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/Parcel.h"
 #include "../shared/GroundPatch.h"
 #include <ThreadSafeRefCounted.h>
+#include <PoolMap.h>
 #include <Mutex.h>
 #include <map>
 #include <unordered_set>
@@ -38,7 +39,7 @@ public:
 
 	std::map<UID, Reference<Avatar>> avatars;
 
-	std::map<UID, WorldObjectRef> objects;
+	glare::PoolMap<UID, WorldObject, UIDHasher> objects;
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects;
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_local_objects;
 

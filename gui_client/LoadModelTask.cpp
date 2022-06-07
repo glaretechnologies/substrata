@@ -78,7 +78,7 @@ void LoadModelTask::run(size_t thread_index)
 		msg->gl_meshdata = gl_meshdata;
 		msg->raymesh = raymesh;
 		msg->lod_model_url = lod_model_url;
-		msg->voxel_ob = voxel_ob;
+		msg->voxel_ob_uid = voxel_ob.nonNull() ? voxel_ob->uid : UID::invalidUID();
 		msg->voxel_ob_lod_level = voxel_ob_lod_level;
 		msg->subsample_factor = subsample_factor;
 		result_msg_queue->enqueue(msg);
