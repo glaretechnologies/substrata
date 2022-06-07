@@ -72,7 +72,7 @@ void UndoBuffer::replaceFinishWorldObjectEdit(const WorldObject& ob)
 }
 
 
-Reference<WorldObject> UndoBuffer::getUndoWorldObject()
+WorldObjectRef UndoBuffer::getUndoWorldObject()
 {
 	//conPrint("UndoBuffer::getUndoWorldObject()");
 
@@ -94,13 +94,13 @@ Reference<WorldObject> UndoBuffer::getUndoWorldObject()
 
 	index--;
 
-	Reference<WorldObject> ob = new WorldObject();
+	WorldObjectRef ob = new WorldObject();
 	readFromStream(stream, *ob);
 	return ob;
 }
 
 
-Reference<WorldObject> UndoBuffer::getRedoWorldObject()
+WorldObjectRef UndoBuffer::getRedoWorldObject()
 {
 	if(index >= chunks.size())
 		return NULL;
@@ -115,7 +115,7 @@ Reference<WorldObject> UndoBuffer::getRedoWorldObject()
 
 	index++;
 
-	Reference<WorldObject> ob = new WorldObject();
+	WorldObjectRef ob = new WorldObject();
 	readFromStream(stream, *ob);
 	return ob;
 }
