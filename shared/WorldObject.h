@@ -24,6 +24,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <string>
 #include <vector>
 #include <set>
+#include <new>
 struct GLObject;
 class PhysicsObject;
 namespace glare { class AudioSource; }
@@ -95,7 +96,11 @@ public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
 	// For placement new in PoolMap:
+#if __cplusplus >= 201703L
 	void* operator new  (size_t size, std::align_val_t alignment, void* ptr) { return ptr; }
+#else
+	void* operator new  (size_t size, void* ptr) { return ptr; }
+#endif
 
 	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
 	static int getLODLevelForURL(const std::string& URL); // Identifies _lod1 etc. suffix.
