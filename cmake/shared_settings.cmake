@@ -220,6 +220,8 @@ ${INDIGO_UTILS_DIR}/Plotter.cpp
 ${INDIGO_UTILS_DIR}/Plotter.h
 ${INDIGO_UTILS_DIR}/PoolAllocator.cpp
 ${INDIGO_UTILS_DIR}/PoolAllocator.h
+${INDIGO_UTILS_DIR}/PoolMap.cpp
+${INDIGO_UTILS_DIR}/PoolMap.h
 ${INDIGO_UTILS_DIR}/GlareProcess.cpp
 ${INDIGO_UTILS_DIR}/GlareProcess.h
 ${INDIGO_UTILS_DIR}/prebuild_repos_info.h
