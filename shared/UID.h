@@ -13,6 +13,7 @@ Code By Nicholas Chapman.
 #include <StringUtils.h>
 #include <limits>
 #include <string>
+#include <functional> // for std::hash
 
 
 
@@ -53,3 +54,14 @@ inline UID readUIDFromStream(InStream& stream)
 	stream.readData(&uid.v, sizeof(uid.v));
 	return uid;
 }
+
+
+
+struct UIDHasher
+{
+	size_t operator() (const UID& uid) const
+	{
+		std::hash<uint64> h;
+		return h(uid.value());
+	}
+};

@@ -658,6 +658,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 
 	texture_loaded_messages_to_process.clear();
 
+	cur_loading_voxel_ob = NULL;
+
 
 	// Clear web_view_obs - will close QWebEngineViews
 	for(auto entry : web_view_obs)
@@ -2760,9 +2762,14 @@ void MainWindow::checkForLODChanges()
 		Lock lock(this->world_state->mutex);
 
 		const Vec3d cam_pos = cam_controller.getPosition();
+
+		//const int slice = num_frames_since_fps_timer_reset % 8; // TEMP HACK
+		//const int begin_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * slice;
+		//const int end_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * (slice + 1);
+
 		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 		{
-			WorldObject* ob = it->second.ptr();
+			WorldObject* ob = it.getValuePtr();
 
 			const int lod_level = ob->getLODLevel(cam_pos);
 
@@ -2776,7 +2783,7 @@ void MainWindow::checkForLODChanges()
 			}
 
 			if(!ob->audio_source_url.empty() || ob->audio_source.nonNull())
-			{				
+			{
 				const float dist = cam_pos.toVec4fVector().getDist(ob->pos.toVec4fVector());
 				if(ob->audio_source.nonNull())
 				{
@@ -2801,8 +2808,9 @@ void MainWindow::checkForLODChanges()
 				}
 			}
 		}
+		//conPrint("checkForLODChanges took " + timer.elapsedString() + " " + toString(i));
 	} // End lock scope
-	// conPrint("checkForLODChanges took " + timer.elapsedString());
+	
 }
 
 
@@ -3464,7 +3472,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							auto res2 = this->world_state->objects.find(waiting_uid);
 							if(res2 != this->world_state->objects.end())
 							{
-								WorldObject* ob = res2->second.ptr();
+								WorldObject* ob = res2.getValuePtr();
 
 								if(ob->in_proximity)
 								{
@@ -3718,32 +3726,36 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					try
 					{
-						if(message->voxel_ob.nonNull()) // If we loaded a voxel object:
+						if(message->voxel_ob_uid.valid()) // If we loaded a voxel object:
 						{
 							// Handle loading a voxel group
-							WorldObjectRef voxel_ob = message->voxel_ob;
-
-							//removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
-
-							if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
+							auto res = world_state->objects.find(message->voxel_ob_uid);
+							if(res != world_state->objects.end())
 							{
-								if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
-								{
-									this->cur_loading_mesh_data = message->gl_meshdata;
-									this->cur_loading_voxel_ob = voxel_ob;
-									this->cur_loading_voxel_subsample_factor = message->subsample_factor;
-									this->cur_loading_raymesh = message->raymesh;
-									this->cur_loading_voxel_ob_lod_level = message->voxel_ob_lod_level;
-									ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
+								WorldObjectRef voxel_ob = res.getValuePtr();
 
-									//logMessage("Initialised loading of voxel mesh: " + mesh_data_loading_progress.summaryString());
-								}
-								else
-								{
-									//logMessage("Voxel mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
-								}
+								//removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
 
-							} // End proximity_loader.isObjectInLoadProximity()
+								if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
+								{
+									if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
+									{
+										this->cur_loading_mesh_data = message->gl_meshdata;
+										this->cur_loading_voxel_ob = voxel_ob;
+										this->cur_loading_voxel_subsample_factor = message->subsample_factor;
+										this->cur_loading_raymesh = message->raymesh;
+										this->cur_loading_voxel_ob_lod_level = message->voxel_ob_lod_level;
+										ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
+
+										//logMessage("Initialised loading of voxel mesh: " + mesh_data_loading_progress.summaryString());
+									}
+									else
+									{
+										//logMessage("Voxel mesh '" + message->lod_model_url + "' was already loaded into OpenGL");
+									}
+
+								} // End proximity_loader.isObjectInLoadProximity()
+							}
 						}
 						else // Else didn't load voxels, loaded a model:
 						{
@@ -3867,7 +3879,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
-							WorldObject* ob = it->second.getPointer();
+							WorldObject* ob = it.getValuePtr();
 
 							if(ob->audio_source_url == loaded_msg->audio_source_url)
 							{
@@ -3931,7 +3943,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
-							WorldObject* ob = it->second.getPointer();
+							WorldObject* ob = it.getValuePtr();
 							if(ob->script == loaded_msg->script)
 								handleScriptLoadedForObUsingScript(loaded_msg, ob);
 						}
@@ -4227,7 +4239,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					//print("MainWIndow: Received UserSelectedObjectMessage");
 					const UserSelectedObjectMessage* m = static_cast<const UserSelectedObjectMessage*>(msg.getPointer());
 					Lock lock(this->world_state->mutex);
-					if(this->world_state->avatars.count(m->avatar_uid) != 0 && this->world_state->objects.count(m->object_uid) != 0)
+					const bool is_ob_with_uid_inserted = this->world_state->objects.find(m->object_uid) != this->world_state->objects.end();
+					if(this->world_state->avatars.count(m->avatar_uid) != 0 && is_ob_with_uid_inserted)
 					{
 						this->world_state->avatars[m->avatar_uid]->selected_object_uid = m->object_uid;
 					}
@@ -4293,7 +4306,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							bool need_resource = false;
 							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 							{
-								WorldObject* ob = it->second.getPointer();
+								WorldObject* ob = it.getValuePtr();
 
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 
@@ -4392,7 +4405,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 								{
-									WorldObject* ob = it->second.getPointer();
+									WorldObject* ob = it.getValuePtr();
 
 									if(ob->audio_source_url == URL)
 										loadAudioForObject(ob);
@@ -4985,7 +4998,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				WorldObject* ob = it->ptr();
 
-				assert(this->world_state->objects.count(ob->uid) == 1 && this->world_state->objects[ob->uid].ptr() == ob); // Make sure this object in the dirty set is in our set of objects.
+				assert((this->world_state->objects.find(ob->uid) != this->world_state->objects.end()) && (this->world_state->objects.find(ob->uid).getValuePtr() == ob)); // Make sure this object in the dirty set is in our set of objects.
 
 				// conPrint("Processing dirty object.");
 
@@ -5013,8 +5026,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						removeInstancesOfObject(ob);
 
-						this->world_state->objects.erase(ob->uid);
-						//this->objects_to_remove.push_back(it->second); // Mark as to-be-removed
+						//this->world_state->objects.erase(ob->uid);
+
+						assert(ob->getRefCount() >= 1);
+						WorldObjectRef ref(ob); // Make a temporary reference to run deletion code when it goes out of scope.
+						ob->decRefCount(); // Decrement the ref count that represents the world_state reference to ob.
 
 						active_objects.erase(ob);
 						obs_with_animated_tex.erase(ob);
@@ -7155,7 +7171,7 @@ void MainWindow::on_actionFind_Object_triggered()
 			auto res = world_state->objects.find(UID(ob_id));
 			if(res != world_state->objects.end())
 			{
-				WorldObject* ob = res->second.ptr();
+				WorldObject* ob = res.getValuePtr();
 
 				deselectObject();
 				selectObject(ob, /*selected_tri_index=*/0);
@@ -7191,7 +7207,7 @@ void MainWindow::on_actionList_Objects_Nearby_triggered()
 			auto res = world_state->objects.find(UID(ob_id));
 			if(res != world_state->objects.end())
 			{
-				WorldObject* ob = res->second.ptr();
+				WorldObject* ob = res.getValuePtr();
 
 				deselectObject();
 				selectObject(ob, /*selected_tri_index=*/0);
@@ -7309,7 +7325,7 @@ void MainWindow::applyUndoOrRedoObject(const Reference<WorldObject>& restored_ob
 			auto res = this->world_state->objects.find(use_uid);
 			if(res != this->world_state->objects.end())
 			{
-				in_world_ob = res->second;
+				in_world_ob = res.getValuePtr();
 
 				voxels_different = in_world_ob->getCompressedVoxels() != restored_ob->getCompressedVoxels();
 
@@ -7451,7 +7467,7 @@ void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 		{
 			for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
 			{
-				WorldObject* ob = it->second.ptr();
+				WorldObject* ob = it.getValuePtr();
 
 				if(cur_parcel->pointInParcel(ob->pos) && objectModificationAllowed(*ob))
 				{
@@ -7913,7 +7929,7 @@ void MainWindow::sendLightmapNeededFlagsSlot()
 
 			for(auto other_it = this->world_state->objects.begin(); other_it != this->world_state->objects.end(); ++other_it)
 			{
-				WorldObject* other_ob = other_it->second.ptr();
+				WorldObject* other_ob = other_it.getValuePtr();
 
 				const float dist = (float)other_ob->pos.getDist(ob->pos);
 				if(dist < D)
@@ -8060,7 +8076,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	{
 		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
 		{
-			WorldObject* ob = it->second.ptr();
+			WorldObject* ob = it.getValuePtr();
 
 			if(ob->opengl_engine_ob.nonNull())
 				ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
@@ -8106,6 +8122,8 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	obs_with_scripts.clear();
 
 	proximity_loader.clearAllObjects();
+
+	cur_loading_voxel_ob = NULL;
 
 
 	// Remove any ground quads.
@@ -10786,7 +10804,7 @@ int main(int argc, char *argv[])
 					world_object->max_model_lod_level = 0;
 
 					world_object->from_remote_other_dirty = true;
-					mw.world_state->objects[UID(1000000)] = world_object;
+					//mw.world_state->objects[UID(1000000)] = world_object;
 
 					mw.resource_manager->copyLocalFileToResourceDir(path, FileUtils::getFilename(path));
 				}
@@ -10833,13 +10851,15 @@ int main(int argc, char *argv[])
 					BatchedMeshRef mesh;
 					WorldObjectRef world_object = new WorldObject();
 
-					const std::string path = "C:\\Users\\nick\\Downloads\\scifi_girl_v.01\\scene.gltf";
+					const std::string path = "D:\\models\\dancedevil_glb_16934124793649044515_lod2.bmesh";
 
 					glare::TaskManager task_manager;
 					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
 						mesh,
 						*world_object
 					);
+
+					ob->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,2) * Matrix4f::uniformScaleMatrix(0.03f);
 
 					mw.ui->glWidget->addObject(ob);
 

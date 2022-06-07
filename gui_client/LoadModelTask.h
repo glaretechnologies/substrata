@@ -29,7 +29,7 @@ public:
 	
 	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 
-	WorldObjectRef voxel_ob; // Object we loaded voxels for, NULL otherwise.
+	UID voxel_ob_uid; // Valid if we are loading voxel for an object, invalid otherwise.  Avoid storing WorldObjectRef to avoid dangling refs
 	int voxel_ob_lod_level;// If we are loaded a voxel model, the LOD level of the object.
 	int subsample_factor; // Computed when loading voxels.
 };

@@ -63,6 +63,24 @@ public:
 };
 
 
+class WorldObject;
+void doDestroyOb(WorldObject* ob);
+
+// Template specialisation of destroyAndFreeOb for WorldObject.  This is called when being freed by a Reference.
+// We will use this to free from the WorldState PoolMap if the object was allocated from there.
+template <>
+inline void destroyAndFreeOb<WorldObject>(WorldObject* ob)
+{
+	doDestroyOb(ob);
+}
+
+
+namespace glare {
+	template <class A, class B, class C> class PoolMap;
+}
+struct UIDHasher;
+
+
 /*=====================================================================
 WorldObject
 -----------
@@ -71,10 +89,13 @@ WorldObject
 class WorldObject : public ThreadSafeRefCounted
 {
 public:
-	WorldObject();
+	WorldObject() noexcept;
 	~WorldObject();
 
 	GLARE_ALIGNED_16_NEW_DELETE
+
+	// For placement new in PoolMap:
+	void* operator new  (size_t size, std::align_val_t alignment, void* ptr) { return ptr; }
 
 	static std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
 	static int getLODLevelForURL(const std::string& URL); // Identifies _lod1 etc. suffix.
@@ -260,6 +281,9 @@ public:
 private:
 	VoxelGroup voxel_group;
 	js::Vector<uint8, 16> compressed_voxels;
+
+public:
+	glare::PoolMap<UID, WorldObject, UIDHasher>* object_pool_map; // Non-null if this object was allocated from an object pool map.
 };
 
 

@@ -26,6 +26,24 @@ WorldState::WorldState()
 WorldState::~WorldState()
 {
 	delete url_whitelist;
+
+	dirty_from_remote_objects.clear();
+	dirty_from_local_objects.clear();
+
+	for(auto it = objects.begin(); it != objects.end(); ++it)
+	{
+		// Remove implicit reference the world state has to each object.  Do this to avoid hitting assert(refcount == 0); in ~ThreadSafeRefCounted().
+		assert(it.getValuePtr()->getRefCount() == 1);
+		if(it.getValuePtr()->getRefCount() != 1)
+		{
+			WorldObject* ob = it.getValuePtr();
+			conPrint("Warning: ref count of WorldObject about to be destroyed is != 1. ob->uid: " + ob->uid.toString());
+#if defined(_WIN32)
+			__debugbreak();
+#endif
+		}
+		it.getValuePtr()->decRefCount();
+	}
 }
 
 
@@ -85,7 +103,7 @@ size_t WorldState::getTotalMemUsage() const
 
 	for(auto it = objects.begin(); it != objects.end(); ++it)
 	{
-		sum += it->second->getTotalMemUsage();
+		sum += it.getValuePtr()->getTotalMemUsage();
 	}
 
 	return sum;
