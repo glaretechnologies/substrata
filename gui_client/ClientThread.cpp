@@ -502,7 +502,14 @@ void ClientThread::doRun()
 						{
 							::Lock lock(world_state->mutex);
 
+							// NOTE: will not replace existing object with that UID if it exists in the map.
+							//const auto res = world_state->objects.insert(std::make_pair(object_uid, ob));
+							//const bool added = res.second;
+							//if(added)
+							//	world_state->dirty_from_remote_objects.insert(ob.ptr());
+
 							// NOTE: we will not replace existing object with that UID if it exists in the map.
+							// TODO: use faster way as above
 							if(world_state->objects.find(object_uid) == world_state->objects.end())
 							{
 								world_state->objects.insert(object_uid, ob);
