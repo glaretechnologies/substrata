@@ -129,7 +129,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 	{
 		const float W = 200;
 
-		GLObjectRef ob = new GLObject();
+		GLObjectRef ob = opengl_engine->allocateObject();
 		ob->materials.resize(1);
 		ob->materials[0].albedo_rgb = Colour3f(0.9f);
 		try
@@ -203,7 +203,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 				// Render the preview image
 
 				// Add voxel
-				GLObjectRef voxel_ob = new GLObject();
+				GLObjectRef voxel_ob = opengl_engine->allocateObject();
 				{
 					voxel_ob->materials.resize(1);
 

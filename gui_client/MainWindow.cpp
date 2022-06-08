@@ -1318,7 +1318,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
 
-				GLObjectRef opengl_ob = new GLObject();
+				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
 				opengl_ob->materials.resize(1);
 				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
@@ -1368,7 +1368,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
 
-				GLObjectRef opengl_ob = new GLObject();
+				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
 				opengl_ob->materials.resize(1);
 				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
@@ -1396,7 +1396,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
 
-				GLObjectRef opengl_ob = new GLObject();
+				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->image_cube_opengl_mesh;
 				opengl_ob->materials.resize(2);
 				opengl_ob->materials[0].albedo_rgb = Colour3f(1.f);
@@ -1469,7 +1469,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
 						// Create gl and physics object now
-						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
+						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
 						
 						ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
@@ -1642,7 +1642,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 				const Matrix4f ob_to_world_matrix = obToWorldMatrix(*avatar);
 
 				// Create gl and physics object now
-				avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(mesh_data->gl_meshdata, ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
+				avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, mesh_data->gl_meshdata, ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
 					*resource_manager, ob_to_world_matrix);
 
 				avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
@@ -2670,7 +2670,7 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 		// Add new edge markers if needed
 		while(ob_denied_move_markers.size() < edge_markers.size())
 		{
-			GLObjectRef new_marker = new GLObject();
+			GLObjectRef new_marker = ui->glWidget->opengl_engine->allocateObject();
 			new_marker->mesh_data = this->ob_denied_move_marker->mesh_data; // copy mesh ref from prototype gl ob.
 			new_marker->materials = this->ob_denied_move_marker->materials; // copy materials
 			new_marker->ob_to_world_matrix = Matrix4f::identity();
@@ -2769,7 +2769,7 @@ void MainWindow::checkForLODChanges()
 
 		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 		{
-			WorldObject* ob = it.getValuePtr();
+			WorldObject* ob = it.getValue().ptr();
 
 			const int lod_level = ob->getLODLevel(cam_pos);
 
@@ -3472,7 +3472,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							auto res2 = this->world_state->objects.find(waiting_uid);
 							if(res2 != this->world_state->objects.end())
 							{
-								WorldObject* ob = res2.getValuePtr();
+								WorldObject* ob = res2.getValue().ptr();
 
 								if(ob->in_proximity)
 								{
@@ -3493,7 +3493,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											// Create GLObject and PhysicsObjects for this world object.  The loaded mesh should be in the mesh_manager.
 											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
 
-											ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(cur_loading_mesh_data, ob_lod_level, ob->materials, ob->lightmap_url,
+											ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, cur_loading_mesh_data, ob_lod_level, ob->materials, ob->lightmap_url,
 												*resource_manager, ob_to_world_matrix);
 
 											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
@@ -3571,7 +3571,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											// Create GLObject for this avatar
 											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*av);
 
-											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(cur_loading_mesh_data, av_lod_level, av->avatar_settings.materials, /*lightmap_url=*/std::string(),
+											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, cur_loading_mesh_data, av_lod_level, av->avatar_settings.materials, /*lightmap_url=*/std::string(),
 												*resource_manager, ob_to_world_matrix);
 
 											av->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
@@ -3655,7 +3655,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							physics_ob->geometry = cur_loading_raymesh;
 							physics_ob->ob_to_world = use_ob_to_world_matrix;
 
-							GLObjectRef opengl_ob = new GLObject();
+							GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 							opengl_ob->mesh_data = cur_loading_mesh_data;
 							opengl_ob->materials.resize(voxel_ob->materials.size());
 							for(uint32 i=0; i<voxel_ob->materials.size(); ++i)
@@ -3732,7 +3732,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							auto res = world_state->objects.find(message->voxel_ob_uid);
 							if(res != world_state->objects.end())
 							{
-								WorldObjectRef voxel_ob = res.getValuePtr();
+								WorldObjectRef voxel_ob = res.getValue().ptr();
 
 								//removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
 
@@ -3879,7 +3879,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
-							WorldObject* ob = it.getValuePtr();
+							WorldObject* ob = it.getValue().ptr();
 
 							if(ob->audio_source_url == loaded_msg->audio_source_url)
 							{
@@ -3943,7 +3943,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 						{
-							WorldObject* ob = it.getValuePtr();
+							WorldObject* ob = it.getValue().ptr();
 							if(ob->script == loaded_msg->script)
 								handleScriptLoadedForObUsingScript(loaded_msg, ob);
 						}
@@ -4306,7 +4306,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							bool need_resource = false;
 							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 							{
-								WorldObject* ob = it.getValuePtr();
+								WorldObject* ob = it.getValue().ptr();
 
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 
@@ -4405,7 +4405,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
 								{
-									WorldObject* ob = it.getValuePtr();
+									WorldObject* ob = it.getValue().ptr();
 
 									if(ob->audio_source_url == URL)
 										loadAudioForObject(ob);
@@ -4534,7 +4534,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				if(player_phys_debug_spheres[i].isNull())
 				{
-					player_phys_debug_spheres[i] = new GLObject();
+					player_phys_debug_spheres[i] = ui->glWidget->opengl_engine->allocateObject();
 					player_phys_debug_spheres[i]->ob_to_world_matrix = Matrix4f::identity();
 					player_phys_debug_spheres[i]->mesh_data = ui->glWidget->opengl_engine->getSphereMeshData();
 
@@ -6540,7 +6540,7 @@ void MainWindow::createModelObject(const std::string& local_model_path)
 
 	// Load mesh.  Updates new_world_object scale etc.
 	BatchedMeshRef loaded_mesh;
-	GLObjectRef preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_model_path,
+	GLObjectRef preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_model_path,
 		loaded_mesh, // mesh out
 		*new_world_object
 	);
@@ -6567,7 +6567,7 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 
 	BatchedMeshRef batched_mesh;
 	WorldObjectRef new_world_object = new WorldObject();
-	GLObjectRef gl_ob = ModelLoading::makeImageCube(*ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_path, w, h, batched_mesh, *new_world_object);
+	GLObjectRef gl_ob = ModelLoading::makeImageCube(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_path, w, h, batched_mesh, *new_world_object);
 
 	const float ob_cam_right_translation = -new_world_object->scale.x/2;
 	const float ob_cam_up_translation    = -new_world_object->scale.z/2;
@@ -7171,7 +7171,7 @@ void MainWindow::on_actionFind_Object_triggered()
 			auto res = world_state->objects.find(UID(ob_id));
 			if(res != world_state->objects.end())
 			{
-				WorldObject* ob = res.getValuePtr();
+				WorldObject* ob = res.getValue().ptr();
 
 				deselectObject();
 				selectObject(ob, /*selected_tri_index=*/0);
@@ -7207,7 +7207,7 @@ void MainWindow::on_actionList_Objects_Nearby_triggered()
 			auto res = world_state->objects.find(UID(ob_id));
 			if(res != world_state->objects.end())
 			{
-				WorldObject* ob = res.getValuePtr();
+				WorldObject* ob = res.getValue().ptr();
 
 				deselectObject();
 				selectObject(ob, /*selected_tri_index=*/0);
@@ -7325,7 +7325,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 			auto res = this->world_state->objects.find(use_uid);
 			if(res != this->world_state->objects.end())
 			{
-				in_world_ob = res.getValuePtr();
+				in_world_ob = res.getValue().ptr();
 
 				voxels_different = in_world_ob->getCompressedVoxels() != restored_ob->getCompressedVoxels();
 
@@ -7467,7 +7467,7 @@ void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 		{
 			for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
 			{
-				WorldObject* ob = it.getValuePtr();
+				WorldObject* ob = it.getValue().ptr();
 
 				if(cur_parcel->pointInParcel(ob->pos) && objectModificationAllowed(*ob))
 				{
@@ -7929,7 +7929,7 @@ void MainWindow::sendLightmapNeededFlagsSlot()
 
 			for(auto other_it = this->world_state->objects.begin(); other_it != this->world_state->objects.end(); ++other_it)
 			{
-				WorldObject* other_ob = other_it.getValuePtr();
+				WorldObject* other_ob = other_it.getValue().ptr();
 
 				const float dist = (float)other_ob->pos.getDist(ob->pos);
 				if(dist < D)
@@ -8063,6 +8063,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	
 	// Kill any existing threads connected to the server
 	resource_download_thread_manager.killThreadsBlocking();
+	net_resource_download_thread_manager.killThreadsBlocking();
 	resource_upload_thread_manager.killThreadsBlocking();
 
 	if(client_thread.nonNull())
@@ -8076,7 +8077,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	{
 		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
 		{
-			WorldObject* ob = it.getValuePtr();
+			WorldObject* ob = it.getValue().ptr();
 
 			if(ob->opengl_engine_ob.nonNull())
 				ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
@@ -8789,7 +8790,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, 
 			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, raymesh);
 
-		GLObjectRef gl_ob = new GLObject();
+		GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;
 		gl_ob->mesh_data = gl_meshdata;
 
@@ -9695,7 +9696,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	const int W = 512;
 	const int H = 160;
 
-	GLObjectRef gl_ob = new GLObject();
+	GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 	gl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
 	gl_ob->materials.resize(1);
 
@@ -9806,7 +9807,7 @@ void MainWindow::updateGroundPlane()
 				// Make new quad
 				//conPrint("Added ground quad (" + toString(new_quad.x) + ", " + toString(new_quad.y) + ")");
 
-				GLObjectRef gl_ob = new GLObject();
+				GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 				gl_ob->materials.resize(1);
 				gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
 				//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
@@ -10358,7 +10359,7 @@ int main(int argc, char *argv[])
 
 			for(int i=0; i<3; ++i)
 			{
-				GLObjectRef ob = new GLObject();
+				GLObjectRef ob = mw.ui->glWidget->opengl_engine->allocateObject();
 				ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)i * 3, 0, 2);
 				ob->mesh_data = MeshBuilding::makeRotationArcHandleMeshData(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, arc_handle_half_angle * 2);
 				ob->materials.resize(1);
@@ -10547,7 +10548,7 @@ int main(int argc, char *argv[])
 
 			// Make object-placement beam model
 			{
-				mw.ob_placement_beam = new GLObject();
+				mw.ob_placement_beam = mw.ui->glWidget->opengl_engine->allocateObject();
 				mw.ob_placement_beam->ob_to_world_matrix = Matrix4f::identity();
 				mw.ob_placement_beam->mesh_data = mw.ui->glWidget->opengl_engine->getCylinderMesh();
 
@@ -10559,7 +10560,7 @@ int main(int argc, char *argv[])
 				mw.ob_placement_beam->materials = std::vector<OpenGLMaterial>(1, material);
 
 				// Make object-placement beam hit marker out of a sphere.
-				mw.ob_placement_marker = new GLObject();
+				mw.ob_placement_marker = mw.ui->glWidget->opengl_engine->allocateObject();
 				mw.ob_placement_marker->ob_to_world_matrix = Matrix4f::identity();
 				mw.ob_placement_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
 
@@ -10568,7 +10569,7 @@ int main(int argc, char *argv[])
 
 			{
 				// Make ob_denied_move_marker
-				mw.ob_denied_move_marker = new GLObject();
+				mw.ob_denied_move_marker = mw.ui->glWidget->opengl_engine->allocateObject();
 				mw.ob_denied_move_marker->ob_to_world_matrix = Matrix4f::identity();
 				mw.ob_denied_move_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
 
@@ -10582,7 +10583,7 @@ int main(int argc, char *argv[])
 
 			// Make voxel_edit_marker model
 			{
-				mw.voxel_edit_marker = new GLObject();
+				mw.voxel_edit_marker = mw.ui->glWidget->opengl_engine->allocateObject();
 				mw.voxel_edit_marker->ob_to_world_matrix = Matrix4f::identity();
 				mw.voxel_edit_marker->mesh_data = mw.ui->glWidget->opengl_engine->getCubeMeshData();
 
@@ -10596,7 +10597,7 @@ int main(int argc, char *argv[])
 
 			// Make voxel_edit_face_marker model
 			{
-				mw.voxel_edit_face_marker = new GLObject();
+				mw.voxel_edit_face_marker = mw.ui->glWidget->opengl_engine->allocateObject();
 				mw.voxel_edit_face_marker->ob_to_world_matrix = Matrix4f::identity();
 				mw.voxel_edit_face_marker->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
 
@@ -10739,7 +10740,7 @@ int main(int argc, char *argv[])
 					Indigo::MeshRef mesh = new Indigo::Mesh();
 					Indigo::Mesh::readFromFile("resources/wedge.igmesh", *mesh);
 
-					GLObjectRef ob = new GLObject();
+					GLObjectRef ob = mw.ui->glWidget->opengl_engine->allocateObject();
 					ob->materials.resize(1);
 					ob->materials[0].albedo_rgb = Colour3f(0.6f, 0.2f, 0.2f);
 					ob->materials[0].fresnel_scale = 1;
@@ -10769,7 +10770,7 @@ int main(int argc, char *argv[])
 					const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
 
 					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
 						//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
 						mesh,
 						*world_object
@@ -10817,7 +10818,7 @@ int main(int argc, char *argv[])
 					WorldObjectRef proto_world_object = new WorldObject();
 					BatchedMeshRef mesh;
 					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
 						mesh,
 						*proto_world_object
 					);
@@ -10834,7 +10835,7 @@ int main(int argc, char *argv[])
 						world_object->max_model_lod_level = 0;
 						world_object->g*/
 
-						GLObjectRef new_ob = new GLObject();
+						GLObjectRef new_ob = mw.ui->glWidget->opengl_engine->allocateObject();
 						new_ob->mesh_data = ob->mesh_data;
 						new_ob->ob_to_world_matrix = Matrix4f::translationMatrix(x*5.f, 5 + y*5.f, 0) * Matrix4f::uniformScaleMatrix(0.02f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
 						new_ob->materials = ob->materials;
@@ -10854,7 +10855,7 @@ int main(int argc, char *argv[])
 					const std::string path = "D:\\models\\dancedevil_glb_16934124793649044515_lod2.bmesh";
 
 					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
 						mesh,
 						*world_object
 					);

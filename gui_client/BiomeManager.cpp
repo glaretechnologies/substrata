@@ -270,7 +270,7 @@ static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshMa
 #endif
 
 
-GLObjectRef BiomeManager::makeElmTreeOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
+GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
 {
 	std::vector<WorldMaterialRef> materials(2);
 	materials[0] = new WorldMaterial();
@@ -299,7 +299,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(VertexBufferAllocator& vert_buf_allocato
 		}
 	}
 
-	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(elm_tree_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
+	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(gl_engine, elm_tree_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
 		/*ob to world matrix=*/Matrix4f::identity());
 
 	raymesh_out = elm_tree_mesh_data->raymesh;
@@ -325,7 +325,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(VertexBufferAllocator& vert_buf_allocato
 }
 
 
-GLObjectRef BiomeManager::makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/)
+GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/)
 {
 	std::vector<WorldMaterialRef> materials(1);
 	materials[0] = new WorldMaterial();
@@ -349,7 +349,7 @@ GLObjectRef BiomeManager::makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_
 		}
 	}
 
-	GLObjectRef tree_imposter_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(elm_tree_imposter_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
+	GLObjectRef tree_imposter_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(gl_engine, elm_tree_imposter_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
 		/*ob to world matrix=*/Matrix4f::identity());
 
 	for(size_t i=0; i<tree_imposter_opengl_ob->materials.size(); ++i)
@@ -387,7 +387,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 		{
 
 		RayMeshRef tree_raymesh;
-		GLObjectRef tree_opengl_ob = makeElmTreeOb(*opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, tree_raymesh);
+		GLObjectRef tree_opengl_ob = makeElmTreeOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, tree_raymesh);
 
 		// Compute some tree instance points
 		// Scatter elm tree
@@ -422,7 +422,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 
 		// Add the imposter instances to the opengl engine as well
-		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(*opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager/*, elm_imposters_tex*/);
+		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager/*, elm_imposters_tex*/);
 
 		tree_imposter_opengl_ob->instance_info.resize(ob_instances.size());
 		js::Vector<Matrix4f, 16> imposter_matrices(ob_instances.size());
@@ -567,7 +567,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 			
 				if(num_scatter_points > 0)
 				{
-					GLObjectRef gl_ob = new GLObject();
+					GLObjectRef gl_ob = opengl_engine.allocateObject();
 					gl_ob->materials.resize(1);
 					gl_ob->materials[0] = this->grass_ob->materials[0];
 					gl_ob->materials[0].begin_fade_out_distance = patch_w * 1.5f;
