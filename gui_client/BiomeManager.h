@@ -66,8 +66,8 @@ public:
 	
 
 private:
-	Reference<GLObject> makeElmTreeOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out);
-	Reference<GLObject> makeElmTreeImposterOb(VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
+	Reference<GLObject> makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out);
+	Reference<GLObject> makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
 
 	struct Patch;
 	void updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w, const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine);

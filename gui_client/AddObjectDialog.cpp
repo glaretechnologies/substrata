@@ -158,7 +158,7 @@ void AddObjectDialog::filenameChanged(QString& filename)
 // Sets preview_gl_ob and loaded_object
 void AddObjectDialog::makeMeshForWidthAndHeight(glare::TaskManager& task_manager, const std::string& local_image_or_vid_path, int w, int h)
 {
-	this->preview_gl_ob = ModelLoading::makeImageCube(*objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_or_vid_path, w, h,
+	this->preview_gl_ob = ModelLoading::makeImageCube(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_or_vid_path, w, h,
 		this->loaded_mesh, *this->loaded_object);
 }
 
@@ -286,7 +286,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		}
 		else // Else is not an image or an MP4 file:
 		{
-			preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_path,
+			preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_path,
 				this->loaded_mesh, // mesh out
 				*this->loaded_object
 			);

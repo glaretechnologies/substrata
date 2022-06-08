@@ -40,7 +40,7 @@ Reference<GLObject> GroundPatch::makeOpenGLObject(Reference<OpenGLEngine>& openg
 {
 	Reference<OpenGLMeshRenderData> unit_quad_mesh_data = opengl_engine->getUnitQuadMeshData();
 
-	Reference<GLObject> ob = new GLObject();
+	Reference<GLObject> ob = opengl_engine->allocateObject();
 
 	const float PATCH_W = 25.0f;
 

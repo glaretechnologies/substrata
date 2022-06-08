@@ -360,6 +360,7 @@ static void rotateVRMMesh(BatchedMesh& mesh)
 
 // We don't have a material file, just the model file:
 GLObjectRef ModelLoading::makeGLObjectForModelFile(
+	OpenGLEngine& gl_engine,
 	VertexBufferAllocator& vert_buf_allocator,
 	glare::TaskManager& task_manager, 
 	const std::string& model_path,
@@ -406,7 +407,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		const float use_scale = getScaleForVoxModel(model.aabb);
 
 		// Make opengl object
-		GLObjectRef ob = new GLObject();
+		GLObjectRef ob = gl_engine.allocateObject();
 		ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
 		Reference<RayMesh> raymesh;
@@ -454,7 +455,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		// Move object so that it lies on the z=0 (ground) plane
 		const Matrix4f use_matrix = Matrix4f::identity(); // Matrix4f::translationMatrix(0, 0, -min_z)* ob_to_world_matrix;
 
-		GLObjectRef ob = new GLObject();
+		GLObjectRef ob = gl_engine.allocateObject();
 		ob->ob_to_world_matrix = use_matrix;
 		ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip opengl calls=*/false);
 
@@ -526,7 +527,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		loaded_object_out.angle = Maths::pi_2<float>();
 		loaded_object_out.translation = Vec4f(0.f);
 
-		GLObjectRef gl_ob = new GLObject();
+		GLObjectRef gl_ob = gl_engine.allocateObject();
 		gl_ob->ob_to_world_matrix = obToWorldMatrix(loaded_object_out);
 		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
@@ -592,7 +593,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			// Move object so that it lies on the z=0 (ground) plane
 			const Matrix4f use_matrix = Matrix4f::translationMatrix(0, 0, -min_z);// *ob_to_world_matrix;
 
-			GLObjectRef ob = new GLObject();
+			GLObjectRef ob = gl_engine.allocateObject();
 			ob->ob_to_world_matrix = use_matrix;
 			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, false);
 
@@ -628,7 +629,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			// Automatically scale object down until it is < x m across
 			scaleMesh(*mesh);
 			
-			GLObjectRef ob = new GLObject();
+			GLObjectRef ob = gl_engine.allocateObject();
 			ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
 			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip_opengl_calls=*/false);
 
@@ -667,7 +668,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		// Automatically scale object down until it is < x m across
 		//scaleMesh(*bmesh);
 
-		GLObjectRef gl_ob = new GLObject();
+		GLObjectRef gl_ob = gl_engine.allocateObject();
 		gl_ob->ob_to_world_matrix = Matrix4f::identity(); // ob_to_world_matrix;
 		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, bmesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
@@ -698,7 +699,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 }
 
 
-GLObjectRef ModelLoading::makeImageCube(VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, 
+GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, 
 	const std::string& image_path, int im_w, int im_h,
 	BatchedMeshRef& mesh_out,
 	WorldObject& loaded_object_out)
@@ -720,7 +721,7 @@ GLObjectRef ModelLoading::makeImageCube(VertexBufferAllocator& vert_buf_allocato
 	const float depth = 0.02f;
 	const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
 
-	GLObjectRef preview_gl_ob = new GLObject();
+	GLObjectRef preview_gl_ob = gl_engine.allocateObject();
 	preview_gl_ob->ob_to_world_matrix = use_matrix;
 	preview_gl_ob->mesh_data = results.opengl_mesh_data;
 	preview_gl_ob->materials.resize(2);
@@ -758,13 +759,13 @@ GLObjectRef ModelLoading::makeImageCube(VertexBufferAllocator& vert_buf_allocato
 }
 
 
-GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(const Reference<OpenGLMeshRenderData> gl_meshdata, //size_t num_materials_referenced,
+GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_engine, const Reference<OpenGLMeshRenderData> gl_meshdata, //size_t num_materials_referenced,
 	int ob_lod_level, const std::vector<WorldMaterialRef>& materials, const std::string& lightmap_url,
 	ResourceManager& resource_manager,
 	const Matrix4f& ob_to_world_matrix)
 {
 	// Make the GLObject
-	GLObjectRef ob = new GLObject();
+	GLObjectRef ob = gl_engine.allocateObject();
 	ob->ob_to_world_matrix = ob_to_world_matrix;
 	ob->mesh_data = gl_meshdata;
 

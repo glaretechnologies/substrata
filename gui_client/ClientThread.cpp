@@ -348,7 +348,7 @@ void ClientThread::doRun()
 							if(res != world_state->objects.end())
 							{
 								
-								WorldObject* ob = res.getValuePtr();
+								WorldObject* ob = res.getValue().ptr();
 #if GUI_CLIENT
 								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
 #endif
@@ -395,7 +395,7 @@ void ClientThread::doRun()
 							auto res = world_state->objects.find(object_uid);
 							if(res != world_state->objects.end())
 							{
-								WorldObject* ob = res.getValuePtr();
+								WorldObject* ob = res.getValue().ptr();
 #if GUI_CLIENT
 								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
 #endif
@@ -430,7 +430,7 @@ void ClientThread::doRun()
 							auto res = world_state->objects.find(object_uid);
 							if(res != world_state->objects.end())
 							{
-								WorldObject* ob = res.getValuePtr();
+								WorldObject* ob = res.getValue().ptr();
 
 								ob->lightmap_url = new_lightmap_url;
 
@@ -453,7 +453,7 @@ void ClientThread::doRun()
 							auto res = world_state->objects.find(object_uid);
 							if(res != world_state->objects.end())
 							{
-								WorldObject* ob = res.getValuePtr();
+								WorldObject* ob = res.getValue().ptr();
 
 								ob->model_url = new_model_url;
 
@@ -475,7 +475,7 @@ void ClientThread::doRun()
 							auto res = world_state->objects.find(object_uid);
 							if(res != world_state->objects.end())
 							{
-								WorldObject* ob = res.getValuePtr();
+								WorldObject* ob = res.getValue().ptr();
 								
 								ob->flags = flags; // Copy flags
 								ob->from_remote_other_dirty = true;
@@ -494,6 +494,10 @@ void ClientThread::doRun()
 						ob->uid = object_uid;
 						readFromNetworkStreamGivenUID(msg_buffer, *ob);
 
+						ob->state = WorldObject::State_JustCreated;
+						ob->from_remote_other_dirty = true;
+						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+
 						// Insert into world state.
 						{
 							::Lock lock(world_state->mutex);
@@ -501,17 +505,9 @@ void ClientThread::doRun()
 							// NOTE: we will not replace existing object with that UID if it exists in the map.
 							if(world_state->objects.find(object_uid) == world_state->objects.end())
 							{
-								WorldObject* world_ob = world_state->objects.allocateWithKey(object_uid);
-								world_ob->object_pool_map = &world_state->objects;
-								world_ob->incRefCount(); // Increment ref count to represent the world_state reference to the object.
-								world_ob->uid = object_uid;
-								world_ob->copyNetworkStateFrom(*ob);
+								world_state->objects.insert(object_uid, ob);
 
-								world_ob->state = WorldObject::State_JustCreated;
-								world_ob->from_remote_other_dirty = true;
-								world_ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
-
-								world_state->dirty_from_remote_objects.insert(world_ob);
+								world_state->dirty_from_remote_objects.insert(ob);
 							}
 						}
 						break;
@@ -530,6 +526,10 @@ void ClientThread::doRun()
 						if(!isFinite(ob->angle))
 							ob->angle = 0;
 
+						ob->state = WorldObject::State_JustCreated;
+						ob->from_remote_other_dirty = true;
+						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+
 						// Insert into world state.
 						{
 							::Lock lock(world_state->mutex);
@@ -540,22 +540,14 @@ void ClientThread::doRun()
 							// We want to make sure not to add the object twice or load it into the graphics engine twice.
 							if(world_state->objects.find(object_uid) == world_state->objects.end())
 							{
-								WorldObject* world_ob = world_state->objects.allocateWithKey(object_uid);
-								world_ob->object_pool_map = &world_state->objects;
-								world_ob->incRefCount(); // Increment ref count to represent the world_state reference to the object.
-								world_ob->uid = object_uid;
-								world_ob->copyNetworkStateFrom(*ob);
-
-								world_ob->state = WorldObject::State_JustCreated;
-								world_ob->from_remote_other_dirty = true;
-								world_ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
+								world_state->objects.insert(object_uid, ob);
 
 								// TEMP HACK: set a smaller max loading distance for CV features
 								const char* feature_prefix = "CryptoVoxels Feature, uuid: ";
-								if(hasPrefix(world_ob->content, feature_prefix))
-									world_ob->max_load_dist2 = Maths::square(100.f);
+								if(hasPrefix(ob->content, feature_prefix))
+									ob->max_load_dist2 = Maths::square(100.f);
 
-								world_state->dirty_from_remote_objects.insert(world_ob);
+								world_state->dirty_from_remote_objects.insert(ob);
 							}
 						}
 						break;
@@ -571,7 +563,7 @@ void ClientThread::doRun()
 							auto res = world_state->objects.find(object_uid);
 							if(res != world_state->objects.end())
 							{
-								WorldObject* ob = res.getValuePtr();
+								WorldObject* ob = res.getValue().ptr();
 								ob->state = WorldObject::State_Dead;
 								ob->from_remote_other_dirty = true;
 								world_state->dirty_from_remote_objects.insert(ob);

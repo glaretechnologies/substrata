@@ -357,7 +357,7 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 
 		Reference<OpenGLMeshRenderData> mesh_data = opengl_engine->buildMeshRenderData(*opengl_engine->vert_buf_allocator, mesh_verts, normals, uvs, indices);
 
-		Reference<GLObject> ob = new GLObject();
+		Reference<GLObject> ob = opengl_engine->allocateObject();
 
 		ob->ob_to_world_matrix.setToIdentity();
 		ob->mesh_data = mesh_data;

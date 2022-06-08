@@ -47,20 +47,20 @@ public:
 	// May set a scale on loaded_object_out.
 	//
 	// Throws glare::Exception on invalid mesh.
-	static GLObjectRef makeGLObjectForModelFile(VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, const std::string& path,
+	static GLObjectRef makeGLObjectForModelFile(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, const std::string& path,
 		BatchedMeshRef& mesh_out,
 		WorldObject& loaded_object_out);
 
 
 	// This is a cube object with two materials, for displaying images or videos.
 	// Sets loaded_object_in_out scale and materials
-	static GLObjectRef makeImageCube(VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, 
+	static GLObjectRef makeImageCube(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, 
 		const std::string& image_path, int im_w, int im_h,
 		BatchedMeshRef& mesh_out,
 		WorldObject& loaded_object_in_out);
 
 
-	static GLObjectRef makeGLObjectForMeshDataAndMaterials(const Reference<OpenGLMeshRenderData> gl_meshdata, /*size_t num_materials_referenced, */int ob_lod_level, const std::vector<WorldMaterialRef>& materials, 
+	static GLObjectRef makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_engine, const Reference<OpenGLMeshRenderData> gl_meshdata, /*size_t num_materials_referenced, */int ob_lod_level, const std::vector<WorldMaterialRef>& materials, 
 		const std::string& lightmap_url, ResourceManager& resource_manager, const Matrix4f& ob_to_world_matrix);
 
 	static void setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_level, const std::vector<WorldMaterialRef>& materials,
