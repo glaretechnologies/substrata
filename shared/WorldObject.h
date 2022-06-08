@@ -76,9 +76,9 @@ inline void destroyAndFreeOb<WorldObject>(WorldObject* ob)
 }
 
 
-namespace glare {
-	template <class A, class B, class C> class PoolMap;
-}
+//namespace glare {
+//	template <class A, class B, class C> class PoolMap;
+//}
 struct UIDHasher;
 
 
@@ -288,7 +288,7 @@ private:
 	js::Vector<uint8, 16> compressed_voxels;
 
 public:
-	glare::PoolMap<UID, WorldObject, UIDHasher>* object_pool_map; // Non-null if this object was allocated from an object pool map.
+	//glare::PoolMap<UID, WorldObject, UIDHasher>* object_pool_map; // Non-null if this object was allocated from an object pool map.
 };
 
 

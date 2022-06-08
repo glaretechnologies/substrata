@@ -2767,7 +2767,7 @@ void MainWindow::checkForLODChanges()
 		//const int begin_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * slice;
 		//const int end_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * (slice + 1);
 
-		for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+		for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
 		{
 			WorldObject* ob = it.getValue().ptr();
 
@@ -3877,7 +3877,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						Lock lock(this->world_state->mutex);
 
-						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
 						{
 							WorldObject* ob = it.getValue().ptr();
 
@@ -3941,7 +3941,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						Lock lock(this->world_state->mutex);
 
-						for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+						for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
 						{
 							WorldObject* ob = it.getValue().ptr();
 							if(ob->script == loaded_msg->script)
@@ -4304,7 +4304,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// Iterate over objects and see if they were using a placeholder model for this resource.
 							Lock lock(this->world_state->mutex);
 							bool need_resource = false;
-							for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+							for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
 							{
 								WorldObject* ob = it.getValue().ptr();
 
@@ -4403,7 +4403,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								Lock lock(this->world_state->mutex);
 
-								for(auto it = this->world_state->objects.begin(); it != this->world_state->objects.end(); ++it)
+								for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
 								{
 									WorldObject* ob = it.getValue().ptr();
 
@@ -4998,7 +4998,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				WorldObject* ob = it->ptr();
 
-				assert((this->world_state->objects.find(ob->uid) != this->world_state->objects.end()) && (this->world_state->objects.find(ob->uid).getValuePtr() == ob)); // Make sure this object in the dirty set is in our set of objects.
+				assert((this->world_state->objects.find(ob->uid) != this->world_state->objects.end()) && (this->world_state->objects.find(ob->uid).getValue().ptr() == ob)); // Make sure this object in the dirty set is in our set of objects.
 
 				// conPrint("Processing dirty object.");
 
@@ -7465,7 +7465,7 @@ void MainWindow::bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag)
 
 		if(cur_parcel)
 		{
-			for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+			for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
 			{
 				WorldObject* ob = it.getValue().ptr();
 
@@ -7927,7 +7927,7 @@ void MainWindow::sendLightmapNeededFlagsSlot()
 		{
 			WorldObjectRef ob = *it;
 
-			for(auto other_it = this->world_state->objects.begin(); other_it != this->world_state->objects.end(); ++other_it)
+			for(auto other_it = this->world_state->objects.valuesBegin(); other_it != this->world_state->objects.valuesEnd(); ++other_it)
 			{
 				WorldObject* other_ob = other_it.getValue().ptr();
 
@@ -8075,7 +8075,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
 	if(world_state.nonNull())
 	{
-		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
 		{
 			WorldObject* ob = it.getValue().ptr();
 

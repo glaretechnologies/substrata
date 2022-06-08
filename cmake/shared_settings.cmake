@@ -167,6 +167,8 @@ ${INDIGO_UTILS_DIR}/EventFD.cpp
 ${INDIGO_UTILS_DIR}/EventFD.h
 ${INDIGO_UTILS_DIR}/Exception.cpp
 ${INDIGO_UTILS_DIR}/Exception.h
+${INDIGO_UTILS_DIR}/FastIterMap.cpp
+${INDIGO_UTILS_DIR}/FastIterMap.h
 ${INDIGO_UTILS_DIR}/FileChecksum.cpp
 ${INDIGO_UTILS_DIR}/FileChecksum.h
 ${INDIGO_UTILS_DIR}/FileHandle.cpp
