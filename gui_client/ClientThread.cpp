@@ -503,19 +503,9 @@ void ClientThread::doRun()
 							::Lock lock(world_state->mutex);
 
 							// NOTE: will not replace existing object with that UID if it exists in the map.
-							//const auto res = world_state->objects.insert(std::make_pair(object_uid, ob));
-							//const bool added = res.second;
-							//if(added)
-							//	world_state->dirty_from_remote_objects.insert(ob.ptr());
-
-							// NOTE: we will not replace existing object with that UID if it exists in the map.
-							// TODO: use faster way as above
-							if(world_state->objects.find(object_uid) == world_state->objects.end())
-							{
-								world_state->objects.insert(object_uid, ob);
-
+							const bool added = world_state->objects.insert(object_uid, ob);
+							if(added)
 								world_state->dirty_from_remote_objects.insert(ob);
-							}
 						}
 						break;
 					}
@@ -537,6 +527,11 @@ void ClientThread::doRun()
 						ob->from_remote_other_dirty = true;
 						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
 
+						// TEMP HACK: set a smaller max loading distance for CV features
+						const char* feature_prefix = "CryptoVoxels Feature, uuid: ";
+						if(hasPrefix(ob->content, feature_prefix))
+							ob->max_load_dist2 = Maths::square(100.f);
+
 						// Insert into world state.
 						{
 							::Lock lock(world_state->mutex);
@@ -545,17 +540,9 @@ void ClientThread::doRun()
 							// The server replies with ObjectInitialSend messages.
 							// This means that the client may already have the object inserted, when moving back into a cell previously in proximity.
 							// We want to make sure not to add the object twice or load it into the graphics engine twice.
-							if(world_state->objects.find(object_uid) == world_state->objects.end())
-							{
-								world_state->objects.insert(object_uid, ob);
-
-								// TEMP HACK: set a smaller max loading distance for CV features
-								const char* feature_prefix = "CryptoVoxels Feature, uuid: ";
-								if(hasPrefix(ob->content, feature_prefix))
-									ob->max_load_dist2 = Maths::square(100.f);
-
+							const bool added = world_state->objects.insert(object_uid, ob);
+							if(added)
 								world_state->dirty_from_remote_objects.insert(ob);
-							}
 						}
 						break;
 					}

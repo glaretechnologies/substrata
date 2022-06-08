@@ -101,7 +101,7 @@ size_t WorldState::getTotalMemUsage() const
 
 	size_t sum = 0;
 
-	for(auto it = objects.begin(); it != objects.end(); ++it)
+	for(auto it = objects.valuesBegin(); it != objects.valuesEnd(); ++it)
 	{
 		sum += it.getValue()->getTotalMemUsage();
 	}

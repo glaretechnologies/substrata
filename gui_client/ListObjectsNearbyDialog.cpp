@@ -105,7 +105,7 @@ void ListObjectsNearbyDialog::updateResultsTable()
 
 		// Compute new num rows
 		int num_rows = 0;
-		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
 		{
 			const WorldObject* ob = it.getValue().ptr();
 			if(ob->pos.getDist(cam_pos) < search_dist)
@@ -126,7 +126,7 @@ void ListObjectsNearbyDialog::updateResultsTable()
 		const TimeStamp now = TimeStamp::currentTime();
 
 		int row = 0;
-		for(auto it = world_state->objects.begin(); it != world_state->objects.end(); ++it)
+		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
 		{
 			const WorldObject* ob = it.getValue().ptr();
 			if(ob->pos.getDist(cam_pos) < search_dist)
