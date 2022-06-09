@@ -232,6 +232,7 @@ private:
 	void setUIForSelectedObject(); // Enable/disable delete object action etc..
 
 	void checkForLODChanges();
+	void checkForAudioRangeChanges();
 
 	int mouseOverAxisArrowOrRotArc(const Vec2f& pixel_coords, Vec4f& closest_seg_point_ws_out); // Returns closest axis arrow or -1 if no close.
 
@@ -582,4 +583,6 @@ public:
 	bool should_close;
 
 	Reference<glare::PoolAllocator> world_ob_pool_allocator;
+
+	uint64 frame_num;
 };

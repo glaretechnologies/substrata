@@ -88,7 +88,7 @@ WorldObject
 -----------
 
 =====================================================================*/
-class WorldObject : public ThreadSafeRefCounted
+class WorldObject // : public ThreadSafeRefCounted
 {
 public:
 	WorldObject() noexcept;
@@ -107,7 +107,8 @@ public:
 	static int getLODLevelForURL(const std::string& URL); // Identifies _lod1 etc. suffix.
 	static std::string getLODLightmapURL(const std::string& base_lightmap_url, int level);
 
-	int getLODLevel(const Vec3d& campos) const;
+	inline int getLODLevel(const Vec3d& campos) const;
+	inline int getLODLevel(const Vec4f& campos) const;
 	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	std::string getLODModelURL(const Vec3d& campos) const; // Using lod level clamped to max_model_lod_level
@@ -160,8 +161,13 @@ public:
 
 	static std::string objectTypeString(ObjectType t);
 
+	// Group aabb_ws, current_lod_level together in first cache line to make MainWindow::checkForLODChanges() fast.
+
+	js::AABBox aabb_ws; // World space axis-aligned bounding box.  Not authoritative.  Used to show a box while loading, also for computing LOD levels.
 	UID uid;
 	uint32 object_type;
+	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
+
 	//std::string name;
 	std::string model_url;
 	//std::string material_url;
@@ -185,9 +191,11 @@ public:
 
 	std::string creator_name; // This is 'denormalised' data that is not saved on disk, but set on load from disk or creation.  It is transferred across the network though.
 
-	js::AABBox aabb_ws; // World space axis-aligned bounding box.  Not authoritative.  Used to show a box while loading, also for computing LOD levels.
 	int max_model_lod_level; // maximum LOD level for model.  0 for models that don't have lower LOD versions.
 
+#if GUI_CLIENT
+	Reference<glare::AudioSource> audio_source;
+#endif
 	std::string audio_source_url;
 	float audio_volume;
 
@@ -231,7 +239,6 @@ public:
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
 	Reference<PhysicsObject> physics_object;
-	Reference<glare::AudioSource> audio_source;
 
 	Reference<MeshData> mesh_manager_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
@@ -259,7 +266,6 @@ public:
 
 	js::Vector<Matrix4f, 16> instance_matrices;
 
-	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
 	int loaded_model_lod_level; // If we have loaded a model for this object, this is the LOD level of the model.
 	// This may differ from current_lod_level, for example if the new LOD level model needs to be downloaded from the server, then loaded_lod_level will be the previous level.
 	int loaded_lod_level; // Level for textures etc..  Actually this is more like what lod level we have requested textures at.  TODO: clarify and improve.
@@ -291,6 +297,12 @@ private:
 public:
 	glare::PoolAllocator* allocator; // Non-null if this object was allocated from the allocator
 	int allocation_index;
+
+	// From ThreadSafeRefCounted.  Manually define this stuff here, so refcount can be defined not at the start of the structure, which wastes space due to alignment issues.
+	inline glare::atomic_int decRefCount() const { return refcount.decrement(); }
+	inline void incRefCount() const { refcount.increment(); }
+	inline glare::atomic_int getRefCount() const { return refcount; }
+	mutable glare::AtomicInt refcount;
 };
 
 
@@ -330,3 +342,32 @@ struct WorldObjectRefHash
 		return (size_t)ob.ptr() >> 3; // Assuming 8-byte aligned, get rid of lower zero bits.
 	}
 };
+
+
+int WorldObject::getLODLevel(const Vec3d& campos) const
+{
+	return getLODLevel(campos.toVec4fPoint());
+}
+
+
+int WorldObject::getLODLevel(const Vec4f& campos) const
+{
+	// proj_len = aabb_ws.longestLength() / ||campos - pos||
+
+	const Vec4f use_pos = this->aabb_ws.centroid(); // this->pos.toVec4fVector()
+	const float recip_dist = (campos - use_pos).fastApproxRecipLength();
+	float proj_len = aabb_ws.longestLength() * recip_dist;
+
+	// For voxel objects, push out the transition distances a bit.
+	if(object_type == ObjectType_VoxelGroup)
+		proj_len *= 2;
+
+	if(proj_len > 0.6)
+		return -1;
+	else if(proj_len > 0.16)
+		return 0;
+	else if(proj_len > 0.03)
+		return 1;
+	else
+		return 2;
+}

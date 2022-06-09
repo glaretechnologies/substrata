@@ -72,6 +72,7 @@ WorldObject::WorldObject() noexcept
 	audio_volume = 1;
 
 	allocator = NULL;
+	refcount = 0;
 }
 
 
@@ -108,27 +109,6 @@ int WorldObject::getLODLevelForURL(const std::string& URL) // Identifies _lod1 e
 		return 2;
 	else
 		return 0;
-}
-
-
-int WorldObject::getLODLevel(const Vec3d& campos) const
-{
-	// proj_len = aabb_ws.longestLength() / ||campos - pos||
-	const float recip_dist = (campos.toVec4fVector() - this->pos.toVec4fVector()).fastApproxRecipLength();
-	float proj_len = aabb_ws.longestLength() * recip_dist;
-
-	// For voxel objects, push out the transition distances a bit.
-	if(object_type == ObjectType_VoxelGroup)
-		proj_len *= 2;
-
-	if(proj_len > 0.6)
-		return -1;
-	else if(proj_len > 0.16)
-		return 0;
-	else if(proj_len > 0.03)
-		return 1;
-	else
-		return 2;
 }
 
 

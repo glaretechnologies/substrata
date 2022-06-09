@@ -202,7 +202,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
 	screenshot_width_px(1024),
 	in_CEF_message_loop(false),
-	should_close(false)
+	should_close(false),
+	frame_num(0)
 {
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
@@ -2743,13 +2744,14 @@ void MainWindow::checkForLODChanges()
 	{
 		Lock lock(this->world_state->mutex);
 
-		const Vec3d cam_pos = cam_controller.getPosition();
+		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
 
 		//const int slice = num_frames_since_fps_timer_reset % 8; // TEMP HACK
 		//const int begin_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * slice;
 		//const int end_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * (slice + 1);
-
-		for(auto it = this->world_state->objects.valuesBegin(); it != this->world_state->objects.valuesEnd(); ++it)
+		
+		const auto values_end = this->world_state->objects.valuesEnd();
+		for(auto it = this->world_state->objects.valuesBegin(); it != values_end; ++it)
 		{
 			WorldObject* ob = it.getValue().ptr();
 
@@ -2763,13 +2765,34 @@ void MainWindow::checkForLODChanges()
 
 				ob->current_lod_level = lod_level;
 			}
+		}
+		//conPrint("checkForLODChanges took " + timer.elapsedString() + " " + toString(world_state->objects.size()));
+	} // End lock scope
+}
+
+
+void MainWindow::checkForAudioRangeChanges()
+{
+	if(world_state.isNull())
+		return;
+
+	//Timer timer;
+	{
+		Lock lock(this->world_state->mutex);
+
+		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
+
+		const auto values_end = this->world_state->objects.valuesEnd();
+		for(auto it = this->world_state->objects.valuesBegin(); it != values_end; ++it)
+		{
+			WorldObject* ob = it.getValue().ptr();
 
 			if(!ob->audio_source_url.empty() || ob->audio_source.nonNull())
 			{
-				const float dist = cam_pos.toVec4fVector().getDist(ob->pos.toVec4fVector());
+				const float dist2 = cam_pos.getDist2(ob->pos.toVec4fPoint());
 				if(ob->audio_source.nonNull())
 				{
-					if(dist > MAX_AUDIO_DIST)
+					if(dist2 > Maths::square(MAX_AUDIO_DIST))
 					{
 						// conPrint("Object out of range, removing audio object '" + ob->audio_source->debugname + "'.");
 						audio_engine.removeSource(ob->audio_source);
@@ -2782,7 +2805,7 @@ void MainWindow::checkForLODChanges()
 				{
 					assert(!ob->audio_source_url.empty()); // The object has an audio URL to play:
 
-					if(dist <= MAX_AUDIO_DIST)
+					if(dist2 <= Maths::square(MAX_AUDIO_DIST))
 					{
 						// conPrint("Object in range, loading audio object.");
 						loadAudioForObject(ob);
@@ -2790,9 +2813,8 @@ void MainWindow::checkForLODChanges()
 				}
 			}
 		}
-		//conPrint("checkForLODChanges took " + timer.elapsedString() + " " + toString(i));
+		//conPrint("checkForAudioRangeChanges took " + timer.elapsedString() + " " + toString(world_state->objects.size()));
 	} // End lock scope
-	
 }
 
 
@@ -2901,6 +2923,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			ui->glWidget->opengl_engine->getSunDir(), *ui->glWidget->opengl_engine);
 
 	checkForLODChanges();
+	
+	if(frame_num % 8 == 0)
+		checkForAudioRangeChanges();
 
 	gesture_ui.think();
 
@@ -5474,6 +5499,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		physics_world->rebuild(task_manager, print_output);
 		//conPrint("Physics world rebuild took " + timer.elapsedStringNSigFigs(5));
 	}
+
+	frame_num++;
 }
 
 
