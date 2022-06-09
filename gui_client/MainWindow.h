@@ -349,10 +349,12 @@ public:
 
 	// NOTE: these object sets need to be cleared in connectToServer(), also when removing a dead object in ob->state == WorldObject::State_Dead case in timerEvent, the object needs to be removed
 	// from any of these sets it is in.
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> active_objects; // Objects that have moved recently and so need interpolation done on them.
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> web_view_obs;
-	std::unordered_set<WorldObjectRef, WorldObjectRefHash> obs_with_scripts; // Objects with non-null script_evaluator
+
+	// NOTE: Use std::set instead of unordered_set, so that iteration over objects is in memory order.
+	std::set<WorldObjectRef> active_objects; // Objects that have moved recently and so need interpolation done on them.
+	std::set<WorldObjectRef> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
+	std::set<WorldObjectRef> web_view_obs;
+	std::set<WorldObjectRef> obs_with_scripts; // Objects with non-null script_evaluator
 
 	//std::ofstream logfile;
 
