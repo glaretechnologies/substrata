@@ -25,11 +25,24 @@ uniform samplerCube cosine_env_tex;
 uniform sampler2D blue_noise_tex;
 uniform sampler2D fbm_tex;
 
-layout (std140) uniform PhongUniforms
+
+layout (std140) uniform MaterialCommonUniforms
 {
 	vec4 sundir_cs;
+	float time;
+};
+
+
+#define HAVE_SHADING_NORMALS_FLAG			1
+#define HAVE_TEXTURE_FLAG					2
+#define HAVE_METALLIC_ROUGHNESS_TEX_FLAG	4
+
+layout (std140) uniform PhongUniforms
+{
 	vec4 diffuse_colour;
-	mat3 texture_matrix;
+	vec2 texture_upper_left_matrix_col0;
+	vec2 texture_upper_left_matrix_col1;
+	vec2 texture_matrix_translation;
 
 #if USE_BINDLESS_TEXTURES
 	sampler2D diffuse_tex;
@@ -44,13 +57,10 @@ layout (std140) uniform PhongUniforms
 	float padding5;
 #endif
 
-	int have_shading_normals;
-	int have_texture;
-	int have_metallic_roughness_tex;
+	int flags;
 	float roughness;
 	float fresnel_scale;
 	float metallic_frac;
-	float time;
 	float begin_fade_out_distance;
 	float end_fade_out_distance;
 };
@@ -133,7 +143,7 @@ void main()
 	vec3 use_normal_cs;
 	vec3 use_normal_ws;
 	vec2 use_texture_coords = texture_coords;
-	if(have_shading_normals != 0)
+	if((flags & HAVE_SHADING_NORMALS_FLAG) != 0)
 	{
 		use_normal_cs = normal_cs;
 		use_normal_ws = normal_ws;
@@ -208,10 +218,12 @@ void main()
 	float sprite_b_x = 0.25f * sprite_b + use_texture_coords.x * 0.25f;
 
 	vec4 texture_diffuse_col;
-	if(have_texture != 0)
+	if((flags & HAVE_TEXTURE_FLAG) != 0) //if(have_texture != 0)
 	{
-		vec4 col_a = texture(diffuse_tex, (texture_matrix * vec3(sprite_a_x, use_texture_coords.y, 1.0)).xy);
-		vec4 col_b = texture(diffuse_tex, (texture_matrix * vec3(sprite_b_x, use_texture_coords.y, 1.0)).xy);
+		vec2 tex_coords_a = texture_upper_left_matrix_col0 * sprite_a_x + texture_upper_left_matrix_col1 * use_texture_coords.y + texture_matrix_translation;
+		vec2 tex_coords_b = texture_upper_left_matrix_col0 * sprite_b_x + texture_upper_left_matrix_col1 * use_texture_coords.y + texture_matrix_translation;
+		vec4 col_a = texture(diffuse_tex, tex_coords_a);
+		vec4 col_b = texture(diffuse_tex, tex_coords_b);
 
 		texture_diffuse_col = mix(col_a, col_b, sprite_blend_frac);
 
