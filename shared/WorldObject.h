@@ -28,6 +28,7 @@ Copyright Glare Technologies Limited 2016 -
 struct GLObject;
 class PhysicsObject;
 namespace glare { class AudioSource; }
+namespace glare { class PoolAllocator; }
 class ResourceManager;
 class WinterShaderEvaluator;
 class Matrix4f;
@@ -288,7 +289,8 @@ private:
 	js::Vector<uint8, 16> compressed_voxels;
 
 public:
-	//glare::PoolMap<UID, WorldObject, UIDHasher>* object_pool_map; // Non-null if this object was allocated from an object pool map.
+	glare::PoolAllocator* allocator; // Non-null if this object was allocated from the allocator
+	int allocation_index;
 };
 
 

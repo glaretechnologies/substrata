@@ -25,6 +25,7 @@ class ThreadMessageSink;
 class Server;
 class MainWindow;
 struct tls_config;
+namespace glare { class PoolAllocator; }
 
 
 class ChatMessage : public ThreadMessage
@@ -180,7 +181,7 @@ class ClientThread : public MessageableThread
 {
 public:
 	ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, const std::string& hostname, int port,
-		const std::string& avatar_URL, const std::string& world_name, struct tls_config* config);
+		const std::string& avatar_URL, const std::string& world_name, struct tls_config* config, const Reference<glare::PoolAllocator>& world_ob_pool_allocator);
 	virtual ~ClientThread();
 
 	virtual void doRun();
@@ -196,6 +197,8 @@ public:
 	Reference<WorldState> world_state;
 	UID client_avatar_uid;
 private:
+	WorldObjectRef allocWorldObject();
+
 	glare::AtomicInt should_die;
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	EventFD event_fd;
@@ -211,4 +214,6 @@ private:
 	js::Vector<uint8, 16> temp_data_to_send;
 
 	BufferInStream msg_buffer;
+
+	Reference<glare::PoolAllocator> world_ob_pool_allocator;
 };
