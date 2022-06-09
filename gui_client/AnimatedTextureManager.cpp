@@ -665,6 +665,8 @@ class AnimatedTexCEFBrowser : public RefCounted
 
 
 AnimatedTexData::AnimatedTexData()
+:	last_loaded_frame_i(-1),
+	cur_frame_i(0)
 {}
 
 AnimatedTexData::~AnimatedTexData()
