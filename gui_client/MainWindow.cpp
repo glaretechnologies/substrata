@@ -207,6 +207,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
+	this->world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
+
 	//QGamepadManager::instance();
 
 	ui = new Ui::MainWindow();
@@ -537,8 +539,6 @@ MainWindow::~MainWindow()
 {
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
 
-	if(biome_manager) delete biome_manager;
-
 	misc_info_ui.destroy();
 
 	ob_info_ui.destroy();
@@ -568,36 +568,18 @@ MainWindow::~MainWindow()
 	}
 
 
-	// Kill ClientThread
-	print("killing ClientThread");
-	if(this->client_thread.nonNull())
-		this->client_thread->killConnection();
-	this->client_thread = NULL;
-	this->client_thread_manager.killThreadsBlocking();
-	print("killed ClientThread");
+
+	disconnectFromServerAndClearAllObjects(/*hard_kill_client_connection=*/true);
+
+	if(biome_manager) delete biome_manager;
 
 	//ui->glWidget->makeCurrent(); // This crashes on Mac
 
 	// Kill various threads before we start destroying members of MainWindow they may depend on.
 	save_resources_db_thread_manager.killThreadsBlocking();
-	resource_upload_thread_manager.killThreadsBlocking();
-	resource_download_thread_manager.killThreadsBlocking();
-	net_resource_download_thread_manager.killThreadsBlocking();
 
-	
 	task_manager.removeQueuedTasks();
 	task_manager.waitForTasksToComplete();
-
-	//model_building_task_manager.removeQueuedTasks();
-	//model_building_task_manager.waitForTasksToComplete();
-	load_item_queue.clear();
-
-	model_and_texture_loader_task_manager.removeQueuedTasks();
-	model_and_texture_loader_task_manager.waitForTasksToComplete();
-
-
-	model_loaded_messages_to_process.clear();
-	texture_loaded_messages_to_process.clear();
 
 	//mesh_manager.clear();
 
@@ -5026,11 +5008,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						removeInstancesOfObject(ob);
 
-						//this->world_state->objects.erase(ob->uid);
-
-						assert(ob->getRefCount() >= 1);
-						WorldObjectRef ref(ob); // Make a temporary reference to run deletion code when it goes out of scope.
-						ob->decRefCount(); // Decrement the ref count that represents the world_state reference to ob.
+						this->world_state->objects.erase(ob->uid);
 
 						active_objects.erase(ob);
 						obs_with_animated_tex.erase(ob);
@@ -8020,47 +7998,13 @@ void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub:/
 }
 
 
-void MainWindow::connectToServer(const std::string& URL/*const std::string& hostname, const std::string& worldname*/)
+void MainWindow::disconnectFromServerAndClearAllObjects(bool hard_kill_client_connection) // Remove any WorldObjectRefs held by MainWindow.
 {
-	// Move player position back to near origin.
-	// Randomly vary the position a bit so players don't spawn inside other players.
-	const double spawn_r = 4.0;
-	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), 2);
-
-	try
-	{
-		URLParseResults parse_res = URLParser::parseURL(URL);
-
-		this->server_hostname = parse_res.hostname;
-		this->server_worldname = parse_res.userpath;
-
-		if(parse_res.parsed_parcel_uid)
-			this->url_parcel_uid = parse_res.parcel_uid;
-		else
-			this->url_parcel_uid = -1;
-
-		if(parse_res.parsed_x)
-			spawn_pos.x = parse_res.x;
-		if(parse_res.parsed_y)
-			spawn_pos.y = parse_res.y;
-		if(parse_res.parsed_z)
-			spawn_pos.z = parse_res.z;
-	}
-	catch(glare::Exception& e) // Handle URL parse failure
-	{
-		conPrint(e.what());
-		QMessageBox msgBox;
-		msgBox.setText(QtUtils::toQString(e.what()));
-		msgBox.exec();
-		return;
-	}
-
-	//-------------------------------- Do disconnect process --------------------------------
 	load_item_queue.clear();
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete(); 
 	model_loaded_messages_to_process.clear();
 	texture_loaded_messages_to_process.clear();
-	
+
 	// Kill any existing threads connected to the server
 	resource_download_thread_manager.killThreadsBlocking();
 	net_resource_download_thread_manager.killThreadsBlocking();
@@ -8068,6 +8012,9 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 	if(client_thread.nonNull())
 	{
+		if(hard_kill_client_connection)
+			this->client_thread->killConnection();
+
 		this->client_thread = NULL;
 		this->client_thread_manager.killThreadsBlocking();
 	}
@@ -8125,6 +8072,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	proximity_loader.clearAllObjects();
 
 	cur_loading_voxel_ob = NULL;
+	cur_loading_mesh_data = NULL;
 
 
 	// Remove any ground quads.
@@ -8145,14 +8093,53 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	script_content_processed.clear();
 
 	texture_server->clear();
-	
+
 	world_state = NULL;
 
 	if(physics_world.nonNull())
 	{
 		physics_world->clear();
 	}
+}
 
+
+void MainWindow::connectToServer(const std::string& URL/*const std::string& hostname, const std::string& worldname*/)
+{
+	// Move player position back to near origin.
+	// Randomly vary the position a bit so players don't spawn inside other players.
+	const double spawn_r = 4.0;
+	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), 2);
+
+	try
+	{
+		URLParseResults parse_res = URLParser::parseURL(URL);
+
+		this->server_hostname = parse_res.hostname;
+		this->server_worldname = parse_res.userpath;
+
+		if(parse_res.parsed_parcel_uid)
+			this->url_parcel_uid = parse_res.parcel_uid;
+		else
+			this->url_parcel_uid = -1;
+
+		if(parse_res.parsed_x)
+			spawn_pos.x = parse_res.x;
+		if(parse_res.parsed_y)
+			spawn_pos.y = parse_res.y;
+		if(parse_res.parsed_z)
+			spawn_pos.z = parse_res.z;
+	}
+	catch(glare::Exception& e) // Handle URL parse failure
+	{
+		conPrint(e.what());
+		QMessageBox msgBox;
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
+		return;
+	}
+
+	//-------------------------------- Do disconnect process --------------------------------
+	disconnectFromServerAndClearAllObjects(/*hard_kill_client_connection=*/false);
 	//-------------------------------- End disconnect process --------------------------------
 
 
@@ -8172,7 +8159,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 		avatar_model_hash = FileChecksum::fileChecksum(avatar_path);
 	const std::string avatar_URL = resource_manager->URLForPathAndHash(avatar_path, avatar_model_hash);
 
-	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL, server_worldname, this->client_tls_config);
+	client_thread = new ClientThread(&msg_queue, server_hostname, server_port, avatar_URL, server_worldname, this->client_tls_config, this->world_ob_pool_allocator);
 	client_thread->world_state = world_state;
 	client_thread_manager.addThread(client_thread);
 

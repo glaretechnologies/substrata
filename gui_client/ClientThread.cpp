@@ -21,20 +21,22 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <PlatformUtils.h>
 #include <ConPrint.h>
 #include <Clock.h>
+#include <PoolAllocator.h>
 
 
 static const bool VERBOSE = false;
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
-						   const std::string& avatar_URL_, const std::string& world_name_, struct tls_config* config_)
+						   const std::string& avatar_URL_, const std::string& world_name_, struct tls_config* config_, const Reference<glare::PoolAllocator>& world_ob_pool_allocator_)
 :	out_msg_queue(out_msg_queue_),
 	hostname(hostname_),
 	port(port_),
 	avatar_URL(avatar_URL_),
 	world_name(world_name_),
 	all_objects_received(false),
-	config(config_)
+	config(config_),
+	world_ob_pool_allocator(world_ob_pool_allocator_)
 {
 	MySocketRef mysocket = new MySocket();
 	mysocket->setUseNetworkByteOrder(false);
@@ -58,6 +60,18 @@ void ClientThread::killConnection()
 {
 	if(socket.nonNull())
 		socket->ungracefulShutdown();
+}
+
+
+WorldObjectRef ClientThread::allocWorldObject()
+{
+	glare::PoolAllocator::AllocResult alloc_res = this->world_ob_pool_allocator->alloc();
+
+	WorldObject* ob_ptr = new (alloc_res.ptr) WorldObject(); // construct with placement new
+	ob_ptr->allocator = this->world_ob_pool_allocator.ptr();
+	ob_ptr->allocation_index = alloc_res.index;
+
+	return ob_ptr;
 }
 
 
@@ -490,7 +504,7 @@ void ClientThread::doRun()
 						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Read from network
-						WorldObjectRef ob = new WorldObject();
+						WorldObjectRef ob = allocWorldObject();
 						ob->uid = object_uid;
 						readFromNetworkStreamGivenUID(msg_buffer, *ob);
 
@@ -516,7 +530,7 @@ void ClientThread::doRun()
 						const UID object_uid = readUIDFromStream(msg_buffer);
 
 						// Read from network
-						WorldObjectRef ob = new WorldObject();
+						WorldObjectRef ob = allocWorldObject();
 						ob->uid = object_uid;
 						readFromNetworkStreamGivenUID(msg_buffer, *ob);
 

@@ -61,6 +61,7 @@ class SubstrataVideoReaderCallback;
 struct CreateVidReaderTask;
 class BiomeManager;
 class ScriptLoadedThreadMessage;
+namespace glare { class PoolAllocator; }
 
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
@@ -289,6 +290,8 @@ public:
 	virtual void dropEvent(QDropEvent* event);
 
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
+
+	void disconnectFromServerAndClearAllObjects(bool hard_kill_client_connection); // Remove any WorldObjectRefs held by MainWindow.
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
@@ -577,4 +580,6 @@ public:
 
 	bool in_CEF_message_loop;
 	bool should_close;
+
+	Reference<glare::PoolAllocator> world_ob_pool_allocator;
 };

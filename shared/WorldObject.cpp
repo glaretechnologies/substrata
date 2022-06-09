@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <FileChecksum.h>
 #include <Sort.h>
 #include <BufferInStream.h>
+#include <PoolAllocator.h>
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
@@ -70,7 +71,7 @@ WorldObject::WorldObject() noexcept
 
 	audio_volume = 1;
 
-	//object_pool_map = NULL;
+	allocator = NULL;
 }
 
 
@@ -1024,8 +1025,13 @@ void checkTransformOK(const WorldObject* ob)
 
 void doDestroyOb(WorldObject* ob)
 {
-	//if(ob->object_pool_map)
-	//	ob->object_pool_map->erase(ob->uid);
-	//else
+	if(ob->allocator)
+	{
+		glare::PoolAllocator* allocator = ob->allocator;
+		const int allocation_index = ob->allocation_index;
+		ob->~WorldObject(); // Call destructor on object
+		allocator->free(allocation_index);
+	}
+	else
 		delete ob;
 }
