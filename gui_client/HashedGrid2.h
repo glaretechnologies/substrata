@@ -31,7 +31,7 @@ public:
 	:	cell_w(cell_w_),
 		recip_cell_w(1 / cell_w_)
 	{
-		assert(expected_num_items > 0);
+		assert(num_buckets > 0);
 		assert(Maths::isPowerOfTwo(num_buckets));
 
 		const HashedGrid2Bucket<Key, HashFunc> bucket(empty_key, expected_num_items_per_bucket);
