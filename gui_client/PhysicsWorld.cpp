@@ -1,7 +1,7 @@
 /*=====================================================================
 PhysicsWorld.cpp
 ----------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "PhysicsWorld.h"
 
@@ -14,6 +14,8 @@ Copyright Glare Technologies Limited 2019 -
 
 
 PhysicsWorld::PhysicsWorld()
+:	ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
+	large_objects(/*empty key=*/NULL, /*expected num items=*/32)
 {
 }
 
@@ -23,7 +25,48 @@ PhysicsWorld::~PhysicsWorld()
 }
 
 
-void PhysicsWorld::updateObjectTransformData(PhysicsObject& object)
+static const int LARGE_OB_NUM_CELLS_THRESHOLD = 32;
+
+
+void PhysicsWorld::setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world)
+{
+	// Compute world-to-ob matrix.
+	const bool invertible = new_ob_to_world.getInverseForAffine3Matrix(/*inverse out=*/object.world_to_ob); 
+	//assert(invertible);
+	if(!invertible)
+		object.world_to_ob = Matrix4f::identity(); // If not invertible, just use to-world matrix.  TEMP HACK
+
+
+	if(large_objects.count(&object) > 0)
+	{
+		// Just keep in large objects.
+	}
+	else
+	{
+		const js::AABBox& old_aabb_ws = object.aabb_ws;
+		const js::AABBox new_aabb_ws = object.geometry->getAABBox().transformedAABBFast(new_ob_to_world);
+
+		// See if the object has changed grid cells
+		const Vec4i old_min_bucket_i = ob_grid.bucketIndicesForPoint(old_aabb_ws.min_);
+		const Vec4i old_max_bucket_i = ob_grid.bucketIndicesForPoint(old_aabb_ws.max_);
+
+		const Vec4i new_min_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.min_);
+		const Vec4i new_max_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.max_);
+
+		if(new_min_bucket_i != old_min_bucket_i || new_max_bucket_i != old_max_bucket_i)
+		{
+			// cells have changed.
+			ob_grid.remove(&object, old_aabb_ws);
+			ob_grid.insert(&object, new_aabb_ws);
+		}
+
+		object.ob_to_world = new_ob_to_world;
+		object.aabb_ws = new_aabb_ws;
+	}
+}
+
+
+void PhysicsWorld::computeObjectTransformData(PhysicsObject& object)
 {
 	const Matrix4f& to_world = object.ob_to_world;
 
@@ -36,50 +79,45 @@ void PhysicsWorld::updateObjectTransformData(PhysicsObject& object)
 }
 
 
-
 void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 {
-	//object->aabb_os = object->geometry->getAABBox();
-
 	// Compute world space AABB of object
-	updateObjectTransformData(*object.getPointer());
-	
-	//this->objects.push_back(object);
+	computeObjectTransformData(*object.getPointer());
+
+	const int num_cells = ob_grid.numCellsForAABB(object->aabb_ws);
+	if(num_cells >= LARGE_OB_NUM_CELLS_THRESHOLD)
+	{
+		large_objects.insert(object.ptr());
+	}
+	else
+	{
+		ob_grid.insert(object.ptr(), object->aabb_ws);
+	}
+
 	this->objects_set.insert(object);
 }
 
 
 void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 {
-	// NOTE: linear time
-	/*for(size_t i=0; i<objects.size(); ++i)
-		if(objects[i].getPointer() == object.getPointer())
-		{
-			objects.erase(i);
-			break;
-		}*/
+	auto res = large_objects.find(object.ptr());
+	if(res != large_objects.end()) // If was in large_objects:
+	{
+		large_objects.erase(res);
+	}
+	else
+	{
+		ob_grid.remove(object.ptr(), object->aabb_ws);
+	}
 
 	this->objects_set.erase(object);
-}
-
-void PhysicsWorld::rebuild(glare::TaskManager& task_manager, PrintOutput& print_output)
-{
-	//conPrint("PhysicsWorld::rebuild()");
-	
-	// object_bvh is not used currently.
-
-	//object_bvh.objects.resizeNoCopy(objects.size());
-	//for(size_t i=0; i<objects.size(); ++i)
-	//	object_bvh.objects[i] = objects[i].getPointer();
-
-	//object_bvh.build(task_manager, print_output, 
-	//	false // verbose
-	//);
 }
 
 
 void PhysicsWorld::clear()
 {
+	this->large_objects.clear();
+	this->ob_grid.clear();
 	this->objects_set.clear();
 }
 
@@ -114,6 +152,27 @@ std::string PhysicsWorld::getDiagnostics() const
 	s += "Objects: " + toString(objects_set.size()) + "\n";
 	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
+
+	size_t hashed_grid_mem_usage = ob_grid.buckets.size() * sizeof(*ob_grid.buckets.data());
+
+	size_t sum_cell_num_buckets = 0;
+	size_t sum_cell_num_obs = 0;
+	for(size_t i=0; i<ob_grid.buckets.size(); ++i)
+	{
+		sum_cell_num_buckets += ob_grid.buckets[i].objects.buckets_size;
+		sum_cell_num_obs += ob_grid.buckets[i].objects.size();
+	}
+
+	hashed_grid_mem_usage += sum_cell_num_buckets * sizeof(PhysicsObject*);
+
+	const double av_cell_num_buckets = (double)sum_cell_num_buckets / (double)ob_grid.buckets.size();
+	const double av_cell_num_obs     = (double)sum_cell_num_obs     / (double)ob_grid.buckets.size();
+
+	s += "num buckets: " + toString(ob_grid.buckets.size()) + "\n";
+	s += "av_cell_num_buckets: " + doubleToStringNSigFigs(av_cell_num_buckets, 3) + " obs\n";
+	s += "av_cell_num_obs: " + doubleToStringNSigFigs(av_cell_num_obs, 3) + " obs\n";
+	s += "hashed grid mem usage: " + getNiceByteSize(hashed_grid_mem_usage) + "\n";
+
 	return s;
 }
 
@@ -190,7 +249,75 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 	const float r = sphere.getRadius();
 	const js::AABBox spherepath_aabb_ws(min(startpos_ws, endpos_ws) - Vec4f(r, r, r, 0), max(startpos_ws, endpos_ws) + Vec4f(r, r, r, 0));
 
+
 	float closest_dist_ws = std::numeric_limits<float>::infinity();
+
+	// Query large objects
+	for(auto it = large_objects.begin(); it != large_objects.end(); ++it)
+	{
+		const PhysicsObject* object = *it;
+		SphereTraceResult ob_results;
+		object->traceSphere(sphere, translation_ws, spherepath_aabb_ws, ob_results);
+		if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist_ws)
+		{
+			results_out = ob_results;
+			results_out.hit_object = object;
+			closest_dist_ws = ob_results.hitdist_ws;
+		}
+	}
+
+
+	// Query hashed grid
+	const Vec4i min_bucket_i = ob_grid.bucketIndicesForPoint(spherepath_aabb_ws.min_);
+	const Vec4i max_bucket_i = ob_grid.bucketIndicesForPoint(spherepath_aabb_ws.max_);
+
+	int num_buckets_tested = 0;
+	int num_obs_tested = 0;
+	int num_obs_considered = 0;
+	Timer timer;
+
+	// Mailbox code can be used to prevent testing against the same object multiple times if it occupies multiple grid cells.
+	// Not sure how needed it is though.
+	//const int NUM_MAILBOXES = 16;
+	//const PhysicsObject* mailboxes[NUM_MAILBOXES];
+	//for(int i=0; i<NUM_MAILBOXES; ++i)
+	//	mailboxes[i] = NULL;
+
+	for(int x=min_bucket_i[0]; x <= max_bucket_i[0]; ++x)
+	for(int y=min_bucket_i[1]; y <= max_bucket_i[1]; ++y)
+	for(int z=min_bucket_i[2]; z <= max_bucket_i[2]; ++z)
+	{
+		const auto bucket = ob_grid.getBucketForIndices(x, y, z);
+
+		for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
+		{
+			const PhysicsObject* object = *it;
+			//std::hash<const PhysicsObject*> hasher;
+			//const size_t box = hasher(object) % NUM_MAILBOXES;
+			//if(mailboxes[box] != object)
+			{
+				SphereTraceResult ob_results;
+				object->traceSphere(sphere, translation_ws, spherepath_aabb_ws, ob_results);
+				if(ob_results.hitdist_ws >= 0 && ob_results.hitdist_ws < closest_dist_ws)
+				{
+					results_out = ob_results;
+					results_out.hit_object = object;
+					closest_dist_ws = ob_results.hitdist_ws;
+				}
+
+				//mailboxes[box] = object;
+				num_obs_tested++;
+			}
+			num_obs_considered++;
+		}
+
+		num_buckets_tested++;
+	}
+
+	//conPrint("traceSphere(): Testing against " + toString(num_buckets_tested) + " buckets, " + toString(num_obs_considered) + 
+	//	" obs considered and " + toString(num_obs_tested) + " obs tested, took " + timer.elapsedStringNSigFigs(4));
+
+	/*float closest_dist_ws = std::numeric_limits<float>::infinity();
 
 	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
 	{
@@ -204,7 +331,7 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 			results_out.hit_object = object;
 			closest_dist_ws = ob_results.hitdist_ws;
 		}
-	}
+	}*/
 }
 
 
@@ -215,11 +342,38 @@ void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, std::vector<V
 	const float r = sphere.getRadius();
 	const js::AABBox sphere_aabb_ws(sphere.getCenter() - Vec4f(r, r, r, 0), sphere.getCenter() + Vec4f(r, r, r, 0));
 
-	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+
+	// Query large objects
+	for(auto it = large_objects.begin(); it != large_objects.end(); ++it)
+	{
+		const PhysicsObject* object = *it;
+		object->appendCollPoints(sphere, sphere_aabb_ws, points_out);
+	}
+
+	
+	// Query hashed grid
+	const Vec4i min_bucket_i = ob_grid.bucketIndicesForPoint(sphere_aabb_ws.min_);
+	const Vec4i max_bucket_i = ob_grid.bucketIndicesForPoint(sphere_aabb_ws.max_);
+
+	for(int x=min_bucket_i[0]; x <= max_bucket_i[0]; ++x)
+	for(int y=min_bucket_i[1]; y <= max_bucket_i[1]; ++y)
+	for(int z=min_bucket_i[2]; z <= max_bucket_i[2]; ++z)
+	{
+		const auto bucket = ob_grid.getBucketForIndices(x, y, z);
+
+		for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
+		{
+			const PhysicsObject* object = *it;
+			object->appendCollPoints(sphere, sphere_aabb_ws, points_out);
+		}
+	}
+
+
+	/*for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
 	{
 		const PhysicsObject* object = it->ptr();
 		object->appendCollPoints(sphere, sphere_aabb_ws, points_out);
-	}
+	}*/
 }
 
 
