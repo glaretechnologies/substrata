@@ -970,8 +970,6 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	physics_ob->userdata_type = 0;
 	physics_world->addObject(physics_ob);
 
-	physics_world->rebuild(task_manager, print_output);
-
 	ob->using_placeholder_model = true;
 }
 
@@ -1336,7 +1334,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				ui->glWidget->addObject(ob->opengl_engine_ob);
 
 				physics_world->addObject(ob->physics_object);
-				physics_world->rebuild(task_manager, print_output);
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
@@ -1364,7 +1361,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				ui->glWidget->addObject(ob->opengl_engine_ob);
 
 				physics_world->addObject(ob->physics_object);
-				physics_world->rebuild(task_manager, print_output);
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_WebView)
@@ -1393,7 +1389,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				ui->glWidget->addObject(ob->opengl_engine_ob);
 
 				physics_world->addObject(ob->physics_object);
-				physics_world->rebuild(task_manager, print_output);
 
 				ob->web_view_data = new WebViewData();
 				//connect(ob->web_view_data.ptr(), SIGNAL(linkHoveredSignal(const QString&)), this, SLOT(webViewDataLinkHovered(const QString&)));
@@ -1471,7 +1466,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
 
 						physics_world->addObject(ob->physics_object);
-						physics_world->rebuild(task_manager, print_output);
 
 						ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
@@ -1994,7 +1988,7 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 
 		if(instance->physics_object.nonNull())
 		{
-			physics_world->updateObjectTransformData(*instance->physics_object);
+			//TEMP physics_world->updateObjectTransformData(*instance->physics_object);
 		}
 	}
 }
@@ -2697,9 +2691,7 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		this->selected_ob->physics_object->ob_to_world = new_to_world;
-		this->physics_world->updateObjectTransformData(*this->selected_ob->physics_object);
-		//need_physics_world_rebuild = true;
+		this->physics_world->setNewObToWorldMatrix(*this->selected_ob->physics_object, new_to_world);
 
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*selected_ob);
@@ -3523,7 +3515,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											ui->glWidget->addObject(ob->opengl_engine_ob);
 
 											physics_world->addObject(ob->physics_object);
-											physics_world->rebuild(task_manager, print_output);
 
 											ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
@@ -3692,7 +3683,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ui->glWidget->addObject(opengl_ob);
 
 								physics_world->addObject(physics_ob);
-								physics_world->rebuild(task_manager, print_output);
 
 								ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
 
@@ -4990,8 +4980,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
-	bool need_physics_world_rebuild = false;
-
 	// Update world object graphics and physics models that have been marked as from-server-dirty based on incoming network messages from server.
 	if(world_state.nonNull())
 	{
@@ -5016,7 +5004,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						print("Removing WorldObject.");
 					
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-						need_physics_world_rebuild = true;
 
 						proximity_loader.removeObject(ob);
 
@@ -5173,8 +5160,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// Update in physics engine
 						if(ob->physics_object.nonNull())
 						{
-							ob->physics_object->ob_to_world = interpolated_to_world_mat;
-							physics_world->updateObjectTransformData(*ob->physics_object);
+							physics_world->setNewObToWorldMatrix(*ob->physics_object, interpolated_to_world_mat);
 						}
 
 						proximity_loader.objectTransformChanged(ob);
@@ -5220,10 +5206,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						// Remove physics object
 						if(parcel->physics_object.nonNull())
-						{
 							physics_world->removeObject(parcel->physics_object);
-							need_physics_world_rebuild = true;
-						}
 
 						this->world_state->parcels.erase(parcel->id);
 					}
@@ -5250,7 +5233,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								// Make physics object for parcel:
 								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
 								physics_world->addObject(parcel->physics_object);
-								need_physics_world_rebuild = true;
 							}
 							else // else if opengl ob is not null:
 							{
@@ -5324,9 +5306,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(ob->physics_object.nonNull())
 					{
 						// Update in physics engine
-						ob->physics_object->ob_to_world = ob->opengl_engine_ob->ob_to_world_matrix;
-						physics_world->updateObjectTransformData(*ob->physics_object);
-						need_physics_world_rebuild = true;
+						physics_world->setNewObToWorldMatrix(*ob->physics_object, ob->opengl_engine_ob->ob_to_world_matrix);
 					}
 
 					if(ob->audio_source.nonNull())
@@ -5491,13 +5471,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 #endif
 		//if(timer.elapsed() > 0.020)
 		//	conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": updateGL() took " + timer.elapsedStringNSigFigs(4));
-	}
-
-	if(need_physics_world_rebuild)
-	{
-		//Timer timer;
-		physics_world->rebuild(task_manager, print_output);
-		//conPrint("Physics world rebuild took " + timer.elapsedStringNSigFigs(5));
 	}
 
 	frame_num++;
@@ -6971,8 +6944,6 @@ void MainWindow::addParcelObjects()
 				physics_world->addObject(parcel->physics_object);
 			}
 		}
-
-		physics_world->rebuild(task_manager, print_output);
 	}
 	catch(glare::Exception& e)
 	{
@@ -7003,8 +6974,6 @@ void MainWindow::removeParcelObjects()
 				parcel->physics_object = NULL;
 			}
 		}
-
-		physics_world->rebuild(task_manager, print_output);
 	}
 	catch(glare::Exception& e)
 	{
@@ -7365,8 +7334,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					// Update physics object transform
 					if(in_world_ob->physics_object.nonNull())
 					{
-						in_world_ob->physics_object->ob_to_world = obToWorldMatrix(*in_world_ob);
-						this->physics_world->updateObjectTransformData(*in_world_ob->physics_object);
+						this->physics_world->setNewObToWorldMatrix(*in_world_ob->physics_object, obToWorldMatrix(*in_world_ob));
 					}
 
 					if(in_world_ob->audio_source.nonNull())
@@ -7736,9 +7704,8 @@ void MainWindow::objectEditedSlot()
 				ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 				// Update physics object transform
-				selected_ob->physics_object->ob_to_world = new_ob_to_world_matrix;
 				selected_ob->physics_object->collidable = selected_ob->isCollidable();
-				this->physics_world->updateObjectTransformData(*selected_ob->physics_object);
+				this->physics_world->setNewObToWorldMatrix(*selected_ob->physics_object, new_ob_to_world_matrix);
 
 				// Update in Indigo view
 				ui->indigoView->objectTransformChanged(*selected_ob);
@@ -8833,7 +8800,6 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		physics_ob->userdata = (void*)(ob.ptr());
 		physics_ob->userdata_type = 0;
 		physics_world->addObject(physics_ob);
-		physics_world->rebuild(task_manager, print_output);
 
 		ob->aabb_ws = gl_ob->aabb_ws; // gl_ob->aabb_ws will ahve been set in ui->glWidget->addObject() above.
 	}
@@ -9279,8 +9245,7 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		ob->physics_object->ob_to_world = new_ob_to_world;
-		this->physics_world->updateObjectTransformData(*ob->physics_object);
+		this->physics_world->setNewObToWorldMatrix(*ob->physics_object, new_ob_to_world);
 
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*ob);
@@ -10891,9 +10856,6 @@ int main(int argc, char *argv[])
 			}
 
 			mw.afterGLInitInitialise();
-
-
-			mw.physics_world->rebuild(mw.task_manager, mw.print_output);
 
 			app_exec_res = app.exec();
 

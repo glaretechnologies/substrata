@@ -1,7 +1,7 @@
 /*=====================================================================
 PhysicsWorld.h
 --------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
@@ -13,7 +13,8 @@ Copyright Glare Technologies Limited 2019 -
 #include <maths/vec2.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Vector.h>
-#include <unordered_set>
+#include "HashedGrid2.h"
+#include <set>
 namespace Indigo { class TaskManager; }
 class PrintOutput;
 
@@ -42,7 +43,7 @@ public:
 
 /*=====================================================================
 PhysicsWorld
--------------
+------------
 
 =====================================================================*/
 class PhysicsWorld : public ThreadSafeRefCounted
@@ -50,15 +51,15 @@ class PhysicsWorld : public ThreadSafeRefCounted
 public:
 	PhysicsWorld();
 	~PhysicsWorld();
-
-	
+		
 	void addObject(const Reference<PhysicsObject>& object);
 	
 	void removeObject(const Reference<PhysicsObject>& object);
 
-	void updateObjectTransformData(PhysicsObject& object);
+	// Updates transform data and grid cells
+	void setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world);
 
-	void rebuild(glare::TaskManager& task_manager, PrintOutput& print_output);
+	void computeObjectTransformData(PhysicsObject& object);
 
 	void clear(); // Remove all objects
 
@@ -84,7 +85,10 @@ public:
 	void getCollPoints(const js::BoundingSphere& sphere, std::vector<Vec4f>& points_out) const;
 
 private:
-	std::unordered_set<Reference<PhysicsObject>, PhysicsObjectHash> objects_set;
+	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.
 
-	PhysicsObjectBVH object_bvh;
+	HashedGrid2<PhysicsObject*, std::hash<PhysicsObject*>> ob_grid;
+
+	// For very large objects that would occupy many grid cells, store in a separate set instead to avoid spamming the hashed grid.
+	HashSet<PhysicsObject*> large_objects;
 };

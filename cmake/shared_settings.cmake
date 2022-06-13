@@ -287,6 +287,15 @@ ${INDIGO_UTILS_DIR}/DatabaseTests.cpp
 ${INDIGO_UTILS_DIR}/DatabaseTests.h
 ${INDIGO_UTILS_DIR}/BufferViewInStream.cpp
 ${INDIGO_UTILS_DIR}/BufferViewInStream.h
+${INDIGO_UTILS_DIR}/HashSet.cpp
+${INDIGO_UTILS_DIR}/HashSet.h
+${INDIGO_UTILS_DIR}/HashSetIterators.h
+${INDIGO_UTILS_DIR}/HashMap.cpp
+${INDIGO_UTILS_DIR}/HashMap.h
+${INDIGO_UTILS_DIR}/HashMapIterators.h
+${INDIGO_UTILS_DIR}/HashMapInsertOnly2.cpp
+${INDIGO_UTILS_DIR}/HashMapInsertOnly2.h
+${INDIGO_UTILS_DIR}/HashMapInsertOnly2Iterators.h
 )
 
 
