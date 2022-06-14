@@ -8058,10 +8058,14 @@ void MainWindow::disconnectFromServerAndClearAllObjects(bool hard_kill_client_co
 	if(biome_manager && ui->glWidget->opengl_engine.nonNull() && physics_world.nonNull())
 		biome_manager->clear(*ui->glWidget->opengl_engine, *physics_world);
 
+	selected_ob = NULL;
+
 	active_objects.clear();
 	obs_with_animated_tex.clear();
 	web_view_obs.clear();
 	obs_with_scripts.clear();
+
+	objs_with_lightmap_rebuild_needed.clear();
 
 	proximity_loader.clearAllObjects();
 
@@ -8160,6 +8164,9 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	for(int z=0; z<4; ++z)
 		resource_download_thread_manager.addThread(new DownloadResourcesThread(&msg_queue, resource_manager, server_hostname, server_port, &this->num_non_net_resources_downloading, this->client_tls_config,
 			&this->download_queue));
+
+	for(int i=0; i<4; ++i)
+		net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
 
 	if(physics_world.isNull())
 		physics_world = new PhysicsWorld();
@@ -10270,9 +10277,6 @@ int main(int argc, char *argv[])
 				
 				QtUtils::showErrorMessageDialog(msg, &mw);
 			}
-
-			for(int i=0; i<8; ++i)
-				mw.net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&mw.msg_queue, mw.resource_manager, &mw.num_net_resources_downloading));
 
 			mw.cam_controller.setPosition(Vec3d(0,0,4.7));
 			mw.ui->glWidget->setCameraController(&mw.cam_controller);
