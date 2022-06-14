@@ -560,13 +560,13 @@ public:
 
 				// Iterate over all objects and work out which objects should be in the Indigo scene for the lightmap calc.
 				std::set<WorldObjectRef> obs_to_render;
-				for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
+				for(auto it = world_state.objects.valuesBegin(); it != world_state.objects.valuesEnd(); ++it)
 				{
-					const WorldObject* ob = it->second.ptr();
+					const WorldObject* ob = it.getValue().ptr();
 					const double dist = ob_to_lightmap->pos.getDist(ob->pos);
 
 					if(dist < 100)
-						obs_to_render.insert(it->second);
+						obs_to_render.insert(it.getValue());
 
 					// TEMP: add all objects
 					//obs_to_render.insert(it->second);
@@ -962,7 +962,7 @@ public:
 						auto res = world_state.objects.find(ob_uid);
 						if(res != world_state.objects.end())
 						{
-							WorldObjectRef ob2 = res->second;
+							WorldObjectRef ob2 = res.getValue();
 							if(BitUtils::isBitSet(ob2->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG) || BitUtils::isBitSet(ob2->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG))
 							{
 								conPrint("Object has been modified since bake started, aborting bake...");
@@ -1190,7 +1190,7 @@ public:
 				auto res = world_state.objects.find(UID(151688));
 				if(res != world_state.objects.end())
 				{
-					WorldObjectRef ob = res->second;
+					WorldObjectRef ob = res.getValue();
 					obs_to_lightmap.insert(ob);
 				}
 			}
@@ -1198,9 +1198,9 @@ public:
 			{
 				Lock lock(world_state.mutex);
 
-				for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
+				for(auto it = world_state.objects.valuesBegin(); it != world_state.objects.valuesEnd(); ++it)
 				{
-					WorldObject* ob = it->second.ptr();
+					WorldObject* ob = it.getValue().ptr();
 					// conPrint("Checking object with UID " + ob->uid.toString());
 					if(/*!ob->model_url.empty() && */BitUtils::isBitSet(ob->flags, WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG) || BitUtils::isBitSet(ob->flags, WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG))
 					{
@@ -1383,6 +1383,8 @@ int main(int argc, char* argv[])
 	tls_config_insecure_noverifyname(client_tls_config);
 
 
+	Reference<glare::PoolAllocator> world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
+
 	while(1) // While lightmapper bot should keep running:
 	{
 		// Connect to substrata server
@@ -1397,7 +1399,8 @@ int main(int argc, char* argv[])
 				server_port, // port
 				"", // avatar URL
 				"", // world name - default world
-				client_tls_config
+				client_tls_config,
+				world_ob_pool_allocator
 			);
 			client_thread->world_state = world_state;
 
