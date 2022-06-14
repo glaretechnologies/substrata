@@ -697,10 +697,6 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 		return;
 
 #if CEF_SUPPORT
-	/*const int width = 1920;
-	const int height = 1080;*/
-	const int width = 1024;
-	const int height = (int)(1024.f / 1920.f * 1080.f); // Webview uses 1920 : 1080 aspect ratio.  (See MainWindow::on_actionAdd_Web_View_triggered())
 
 	const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
 	const double max_play_dist = AnimatedTexData::maxVidPlayDist();
@@ -797,6 +793,10 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 					{
 						main_window->logMessage("Creating browser to play vid, URL: " + mat.tex_path);
 
+						const int width = 1024;
+						const float use_height_over_width = ob->scale.z / ob->scale.x; // Object scale should be based on video aspect ratio, see ModelLoading::makeImageCube().
+						const int height = myClamp((int)(1024 * use_height_over_width), 16, 2048);
+
 						if(ob->opengl_engine_ob.nonNull())
 						{
 							std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
@@ -835,7 +835,7 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 							"<head>"
 							"</head>"
 							"<body style=\"margin:0\">"
-							"<video autoplay loop name=\"media\" id=\"thevid\" width=\"1024px\" height=\"576px\">"
+							"<video autoplay loop name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\">"
 							"<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"video/mp4\" />"
 							"</video>"
 							"</body>"
