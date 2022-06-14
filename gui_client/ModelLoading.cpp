@@ -97,7 +97,7 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 	opengl_mat.tex_matrix = Matrix2f(1, 0, 0, -1) * mat.tex_matrix;
 
 	if(::hasExtensionStringView(opengl_mat.tex_path, "mp4"))
-		opengl_mat.convert_albedo_from_srgb = true;
+		opengl_mat.fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
 }
 
 
