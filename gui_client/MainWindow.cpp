@@ -8545,7 +8545,10 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 		//		static_cast<WorldObject*>(results.hit_object->userdata) == this->selected_ob.ptr(); // and it was the selected ob
 		//}
 
+		const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
+
 		//if(!mouse_trace_hit_selected_ob)
+		if(have_edit_permissions) // The axis arrows and rotation arcs are only visible if we have object modification permissions.
 		{
 			grabbed_axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), /*closest_seg_point_ws_out=*/this->grabbed_point_ws);
 
@@ -10681,7 +10684,7 @@ int main(int argc, char *argv[])
 					const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
 					test_avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
 
-					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
+					//const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
 
 					
 					//const std::string path = "D:/models/VRMs/vitalab2.vrm";
