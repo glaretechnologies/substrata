@@ -379,30 +379,6 @@ public:
 		}
 	}
 
-
-	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
-		const CefString& value) override
-	{
-		if(value.c_str())
-		{
-			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
-
-			if(main_window)
-				main_window->webViewDataLinkHovered(QtUtils::toQString(value.ToString()));
-			//if(web_view_data)
-			//	web_view_data->linkHoveredSignal(QtUtils::toQString(value.ToString()));
-		}
-		else
-		{
-			//conPrint("OnStatusMessage: NULL");
-
-			//if(web_view_data)
-			//	web_view_data->linkHoveredSignal("");
-			if(main_window)
-				main_window->webViewDataLinkHovered("");
-		}
-	}
-
 	//---------------------------- CefResourceRequestHandler ----------------------------
 	// Called on the IO thread before a resource is loaded. The |browser| and
 	// |frame| values represent the source of the request, and may be NULL for
@@ -696,15 +672,13 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 	if(ob->opengl_engine_ob.isNull())
 		return;
 
-#if CEF_SUPPORT
-
-	const double ob_dist_from_cam = ob->pos.getDist(main_window->cam_controller.getPosition());
+	const float ob_dist_from_cam = ob->aabb_ws.centroid().getDist(main_window->cam_controller.getPosition().toVec4fPoint());
 	const double max_play_dist = AnimatedTexData::maxVidPlayDist();
 	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
 
-	const bool ob_visible = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+	const bool should_update_ob_tex = in_process_dist && opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 
-	if(in_process_dist)
+	if(should_update_ob_tex)
 	{
 		AnimatedTexObData& animation_data = *this;
 		animation_data.mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
@@ -737,47 +711,113 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 				}
 
 				TextureData* texdata = animtexdata.texdata.ptr();
-
-				if(texdata && !texdata->frames.empty()) // Check !frames.empty() for back() calls below.
+				if(texdata)
 				{
-					const double total_anim_time = texdata->frame_start_times.back() + texdata->frame_durations.back();
-
-					const double in_anim_time = Maths::doubleMod(anim_time, total_anim_time);
-
-					/*
-					frame 0                     frame 1                        frame 2                      frame 3
-					|----------------------------|-----------------------------|-----------------------------|--------------------------------|----------> time
-					^                                         ^
-					cur_frame_i                             in anim_time
-					*/
-
-					// Advance current frame as needed, until frame_start_times[cur_frame_i + 1] >= in_anim_time, or cur_frame_i is the last frame
-					while(((animtexdata.cur_frame_i + 1) < (int)texdata->frame_start_times.size()) && (texdata->frame_start_times[animtexdata.cur_frame_i + 1] < in_anim_time))
-						animtexdata.cur_frame_i++;
-
-					if(in_anim_time <= texdata->frame_durations[0]) // If the in-anim time has looped back so that it's in frame 0:
-						animtexdata.cur_frame_i = 0;
-
-					if(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < (int)texdata->frames.size()) // Make sure in bounds
+					const int num_frames = (int)texdata->num_frames;
+					const double total_anim_time = texdata->last_frame_end_time;
+					if((num_frames > 0) && (total_anim_time > 0)) // Check !frames.empty() for back() calls below.
 					{
-						if(ob_visible && animtexdata.cur_frame_i != animtexdata.last_loaded_frame_i) // TODO: avoid more work when object is not visible.
+						const double in_anim_time = Maths::doubleMod(anim_time, total_anim_time);
+						assert(in_anim_time >= 0);
+
+						// Search for the current frame, setting animtexdata.cur_frame_i, for in_anim_time.
+						// Note that in_anim_time may have increased just a little bit since last time process() was called, or it may have jumped a lot if object left and re-entered the camera view.
+
+						if(animtexdata.cur_frame_i < 0 && animtexdata.cur_frame_i >= num_frames) // Make sure cur_frame_i is in bounds.
 						{
-							//printVar(animtexdata.cur_frame_i);
+							assert(false);
+							animtexdata.cur_frame_i = 0;
+						}
 
-							// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
-							// Don't try and upload the wrong size or we will get an OpenGL error or crash.
-							if(mat.albedo_texture->xRes() == texdata->W && mat.albedo_texture->yRes() == texdata->H)
-								TextureLoading::loadIntoExistingOpenGLTexture(mat.albedo_texture, *texdata, animtexdata.cur_frame_i, opengl_engine);
-							//else
-							//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
+						// If frame durations are equal, we can skip the frame search stuff, and just compute the frame index directly.
+						if(texdata->frame_durations_equal)
+						{
+							int index = (int)(in_anim_time * texdata->recip_frame_duration);
+							assert(index >= 0);
 
-							animtexdata.last_loaded_frame_i = animtexdata.cur_frame_i;
+							if(index >= num_frames)
+								index = 0;
+
+							animtexdata.cur_frame_i = index;
+						}
+						else
+						{
+							// Else frame end times are irregularly spaced.  
+							// Start with a special case search, where we assume in_anim_time just increased a little bit, so that we are still on the same frame, or maybe the next frame.
+							// If that doesn't find the correct frame, then fall back to a binary search over all frames to find the correct frame.
+
+							// Is in_anim_time still in the time range of the current frame?  Note that we need to check both frame start and end times as in_anim_time may have decreased.
+							// cur frame start time = prev frame end time, but be careful about wraparound.
+							const double cur_frame_start_time = (animtexdata.cur_frame_i == 0) ? 0.0 : texdata->frame_end_times[animtexdata.cur_frame_i - 1];
+							if(in_anim_time >= cur_frame_start_time && in_anim_time <= texdata->frame_end_times[animtexdata.cur_frame_i])
+							{
+								// animtexdata.cur_frame_i is unchanged.
+								//conPrint("current frame is unchanged");
+							}
+							else
+							{
+								// See if in_anim_time is in the time range of the next frame
+								double next_frame_start_time, next_frame_end_time;
+								int next_frame_index;
+								if(animtexdata.cur_frame_i == num_frames - 1)
+								{
+									next_frame_start_time = 0.0;
+									next_frame_end_time = texdata->frame_end_times[0];
+									next_frame_index = 0;
+								}
+								else
+								{
+									next_frame_start_time = texdata->frame_end_times[animtexdata.cur_frame_i];
+									next_frame_end_time   = texdata->frame_end_times[animtexdata.cur_frame_i + 1];
+									next_frame_index = animtexdata.cur_frame_i + 1;
+								}
+
+								if(in_anim_time >= next_frame_start_time && in_anim_time <= next_frame_end_time) // if in_anim_time is in the time range of the next frame:
+								{
+									animtexdata.cur_frame_i = next_frame_index;
+									//conPrint("advancing to next frame");
+								}
+								else
+								{
+									//conPrint("Finding frame with binary search");
+
+									// Else in_anim_time was not in current frame or next frame periods.
+									// Do binary search for current frame.
+									const auto res = std::lower_bound(texdata->frame_end_times.begin(), texdata->frame_end_times.end(), in_anim_time); // Get the position of the first frame_end_time >= in_anim_time.
+									int index = res - texdata->frame_end_times.begin();
+									assert(index >= 0);
+									if(index >= num_frames)
+										index = 0;
+
+									animtexdata.cur_frame_i = index;
+								}
+							}
+						}
+
+						assert(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < num_frames); // Should be in bounds
+
+						if(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < num_frames) // Make sure in bounds
+						{
+							if(animtexdata.cur_frame_i != animtexdata.last_loaded_frame_i) // If cur frame changed: (Avoid uploading the same frame multiple times in a row)
+							{
+								/*printVar(animtexdata.cur_frame_i);*/
+
+								// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
+								// Don't try and upload the wrong size or we will get an OpenGL error or crash.
+								if(mat.albedo_texture->xRes() == texdata->W && mat.albedo_texture->yRes() == texdata->H)
+									TextureLoading::loadIntoExistingOpenGLTexture(mat.albedo_texture, *texdata, animtexdata.cur_frame_i, opengl_engine);
+								//else
+								//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
+
+								animtexdata.last_loaded_frame_i = animtexdata.cur_frame_i;
+							}
 						}
 					}
 				}
 			}
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
 			{
+#if CEF_SUPPORT
 				if(animation_data.mat_animtexdata[m].isNull())
 					animation_data.mat_animtexdata[m] = new AnimatedTexData();
 				AnimatedTexData& animtexdata = *animation_data.mat_animtexdata[m];
@@ -855,11 +895,14 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 						animtexdata.texdata_tex_path = mat.tex_path;
 					}
 				}
+#endif // CEF_SUPPORT
 			}
 		}
 	}
-	else // else if !in_process_dist:
+
+	if(!in_process_dist)
 	{
+#if CEF_SUPPORT
 		// Close any browsers for animated textures on this object.
 		for(size_t m=0; m<this->mat_animtexdata.size(); ++m)
 		{
@@ -881,6 +924,6 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 				}
 			}
 		}
+#endif
 	}
-#endif // CEF_SUPPORT
 }
