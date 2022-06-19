@@ -62,11 +62,11 @@ bool ImageDecoding::hasSupportedImageExtension(const std::string& path)
 	const string_view extension = getExtensionStringView(path);
 
 	return
-		extension == "jpg" || extension == "jpeg" ||
-		extension == "png" ||
+		StringUtils::equalCaseInsensitive(extension, "jpg") || StringUtils::equalCaseInsensitive(extension, "jpeg") ||
+		StringUtils::equalCaseInsensitive(extension, "png") ||
 		//hasExtension(path, "tif") || hasExtension(path, "tiff") ||
-		extension == "exr" ||
-		extension == "gif" ||
-		extension == "ktx" ||
-		extension == "ktx2";
+		StringUtils::equalCaseInsensitive(extension, "exr") ||
+		StringUtils::equalCaseInsensitive(extension, "gif") ||
+		StringUtils::equalCaseInsensitive(extension, "ktx") ||
+		StringUtils::equalCaseInsensitive(extension, "ktx2");
 }

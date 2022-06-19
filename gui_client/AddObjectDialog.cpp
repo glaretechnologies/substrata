@@ -284,13 +284,15 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 
 			this->loaded_mesh_is_image_cube = true;
 		}
-		else // Else is not an image or an MP4 file:
+		else if(ModelLoading::hasSupportedModelExtension(local_path))
 		{
 			preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_path,
 				this->loaded_mesh, // mesh out
 				*this->loaded_object
 			);
 		}
+		else
+			throw glare::Exception("file did not have a supported image, video, or model extension: '" + getExtension(local_path) + "'");
 
 		// Try and load textures
 		for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
