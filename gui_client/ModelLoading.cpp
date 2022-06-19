@@ -827,14 +827,14 @@ bool ModelLoading::hasSupportedModelExtension(const std::string& path)
 	const string_view extension = getExtensionStringView(path);
 
 	return
-		extension == "vox" ||
-		extension == "obj" ||
-		extension == "stl" ||
-		extension == "gltf" ||
-		extension == "glb" ||
-		extension == "vrm" ||
-		extension == "igmesh" ||
-		extension == "bmesh";
+		StringUtils::equalCaseInsensitive(extension, "vox") ||
+		StringUtils::equalCaseInsensitive(extension, "obj") ||
+		StringUtils::equalCaseInsensitive(extension, "stl") ||
+		StringUtils::equalCaseInsensitive(extension, "gltf") ||
+		StringUtils::equalCaseInsensitive(extension, "glb") ||
+		StringUtils::equalCaseInsensitive(extension, "vrm") ||
+		StringUtils::equalCaseInsensitive(extension, "igmesh") ||
+		StringUtils::equalCaseInsensitive(extension, "bmesh");
 }
 
 

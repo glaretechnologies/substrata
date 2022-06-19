@@ -980,6 +980,12 @@ static bool hasAudioFileExtension(const std::string& url)
 }
 
 
+static inline bool hasSupportedVideoFileExtension(const std::string& url)
+{
+	return hasExtensionStringView(url, "mp4");
+}
+
+
 static const float MAX_AUDIO_DIST = 60;
 
 
@@ -996,32 +1002,38 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 		// If resources are streamable, don't download them.
 		//const bool stream = shouldStreamResourceViaHTTP(url);
 
-		// Only download mp4s if the camera is near them in the world.
-		bool in_range = true;
-		if(hasExtensionStringView(url, "mp4"))
-		{
-			const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
-			const double max_play_dist = AnimatedTexData::maxVidPlayDist();
-			in_range = ob_dist < max_play_dist;
-		}
-		else if(hasAudioFileExtension(url))
-		{
-			const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
-			in_range = ob_dist < MAX_AUDIO_DIST;
-		}
+		const bool has_audio_extension = hasAudioFileExtension(url);
+		const bool has_video_extension = hasSupportedVideoFileExtension(url);
 
-		if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
+		if(has_audio_extension || has_video_extension || ImageDecoding::hasSupportedImageExtension(url) || ModelLoading::hasSupportedModelExtension(url))
 		{
-			DownloadingResourceInfo info;
-			info.use_sRGB = url_info.use_sRGB;
-			info.pos = ob->pos;
-			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
+			// Only download mp4s and audio files if the camera is near them in the world.
+			bool in_range = true;
+			if(has_video_extension)
+			{
+				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+				const double max_play_dist = AnimatedTexData::maxVidPlayDist();
+				in_range = ob_dist < max_play_dist;
+			}
+			else if(has_audio_extension)
+			{
+				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+				in_range = ob_dist < MAX_AUDIO_DIST;
+			}
 
-			js::AABBox aabb_ws = ob->aabb_ws;
-			if(aabb_ws.isEmpty())
-				aabb_ws = js::AABBox(ob->pos.toVec4fPoint(), ob->pos.toVec4fPoint());
+			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
+			{
+				DownloadingResourceInfo info;
+				info.use_sRGB = url_info.use_sRGB;
+				info.pos = ob->pos;
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
 
-			startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
+				js::AABBox aabb_ws = ob->aabb_ws;
+				if(aabb_ws.isEmpty())
+					aabb_ws = js::AABBox(ob->pos.toVec4fPoint(), ob->pos.toVec4fPoint());
+
+				startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
+			}
 		}
 	}
 }
@@ -1036,29 +1048,34 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 		const DependencyURL& url_info = *it;
 		const std::string& url = url_info.URL;
 
-		// Only download mp4s if the camera is near them in the world.
-		bool in_range = true;
-		if(hasExtensionStringView(url, "mp4"))
+		const bool has_video_extension = hasSupportedVideoFileExtension(url);
+
+		if(has_video_extension || ImageDecoding::hasSupportedImageExtension(url) || ModelLoading::hasSupportedModelExtension(url))
 		{
-			const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
-			const double max_play_dist = AnimatedTexData::maxVidPlayDist();
-			in_range = ob_dist < max_play_dist;
-		}
+			// Only download mp4s if the camera is near them in the world.
+			bool in_range = true;
+			if(has_video_extension)
+			{
+				const double ob_dist = ob->pos.getDist(cam_controller.getPosition());
+				const double max_play_dist = AnimatedTexData::maxVidPlayDist();
+				in_range = ob_dist < max_play_dist;
+			}
 
-		if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
-		{
-			const js::AABBox aabb_ws( // approx AABB
-				ob->pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, -2.f, 0),
-				ob->pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
-			);
+			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
+			{
+				const js::AABBox aabb_ws( // approx AABB
+					ob->pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, -2.f, 0),
+					ob->pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
+				);
 
-			DownloadingResourceInfo info;
-			info.use_sRGB = url_info.use_sRGB;
-			info.pos = ob->pos;
-			info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws);
+				DownloadingResourceInfo info;
+				info.use_sRGB = url_info.use_sRGB;
+				info.pos = ob->pos;
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws);
 
 
-			startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
+				startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
+			}
 		}
 	}
 }
@@ -4358,7 +4375,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					assert(resource.nonNull()); // The downloaded file should have been added as a resource in DownloadResourcesThread or NetDownloadResourcesThread.
 					if(resource.nonNull())
 					{
-						// Get the local path, we will check the file type of the local path when determining what to do with the file, as the local path will have an extension given by thte mime type
+						// Get the local path, we will check the file type of the local path when determining what to do with the file, as the local path will have an extension given by the mime type
 						// in the net download case.
 						const std::string local_path = resource->getLocalPath();
 
@@ -4409,7 +4426,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								}
 							}
 						}
-						else // Else we didn't download a texture, but maybe a model:
+						else if(ModelLoading::hasSupportedModelExtension(local_path)) // Else we didn't download a texture, but maybe a model:
 						{
 							try
 							{
@@ -4429,6 +4446,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								print("Error while loading object: " + e.what());
 							}
+						}
+						else
+						{
+							// TODO: Handle video files here?
+							
+							//print("file did not have a supported image, audio, or model extension: '" + getExtension(local_path) + "'");
 						}
 					}
 				}
