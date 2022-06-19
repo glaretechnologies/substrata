@@ -672,9 +672,9 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 	if(ob->opengl_engine_ob.isNull())
 		return;
 
-	const float ob_dist_from_cam = ob->aabb_ws.centroid().getDist(main_window->cam_controller.getPosition().toVec4fPoint());
+	const float ob_dist_from_cam2 = ob->aabb_ws.centroid().getDist2(main_window->cam_controller.getPosition().toVec4fPoint());
 	const double max_play_dist = AnimatedTexData::maxVidPlayDist();
-	const bool in_process_dist = ob_dist_from_cam < max_play_dist;
+	const bool in_process_dist = ob_dist_from_cam2 < Maths::square(max_play_dist);
 
 	const bool should_update_ob_tex = in_process_dist && opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 
