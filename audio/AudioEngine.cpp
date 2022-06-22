@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "AudioFileReader.h"
+#include "MP3AudioFileReader.h"
+#include "StreamerThread.h"
 #include "../rtaudio/RtAudio.h"
 #include <resonance_audio/api/resonance_audio_api.h>
 #include <utils/MessageableThread.h>
@@ -20,6 +22,14 @@ Copyright Glare Technologies Limited 2021 -
 
 namespace glare
 {
+
+
+AudioSource::AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
+		mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0) {}
+
+
+AudioSource::~AudioSource()
+{}
 
 
 void AudioSource::startMuting(double cur_time, double transition_period)
@@ -537,13 +547,21 @@ void AudioEngine::init()
 
 	callback_data.resonance = resonance;
 
-	Reference<ResonanceThread> t = new ResonanceThread();
-	t->engine = this;
-	t->resonance = this->resonance;
-	t->callback_data = &this->callback_data;
-	t->frames_per_buffer = buffer_frames;
-	t->temp_buf.resize(buffer_frames * 2);
-	resonance_thread_manager.addThread(t);
+	{
+		Reference<ResonanceThread> t = new ResonanceThread();
+		t->engine = this;
+		t->resonance = this->resonance;
+		t->callback_data = &this->callback_data;
+		t->frames_per_buffer = buffer_frames;
+		t->temp_buf.resize(buffer_frames * 2);
+		thread_manager.addThread(t);
+	}
+
+	{
+		Reference<StreamerThread> t = new StreamerThread(this);
+		thread_manager.addThread(t);
+	}
+
 
 	try
 	{
@@ -594,7 +612,7 @@ void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 
 void AudioEngine::shutdown()
 {
-	resonance_thread_manager.killThreadsBlocking();
+	thread_manager.killThreadsBlocking();
 	
 	try
 	{
@@ -646,8 +664,38 @@ void AudioEngine::removeSource(AudioSourceRef source)
 
 	resonance->DestroySource(source->resonance_handle);
 
-	Lock lock(mutex);
-	audio_sources.erase(source);
+	{
+		Lock lock(mutex);
+		audio_sources.erase(source);
+
+		// Remove audio source from sources_playing_streams (MP3AudioStreamer -> set<AudioSourceRef>) map.
+		Reference<MP3AudioStreamer> streamer_to_remove;
+
+		for(auto it = sources_playing_streams.begin(); it != sources_playing_streams.end(); ++it)
+		{
+			std::set<AudioSourceRef>& source_set = it->second;
+
+			source_set.erase(source); // Remove from set if present in set.
+
+			if(source_set.empty())
+				streamer_to_remove = it->first; // No audio source is playing this stream now, so we can free the streamer.
+		}
+
+		// We removed the last audio source playing a stream, so remove the streamer.
+		if(streamer_to_remove.nonNull())
+		{
+			// Remove from streams map
+			for(auto it = streams.begin(); it != streams.end(); ++it)
+				if(it->second == streamer_to_remove)
+				{
+					streams.erase(it);
+					break;
+				}
+
+			// Remove from sources_playing_streams map
+			sources_playing_streams.erase(streamer_to_remove);
+		}
+	} // End lock scope
 }
 
 
@@ -760,6 +808,51 @@ AudioSourceRef AudioEngine::addSourceFromSoundFile(const std::string& sound_file
 }
 
 
+AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, double global_time)
+{
+	Lock lock(mutex);
+
+	// Make a new audio source
+	AudioSourceRef source = new AudioSource();
+	source->type = AudioSource::SourceType_Streaming;
+	source->remove_on_finish = false;
+	source->pos = pos;
+
+	auto res = streams.find(sound_file_path);
+	if(res == streams.end())
+	{
+		// Load the sound
+		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer(sound_file_path);
+
+		streamer->seekToApproxTimeWrapped(global_time);
+
+		streams.insert(std::make_pair(sound_file_path, streamer));
+
+		sources_playing_streams[streamer].insert(source); // Add this audio source as a user of this stream.
+	}
+	else
+	{
+		// Streamer for this mp3 file already exists.
+		Reference<MP3AudioStreamer> streamer = res->second;
+
+		// If there is another source playing this stream, copy the other source's buffer in order to synchronise the audio sources in the audio stream.
+		auto first_source_it = sources_playing_streams[streamer].begin();
+		if(first_source_it != sources_playing_streams[streamer].end())
+		{
+			AudioSourceRef first_source = *first_source_it;
+
+			source->buffer = first_source->buffer;
+		}
+
+		sources_playing_streams[streamer].insert(source); // Add this audio source as a user of this stream.
+	}
+
+	addSource(source);
+
+	return source;
+}
+
+
 } // end namespace glare
 
 
@@ -778,6 +871,47 @@ void glare::AudioEngine::test()
 	try
 	{
 		AudioEngine engine;
+		engine.init();
+		
+		// Make a new audio source
+		//AudioSourceRef source = new AudioSource();
+		//source->type = AudioSource::SourceType_Streaming;
+		//source->remove_on_finish = false;
+		//source->mp3_streamer = new glare::MP3AudioStreamer();
+		//source->mp3_streamer->init(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3"); //  "D:\\files\\02___Sara_mp3_14061996302930432458.mp3");
+
+		//engine.addSource(source);
+
+		//AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile("D:\\files\\Good_Gas___Live_A_Lil_ft__MadeinTYO__UnoTheActivist___FKi_1st__Lyrics__mp3_3425190382177260630.mp3", Vec4f(1, 0, 0, 1), /*global time=*/0.0);
+		AudioSourceRef source1 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 0, 0, 1), /*global time=*/0.0);
+		PlatformUtils::Sleep(1);
+		AudioSourceRef source2 = engine.addSourceFromStreamingSoundFile(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3", Vec4f(1, 1, 0, 1), /*global time=*/0.0);
+
+		testAssert(engine.streams.size() == 1);
+		testAssert(engine.sources_playing_streams.size() == 1);
+		testAssert(engine.sources_playing_streams.begin()->second.count(source1) == 1);
+		testAssert(engine.sources_playing_streams.begin()->second.count(source2) == 1);
+
+		for(int i=0; i<3000; ++i)
+		{
+			PlatformUtils::Sleep(1);
+		}
+
+		engine.removeSource(source1);
+		engine.removeSource(source2);
+
+		testAssert(engine.streams.empty());
+		testAssert(engine.sources_playing_streams.empty());
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+
+
+	try
+	{
+		AudioEngine engine;
 		SoundFileRef sound;
 		/*sound = engine.loadWavFile("D:\\audio\\sound_effects\\171697__nenadsimic__menu-selection-click.wav"); // 24-bit
 		testAssert(sound->num_channels == 2);
@@ -789,15 +923,15 @@ void glare::AudioEngine::test()
 		testAssert(sound->sample_rate == 44100);
 		testAssert(sound->minVal() >= -1.f && sound->maxVal() <= 1.f);*/
 		
-		sound = engine.loadSoundFile("D:\\audio\\sound_effects\\select_mono.wav"); // 16-bit mono
-		testAssert(sound->num_channels == 1);
-		testAssert(sound->sample_rate == 44100);
-		testAssert(sound->minVal() >= -1.f && sound->maxVal() <= 1.f);
-
-		sound = engine.loadSoundFile("D:\\audio\\sound_effects\\462089__newagesoup__ethereal-woosh.wav"); // 16-bit stero
-		testAssert(sound->num_channels == 1); // mixed down to 1 channel
-		testAssert(sound->sample_rate == 44100);
-		testAssert(sound->minVal() >= -1.f && sound->maxVal() <= 1.f);
+		//sound = engine.loadSoundFile("D:\\audio\\sound_effects\\select_mono.wav"); // 16-bit mono
+		//testAssert(sound->num_channels == 1);
+		//testAssert(sound->sample_rate == 44100);
+		//testAssert(sound->minVal() >= -1.f && sound->maxVal() <= 1.f);
+		//
+		//sound = engine.loadSoundFile("D:\\audio\\sound_effects\\462089__newagesoup__ethereal-woosh.wav"); // 16-bit stero
+		//testAssert(sound->num_channels == 1); // mixed down to 1 channel
+		//testAssert(sound->sample_rate == 44100);
+		//testAssert(sound->minVal() >= -1.f && sound->maxVal() <= 1.f);
 	}
 	catch(glare::Exception& e)
 	{

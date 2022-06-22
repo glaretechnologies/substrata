@@ -39,6 +39,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "LoadModelTask.h"
 #include "LoadTextureTask.h"
 #include "LoadAudioTask.h"
+#include "../audio/MP3AudioFileReader.h"
 #include "MakeHypercardTextureTask.h"
 #include "SaveResourcesDBThread.h"
 #include "CameraController.h"
@@ -1965,18 +1966,34 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 				{
 					//if(!isAudioProcessed(ob->audio_source_url)) // If we are not already loading the audio:
 
-					const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
-					if(just_inserted)
+					if(hasExtensionStringView(ob->audio_source_url, "mp3"))
 					{
-						// conPrint("Launching LoadAudioTask");
-						// Do the model loading in a different thread
-						Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
+						// Make a new audio source
+						glare::AudioSourceRef source = audio_engine.addSourceFromStreamingSoundFile(resource_manager->pathForURL(ob->audio_source_url), ob->pos.toVec4fPoint(), this->world_state->getCurrentGlobalTime());
 
-						load_audio_task->audio_source_url = ob->audio_source_url;
-						load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
-						load_audio_task->result_msg_queue = &this->msg_queue;
+						source->volume = ob->audio_volume;
 
-						load_item_queue.enqueueItem(*ob, load_audio_task);
+						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
+						source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
+
+						ob->audio_source = source;
+						ob->audio_state = WorldObject::AudioState_Loaded;
+					}
+					else
+					{
+						const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+						if(just_inserted)
+						{
+							// conPrint("Launching LoadAudioTask");
+							// Do the model loading in a different thread
+							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
+
+							load_audio_task->audio_source_url = ob->audio_source_url;
+							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
+							load_audio_task->result_msg_queue = &this->msg_queue;
+
+							load_item_queue.enqueueItem(*ob, load_audio_task);
+						}
 					}
 
 					//ob->loaded_audio_source_url = ob->audio_source_url;
@@ -1986,7 +2003,8 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 	}
 	catch(glare::Exception& e)
 	{
-		print("Error while loading object with UID " + ob->uid.toString() + ", model_url='" + ob->model_url + "': " + e.what());
+		print("Error while loading audio for object with UID " + ob->uid.toString() + ", audio_source_url='" + ob->audio_source_url + "': " + e.what());
+		ob->audio_state = WorldObject::AudioState_ErrorWhileLoading; // Go to the error state, so we don't try and keep loading this audio.
 	}
 }
 
@@ -6347,28 +6365,28 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			return;
 		}
 
-		const QString qpath = settings->value("mainwindow/lastAudioFileDir").toString();
+		const QString last_audio_dir = settings->value("mainwindow/lastAudioFileDir").toString();
 
 		QFileDialog::Options options;
 		QString selected_filter;
-		QString filename = QFileDialog::getOpenFileName(this,
+		const QString selected_filename = QFileDialog::getOpenFileName(this,
 			tr("Select audio file..."),
-			qpath,
+			last_audio_dir,
 			tr("Audio file (*.mp3 *.wav)"), // tr("Audio file (*.mp3 *.m4a *.aac *.wav)"),
 			&selected_filter,
 			options
 		);
 
-		if(filename != "")
+		if(selected_filename != "")
 		{
-			settings->setValue("mainwindow/lastAudioFileDir", filename);
+			settings->setValue("mainwindow/lastAudioFileDir", QtUtils::toQString(FileUtils::getDirectory(QtUtils::toIndString(selected_filename))));
 
-			const std::string path = QtUtils::toStdString(qpath);
+			const std::string path = QtUtils::toStdString(selected_filename);
 
 			// Compute hash over audio file
 			const uint64 audio_file_hash = FileChecksum::fileChecksum(path);
 
-			const std::string audio_file_URL = ResourceManager::URLForNameAndExtensionAndHash(path, ::getExtension(path), audio_file_hash);
+			const std::string audio_file_URL = ResourceManager::URLForPathAndHash(path, audio_file_hash);
 
 			// Copy audio file to local resources dir.  UploadResourceThread will read from here.
 			this->resource_manager->copyLocalFileToResourceDir(path, audio_file_URL);
@@ -6787,6 +6805,8 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->flags = selected_ob->flags;// | WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG; // Lightmaps need to be built for it.
 		new_world_object->getDecompressedVoxels() = selected_ob->getDecompressedVoxels();
 		new_world_object->getCompressedVoxels() = selected_ob->getCompressedVoxels();
+		new_world_object->audio_source_url = selected_ob->audio_source_url;
+		new_world_object->audio_volume = selected_ob->audio_volume;
 
 		// Compute WS AABB of new object, using OS AABB from opengl ob.
 		if(this->selected_ob->opengl_engine_ob.nonNull() && this->selected_ob->opengl_engine_ob->mesh_data.nonNull())
