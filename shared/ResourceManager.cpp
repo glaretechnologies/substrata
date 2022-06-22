@@ -64,12 +64,14 @@ const std::string ResourceManager::URLForNameAndExtensionAndHash(const std::stri
 }
 
 
+// For a path like "d:/audio/some.mp3", returns a URL like "some_473446464646.mp3"
 const std::string ResourceManager::URLForPathAndHash(const std::string& path, uint64 hash)
 {
 	const std::string filename = FileUtils::getFilename(path);
 
 	const std::string extension = ::getExtension(filename);
 	
+	// NOTE: should really removeDotAndExtension() on filename below, but will change the file -> URL mapping, which will probably break something, or cause redundant uploads etc.
 	return sanitiseString(filename) + "_" + toString(hash) + "." + extension;
 }
 
@@ -152,13 +154,23 @@ void ResourceManager::copyLocalFileToResourceDir(const std::string& local_path, 
 {
 	try
 	{
-		FileUtils::copyFile(local_path, this->pathForURL(URL));
+		// Copy to destination path in resources dir, if not already present.
+		const std::string dest_path = this->pathForURL(URL);
+		if(!FileUtils::fileExists(dest_path))
+			FileUtils::copyFile(local_path, dest_path);
 
 		Lock lock(mutex);
-		ResourceRef res = getOrCreateResourceForURL(URL);
+
+		ResourceRef res = getExistingResourceForURL(URL);
+		const bool already_exists = res.nonNull();
+		if(res.isNull())
+			res = getOrCreateResourceForURL(URL);
+
+		const Resource::State prev_state = res->getState();
 		res->setState(Resource::State_Present);
 
-		this->changed = 1;
+		if(!already_exists || (prev_state != Resource::State_Present))
+			this->changed = 1;
 	}
 	catch(FileUtils::FileUtilsExcep& e)
 	{

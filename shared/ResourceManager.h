@@ -33,6 +33,7 @@ public:
 	static const std::string URLForNameAndExtensionAndHash(const std::string& name, const std::string& extension, uint64 hash);
 
 	// Used for importing resources into the cyberspace resource system.
+	// For a path like "d:/audio/some.mp3", returns a URL like "some_473446464646.mp3"
 	static const std::string URLForPathAndHash(const std::string& path, uint64 hash);
 
 	static bool isValidURL(const std::string& URL);
@@ -43,7 +44,8 @@ public:
 	// Returns null reference if no resource object for URL inserted.
 	ResourceRef getExistingResourceForURL(const std::string& URL); // Threadsafe
 
-	// Copy a local file with given local path and corresponding URL into the resource dir
+	// Copy a local file with given local path and corresponding URL into the resource dir, if there is no file in the
+	// destination location.
 	// Throws glare::Exception on failure.
 	void copyLocalFileToResourceDir(const std::string& local_path, const std::string& URL); // Threadsafe
 
