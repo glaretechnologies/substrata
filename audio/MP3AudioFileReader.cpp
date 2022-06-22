@@ -20,6 +20,75 @@ Copyright Glare Technologies Limited 2022 -
 #endif
 
 
+glare::MP3AudioStreamer::MP3AudioStreamer(const std::string& path)
+:	in_stream(path)
+{
+	mp3dec_init(&decoder);
+}
+
+
+glare::MP3AudioStreamer::~MP3AudioStreamer()
+{}
+
+
+bool glare::MP3AudioStreamer::decodeFrame(js::Vector<float, 16>& samples_out, int& num_channels_out, int& sample_freq_hz_out)
+{
+	samples_out.resizeNoCopy(MINIMP3_MAX_SAMPLES_PER_FRAME);
+
+	// Limit the number of bytes we tell minimp3 are in the buffer, to limit the distance it will look through a malformed file looking for a frame.
+	const size_t max_use_bytes_avail = 1 << 13;
+	const size_t input_bytes_avail = myMin(in_stream.fileSize() - in_stream.getReadIndex(), max_use_bytes_avail);
+
+	mp3dec_frame_info_t frame_info;
+	const int num_samples_decoded = mp3dec_decode_frame(&decoder, /*input buf=*/(const uint8*)in_stream.currentReadPtr(), /*input buf size=*/(int)input_bytes_avail, /*pcm data out=*/samples_out.data(), &frame_info);
+
+	samples_out.resize(num_samples_decoded * 2);
+
+	in_stream.advanceReadIndex(frame_info.frame_bytes);
+
+	if(num_samples_decoded > 0 && frame_info.frame_bytes > 0)
+	{
+		// Successful decode, we have some new decoded samples
+		num_channels_out = frame_info.channels;
+		sample_freq_hz_out = frame_info.hz;
+		return false; // not EOF
+	}
+	else if(num_samples_decoded == 0 && frame_info.frame_bytes > 0)
+	{
+		// The decoder skipped ID3 or invalid data
+		num_channels_out = 0;
+		sample_freq_hz_out = 0;
+		return false; // not EOF
+	}
+	else
+	{
+		// Insufficient data
+		num_channels_out = 0;
+		sample_freq_hz_out = 0;
+		return true; // EOF
+	}
+}
+
+
+void glare::MP3AudioStreamer::seekToBeginningOfFile()
+{
+	in_stream.setReadIndex(0);
+}
+
+
+void glare::MP3AudioStreamer::seekToApproxTimeWrapped(double time)
+{
+	if(in_stream.fileSize() > 0)
+	{
+		const double bitrate = 192000; // NOTE: just guessing a bit rate here, this will obviously give a very approximate seek.
+		const double bytes_per_sec = bitrate / 8;
+		const size_t offset = (size_t)(time * bytes_per_sec) % in_stream.fileSize();
+
+		in_stream.setReadIndex(offset);
+	}
+}
+
+
 glare::SoundFileRef glare::MP3AudioFileReader::readAudioFile(const std::string& path)
 {
 	MemMappedFile file(path);
@@ -87,9 +156,97 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #endif
 
 
+static void testStreamingValidMP3File(const std::string& path)
+{
+	try
+	{
+		Reference<glare::MP3AudioStreamer> streamer = new glare::MP3AudioStreamer(path);
+
+		int num_complete_read_iters = 3;
+		for(int i=0; i<num_complete_read_iters; ++i)
+		{
+			Timer complete_read_timer;
+			size_t total_samples_decoded = 0;
+			js::Vector<float, 16> samples;
+			while(1)
+			{
+				int num_channels, sample_freq_hz;
+				const bool is_EOF = streamer->decodeFrame(samples, num_channels, sample_freq_hz);
+				if(is_EOF)
+					break;
+
+				testAssert(num_channels == 2 || num_channels == 1 || num_channels == 0);
+				testAssert(sample_freq_hz == 44100 || sample_freq_hz == 0);
+				total_samples_decoded += samples.size();
+			}
+
+			testAssert(total_samples_decoded > 0);
+			conPrint("Seeking...");
+			streamer->seekToBeginningOfFile();
+			conPrint(path + ": Read " + toString(total_samples_decoded) + " samples in " + complete_read_timer.elapsedStringNSigFigs(4));
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+}
+
 void glare::MP3AudioFileReader::test()
 {
 	conPrint("MP3AudioFileReader::test()");
+
+
+	// Test trying to stream an invalid file
+	try
+	{
+		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer("D:/not_a_file_34324");
+		failTest("Expected exception");
+	}
+	catch(glare::Exception& )
+	{
+	}
+
+	// Test trying to stream a malformed mp3 file.  In this case minimp3 will just scan through the entire file looking for a valid mp3 frame, and not finding one, returning no samples.
+	try
+	{
+		const std::string path = TestUtils::getTestReposDir() + "/testfiles/gifs/https_58_47_47media.giphy.com_47media_47X93e1eC2J2hjy_47giphy.gif";
+		Reference<MP3AudioStreamer> streamer = new MP3AudioStreamer(path);
+
+		int num_complete_read_iters = 2;
+		for(int i=0; i<num_complete_read_iters; ++i)
+		{
+			Timer complete_read_timer;
+			size_t total_samples_decoded = 0;
+			js::Vector<float, 16> samples;
+			while(1)
+			{
+				int num_channels, sample_freq_hz;
+				const bool is_EOF = streamer->decodeFrame(samples, num_channels, sample_freq_hz);
+				if(is_EOF)
+					break;
+
+				testAssert(num_channels == 0);
+				testAssert(sample_freq_hz == 0);
+				total_samples_decoded += samples.size();
+			}
+
+			// Seek back to beginning of file
+			conPrint("Seeking...");
+			streamer->seekToBeginningOfFile();
+			conPrint(path + ": Read " + toString(total_samples_decoded) + " samples in " + complete_read_timer.elapsedStringNSigFigs(4));
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+
+	
+	// Test streaming some valid mp3 files.
+	testStreamingValidMP3File(TestUtils::getTestReposDir() + "/testfiles/mp3s/mono.mp3");
+	testStreamingValidMP3File(TestUtils::getTestReposDir() + "/testfiles/mp3s/sample-3s.mp3");
+
 
 	try
 	{
@@ -114,6 +271,12 @@ void glare::MP3AudioFileReader::test()
 			testAssert(sound_file->num_channels == 2);
 			testAssert(sound_file->sample_rate == 44100);
 		}
+		
+		//{
+		//	SoundFileRef sound_file = MP3AudioFileReader::readAudioFile("D:\\files\\02___Sara_mp3_14061996302930432458.mp3");
+		//	testAssert(sound_file->num_channels == 2);
+		//	testAssert(sound_file->sample_rate == 44100);
+		//}
 	}
 	catch(glare::Exception& e)
 	{

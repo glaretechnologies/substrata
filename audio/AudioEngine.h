@@ -30,6 +30,7 @@ namespace glare
 
 
 class AudioEngine;
+class MP3AudioStreamer;
 
 
 struct AudioBuffer : public ThreadSafeRefCounted
@@ -52,8 +53,8 @@ public:
 		SourceType_Streaming // Audio data is streamed from e.g. a video, into the circular buffer.
 	};
 
-	AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
-		mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0) {}
+	AudioSource();
+	~AudioSource();
 
 
 	void startMuting(double cur_time, double transition_period);
@@ -77,7 +78,7 @@ public:
 	float volume; // 1 = default
 
 private:
-	float mute_volume_factor; // defualt = 1.  Final volume is volume * mute_volume_factor.  Use startMuting() and startUnmuting() to change this.
+	float mute_volume_factor; // default = 1.  Final volume is volume * mute_volume_factor.  Use startMuting() and startUnmuting() to change this.
 	double mute_change_start_time;
 	double mute_change_end_time;
 	float mute_vol_fac_start; // mute_volume_factor at start of transition period.
@@ -141,6 +142,8 @@ public:
 
 	AudioSourceRef addSourceFromSoundFile(const std::string& sound_file_path);
 
+	AudioSourceRef addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, double global_time);
+
 	void sourcePositionUpdated(AudioSource& source);
 
 	void sourceVolumeUpdated(AudioSource& source);
@@ -172,9 +175,13 @@ public:
 	Mutex mutex; // Guards access to audio_sources, and resonance
 	std::set<AudioSourceRef> audio_sources;
 
-	ThreadManager resonance_thread_manager;
+	ThreadManager thread_manager; // Manages: ResonanceThread, StreamerThread
 
 	std::map<std::string, SoundFileRef> sound_files;
+
+	std::map<std::string, Reference<MP3AudioStreamer>> streams; // Map from mp3 file path to MP3AudioStreamer for that mp3.
+
+	std::map<Reference<MP3AudioStreamer>, std::set<AudioSourceRef>> sources_playing_streams; // Map from MP3AudioStreamer to audio sources playing that stream.
 
 private:
 	uint32 sample_rate;

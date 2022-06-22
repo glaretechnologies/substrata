@@ -246,7 +246,8 @@ public:
 	{
 		AudioState_NotLoaded,
 		AudioState_Loading, // The audio resource is downloading, or a LoadAudioTask has been constructed and is queued and/or executing.
-		AudioState_Loaded
+		AudioState_Loaded,
+		AudioState_ErrorWhileLoading
 	};
 	AudioState audio_state;
 
