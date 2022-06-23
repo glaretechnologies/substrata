@@ -207,6 +207,8 @@ SET(audio
 ../audio/AudioFileReader.h
 ../audio/MP3AudioFileReader.cpp
 ../audio/MP3AudioFileReader.h
+../audio/StreamerThread.cpp
+../audio/StreamerThread.h
 ../audio/WavAudioFileReader.cpp
 ../audio/WavAudioFileReader.h
 )
