@@ -24,8 +24,10 @@ namespace glare
 {
 
 
-AudioSource::AudioSource() : cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
-		mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0) {}
+AudioSource::AudioSource()
+:	cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
+	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0) 
+{}
 
 
 AudioSource::~AudioSource()
@@ -210,7 +212,8 @@ static int rtAudioCallback(void* output_buffer, void* input_buffer, unsigned int
 }
 
 
-// Gets mixed data from resonance, puts on queue to rtAudioCallback.
+// Gets buffered audio data from audio sources, copies it to resonance buffers.
+// Then gets mixed data from resonance, puts on queue to rtAudioCallback.
 class ResonanceThread : public MessageableThread
 {
 public:
@@ -260,7 +263,7 @@ public:
 								}
 								else
 								{
-									// Copy data to a temporary contiguous buffer
+									// The data range we want to read from the shared buffer wraps.  So copy data to a temporary contiguous buffer first.
 									size_t cur_i = source->cur_read_i;
 
 									for(size_t i=0; i<frames_per_buffer; ++i)
@@ -276,34 +279,15 @@ public:
 									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 								}
 							}
-							else
+							else // Else if we are reading from a circular buffer:
 							{
-								if(source->cur_read_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
-								{
-									const float* bufptr = &source->buffer[0]/*source->buffer.data()*/ + source->cur_read_i; // NOTE: bit of a hack here, assuming layout of circular buffer (e.g. no wrapping)
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								assert(0); // SourceType_Looping sources should only read from shared buffers.
 
-									source->cur_read_i += frames_per_buffer;
-									if(source->cur_read_i == source->buffer.size()) // If reach end of buf:
-										source->cur_read_i = 0; // wrap
-								}
-								else
-								{
-									// Copy data to a temporary contiguous buffer
-									size_t cur_i = source->cur_read_i;
-
-									for(size_t i=0; i<frames_per_buffer; ++i)
-									{
-										buf[i] = source->buffer[cur_i++];
-										if(cur_i == source->buffer.size()) // If reach end of buf:
-											cur_i = 0; // TODO: optimise
-									}
-
-									source->cur_read_i = cur_i;
-
-									const float* bufptr = buf;
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-								}
+								// Just pass zeroes to resonance so as to not blow up the listener's ears.
+								for(size_t i=0; i<frames_per_buffer; ++i)
+									buf[i] = 0;
+								const float* bufptr = buf;
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
 						}
 						if(source->type == AudioSource::SourceType_OneShot)
@@ -319,6 +303,7 @@ public:
 								}
 								else
 								{
+									// The data range we want to read from the shared buffer exceeds the shared buffer length.  Just read as much data as we can and then pad with zeroes.
 									// Copy data to a temporary contiguous buffer
 									size_t cur_i = source->cur_read_i;
 
@@ -332,51 +317,44 @@ public:
 
 									source->cur_read_i = cur_i;
 
-									remove_source = source->remove_on_finish && (cur_i >= source->buffer.size()); // Remove the source if we reached the end of the buffer.
+									remove_source = source->remove_on_finish && (cur_i >= source->shared_buffer->buffer.size()); // Remove the source if we reached the end of the buffer.
 
 									const float* bufptr = buf;
 									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 								}
 							}
-							else
+							else // Else if we are reading from a circular buffer:
 							{
-								if(source->cur_read_i + frames_per_buffer <= source->buffer.size()) // If we can just copy the current buffer range directly from source->buffer:
-								{
-									const float* bufptr = &source->buffer[0]/*source->buffer.data()*/ + source->cur_read_i; // NOTE: bit of a hack here, assuming layout of circular buffer (e.g. no wrapping)
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								assert(0); // SourceType_OneShot sources should only read from shared buffers.
 
-									source->cur_read_i += frames_per_buffer;
-								}
-								else
-								{
-									// Copy data to a temporary contiguous buffer
-									size_t cur_i = source->cur_read_i;
-
-									for(size_t i=0; i<frames_per_buffer; ++i)
-									{
-										if(cur_i < source->buffer.size())
-											buf[i] = source->buffer[cur_i++];
-										else
-											buf[i] = 0;
-									}
-
-									source->cur_read_i = cur_i;
-
-									remove_source = source->remove_on_finish && (cur_i >= source->buffer.size()); // Remove the source if we reached the end of the buffer.
-
-									const float* bufptr = buf;
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
-								}
+								// Just pass zeroes to resonance so as to not blow up the listener's ears.
+								for(size_t i=0; i<frames_per_buffer; ++i)
+									buf[i] = 0;
+								const float* bufptr = buf;
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
 						}
 						else if(source->type == AudioSource::SourceType_Streaming)
 						{
-							if(source->buffer.size() >= frames_per_buffer)
+							if(source->buffer.size() >= frames_per_buffer) // If there is sufficient data in the circular buffer:
 							{
-								source->buffer.popFrontNItems(temp_buf.data(), frames_per_buffer);
+								if(source->buffer.getFirstSegmentSize() >= frames_per_buffer) // See if all the data we need is contiguous in the circular buffer (doesn't wrap)
+								{
+									// Directly copy data from the circular buffer to the resonance buffer.
+									const float* bufptr = &(*source->buffer.beginIt());
 
-								const float* bufptr = temp_buf.data();
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+
+									source->buffer.popFrontNItems(frames_per_buffer);
+								}
+								else
+								{
+									// Copy from the circular buffer to a temporary contiguous buffer (temp_buf).
+									source->buffer.popFrontNItems(temp_buf.data(), frames_per_buffer);
+
+									const float* bufptr = temp_buf.data();
+									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+								}
 							}
 							else
 							{
@@ -782,30 +760,30 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 }
 
 
-AudioSourceRef AudioEngine::addSourceFromSoundFile(const std::string& sound_file_path)
-{
-	SoundFileRef sound;
-	auto res = sound_files.find(sound_file_path);
-	if(res == sound_files.end())
-	{
-		// Load the sound
-		sound = loadSoundFile(sound_file_path);
-		sound_files.insert(std::make_pair(sound_file_path, sound));
-	}
-	else
-		sound = res->second;
-
-	// Make a new audio source
-	AudioSourceRef source = new AudioSource();
-	source->type = AudioSource::SourceType_OneShot;
-	source->remove_on_finish = false;
-	source->shared_buffer = sound->buf;
-	source->cur_read_i = source->buffer.size(); // Position read_i at end of buffer so doesn't play yet.
-
-	addSource(source);
-
-	return source;
-}
+//AudioSourceRef AudioEngine::addSourceFromSoundFile(const std::string& sound_file_path)
+//{
+//	SoundFileRef sound;
+//	auto res = sound_files.find(sound_file_path);
+//	if(res == sound_files.end())
+//	{
+//		// Load the sound
+//		sound = loadSoundFile(sound_file_path);
+//		sound_files.insert(std::make_pair(sound_file_path, sound));
+//	}
+//	else
+//		sound = res->second;
+//
+//	// Make a new audio source
+//	AudioSourceRef source = new AudioSource();
+//	source->type = AudioSource::SourceType_OneShot;
+//	source->remove_on_finish = false;
+//	source->shared_buffer = sound->buf;
+//	source->cur_read_i = source->buffer.size(); // Position read_i at end of buffer so doesn't play yet.
+//
+//	addSource(source);
+//
+//	return source;
+//}
 
 
 AudioSourceRef AudioEngine::addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, double global_time)
