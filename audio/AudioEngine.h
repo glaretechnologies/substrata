@@ -65,12 +65,11 @@ public:
 
 	int resonance_handle; // Set in AudioEngine::addSource().
 	
-	size_t cur_read_i;
-
 	// Audio data can either be in buffer or shared_buffer.
-	CircularBuffer<float> buffer; // Read from front, enqueue to back.
+	CircularBuffer<float> buffer; // Read from front, enqueue to back.  Used for type SourceType_Streaming only.
 
-	AudioBufferRef shared_buffer;
+	AudioBufferRef shared_buffer; // Used for SourceType_Looping and SourceType_OneShot types only.
+	size_t cur_read_i; // Current read index in shared_buffer.
 
 	SourceType type;
 	bool remove_on_finish; // for SourceType_OneShot
@@ -140,7 +139,7 @@ public:
 
 	void removeSource(AudioSourceRef source);
 
-	AudioSourceRef addSourceFromSoundFile(const std::string& sound_file_path);
+	//AudioSourceRef addSourceFromSoundFile(const std::string& sound_file_path);
 
 	AudioSourceRef addSourceFromStreamingSoundFile(const std::string& sound_file_path, const Vec4f& pos, double global_time);
 
