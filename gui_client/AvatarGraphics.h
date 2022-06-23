@@ -75,7 +75,9 @@ public:
 	void setSelectedObBeam(OpenGLEngine& engine, const Vec3d& target_pos); // create or update beam
 	void hideSelectedObBeam(OpenGLEngine& engine);
 
-	static float walkCyclePeriod() { return 7.f / Maths::get2Pi<float>(); }
+	// These are just measured with mk.1 eyeball and a stopwatch.
+	static float walkCyclePeriod() { return 1.015f; }
+	static float runCyclePeriod() { return  0.7f; }
 
 	Vec4f getLastHeadPosition();
 

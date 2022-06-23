@@ -164,10 +164,10 @@ static const Colour4f PICKED_UP_OUTLINE_COLOUR = Colour4f::fromHTMLHexString("69
 static const Colour4f PARCEL_OUTLINE_COLOUR    = Colour4f::fromHTMLHexString("f09a13"); // orange
 
 
-MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget *parent)
+MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& appdata_path_, const ArgumentParser& args, QWidget* parent)
 :	base_dir_path(base_dir_path_),
 	appdata_path(appdata_path_),
-	parsed_args(args), 
+	parsed_args(args),
 	QMainWindow(parent),
 	connection_state(ServerConnectionState_NotConnected),
 	logged_in_user_id(UserID::invalidUserID()),
@@ -3925,6 +3925,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								if(loaded_msg->audio_buffer->buffer.size() > 0) // Avoid divide by zero.
 								{
 									// Timer timer;
+									// Add a looping audio source
 									ob->audio_source = new glare::AudioSource();
 									ob->audio_source->shared_buffer = loaded_msg->audio_buffer;
 									ob->audio_source->pos = ob->aabb_ws.centroid();
@@ -4604,36 +4605,45 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			this->cam_controller.third_person_cam_position = toVec3d(campos) + Vec3d(cam_back_dir);
 		}
 
-		if(campos.getDist(last_campos) > 0.01)
+
+		// TODO: If we are using 3rd person can, use animation events from the walk/run cycle animations to trigger sounds.
+		// Adapted from AvatarGraphics::setOverallTransform():
+		const Vec4f dpos = campos - last_campos;
+		const Vec4f vel = dpos / (float)dt;
+		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
+		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
+		const float xyplane_speed = Vec4f(vel[0], vel[0], 0, 0).length();
+
+		if(xyplane_speed > 0.1f)
 		{
 			ui->indigoView->cameraUpdated(this->cam_controller);
 
-			const float walk_cycle_period = AvatarGraphics::walkCyclePeriod() * 0.5f;
-			const float walk_run_cycle_period = player_physics.isRunPressed() ? (walk_cycle_period * 0.5f) : walk_cycle_period;
-			if(player_physics.onGroundRecently() && (last_footstep_timer.elapsed() > walk_run_cycle_period))
+			const float walk_run_cycle_period = player_physics.isRunPressed() ? AvatarGraphics::runCyclePeriod() : AvatarGraphics::walkCyclePeriod();
+			if(player_physics.onGroundRecently() && (last_footstep_timer.elapsed() > (walk_run_cycle_period * 0.5f)))
 			{
 				last_foostep_side = (last_foostep_side + 1) % 2;
 
 				// 4cm left/right, 40cm forwards.
-				const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) + 
-					cam_controller.getForwardsVec().toVec4fVector() * 0.4f + 
+				const Vec4f footstrike_pos = campos - Vec4f(0, 0, 1.72f, 0) +
+					cam_controller.getForwardsVec().toVec4fVector() * 0.4f +
 					cam_controller.getRightVec().toVec4fVector() * 0.04f * (last_foostep_side == 1 ? 1.f : -1.f);
-				//conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3));
+				
+				// conPrint("footstrike_pos: " + footstrike_pos.toStringNSigFigs(3) + ", playing " + last_footstep_timer.elapsedStringNSigFigs(3) + " after last footstep");
 
 				const int rnd_src_i = rng.nextUInt(4);
 				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/footstep_mono" + toString(rnd_src_i) + ".wav", footstrike_pos);
 
 				last_footstep_timer.reset();
 			}
+		}
 
-			if(physics_events.jumped)
-			{
-				const Vec4f jump_sound_pos = campos - Vec4f(0, 0, 0.1f, 0) +
-					cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
+		if(physics_events.jumped)
+		{
+			const Vec4f jump_sound_pos = campos - Vec4f(0, 0, 0.1f, 0) +
+				cam_controller.getForwardsVec().toVec4fVector() * 0.1f;
 
-				const int rnd_src_i = rng.nextUInt(4);
-				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
-			}
+			const int rnd_src_i = rng.nextUInt(4);
+			audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/jump" + toString(rnd_src_i) + ".wav", jump_sound_pos);
 		}
 	}
 	proximity_loader.updateCamPos(campos);
@@ -4713,7 +4723,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				//conPrint("source: " + toString((uint64)source) + ", source->userdata_1: " + toString(source->userdata_1));
 
 				
-				if(source->type == glare::AudioSource::SourceType_Looping)
+				if(source->type != glare::AudioSource::SourceType_OneShot) // We won't be muting footsteps etc.
 				{
 					const float old_mute_volume_factor = source->getMuteVolumeFactor();
 					if(mute_outside_audio) // If we are in a parcel, which has the mute-outside-audio option enabled:
