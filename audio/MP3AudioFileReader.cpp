@@ -21,14 +21,25 @@ Copyright Glare Technologies Limited 2022 -
 
 
 glare::MP3AudioStreamer::MP3AudioStreamer(const std::string& path)
-:	in_stream(path)
+:	mem_mapped_file(new MemMappedFile(path)),
+	in_stream(ArrayRef<uint8>((const uint8*)mem_mapped_file->fileData(), mem_mapped_file->fileSize()))
+{
+	mp3dec_init(&decoder);
+}
+
+
+glare::MP3AudioStreamer::MP3AudioStreamer(const ArrayRef<uint8> data)
+:	mem_mapped_file(NULL),
+	in_stream(data)
 {
 	mp3dec_init(&decoder);
 }
 
 
 glare::MP3AudioStreamer::~MP3AudioStreamer()
-{}
+{
+	delete mem_mapped_file;
+}
 
 
 bool glare::MP3AudioStreamer::decodeFrame(js::Vector<float, 16>& samples_out, int& num_channels_out, int& sample_freq_hz_out)
@@ -37,7 +48,7 @@ bool glare::MP3AudioStreamer::decodeFrame(js::Vector<float, 16>& samples_out, in
 
 	// Limit the number of bytes we tell minimp3 are in the buffer, to limit the distance it will look through a malformed file looking for a frame.
 	const size_t max_use_bytes_avail = 1 << 13;
-	const size_t input_bytes_avail = myMin(in_stream.fileSize() - in_stream.getReadIndex(), max_use_bytes_avail);
+	const size_t input_bytes_avail = myMin(in_stream.size() - in_stream.getReadIndex(), max_use_bytes_avail);
 
 	mp3dec_frame_info_t frame_info;
 	const int num_samples_decoded = mp3dec_decode_frame(&decoder, /*input buf=*/(const uint8*)in_stream.currentReadPtr(), /*input buf size=*/(int)input_bytes_avail, /*pcm data out=*/samples_out.data(), &frame_info);
@@ -78,11 +89,11 @@ void glare::MP3AudioStreamer::seekToBeginningOfFile()
 
 void glare::MP3AudioStreamer::seekToApproxTimeWrapped(double time)
 {
-	if(in_stream.fileSize() > 0)
+	if(in_stream.size() > 0)
 	{
 		const double bitrate = 192000; // NOTE: just guessing a bit rate here, this will obviously give a very approximate seek.
 		const double bytes_per_sec = bitrate / 8;
-		const size_t offset = (size_t)(time * bytes_per_sec) % in_stream.fileSize();
+		const size_t offset = (size_t)(time * bytes_per_sec) % in_stream.size();
 
 		in_stream.setReadIndex(offset);
 	}
@@ -146,13 +157,35 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
 	try
 	{
-		glare::MP3AudioFileReader::readAudioFileFromBuffer(data, size);
+		glare::MP3AudioStreamer streamer(ArrayRef<uint8>(data, size));
+
+		js::Vector<float, 16> samples;
+		while(1)
+		{
+			int num_channels, sample_freq_hz;
+			const bool is_EOF = streamer.decodeFrame(samples, num_channels, sample_freq_hz);
+			if(is_EOF)
+				break;
+		}
 	}
 	catch(glare::Exception&)
 	{
 	}
 	return 0;  // Non-zero return values are reserved for future use.
 }
+
+/*extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+	try
+	{
+		glare::MP3AudioFileReader::readAudioFileFromBuffer(data, size);
+	}
+	catch(glare::Exception&)
+	{
+	}
+	return 0;  // Non-zero return values are reserved for future use.
+}*/
+
 #endif
 
 
