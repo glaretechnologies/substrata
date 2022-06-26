@@ -10010,11 +10010,11 @@ void MainWindow::webViewDataLinkHovered(const QString& url)
 {
 	if(url.isEmpty())
 	{
-		ui->glWidget->setCursor(Qt::ArrowCursor);
+		ui->glWidget->setCursorIfNotHidden(Qt::ArrowCursor);
 	}
 	else
 	{
-		ui->glWidget->setCursor(Qt::PointingHandCursor);
+		ui->glWidget->setCursorIfNotHidden(Qt::PointingHandCursor);
 	}
 }
 
