@@ -235,7 +235,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>156</height>
+          <height>150</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -332,7 +332,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>156</height>
+          <height>148</height>
          </rect>
         </property>
        </widget>
@@ -573,16 +573,10 @@
    <property name="text">
     <string>Copy Object</string>
    </property>
-   <property name="shortcut">
-    <string>Ctrl+C</string>
-   </property>
   </action>
   <action name="actionPaste_Object">
    <property name="text">
     <string>Paste Object</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+V</string>
    </property>
   </action>
  </widget>

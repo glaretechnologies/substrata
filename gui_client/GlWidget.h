@@ -95,6 +95,8 @@ signals:;
 	void mouseWheelSignal(QWheelEvent* e);
 	void mouseDoubleClickedSignal(QMouseEvent* e);
 	void viewportResizedSignal(int w, int h);
+	void copyShortcutActivated();
+	void pasteShortcutActivated();
 	
 private slots:
 	//void gamepadInputSlot();
