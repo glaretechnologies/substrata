@@ -8,7 +8,9 @@ Copyright Glare Technologies Limited 2022 -
 
 #include "AudioFileReader.h"
 #include <utils/ThreadSafeRefCounted.h>
-#include <utils/FileInStream.h>
+#include <utils/BufferViewInStream.h>
+#include <utils/ArrayRef.h>
+#include <utils/MemMappedFile.h>
 
 
 #define MINIMP3_FLOAT_OUTPUT
@@ -36,6 +38,7 @@ class MP3AudioStreamer : public ThreadSafeRefCounted
 {
 public:
 	MP3AudioStreamer(const std::string& path);
+	MP3AudioStreamer(const ArrayRef<uint8> data);
 	~MP3AudioStreamer();
 
 	// Returns true if reached EOF
@@ -47,7 +50,8 @@ public:
 
 	mp3dec_t decoder;
 
-	FileInStream in_stream;
+	MemMappedFile* mem_mapped_file;
+	BufferViewInStream in_stream;
 };
 
 
