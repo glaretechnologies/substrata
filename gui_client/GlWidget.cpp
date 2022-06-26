@@ -13,7 +13,6 @@ Copyright Glare Technologies Limited 2018 -
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
 #include "../graphics/Map2D.h"
-#include "../graphics/imformatdecoder.h"
 #include "../graphics/ImageMap.h"
 #include "../maths/vec3.h"
 #include "../maths/GeometrySampling.h"
@@ -72,8 +71,11 @@ static QGLFormat makeFormat()
 #ifdef OSX
 	format.setVersion(3, 2);
 #endif
+//	format.setVersion(4, 6); // TEMP NEW
 	format.setProfile(QGLFormat::CoreProfile);
 	format.setSampleBuffers(true); // Enable multisampling
+
+//	format.setSwapInterval(0); // TEMP: turn off vsync
 
 	return format;
 }
@@ -579,6 +581,13 @@ void GlWidget::hideCursor()
 {
 	// Hide cursor when moving view.
 	this->setCursor(QCursor(Qt::BlankCursor));
+}
+
+
+void GlWidget::setCursorIfNotHidden(Qt::CursorShape new_shape)
+{
+	if(this->cursor().shape() != Qt::BlankCursor)
+		this->setCursor(new_shape);
 }
 
 

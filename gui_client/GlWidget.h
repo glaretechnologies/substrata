@@ -63,6 +63,8 @@ public:
 	void setKeyboardCameraMoveEnabled(bool enabled) { cam_move_on_key_input_enabled = enabled; }
 	void hideCursor();
 
+	void setCursorIfNotHidden(Qt::CursorShape new_shape);
+
 	static float sensorWidth() { return 0.035f; }
 	static float lensSensorDist() { return 0.025f; }
 protected:
