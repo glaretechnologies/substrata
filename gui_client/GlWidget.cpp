@@ -27,6 +27,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../utils/TaskManager.h"
 #include <QtGui/QMouseEvent>
 #include <QtCore/QSettings>
+#include <QtWidgets/QShortcut>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -146,6 +147,16 @@ GlWidget::GlWidget(QWidget *parent)
 	//	connect(gamepad, SIGNAL(axisLeftXChanged(double)), this, SLOT(gamepadInputSlot()));
 	//	connect(gamepad, SIGNAL(axisLeftYChanged(double)), this, SLOT(gamepadInputSlot()));
 	//}
+
+
+	// Create a CTRL+C shortcut just for this widget, so it doesn't interfere with the global CTRL+C shortcut for copying text from the chat etc.
+	QShortcut* copy_shortcut = new QShortcut(QKeySequence(tr("Ctrl+C")), this);
+	connect(copy_shortcut, SIGNAL(activated()), this, SIGNAL(copyShortcutActivated()));
+	copy_shortcut->setContext(Qt::WidgetWithChildrenShortcut); // We only want CTRL+C to work for the graphics view when it has focus.
+
+	QShortcut* paste_shortcut = new QShortcut(QKeySequence(tr("Ctrl+V")), this);
+	connect(paste_shortcut, SIGNAL(activated()), this, SIGNAL(pasteShortcutActivated()));
+	paste_shortcut->setContext(Qt::WidgetWithChildrenShortcut); // We only want CTRL+V to work for the graphics view when it has focus.
 }
 
 
@@ -485,6 +496,7 @@ void GlWidget::playerPhyicsThink(float dt)
 	if(hasFocus() && cam_move_on_key_input_enabled)
 	{
 		SHIFT_down = GetAsyncKeyState(VK_SHIFT);
+		const bool CTRL_down = GetAsyncKeyState(VK_CONTROL);
 
 		const float selfie_move_factor = cam_controller->selfieModeEnabled() ? -1.f : 1.f;
 
@@ -500,7 +512,7 @@ void GlWidget::playerPhyicsThink(float dt)
 		// Move vertically up or down in flymode.
 		if(GetAsyncKeyState(' '))
 		{	this->player_physics->processMoveUp(1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
-		if(GetAsyncKeyState('C'))
+		if(GetAsyncKeyState('C') && !CTRL_down) // Check CTRL_down to prevent CTRL+C shortcut moving camera up.
 		{	this->player_physics->processMoveUp(-1.f, SHIFT_down, *this->cam_controller); cam_changed = true; move_key_pressed = true; }
 
 		// Turn left or right
