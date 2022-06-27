@@ -37,6 +37,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 // This class is shared among all browser instances, the browser the callback applies to is passed in as arg 0.
+// The methods of this class will be called on the UI (main) thread.
 class RenderHandler : public CefRenderHandler
 {
 public:
@@ -55,7 +56,10 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		rect = CefRect(0, 0, (int)opengl_tex->xRes(), (int)opengl_tex->yRes());
+		if(opengl_tex.nonNull())
+			rect = CefRect(0, 0, (int)opengl_tex->xRes(), (int)opengl_tex->yRes());
+		else
+			rect = CefRect(0, 0, 100, 100);
 	}
 
 	// "|buffer| will be |width|*|height|*4 bytes in size and represents a BGRA image with an upper-left origin"
@@ -142,6 +146,9 @@ public:
 	// coordinates. Return true if the screen coordinates were provided.
 	virtual bool GetScreenPoint(CefRefPtr<CefBrowser> browser, int viewX, int viewY, int& screenX, int& screenY) override
 	{
+		if(!opengl_engine)
+			return false;
+
 		//conPrint("GetScreenPoint: viewX: " + toString(viewX) + ", viewY: " + toString(viewY));
 		
 		const Matrix4f ob_to_world = obToWorldMatrix(*this->ob);
@@ -221,10 +228,14 @@ class WebDataCefClient : public CefClient, public CefRequestHandler, public CefL
 public:
 	WebDataCefClient() : num_channels(0), sample_rate(0), main_window(NULL), ob(NULL) {}
 
+	// Remove references to main_window and ob as they may be destroyed while this WebDataCefClient object is still alive.
 	void onWebViewDataDestroyed()
 	{
-		main_window = NULL;
-		ob = NULL;
+		{
+			Lock lock(mutex);
+			main_window = NULL;
+			ob = NULL;
+		}
 	}
 
 	CefRefPtr<CefRenderHandler> GetRenderHandler() override { return mRenderHandler; }
@@ -244,14 +255,8 @@ public:
 	CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
 
 
-	virtual bool OnCursorChange(CefRefPtr<CefBrowser> browser,
-		CefCursorHandle cursor,
-		cef_cursor_type_t type,
-		const CefCursorInfo& custom_cursor_info) override
-	{
-		return false;
-	}
-
+	
+	//---------------------------- CefRequestHandler ----------------------------
 	bool OnOpenURLFromTab(CefRefPtr<CefBrowser> browser,
 		CefRefPtr<CefFrame> frame,
 		const CefString& target_url,
@@ -281,7 +286,7 @@ public:
 	}
 
 
-
+	//---------------------------- CefLoadHandler ----------------------------
 	void OnLoadStart(CefRefPtr<CefBrowser> browser,
 		CefRefPtr<CefFrame> frame,
 		TransitionType transition_type) override
@@ -308,6 +313,16 @@ public:
 		}
 	}
 
+	//---------------------------- CefDisplayHandler ----------------------------
+	// The methods of this class will be called on the UI thread.
+
+	virtual bool OnCursorChange(CefRefPtr<CefBrowser> browser,
+		CefCursorHandle cursor,
+		cef_cursor_type_t type,
+		const CefCursorInfo& custom_cursor_info) override
+	{
+		return false;
+	}
 
 	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
 		const CefString& value) override
@@ -370,6 +385,9 @@ public:
 	virtual bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
 		CefAudioParameters& params) override 
 	{
+		if(!main_window)
+			return false;
+
 		params.sample_rate = main_window->audio_engine.getSampleRate();
 
 		// Create audio source.  Do this now while we're in the main (UI) thread.
@@ -427,7 +445,7 @@ public:
 		// So we don't want to access ob or ob->audio_source as it may be being destroyed or modified on the main thread etc.
 
 		// Copy to our audio source
-		if(main_window && this->audio_source.nonNull())
+		if(this->audio_source.nonNull())
 		{
 			const int num_samples = frames;
 			temp_buf.resize(num_samples);
@@ -456,10 +474,14 @@ public:
 					temp_buf[z] = 0.f;
 			}
 
-
+			// We are accessing main_window, that might have been set to null in another thread via onWebViewDataDestroyed(), so lock mutex.
 			{
-				Lock mutex(main_window->audio_engine.mutex);
-				this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+				Lock lock(mutex);
+				if(main_window)
+				{
+					Lock audio_engine_lock(main_window->audio_engine.mutex);
+					this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+				}
 			}
 		}
 	}
@@ -490,9 +512,11 @@ public:
 	CefRefPtr<RenderHandler> mRenderHandler;
 	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
 
+	Mutex mutex; // Protects main_window, ob
 	MainWindow* main_window;
 	WorldObject* ob;
-	Reference<glare::AudioSource> audio_source;
+
+	Reference<glare::AudioSource> audio_source; // Store a direct reference to the audio_source, to make sure it's alive while we are using it.
 	int num_channels;
 	int sample_rate;
 
