@@ -1,3 +1,32 @@
+0.93
+====
+Optimised player physics - much faster now.
+Optimised gif playback a bit.
+Fixed case sensitivity for handling file extensions in some cases.
+Fixed gamma on mp4 video playback being wrong.
+Fixed playback of vertical videos (fixed bars down side of them).
+Fixed crash when closing substrata when an object is selected.
+Fixed footsteps not playing if frame rate was high enough.
+Improved footstep period for walk and run cycles.
+Using streaming to play MP3s instead of decoding the entire MP3 file up-front.
+Made all audio sources playing the same stream play back in sync.
+Fixed selection of audio file not picking file name properly.
+Fixed cloning audio source not cloning audio_url. 
+Fixed axis arrows and rotation arcs being grabbable even without permissions and when not visible.
+Fixed object copy and paste shortcuts messing with global copy and paste.
+Fixed mousing over web view while moving camera unhiding pointer.
+
+0.92
+====
+Added initial drag and drop capability for images and models.
+Added copy and paste commands.
+Rendering optimisations for animated objects - only process if in view of camera etc.
+Other general rendering optimisations
+Handling invalid weights leading to incorrect animation rendering in some cases.
+Fixed issue with AABB not being updated properly when objects are moved around, and hence sound playing from wrong place etc.
+Fixed crash from CEF audio stuff being done on another thread.
+Fixed multiple objects have selection outlines in some cases.
+
 0.90, 0.91
 ==========
 Added web view - embeds a web browser in an object.
