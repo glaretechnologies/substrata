@@ -535,7 +535,7 @@ public:
 				Lock lock(mutex);
 				if(main_window)
 				{
-					Lock mutex(main_window->audio_engine.mutex);
+					Lock audio_engine_lock(main_window->audio_engine.mutex);
 					this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
 				}
 			}
