@@ -26,6 +26,7 @@ Copyright Glare Technologies Limited 2022-
 
 
 // This class is shared among all browser instances, the browser the callback applies to is passed in as arg 0.
+// The methods of this class will be called on the UI (main) thread.
 class AnimatedTexRenderHandler : public CefRenderHandler
 {
 public:
@@ -45,7 +46,10 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		rect = CefRect(0, 0, (int)opengl_tex->xRes(), (int)opengl_tex->yRes());
+		if(opengl_tex.nonNull())
+			rect = CefRect(0, 0, (int)opengl_tex->xRes(), (int)opengl_tex->yRes());
+		else
+			rect = CefRect(0, 0, 100, 100);
 	}
 
 	// "|buffer| will be |width|*|height|*4 bytes in size and represents a BGRA image with an upper-left origin"
@@ -269,8 +273,11 @@ public:
 	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 	void onWebViewDataDestroyed()
 	{
-		main_window = NULL;
-		ob = NULL;
+		{
+			Lock lock(mutex);
+			main_window = NULL;
+			ob = NULL;
+		}
 	}
 
 	CefRefPtr<CefRenderHandler> GetRenderHandler() override { return mRenderHandler; }
@@ -433,6 +440,9 @@ public:
 	virtual bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
 		CefAudioParameters& params) override 
 	{
+		if(!main_window)
+			return false;
+
 		// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": GetAudioParameters().");
 
 		params.sample_rate = main_window->audio_engine.getSampleRate();
@@ -490,7 +500,7 @@ public:
 		// So we don't want to access ob or ob->audio_source as it may be being destroyed or modified on the main thread etc.
 
 		// Copy to our audio source
-		if(main_window && this->audio_source.nonNull())
+		if(this->audio_source.nonNull())
 		{
 			const int num_samples = frames;
 			temp_buf.resize(num_samples);
@@ -520,9 +530,14 @@ public:
 			}
 
 
+			// We are accessing main_window, that might have been set to null in another thread via onWebViewDataDestroyed(), so lock mutex.
 			{
-				Lock mutex(main_window->audio_engine.mutex);
-				this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+				Lock lock(mutex);
+				if(main_window)
+				{
+					Lock mutex(main_window->audio_engine.mutex);
+					this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
+				}
 			}
 		}
 	}
@@ -546,9 +561,11 @@ public:
 	CefRefPtr<AnimatedTexRenderHandler> mRenderHandler;
 	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
 
+	Mutex mutex; // Protects main_window, ob
 	MainWindow* main_window;
 	WorldObject* ob;
-	Reference<glare::AudioSource> audio_source;
+
+	Reference<glare::AudioSource> audio_source; // Store a direct reference to the audio_source, to make sure it's alive while we are using it.
 	int num_channels;
 	int sample_rate;
 
