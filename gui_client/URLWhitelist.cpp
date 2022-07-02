@@ -22,6 +22,7 @@ void URLWhitelist::loadDefaultWhitelist()
 		"www.youtube.com/",
 		"vimeo.com/",
 		"www.twitch.tv/",
+		"twitch.tv/", // Redirects to www.twitch.tv, but some people are using this directly.
 
 		// Audio streaming
 		"open.spotify.com/",
