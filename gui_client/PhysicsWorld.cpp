@@ -287,7 +287,7 @@ void PhysicsWorld::traceSphere(const js::BoundingSphere& sphere, const Vec4f& tr
 	for(int y=min_bucket_i[1]; y <= max_bucket_i[1]; ++y)
 	for(int z=min_bucket_i[2]; z <= max_bucket_i[2]; ++z)
 	{
-		const auto bucket = ob_grid.getBucketForIndices(x, y, z);
+		const auto& bucket = ob_grid.getBucketForIndices(x, y, z);
 
 		for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
 		{
@@ -359,7 +359,7 @@ void PhysicsWorld::getCollPoints(const js::BoundingSphere& sphere, std::vector<V
 	for(int y=min_bucket_i[1]; y <= max_bucket_i[1]; ++y)
 	for(int z=min_bucket_i[2]; z <= max_bucket_i[2]; ++z)
 	{
-		const auto bucket = ob_grid.getBucketForIndices(x, y, z);
+		const auto& bucket = ob_grid.getBucketForIndices(x, y, z);
 
 		for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
 		{
