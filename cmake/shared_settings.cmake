@@ -395,6 +395,8 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp
 ${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp 
 ${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.h
+${INDIGO_TRUNK_DIR_ENV}/opengl/SSBO.cpp 
+${INDIGO_TRUNK_DIR_ENV}/opengl/SSBO.h
 #${INDIGO_TRUNK_DIR_ENV}/opengl/TerrainSystem.cpp 
 #${INDIGO_TRUNK_DIR_ENV}/opengl/TerrainSystem.h
 ${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp 
