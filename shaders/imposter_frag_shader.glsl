@@ -63,6 +63,11 @@ layout (std140) uniform PhongUniforms
 	float metallic_frac;
 	float begin_fade_out_distance;
 	float end_fade_out_distance;
+
+	int padding6;
+	int padding7;
+	ivec4 light_indices_0; // Can't use light_indices[8] here because of std140's retarded array layout rules.
+	ivec4 light_indices_1;
 };
 
 

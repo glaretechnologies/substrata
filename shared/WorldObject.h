@@ -26,6 +26,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <set>
 #include <new>
 struct GLObject;
+struct GLLight;
 class PhysicsObject;
 namespace glare { class AudioSource; }
 namespace glare { class PoolAllocator; }
@@ -238,6 +239,7 @@ public:
 
 #if GUI_CLIENT
 	Reference<GLObject> opengl_engine_ob;
+	Reference<GLLight> opengl_light;
 	Reference<PhysicsObject> physics_object;
 
 	Reference<MeshData> mesh_manager_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().

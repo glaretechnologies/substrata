@@ -31,11 +31,19 @@ static const int LARGE_OB_NUM_CELLS_THRESHOLD = 32;
 void PhysicsWorld::setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world)
 {
 	// Compute world-to-ob matrix.
-	const bool invertible = new_ob_to_world.getInverseForAffine3Matrix(/*inverse out=*/object.world_to_ob); 
+	Matrix4f new_world_to_ob;
+	const bool invertible = new_ob_to_world.getInverseForAffine3Matrix(/*inverse out=*/new_world_to_ob);
 	//assert(invertible);
 	if(!invertible)
-		object.world_to_ob = Matrix4f::identity(); // If not invertible, just use to-world matrix.  TEMP HACK
+		new_world_to_ob = Matrix4f::identity(); // If not invertible, just use to-world matrix.  TEMP HACK
 
+	setNewObToWorldMatrix(object, new_ob_to_world, new_world_to_ob);
+}
+
+
+void PhysicsWorld::setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world, const Matrix4f& new_world_to_ob)
+{
+	const js::AABBox new_aabb_ws = object.geometry->getAABBox().transformedAABBFast(new_ob_to_world);
 
 	if(large_objects.count(&object) > 0)
 	{
@@ -44,7 +52,6 @@ void PhysicsWorld::setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& 
 	else
 	{
 		const js::AABBox& old_aabb_ws = object.aabb_ws;
-		const js::AABBox new_aabb_ws = object.geometry->getAABBox().transformedAABBFast(new_ob_to_world);
 
 		// See if the object has changed grid cells
 		const Vec4i old_min_bucket_i = ob_grid.bucketIndicesForPoint(old_aabb_ws.min_);
@@ -53,16 +60,25 @@ void PhysicsWorld::setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& 
 		const Vec4i new_min_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.min_);
 		const Vec4i new_max_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.max_);
 
+		//conPrint("setNewObToWorldMatrix()");
 		if(new_min_bucket_i != old_min_bucket_i || new_max_bucket_i != old_max_bucket_i)
 		{
 			// cells have changed.
 			ob_grid.remove(&object, old_aabb_ws);
 			ob_grid.insert(&object, new_aabb_ws);
-		}
 
-		object.ob_to_world = new_ob_to_world;
-		object.aabb_ws = new_aabb_ws;
+
+			// NOTE: could do something like this, but is tricky due to bucket hashing:
+			// Iterate over old cells, remove object from any cell not in new cells, 
+			// then iterate over new cells, add object to new cell if not already inserted.
+
+			//conPrint("cell changed!");
+		}
 	}
+
+	object.ob_to_world = new_ob_to_world;
+	object.world_to_ob = new_world_to_ob;
+	object.aabb_ws = new_aabb_ws;
 }
 
 
@@ -111,6 +127,13 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 	}
 
 	this->objects_set.erase(object);
+
+	// Make sure there aren't any dangling references to the object in ob_grid etc.
+	assert(large_objects.count(object.ptr()) == 0);
+#ifndef NDEBUG // If in Debug mode:
+	for(size_t i=0; i<ob_grid.buckets.size(); ++i)
+		assert(ob_grid.buckets[i].objects.count(object.ptr()) == 0);
+#endif
 }
 
 
@@ -140,6 +163,9 @@ PhysicsWorld::MemUsageStats PhysicsWorld::getTotalMemUsage() const
 			stats.num_meshes++;
 		}
 	}
+
+	for(size_t i=0; i<ob_grid.buckets.size(); ++i)
+		stats.mem += ob_grid.buckets[i].objects.buckets_size * sizeof(PhysicsObject*);
 
 	return stats;
 }

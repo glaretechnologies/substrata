@@ -20,6 +20,12 @@ PhysicsObject::PhysicsObject(bool collidable_)
 }
 
 
+PhysicsObject::PhysicsObject(bool collidable_, const Reference<RayMesh>& geometry_, const Matrix4f& ob_to_world_, void* userdata_, int userdata_type_)
+:	ob_to_world(ob_to_world_), geometry(geometry_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_), uniform_dist(NULL), total_surface_area(0)
+{
+}
+
+
 PhysicsObject::~PhysicsObject()
 {
 }

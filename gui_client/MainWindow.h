@@ -393,7 +393,6 @@ public:
 	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh; // For images, web-views etc.
 	Reference<RayMesh> image_cube_raymesh;
 
-	Reference<Indigo::Mesh> spotlight_mesh;
 	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
 	Reference<RayMesh> spotlight_raymesh;
 

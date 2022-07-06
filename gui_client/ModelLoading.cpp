@@ -226,6 +226,16 @@ static float getScaleForMesh(const BatchedMesh& mesh)
 }
 
 
+void ModelLoading::applyScaleToMesh(Indigo::Mesh& mesh, float scale)
+{
+	for(size_t i=0; i<mesh.vert_positions.size(); ++i)
+		mesh.vert_positions[i] *= scale;
+
+	mesh.aabb_os.bound[0] *= scale;
+	mesh.aabb_os.bound[1] *= scale;
+}
+
+
 static void scaleMesh(Indigo::Mesh& mesh)
 {
 	// Automatically scale object down until it is < x m across
@@ -260,11 +270,7 @@ static void scaleMesh(Indigo::Mesh& mesh)
 	if(use_scale != 1.f)
 	{
 		conPrint("Scaling object by " + toString(use_scale));
-		for(size_t i=0; i<mesh.vert_positions.size(); ++i)
-			mesh.vert_positions[i] *= use_scale;
-
-		mesh.aabb_os.bound[0] *= use_scale;
-		mesh.aabb_os.bound[1] *= use_scale;
+		ModelLoading::applyScaleToMesh(mesh, use_scale);
 	}
 }
 

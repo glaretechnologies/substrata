@@ -924,6 +924,9 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 	if(ob.opengl_engine_ob.nonNull())
 		ui->glWidget->removeObject(ob.opengl_engine_ob);
 
+	if(ob.opengl_light.nonNull())
+		ui->glWidget->opengl_engine->removeLight(ob.opengl_light);
+
 	if(ob.physics_object.nonNull())
 		physics_world->removeObject(ob.physics_object);
 
@@ -954,6 +957,9 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	// Remove any existing OpenGL and physics model
 	if(ob->opengl_engine_ob.nonNull())
 		ui->glWidget->removeObject(ob->opengl_engine_ob);
+
+	if(ob->opengl_light.nonNull())
+		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
 	
 	if(ob->physics_object.nonNull())
 		physics_world->removeObject(ob->physics_object);
@@ -1126,28 +1132,25 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
 	{
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
-		if(isNonEmptyAndNotMp4(opengl_mat.tex_path))
+		if(isNonEmptyAndNotMp4(opengl_mat.tex_path)) // We won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
 		{
-			if(!::hasExtensionStringView(ob->materials[z]->colour_texture_url, "mp4")) // If not a mp4 texture - we won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
+			try
 			{
-				try
-				{
-					opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
 
-					if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+				if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
+				{
+					if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
 					{
-						if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
-						{
-							// Try and use a different LOD level of the texture, that is actually loaded.
-							opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
-							opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
-						}
+						// Try and use a different LOD level of the texture, that is actually loaded.
+						opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
+						opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
 					}
 				}
-				catch(glare::Exception& e)
-				{
-					conPrint("error loading texture: " + e.what());
-				}
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
 			}
 		}
 
@@ -1249,6 +1252,44 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 				conPrint("error loading texture: " + e.what());
 			}
 		}
+	}
+}
+
+
+static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_angle_start, float cone_cos_angle_end)
+{
+	if(ob.materials.size() >= 1 && ob.materials[0].nonNull())
+	{
+		/*
+		Compute approximate spectral radiance of the emitter, from the given luminous flux.
+		Assume emitter spectral radiance L_e is constant (independent of wavelength).
+		Let cone (half) angle = alpha.
+		Solid angle of cone = 2pi(1 - cos(alpha))
+
+		Phi_v = 683 integral(y_bar(lambda) L_e A 2pi(1 - cos(alpha))) dlambda						[683 comes from definition of luminous flux]
+		Phi_v = 683 L_e A 2pi(1 - cos(alpha)) integral(y_bar(lambda)) dlambda
+		
+		integral(y_bar(lambda)) dlambda ~= 106 nm [From Indigo - e.g. average luminous efficiency is ~ 0.3 over 400 to 700 nm]
+		so
+
+		Phi_v = 683 L_e A 2pi(1 - cos(alpha)) (106 * 10^-9)
+		
+		Assume A = 1, then
+
+		Phi_v = 683 * 106 * 10^-9 * L_e * 2pi(1 - cos(alpha))
+
+		or
+
+		L_e = 1 / (683 * 106 * 10^-9 * 2pi(1 - cos(alpha))
+		*/
+		const float use_cone_angle = (std::acos(cone_cos_angle_start) + std::acos(cone_cos_angle_end)) * 0.5f; // Average of start and end cone angles.
+		const float L_e = ob.materials[0]->emission_lum_flux / (683.002f * 106.856e-9f * Maths::get2Pi<float>() * (1 - cos(use_cone_angle)));
+		return Colour4f(ob.materials[0]->colour_rgb.r * L_e, ob.materials[0]->colour_rgb.g * L_e, ob.materials[0]->colour_rgb.b * L_e, 1.f);
+	}
+	else
+	{
+//		assert(0);
+		return Colour4f(0.f);
 	}
 }
 
@@ -1370,17 +1411,36 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
+				
+				// Use material[1] from the WorldObject as the light housing GL material.
 				opengl_ob->materials.resize(1);
-				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				if(ob->materials.size() >= 2)
+					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
+				else
+					opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
+				GLLightRef light = new GLLight();
+				light->gpu_data.pos = ob->pos.toVec4fPoint();
+				light->gpu_data.dir = normalise(ob_to_world_matrix * Vec4f(0, 0, -1, 0));
+				light->gpu_data.light_type = 1; // spotlight
+				light->gpu_data.cone_cos_angle_start = 0.9f;
+				light->gpu_data.cone_cos_angle_end = 0.95f;
+				light->gpu_data.col = computeSpotlightColour(*ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end);
+				
+
 				ob->opengl_engine_ob = opengl_ob;
+				ob->opengl_light = light;
 				ob->physics_object = physics_ob;
 				ob->loaded_content = ob->content;
 
 				ui->glWidget->addObject(ob->opengl_engine_ob);
+				ui->glWidget->opengl_engine->addLight(ob->opengl_light);
 
 				physics_world->addObject(ob->physics_object);
+
+				loadScriptForObject(ob); // Load any script for the object.
 			}
 		}
 		else if(ob->object_type == WorldObject::ObjectType_WebView)
@@ -1724,6 +1784,7 @@ void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 		WorldObject* instance = prototype_ob->instances[z].ptr();
 		
 		if(instance->opengl_engine_ob.nonNull()) ui->glWidget->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
+		if(instance->opengl_light.nonNull()) ui->glWidget->opengl_engine->removeLight(instance->opengl_light); // Remove light from 3d engine
 
 		if(instance->physics_object.nonNull()) physics_world->removeObject(instance->physics_object); // Remove from physics engine
 	}
@@ -1787,16 +1848,19 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 
 		// Handle instancing command if present
 		int count = 0;
-		const std::vector<std::string> lines = StringUtils::splitIntoLines(script_content);
-		for(size_t z=0; z<lines.size(); ++z)
+		if(ob->object_type == WorldObject::ObjectType_Generic) // Only allow instancing on objects (not spotlights etc. yet(
 		{
-			if(::hasPrefix(lines[z], "#instancing"))
+			const std::vector<std::string> lines = StringUtils::splitIntoLines(script_content);
+			for(size_t z=0; z<lines.size(); ++z)
 			{
-				Parser parser(lines[z].data(), lines[z].size());
-				parser.parseString("#instancing");
-				parser.parseWhiteSpace();
-				if(!parser.parseInt(count))
-					throw glare::Exception("Failed to parse count after #instancing.");
+				if(::hasPrefix(lines[z], "#instancing"))
+				{
+					Parser parser(lines[z].data(), lines[z].size());
+					parser.parseString("#instancing");
+					parser.parseWhiteSpace();
+					if(!parser.parseInt(count))
+						throw glare::Exception("Failed to parse count after #instancing.");
+				}
 			}
 		}
 
@@ -2216,18 +2280,22 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, Matrix
 
 		assert(epsEqual(S_inv_R_inv, Matrix4f::scaleMatrix(recip_scale[0], recip_scale[1], recip_scale[2]) * rot_inv));
 
-		Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
+		const Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
 //		assert(Matrix4f::isInverse(world_to_ob, ob_to_world));
 
-		ob->physics_object->ob_to_world = ob_to_world;
-		ob->physics_object->world_to_ob = world_to_ob;
-		ob->physics_object->setAABBoxWS(ob->physics_object->getAABBoxOS().transformedAABBFast(ob_to_world));
-		//ob->physics_object->aabb_ws = ob->physics_object->geometry->getAABBox().transformedAABBFast(ob_to_world);
-
-		//physics_world->updateObjectTransformData(*ob->physics_object);
-
-		// TODO: Update physics world accel structure?
+		physics_world->setNewObToWorldMatrix(*ob->physics_object, ob_to_world, world_to_ob);
 	}
+
+
+	if(ob->opengl_light.nonNull())
+	{
+		ob->opengl_light->gpu_data.dir = normalise(ob_to_world * Vec4f(0, 0, -1, 0));
+		ob->opengl_light->gpu_data.col = computeSpotlightColour(*ob, ob->opengl_light->gpu_data.cone_cos_angle_start, ob->opengl_light->gpu_data.cone_cos_angle_end);
+
+		ui->glWidget->makeCurrent();
+		ui->glWidget->opengl_engine->setLightPos(ob->opengl_light, setWToOne(translation));
+	}
+
 
 	ob_to_world_out = ob_to_world;
 }
@@ -2755,6 +2823,16 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 		}
 
 
+		if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
+		{
+			GLLightRef light = this->selected_ob->opengl_light;
+			if(light.nonNull())
+			{
+				ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
+			}
+		}
+
+
 		updateSelectedObjectPlacementBeam();
 	} 
 	else // else if new transfrom not valid
@@ -2884,7 +2962,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	CEF::doMessageLoopWork();
 	in_CEF_message_loop = false;
 	
+	//TEMP HACK:
+	//for(int i=0; i<8; ++i)
+	//{
+	//	const double t = total_timer.elapsed();
+	//	const float phase_speed = 0.4;
+	//	//Vec4f pos(5 + std::sin(t * phase_speed + (float)i) * 4, 5 + std::cos(t * phase_speed + (float)i) * 2, 2 + (1 + (float)i * 0.12f) * std::sin(t * phase_speed) * 1.23f, 1);
 
+	//	Vec4f pos(5 + std::sin((float)(t * phase_speed + (float)i / 8 * Maths::get2Pi<float>()) * 4), (float)(5 + std::cos(t * phase_speed + (float)i / 8 * Maths::get2Pi<float>()) * 4), 4.5f, 1);
+
+	//	ui->glWidget->opengl_engine->setLightPos(test_lights[i], pos);
+	//}
 
 	/*
 	Flow of loading models, textures etc.
@@ -6288,6 +6376,13 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 	new_world_object->angle = 0;
 	new_world_object->scale = Vec3f(1.f);
 
+	// Emitting material
+	new_world_object->materials.push_back(new WorldMaterial());
+	new_world_object->materials.back()->emission_lum_flux = 100000.f;
+
+	// Spotlight housing material
+	new_world_object->materials.push_back(new WorldMaterial());
+
 	const float fixture_w = 0.1;
 	const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
 	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
@@ -7753,6 +7848,25 @@ void MainWindow::objectEditedSlot()
 						selected_ob->loaded_content = selected_ob->content;
 					}
 				}
+				else if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
+				{
+					GLLightRef light = this->selected_ob->opengl_light;
+					if(light.nonNull())
+					{
+						light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
+						light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end);
+
+						ui->glWidget->makeCurrent();
+						ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
+					}
+
+					// Use material[1] from the WorldObject as the light housing GL material.
+					opengl_ob->materials.resize(1);
+					if(this->selected_ob->materials.size() >= 2)
+						ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
+					else
+						opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				}
 
 				// Update transform of OpenGL object
 				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
@@ -8077,6 +8191,9 @@ void MainWindow::disconnectFromServerAndClearAllObjects(bool hard_kill_client_co
 
 			if(ob->opengl_engine_ob.nonNull())
 				ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
+
+			if(ob->opengl_light.nonNull())
+				ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
 
 			if(ob->physics_object.nonNull())
 				this->physics_world->removeObject(ob->physics_object);
@@ -8818,6 +8935,9 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 	if(ob->opengl_engine_ob.nonNull())
 		ui->glWidget->removeObject(ob->opengl_engine_ob);
 
+	if(ob->opengl_light.nonNull())
+		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
+
 	if(ob->physics_object.nonNull())
 		physics_world->removeObject(ob->physics_object);
 
@@ -8968,7 +9088,7 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 		const Vec4f selection_point_ws = origin + dir*results.hitdist_ws;
 
 		// Store the object-space selection point.  This will be used for moving the object.
-		this->selection_point_os = results.hit_object->world_to_ob * selection_point_ws;
+		this->selection_point_os = results.hit_object->getWorldToObMatrix() * selection_point_ws;
 
 		// Debugging: Add an object at the hit point
 		//this->glWidget->addObject(glWidget->opengl_engine->makeAABBObject(this->selection_point_ws - Vec4f(0.03f, 0.03f, 0.03f, 0.f), this->selection_point_ws + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f)));
@@ -9323,6 +9443,17 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		// Mark as from-local-dirty to send an object updated message to the server.
 		ob->from_local_transform_dirty = true;
 		this->world_state->dirty_from_local_objects.insert(ob);
+
+
+		if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
+		{
+			GLLightRef light = this->selected_ob->opengl_light;
+			if(light.nonNull())
+			{
+				light->gpu_data.dir = normalise(new_ob_to_world * Vec4f(0, 0, -1, 0));
+				ui->glWidget->opengl_engine->lightUpdated(light);
+			}
+		}
 
 
 		// Trigger sending update-lightmap update flag message later.
@@ -10418,6 +10549,25 @@ int main(int argc, char *argv[])
 			}
 
 
+			// TEMP: Add some test lights
+			//{
+			//	PCG32 rng;
+
+			//	for(int i=0; i<8; ++i)
+			//	{
+			//		GLLightRef light = new GLLight();
+			//		light->gpu_data.pos = Vec4f(0, 10 * (float)i, 1, 1);
+			//		light->gpu_data.dir = Vec4f(0, 0, -1, 0);
+			//		//light->gpu_data.right = Vec4f(1, 0, 0, 0);
+			//		const float light_col_factor = 1.0e10f;
+			//		light->gpu_data.col = Colour4f(light_col_factor * rng.unitRandom() * rng.unitRandom(), light_col_factor * rng.unitRandom() * rng.unitRandom(), light_col_factor * rng.unitRandom() * rng.unitRandom(), 1.f);
+			//		light->gpu_data.light_type = 1;
+			//		mw.ui->glWidget->opengl_engine->addLight(light);
+
+			//		test_lights[i] = light;
+			//	}
+			//}
+
 			// drawField(mw.ui->glWidget->opengl_engine.ptr());
 
 			// Load a test voxel
@@ -10571,10 +10721,9 @@ int main(int argc, char *argv[])
 
 			// Make spotlight meshes
 			{
-				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(mw.task_manager, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
+				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(cyberspace_base_dir_path, mw.task_manager, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 				mw.spotlight_opengl_mesh = results.opengl_mesh_data;
 				mw.spotlight_raymesh = results.raymesh;
-				mw.spotlight_mesh = results.indigo_mesh;
 			}
 
 			// Make image cube meshes

@@ -37,6 +37,8 @@ public:
 
 	static void checkValidAndSanitiseMesh(Indigo::Mesh& mesh);
 
+	static void applyScaleToMesh(Indigo::Mesh& mesh, float scale);
+
 
 	static bool hasSupportedModelExtension(const std::string& path);
 

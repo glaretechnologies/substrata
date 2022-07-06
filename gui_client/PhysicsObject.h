@@ -35,6 +35,7 @@ public:
 	friend class PhysicsWorld;
 
 	PhysicsObject(bool collidable);
+	PhysicsObject(bool collidable, const Reference<RayMesh>& geometry, const Matrix4f& ob_to_world, void* userdata, int userdata_type);
 	~PhysicsObject();
 
 
@@ -48,7 +49,10 @@ public:
 
 	const js::AABBox getAABBoxOS() const { return geometry->getAABBox(); }
 
-	void setAABBoxWS(const js::AABBox& aabb) { aabb_ws = aabb; }
+	//void setAABBoxWS(const js::AABBox& aabb) { aabb_ws = aabb; }
+
+	const Matrix4f& getObToWorldMatrix() const { return ob_to_world; }
+	const Matrix4f& getWorldToObMatrix() const { return world_to_ob; }
 
 	void buildUniformSampler();
 
@@ -65,9 +69,13 @@ public:
 
 	size_t getTotalMemUsage() const;
 
-	Matrix4f ob_to_world;
+	
+	Matrix4f ob_to_world; // Don't update directly after inserting into PhysicsWorld, call PhysicsWorld::setNewObToWorldMatrix instead, which updates the ob_grid.
+private:
+	// These are computed in PhysicsWorld::computeObjectTransformData().
 	Matrix4f world_to_ob;
 	js::AABBox aabb_ws;
+public:
 	//js::AABBox aabb_os;
 	
 
