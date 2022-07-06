@@ -6,12 +6,15 @@ Copyright Glare Technologies Limited 2022 -
 #include "MeshBuilding.h"
 
 
+#include "ModelLoading.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/GLMeshBuilding.h>
 #include <opengl/OpenGLMeshRenderData.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <simpleraytracer/raymesh.h>
+#include <graphics/formatdecoderobj.h>
+#include <graphics/FormatDecoderGLTF.h>
 #include <utils/ShouldCancelCallback.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
@@ -145,8 +148,34 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager
 }
 
 
-MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
+MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::string& base_dir_path, glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
 {
+	const std::string model_path = base_dir_path + "/resources/spotlight4.glb";
+
+	GLTFLoadedData gltf_data;
+	BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
+
+	batched_mesh->checkValidAndSanitiseMesh();
+
+	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildBatchedMesh(&allocator, batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL); // Build OpenGLMeshRenderData
+
+	// Build RayMesh (for physics)
+	RayMeshRef spotlight_raymesh = new RayMesh("mesh", /*enable shading normals=*/false);
+	spotlight_raymesh->fromBatchedMesh(*batched_mesh);
+
+	spotlight_raymesh->buildTrisFromQuads();
+	Geometry::BuildOptions options;
+	DummyShouldCancelCallback should_cancel_callback;
+	StandardPrintOutput print_output;
+	spotlight_raymesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
+
+	MeshBuildingResults results;
+	results.opengl_mesh_data = spotlight_opengl_mesh;
+	results.raymesh = spotlight_raymesh;
+	//results.indigo_mesh = mesh;
+	return results;
+
+#if 0
 	const float fixture_w = 0.1;
 
 	// Build Indigo::Mesh
@@ -202,6 +231,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(glare::TaskM
 	results.raymesh = spotlight_raymesh;
 	results.indigo_mesh = spotlight_mesh;
 	return results;
+#endif
 }
 
 

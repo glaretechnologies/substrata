@@ -207,12 +207,12 @@ finished_looping:
 		// Make physics object
 		if(add_physics_objects)
 		{
-			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-			physics_ob->geometry = raymesh;
-			physics_ob->ob_to_world = instance.to_world;
-
-			physics_ob->userdata = NULL;
-			physics_ob->userdata_type = 0;
+			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true,
+				raymesh, // geometry
+				instance.to_world, // ob_to_world matrix
+				NULL, // userdata
+				0 // userdata_type
+			);
 
 			physics_world.addObject(physics_ob);
 		}

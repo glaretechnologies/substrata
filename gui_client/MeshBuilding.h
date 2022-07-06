@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include <utils/Reference.h>
+#include <string>
 
 
 class OpenGLMeshRenderData;
@@ -38,7 +39,7 @@ public:
 	// Loads mesh data into current OpenGL context.
 	static MeshBuildingResults makeImageCube(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 
-	static MeshBuildingResults makeSpotlightMeshes(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
+	static MeshBuildingResults makeSpotlightMeshes(const std::string& base_dir_path, glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 
 	static Reference<RayMesh> makeUnitCubeRayMesh(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 

@@ -9,11 +9,11 @@ Copyright Glare Technologies Limited 2022 -
 #include "PhysicsObject.h"
 #include "PhysicsObjectBVH.h"
 #include <physics/jscol_boundingsphere.h>
+#include <physics/HashedGrid2.h>
 #include <maths/Vec4f.h>
 #include <maths/vec2.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Vector.h>
-#include "HashedGrid2.h"
 #include <set>
 namespace Indigo { class TaskManager; }
 class PrintOutput;
@@ -58,6 +58,7 @@ public:
 
 	// Updates transform data and grid cells
 	void setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world);
+	void setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world, const Matrix4f& new_world_to_ob); // For when the new_world_to_ob is already computed, so don't to invert new_ob_to_world.
 
 	void computeObjectTransformData(PhysicsObject& object);
 
