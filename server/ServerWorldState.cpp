@@ -131,7 +131,16 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				else if(chunk == WORLD_OBJECT_CHUNK)
 				{
 					// Read world name
-					const std::string world_name = stream.readStringLengthFirst(10000);
+					/*const*/ std::string world_name = stream.readStringLengthFirst(10000);
+
+					//TEMP HACK: move objects from Kuisx to cody2343 personal world.
+					bool dirty_from_move = false;
+					if(world_name == "Kuisx")
+					{
+						conPrint("Moving object from 'Kuisx' world to 'cody2343' world.");
+						world_name = "cody2343";
+						dirty_from_move = true;
+					}
 
 					// Create ServerWorldState for world name if needed
 					if(world_states.count(world_name) == 0) 
@@ -149,6 +158,13 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					num_obs++;
 
 					next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
+
+					//TEMP:
+					if(dirty_from_move)
+					{
+						world_ob->creator_id = UserID(23); // id: 23, username: cody2343
+						world_states[world_name]->addWorldObjectAsDBDirty(world_ob);
+					}
 				}
 				else if(chunk == USER_CHUNK)
 				{
@@ -188,9 +204,9 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					// TEMP HACK: Rewrite resource local path for testing server state on dev machine.
 					/*if(!resource->URL.empty())
 					{
-					resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
-					if(FileUtils::fileExists(resource->getLocalPath()))
-					resource->setState(Resource::State_Present);
+						resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
+						if(FileUtils::fileExists(resource->getLocalPath()))
+							resource->setState(Resource::State_Present);
 					}*/
 
 					resource->database_key = database_key;
