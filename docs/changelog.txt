@@ -1,3 +1,10 @@
+0.94
+====
+Added initial realtime spotlight support.
+Added new spotlight 3d model.
+Fixed crash loading materials in some circumstances.
+Fixed crash due to scripted physics objects moving.
+
 0.93
 ====
 Optimised player physics - much faster now.
