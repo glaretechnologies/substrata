@@ -12,9 +12,6 @@ in vec2 texture_coords;
 in vec3 shadow_tex_coords[NUM_DEPTH_TEXTURES];
 #endif
 in vec3 cam_to_pos_ws;
-#if USE_LOGARITHMIC_DEPTH_BUFFER
-in float flogz;
-#endif
 
 #if !USE_BINDLESS_TEXTURES
 uniform sampler2D diffuse_tex;
@@ -40,6 +37,7 @@ layout (std140) uniform MaterialCommonUniforms
 layout (std140) uniform PhongUniforms
 {
 	vec4 diffuse_colour;
+	vec4 emission_colour;
 	vec2 texture_upper_left_matrix_col0;
 	vec2 texture_upper_left_matrix_col1;
 	vec2 texture_matrix_translation;
@@ -48,6 +46,7 @@ layout (std140) uniform PhongUniforms
 	sampler2D diffuse_tex;
 	sampler2D metallic_roughness_tex;
 	sampler2D lightmap_tex;
+	sampler2D emission_tex;
 #else
 	float padding0;
 	float padding1;
@@ -55,6 +54,8 @@ layout (std140) uniform PhongUniforms
 	float padding3;
 	float padding4;
 	float padding5;
+	float padding6;
+	float padding7;
 #endif
 
 	int flags;
@@ -412,13 +413,10 @@ void main()
 
 	col *= 0.000000003; // tone-map
 
+#if DO_POST_PROCESSING
+	colour_out = vec4(col.xyz, 1);
+#else
 	colour_out = vec4(toNonLinear(col.xyz), 1);
-	colour_out.w = diffuse_col.a;
-
-#if USE_LOGARITHMIC_DEPTH_BUFFER
-	float farplane = 10000.0;
-	float Fcoef = 2.0 / log2(farplane + 1.0);
-	float Fcoef_half = 0.5 * Fcoef;
-	gl_FragDepth = log2(flogz) * Fcoef_half;
 #endif
+	colour_out.w = diffuse_col.a;
 }
