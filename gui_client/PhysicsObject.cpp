@@ -88,6 +88,11 @@ void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f
 
 	float translation_len_ws;
 	const Vec4f unitdir_ws = normalise(translation_ws, translation_len_ws);
+	if(translation_len_ws < 1.0e-10f)
+	{
+		results_out.hitdist_ws = -1;
+		return; // Avoid using NaN unitdir_ws
+	}
 
 	const Ray ray_ws(
 		sphere_ws.getCenter(), // origin
