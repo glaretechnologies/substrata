@@ -150,7 +150,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager
 
 MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::string& base_dir_path, glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
 {
-	const std::string model_path = base_dir_path + "/resources/spotlight4.glb";
+	const std::string model_path = base_dir_path + "/resources/spotlight5.glb";
 
 	GLTFLoadedData gltf_data;
 	BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile(model_path, gltf_data);
