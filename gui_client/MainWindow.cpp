@@ -1256,7 +1256,7 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 }
 
 
-static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_angle_start, float cone_cos_angle_end)
+static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_angle_start, float cone_cos_angle_end, float& scale_out)
 {
 	if(ob.materials.size() >= 1 && ob.materials[0].nonNull())
 	{
@@ -1284,11 +1284,13 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 		*/
 		const float use_cone_angle = (std::acos(cone_cos_angle_start) + std::acos(cone_cos_angle_end)) * 0.5f; // Average of start and end cone angles.
 		const float L_e = ob.materials[0]->emission_lum_flux / (683.002f * 106.856e-9f * Maths::get2Pi<float>() * (1 - cos(use_cone_angle)));
+		scale_out = L_e;
 		return Colour4f(ob.materials[0]->colour_rgb.r * L_e, ob.materials[0]->colour_rgb.g * L_e, ob.materials[0]->colour_rgb.b * L_e, 1.f);
 	}
 	else
 	{
 //		assert(0);
+		scale_out = 0;
 		return Colour4f(0.f);
 	}
 }
@@ -1413,7 +1415,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
 				
 				// Use material[1] from the WorldObject as the light housing GL material.
-				opengl_ob->materials.resize(1);
+				opengl_ob->materials.resize(2);
 				if(ob->materials.size() >= 2)
 					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
 				else
@@ -1427,8 +1429,16 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				light->gpu_data.light_type = 1; // spotlight
 				light->gpu_data.cone_cos_angle_start = 0.9f;
 				light->gpu_data.cone_cos_angle_end = 0.95f;
-				light->gpu_data.col = computeSpotlightColour(*ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end);
+				float scale;
+				light->gpu_data.col = computeSpotlightColour(*ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
 				
+				// Apply a light emitting material to the light surface material in the spotlight model.
+				if(ob->materials.size() >= 1)
+				{
+					opengl_ob->materials[1].emission_rgb = ob->materials[0]->colour_rgb;
+					opengl_ob->materials[1].emission_scale = scale;
+				}
+
 
 				ob->opengl_engine_ob = opengl_ob;
 				ob->opengl_light = light;
@@ -1644,9 +1654,12 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 	{
 		avatar->avatar_settings.model_url = default_model_url;
 		avatar->avatar_settings.materials.resize(2);
+
 		avatar->avatar_settings.materials[0] = new WorldMaterial();
 		avatar->avatar_settings.materials[0]->colour_rgb = Colour3f(0.5f, 0.6f, 0.7f);
 		avatar->avatar_settings.materials[0]->metallic_fraction.val = 0.5f;
+		avatar->avatar_settings.materials[0]->roughness.val = 0.3f;
+
 		avatar->avatar_settings.materials[1] = new WorldMaterial();
 		avatar->avatar_settings.materials[1]->colour_rgb = Colour3f(0.8f);
 		avatar->avatar_settings.materials[1]->metallic_fraction.val = 0.0f;
@@ -2290,7 +2303,8 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, Matrix
 	if(ob->opengl_light.nonNull())
 	{
 		ob->opengl_light->gpu_data.dir = normalise(ob_to_world * Vec4f(0, 0, -1, 0));
-		ob->opengl_light->gpu_data.col = computeSpotlightColour(*ob, ob->opengl_light->gpu_data.cone_cos_angle_start, ob->opengl_light->gpu_data.cone_cos_angle_end);
+		float scale;
+		ob->opengl_light->gpu_data.col = computeSpotlightColour(*ob, ob->opengl_light->gpu_data.cone_cos_angle_start, ob->opengl_light->gpu_data.cone_cos_angle_end, scale);
 
 		ui->glWidget->makeCurrent();
 		ui->glWidget->opengl_engine->setLightPos(ob->opengl_light, setWToOne(translation));
@@ -5832,44 +5846,48 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			if(d.loaded_mesh.isNull())
 				throw glare::Exception("Model was not loaded."); // TEMP
 
-			// If the user selected a mesh that is not a bmesh, convert it to bmesh
-			std::string bmesh_disk_path = d.result_path;
-			if(!hasExtension(d.result_path, "bmesh"))
+			std::string mesh_URL;
+			if(d.result_path != "")
 			{
-				// Save as bmesh in temp location
-				bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
-
-				BatchedMesh::WriteOptions write_options;
-				write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
-				// TODO: show 'processing...' dialog while it compresses and saves?
-				d.loaded_mesh->writeToFile(bmesh_disk_path, write_options);
-			}
-			else
-			{
-				bmesh_disk_path = d.result_path;
-			}
-
-			// Compute hash over model
-			const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
-
-			const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
-			const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
-
-			// Copy model to local resources dir.  UploadResourceThread will read from here.
-			this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
-
-			// Generate LOD models, to be uploaded to server also.
-			for(int lvl = 1; lvl <= 2; ++lvl)
-			{
-				const std::string lod_URL  = WorldObject::getLODModelURLForLevel(mesh_URL, lvl);
-
-				if(!resource_manager->isFileForURLPresent(lod_URL))
+				// If the user selected a mesh that is not a bmesh, convert it to bmesh
+				std::string bmesh_disk_path = d.result_path;
+				if(!hasExtension(d.result_path, "bmesh"))
 				{
-					const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
+					// Save as bmesh in temp location
+					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
 
-					LODGeneration::generateLODModel(d.loaded_mesh, lvl, local_lod_path);
+					BatchedMesh::WriteOptions write_options;
+					write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+					// TODO: show 'processing...' dialog while it compresses and saves?
+					d.loaded_mesh->writeToFile(bmesh_disk_path, write_options);
+				}
+				else
+				{
+					bmesh_disk_path = d.result_path;
+				}
 
-					resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
+				// Compute hash over model
+				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+				const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
+				mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
+
+				// Copy model to local resources dir.  UploadResourceThread will read from here.
+				this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+				// Generate LOD models, to be uploaded to server also.
+				for(int lvl = 1; lvl <= 2; ++lvl)
+				{
+					const std::string lod_URL  = WorldObject::getLODModelURLForLevel(mesh_URL, lvl);
+
+					if(!resource_manager->isFileForURLPresent(lod_URL))
+					{
+						const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
+
+						LODGeneration::generateLODModel(d.loaded_mesh, lvl, local_lod_path);
+
+						resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
+					}
 				}
 			}
 
@@ -7854,18 +7872,27 @@ void MainWindow::objectEditedSlot()
 					if(light.nonNull())
 					{
 						light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
-						light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end);
+						float scale;
+						light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
 
 						ui->glWidget->makeCurrent();
 						ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
-					}
 
-					// Use material[1] from the WorldObject as the light housing GL material.
-					opengl_ob->materials.resize(1);
-					if(this->selected_ob->materials.size() >= 2)
-						ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
-					else
-						opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+
+						// Use material[1] from the WorldObject as the light housing GL material.
+						opengl_ob->materials.resize(2);
+						if(this->selected_ob->materials.size() >= 2)
+							ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
+						else
+							opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+
+						// Apply a light emitting material to the light surface material in the spotlight model.
+						if(this->selected_ob->materials.size() >= 1)
+						{
+							opengl_ob->materials[1].emission_rgb = this->selected_ob->materials[0]->colour_rgb;
+							opengl_ob->materials[1].emission_scale = scale;
+						}
+					}
 				}
 
 				// Update transform of OpenGL object
