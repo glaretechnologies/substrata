@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>627</width>
-    <height>216</height>
+    <height>230</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -95,7 +95,7 @@
           <item>
            <widget class="QCheckBox" name="MSAACheckBox">
             <property name="text">
-             <string>Multisample anti-aliasing (MSAA)</string>
+             <string>Multisample anti-aliasing (MSAA; restart Substrata to apply)</string>
             </property>
            </widget>
           </item>
