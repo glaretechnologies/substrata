@@ -527,6 +527,8 @@ void MainWindow::afterGLInitInitialise()
 
 		settings->setValue(MainOptionsDialog::MSAAKey(), MSAA); // Save MSAA setting
 
+		settings->setValue(MainOptionsDialog::BloomKey(), MSAA); // Use the same decision for bloom
+
 		logMessage("Auto-setting MSAA: is_retina: " + boolToString(is_retina) + ", is_Intel: " + boolToString(is_Intel) + ", MSAA: " + boolToString(MSAA));
 	}
 	else
