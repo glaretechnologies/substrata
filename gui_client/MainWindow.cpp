@@ -523,7 +523,7 @@ void MainWindow::afterGLInitInitialise()
 		const bool is_Intel = ui->glWidget->opengl_engine->openglDriverVendorIsIntel();
 		const bool no_MSAA = is_Intel || is_retina;
 		const bool MSAA = !no_MSAA;
-		ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
+		//ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
 
 		settings->setValue(MainOptionsDialog::MSAAKey(), MSAA); // Save MSAA setting
 
@@ -534,7 +534,7 @@ void MainWindow::afterGLInitInitialise()
 		// Else MSAA setting is present.
 		const bool MSAA = settings->value(MainOptionsDialog::MSAAKey(), /*default=*/true).toBool();
 		logMessage("Setting MSAA to " + boolToString(MSAA));
-		ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
+		//ui->glWidget->opengl_engine->setMSAAEnabled(MSAA);
 	}
 }
 
@@ -7439,7 +7439,7 @@ void MainWindow::on_actionOptions_triggered()
 		this->proximity_loader.setLoadDistance(dist);
 		ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
 
-		ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
+		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
 	}
 }
 
