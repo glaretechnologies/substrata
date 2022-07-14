@@ -31,6 +31,8 @@ public:
 
 	static const QString MSAAKey() { return "setting/MSAA"; }
 
+	static const QString BloomKey() { return "setting/bloom"; }
+
 private slots:;
 	void accepted();
 

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>627</width>
-    <height>230</height>
+    <width>638</width>
+    <height>277</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -89,20 +89,27 @@
        <item>
         <widget class="QGroupBox" name="groupBox">
          <property name="title">
-          <string>Graphics</string>
+          <string>Graphics (restart Substrata to apply options)</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <item>
            <widget class="QCheckBox" name="MSAACheckBox">
             <property name="text">
-             <string>Multisample anti-aliasing (MSAA; restart Substrata to apply)</string>
+             <string>Multisample anti-aliasing (MSAA)</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QCheckBox" name="shadowsCheckBox">
             <property name="text">
-             <string>Shadows (restart Substrata to apply)</string>
+             <string>Shadows</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="bloomCheckBox">
+            <property name="text">
+             <string>Light Bloom/glow</string>
             </property>
            </widget>
           </item>
