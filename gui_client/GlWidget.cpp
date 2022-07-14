@@ -227,10 +227,12 @@ void GlWidget::initializeGL()
 
 	bool shadows = true;
 	bool use_MSAA = true;
+	bool bloom = true;
 	if(settings)
 	{
 		shadows  = settings->value(MainOptionsDialog::shadowsKey(),	/*default val=*/true).toBool();
 		use_MSAA = settings->value(MainOptionsDialog::MSAAKey(),	/*default val=*/true).toBool();
+		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/true).toBool();
 	}
 
 	OpenGLEngineSettings engine_settings;
@@ -238,7 +240,7 @@ void GlWidget::initializeGL()
 	engine_settings.shadow_mapping = shadows;
 	engine_settings.compress_textures = true;
 	engine_settings.depth_fog = true;
-	//engine_settings.use_final_image_buffer = true;
+	engine_settings.use_final_image_buffer = bloom;
 	engine_settings.msaa_samples = use_MSAA ? 4 : -1;
 	opengl_engine = new OpenGLEngine(engine_settings);
 
