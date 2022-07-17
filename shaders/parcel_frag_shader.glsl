@@ -4,9 +4,6 @@ in vec3 normal_ws; // world space
 in vec3 pos_cs;
 in vec3 pos_ws;
 in vec2 texture_coords;
-#if USE_LOGARITHMIC_DEPTH_BUFFER
-in float flogz;
-#endif
 
 uniform float time;
 uniform vec3 colour;
@@ -98,11 +95,4 @@ void main()
 
 	float alpha = 1 - small_grid_factor * edge_grid_factor;
 	colour_out = vec4(colour.x, colour.y, colour.z, alpha);
-
-#if USE_LOGARITHMIC_DEPTH_BUFFER
-	float farplane = 10000.0;
-	float Fcoef = 2.0 / log2(farplane + 1.0);
-	float Fcoef_half = 0.5 * Fcoef;
-	gl_FragDepth = log2(flogz) * Fcoef_half;
-#endif
 }
