@@ -25,13 +25,14 @@ CyberspaceProtocolVersion
 32: Added flags field to Parcel
 33: Added spawn_point field to Parcel
 34: Added AABB to ObjectTransformUpdate
+35: Added emission_rgb and emission_texture_url to WorldMaterial
 */
 namespace Protocol
 {
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 34;
+const uint32 CyberspaceProtocolVersion = 35;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;

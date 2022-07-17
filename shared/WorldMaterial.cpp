@@ -20,10 +20,11 @@ WorldMaterial::WorldMaterial()
 {
 	colour_rgb = Colour3f(0.85f);
 	roughness = ScalarVal(0.5f);
+	emission_rgb = Colour3f(0.85f);
 	metallic_fraction = ScalarVal(0.0f);
 	opacity = ScalarVal(1.0f);
 	tex_matrix = Matrix2f::identity();
-	emission_lum_flux = 0;
+	emission_lum_flux_or_lum = 0;
 	flags = 0;
 }
 
@@ -80,6 +81,9 @@ void WorldMaterial::appendDependencyURLs(int lod_level, std::vector<DependencyUR
 	if(!colour_texture_url.empty())
 		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(colour_texture_url, lod_level, this->colourTexHasAlpha())));
 
+	if(!emission_texture_url.empty())
+		paths_out.push_back(DependencyURL(getLODTextureURLForLevel(emission_texture_url, lod_level, /*has alpha=*/false)));
+
 	roughness.appendDependencyURLs(/*use sRGB=*/false, paths_out);
 	metallic_fraction.appendDependencyURLs(/*use sRGB=*/false, paths_out);
 	opacity.appendDependencyURLs(/*use sRGB=*/false, paths_out);
@@ -95,6 +99,14 @@ void WorldMaterial::appendDependencyURLsAllLODLevels(std::vector<DependencyURL>&
 		for(int i=min_lod_level+1; i <=2; ++i)
 			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(colour_texture_url, i, this->colourTexHasAlpha())));
 	}
+	
+	if(!emission_texture_url.empty())
+	{
+		const int min_lod_level = this->minLODLevel();
+		paths_out.push_back(DependencyURL(emission_texture_url));
+		for(int i=min_lod_level+1; i <=2; ++i)
+			paths_out.push_back(DependencyURL(getLODTextureURLForLevel(emission_texture_url, i, /*has alpha=*/false)));
+	}
 
 	roughness.appendDependencyURLs(/*use sRGB=*/false, paths_out);
 	metallic_fraction.appendDependencyURLs(/*use sRGB=*/false, paths_out);
@@ -106,6 +118,9 @@ void WorldMaterial::convertLocalPathsToURLS(ResourceManager& resource_manager)
 {
 	if(FileUtils::fileExists(this->colour_texture_url)) // If the URL is a local path:
 		this->colour_texture_url = resource_manager.URLForPathAndHash(this->colour_texture_url, FileChecksum::fileChecksum(this->colour_texture_url));
+	
+	if(FileUtils::fileExists(this->emission_texture_url)) // If the URL is a local path:
+		this->emission_texture_url = resource_manager.URLForPathAndHash(this->emission_texture_url, FileChecksum::fileChecksum(this->emission_texture_url));
 
 	roughness.convertLocalPathsToURLS(resource_manager);
 	metallic_fraction.convertLocalPathsToURLS(resource_manager);
@@ -246,10 +261,11 @@ static Colour3f readColour3fFromStream(InStream& stream)
 }
 
 
-static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 6;
+static const uint32 WORLD_MATERIAL_SERIALISATION_VERSION = 7;
 
 // v5: added emission_lum_flux
 // v6: added flags
+// v7: added emission_rgb, emission_texture_url
 
 
 void writeToStream(const WorldMaterial& mat, OutStream& stream)
@@ -260,13 +276,16 @@ void writeToStream(const WorldMaterial& mat, OutStream& stream)
 	writeToStream(stream, mat.colour_rgb);
 	stream.writeStringLengthFirst(mat.colour_texture_url);
 
+	writeToStream(stream, mat.emission_rgb);
+	stream.writeStringLengthFirst(mat.emission_texture_url);
+
 	writeToStream(mat.roughness, stream);
 	writeToStream(mat.metallic_fraction, stream);
 	writeToStream(mat.opacity, stream);
 
 	writeToStream(mat.tex_matrix, stream);
 
-	stream.writeFloat(mat.emission_lum_flux);
+	stream.writeFloat(mat.emission_lum_flux_or_lum);
 
 	stream.writeUInt32(mat.flags);
 }
@@ -312,6 +331,12 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 			throw glare::Exception("Error while reading colour_texture_url: " + e.what());
 		}
 	}
+
+	if(v >= 7)
+	{
+		mat.emission_rgb = readColour3fFromStream(stream);
+		mat.emission_texture_url = stream.readStringLengthFirst(20000);
+	}
 	
 	if(v <= 2)
 	{
@@ -332,7 +357,7 @@ void readFromStream(InStream& stream, WorldMaterial& mat)
 		mat.tex_matrix = Matrix2f(1, 0, 0, -1); // Needed for existing object objects etc..
 
 	if(v >= 5)
-		mat.emission_lum_flux = stream.readFloat();
+		mat.emission_lum_flux_or_lum = stream.readFloat();
 
 	if(v >= 6)
 		mat.flags = stream.readUInt32();

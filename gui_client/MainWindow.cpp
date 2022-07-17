@@ -828,41 +828,33 @@ static inline bool isValidLightMapURL(const std::string& URL)
 }
 
 
+void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
+{
+	if(isValidImageTextureURL(texture_url))
+	{
+		const std::string lod_tex_url = world_mat.getLODTextureURLForLevel(texture_url, ob_lod_level, tex_has_alpha);
+		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
+
+		if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
+			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already into the texture server
+			!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
+		{
+			const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+			if(just_added)
+				load_item_queue.enqueueItem(pos, aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB));
+		}
+	}
+}
+
+
 void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level)
 {
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		if(isValidImageTextureURL(ob.materials[i]->colour_texture_url))
-		{
-			const std::string lod_tex_url = ob.materials[i]->getLODTextureURLForLevel(ob.materials[i]->colour_texture_url, ob_lod_level, ob.materials[i]->colourTexHasAlpha());
-			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
-
-			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already into the texture server
-				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
-			{
-				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
-				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
-			}
-		}
-
-		// Load metallic-roughness texture, if used
-		if(isValidImageTextureURL(ob.materials[i]->roughness.texture_url))
-		{
-			const std::string lod_tex_url = ob.materials[i]->getLODTextureURLForLevel(ob.materials[i]->roughness.texture_url, ob_lod_level, /*has_alpha=*/false);
-			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
-
-			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already
-				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
-			{
-				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
-				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/false));
-			}
-		}
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 
 	// Start loading lightmap
@@ -883,40 +875,20 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 }
 
 
-void MainWindow::startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level)
+void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level)
 {
+	// approx AABB of avatar
+	const js::AABBox aabb_ws( 
+		av.pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, -2.f, 0),
+		av.pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
+	);
+
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
-	for(size_t i=0; i<ob.avatar_settings.materials.size(); ++i)
+	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		if(isValidImageTextureURL(ob.avatar_settings.materials[i]->colour_texture_url))
-		{
-			const std::string lod_tex_url = ob.avatar_settings.materials[i]->getLODTextureURLForLevel(ob.avatar_settings.materials[i]->colour_texture_url, ob_lod_level, ob.avatar_settings.materials[i]->colourTexHasAlpha());
-			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
-
-			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already,
-				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
-			{
-				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
-				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
-			}
-		}
-
-		if(isValidImageTextureURL(ob.avatar_settings.materials[i]->roughness.texture_url))
-		{
-			const std::string lod_tex_url = ob.avatar_settings.materials[i]->getLODTextureURLForLevel(ob.avatar_settings.materials[i]->roughness.texture_url, ob_lod_level, /*has_alpha=*/false);
-			const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
-
-			if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-				!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already
-				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
-			{
-				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
-				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/false));
-			}
-		}
+		startLoadingTextureForObject(av.pos, aabb_ws, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos, aabb_ws, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos, aabb_ws, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 }
 
@@ -1129,26 +1101,37 @@ static inline bool isNonEmptyAndNotMp4(const std::string& path)
 }
 
 
+// Update textures to correct LOD-level textures.
+// Try and use the texture with the target LOD level first (given by e.g. opengl_mat.tex_path).
+// If that texture is not currently loaded into the OpenGL Engine, then use another texture LOD that is loaded, as chosen in getBestTextureLOD().
 static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& opengl_engine, ResourceManager& resource_manager)
 {
 	for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
 	{
 		OpenGLMaterial& opengl_mat = ob->opengl_engine_ob->materials[z];
+		const WorldMaterial* world_mat = (z < ob->materials.size()) ? ob->materials[z].ptr() : NULL;
+
 		if(isNonEmptyAndNotMp4(opengl_mat.tex_path)) // We won't have LOD levels for mp4 textures, just keep the texture vid playback writes to.
 		{
 			try
 			{
 				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
+					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
+			}
+		}
 
-				if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
-				{
-					if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
-					{
-						// Try and use a different LOD level of the texture, that is actually loaded.
-						opengl_mat.albedo_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->colour_texture_url), ob->materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
-						opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
-					}
-				}
+		if(isNonEmptyAndNotMp4(opengl_mat.emission_tex_path))
+		{
+			try
+			{
+				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path), /*use_sRGB=*/true);
+				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, opengl_engine);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1161,15 +1144,8 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			try
 			{
 				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
-
-				if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
-				{
-					if(z < ob->materials.size() && ob->materials[z].nonNull()) // If the corresponding world object material is valid:
-					{
-						// Try and use a different LOD level of the texture, that is actually loaded.
-						opengl_mat.metallic_roughness_texture = getBestTextureLOD(*ob->materials[z], resource_manager.pathForURL(ob->materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
-					}
-				}
+				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1177,19 +1153,13 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 			}
 		}
 
-		if(isValidLightMapURL(opengl_mat.lightmap_path))//  isNonEmptyAndNotMp4(opengl_mat.lightmap_path))
+		if(isValidLightMapURL(opengl_mat.lightmap_path))
 		{
 			try
 			{
-				//conPrint("Trying to use " + opengl_mat.lightmap_path);
 				opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
-
-				//printVar(opengl_mat.lightmap_texture.isNull());
 				if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
-				{
-					// Try and use a different LOD level of the lightmap, that is actually loaded.
-					opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine);
-				}
+					opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
 			}
 			catch(glare::Exception& e)
 			{
@@ -1212,21 +1182,29 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 	for(size_t z=0; z<gl_ob->materials.size(); ++z)
 	{
 		OpenGLMaterial& opengl_mat = gl_ob->materials[z];
+		const WorldMaterial* world_mat = (z < av->avatar_settings.materials.size()) ? av->avatar_settings.materials[z].ptr() : NULL;
+
 		if(isNonEmptyAndNotMp4(opengl_mat.tex_path))
 		{
 			try
 			{
 				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
+				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
+					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("error loading texture: " + e.what());
+			}
+		}
 
-				if(opengl_mat.albedo_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
-				{
-					if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
-					{
-						// Try and use a different LOD level of the texture, that is actually loaded.
-						opengl_mat.albedo_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->colour_texture_url), av->avatar_settings.materials[z]->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
-						opengl_mat.albedo_tex_is_placeholder = true; // Mark it as a placeholder so it will be replaced by the desired LOD level texture when it's loaded.
-					}
-				}
+		if(isNonEmptyAndNotMp4(opengl_mat.emission_tex_path))
+		{
+			try
+			{
+				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path), /*use_sRGB=*/true);
+				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, opengl_engine);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1239,15 +1217,8 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 			try
 			{
 				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
-
-				if(opengl_mat.metallic_roughness_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
-				{
-					if(z < av->avatar_settings.materials.size() && av->avatar_settings.materials[z].nonNull()) // If the corresponding world object material is valid:
-					{
-						// Try and use a different LOD level of the texture, that is actually loaded.
-						opengl_mat.metallic_roughness_texture = getBestTextureLOD(*av->avatar_settings.materials[z], resource_manager.pathForURL(av->avatar_settings.materials[z]->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
-					}
-				}
+				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
+					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1285,7 +1256,7 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 		L_e = 1 / (683 * 106 * 10^-9 * 2pi(1 - cos(alpha))
 		*/
 		const float use_cone_angle = (std::acos(cone_cos_angle_start) + std::acos(cone_cos_angle_end)) * 0.5f; // Average of start and end cone angles.
-		const float L_e = ob.materials[0]->emission_lum_flux / (683.002f * 106.856e-9f * Maths::get2Pi<float>() * (1 - cos(use_cone_angle)));
+		const float L_e = ob.materials[0]->emission_lum_flux_or_lum / (683.002f * 106.856e-9f * Maths::get2Pi<float>() * (1 - cos(use_cone_angle)));
 		scale_out = L_e;
 		return Colour4f(ob.materials[0]->colour_rgb.r * L_e, ob.materials[0]->colour_rgb.g * L_e, ob.materials[0]->colour_rgb.b * L_e, 1.f);
 	}
@@ -1339,7 +1310,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		// Add any objects with gif or mp4 textures to the set of animated objects. (if not already)
 		for(size_t i=0; i<ob->materials.size(); ++i)
 		{
-			if(::hasExtensionStringView(ob->materials[i]->colour_texture_url, "gif") || ::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4"))
+			if(	::hasExtensionStringView(ob->materials[i]->colour_texture_url, "gif") || ::hasExtensionStringView(ob->materials[i]->colour_texture_url, "mp4") ||
+				::hasExtensionStringView(ob->materials[i]->emission_texture_url, "gif") || ::hasExtensionStringView(ob->materials[i]->emission_texture_url, "mp4"))
 			{
 				if(ob->animated_tex_data.isNull())
 				{
@@ -6398,7 +6370,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 
 	// Emitting material
 	new_world_object->materials.push_back(new WorldMaterial());
-	new_world_object->materials.back()->emission_lum_flux = 100000.f;
+	new_world_object->materials.back()->emission_lum_flux_or_lum = 100000.f;
 
 	// Spotlight housing material
 	new_world_object->materials.push_back(new WorldMaterial());

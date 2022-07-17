@@ -180,7 +180,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	else
 		selected_mat = new WorldMaterial();
 
-	SignalBlocker::setValue(this->luminousFluxDoubleSpinBox, selected_mat->emission_lum_flux);
+	SignalBlocker::setValue(this->luminousFluxDoubleSpinBox, selected_mat->emission_lum_flux_or_lum);
 	
 	if(ob.object_type == WorldObject::ObjectType_Hypercard)
 	{
@@ -321,7 +321,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	{
 		if(ob_out.materials.size() >= 1)
 		{
-			ob_out.materials[0]->emission_lum_flux = (float)this->luminousFluxDoubleSpinBox->value();
+			ob_out.materials[0]->emission_lum_flux_or_lum = (float)this->luminousFluxDoubleSpinBox->value();
 		}
 	}
 

@@ -40,6 +40,19 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	opengl_mat.albedo_rgb = mat.colour_rgb;
 	opengl_mat.tex_path = mat.colour_texture_url;
 
+	opengl_mat.emission_rgb = mat.emission_rgb;
+	opengl_mat.emission_tex_path = mat.emission_texture_url;
+
+	/*
+	Luminance 
+	L_v = 683.002 lm/W * integral( L_e(lambda) y_bar(lamdba) dlambda		[L_e = spectral radiance]
+	L_v = 683.002 lm/W * 106.856 * 10^-9 m L_e						[Assuming L_e is independent of lambda]
+	 
+	so
+	L_e = L_v / (683.002 lm/W * 106.856 * 10^-9 m)
+	*/
+	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum / (683.002f * 106.856e-9f);
+
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.metallic_roughness_tex_path = mat.roughness.texture_url;
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
@@ -75,6 +88,16 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 		opengl_mat.tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
 	else
 		opengl_mat.tex_path.clear();
+
+	opengl_mat.emission_rgb = mat.emission_rgb;
+	opengl_mat.emission_tex_path = mat.emission_texture_url;
+	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum / (683.002f * 106.856e-9f); // See comments above
+
+
+	if(!mat.emission_texture_url.empty())
+		opengl_mat.emission_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.emission_texture_url, lod_level, /*has alpha=*/false), resource_manager);
+	else
+		opengl_mat.emission_tex_path.clear();
 
 	if(!mat.roughness.texture_url.empty())
 		opengl_mat.metallic_roughness_tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.roughness.texture_url, lod_level, /*has alpha=*/false), resource_manager);

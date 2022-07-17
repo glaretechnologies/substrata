@@ -37,13 +37,16 @@ public:
 
 protected:
 	void updateColourButton();
+	void updateEmissionColourButton();
 
 signals:;
 	void materialChanged();
 
 protected slots:
 	void on_colourPushButton_clicked(bool checked);
+	void on_emissionColourPushButton_clicked(bool checked);
 	
 private:
 	Colour3f col;
+	Colour3f emission_col;
 };

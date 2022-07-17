@@ -40,6 +40,9 @@ MaterialEditor::MaterialEditor(QWidget *parent)
 	connect(this->opacityDoubleSpinBox,				SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 
 	connect(this->metallicRoughnessFileSelectWidget,SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
+
+	connect(this->emissionTextureFileSelectWidget,	SIGNAL(filenameChanged(QString&)),	this, SIGNAL(materialChanged()));
+	connect(this->luminanceDoubleSpinBox,			SIGNAL(valueChanged(double)),		this, SIGNAL(materialChanged()));
 }
 
 
@@ -67,6 +70,24 @@ void MaterialEditor::updateColourButton()
 }
 
 
+void MaterialEditor::updateEmissionColourButton()
+{
+	const int COLOUR_BUTTON_W = 30;
+	QImage image(COLOUR_BUTTON_W, COLOUR_BUTTON_W, QImage::Format_RGB32);
+	image.fill(QColor(qRgba(
+		(int)(this->emission_col.r * 255),
+		(int)(this->emission_col.g * 255),
+		(int)(this->emission_col.b * 255),
+		255
+	)));
+	QIcon icon;
+	QPixmap pixmap = QPixmap::fromImage(image);
+	icon.addPixmap(pixmap);
+	this->emissionColourPushButton->setIcon(icon);
+	this->emissionColourPushButton->setIconSize(QSize(COLOUR_BUTTON_W, COLOUR_BUTTON_W));
+}
+
+
 void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 {
 	// Set colour controls
@@ -82,6 +103,11 @@ void MaterialEditor::setFromMaterial(const WorldMaterial& mat)
 
 	this->metallicRoughnessFileSelectWidget->setFilename(QtUtils::toQString(mat.roughness.texture_url));
 
+	emission_col = mat.emission_rgb;
+	this->emissionTextureFileSelectWidget->setFilename(QtUtils::toQString(mat.emission_texture_url));
+
+	SignalBlocker::setValue(this->luminanceDoubleSpinBox, mat.emission_lum_flux_or_lum);
+	
 	updateColourButton();
 }
 
@@ -101,6 +127,11 @@ void MaterialEditor::toMaterial(WorldMaterial& mat_out)
 	mat_out.opacity				= ScalarVal(this->opacityDoubleSpinBox->value());
 
 	mat_out.roughness.texture_url = QtUtils::toIndString(this->metallicRoughnessFileSelectWidget->filename());
+
+	mat_out.emission_rgb = emission_col;
+	mat_out.emission_texture_url = QtUtils::toIndString(this->emissionTextureFileSelectWidget->filename());
+
+	mat_out.emission_lum_flux_or_lum = this->luminanceDoubleSpinBox->value();
 }
 
 
@@ -122,6 +153,11 @@ void MaterialEditor::setControlsEditable(bool editable)
 	this->opacityDoubleSpinBox->setReadOnly(!editable);
 
 	this->metallicRoughnessFileSelectWidget->setReadOnly(!editable);
+
+	this->emissionTextureFileSelectWidget->setReadOnly(!editable);
+
+	this->emissionTextureFileSelectWidget->setReadOnly(!editable);
+	this->luminanceDoubleSpinBox->setReadOnly(!editable);
 }
 
 
@@ -145,6 +181,32 @@ void MaterialEditor::on_colourPushButton_clicked(bool checked)
 		this->col.b = new_col.blue()  / 255.f;
 
 		updateColourButton();
+
+		emit materialChanged();
+	}
+}
+
+
+void MaterialEditor::on_emissionColourPushButton_clicked(bool checked)
+{
+	const QColor initial_col(qRgba(
+		(int)(emission_col.r * 255),
+		(int)(emission_col.g * 255),
+		(int)(emission_col.b * 255),
+		255
+	));
+
+	QColorDialog d(initial_col, this);
+	const int res = d.exec();
+	if(res == QDialog::Accepted)
+	{
+		const QColor new_col = d.currentColor();
+
+		this->emission_col.r = new_col.red()   / 255.f;
+		this->emission_col.g = new_col.green() / 255.f;
+		this->emission_col.b = new_col.blue()  / 255.f;
+
+		updateEmissionColourButton();
 
 		emit materialChanged();
 	}

@@ -684,6 +684,220 @@ static const std::string makeDataURL(const std::string& html)
 }
 
 
+void AnimatedTexObData::processGIFAnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+	OpenGLMaterial& mat, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
+{
+	// Fetch the texdata for this texture if we haven't already
+	// Note that mat.tex_path may change due to LOD changes.
+	if(animtexdata.texdata.isNull() || (animtexdata.texdata_tex_path != tex_path))
+	{
+		//if(animtexdata.texdata_tex_path != mat.tex_path)
+		//	conPrint("AnimatedTexObData::process(): tex_path changed from '" + animtexdata.texdata_tex_path + "' to '" + mat.tex_path + "'.");
+
+		// Only replace the tex data if the new tex data is non-null.
+		// new tex data may take a while to load after LOD changes.
+		Reference<TextureData> new_tex_data = opengl_engine->texture_data_manager->getTextureData(tex_path);
+		if(new_tex_data.nonNull())
+		{
+			animtexdata.texdata = new_tex_data;
+			animtexdata.texdata_tex_path = tex_path;
+		}
+	}
+
+	TextureData* texdata = animtexdata.texdata.ptr();
+	if(texdata)
+	{
+		const int num_frames = (int)texdata->num_frames;
+		const double total_anim_time = texdata->last_frame_end_time;
+		if((num_frames > 0) && (total_anim_time > 0)) // Check !frames.empty() for back() calls below.
+		{
+			const double in_anim_time = Maths::doubleMod(anim_time, total_anim_time);
+			assert(in_anim_time >= 0);
+
+			// Search for the current frame, setting animtexdata.cur_frame_i, for in_anim_time.
+			// Note that in_anim_time may have increased just a little bit since last time process() was called, or it may have jumped a lot if object left and re-entered the camera view.
+
+			if(animtexdata.cur_frame_i < 0 && animtexdata.cur_frame_i >= num_frames) // Make sure cur_frame_i is in bounds.
+			{
+				assert(false);
+				animtexdata.cur_frame_i = 0;
+			}
+
+			// If frame durations are equal, we can skip the frame search stuff, and just compute the frame index directly.
+			if(texdata->frame_durations_equal)
+			{
+				int index = (int)(in_anim_time * texdata->recip_frame_duration);
+				assert(index >= 0);
+
+				if(index >= num_frames)
+					index = 0;
+
+				animtexdata.cur_frame_i = index;
+			}
+			else
+			{
+				// Else frame end times are irregularly spaced.  
+				// Start with a special case search, where we assume in_anim_time just increased a little bit, so that we are still on the same frame, or maybe the next frame.
+				// If that doesn't find the correct frame, then fall back to a binary search over all frames to find the correct frame.
+
+				// Is in_anim_time still in the time range of the current frame?  Note that we need to check both frame start and end times as in_anim_time may have decreased.
+				// cur frame start time = prev frame end time, but be careful about wraparound.
+				const double cur_frame_start_time = (animtexdata.cur_frame_i == 0) ? 0.0 : texdata->frame_end_times[animtexdata.cur_frame_i - 1];
+				if(in_anim_time >= cur_frame_start_time && in_anim_time <= texdata->frame_end_times[animtexdata.cur_frame_i])
+				{
+					// animtexdata.cur_frame_i is unchanged.
+					//conPrint("current frame is unchanged");
+				}
+				else
+				{
+					// See if in_anim_time is in the time range of the next frame
+					double next_frame_start_time, next_frame_end_time;
+					int next_frame_index;
+					if(animtexdata.cur_frame_i == num_frames - 1)
+					{
+						next_frame_start_time = 0.0;
+						next_frame_end_time = texdata->frame_end_times[0];
+						next_frame_index = 0;
+					}
+					else
+					{
+						next_frame_start_time = texdata->frame_end_times[animtexdata.cur_frame_i];
+						next_frame_end_time   = texdata->frame_end_times[animtexdata.cur_frame_i + 1];
+						next_frame_index = animtexdata.cur_frame_i + 1;
+					}
+
+					if(in_anim_time >= next_frame_start_time && in_anim_time <= next_frame_end_time) // if in_anim_time is in the time range of the next frame:
+					{
+						animtexdata.cur_frame_i = next_frame_index;
+						//conPrint("advancing to next frame");
+					}
+					else
+					{
+						//conPrint("Finding frame with binary search");
+
+						// Else in_anim_time was not in current frame or next frame periods.
+						// Do binary search for current frame.
+						const auto res = std::lower_bound(texdata->frame_end_times.begin(), texdata->frame_end_times.end(), in_anim_time); // Get the position of the first frame_end_time >= in_anim_time.
+						int index = res - texdata->frame_end_times.begin();
+						assert(index >= 0);
+						if(index >= num_frames)
+							index = 0;
+
+						animtexdata.cur_frame_i = index;
+					}
+				}
+			}
+
+			assert(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < num_frames); // Should be in bounds
+
+			if(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < num_frames) // Make sure in bounds
+			{
+				if(animtexdata.cur_frame_i != animtexdata.last_loaded_frame_i) // If cur frame changed: (Avoid uploading the same frame multiple times in a row)
+				{
+					/*printVar(animtexdata.cur_frame_i);*/
+
+					// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
+					// Don't try and upload the wrong size or we will get an OpenGL error or crash.
+
+					OpenGLTextureRef tex = is_refl_tex ? mat.albedo_texture : mat.emission_texture;
+
+					if(tex.nonNull() && tex->xRes() == texdata->W && tex->yRes() == texdata->H)
+						TextureLoading::loadIntoExistingOpenGLTexture(tex, *texdata, animtexdata.cur_frame_i, opengl_engine);
+					//else
+					//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
+
+					animtexdata.last_loaded_frame_i = animtexdata.cur_frame_i;
+				}
+			}
+		}
+	}
+}
+
+
+void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+	OpenGLMaterial& mat, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
+{
+#if CEF_SUPPORT
+	if(!CEF::isInitialised())
+	{
+		CEF::initialiseCEF(main_window->base_dir_path);
+	}
+
+	if(CEF::isInitialised())
+	{
+		if(animtexdata.browser.isNull() && !tex_path.empty() && ob->opengl_engine_ob.nonNull())
+		{
+			main_window->logMessage("Creating browser to play vid, URL: " + tex_path);
+
+			const int width = 1024;
+			const float use_height_over_width = ob->scale.z / ob->scale.x; // Object scale should be based on video aspect ratio, see ModelLoading::makeImageCube().
+			const int height = myClamp((int)(1024 * use_height_over_width), 16, 2048);
+
+			std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
+			OpenGLTextureRef new_tex /*mat.albedo_texture*/ = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
+				GL_SRGB8_ALPHA8, // GL internal format
+				GL_BGRA, // GL format.
+				OpenGLTexture::Filtering_Bilinear);
+
+			if(is_refl_tex)
+			{
+				mat.albedo_texture = new_tex;
+				mat.fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
+			}
+			else
+				mat.emission_texture = new_tex;
+
+			ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(tex_path);
+
+			// if the resource is downloaded already, read video off disk:
+			std::string use_URL;
+			if(resource.nonNull() && resource->getState() == Resource::State_Present)
+			{
+				use_URL = "http://resource/" + web::Escaping::URLEscape(tex_path);// resource->getLocalPath();
+			}
+			else // Otherwise use streaming via HTTP
+			{
+				if(hasPrefix(tex_path, "http://") || hasPrefix(tex_path, "https://"))
+				{
+					use_URL = tex_path;
+				}
+				else
+				{
+					// If the URL does not have an HTTP prefix (e.g. is just a normal resource URL), rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
+					use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(tex_path);
+				}
+			}
+
+			// NOTE: We will use a custom HTML page with the loop attribute set to true.  Can also add 'controls' attribute to debug stuff.
+			const std::string html =
+				"<html>"
+				"<head>"
+				"</head>"
+				"<body style=\"margin:0\">"
+				"<video autoplay loop name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\">"
+				"<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"video/mp4\" />"
+				"</video>"
+				"</body>"
+				"</html>";
+
+			const std::string data_URL = makeDataURL(html);
+
+			Reference<AnimatedTexCEFBrowser> browser = createBrowser(data_URL, new_tex);
+			browser->cef_client->main_window = main_window;
+			browser->cef_client->ob = ob;
+			browser->mRenderHandler->opengl_engine = opengl_engine;
+			browser->mRenderHandler->main_window = main_window;
+			browser->mRenderHandler->ob = ob;
+
+			animtexdata.browser = browser;
+
+			animtexdata.texdata_tex_path = tex_path;
+		}
+	}
+#endif // CEF_SUPPORT
+}
+
+
 void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
 {
 	if(ob->opengl_engine_ob.isNull())
@@ -704,215 +918,38 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 		{
 			OpenGLMaterial& mat = ob->opengl_engine_ob->materials[m];
 			
+			//---- Handle animated reflection texture ----
 			if(mat.albedo_texture.nonNull() && hasExtensionStringView(mat.tex_path, "gif"))
 			{
-				if(animation_data.mat_animtexdata[m].isNull())
-					animation_data.mat_animtexdata[m] = new AnimatedTexData();
-				AnimatedTexData& animtexdata = *animation_data.mat_animtexdata[m];
+				if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
+					animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
 
-				// Fetch the texdata for this texture if we haven't already
-				// Note that mat.tex_path may change due to LOD changes.
-				if(animtexdata.texdata.isNull() || (animtexdata.texdata_tex_path != mat.tex_path))
-				{
-					//if(animtexdata.texdata_tex_path != mat.tex_path)
-					//	conPrint("AnimatedTexObData::process(): tex_path changed from '" + animtexdata.texdata_tex_path + "' to '" + mat.tex_path + "'.");
-
-					// Only replace the tex data if the new tex data is non-null.
-					// new tex data may take a while to load after LOD changes.
-					Reference<TextureData> new_tex_data = opengl_engine->texture_data_manager->getTextureData(mat.tex_path);
-					if(new_tex_data.nonNull())
-					{
-						animtexdata.texdata = new_tex_data;
-						animtexdata.texdata_tex_path = mat.tex_path;
-					}
-				}
-
-				TextureData* texdata = animtexdata.texdata.ptr();
-				if(texdata)
-				{
-					const int num_frames = (int)texdata->num_frames;
-					const double total_anim_time = texdata->last_frame_end_time;
-					if((num_frames > 0) && (total_anim_time > 0)) // Check !frames.empty() for back() calls below.
-					{
-						const double in_anim_time = Maths::doubleMod(anim_time, total_anim_time);
-						assert(in_anim_time >= 0);
-
-						// Search for the current frame, setting animtexdata.cur_frame_i, for in_anim_time.
-						// Note that in_anim_time may have increased just a little bit since last time process() was called, or it may have jumped a lot if object left and re-entered the camera view.
-
-						if(animtexdata.cur_frame_i < 0 && animtexdata.cur_frame_i >= num_frames) // Make sure cur_frame_i is in bounds.
-						{
-							assert(false);
-							animtexdata.cur_frame_i = 0;
-						}
-
-						// If frame durations are equal, we can skip the frame search stuff, and just compute the frame index directly.
-						if(texdata->frame_durations_equal)
-						{
-							int index = (int)(in_anim_time * texdata->recip_frame_duration);
-							assert(index >= 0);
-
-							if(index >= num_frames)
-								index = 0;
-
-							animtexdata.cur_frame_i = index;
-						}
-						else
-						{
-							// Else frame end times are irregularly spaced.  
-							// Start with a special case search, where we assume in_anim_time just increased a little bit, so that we are still on the same frame, or maybe the next frame.
-							// If that doesn't find the correct frame, then fall back to a binary search over all frames to find the correct frame.
-
-							// Is in_anim_time still in the time range of the current frame?  Note that we need to check both frame start and end times as in_anim_time may have decreased.
-							// cur frame start time = prev frame end time, but be careful about wraparound.
-							const double cur_frame_start_time = (animtexdata.cur_frame_i == 0) ? 0.0 : texdata->frame_end_times[animtexdata.cur_frame_i - 1];
-							if(in_anim_time >= cur_frame_start_time && in_anim_time <= texdata->frame_end_times[animtexdata.cur_frame_i])
-							{
-								// animtexdata.cur_frame_i is unchanged.
-								//conPrint("current frame is unchanged");
-							}
-							else
-							{
-								// See if in_anim_time is in the time range of the next frame
-								double next_frame_start_time, next_frame_end_time;
-								int next_frame_index;
-								if(animtexdata.cur_frame_i == num_frames - 1)
-								{
-									next_frame_start_time = 0.0;
-									next_frame_end_time = texdata->frame_end_times[0];
-									next_frame_index = 0;
-								}
-								else
-								{
-									next_frame_start_time = texdata->frame_end_times[animtexdata.cur_frame_i];
-									next_frame_end_time   = texdata->frame_end_times[animtexdata.cur_frame_i + 1];
-									next_frame_index = animtexdata.cur_frame_i + 1;
-								}
-
-								if(in_anim_time >= next_frame_start_time && in_anim_time <= next_frame_end_time) // if in_anim_time is in the time range of the next frame:
-								{
-									animtexdata.cur_frame_i = next_frame_index;
-									//conPrint("advancing to next frame");
-								}
-								else
-								{
-									//conPrint("Finding frame with binary search");
-
-									// Else in_anim_time was not in current frame or next frame periods.
-									// Do binary search for current frame.
-									const auto res = std::lower_bound(texdata->frame_end_times.begin(), texdata->frame_end_times.end(), in_anim_time); // Get the position of the first frame_end_time >= in_anim_time.
-									int index = res - texdata->frame_end_times.begin();
-									assert(index >= 0);
-									if(index >= num_frames)
-										index = 0;
-
-									animtexdata.cur_frame_i = index;
-								}
-							}
-						}
-
-						assert(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < num_frames); // Should be in bounds
-
-						if(animtexdata.cur_frame_i >= 0 && animtexdata.cur_frame_i < num_frames) // Make sure in bounds
-						{
-							if(animtexdata.cur_frame_i != animtexdata.last_loaded_frame_i) // If cur frame changed: (Avoid uploading the same frame multiple times in a row)
-							{
-								/*printVar(animtexdata.cur_frame_i);*/
-
-								// There may be some frames after a LOD level change where the new texture with the updated size is loading, and thus we have a size mismatch.
-								// Don't try and upload the wrong size or we will get an OpenGL error or crash.
-								if(mat.albedo_texture->xRes() == texdata->W && mat.albedo_texture->yRes() == texdata->H)
-									TextureLoading::loadIntoExistingOpenGLTexture(mat.albedo_texture, *texdata, animtexdata.cur_frame_i, opengl_engine);
-								//else
-								//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
-
-								animtexdata.last_loaded_frame_i = animtexdata.cur_frame_i;
-							}
-						}
-					}
-				}
+				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
+				
 			}
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
 			{
-#if CEF_SUPPORT
-				if(animation_data.mat_animtexdata[m].isNull())
-					animation_data.mat_animtexdata[m] = new AnimatedTexData();
-				AnimatedTexData& animtexdata = *animation_data.mat_animtexdata[m];
+				if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
+					animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
 
-				if(!CEF::isInitialised())
-				{
-					CEF::initialiseCEF(main_window->base_dir_path);
-				}
+				processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
+			}
 
-				if(CEF::isInitialised())
-				{
-					if(animtexdata.browser.isNull() && !mat.tex_path.empty() && ob->opengl_engine_ob.nonNull())
-					{
-						main_window->logMessage("Creating browser to play vid, URL: " + mat.tex_path);
+			//---- Handle animated emission texture ----
+			if(mat.emission_texture.nonNull() && hasExtensionStringView(mat.emission_tex_path, "gif"))
+			{
+				if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
+					animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
 
-						const int width = 1024;
-						const float use_height_over_width = ob->scale.z / ob->scale.x; // Object scale should be based on video aspect ratio, see ModelLoading::makeImageCube().
-						const int height = myClamp((int)(1024 * use_height_over_width), 16, 2048);
+				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
 
-						if(ob->opengl_engine_ob.nonNull())
-						{
-							std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
-							mat.albedo_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
-								GL_SRGB8_ALPHA8, // GL internal format
-								GL_BGRA, // GL format.
-								OpenGLTexture::Filtering_Bilinear);
+			}
+			else if(hasExtensionStringView(mat.emission_tex_path, "mp4"))
+			{
+				if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
+					animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
 
-							mat.fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
-						}
-
-						ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(mat.tex_path);
-
-						// if the resource is downloaded already, read video off disk:
-						std::string use_URL;
-						if(resource.nonNull() && resource->getState() == Resource::State_Present)
-						{
-							use_URL = "http://resource/" + web::Escaping::URLEscape(mat.tex_path);// resource->getLocalPath();
-						}
-						else // Otherwise use streaming via HTTP
-						{
-							if(hasPrefix(mat.tex_path, "http://") || hasPrefix(mat.tex_path, "https://"))
-							{
-								use_URL = mat.tex_path;
-							}
-							else
-							{
-								// If the URL does not have an HTTP prefix (e.g. is just a normal resource URL), rewrite it to a substrata HTTP URL, so we can use streaming via HTTP.
-								use_URL = "http://" + main_window->server_hostname + "/resource/" + web::Escaping::URLEscape(mat.tex_path);
-							}
-						}
-
-						// NOTE: We will use a custom HTML page with the loop attribute set to true.  Can also add 'controls' attribute to debug stuff.
-						const std::string html =
-							"<html>"
-							"<head>"
-							"</head>"
-							"<body style=\"margin:0\">"
-							"<video autoplay loop name=\"media\" id=\"thevid\" width=\"" + toString(width) + "px\" height=\"" + toString(height) + "px\">"
-							"<source src=\"" + web::Escaping::HTMLEscape(use_URL) + "\" type=\"video/mp4\" />"
-							"</video>"
-							"</body>"
-							"</html>";
-
-						const std::string data_URL = makeDataURL(html);
-
-						Reference<AnimatedTexCEFBrowser> browser = createBrowser(data_URL, ob->opengl_engine_ob->materials[0].albedo_texture);
-						browser->cef_client->main_window = main_window;
-						browser->cef_client->ob = ob;
-						browser->mRenderHandler->opengl_engine = opengl_engine;
-						browser->mRenderHandler->main_window = main_window;
-						browser->mRenderHandler->ob = ob;
-
-						animtexdata.browser = browser;
-
-						animtexdata.texdata_tex_path = mat.tex_path;
-					}
-				}
-#endif // CEF_SUPPORT
+				processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
 			}
 		}
 	}
@@ -923,9 +960,27 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 		// Close any browsers for animated textures on this object.
 		for(size_t m=0; m<this->mat_animtexdata.size(); ++m)
 		{
-			if(this->mat_animtexdata[m].nonNull())
+			if(this->mat_animtexdata[m].refl_col_animated_tex_data.nonNull())
 			{
-				AnimatedTexData& animtexdata = *this->mat_animtexdata[m];
+				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].refl_col_animated_tex_data;
+				if(animtexdata.browser.nonNull())
+				{
+					main_window->logMessage("Closing vid playback browser (out of view distance).");
+					animtexdata.browser->requestExit();
+					animtexdata.browser = NULL;
+
+					// Remove audio source
+					if(ob->audio_source.nonNull())
+					{
+						main_window->audio_engine.removeSource(ob->audio_source);
+						ob->audio_source = NULL;
+					}
+				}
+			}
+
+			if(this->mat_animtexdata[m].emission_col_animated_tex_data.nonNull())
+			{
+				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].emission_col_animated_tex_data;
 				if(animtexdata.browser.nonNull())
 				{
 					main_window->logMessage("Closing vid playback browser (out of view distance).");

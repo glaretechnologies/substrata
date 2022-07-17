@@ -257,6 +257,7 @@ public:
 	bool checkAddScriptToProcessedSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
 
+	void startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
