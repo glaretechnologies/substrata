@@ -234,6 +234,10 @@ void GlWidget::initializeGL()
 		use_MSAA = settings->value(MainOptionsDialog::MSAAKey(),	/*default val=*/true).toBool();
 		bloom    = settings->value(MainOptionsDialog::BloomKey(),	/*default val=*/true).toBool();
 	}
+    
+#if OSX
+    bloom = false; // use_final_image_buffer seems to crash on Mac, don't use it.
+#endif
 
 	OpenGLEngineSettings engine_settings;
 	engine_settings.enable_debug_output = true;
