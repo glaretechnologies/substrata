@@ -15,9 +15,6 @@ out vec2 texture_coords;
 out vec3 shadow_tex_coords[NUM_DEPTH_TEXTURES];
 #endif
 out vec3 cam_to_pos_ws;
-#if USE_LOGARITHMIC_DEPTH_BUFFER
-out float flogz;
-#endif
 
 layout (std140) uniform SharedVertUniforms
 {
@@ -78,13 +75,4 @@ void main()
 #endif // end if !INSTANCE_MATRICES
 
 	texture_coords = texture_coords_0_in;
-
-#if USE_LOGARITHMIC_DEPTH_BUFFER
-	float farplane = 10000.0;
-	float Fcoef = 2.0 / log2(farplane + 1.0);
-	float pos_depth = -pos_cs.z;
-	gl_Position.z = log2(max(1e-6, 1.0 + pos_depth)) * Fcoef - 1.0;
-
-	flogz = 1.0 + pos_depth;
-#endif
 }
