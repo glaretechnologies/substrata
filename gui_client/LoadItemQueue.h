@@ -54,6 +54,7 @@ public:
 
 	void enqueueItem(const WorldObject& ob, const glare::TaskRef& task);
 	void enqueueItem(const Avatar& ob, const glare::TaskRef& task);
+	void enqueueItem(const Vec3d& pos, const js::AABBox aabb_ws, const glare::TaskRef& task);
 	void enqueueItem(const Vec3d& pos, float size_factor, const glare::TaskRef& task);
 
 	void clear();

@@ -54,8 +54,13 @@ public:
 
 	std::string name; // Not serialised currently.
 
+	// NOTE: If adding new member variables, make sure to add to clone() and operator ==() below.
+
 	Colour3f colour_rgb;
 	std::string colour_texture_url;
+
+	Colour3f emission_rgb;
+	std::string emission_texture_url;
 
 	ScalarVal roughness;
 	ScalarVal metallic_fraction;
@@ -63,7 +68,7 @@ public:
 
 	Matrix2f tex_matrix;
 
-	float emission_lum_flux;
+	float emission_lum_flux_or_lum; // For spotlights, luminous flux.  For generic model materials, luminance.
 
 	static const uint32 COLOUR_TEX_HAS_ALPHA_FLAG   = 1; // Does the texture referenced by colour_texture_url have an alpha channel?
 	// Used to determine the file format of LOD level textures, e.g. will be a PNG if this flag is set.
@@ -71,7 +76,7 @@ public:
 
 	uint32 flags;
 
-	// NOTE: If adding new member variables, make sure to add to clone() and operator ==() below.
+	
 	
 
 	inline bool colourTexHasAlpha() const { return BitUtils::isBitSet(flags, COLOUR_TEX_HAS_ALPHA_FLAG); }
@@ -85,11 +90,13 @@ public:
 		m->name = name;
 		m->colour_rgb = colour_rgb;
 		m->colour_texture_url = colour_texture_url;
+		m->emission_rgb = emission_rgb;
+		m->emission_texture_url = emission_texture_url;
 		m->roughness = roughness;
 		m->metallic_fraction = metallic_fraction;
 		m->opacity = opacity;
 		m->tex_matrix = tex_matrix;
-		m->emission_lum_flux = emission_lum_flux;
+		m->emission_lum_flux_or_lum = emission_lum_flux_or_lum;
 		m->flags = flags;
 		return m;
 	}
@@ -100,11 +107,13 @@ public:
 			name == b.name &&
 			colour_rgb == b.colour_rgb &&
 			colour_texture_url == b.colour_texture_url &&
+			emission_rgb == b.emission_rgb &&
+			emission_texture_url == b.emission_texture_url &&
 			roughness == b.roughness &&
 			metallic_fraction == b.metallic_fraction &&
 			opacity == b.opacity &&
 			tex_matrix == b.tex_matrix &&
-			emission_lum_flux == b.emission_lum_flux &&
+			emission_lum_flux_or_lum == b.emission_lum_flux_or_lum &&
 			flags == b.flags;
 	}
 

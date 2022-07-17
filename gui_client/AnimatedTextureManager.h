@@ -14,6 +14,7 @@ class MainWindow;
 class WorldObject;
 class AnimatedTexCEFBrowser;
 class OpenGLEngine;
+class OpenGLMaterial;
 class TextureData;
 
 
@@ -34,11 +35,25 @@ struct AnimatedTexData : public RefCounted
 };
 
 
+struct MaterialAnimatedTexData
+{
+	Reference<AnimatedTexData> refl_col_animated_tex_data;
+	Reference<AnimatedTexData> emission_col_animated_tex_data;
+};
+
+
 struct AnimatedTexObData : public RefCounted
 {
-	std::vector<Reference<AnimatedTexData>> mat_animtexdata; // size() == ob.material.size()
+	std::vector<MaterialAnimatedTexData> mat_animtexdata; // size() == ob.material.size()
 
 	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
+
+private:
+	void processGIFAnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
+
+	void processMP4AnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
+		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
 
 	std::vector<float> temp_buf; // Used for audio
 };
