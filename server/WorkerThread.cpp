@@ -702,7 +702,7 @@ void WorkerThread::doRun()
 		// Read protocol version
 		const uint32 client_protocol_version = socket->readUInt32();
 		printVar(client_protocol_version);
-		if(client_protocol_version < 31) // We can handle protocol version 31 (before version 32 with 'Added flags field to Parcel')
+		if(client_protocol_version < 35) // We can't handle protocol versions < 35 (before version 35 with 'Added emission_rgb and emission_texture_url to WorldMaterial')
 		{
 			socket->writeUInt32(Protocol::ClientProtocolTooOld);
 			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_protocol_version) + ") is too old, require version " + 
