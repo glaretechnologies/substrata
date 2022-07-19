@@ -1,7 +1,11 @@
 0.94
 ====
+Added emission texture, emission RGB, and luminance settings to materials.
 Added initial realtime spotlight support.
+Added bloom/glow effect for bright light on non-Mac platforms.
 Added new spotlight 3d model.
+Using reverse-z instead of logarithmic depth buffer.  Fixes various visual artifacts.
+Changed way shadow mapping works - fixes some light leaks.
 Fixed crash loading materials in some circumstances.
 Fixed crash due to scripted physics objects moving.
 
