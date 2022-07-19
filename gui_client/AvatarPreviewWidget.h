@@ -21,6 +21,7 @@
 namespace Indigo { class Mesh; }
 class TextureServer;
 class EnvEmitter;
+class QSettings;
 
 
 class AvatarPreviewWidget : public 
@@ -36,9 +37,9 @@ public:
 	AvatarPreviewWidget(QWidget *parent = 0);
 	~AvatarPreviewWidget();
 
+	void init(const std::string& base_dir_path_, QSettings* settings_);
 	void shutdown();
-
-	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
+	
 
 	void addObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
@@ -80,4 +81,5 @@ public:
 	Reference<OpenGLEngine> opengl_engine;
 
 	Timer timer;
+	QSettings* settings;
 };

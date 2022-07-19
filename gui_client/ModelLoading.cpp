@@ -574,15 +574,23 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 			const std::string tex_path = gltf_data.materials.materials[i].diffuse_map.path;
 			const std::string metallic_roughness_tex_path = gltf_data.materials.materials[i].metallic_roughness_map.path;
+			const std::string emission_tex_path = gltf_data.materials.materials[i].emissive_map.path;
 
 			// NOTE: gltf has (0,0) at the upper left of the image, as opposed to the Indigo/substrata/opengl convention of (0,0) being at the lower left
 			// (See https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#images)
 			// Therefore we need to negate the y coord.
 			// For the gl_ob, there would usually be another negation, so the two cancel out.
 
+			const float L_v = 2.0e5f; // luminance.  Chosen to have a bit of a glow in daylight.
+			const float L_e = L_v / (683.002f * 106.856e-9f); // spectral radiance.  See previous comments for equation.
+			const bool use_emission = gltf_data.materials.materials[i].emissive_factor.nonZero();
+
 			gl_ob->materials[i].albedo_rgb = gltf_data.materials.materials[i].diffuse;
 			gl_ob->materials[i].tex_path = tex_path;
 			gl_ob->materials[i].metallic_roughness_tex_path = metallic_roughness_tex_path;
+			gl_ob->materials[i].emission_tex_path = emission_tex_path;
+			gl_ob->materials[i].emission_rgb = gltf_data.materials.materials[i].emissive_factor;
+			gl_ob->materials[i].emission_scale = use_emission ? L_e : 0.f;
 			gl_ob->materials[i].roughness = gltf_data.materials.materials[i].roughness;
 			gl_ob->materials[i].alpha = gltf_data.materials.materials[i].alpha;
 			gl_ob->materials[i].transparent = gltf_data.materials.materials[i].alpha < 1.0f;
@@ -591,6 +599,9 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			loaded_object_out.materials[i]->colour_rgb = gltf_data.materials.materials[i].diffuse;
 			loaded_object_out.materials[i]->colour_texture_url = tex_path;
 			loaded_object_out.materials[i]->roughness.texture_url = metallic_roughness_tex_path; // HACK: just assign to roughness URL
+			loaded_object_out.materials[i]->emission_texture_url = emission_tex_path;
+			loaded_object_out.materials[i]->emission_rgb = gltf_data.materials.materials[i].emissive_factor;
+			loaded_object_out.materials[i]->emission_lum_flux_or_lum = use_emission ? L_v : 0.f;
 			loaded_object_out.materials[i]->opacity = ScalarVal(gl_ob->materials[i].alpha);
 			loaded_object_out.materials[i]->roughness.val = gltf_data.materials.materials[i].roughness;
 			loaded_object_out.materials[i]->opacity.val = gltf_data.materials.materials[i].alpha;

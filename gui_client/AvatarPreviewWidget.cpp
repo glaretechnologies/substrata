@@ -1,6 +1,7 @@
 #include "AvatarPreviewWidget.h"
 
 
+#include "MainOptionsDialog.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../indigo/TextureServer.h"
 #include "../indigo/globals.h"
@@ -18,6 +19,7 @@
 #include "../utils/StringUtils.h"
 #include "../utils/TaskManager.h"
 #include <QtGui/QMouseEvent>
+#include <QtCore/QSettings>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -51,14 +53,6 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 {
 	viewport_aspect_ratio = 1;
 
-	OpenGLEngineSettings settings;
-	settings.shadow_mapping = true;
-	settings.compress_textures = true;
-	settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
-	opengl_engine = new OpenGLEngine(settings);
-
-	viewport_w = viewport_h = 100;
-
 	// Needed to get keyboard events.
 	setFocusPolicy(Qt::StrongFocus);
 }
@@ -67,6 +61,22 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 AvatarPreviewWidget::~AvatarPreviewWidget()
 {
 	shutdown();
+}
+
+
+void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* settings_)
+{
+	base_dir_path = base_dir_path_;
+	settings = settings_;
+
+	OpenGLEngineSettings gl_settings;
+	gl_settings.shadow_mapping = true;
+	gl_settings.compress_textures = true;
+	gl_settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
+	gl_settings.use_final_image_buffer = settings_->value(MainOptionsDialog::BloomKey(), /*default val=*/true).toBool();
+	opengl_engine = new OpenGLEngine(gl_settings);
+
+	viewport_w = viewport_h = 100;
 }
 
 
@@ -122,6 +132,8 @@ void AvatarPreviewWidget::initializeGL()
 		{
 			conPrint("Error: " + e.what());
 		}
+
+		opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
 	}
 
 
@@ -154,7 +166,7 @@ void AvatarPreviewWidget::initializeGL()
 
 		GLObjectRef ob = opengl_engine->allocateObject();
 		ob->materials.resize(1);
-		ob->materials[0].albedo_rgb = Colour3f(0.9f);
+		ob->materials[0].albedo_rgb = Colour3f(0.8f);
 		try
 		{
 			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");

@@ -45,7 +45,7 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 {
 	setupUi(this);
 
-	this->objectPreviewGLWidget->setBaseDir(base_dir_path);
+	this->objectPreviewGLWidget->init(base_dir_path, settings_);
 	this->objectPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
 	// Load main window geometry and state
@@ -307,8 +307,11 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				BitUtils::setOrZeroBit(loaded_object->materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
 			}
 
-			if(!preview_gl_ob->materials[i].metallic_roughness_tex_path.empty())
+			if(!preview_gl_ob->materials[i].metallic_roughness_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].metallic_roughness_tex_path, "mp4"))
 				preview_gl_ob->materials[i].metallic_roughness_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].metallic_roughness_tex_path);
+
+			if(!preview_gl_ob->materials[i].emission_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].emission_tex_path, "mp4"))
+				preview_gl_ob->materials[i].emission_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].emission_tex_path);
 		}
 
 		objectPreviewGLWidget->addObject(preview_gl_ob);
