@@ -22,6 +22,7 @@
 namespace Indigo { class Mesh; }
 class TextureServer;
 class EnvEmitter;
+class QSettings;
 
 
 class AddObjectPreviewWidget : public 
@@ -37,9 +38,8 @@ public:
 	AddObjectPreviewWidget(QWidget *parent = 0);
 	~AddObjectPreviewWidget();
 
+	void init(const std::string& base_dir_path_, QSettings* settings_);
 	void shutdown();
-
-	void setBaseDir(const std::string& base_dir_path_) { base_dir_path = base_dir_path_; }
 
 	void addObject(const Reference<GLObject>& object);
 	void addOverlayObject(const Reference<OverlayObject>& object);
@@ -83,4 +83,5 @@ public:
 	Reference<GLObject> target_marker_ob; // For debugging camera
 
 	Timer timer;
+	QSettings* settings;
 };

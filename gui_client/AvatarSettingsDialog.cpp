@@ -47,7 +47,7 @@ AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QS
 	this->createReadyPlayerMeLabel->setText(QtUtils::toQString(display_str));
 	this->createReadyPlayerMeLabel->setOpenExternalLinks(true);
 
-	this->avatarPreviewGLWidget->setBaseDir(base_dir_path);
+	this->avatarPreviewGLWidget->init(base_dir_path, settings_);
 	this->avatarPreviewGLWidget->texture_server_ptr = texture_server_ptr;
 
 	// Load main window geometry and state
@@ -199,9 +199,13 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
 		{
 			if(!preview_gl_ob->materials[i].tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].tex_path, "mp4"))
-			{
 				preview_gl_ob->materials[i].albedo_texture = avatarPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].tex_path);
-			}
+
+			if(!preview_gl_ob->materials[i].metallic_roughness_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].metallic_roughness_tex_path, "mp4"))
+				preview_gl_ob->materials[i].metallic_roughness_texture = avatarPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].metallic_roughness_tex_path);
+
+			if(!preview_gl_ob->materials[i].emission_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].emission_tex_path, "mp4"))
+				preview_gl_ob->materials[i].emission_texture = avatarPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].emission_tex_path);
 		}
 
 		avatarPreviewGLWidget->addObject(preview_gl_ob);
