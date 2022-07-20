@@ -35,9 +35,19 @@ Code By Nicholas Chapman.
 #include <limits>
 
 
+static inline Colour3f sanitiseAlbedoColour(const Colour3f& col)
+{
+	const Colour3f clamped = col.clamp(0.f, 1.f);
+	if(clamped.isFinite()) // Check for NaN components
+		return clamped;
+	else
+		return Colour3f(0.2f);
+}
+
+
 void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat)
 {
-	opengl_mat.albedo_rgb = mat.colour_rgb;
+	opengl_mat.albedo_rgb = sanitiseAlbedoColour(mat.colour_rgb);
 	opengl_mat.tex_path = mat.colour_texture_url;
 
 	opengl_mat.emission_rgb = mat.emission_rgb;
@@ -83,7 +93,7 @@ static const std::string toLocalPath(const std::string& URL, ResourceManager& re
 
 void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
-	opengl_mat.albedo_rgb = mat.colour_rgb;
+	opengl_mat.albedo_rgb = sanitiseAlbedoColour(mat.colour_rgb);
 	if(!mat.colour_texture_url.empty())
 		opengl_mat.tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
 	else
@@ -501,7 +511,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 				{
 					const std::string tex_path = (!mats.materials[z].map_Kd.path.empty()) ? FileUtils::join(FileUtils::getDirectory(mats.mtl_file_path), mats.materials[z].map_Kd.path) : "";
 
-					ob->materials[i].albedo_rgb = mats.materials[z].Kd;
+					ob->materials[i].albedo_rgb = sanitiseAlbedoColour(mats.materials[z].Kd);
 					ob->materials[i].tex_path = tex_path;
 					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
@@ -585,7 +595,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			const float L_e = L_v / (683.002f * 106.856e-9f); // spectral radiance.  See previous comments for equation.
 			const bool use_emission = gltf_data.materials.materials[i].emissive_factor.nonZero();
 
-			gl_ob->materials[i].albedo_rgb = gltf_data.materials.materials[i].diffuse;
+			gl_ob->materials[i].albedo_rgb = sanitiseAlbedoColour(gltf_data.materials.materials[i].diffuse);
 			gl_ob->materials[i].tex_path = tex_path;
 			gl_ob->materials[i].metallic_roughness_tex_path = metallic_roughness_tex_path;
 			gl_ob->materials[i].emission_tex_path = emission_tex_path;
