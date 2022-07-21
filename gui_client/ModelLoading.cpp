@@ -67,6 +67,8 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 	opengl_mat.metallic_roughness_tex_path = mat.roughness.texture_url;
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
 
+	opengl_mat.hologram = (mat.flags & WorldMaterial::HOLOGRAM_FLAG) != 0;
+
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
 	opengl_mat.fresnel_scale = 0.3f;
@@ -123,6 +125,8 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 	opengl_mat.transparent = mat.opacity.val < 1.0f;
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
+
+	opengl_mat.hologram = (mat.flags & WorldMaterial::HOLOGRAM_FLAG) != 0;
 
 	opengl_mat.fresnel_scale = 0.3f;
 
