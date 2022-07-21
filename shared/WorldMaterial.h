@@ -73,6 +73,7 @@ public:
 	static const uint32 COLOUR_TEX_HAS_ALPHA_FLAG   = 1; // Does the texture referenced by colour_texture_url have an alpha channel?
 	// Used to determine the file format of LOD level textures, e.g. will be a PNG if this flag is set.
 	static const uint32 MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
+	static const uint32 HOLOGRAM_FLAG               = 4; // E.g. just emission, no light scattering.
 
 	uint32 flags;
 
