@@ -3547,7 +3547,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 				catch(glare::Exception& e)
 				{
-					logMessage("Error while loading mesh into OpenGL: " + e.what());
+					logMessage("Error while loading mesh '" + loading_item_name + "' into OpenGL: " + e.what());
 					cur_loading_mesh_data = NULL;
 				}
 
