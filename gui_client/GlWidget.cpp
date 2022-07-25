@@ -244,7 +244,7 @@ void GlWidget::initializeGL()
 	engine_settings.shadow_mapping = shadows;
 	engine_settings.compress_textures = true;
 	engine_settings.depth_fog = true;
-	engine_settings.use_final_image_buffer = bloom;
+	//engine_settings.use_final_image_buffer = bloom;
 	engine_settings.msaa_samples = use_MSAA ? 4 : -1;
 	opengl_engine = new OpenGLEngine(engine_settings);
 
@@ -272,7 +272,8 @@ void GlWidget::initializeGL()
 			conPrint("Error: " + e.what());
 		}
 
-		opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
+		if(bloom)
+			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
 	}
 }
 
