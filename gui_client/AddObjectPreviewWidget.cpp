@@ -67,7 +67,7 @@ void AddObjectPreviewWidget::init(const std::string& base_dir_path_, QSettings* 
 	gl_settings.shadow_mapping = true;
 	gl_settings.compress_textures = true;
 	gl_settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
-	gl_settings.use_final_image_buffer = settings_->value(MainOptionsDialog::BloomKey(), /*default val=*/true).toBool();
+	//gl_settings.use_final_image_buffer = settings_->value(MainOptionsDialog::BloomKey(), /*default val=*/true).toBool();
 	opengl_engine = new OpenGLEngine(gl_settings);
 
 	viewport_w = viewport_h = 100;
@@ -134,7 +134,8 @@ void AddObjectPreviewWidget::initializeGL()
 			conPrint("Error: " + e.what());
 		}
 
-		opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
+		if(settings->value(MainOptionsDialog::BloomKey(), /*default val=*/true).toBool())
+			opengl_engine->getCurrentScene()->bloom_strength = 0.3f;
 	}
 
 	cam_phi = 0;
