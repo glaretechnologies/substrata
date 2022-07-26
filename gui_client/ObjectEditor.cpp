@@ -24,6 +24,7 @@
 #include <QtGui/QDesktopServices>
 #include <QtWidgets/QErrorMessage>
 #include <QtCore/QTimer>
+#include <QtWidgets/QColorDialog>
 #include <set>
 #include <stack>
 #include <algorithm>
@@ -34,7 +35,8 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	selected_mat_index(0),
 	edit_timer(new QTimer(this)),
 	shader_editor(NULL),
-	settings(NULL)
+	settings(NULL),
+	spotlight_col(0.85f)
 {
 	setupUi(this);
 
@@ -132,6 +134,11 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	this->createdTimeLabel->setText(QtUtils::toQString(ob.created_time.timeAgoDescription()));
 
 	this->selected_mat_index = selected_mat_index_;
+
+	// The spotlight model has multiple materials, we want to edit material 0 though.
+	if(ob.object_type == WorldObject::ObjectType_Spotlight)
+		this->selected_mat_index = 0;
+
 	this->modelFileSelectWidget->setFilename(QtUtils::toQString(ob.model_url));
 	{
 		SignalBlocker b(this->scriptTextEdit);
@@ -179,8 +186,6 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		selected_mat = ob.materials[selected_mat_index];
 	else
 		selected_mat = new WorldMaterial();
-
-	SignalBlocker::setValue(this->luminousFluxDoubleSpinBox, selected_mat->emission_lum_flux_or_lum);
 	
 	if(ob.object_type == WorldObject::ObjectType_Hypercard)
 	{
@@ -200,7 +205,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	}
 	else if(ob.object_type == WorldObject::ObjectType_Spotlight)
 	{
-		this->materialsGroupBox->show();
+		this->materialsGroupBox->hide();
 		this->modelLabel->hide();
 		this->modelFileSelectWidget->hide();
 		this->spotlightGroupBox->show();
@@ -234,6 +239,17 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 			this->materialComboBox->addItem(QtUtils::toQString("Material " + toString(i)), (int)i);
 
 		this->materialComboBox->setCurrentIndex(selected_mat_index);
+	}
+
+
+	// For spotlight:
+	if(ob.object_type == WorldObject::ObjectType_Spotlight)
+	{
+		SignalBlocker::setValue(this->luminousFluxDoubleSpinBox, selected_mat->emission_lum_flux_or_lum);
+
+		this->spotlight_col = selected_mat->colour_rgb; // Spotlight light colour is in colour_rgb instead of emission_rgb for historical reasons.
+
+		updateSpotlightColourButton();
 	}
 
 
@@ -322,7 +338,12 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		if(ob_out.materials.size() >= 1)
 		{
 			ob_out.materials[0]->emission_lum_flux_or_lum = (float)this->luminousFluxDoubleSpinBox->value();
+
+			ob_out.materials[0]->colour_rgb = this->spotlight_col;
+			ob_out.materials[0]->emission_rgb = this->spotlight_col;
 		}
+
+		updateSpotlightColourButton();
 	}
 
 	const std::string new_audio_source_url = QtUtils::toStdString(this->audioFileWidget->filename());
@@ -650,4 +671,48 @@ void ObjectEditor::linkScaleCheckBoxToggled(bool val)
 	assert(settings);
 	if(settings)
 		settings->setValue("objectEditor/linkScaleCheckBoxChecked", this->linkScaleCheckBox->isChecked());
+}
+
+
+void ObjectEditor::updateSpotlightColourButton()
+{
+	const int COLOUR_BUTTON_W = 30;
+	QImage image(COLOUR_BUTTON_W, COLOUR_BUTTON_W, QImage::Format_RGB32);
+	image.fill(QColor(qRgba(
+		(int)(this->spotlight_col.r * 255),
+		(int)(this->spotlight_col.g * 255),
+		(int)(this->spotlight_col.b * 255),
+		255
+	)));
+	QIcon icon;
+	QPixmap pixmap = QPixmap::fromImage(image);
+	icon.addPixmap(pixmap);
+	this->spotlightColourPushButton->setIcon(icon);
+	this->spotlightColourPushButton->setIconSize(QSize(COLOUR_BUTTON_W, COLOUR_BUTTON_W));
+}
+
+
+void ObjectEditor::on_spotlightColourPushButton_clicked(bool checked)
+{
+	const QColor initial_col(qRgba(
+		(int)(spotlight_col.r * 255),
+		(int)(spotlight_col.g * 255),
+		(int)(spotlight_col.b * 255),
+		255
+	));
+
+	QColorDialog d(initial_col, this);
+	const int res = d.exec();
+	if(res == QDialog::Accepted)
+	{
+		const QColor new_col = d.currentColor();
+
+		this->spotlight_col.r = new_col.red()   / 255.f;
+		this->spotlight_col.g = new_col.green() / 255.f;
+		this->spotlight_col.b = new_col.blue()  / 255.f;
+
+		updateSpotlightColourButton();
+
+		emit objectChanged();
+	}
 }
