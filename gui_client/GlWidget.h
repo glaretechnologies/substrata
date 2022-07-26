@@ -80,6 +80,7 @@ protected:
 	virtual void mouseMoveEvent(QMouseEvent* e);
 	virtual void wheelEvent(QWheelEvent* e);
 	virtual void mouseDoubleClickEvent(QMouseEvent* e);
+	virtual void focusOutEvent(QFocusEvent* e);
 
 	void showEvent(QShowEvent* e);
 	
@@ -113,7 +114,7 @@ private:
 
 	int viewport_w, viewport_h;
 
-	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down;
+	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down;
 	Timer timer;
 	float current_time;
 	bool cam_rot_on_mouse_move_enabled;
