@@ -8,7 +8,10 @@ in vec2 texture_coords;
 uniform float time;
 uniform vec3 colour;
 
-out vec4 colour_out;
+// Various outputs for order-independent transparency.
+layout(location = 0) out vec4 transmittance_out;
+layout(location = 1) out vec4 accum_out;
+layout(location = 2) out float av_transmittance_out;
 
 
 float gridFactor(float tiling, float w)
@@ -93,6 +96,10 @@ void main()
 	float small_grid_factor = gridFactor(tiling, w);
 	float edge_grid_factor = gridFactor(1.f, main_w);
 
-	float alpha = 1 - small_grid_factor * edge_grid_factor;
-	colour_out = vec4(colour.x, colour.y, colour.z, alpha);
+	float alpha = (1 - small_grid_factor * edge_grid_factor) * 1.1;
+	accum_out = vec4(colour.x * alpha, colour.y * alpha, colour.z * alpha, alpha);
+
+	float T = 1;
+	transmittance_out = vec4(T, T, T, T);
+	av_transmittance_out = T;
 }
