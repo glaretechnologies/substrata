@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "DownloadingResourceQueue.h"
+#include "ThreadMessages.h"
 #include "../shared/Protocol.h"
 #include <MySocket.h>
 #include <TLSSocket.h>

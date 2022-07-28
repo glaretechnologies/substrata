@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "LoadAudioTask.h"
 
 
+#include "ThreadMessages.h"
 #include <ConPrint.h>
 #include <StringUtils.h>
 #include <PlatformUtils.h>
@@ -62,6 +63,6 @@ void LoadAudioTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while loading audio: " + e.what());
+		result_msg_queue->enqueue(new LogMessage("Error while loading audio: " + e.what()));
 	}
 }

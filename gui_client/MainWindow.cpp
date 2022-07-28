@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "ModelLoading.h"
 #include "TestSuite.h"
 #include "MeshBuilding.h"
+#include "ThreadMessages.h"
 #include "LoadScriptTask.h"
 #include "CredentialManager.h"
 #include "UploadResourceThread.h"

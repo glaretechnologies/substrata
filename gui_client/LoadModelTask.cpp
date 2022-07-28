@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "LoadTextureTask.h"
+#include "ThreadMessages.h"
 #include "ModelLoading.h"
 #include "../shared/ResourceManager.h"
 #include <indigo/TextureServer.h>
@@ -89,6 +90,6 @@ void LoadModelTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while loading model: " + e.what());
+		result_msg_queue->enqueue(new LogMessage("Error while loading model: " + e.what()));
 	}
 }
