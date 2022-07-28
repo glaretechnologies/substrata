@@ -34,14 +34,6 @@ public:
 };
 
 
-class LogMessage : public ThreadMessage
-{
-public:
-	LogMessage(const std::string& msg_) : msg(msg_) {}
-	std::string msg;
-};
-
-
 /*=====================================================================
 DownloadResourcesThread
 -------------------

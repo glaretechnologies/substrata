@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2019 -
 #include "LoadTextureTask.h"
 
 
+#include "ThreadMessages.h"
 #include "../shared/ImageDecoding.h"
 #include <indigo/TextureServer.h>
 #include <graphics/ImageMapSequence.h>
@@ -101,6 +102,6 @@ void LoadTextureTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Warning: failed to load texture '" + path + "': " + e.what());
+		result_msg_queue->enqueue(new LogMessage("Failed to load texture '" + path + "': " + e.what()));
 	}
 }

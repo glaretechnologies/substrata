@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "LoadScriptTask.h"
 
 
+#include "ThreadMessages.h"
 #include "WinterShaderEvaluator.h"
 #include <ConPrint.h>
 #include <PlatformUtils.h>
@@ -34,6 +35,6 @@ void LoadScriptTask::run(size_t thread_index)
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("Error while loading script: " + e.what());
+		result_msg_queue->enqueue(new LogMessage("Error while loading script: " + e.what()));
 	}
 }
