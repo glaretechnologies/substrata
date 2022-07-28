@@ -99,7 +99,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 			throw glare::Exception("Voxel dimension span exceeds " + toString(max_dim_w));
 
 		const int64 voxel_array_size = (int64)res.x * (int64)res.y * (int64)res.z; // Use int64 to avoid overflow.
-		const int64 max_voxel_array_size = (1 << 27) / sizeof(Voxel); // 128 MB
+		const int64 max_voxel_array_size = (1 << 28) / sizeof(Voxel); // 256 MB
 		if(voxel_array_size > max_voxel_array_size)
 			throw glare::Exception("Voxel array num voxels (" + toString(voxel_array_size) + ") exceeds limit of " + toString(max_voxel_array_size));
 
@@ -1092,53 +1092,61 @@ void VoxelMeshBuilding::test()
 	// Performance test
 	if(true)
 	{
-		for(int i=0; i<1000; ++i)
+		try
 		{
-			std::vector<uint8> filecontents;
-			FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\testfiles\\voxels\\ob_151064_voxeldata.voxdata", filecontents);
-
-			VoxelGroup group;
-			group.voxels.resize(filecontents.size() / sizeof(Voxel));
-			testAssert(filecontents.size() == group.voxels.dataSizeBytes());
-			std::memcpy(group.voxels.data(), filecontents.data(), filecontents.size());
-
-
-			conPrint("AABB: " + group.getAABB().toString());
-			conPrint("AABB volume: " + toString(group.getAABB().volume()));
-
+			for(int i=0; i<1000; ++i)
 			{
+				std::vector<uint8> filecontents;
+				//FileUtils::readEntireFile("D:\\files\\voxeldata\\ob_161034_voxeldata.voxdata", filecontents);
+				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\testfiles\\voxels\\ob_151064_voxeldata.voxdata", filecontents);
+
+				VoxelGroup group;
+				group.voxels.resize(filecontents.size() / sizeof(Voxel));
+				testAssert(filecontents.size() == group.voxels.dataSizeBytes());
+				std::memcpy(group.voxels.data(), filecontents.data(), filecontents.size());
+
+
+				conPrint("AABB: " + group.getAABB().toString());
+				conPrint("AABB volume: " + toString(group.getAABB().volume()));
+
+				{
+					Timer timer;
+
+					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+
+					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
+					conPrint("Resulting num tris: " + toString(data->triangles.size()));
+				}
+				{
+					Timer timer;
+
+					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false);
+
+					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=2 took " + timer.elapsedString());
+					conPrint("Resulting num tris: " + toString(data->triangles.size()));
+				}
+			}
+
+			if(false)
+			{
+				VoxelGroup group;
+				for(int z=0; z<100; z += 2)
+					for(int y=0; y<100; ++y)
+						for(int x=0; x<10; ++x)
+							group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
+
+
 				Timer timer;
 
 				Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
 
-				conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
-				conPrint("Resulting num tris: " + toString(data->triangles.size()));
-			}
-			{
-				Timer timer;
-
-				Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false);
-
-				conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=2 took " + timer.elapsedString());
+				conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 				conPrint("Resulting num tris: " + toString(data->triangles.size()));
 			}
 		}
-
-		if(false)
+		catch(glare::Exception& e)
 		{
-			VoxelGroup group;
-			for(int z=0; z<100; z += 2)
-				for(int y=0; y<100; ++y)
-					for(int x=0; x<10; ++x)
-						group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
-
-
-			Timer timer;
-
-			Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
-
-			conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
-			conPrint("Resulting num tris: " + toString(data->triangles.size()));
+			failTest(e.what());
 		}
 	}
 
