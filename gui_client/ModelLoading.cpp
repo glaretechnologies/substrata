@@ -1331,7 +1331,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
 	glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, Reference<RayMesh>& raymesh_out)
 {
-	//Timer timer;
+	// Timer timer;
 
 	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, /*generate_shading_normals=*/false);
 	// We will compute geometric normals in the opengl shader, so don't need to compute them here.
@@ -1394,7 +1394,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		mesh_data->vert_index_buffer_uint8.clearAndFreeMem();
 	}
 
-	//conPrint("ModelLoading::makeModelForVoxelGroup took " + timer.elapsedString());
+	// conPrint("ModelLoading::makeModelForVoxelGroup for " + toString(voxel_group.voxels.size()) + " voxels took " + timer.elapsedString());
 	return mesh_data;
 }
 

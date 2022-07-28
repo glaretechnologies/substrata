@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <opengl/OpenGLMeshRenderData.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
+#include <FileUtils.h>
 
 
 LoadModelTask::LoadModelTask()
@@ -45,7 +46,7 @@ void LoadModelTask::run(size_t thread_index)
 			else
 			{
 				VoxelGroup voxel_group;
-				WorldObject::decompressVoxelGroup(voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size(), voxel_group);
+				WorldObject::decompressVoxelGroup(voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size(), /*decompressed group out=*/voxel_group);
 
 				const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
 				const int use_model_lod_level = myMin(voxel_ob_lod_level/*model_lod_level*/, max_model_lod_level);
@@ -55,9 +56,12 @@ void LoadModelTask::run(size_t thread_index)
 				else if(use_model_lod_level == 2)
 					subsample_factor = 4;
 
-				// conPrint("Loading vox model for LOD level " + toString(use_lod_level) + ", using subsample_factor " + toString(subsample_factor));
+				// conPrint("Loading vox model for ob with UID " + voxel_ob->uid.toString() + " for LOD level " + toString(use_model_lod_level) + ", using subsample_factor " + toString(subsample_factor) + ", " + toString(voxel_group.voxels.size()) + " voxels");
 
 				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, raymesh);
+
+				// Temp for testing: Save voxels to disk.
+				// FileUtils::writeEntireFile("d:/files/voxeldata/ob_" + voxel_ob->uid.toString() + "_voxeldata.voxdata", (const char*)voxel_group.voxels.data(), voxel_group.voxels.dataSizeBytes());
 			}
 		}
 		else // Else not voxel ob, just loading a model:
