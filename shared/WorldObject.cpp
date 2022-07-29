@@ -893,33 +893,55 @@ void WorldObject::decompressVoxelGroup(const uint8* compressed_data, size_t comp
 
 	const uint64 decompressed_size = ZSTD_getDecompressedSize(compressed_data, compressed_data_len);
 
-	//js::Vector<int, 16> decompressed_data(compressed_data_len);
 	BufferInStream instream;
 	instream.buf.resizeNoCopy(decompressed_size);
 
-	//ZSTD_decompress(decompressed_data.data(), decompressed_size, compressed_data, compressed_data_len);
-	ZSTD_decompress(instream.buf.data(), decompressed_size, compressed_data, compressed_data_len);
+	const size_t res = ZSTD_decompress(instream.buf.data(), decompressed_size, compressed_data, compressed_data_len);
+	if(ZSTD_isError(res))
+		throw glare::Exception("Decompression of buffer failed: " + toString(res));
+	if(res < decompressed_size)
+		throw glare::Exception("Decompression of buffer failed: not enough bytes in result");
 
-	//size_t read_i = 0;
-
-	//int num_mats;
-	//std::memcpy(&num_mats, &decompressed_data[read_i++], sizeof(int));
-
-	//NOTE: this could be optimised.  reserve space in group_out.voxels, reduce bounds checks etc..
-	Vec3<int> current_pos(0, 0, 0);
-
+	// Do a pass over the data to get the total number of voxels, so that we can resize group_out.voxels up-front.
+	int total_num_voxels = 0;
 	const int num_mats = instream.readInt32();
 	for(int m=0; m<num_mats; ++m)
 	{
-		const int count = instream.readInt32();
+		const int count = instream.readInt32(); // Number of voxels with this material.
+		if(count < 0 || count > 64000000)
+			throw glare::Exception("Voxel count is too large: " + toString(count));
+
+		instream.advanceReadIndex(sizeof(Vec3<int>) * count); // Skip over voxel data.
+		total_num_voxels += count;
+	}
+
+	// Reset stream read index to beginning.
+	instream.setReadIndex(0);
+
+	if(total_num_voxels > 64000000)
+		throw glare::Exception("Voxel count is too large: " + toString(total_num_voxels));
+
+	group_out.voxels.resizeNoCopy(total_num_voxels);
+
+	Vec3<int> current_pos(0, 0, 0);
+
+	instream.readInt32(); // Read num_mats again
+	size_t write_i = 0;
+	for(int m=0; m<num_mats; ++m)
+	{
+		const int count = instream.readInt32(); // Number of voxels with this material.
+		if(count < 0 || count > 64000000)
+			throw glare::Exception("Voxel count is too large: " + toString(count));
+
+		const Vec3<int>* relative_positions = (const Vec3<int>*)instream.currentReadPtr(); // Pointer should be sufficiently aligned.
+
+		instream.advanceReadIndex(sizeof(Vec3<int>) * count); // Advance past relative positions.  (Checks relative_positions pointer points to a valid range)
+
 		for(int i=0; i<count; ++i)
 		{
-			Vec3<int> relative_pos;
-			instream.readData(&relative_pos, sizeof(Vec3<int>));
+			const Vec3<int> pos = current_pos + relative_positions[i];
 
-			const Vec3<int> pos = current_pos + relative_pos;
-
-			group_out.voxels.push_back(Voxel(pos, m));
+			group_out.voxels[write_i++] = Voxel(pos, m);
 
 			current_pos = pos;
 		}
