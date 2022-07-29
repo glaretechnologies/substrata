@@ -50,6 +50,11 @@ struct VoxelBounds
 };
 
 
+// Use a uint8 for storing the voxel material index in the 3d-array.  This allows us to handle up to 255 different materials, which seems to be enough for all voxel models seen so far.
+// The smaller this type, the less total memory used, and the faster the code runs for large voxel model sizes due to cache effects.
+typedef uint8 VoxelMatIndexType;
+
+
 // Does greedy meshing.
 // Splats voxels to 3d array.
 static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js::Vector<Voxel, 16>& voxels, int subsample_factor)
@@ -72,12 +77,20 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 		// Do a pass over the voxels to get the bounds
 		Vec4i bounds_min(std::numeric_limits<int>::max());
 		Vec4i bounds_max(std::numeric_limits<int>::min());
+		int max_mat_index = 0;
 		for(size_t i=0; i<voxels.size(); ++i)
 		{
 			const Vec4i vox_pos = Vec4i(voxels[i].pos.x / subsample_factor, voxels[i].pos.y / subsample_factor, voxels[i].pos.z / subsample_factor, 0);
 			bounds_min = min(bounds_min, vox_pos);
 			bounds_max = max(bounds_max, vox_pos);
+			if(voxels[i].mat_index < 0)
+				throw glare::Exception("Invalid mat index (< 0)");
+			max_mat_index = myMax(voxels[i].mat_index, max_mat_index);
 		}
+
+		// We want to be able to fit all the material indices, plus the 'no voxel' index, into the 256 values of a uint8.  So mat_index of 255 = no voxel index.
+		if(max_mat_index >= 255) 
+			throw glare::Exception("Too many materials");
 	
 		VoxelBounds bounds;
 		bounds.min = Vec3<int>(bounds_min[0], bounds_min[1], bounds_min[2]);
@@ -99,19 +112,19 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 			throw glare::Exception("Voxel dimension span exceeds " + toString(max_dim_w));
 
 		const int64 voxel_array_size = (int64)res.x * (int64)res.y * (int64)res.z; // Use int64 to avoid overflow.
-		const int64 max_voxel_array_size = (1 << 28) / sizeof(Voxel); // 256 MB
+		const int64 max_voxel_array_size = (1 << 26) / sizeof(VoxelMatIndexType); // 64 MB, ~64 million voxels
 		if(voxel_array_size > max_voxel_array_size)
 			throw glare::Exception("Voxel array num voxels (" + toString(voxel_array_size) + ") exceeds limit of " + toString(max_voxel_array_size));
 
-		const Voxel empty_voxel(Vec3<int>(0), /*mat_index=*/-1);
-		Array3D<Voxel> voxel_array(res.x, res.y, res.z, empty_voxel);
+		const VoxelMatIndexType no_voxel_mat = std::numeric_limits<VoxelMatIndexType>::max();
+		Array3D<VoxelMatIndexType> voxel_array(res.x, res.y, res.z, no_voxel_mat);
 
 		for(size_t i=0; i<voxels.size(); ++i)
 		{
 			const Voxel& voxel = voxels[i];
 			const Vec4i vox_pos = Vec4i(voxels[i].pos.x / subsample_factor, voxels[i].pos.y / subsample_factor, voxels[i].pos.z / subsample_factor, 0);
 			const Vec4i indices = vox_pos - bounds_min;
-			voxel_array.elem(indices[0], indices[1], indices[2]) = voxel;
+			voxel_array.elem(indices[0], indices[1], indices[2]) = (VoxelMatIndexType)voxel.mat_index;
 		}
 
 		//if(voxel_array.getData().size() > 100000)
@@ -140,57 +153,57 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 
 			// Get the extents along dim_a, dim_b
 			const int a_min = bounds.min[dim_a];
-			const int a_end = bounds.max[dim_a] + 1;
+			const int a_size = res[dim_a];
 
 			const int b_min = bounds.min[dim_b];
-			const int b_end = bounds.max[dim_b] + 1;
+			const int b_size = res[dim_b];
 
 			// Walk from lower to greater coords, look for downwards facing faces
 			const int dim_min = bounds.min[dim];
-			const int dim_end = bounds.max[dim] + 1;
+			const int dim_size = res[dim];
 
-			// An array of faces that still need to be processed.  We store the face material index if the face needs to be processed, and -1 otherwise.  Processed = included in a greedy quad already.
-			Array2D<int> face_needed_mat(a_end - a_min, b_end - b_min);
+			// An array of faces that still need to be processed.  We store the face material index if the face needs to be processed, and no_voxel_mat otherwise.  Processed = included in a greedy quad already.
+			Array2D<VoxelMatIndexType> face_needed_mat(a_size, b_size);
 
-			for(int dim_coord = dim_min; dim_coord < dim_end; ++dim_coord)
+			for(int dim_coord = 0; dim_coord < dim_size; ++dim_coord)
 			{
+				Vec3<int> vox_indices, adjacent_vox_indices; // pos coords of current voxel, and adjacent voxel
+
 				//================= Do lower faces along dim ==========================
 				// Build face_needed data for this slice
-				Vec3<int> vox_pos, adjacent_vox_pos; // pos coords of current voxel, and adjacent voxel
-				vox_pos[dim] = dim_coord;
-				adjacent_vox_pos[dim] = dim_coord - 1;
-				for(int y=b_min; y<b_end; ++y)
-				for(int x=a_min; x<a_end; ++x)
+				vox_indices[dim] = dim_coord;
+				adjacent_vox_indices[dim] = dim_coord - 1;
+				for(int y=0; y<b_size; ++y)
+				for(int x=0; x<a_size; ++x)
 				{
-					vox_pos[dim_a] = x;
-					vox_pos[dim_b] = y;
+					vox_indices[dim_a] = x;
+					vox_indices[dim_b] = y;
 
-					int this_face_needed_mat = -1;
-					const Vec3<int> vox_indices = vox_pos - bounds.min;
-					const Voxel& vox = voxel_array.elem(vox_indices.x, vox_indices.y, vox_indices.z);
-					if(vox.mat_index >= 0) // If there is a voxel here
+					VoxelMatIndexType this_face_needed_mat = no_voxel_mat;
+					const auto vox_mat_index = voxel_array.elem(vox_indices.x, vox_indices.y, vox_indices.z);
+					if(vox_mat_index != no_voxel_mat) // If there is a voxel here
 					{
-						adjacent_vox_pos[dim_a] = x;
-						adjacent_vox_pos[dim_b] = y;
-						const Vec3<int> adjacent_vox_indices = adjacent_vox_pos - bounds.min;
-						if(dim_coord >= dim_min + 1) // If adjacent vox indices are in array bounds: (if dim_coord - 1 >= dim_min)
+						adjacent_vox_indices[dim_a] = x;
+						adjacent_vox_indices[dim_b] = y;
+						if(dim_coord > 0) // If adjacent vox indices are in array bounds: (if dim_coord - 1 >= 0)
 						{
-							const Voxel& adjacent_vox = voxel_array.elem(adjacent_vox_indices.x, adjacent_vox_indices.y, adjacent_vox_indices.z);
-							if(adjacent_vox.mat_index != vox.mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
-								this_face_needed_mat = vox.mat_index;
+							const auto adjacent_vox_mat_index = voxel_array.elem(adjacent_vox_indices.x, adjacent_vox_indices.y, adjacent_vox_indices.z);
+							if(adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+								this_face_needed_mat = vox_mat_index;
 						}
 						else
-							this_face_needed_mat = vox.mat_index;
+							this_face_needed_mat = vox_mat_index;
 					}
-					face_needed_mat.elem(x - a_min, y - b_min) = this_face_needed_mat;
+
+					face_needed_mat.elem(x, y) = this_face_needed_mat;
 				}
 
 				// For each voxel face:
-				for(int start_y=b_min; start_y<b_end; ++start_y)
-				for(int start_x=a_min; start_x<a_end; ++start_x)
+				for(int start_y=0; start_y<b_size; ++start_y)
+				for(int start_x=0; start_x<a_size; ++start_x)
 				{
-					const int start_face_needed_mat = face_needed_mat.elem(start_x - a_min, start_y - b_min);
-					if(start_face_needed_mat >= 0) // If we need a face here:
+					const int start_face_needed_mat = face_needed_mat.elem(start_x, start_y);
+					if(start_face_needed_mat != no_voxel_mat) // If we need a face here:
 					{
 						// Start a quad here (start corner at (start_x, start_y))
 						// The quad will range from (start_x, start_y) to (end_x, end_y)
@@ -204,11 +217,11 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 							// Try and increase in x direction
 							if(x_increase_ok)
 							{
-								if(end_x < a_end) // If there is still room to increase in x direction:
+								if(end_x < a_size) // If there is still room to increase in x direction:
 								{
 									// Check y values for new x = end_x
 									for(int y = start_y; y < end_y; ++y)
-										if(face_needed_mat.elem(end_x - a_min, y - b_min) != start_face_needed_mat)
+										if(face_needed_mat.elem(end_x, y) != start_face_needed_mat)
 										{
 											x_increase_ok = false;
 											break;
@@ -224,11 +237,11 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 							// Try and increase in y direction
 							if(y_increase_ok)
 							{
-								if(end_y < b_end)
+								if(end_y < b_size)
 								{
 									// Check x values for new y = end_y
 									for(int x = start_x; x < end_x; ++x)
-										if(face_needed_mat.elem(x - a_min, end_y - b_min) != start_face_needed_mat)
+										if(face_needed_mat.elem(x, end_y) != start_face_needed_mat)
 										{
 											y_increase_ok = false;
 											break;
@@ -244,17 +257,23 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 
 						// We have worked out the greedy quad.  Mark elements in it as processed
 						for(int y=start_y; y < end_y; ++y)
-							for(int x=start_x; x < end_x; ++x)
-								face_needed_mat.elem(x - a_min, y - b_min) = -1;
+						for(int x=start_x; x < end_x; ++x)
+							face_needed_mat.elem(x, y) = no_voxel_mat;
 
 						// Add the greedy quad
 						unsigned int v_i[4]; // quad vert indices
 						Indigo::Vec3f v;
-						v[dim] = (float)dim_coord;
+						v[dim] = (float)(dim_coord + dim_min);
+
+						const float start_x_coord = (float)(start_x + a_min);
+						const float start_y_coord = (float)(start_y + b_min);
+						const float end_x_coord   = (float)(end_x + a_min);
+						const float end_y_coord   = (float)(end_y + b_min);
+
 						{
 							// bot left
-							v[dim_a] = (float)start_x;
-							v[dim_b] = (float)start_y;
+							v[dim_a] = start_x_coord;
+							v[dim_b] = start_y_coord;
 
 							// returns object of type std::pair<iterator, bool>
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size())); // Try and insert vertex
@@ -264,8 +283,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 						}
 						{
 							// top left
-							v[dim_a] = (float)start_x;
-							v[dim_b] = (float)end_y;
+							v[dim_a] = start_x_coord;
+							v[dim_b] = end_y_coord;
 
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
@@ -274,8 +293,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 						}
 						{
 							// top right
-							v[dim_a] = (float)end_x;
-							v[dim_b] = (float)end_y;
+							v[dim_a] = end_x_coord;
+							v[dim_b] = end_y_coord;
 
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
@@ -284,8 +303,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 						}
 						{
 							// bot right
-							v[dim_a] = (float)end_x;
-							v[dim_b] = (float)start_y;
+							v[dim_a] = end_x_coord;
+							v[dim_b] = start_y_coord;
 
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
@@ -297,6 +316,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 
 						const size_t tri_start = mesh->triangles.size();
 						mesh->triangles.resize(tri_start + 2);
+
+						assert(start_face_needed_mat != no_voxel_mat);
 
 						mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
 						mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
@@ -318,39 +339,37 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 
 				//================= Do upper faces along dim ==========================
 				// Build face_needed data for this slice
-				adjacent_vox_pos[dim] = dim_coord + 1;
-				for(int y=b_min; y<b_end; ++y)
-				for(int x=a_min; x<a_end; ++x)
+				adjacent_vox_indices[dim] = dim_coord + 1;
+				for(int y=0; y<b_size; ++y)
+				for(int x=0; x<a_size; ++x)
 				{
-					vox_pos[dim_a] = x;
-					vox_pos[dim_b] = y;
-					const Vec3<int> vox_indices = vox_pos - bounds.min;
-					const Voxel& vox = voxel_array.elem(vox_indices.x, vox_indices.y, vox_indices.z);
+					vox_indices[dim_a] = x;
+					vox_indices[dim_b] = y;
+					const auto vox_mat_index = voxel_array.elem(vox_indices.x, vox_indices.y, vox_indices.z);
 
-					int this_face_needed_mat = -1;
-					if(vox.mat_index >= 0) // If there is a voxel here
+					VoxelMatIndexType this_face_needed_mat = no_voxel_mat;
+					if(vox_mat_index != no_voxel_mat) // If there is a voxel here
 					{
-						adjacent_vox_pos[dim_a] = x;
-						adjacent_vox_pos[dim_b] = y;
-						const Vec3<int> adjacent_vox_indices = adjacent_vox_pos - bounds.min;
-						if(dim_coord < dim_end - 1)// If adjacent vox indices are in array bounds: (if dim_coord + 1 < dim_end)
+						adjacent_vox_indices[dim_a] = x;
+						adjacent_vox_indices[dim_b] = y;
+						if(dim_coord < dim_size - 1) // If adjacent vox indices are in array bounds: (if dim_coord + 1 < dim_size)
 						{
-							const Voxel& adjacent_vox = voxel_array.elem(adjacent_vox_indices.x, adjacent_vox_indices.y, adjacent_vox_indices.z);
-							if(adjacent_vox.mat_index != vox.mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
-								this_face_needed_mat = vox.mat_index;
+							const auto adjacent_vox_mat_index = voxel_array.elem(adjacent_vox_indices.x, adjacent_vox_indices.y, adjacent_vox_indices.z);
+							if(adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+								this_face_needed_mat = vox_mat_index;
 						}
 						else
-							this_face_needed_mat = vox.mat_index;
+							this_face_needed_mat = vox_mat_index;
 					}
-					face_needed_mat.elem(x - a_min, y - b_min) = this_face_needed_mat;
+					face_needed_mat.elem(x, y) = this_face_needed_mat;
 				}
 
 				// For each voxel face:
-				for(int start_y=b_min; start_y<b_end; ++start_y)
-				for(int start_x=a_min; start_x<a_end; ++start_x)
+				for(int start_y=0; start_y<b_size; ++start_y)
+				for(int start_x=0; start_x<a_size; ++start_x)
 				{
-					const int start_face_needed_mat = face_needed_mat.elem(start_x - a_min, start_y - b_min);
-					if(start_face_needed_mat >= 0)
+					const int start_face_needed_mat = face_needed_mat.elem(start_x, start_y);
+					if(start_face_needed_mat != no_voxel_mat)
 					{
 						// Start a quad here (start corner at (start_x, start_y))
 						// The quad will range from (start_x, start_y) to (end_x, end_y)
@@ -364,11 +383,11 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 							// Try and increase in x direction
 							if(x_increase_ok)
 							{
-								if(end_x < a_end) // If there is still room to increase in x direction:
+								if(end_x < a_size) // If there is still room to increase in x direction:
 								{
 									// Check y values for new x = end_x
 									for(int y = start_y; y < end_y; ++y)
-										if(face_needed_mat.elem(end_x - a_min, y - b_min) != start_face_needed_mat)
+										if(face_needed_mat.elem(end_x, y) != start_face_needed_mat)
 										{
 											x_increase_ok = false;
 											break;
@@ -384,11 +403,11 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 							// Try and increase in y direction
 							if(y_increase_ok)
 							{
-								if(end_y < b_end)
+								if(end_y < b_size)
 								{
 									// Check x values for new y = end_y
 									for(int x = start_x; x < end_x; ++x)
-										if(face_needed_mat.elem(x - a_min, end_y - b_min) != start_face_needed_mat)
+										if(face_needed_mat.elem(x, end_y) != start_face_needed_mat)
 										{
 											y_increase_ok = false;
 											break;
@@ -404,18 +423,22 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 
 						// We have worked out the greedy quad.  Mark elements in it as processed
 						for(int y=start_y; y < end_y; ++y)
-							for(int x=start_x; x < end_x; ++x)
-								face_needed_mat.elem(x - a_min, y - b_min) = -1;
-
-						const float quad_dim_coord = (float)(dim_coord + 1);
+						for(int x=start_x; x < end_x; ++x)
+							face_needed_mat.elem(x, y) = no_voxel_mat;
 
 						// Add the greedy quad
 						unsigned int v_i[4]; // quad vert indices
 						Indigo::Vec3f v;
-						v[dim] = (float)quad_dim_coord;
+						v[dim] = (float)(dim_coord + dim_min + 1);
+
+						const float start_x_coord = (float)(start_x + a_min);
+						const float start_y_coord = (float)(start_y + b_min);
+						const float end_x_coord   = (float)(end_x + a_min);
+						const float end_y_coord   = (float)(end_y + b_min);
+
 						{ // Add bot left vert
-							v[dim_a] = (float)start_x;
-							v[dim_b] = (float)start_y;
+							v[dim_a] = start_x_coord;
+							v[dim_b] = start_y_coord;
 
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[0] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
@@ -423,8 +446,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 								mesh->vert_positions.push_back(v);
 						}
 						{ // bot right
-							v[dim_a] = (float)end_x;
-							v[dim_b] = (float)start_y;
+							v[dim_a] = end_x_coord;
+							v[dim_b] = start_y_coord;
 
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[1] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
@@ -432,8 +455,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 								mesh->vert_positions.push_back(v);
 						}
 						{ // top right
-							v[dim_a] = (float)end_x;
-							v[dim_b] = (float)end_y;
+							v[dim_a] = end_x_coord;
+							v[dim_b] = end_y_coord;
 
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[2] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
@@ -441,8 +464,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 								mesh->vert_positions.push_back(v);
 						}
 						{ // top left
-							v[dim_a] = (float)start_x;
-							v[dim_b] = (float)end_y;
+							v[dim_a] = start_x_coord;
+							v[dim_b] = end_y_coord;
 
 							const auto insert_res = vertpos_hash.insert(std::make_pair(v, (int)vertpos_hash.size()));
 							v_i[3] = insert_res.first->second; // deref iterator to get (vec3f, index) pair, then get the index.
@@ -452,6 +475,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 
 						const size_t tri_start = mesh->triangles.size();
 						mesh->triangles.resize(tri_start + 2);
+
+						assert(start_face_needed_mat != no_voxel_mat);
 
 						mesh->triangles[tri_start + 0].vertex_indices[0] = v_i[0];
 						mesh->triangles[tri_start + 0].vertex_indices[1] = v_i[1];
@@ -471,7 +496,9 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 					}
 				}
 			}
-		}
+
+			//conPrint("Dim " + toString(dim) + " took " + dim_timer.elapsedStringNSigFigs(4));
+		} // End for each dim
 
 		mesh->endOfModel();
 		assert(isFinite(mesh->aabb_os.bound[0].x));
@@ -994,6 +1021,26 @@ void VoxelMeshBuilding::test()
 		testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(1,1,1));
 	}
 
+	// Test a single voxel not at (0,0,0)
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(1, 2, 3), 0));
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+
+		testAssert(data->num_materials_referenced == 1);
+		testAssert(data->triangles.size() == 6 * 2);
+		testAssert(data->aabb_os.bound[0] == Indigo::Vec3f(1,2,3));
+		testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(2,3,4));
+
+		// Test with subsampling
+		//data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false);
+		//testAssert(data->num_materials_referenced == 1);
+		//testAssert(data->triangles.size() == 6 * 2);
+		//testAssert(data->aabb_os.bound[0] == Indigo::Vec3f(0,0,0));
+		//testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(1,1,1));
+	}
+
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1094,11 +1141,11 @@ void VoxelMeshBuilding::test()
 	{
 		try
 		{
-			for(int i=0; i<1000; ++i)
+			
 			{
 				std::vector<uint8> filecontents;
-				//FileUtils::readEntireFile("D:\\files\\voxeldata\\ob_161034_voxeldata.voxdata", filecontents);
-				FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\testfiles\\voxels\\ob_151064_voxeldata.voxdata", filecontents);
+				FileUtils::readEntireFile("D:\\files\\voxeldata\\ob_161034_voxeldata.voxdata", filecontents);
+				//FileUtils::readEntireFile("N:\\new_cyberspace\\trunk\\testfiles\\voxels\\ob_151064_voxeldata.voxdata", filecontents);
 
 				VoxelGroup group;
 				group.voxels.resize(filecontents.size() / sizeof(Voxel));
@@ -1109,6 +1156,7 @@ void VoxelMeshBuilding::test()
 				conPrint("AABB: " + group.getAABB().toString());
 				conPrint("AABB volume: " + toString(group.getAABB().volume()));
 
+				for(int i=0; i<1000; ++i)
 				{
 					Timer timer;
 
@@ -1117,6 +1165,7 @@ void VoxelMeshBuilding::test()
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
 					conPrint("Resulting num tris: " + toString(data->triangles.size()));
 				}
+
 				{
 					Timer timer;
 
