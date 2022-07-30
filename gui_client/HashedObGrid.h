@@ -75,8 +75,8 @@ public:
 #if GUI_CLIENT
 	inline void removeAtLastPos(const WorldObjectRef& ob)
 	{
-		unsigned int bucket_i = getBucketIndexForPoint(ob->last_pos.toVec4fPoint());
-		buckets[bucket_i].objects.erase(ob);
+		//unsigned int bucket_i = getBucketIndexForPoint(ob->last_pos.toVec4fPoint());
+		//buckets[bucket_i].objects.erase(ob);
 	}
 #endif
 

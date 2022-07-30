@@ -273,7 +273,8 @@ void WorkerThread::handleResourceUploadConnection()
 		}
 
 		// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
-		//socket->waitForGracefulDisconnect();
+		socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the client.
+		socket->waitForGracefulDisconnect(); // Wait for a FIN packet from the client. (indicated by recv() returning 0).  We can then close the socket without going into a wait state.
 	}
 	catch(MySocketExcep& e)
 	{
@@ -356,6 +357,12 @@ void WorkerThread::handleResourceDownloadConnection()
 						}
 					}
 				}
+			}
+			else if(msg_type == Protocol::CyberspaceGoodbye)
+			{
+				socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the client.
+				socket->waitForGracefulDisconnect(); // Wait for a FIN packet from the client. (indicated by recv() returning 0).  We can then close the socket without going into a wait state.
+				return;
 			}
 			else
 			{
@@ -882,8 +889,8 @@ void WorkerThread::doRun()
 
 			socket->setNoDelayEnabled(true); // We want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 
-		
-			while(1) // write to / read from socket loop
+			bool keep_looping = true;
+			while(keep_looping) // write to / read from socket loop
 			{
 				// See if we have any pending data to send in the data_to_send queue, and if so, send all pending data.
 				if(VERBOSE) conPrint("WorkerThread: checking for pending data to send...");
@@ -932,6 +939,15 @@ void WorkerThread::doRun()
 
 					switch(msg_type)
 					{
+					case Protocol::CyberspaceGoodbye:
+						{
+							conPrint("WorkerThread: received CyberspaceGoodbye, starting graceful shutdown..");
+							socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the client.
+							socket->waitForGracefulDisconnect(); // Wait for a FIN packet from the client. (indicated by recv() returning 0).  We can then close the socket without going into a wait state.
+							conPrint("WorkerThread: waitForGracefulDisconnect done.");
+							keep_looping = false;
+							break;
+						}
 					case Protocol::AvatarTransformUpdate:
 						{
 							//conPrint("AvatarTransformUpdate");

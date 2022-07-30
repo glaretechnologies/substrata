@@ -28,12 +28,12 @@ public:
 /*=====================================================================
 ProximityLoader
 ---------------
-Loads or unloads the graphics and physics of objects depending on how close the camera is too them.
+Loads or unloads the graphics and physics of objects depending on how close the camera is to them.
 Does the loading/unloading by calling callback functions - 
 when the camera moves close to an object, the loadObject() callback is called,
 when it moves away from an object, the unloadObject() callback is called.
 
-When the camera moves close to a new cell, calls the newCellInProximity() callback.
+When the camera moves close to a new grid cell, calls the newCellInProximity() callback.
 This allows MainWindow to send a QueryObjects message to the server.
 =====================================================================*/
 class ProximityLoader

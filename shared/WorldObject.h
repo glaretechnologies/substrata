@@ -110,6 +110,7 @@ public:
 
 	inline int getLODLevel(const Vec3d& campos) const;
 	inline int getLODLevel(const Vec4f& campos) const;
+	inline int getLODLevel(float cam_to_ob_d2) const;
 	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	std::string getLODModelURL(const Vec3d& campos) const; // Using lod level clamped to max_model_lod_level
@@ -261,7 +262,7 @@ public:
 
 	bool in_proximity; // Used by proximity loader
 
-	Vec3d last_pos; // Used by proximity loader
+	//Vec3d last_pos; // Used by proximity loader
 
 	bool lightmap_baking; // Is lightmap baking in progress for this object?
 
@@ -359,6 +360,28 @@ int WorldObject::getLODLevel(const Vec4f& campos) const
 
 	const Vec4f use_pos = this->aabb_ws.centroid(); // this->pos.toVec4fVector()
 	const float recip_dist = (campos - use_pos).fastApproxRecipLength();
+	float proj_len = aabb_ws.longestLength() * recip_dist;
+
+	// For voxel objects, push out the transition distances a bit.
+	if(object_type == ObjectType_VoxelGroup)
+		proj_len *= 2;
+
+	if(proj_len > 0.6)
+		return -1;
+	else if(proj_len > 0.16)
+		return 0;
+	else if(proj_len > 0.03)
+		return 1;
+	else
+		return 2;
+}
+
+
+int WorldObject::getLODLevel(float cam_to_ob_d2) const
+{
+	const float recip_dist = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(cam_to_ob_d2)));
+	//assert(epsEqual(recip_dist, 1 / sqrt(cam_to_ob_d2)));
+
 	float proj_len = aabb_ws.longestLength() * recip_dist;
 
 	// For voxel objects, push out the transition distances a bit.

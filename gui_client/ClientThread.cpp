@@ -134,11 +134,15 @@ void ClientThread::doRun()
 
 		socket->setNoDelayEnabled(true); // We will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 		
-
 		while(1) // write to / read from socket loop
 		{
 			if(should_die)
 			{
+				const uint32 msg_type_and_len[2] = { Protocol::CyberspaceGoodbye, sizeof(uint32) * 2 };
+				socket->writeData(msg_type_and_len, sizeof(uint32) * 2);
+
+				socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the server.
+				// We won't call waitForGracefulDisconnect(), as we don't need all the data from the server, and we don't mind if we close the socket before receiving a FIN, and hence going into a wait state.
 				out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage());
 				return;
 			}
@@ -369,7 +373,7 @@ void ClientThread::doRun()
 								{
 									//conPrint("ObjectTransformUpdate: setting ob pos to " + pos.toString());
 #if GUI_CLIENT
-									ob->last_pos = ob->pos;
+									//ob->last_pos = ob->pos;
 #endif
 									ob->pos = pos;
 									ob->axis = axis;

@@ -388,6 +388,8 @@ public:
 
 	ProximityLoader proximity_loader;
 
+	float load_distance, load_distance2;
+
 	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
 	Reference<RayMesh> hypercard_quad_raymesh;
 
