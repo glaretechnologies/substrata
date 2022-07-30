@@ -197,7 +197,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	force_new_undo_edit(false),
 	log_window(NULL),
 	model_and_texture_loader_task_manager("model and texture loader task manager"),
-	model_building_subsidary_task_manager("model building subsidary task manager"),
+	model_building_subsidary_task_manager("model building subsidiary task manager"),
+	task_manager("mainwindow general task manager"),
 	url_parcel_uid(-1),
 	running_destructor(false),
 	biome_manager(NULL),
@@ -8956,7 +8957,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		Reference<RayMesh> raymesh;
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, 
-			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, raymesh);
+			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, raymesh);
 
 		GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;

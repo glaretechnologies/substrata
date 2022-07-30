@@ -20,6 +20,9 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/Sort.h"
 #include "../utils/Array2D.h"
 #include "../utils/Array3D.h"
+#if GUI_CLIENT
+#include "superluminal/PerformanceAPI.h"
+#endif
 #include <limits>
 
 
@@ -59,6 +62,10 @@ typedef uint8 VoxelMatIndexType;
 // Splats voxels to 3d array.
 static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js::Vector<Voxel, 16>& voxels, int subsample_factor)
 {
+#if GUI_CLIENT
+	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
+#endif
+
 	try
 	{
 		if(voxels.empty())
