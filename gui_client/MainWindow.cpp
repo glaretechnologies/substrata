@@ -184,6 +184,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	taking_map_screenshot(false),
 	run_as_screenshot_slave(false),
 	proximity_loader(/*load distance=*/ob_load_distance),
+	load_distance(ob_load_distance),
+	load_distance2(ob_load_distance*ob_load_distance),
 	client_tls_config(NULL),
 	last_foostep_side(0),
 	last_timerEvent_CPU_work_elapsed(0),
@@ -271,6 +273,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble();
 	proximity_loader.setLoadDistance(dist);
+	this->load_distance = dist;
+	this->load_distance2 = dist*dist;
 	ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
 
 	// Restore main window geometry and state
@@ -1279,11 +1283,13 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 // Also called from checkForLODChanges() when the object LOD level changes, and so we may need to load a new model and/or textures.
 void MainWindow::loadModelForObject(WorldObject* ob)
 {
+	const Vec4f campos = cam_controller.getPosition().toVec4fPoint();
+
 	// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
 	if(!ob->in_proximity)
 		return;
 
-	const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
+	const int ob_lod_level = ob->getLODLevel(campos);
 	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
@@ -2852,15 +2858,34 @@ void MainWindow::checkForLODChanges()
 		{
 			WorldObject* ob = it.getValue().ptr();
 
-			const int lod_level = ob->getLODLevel(cam_pos);
-
-			if(lod_level != ob->current_lod_level)
+			const float cam_to_ob_d2 = ob->aabb_ws.centroid().getDist2(cam_pos);
+			if(cam_to_ob_d2 > this->load_distance2) 
 			{
-				loadModelForObject(ob);
+				if(ob->in_proximity)// If an object was in proximity to the camera, and moved out of load distance:
+				{
+					unloadObject(ob);
+					ob->in_proximity = false;
+				}
+			}
+			else
+			{
+				// Object is within load distance:
 
-				// conPrint("Changing LOD level for object " + ob->uid.toString() + " to " + toString(lod_level));
+				const int lod_level = ob->getLODLevel(cam_to_ob_d2);
 
-				ob->current_lod_level = lod_level;
+				if((lod_level != ob->current_lod_level)/* || ob->opengl_engine_ob.isNull()*/)
+				{
+					loadModelForObject(ob);
+					ob->current_lod_level = lod_level;
+					// conPrint("Changing LOD level for object " + ob->uid.toString() + " to " + toString(lod_level));
+				}
+
+				if(!ob->in_proximity) // If an object was out of load distance, and moved within load distance:
+				{
+					ob->in_proximity = true;
+					loadModelForObject(ob);
+					ob->current_lod_level = lod_level;
+				}
 			}
 		}
 		//conPrint("checkForLODChanges took " + timer.elapsedString() + " " + toString(world_state->objects.size()));
@@ -2934,6 +2959,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(in_CEF_message_loop)
 		return;
+
+	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
@@ -4618,8 +4645,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	ui->glWidget->setCurrentTime((float)cur_time);
 	ui->glWidget->playerPhyicsThink((float)dt);
 
-	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
-
 	if(physics_world.nonNull())
 	{
 		PERFORMANCEAPI_INSTRUMENT("player physics");
@@ -5136,7 +5161,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
-						proximity_loader.removeObject(ob);
+						//proximity_loader.removeObject(ob);
 
 						ui->indigoView->objectRemoved(*ob);
 
@@ -5163,7 +5188,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// Decompress voxel group
 						//ob->decompressVoxels();
 
-						proximity_loader.checkAddObject(ob); // Calls loadModelForObject() and loadAudioForObject() if it is within load distance.
+						//proximity_loader.checkAddObject(ob); // Calls loadModelForObject() and loadAudioForObject() if it is within load distance.
+
+						ob->in_proximity = ob->aabb_ws.centroid().getDist2(campos) < this->load_distance2;
+
+						if(ob->aabb_ws.centroid().getDist2(campos) < this->load_distance2)
+						{
+							loadModelForObject(ob);
+							loadAudioForObject(ob);
+						}
 
 						//bool reload_opengl_model = false; // Do we need to load or reload model?
 						//if(ob->opengl_engine_ob.isNull())
@@ -7413,6 +7446,8 @@ void MainWindow::on_actionOptions_triggered()
 	{
 		const float dist = (float)settings->value(MainOptionsDialog::objectLoadDistanceKey(), /*default val=*/500.0).toDouble();
 		this->proximity_loader.setLoadDistance(dist);
+		this->load_distance = dist;
+		this->load_distance2 = dist*dist;
 		ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
 
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
@@ -8178,8 +8213,10 @@ void MainWindow::disconnectFromServerAndClearAllObjects(bool hard_kill_client_co
 
 	if(client_thread.nonNull())
 	{
-		if(hard_kill_client_connection)
-			this->client_thread->killConnection();
+		this->client_thread->kill();
+
+		//if(hard_kill_client_connection)
+		//	this->client_thread->killConnection();
 
 		this->client_thread = NULL;
 		this->client_thread_manager.killThreadsBlocking();

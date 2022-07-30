@@ -250,7 +250,7 @@ void WorldObject::setPosAndHistory(const Vec3d& pos_)
 {
 	pos = pos_;
 #if GUI_CLIENT
-	last_pos = pos_;
+	//last_pos = pos_;
 #endif
 
 	for(int i=0; i<HISTORY_BUF_SIZE; ++i)

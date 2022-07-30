@@ -75,6 +75,12 @@ static bool shouldStreamResource(const std::string& url)
 }
 
 
+void DownloadResourcesThread::kill()
+{
+	should_die = glare::atomic_int(1);
+}
+
+
 void DownloadResourcesThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("DownloadResourcesThread");
@@ -117,6 +123,13 @@ void DownloadResourcesThread::doRun()
 
 		while(1)
 		{
+			if(should_die)
+			{
+				socket->writeInt32(Protocol::CyberspaceGoodbye);
+				socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the server.
+				return;
+			}
+
 			if(URLs_to_get.empty())
 			{
 				// Wait until we have something to download, or we get a kill-thread message.
@@ -130,8 +143,12 @@ void DownloadResourcesThread::doRun()
 
 
 				// Get any more messages from the queue while we're woken up.
-				if(checkMessageQueue(getMessageQueue())) 
+				if(checkMessageQueue(getMessageQueue()))
+				{
+					socket->writeInt32(Protocol::CyberspaceGoodbye);
+					socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the server.
 					return; // if got kill message, return.
+				}
 			}
 			else
 			{

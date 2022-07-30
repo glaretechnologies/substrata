@@ -36,6 +36,7 @@ const uint32 CyberspaceProtocolVersion = 35;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;
+const uint32 CyberspaceGoodbye		= 10010;
 
 const uint32 ConnectionTypeUpdates				= 500;
 const uint32 ConnectionTypeUploadResource		= 501;

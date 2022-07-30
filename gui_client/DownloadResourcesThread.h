@@ -50,6 +50,8 @@ public:
 
 	virtual void doRun();
 
+	virtual void kill();
+
 private:
 	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	Reference<ResourceManager> resource_manager;
@@ -61,4 +63,6 @@ private:
 	DownloadingResourceQueue* download_queue;
 
 	std::vector<DownloadQueueItem> queue_items; // scratch buffer
+
+	glare::AtomicInt should_die;
 };
