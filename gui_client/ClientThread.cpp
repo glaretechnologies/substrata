@@ -1,12 +1,12 @@
 /*=====================================================================
 ClientThread.cpp
--------------------
-Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-16 22:59:23 +1300
+----------------
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "ClientThread.h"
 
 
+#include "ClientSenderThread.h"
 #include "WorldState.h"
 #include <MySocket.h>
 #include <TLSSocket.h>
@@ -50,6 +50,8 @@ ClientThread::~ClientThread()
 
 void ClientThread::kill()
 {
+	client_sender_thread_manager.killThreadsNonBlocking();
+
 	should_die = glare::atomic_int(1);
 	
 	event_fd.notify(); // Make the blocking readable call stop.
@@ -81,6 +83,8 @@ void ClientThread::doRun()
 
 	try
 	{
+		// Do initial query-response part of protocol
+
 		conPrint("ClientThread Connecting to " + hostname + ":" + toString(port) + "...");
 
 		out_msg_queue->enqueue(new ClientConnectingToServerMessage());
@@ -132,40 +136,30 @@ void ClientThread::doRun()
 		this->client_avatar_uid = readUIDFromStream(*socket);
 
 
+		// Now that we have finished the initial query-response part of protocol, start client_sender_thread, which will do the sending of data on the socket.
+		// We do this on a separate thread to avoid deadlocks where both the client and server get stuck send()ing large amounts of data to each other, without doing any reads.
+		this->client_sender_thread = new ClientSenderThread(socket);
+		client_sender_thread_manager.addThread(client_sender_thread);
+
+		// Enqueue any data we have to send into the client_sender_thread queue.
+		client_sender_thread->enqueueDataToSend(data_to_send);
+		data_to_send.clear();
+
+
 		socket->setNoDelayEnabled(true); // We will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
 		
-		while(1) // write to / read from socket loop
+		while(1)
 		{
 			if(should_die)
 			{
-				const uint32 msg_type_and_len[2] = { Protocol::CyberspaceGoodbye, sizeof(uint32) * 2 };
-				socket->writeData(msg_type_and_len, sizeof(uint32) * 2);
-
-				socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the server.
-				// We won't call waitForGracefulDisconnect(), as we don't need all the data from the server, and we don't mind if we close the socket before receiving a FIN, and hence going into a wait state.
 				out_msg_queue->enqueue(new ClientDisconnectedFromServerMessage());
 				return;
 			}
 
-			// See if we have any pending data to send in the data_to_send buffer, and if so, send all pending data.
-			// We don't want to do network writes while holding the data_to_send_mutex.  So copy to temp_data_to_send.
-			{
-				Lock lock(data_to_send_mutex);
-				temp_data_to_send = data_to_send;
-				data_to_send.clear();
-			}
-
-			if(temp_data_to_send.nonEmpty())
-			{
-				socket->writeData(temp_data_to_send.data(), temp_data_to_send.size());
-				temp_data_to_send.clear();
-			}
-
-
 #if defined(_WIN32) || defined(OSX)
-			if(socket->readable(0.05)) // If socket has some data to read from it:
+			if(socket->readable(/*timeout (s)=*/0.1)) // If socket has some data to read from it:  (Use a timeout so we can check should_die occasionally)
 #else
-			if(socket->readable(event_fd)) // Block until either the socket is readable or the event fd is signalled, which means we have data to write.
+			if(socket->readable(event_fd)) // Block until either the socket is readable or the event fd is signalled, which means should_die has been set.
 #endif
 			{
 				// Read msg type and length
@@ -753,9 +747,8 @@ void ClientThread::doRun()
 #else
 				if(VERBOSE) conPrint("WorkerThread: event FD was signalled.");
 
-				// The event FD was signalled, which means there is some data to send on the socket.
-				// Reset the event fd by reading from it.
-				event_fd.read();
+				// The event FD was signalled, which means should_die has been set.
+				event_fd.read(); // Reset the event fd by reading from it.
 
 				if(VERBOSE) conPrint("WorkerThread: event FD has been reset.");
 #endif
@@ -777,35 +770,18 @@ void ClientThread::doRun()
 }
 
 
-void ClientThread::enqueueDataToSend(const std::string& data)
+void ClientThread::enqueueDataToSend(const ArrayRef<uint8> data)
 {
-	if(VERBOSE) conPrint("ClientThread::enqueueDataToSend(), data: '" + data + "'");
-
-	// Append data to data_to_send
-	if(!data.empty())
+	if(client_sender_thread.nonNull())
+		client_sender_thread->enqueueDataToSend(data);
+	else
 	{
-		Lock lock(data_to_send_mutex);
-		const size_t write_i = data_to_send.size();
-		data_to_send.resize(write_i + data.size());
-		std::memcpy(&data_to_send[write_i], data.data(), data.size());
-	}
-
-	event_fd.notify();
-}
-
-
-void ClientThread::enqueueDataToSend(const SocketBufferOutStream& packet)
-{
-	if(!packet.buf.empty())
-	{
-		// Append data to data_to_send
+		// If client_sender_thread has not been created yet, store in data_to_send until client_sender_thread is created.
+		if(!data.empty())
 		{
-			Lock lock(data_to_send_mutex);
 			const size_t write_i = data_to_send.size();
-			data_to_send.resize(write_i + packet.buf.size());
-			std::memcpy(&data_to_send[write_i], packet.buf.data(), packet.buf.size());
+			data_to_send.resize(write_i + data.size());
+			std::memcpy(&data_to_send[write_i], data.data(), data.size());
 		}
-
-		event_fd.notify();
 	}
 }

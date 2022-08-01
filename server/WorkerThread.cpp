@@ -1468,8 +1468,6 @@ void WorkerThread::doRun()
 							throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
 
 						//conPrint("QueryObjects, num_cells=" + toString(num_cells));
-
-						//conPrint("QueryObjects: num_cells " + toString(num_cells));
 					
 						// Read cell coords from network and make AABBs for cells
 						js::Vector<js::AABBox, 16> cell_aabbs(num_cells);
@@ -1523,11 +1521,14 @@ void WorkerThread::doRun()
 							}
 						} // End lock scope
 
-						socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-						socket->flush();
+						if(!packet.buf.empty())
+						{
+							conPrint("QueryObjects: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ") ...");
 
-						//conPrint("Sent back info on " + toString(num_obs_written) + " object(s)");
-
+							socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+							socket->flush();
+						}
+						
 						break;
 					}
 					case Protocol::QueryObjectsInAABB: // Client wants to query objects in a particular AABB
@@ -1567,10 +1568,13 @@ void WorkerThread::doRun()
 							}
 						} // End lock scope
 
-						conPrint("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+						if(!packet.buf.empty())
+						{
+							conPrint("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
 
-						socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-						socket->flush();
+							socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+							socket->flush();
+						}
 
 						break;
 					}
