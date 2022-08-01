@@ -581,7 +581,7 @@ MainWindow::~MainWindow()
 
 
 
-	disconnectFromServerAndClearAllObjects(/*hard_kill_client_connection=*/true);
+	disconnectFromServerAndClearAllObjects();
 
 	if(biome_manager) delete biome_manager;
 
@@ -2092,7 +2092,15 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 
 void MainWindow::logMessage(const std::string& msg) // Print to stdout and append to LogWindow log display
 {
-	//conPrint(msg);
+	//this->logfile << msg << "\n";
+	if(this->log_window && !running_destructor)
+		this->log_window->appendLine(msg);
+}
+
+
+void MainWindow::logAndConPrintMessage(const std::string& msg) // Print to stdout and append to LogWindow log display
+{
+	conPrint(msg);
 	//this->logfile << msg << "\n";
 	if(this->log_window && !running_destructor)
 		this->log_window->appendLine(msg);
@@ -2668,7 +2676,7 @@ static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStr
 {
 	updatePacketLengthField(packet);
 
-	client_thread.enqueueDataToSend(packet);
+	client_thread.enqueueDataToSend(packet.buf);
 }
 
 
@@ -3867,6 +3875,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						if(message->voxel_ob_uid.valid()) // If we loaded a voxel object:
 						{
+							Lock lock(this->world_state->mutex);
+
 							// Handle loading a voxel group
 							auto res = world_state->objects.find(message->voxel_ob_uid);
 							if(res != world_state->objects.end())
@@ -8199,7 +8209,7 @@ void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub:/
 }
 
 
-void MainWindow::disconnectFromServerAndClearAllObjects(bool hard_kill_client_connection) // Remove any WorldObjectRefs held by MainWindow.
+void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObjectRefs held by MainWindow.
 {
 	load_item_queue.clear();
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete(); 
@@ -8213,14 +8223,28 @@ void MainWindow::disconnectFromServerAndClearAllObjects(bool hard_kill_client_co
 
 	if(client_thread.nonNull())
 	{
-		this->client_thread->kill();
+		this->client_thread_manager.killThreadsNonBlocking(); // Suggests to client_thread to quit, by calling ClientThread::kill(), which sets should_die = 1.
 
-		//if(hard_kill_client_connection)
-		//	this->client_thread->killConnection();
+		// Wait for some period of time to see if client_thread quit.  If not, hard-kill it by calling killConnection().
+		Timer timer;
+		while(this->client_thread_manager.getNumThreads() > 0) // While client_thread is still running:
+		{
+			if(timer.elapsed() > 1.0)
+			{
+				logAndConPrintMessage("Reached time limit waiting for client_thread to close.  Hard-killing connection");
 
-		this->client_thread = NULL;
-		this->client_thread_manager.killThreadsBlocking();
+				this->client_thread->killConnection(); // Calls ungracefulShutdown on socket, which should interrupt and blocking socket calls.
+
+				this->client_thread = NULL;
+				this->client_thread_manager.killThreadsBlocking();
+				break;
+			}
+
+			PlatformUtils::Sleep(10);
+		}
 	}
+	this->client_thread = NULL; // Need to make sure client_thread is destroyed, since it hangs on to a bunch of references.
+	
 
 	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
 	if(world_state.nonNull())
@@ -8349,7 +8373,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	}
 
 	//-------------------------------- Do disconnect process --------------------------------
-	disconnectFromServerAndClearAllObjects(/*hard_kill_client_connection=*/false);
+	disconnectFromServerAndClearAllObjects();
 	//-------------------------------- End disconnect process --------------------------------
 
 

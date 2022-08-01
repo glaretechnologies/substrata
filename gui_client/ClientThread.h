@@ -17,6 +17,7 @@ Generated at 2016-01-16 22:59:23 +1300
 #include <MySocket.h>
 #include <Vector.h>
 #include <BufferInStream.h>
+#include <ArrayRef.h>
 #include <set>
 #include <string>
 class WorkUnit;
@@ -24,6 +25,7 @@ class PrintOutput;
 class ThreadMessageSink;
 class Server;
 class MainWindow;
+class ClientSenderThread;
 struct tls_config;
 namespace glare { class PoolAllocator; }
 
@@ -174,7 +176,7 @@ public:
 
 /*=====================================================================
 ClientThread
--------------------
+------------
 Maintains network connection to server.
 =====================================================================*/
 class ClientThread : public MessageableThread
@@ -186,8 +188,7 @@ public:
 
 	virtual void doRun();
 
-	void enqueueDataToSend(const std::string& data); // threadsafe
-	void enqueueDataToSend(const SocketBufferOutStream& packet); // threadsafe
+	void enqueueDataToSend(const ArrayRef<uint8> data); // threadsafe
 
 	virtual void kill();
 
@@ -209,11 +210,12 @@ private:
 	std::string world_name;
 	struct tls_config* config;
 
-	Mutex data_to_send_mutex;
 	js::Vector<uint8, 16> data_to_send;
-	js::Vector<uint8, 16> temp_data_to_send;
 
 	BufferInStream msg_buffer;
 
 	Reference<glare::PoolAllocator> world_ob_pool_allocator;
+
+	ThreadManager client_sender_thread_manager;
+	Reference<ClientSenderThread> client_sender_thread;
 };

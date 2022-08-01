@@ -96,7 +96,8 @@ public:
 
 	void updateGroundPlane();
 
-	void logMessage(const std::string& msg); // Print to console, log file, and append to LogWindow log display
+	void logMessage(const std::string& msg); // Appends to LogWindow log display.
+	void logAndConPrintMessage(const std::string& msg); // Print to console, and appends to LogWindow log display.
 
 	// PrintOutput interface
 	virtual void print(const std::string& s); // Print a message and a newline character.
@@ -293,7 +294,7 @@ public:
 
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 
-	void disconnectFromServerAndClearAllObjects(bool hard_kill_client_connection); // Remove any WorldObjectRefs held by MainWindow.
+	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
