@@ -27,7 +27,7 @@ const STATE_READ_CLIENT_AVATAR_UID = 3;
 
 var protocol_state = 0;
 
-const CyberspaceProtocolVersion = 31;
+const CyberspaceProtocolVersion = 35;
 const CyberspaceHello = 1357924680;
 const ClientProtocolOK = 10000;
 const ClientProtocolTooOld = 10001;
@@ -53,12 +53,16 @@ const TimeSyncMessage = 9000;
 
 const WorldObject_ObjectType_VoxelGroup = 2;
 
-let WORLD_MATERIAL_SERIALISATION_VERSION = 6
+const WORLD_MATERIAL_SERIALISATION_VERSION = 7;
 
 
 const MESH_NOT_LOADED = 0;
 const MESH_LOADING = 1;
 const MESH_LOADED = 2;
+
+function toString(x) {
+    return x.toString();
+}
 
 // from https://gist.github.com/joni/3760795
 function toUTF8Array(str) {
@@ -462,6 +466,12 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
             parcel.parcel_auction_ids.push(readUInt32(buffer_in));
     }
 
+    // Read flags
+    parcel.flags = readUInt32(buffer_in)
+
+    // Read spawn_point
+    parcel.spawn_point = readVec3dFromStream(buffer_in);
+
     //console.log("parcel.parcel_auction_ids: ", parcel.parcel_auction_ids)
 
     parcel.owner_name = readStringFromStream(buffer_in);
@@ -520,6 +530,9 @@ class WorldMaterial {
         this.colour_rgb.writeToStream(stream);
         stream.writeStringLengthFirst(this.colour_texture_url);
 
+        this.emission_rgb.writeToStream(stream);
+        stream.writeStringLengthFirst(this.emission_texture_url);
+
         this.roughness.writeToStream(stream);
         this.metallic_fraction.writeToStream(stream);
         this.opacity.writeToStream(stream);
@@ -555,10 +568,13 @@ function readWorldMaterialFromStream(buffer_in) {
 
     let version = readUInt32(buffer_in);
     if (version > WORLD_MATERIAL_SERIALISATION_VERSION)
-        throw "Unsupported version " + toString(v) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".";
+        throw "Unsupported version " + toString(version) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".";
 
     mat.colour_rgb = readColour3fFromStream(buffer_in);
     mat.colour_texture_url = readStringFromStream(buffer_in);
+
+    mat.emission_rgb = readColour3fFromStream(buffer_in);
+    mat.emission_texture_url = readStringFromStream(buffer_in);
 
     mat.roughness = readScalarValFromStream(buffer_in);
     mat.metallic_fraction = readScalarValFromStream(buffer_in);
