@@ -255,6 +255,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	user_details = new UserDetailsWidget(this);
 	ui->toolBar->addWidget(user_details);
 
+	// Make it so the toolbar can't be hidden, as it's confusing for users when it disappears.
+	ui->toolBar->toggleViewAction()->setEnabled(false);
 	
 	
 	// Open Log File
