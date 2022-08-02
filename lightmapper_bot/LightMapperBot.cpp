@@ -418,7 +418,7 @@ public:
 
 			float luminous_flux = 10000;
 			if(ob->materials.size() >= 1)
-				luminous_flux = ob->materials[0]->emission_lum_flux;
+				luminous_flux = ob->materials[0]->emission_lum_flux_or_lum;
 
 			Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(albedo_param);
 			indigo_mat->name = toIndigoString("emitting mat");
@@ -554,7 +554,7 @@ public:
 					packet.writeUInt32(ob_to_lightmap->flags);
 					updatePacketLengthField(packet);
 
-					this->client_thread->enqueueDataToSend(packet);
+					this->client_thread->enqueueDataToSend(packet.buf);
 				}
 
 
@@ -745,7 +745,7 @@ public:
 							packet.writeStringLengthFirst(mesh_URL);
 							updatePacketLengthField(packet);
 
-							this->client_thread->enqueueDataToSend(packet);
+							this->client_thread->enqueueDataToSend(packet.buf);
 
 							// Spawn an UploadResourceThread to upload the new model
 							resource_upload_thread_manager.addThread(new UploadResourceThread(&this->msg_queue, /*local_path=*/this->resource_manager->pathForURL(mesh_URL), mesh_URL, 
@@ -1159,7 +1159,7 @@ public:
 				packet.writeStringLengthFirst(lightmap_URL);
 				updatePacketLengthField(packet);
 
-				this->client_thread->enqueueDataToSend(packet);
+				this->client_thread->enqueueDataToSend(packet.buf);
 			}
 
 			// Spawn an UploadResourceThread to upload the new lightmap
@@ -1421,7 +1421,7 @@ int main(int argc, char* argv[])
 				packet.writeStringLengthFirst(password);
 				updatePacketLengthField(packet);
 
-				client_thread->enqueueDataToSend(packet);
+				client_thread->enqueueDataToSend(packet.buf);
 			}
 
 			// Send GetAllObjects msg
@@ -1429,7 +1429,7 @@ int main(int argc, char* argv[])
 				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 				initPacket(packet, Protocol::GetAllObjects);
 				updatePacketLengthField(packet);
-				client_thread->enqueueDataToSend(packet);
+				client_thread->enqueueDataToSend(packet.buf);
 			}
 
 			// Wait until we have received all object data.
