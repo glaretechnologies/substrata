@@ -776,6 +776,7 @@ void WorkerThread::doRun()
 
 
 			// If the client connected via a websocket, they can be logged in with a session cookie.
+			// Note that this may only work if the websocket connects over TLS.
 			User* cookie_logged_in_user = LoginHandlers::getLoggedInUser(*world_state, this->websocket_request_info);
 			if(cookie_logged_in_user != NULL)
 			{
