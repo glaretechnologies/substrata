@@ -269,7 +269,7 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 
 						// Add the greedy quad
 						unsigned int v_i[4]; // quad vert indices
-						Indigo::Vec3f v;
+						Indigo::Vec3f v; // Vertex position coordinates
 						v[dim] = (float)(dim_coord + dim_min);
 
 						const float start_x_coord = (float)(start_x + a_min);
