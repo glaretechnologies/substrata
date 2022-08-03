@@ -1,7 +1,7 @@
 /*=====================================================================
 voxelloading.js
 ---------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
 import * as fzstd from './fzstd.js'; // from 'https://cdn.skypack.dev/fzstd?min';
@@ -12,7 +12,7 @@ function decompressVoxels(compressed_voxels) {
 	let decompressed_voxels_uint8 = fzstd.decompress(new Uint8Array(compressed_voxels));
 
     // A voxel is
-    //Vec3<int> pos;
+	//Vec3<int> pos;
 	//int mat_index; // Index into materials
 
     let voxel_data = new Int32Array(decompressed_voxels_uint8.buffer, decompressed_voxels_uint8.byteOffset, decompressed_voxels_uint8.byteLength / 4);
@@ -27,7 +27,7 @@ function decompressVoxels(compressed_voxels) {
 	let num_mats = voxel_data[read_i++];
     if(num_mats > 2000)
         throw "Too many voxel materials";
-	        
+
     for(let m=0; m<num_mats; ++m)
 	{
 		let count = voxel_data[read_i++];
@@ -60,41 +60,14 @@ function decompressVoxels(compressed_voxels) {
 }
 
 
-// Does greedy meshing.  Adapted from VoxelMeshBuilding::doMakeIndigoMeshForVoxelGroup()
+// Does greedy meshing.  Adapted from VoxelMeshBuilding::doMakeIndigoMeshForVoxelGroupWith3dArray()
 // returns a THREE.BufferGeometry() object
-function doMakeMeshForVoxels(voxels, num_mats)
+function doMakeMeshForVoxels(voxels, subsample_factor)
 {
 	let num_voxels = voxels.length / 4;
 
 	//console.log("doMakeMeshForVoxels():");
-    //console.log("num_voxels:" + num_voxels);
-
-	// Iterate over voxels, get voxel bounds for each material
-	let bounds = new Int32Array(6 * num_mats) // For each mat: (min_x, min_y, min_z, max_x, max_y, max_z)
-
-	for(let i=0; i<num_mats; ++i) {
-		bounds[i*6 + 0] = 1000000000;
-		bounds[i*6 + 1] = 1000000000;
-		bounds[i*6 + 2] = 1000000000;
-		bounds[i*6 + 3] = -1000000000;
-		bounds[i*6 + 4] = -1000000000;
-		bounds[i*6 + 5] = -1000000000;
-	}
-
-	for(let i=0; i<num_voxels; ++i) {
-		let v_x = voxels[i*4 + 0];
-		let v_y = voxels[i*4 + 1];
-		let v_z = voxels[i*4 + 2];
-		let mat_i = voxels[i*4 + 3];
-
-		bounds[mat_i * 6 + 0] = Math.min(bounds[mat_i * 6 + 0], v_x);
-		bounds[mat_i * 6 + 1] = Math.min(bounds[mat_i * 6 + 1], v_y);
-		bounds[mat_i * 6 + 2] = Math.min(bounds[mat_i * 6 + 2], v_z);
-
-		bounds[mat_i * 6 + 3] = Math.max(bounds[mat_i * 6 + 3], v_x);
-		bounds[mat_i * 6 + 4] = Math.max(bounds[mat_i * 6 + 4], v_y);
-		bounds[mat_i * 6 + 5] = Math.max(bounds[mat_i * 6 + 5], v_z);
-	}
+	//console.log("num_voxels:" + num_voxels);
 
 	// Get overall min and max coords
 	let min_x = 1000000000;
@@ -103,22 +76,43 @@ function doMakeMeshForVoxels(voxels, num_mats)
 	let max_x = -1000000000;
 	let max_y = -1000000000;
 	let max_z = -1000000000;
+	let max_mat_index = 0;
 
-	for(let i=0; i<num_mats; ++i) {
-		if(bounds[i * 6] == 1000000000)
-			continue; // No voxels for this mat.
+	for(let i=0; i<num_voxels; ++i) {
+		let v_x = Math.trunc(voxels[i*4 + 0] / subsample_factor);
+		let v_y = Math.trunc(voxels[i*4 + 1] / subsample_factor);
+		let v_z = Math.trunc(voxels[i*4 + 2] / subsample_factor);
+		let mat_i = voxels[i*4 + 3];
 
-		min_x = Math.min(min_x,  bounds[i*6 + 0]);
-		min_y = Math.min(min_y,  bounds[i*6 + 1]);
-		min_z = Math.min(min_z,  bounds[i*6 + 2]);
-		max_x = Math.max(max_x,  bounds[i*6 + 3]);
-		max_y = Math.max(max_y,  bounds[i*6 + 4]);
-		max_z = Math.max(max_z,  bounds[i*6 + 5]);
+		min_x = Math.min(min_x, v_x);
+		min_y = Math.min(min_y, v_y);
+		min_z = Math.min(min_z, v_z);
+		max_x = Math.max(max_x, v_x);
+		max_y = Math.max(max_y, v_y);
+		max_z = Math.max(max_z, v_z);
+
+		max_mat_index = Math.max(max_mat_index, mat_i)
 	}
+
+	let bounds_min = new Int32Array(3);
+	bounds_min[0] = min_x;
+	bounds_min[1] = min_y;
+	bounds_min[2] = min_z;
+
+	let bounds_max = new Int32Array(3);
+	bounds_max[0] = max_x;
+	bounds_max[1] = max_y;
+	bounds_max[2] = max_z;
+
 
 	let span_x = max_x - min_x + 1;
 	let span_y = max_y - min_y + 1;
 	let span_z = max_z - min_z + 1;
+
+	let res = new Int32Array(3);
+	res[0] = span_x;
+	res[1] = span_y;
+	res[2] = span_z;
 
 	// console.log("span_x:")
 	// console.log(span_x)
@@ -128,400 +122,406 @@ function doMakeMeshForVoxels(voxels, num_mats)
 	// console.log(span_z)
 
 	// Make a 3d-array, which will hold 1 material index per voxel.
-	// Make the array big enough so it can hold the largest per-material voxel bounds
-	let voxel_grid = new Int16Array(span_x * span_y * span_z);
+	let voxel_grid = new Uint8Array(span_x * span_y * span_z);
 	for(let i=0; i<span_x * span_y * span_z; ++i)
-		voxel_grid[i] = -1;
-
+		voxel_grid[i] = 255;
+	
 	// Splat voxels into the grid
 	for(let i=0; i<num_voxels; ++i) {
-		let v_x = voxels[i*4 + 0];
-		let v_y = voxels[i*4 + 1];
-		let v_z = voxels[i*4 + 2];
+		let v_x = Math.trunc(voxels[i*4 + 0] / subsample_factor);
+		let v_y = Math.trunc(voxels[i*4 + 1] / subsample_factor);
+		let v_z = Math.trunc(voxels[i*4 + 2] / subsample_factor);
 		let mat_i = voxels[i*4 + 3];
 
 		voxel_grid[(v_z - min_z) * (span_x * span_y) + (v_y - min_y) * span_x + (v_x - min_x)] = mat_i;
 	}
 
 	let geometry = new THREE.BufferGeometry();
-	let verts = []
-	let tri_vert_indices = []
+	let vert_coords = []
 
-	for(let mat_i=0; mat_i<num_mats; ++mat_i) { // For each mat
-	
-		//console.log("processing mat " + mat_i)
+	// For each material, we will have a list of vertex indices defining triangles with the given material
+	let mat_vert_indices = [];
 
-		let mat_vert_indices_start = tri_vert_indices.length;
+	let num_mats = max_mat_index + 1;
+	for (let i = 0; i < num_mats; ++i) {
+		mat_vert_indices.push([]); // Create an empty array of vertex indices for the material
+	}
 
-		if(bounds[mat_i * 6] == 1000000000)
-			continue; // No voxels for this mat.
+	let no_voxel_mat = 255;
 
-		// For each dimension (x, y, z)
-		for(let dim=0; dim<3; ++dim)
+	// For each dimension (x, y, z)
+	for(let dim=0; dim<3; ++dim)
+	{
+		// Want the a_axis x b_axis = dim_axis
+		let dim_a = 0;
+		let dim_b = 0;
+		if(dim == 0) {
+			dim_a = 1;
+			dim_b = 2;
+		}
+		else if(dim == 1) {
+			dim_a = 2;
+			dim_b = 0;
+		}
+		else { // dim == 2:
+			dim_a = 0;
+			dim_b = 1;
+		}
+
+		// Get the extents along dim_a, dim_b
+		let a_min = bounds_min[dim_a];
+		let a_size = res[dim_a];
+		
+		let b_min = bounds_min[dim_b];
+		let b_size = res[dim_b];
+
+		// Walk from lower to greater coords, look for downwards facing faces
+		let dim_min = bounds_min[dim];
+		let dim_size = res[dim];
+
+		//console.log("a_min: " + a_min);
+		//console.log("a_size: " + a_size);
+		//console.log("b_min: " + b_min);
+		//console.log("b_size: " + b_size);
+		//console.log("dim_min: " + dim_min);
+		//console.log("dim_size: " + dim_size);
+
+		// An array of faces that still need to be processed.  We store the face material index if the face needs to be processed, and no_voxel_mat otherwise.  Processed = included in a greedy quad already.
+		let face_needed_x_span = a_size;
+		let face_needed_mat = new Uint8Array(a_size * b_size);
+
+		for(let dim_coord = 0; dim_coord < dim_size; ++dim_coord)
 		{
-			//console.log("processing dim " + dim)
-			
-			// Want the a_axis x b_axis = dim_axis
-			let dim_a = 0;
-			let dim_b = 0;
-			if(dim == 0) {
-				dim_a = 1;
-				dim_b = 2;
-			}
-			else if(dim == 1) {
-				dim_a = 2;
-				dim_b = 0;
-			}
-			else { // dim == 2:
-				dim_a = 0;
-				dim_b = 1;
-			}
+			let vox_indices = new Int32Array(3);
+			vox_indices[dim] = dim_coord;
+			let adjacent_vox_indices = new Int32Array(3);
+			adjacent_vox_indices[dim] = dim_coord - 1;
 
-			//console.log("dim_a: " + dim_a)
-			//console.log("dim_b: " + dim_b)
-
-			// Get the extents along dim_a, dim_b
-			let a_min = bounds[mat_i * 6 + dim_a    ];
-			let a_end = bounds[mat_i * 6 + dim_a + 3] + 1;
-
-			let b_min = bounds[mat_i * 6 + dim_b    ];
-			let b_end = bounds[mat_i * 6 + dim_b + 3] + 1;
-
-			// Walk from lower to greater coords, look for downwards facing faces
-			let dim_min = bounds[mat_i * 6 + dim    ];
-			let dim_end = bounds[mat_i * 6 + dim + 3] + 1;
-
-			//console.log("a_min: " + a_min);
-			//console.log("a_end: " + a_end);
-			//console.log("b_min: " + b_min);
-			//console.log("b_end: " + b_end);
-			//console.log("dim_min: " + dim_min);
-			//console.log("dim_end: " + dim_end);
-
-			// Make a map to indicate processed voxel faces.  Processed = included in a greedy quad already.
-			let face_needed_x_span = (a_end - a_min);
-			let face_needed = new Uint8Array(face_needed_x_span * (b_end - b_min));
-
-
-			for(let dim_coord = dim_min; dim_coord < dim_end; ++dim_coord)
+			// Build face_needed data for this slice
+			for(let y = 0; y < b_size; ++y)
+			for(let x = 0; x < a_size; ++x)
 			{
-				let vox = new Int32Array(3);
-				vox[dim] = dim_coord;
-				let adjacent_vox_pos = new Int32Array(3);
-				adjacent_vox_pos[dim] = dim_coord - 1;
+				vox_indices[dim_a] = x;
+				vox_indices[dim_b] = y;
 
-				// Build face_needed data for this slice
-				for(let y=b_min; y<b_end; ++y)
-				for(let x=a_min; x<a_end; ++x)
+				let this_face_needed_mat = no_voxel_mat;
+				let vox_mat_index = voxel_grid[vox_indices[2] * (span_x * span_y) + vox_indices[1] * span_x + vox_indices[0]];
+				if(vox_mat_index != no_voxel_mat) // If there is a voxel here with mat_i
 				{
-					vox[dim_a] = x;
-					vox[dim_b] = y;
+					adjacent_vox_indices[dim_a] = x;
+					adjacent_vox_indices[dim_b] = y;
 
-					let this_face_needed = 0;
-					let grid_val = voxel_grid[(vox[2] - min_z) * (span_x * span_y) + (vox[1] - min_y) * span_x + (vox[0] - min_x)];
-					if(grid_val == mat_i) // If there is a voxel here with mat_i
+					if (dim_coord > 0) // If adjacent vox indices are in array bounds: (if dim_coord - 1 >= 0)
 					{
-						adjacent_vox_pos[dim_a] = x;
-						adjacent_vox_pos[dim_b] = y;
-
-						if(dim_coord == dim_min) // If adjacent coords are out of voxel grid:
-							this_face_needed = 1;
-						else {
-							let adj_grid_val = voxel_grid[(adjacent_vox_pos[2] - min_z) * (span_x * span_y) + (adjacent_vox_pos[1] - min_y) * span_x + (adjacent_vox_pos[0] - min_x)];
-							if(adj_grid_val != mat_i) // If there is no adjacent voxel, or the adjacent voxel has a different material:
-								this_face_needed = 1;
-						}
+						let adjacent_vox_mat_index = voxel_grid[adjacent_vox_indices[2] * (span_x * span_y) + adjacent_vox_indices[1] * span_x + adjacent_vox_indices[0]];
+						if (adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+							this_face_needed_mat = vox_mat_index;
 					}
-					face_needed[(y - b_min) * face_needed_x_span + (x - a_min)] = this_face_needed;
+					else {
+						this_face_needed_mat = vox_mat_index;
+					}
 				}
+				face_needed_mat[y * face_needed_x_span + x] = this_face_needed_mat;
+			}
 
-				// For each voxel face:
-				for(let start_y=b_min; start_y<b_end; ++start_y)
-				for(let start_x=a_min; start_x<a_end; ++start_x) {
-				
-					if (face_needed[(start_y - b_min) * face_needed_x_span + (start_x - a_min)]) { // If we need a face here:
+			// For each voxel face:
+			for (let start_y = 0; start_y < b_size; ++start_y)
+			for (let start_x = 0; start_x < a_size; ++start_x) {
+
+				let start_face_needed_mat = face_needed_mat[start_y * face_needed_x_span + start_x];
+				if (start_face_needed_mat != no_voxel_mat) { // If we need a face here:
 					
-						// Start a quad here (start corner at (start_x, start_y))
-						// The quad will range from (start_x, start_y) to (end_x, end_y)
-						let end_x = start_x + 1;
-						let end_y = start_y + 1;
+					// Start a quad here (start corner at (start_x, start_y))
+					// The quad will range from (start_x, start_y) to (end_x, end_y)
+					let end_x = start_x + 1;
+					let end_y = start_y + 1;
 
-						let x_increase_ok = true;
-						let y_increase_ok = true;
-						while(x_increase_ok || y_increase_ok)
-						{
-							// Try and increase in x direction
-							if(x_increase_ok)
-							{
-								if(end_x < a_end) // If there is still room to increase in x direction:
-								{
-									// Check y values for new x = end_x
-									for(let y = start_y; y < end_y; ++y)
-										if(!face_needed[(y - b_min) * face_needed_x_span + (end_x - a_min)])
-										{
-											x_increase_ok = false;
-											break;
-										}
-
-									if(x_increase_ok)
-										end_x++;
-								}
-								else
-									x_increase_ok = false;
-							}
-
-							// Try and increase in y direction
-							if(y_increase_ok)
-							{
-								if(end_y < b_end)
-								{
-									// Check x values for new y = end_y
-									for(let x = start_x; x < end_x; ++x)
-										if(!face_needed[(end_y - b_min) * face_needed_x_span + (x - a_min)])
-										{
-											y_increase_ok = false;
-											break;
-										}
-
-									if(y_increase_ok)
-										end_y++;
-								}
-								else
-									y_increase_ok = false;
-							}
-						}
-
-						// We have worked out the greedy quad.  Mark elements in it as processed
-						for(let y=start_y; y < end_y; ++y)
-						for(let x=start_x; x < end_x; ++x)
-							face_needed[(y - b_min) * face_needed_x_span + (x - a_min)] = 0;
-
-						// Add the greedy quad
-						//unsigned int v_i[4];
-						let v_i = []
-						let v = new Float32Array(3);
-						v[dim] = dim_coord;
-						{
-							// bot left
-							v[dim_a] = start_x;
-							v[dim_b] = start_y;
-
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-						{
-							// top left
-							v[dim_a] = start_x;
-							v[dim_b] = end_y;
-
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-						{
-							// top right
-							v[dim_a] = end_x;
-							v[dim_b] = end_y;
-
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-						{
-							// bot right
-							v[dim_a] = end_x;
-							v[dim_b] = start_y;
-
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-
-						// Append triangle vert indices
-						tri_vert_indices.push(v_i[0])
-						tri_vert_indices.push(v_i[1])
-						tri_vert_indices.push(v_i[2])
-
-						tri_vert_indices.push(v_i[0])
-						tri_vert_indices.push(v_i[2])
-						tri_vert_indices.push(v_i[3])
-					}
-				}
-
-				//================= Do upper faces along dim ==========================
-				// Build face_needed data for this slice
-
-				//console.log("------------Building upper faces-----------");
-
-				vox[dim] = dim_coord;
-				adjacent_vox_pos[dim] = dim_coord + 1;
-				for(let y=b_min; y<b_end; ++y)
-				for(let x=a_min; x<a_end; ++x)
-				{
-					vox[dim_a] = x;
-					vox[dim_b] = y;
-
-					let this_face_needed = 0;
-					let grid_val = voxel_grid[(vox[2] - min_z) * (span_x * span_y) + (vox[1] - min_y) * span_x + (vox[0] - min_x)];
-					if(grid_val == mat_i)
+					let x_increase_ok = true;
+					let y_increase_ok = true;
+					while(x_increase_ok || y_increase_ok)
 					{
-						adjacent_vox_pos[dim_a] = x;
-						adjacent_vox_pos[dim_b] = y;
-
-						if(dim_coord == dim_end - 1) // If adjacent voxel coords will be out of grid:
-							this_face_needed = 1;
-						else {
-							let adj_grid_val = voxel_grid[(adjacent_vox_pos[2] - min_z) * (span_x * span_y) + (adjacent_vox_pos[1] - min_y) * span_x + (adjacent_vox_pos[0] - min_x)];
-							if(adj_grid_val != mat_i) // If there is no adjacent voxel, or the adjacent voxel has a different material:
-								this_face_needed = 1;
-						}
-					}
-					face_needed[(y - b_min) * face_needed_x_span + (x - a_min)] = this_face_needed;
-				}
-
-				// For each voxel face:
-				for(let start_y=b_min; start_y<b_end; ++start_y)
-				for(let start_x=a_min; start_x<a_end; ++start_x) {
-
-					if(face_needed[(start_y - b_min) * face_needed_x_span + (start_x - a_min)]) {
-
-						// Start a quad here (start corner at (start_x, start_y))
-						// The quad will range from (start_x, start_y) to (end_x, end_y)
-						let end_x = start_x + 1;
-						let end_y = start_y + 1;
-
-						let x_increase_ok = true;
-						let y_increase_ok = true;
-						while(x_increase_ok || y_increase_ok)
+						// Try and increase in x direction
+						if(x_increase_ok)
 						{
-							// Try and increase in x direction
-							if(x_increase_ok)
+							if (end_x < a_size) // If there is still room to increase in x direction:
 							{
-								if(end_x < a_end) // If there is still room to increase in x direction:
-								{
-									// Check y values for new x = end_x
-									for(let y = start_y; y < end_y; ++y)
-										if(!face_needed[(y - b_min) * face_needed_x_span + (end_x - a_min)])
-										{
-											x_increase_ok = false;
-											break;
-										}
+								// Check y values for new x = end_x
+								for(let y = start_y; y < end_y; ++y)
+									if (face_needed_mat[y * face_needed_x_span + end_x] != start_face_needed_mat)
+									{
+										x_increase_ok = false;
+										break;
+									}
 
-									if(x_increase_ok)
-										end_x++;
-								}
-								else
-									x_increase_ok = false;
+								if(x_increase_ok)
+									end_x++;
 							}
+							else
+								x_increase_ok = false;
+						}
 
-							// Try and increase in y direction
-							if(y_increase_ok)
+						// Try and increase in y direction
+						if(y_increase_ok)
+						{
+							if (end_y < b_size)
 							{
-								if(end_y < b_end)
-								{
-									// Check x values for new y = end_y
-									for(let x = start_x; x < end_x; ++x)
-										if(!face_needed[(end_y - b_min) * face_needed_x_span + (x - a_min)])
-										{
-											y_increase_ok = false;
-											break;
-										}
+								// Check x values for new y = end_y
+								for(let x = start_x; x < end_x; ++x)
+									if (face_needed_mat[end_y * face_needed_x_span + x] != start_face_needed_mat)
+									{
+										y_increase_ok = false;
+										break;
+									}
 
-									if(y_increase_ok)
-										end_y++;
-								}
-								else
-									y_increase_ok = false;
+								if(y_increase_ok)
+									end_y++;
 							}
+							else
+								y_increase_ok = false;
 						}
-
-						// We have worked out the greedy quad.  Mark elements in it as processed
-						for(let y=start_y; y < end_y; ++y)
-						for(let x=start_x; x < end_x; ++x)
-							face_needed[(y - b_min) * face_needed_x_span + (x - a_min)] = 0;
-
-						let quad_dim_coord = dim_coord + 1.0;
-
-						// Add the greedy quad
-						let v_i = []
-						let v = new Float32Array(3);
-						v[dim] = quad_dim_coord;
-						{ // Add bot left vert
-							v[dim_a] = start_x;
-							v[dim_b] = start_y;
-								
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-						{ // bot right
-							v[dim_a] = end_x;
-							v[dim_b] = start_y;
-
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-						{ // top right
-							v[dim_a] = end_x;
-							v[dim_b] = end_y;
-
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-						{ // top left
-							v[dim_a] = start_x;
-							v[dim_b] = end_y;
-
-							// Append vertex to verts
-							v_i.push(verts.length/3)
-
-							verts.push(v[0]);
-							verts.push(v[1]);
-							verts.push(v[2]);
-						}
-							
-						// Append triangle vert indices
-						tri_vert_indices.push(v_i[0])
-						tri_vert_indices.push(v_i[1])
-						tri_vert_indices.push(v_i[2])
-
-						tri_vert_indices.push(v_i[0])
-						tri_vert_indices.push(v_i[2])
-						tri_vert_indices.push(v_i[3])
 					}
+
+					// We have worked out the greedy quad.  Mark elements in it as processed
+					for(let y=start_y; y < end_y; ++y)
+					for(let x=start_x; x < end_x; ++x)
+						face_needed_mat[y * face_needed_x_span + x] = no_voxel_mat;
+
+					
+					// Add the greedy quad
+					let start_x_coord = start_x + a_min;
+					let start_y_coord = start_y + b_min;
+					let end_x_coord = end_x + a_min;
+					let end_y_coord = end_y + b_min;
+
+					let v_i = new Int32Array(4); // quad vert indices
+					let v = new Float32Array(3); // Vertex position coordinates
+					v[dim] = dim_coord + dim_min;
+					{
+						// bot left
+						v[dim_a] = start_x_coord;
+						v[dim_b] = start_y_coord;
+
+						v_i[0] = vert_coords.length / 3;
+
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+					{
+						// top left
+						v[dim_a] = start_x_coord;
+						v[dim_b] = end_y_coord;
+
+						v_i[1] = vert_coords.length / 3;
+
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+					{
+						// top right
+						v[dim_a] = end_x_coord;
+						v[dim_b] = end_y_coord;
+
+						v_i[2] = vert_coords.length / 3;
+
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+					{
+						// bot right
+						v[dim_a] = end_x_coord;
+						v[dim_b] = start_y_coord;
+
+						v_i[3] = vert_coords.length / 3;
+
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+					
+					// Append vertex indices to the list of vertex indices for the current material
+					mat_vert_indices[start_face_needed_mat].push(v_i[0]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[1]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[2]);
+
+					mat_vert_indices[start_face_needed_mat].push(v_i[0]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[2]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[3]);
+				}
+			}
+
+			//================= Do upper faces along dim ==========================
+			// Build face_needed data for this slice
+
+			vox_indices[dim] = dim_coord;
+			adjacent_vox_indices[dim] = dim_coord + 1;
+			for (let y = 0; y < b_size; ++y)
+			for (let x = 0; x < a_size; ++x)
+			{
+				vox_indices[dim_a] = x;
+				vox_indices[dim_b] = y;
+			
+				let this_face_needed_mat = no_voxel_mat;
+				let vox_mat_index = voxel_grid[vox_indices[2] * (span_x * span_y) + vox_indices[1] * span_x + vox_indices[0]];
+				if (vox_mat_index != no_voxel_mat) // If there is a voxel here with mat_i
+				{
+					adjacent_vox_indices[dim_a] = x;
+					adjacent_vox_indices[dim_b] = y;
+
+					if (dim_coord < dim_size - 1) // If adjacent vox indices are in array bounds: (if dim_coord + 1 < dim_size)
+					{
+						let adjacent_vox_mat_index = voxel_grid[adjacent_vox_indices[2] * (span_x * span_y) + adjacent_vox_indices[1] * span_x + adjacent_vox_indices[0]];
+						if (adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+							this_face_needed_mat = vox_mat_index;
+					}
+					else {
+						this_face_needed_mat = vox_mat_index;
+					}
+				}
+				face_needed_mat[y * face_needed_x_span + x] = this_face_needed_mat;
+			}
+			
+			// For each voxel face:
+			for (let start_y = 0; start_y < b_size; ++start_y)
+			for (let start_x = 0; start_x < a_size; ++start_x) {
+			
+				let start_face_needed_mat = face_needed_mat[start_y * face_needed_x_span + start_x];
+				if (start_face_needed_mat != no_voxel_mat) { // If we need a face here:
+			
+					// Start a quad here (start corner at (start_x, start_y))
+					// The quad will range from (start_x, start_y) to (end_x, end_y)
+					let end_x = start_x + 1;
+					let end_y = start_y + 1;
+
+					let x_increase_ok = true;
+					let y_increase_ok = true;
+					while (x_increase_ok || y_increase_ok) {
+						// Try and increase in x direction
+						if (x_increase_ok) {
+							if (end_x < a_size) // If there is still room to increase in x direction:
+							{
+								// Check y values for new x = end_x
+								for (let y = start_y; y < end_y; ++y)
+									if (face_needed_mat[y * face_needed_x_span + end_x] != start_face_needed_mat) {
+										x_increase_ok = false;
+										break;
+									}
+
+								if (x_increase_ok)
+									end_x++;
+							}
+							else
+								x_increase_ok = false;
+						}
+
+						// Try and increase in y direction
+						if (y_increase_ok) {
+							if (end_y < b_size) {
+								// Check x values for new y = end_y
+								for (let x = start_x; x < end_x; ++x)
+									if (face_needed_mat[end_y * face_needed_x_span + x] != start_face_needed_mat) {
+										y_increase_ok = false;
+										break;
+									}
+
+								if (y_increase_ok)
+									end_y++;
+							}
+							else
+								y_increase_ok = false;
+						}
+					}
+
+					// We have worked out the greedy quad.  Mark elements in it as processed
+					for (let y = start_y; y < end_y; ++y)
+					for (let x = start_x; x < end_x; ++x)
+						face_needed_mat[y * face_needed_x_span + x] = no_voxel_mat;
+
+					// Add the greedy quad
+
+					let quad_dim_coord = dim_coord + dim_min + 1.0;
+					let start_x_coord = start_x + a_min;
+					let start_y_coord = start_y + b_min;
+					let end_x_coord = end_x + a_min;
+					let end_y_coord = end_y + b_min;
+				
+					let v_i = new Int32Array(4); // quad vert indices
+					let v = new Float32Array(3);
+					v[dim] = quad_dim_coord;
+					{ // Add bot left vert
+						v[dim_a] = start_x_coord;
+						v[dim_b] = start_y_coord;
+								
+						v_i[0] = vert_coords.length / 3;
+			
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+					{ // bot right
+						v[dim_a] = end_x_coord;
+						v[dim_b] = start_y_coord;
+			
+						v_i[1] = vert_coords.length / 3;
+			
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+					{ // top right
+						v[dim_a] = end_x_coord;
+						v[dim_b] = end_y_coord;
+			
+						v_i[2] = vert_coords.length / 3;
+			
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+					{ // top left
+						v[dim_a] = start_x_coord;
+						v[dim_b] = end_y_coord;
+			
+						v_i[3] = vert_coords.length / 3;
+			
+						vert_coords.push(v[0]);
+						vert_coords.push(v[1]);
+						vert_coords.push(v[2]);
+					}
+
+					// Append vertex indices to the list of vertex indices for the current material
+					mat_vert_indices[start_face_needed_mat].push(v_i[0]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[1]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[2]);
+
+					mat_vert_indices[start_face_needed_mat].push(v_i[0]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[2]);
+					mat_vert_indices[start_face_needed_mat].push(v_i[3]);
 				}
 			}
 		}
+	} // End For each dim
 
-		geometry.addGroup(/*start index=*/mat_vert_indices_start, /*count=*/tri_vert_indices.length - mat_vert_indices_start, mat_i);
-	} // End For each mat
 
-	geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
-	geometry.setIndex(tri_vert_indices);
+	let combined_vert_indices = [] // NOTE: could compute size and alloc before appending to it
+
+	let cur_offset = 0;
+	for (let i = 0; i < num_mats; ++i) {
+		let mat_vert_indices_i = mat_vert_indices[i];
+		if (mat_vert_indices_i.length > 0) {
+			geometry.addGroup(/*start index=*/cur_offset, /*count=*/mat_vert_indices_i.length, /*mat index=*/i);
+
+			for (let z = 0; z < mat_vert_indices_i.length; ++z)
+				combined_vert_indices.push(mat_vert_indices_i[z]); // NOTE: faster way in js to do this? (append arrays in place?)
+
+			cur_offset += mat_vert_indices_i.length;
+		}
+	}
+
+	geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vert_coords), /*item size=*/3));
+	geometry.setIndex(combined_vert_indices);
 	return geometry;
 }
 
@@ -549,32 +549,6 @@ export function makeMeshForVoxelGroup(compressed_voxels, model_lod_level) {
 	//console.log("makeMeshForVoxelGroup");
 	//console.log("num_voxels: " + num_voxels);
 
-	if(subsample_factor == 1)
-	{
-		let max_mat_index = 0;
-		for(let v = 0; v < num_voxels; ++v)
-		{
-			let mat_i = voxels[v*4 + 3];
-			max_mat_index = Math.max(max_mat_index, mat_i);
-		}
-		let num_mats = max_mat_index + 1;
-
-		return [doMakeMeshForVoxels(voxels, num_mats), subsample_factor];
-	}
-	else
-	{
-		let max_mat_index = 0;
-		for(let v = 0; v < num_voxels; ++v)
-		{
-			voxels[v * 4 + 0] = Math.floor(voxels[v * 4 + 0] / subsample_factor);
-			voxels[v * 4 + 1] = Math.floor(voxels[v * 4 + 1] / subsample_factor);
-			voxels[v * 4 + 2] = Math.floor(voxels[v * 4 + 2] / subsample_factor);
-			let mat_i = voxels[v*4 + 3];
-
-			max_mat_index = Math.max(max_mat_index, mat_i);
-		}
-		let num_mats = max_mat_index + 1;
-
-		return [doMakeMeshForVoxels(voxels, num_mats), subsample_factor];
-	}
+	let mesh = doMakeMeshForVoxels(voxels, subsample_factor);
+	return [mesh, subsample_factor];
 }

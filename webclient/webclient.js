@@ -1,7 +1,7 @@
 /*=====================================================================
 webclient.js
 ------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
 //import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
