@@ -11,6 +11,8 @@ FILE(GLOB lightmapper_bot "./*.cpp" "./*.h")
 SET(gui_client_files
 ../gui_client/ClientThread.cpp
 ../gui_client/ClientThread.h
+../gui_client/ClientSenderThread.cpp
+../gui_client/ClientSenderThread.h
 ../gui_client/WorldState.cpp
 ../gui_client/WorldState.h
 ../gui_client/URLWhitelist.cpp
