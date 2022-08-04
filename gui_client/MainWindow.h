@@ -501,6 +501,7 @@ public:
 	bool done_screenshot_setup;
 	bool run_as_screenshot_slave;
 	bool taking_map_screenshot;
+	bool test_screenshot_taking;
 	MySocketRef screenshot_command_socket;
 	Timer time_since_last_screenshot;
 	Timer time_since_last_waiting_msg;

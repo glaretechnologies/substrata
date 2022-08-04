@@ -183,6 +183,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	done_screenshot_setup(false),
 	taking_map_screenshot(false),
 	run_as_screenshot_slave(false),
+	test_screenshot_taking(false),
 	proximity_loader(/*load distance=*/ob_load_distance),
 	load_distance(ob_load_distance),
 	load_distance2(ob_load_distance*ob_load_distance),
@@ -2970,7 +2971,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(in_CEF_message_loop)
 		return;
 
-	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
@@ -3251,28 +3251,29 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
-	if(run_as_screenshot_slave)
+	if(run_as_screenshot_slave || test_screenshot_taking)
 	{
 		if(screenshot_output_path.empty()) // If we don't have a screenshot command we are currently executing:
 		{
 			try
 			{
-				const bool TESTING = false;
-				if(TESTING || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
+				if(test_screenshot_taking || screenshot_command_socket->readable(/*timeout (s)=*/0.01))
 				{
 					conPrint("Reading command from screenshot_command_socket etc...");
-					const std::string command = TESTING ? "takescreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
+					const std::string command = test_screenshot_taking ? "takescreenshot" : screenshot_command_socket->readStringLengthFirst(1000);
 					conPrint("Read screenshot command: " + command);
 					if(command == "takescreenshot")
 					{
-						if(TESTING)
+						if(test_screenshot_taking)
 						{
 							screenshot_campos = Vec3d(0, -1, 100);
-							screenshot_camangles = Vec3d(0, 3, 0); // (heading, pitch, roll).
+							screenshot_camangles = Vec3d(0, 2.5f, 0); // (heading, pitch, roll).
 							screenshot_width_px = 1024;
 							screenshot_highlight_parcel_id = 10;
-							taking_map_screenshot = false;
 							screenshot_output_path = "test_screenshot.jpg";
+
+							screenshot_ortho_sensor_width_m = 100;
+							taking_map_screenshot = false;
 						}
 						else
 						{
@@ -3291,7 +3292,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					else if(command == "takemapscreenshot")
 					{
 						int tile_x, tile_y, tile_z;
-						if(TESTING)
+						if(test_screenshot_taking)
 						{
 							tile_x = 0;
 							tile_y = 0;
@@ -3484,6 +3485,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		conPrint("mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()));
 	}
 
+	// NOTE: goes after sceeenshot code might update campos
+	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
 	const double global_time = world_state.nonNull() ? this->world_state->getCurrentGlobalTime() : 0.0; // Used as input into script functions
@@ -10405,6 +10408,7 @@ int main(int argc, char *argv[])
 		syntax["-linku"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify server URL to connect to, when a user has clicked on a substrata URL hyperlink.
 		syntax["--extractanims"] = std::vector<ArgumentParser::ArgumentType>(2, ArgumentParser::ArgumentType_string); // Extract animation data
 		syntax["--screenshotslave"] = std::vector<ArgumentParser::ArgumentType>(); // Run GUI as a screenshot-taking slave.
+		syntax["--testscreenshot"] = std::vector<ArgumentParser::ArgumentType>(); // Test screenshot taking
 
 		if(args.size() == 3 && args[1] == "-NSDocumentRevisionsDebugMode")
 			args.resize(1); // This is some XCode debugging rubbish, remove it
@@ -10517,6 +10521,9 @@ int main(int argc, char *argv[])
 
 			if(parsed_args.isArgPresent("--screenshotslave"))
 				mw.run_as_screenshot_slave = true;
+
+			if(parsed_args.isArgPresent("--testscreenshot"))
+				mw.test_screenshot_taking = true;
 
 			mw.initialise();
 
