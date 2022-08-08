@@ -176,7 +176,8 @@ elseif(APPLE)
 	add_definitions(-DOSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}")
 
 	# NOTE: -stdlib=libc++ is needed for C++11.
-	SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -mmmx -msse -msse2 -mssse3 -msse4.1 -arch x86_64")
+	# -Wthread-safety is Thread Safety Analysis: https://clang.llvm.org/docs/ThreadSafetyAnalysis.html
+	SET(APPLE_C_CXX_OPTIONS "-stdlib=libc++ -Wall -fPIC -mmmx -msse -msse2 -mssse3 -msse4.1 -arch x86_64 -Wthread-safety")
 	
 	SET(COMMON_C_CXX_OPTIONS_DEBUG				"${APPLE_C_CXX_OPTIONS} -gdwarf-2")
 	SET(COMMON_C_CXX_OPTIONS_SDKDEBUG			"${APPLE_C_CXX_OPTIONS} -gdwarf-2 -DNDEBUG")
