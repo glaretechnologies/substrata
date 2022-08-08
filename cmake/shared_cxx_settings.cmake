@@ -205,10 +205,10 @@ else() # Linux
 	SET(LINUX_C_CXX_OPTIONS "-Wall -fPIC -pthread -mmmx -msse -msse2 -mssse3 -msse4.1")
 	
 	# Turn on address/memory etc.. sanitizer if requested.  See http://code.google.com/p/address-sanitizer/wiki/AddressSanitizer 
-	if(NOT INDIGO_USE_SANITIZER STREQUAL "")
+	if(NOT USE_SANITIZER STREQUAL "")
 		# Also emit frame pointers and debug info (-g)
 		# Thread sanitizer requires -fPIE so just add it in for all sanitizers.
-		SET(LINUX_C_CXX_OPTIONS "${LINUX_C_CXX_OPTIONS} -fsanitize=${INDIGO_USE_SANITIZER} -fno-omit-frame-pointer -g -fPIE")
+		SET(LINUX_C_CXX_OPTIONS "${LINUX_C_CXX_OPTIONS} -fsanitize=${USE_SANITIZER} -fno-omit-frame-pointer -g") # -fPIE
 	endif()
 
 

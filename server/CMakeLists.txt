@@ -219,8 +219,8 @@ else() # linux
 	#SET(QT_LINUX_LIBS dl)
 
 	# Add required Sanitizer link flags
-	if(NOT INDIGO_USE_SANITIZER STREQUAL "")
-		SET(SANITIZER_LINK_FLAGS "-fsanitize=${INDIGO_USE_SANITIZER} -fno-omit-frame-pointer -g -pie")
+	if(NOT USE_SANITIZER STREQUAL "")
+		SET(SANITIZER_LINK_FLAGS "-fsanitize=${USE_SANITIZER} -fno-omit-frame-pointer -g -pie")
 	endif()
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib'")

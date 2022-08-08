@@ -43,8 +43,8 @@ else()
 	
 	# Linux
 	# Add required Sanitizer link flags
-	if(NOT INDIGO_USE_SANITIZER STREQUAL "")
-		SET(SANITIZER_LINK_FLAGS "-fsanitize=${INDIGO_USE_SANITIZER} -fno-omit-frame-pointer -g -pie")
+	if(NOT USE_SANITIZER STREQUAL "")
+		SET(SANITIZER_LINK_FLAGS "-fsanitize=${USE_SANITIZER} -fno-omit-frame-pointer -g") # -pie
 	endif()
 
 	# Note that for some stupid reason, -no-pie is needed to get the executable to show up as clickable in the Ubuntu files app.
