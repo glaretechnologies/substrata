@@ -52,6 +52,8 @@ static const double CORRECTION_PERIOD = 2.0;
 
 void WorldState::updateWithGlobalTimeReceived(double t)
 {
+	Lock lock(mutex);
+
 	const double clock_cur_time = Clock::getCurTimeRealSec();
 
 	if(local_time_global_time_received == 0)
@@ -81,6 +83,8 @@ void WorldState::updateWithGlobalTimeReceived(double t)
 
 double WorldState::getCurrentGlobalTime() const
 {
+	Lock lock(mutex);
+
 	const double clock_cur_time = Clock::getCurTimeRealSec();
 
 	const double time_since_last_rcv = clock_cur_time - this->local_time_global_time_received;

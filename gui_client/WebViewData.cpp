@@ -513,8 +513,8 @@ public:
 	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
 
 	Mutex mutex; // Protects main_window, ob
-	MainWindow* main_window;
-	WorldObject* ob;
+	MainWindow* main_window			GUARDED_BY(mutex);
+	WorldObject* ob					GUARDED_BY(mutex);
 
 	Reference<glare::AudioSource> audio_source; // Store a direct reference to the audio_source, to make sure it's alive while we are using it.
 	int num_channels;

@@ -36,6 +36,6 @@ private:
 	glare::AtomicInt should_die;
 	
 	Mutex data_to_send_mutex;
-	js::Vector<uint8, 16> data_to_send;
+	js::Vector<uint8, 16> data_to_send			GUARDED_BY(data_to_send_mutex);
 	js::Vector<uint8, 16> temp_data_to_send;
 };

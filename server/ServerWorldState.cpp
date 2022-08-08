@@ -50,9 +50,19 @@ ServerAllWorldsState::~ServerAllWorldsState()
 }
 
 
+Reference<ServerWorldState> ServerAllWorldsState::getRootWorldState() // Guaranteed to return a non-null reference
+{
+	Lock lock(mutex);
+
+	return world_states[""]; 
+}
+
+
 void ServerAllWorldsState::createNewDatabase(const std::string& path)
 {
 	conPrint("Creating new world state database at '" + path + "'...");
+
+	Lock lock(mutex);
 
 	database.openAndMakeOrClearDatabase(path);
 }
@@ -81,9 +91,12 @@ static const uint32 MAP_TILE_INFO_VERSION = 1;
 static const uint32 ETH_INFO_CHUNK_VERSION = 1;
 
 
-void ServerAllWorldsState::readFromDisk(const std::string& path)
+void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev_mode)
 {
 	conPrint("Reading world state from '" + path + "'...");
+
+	Lock lock(mutex);
+
 	Timer timer;
 
 	size_t num_obs = 0;
@@ -202,11 +215,14 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 					//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
 					// TEMP HACK: Rewrite resource local path for testing server state on dev machine.
-					/*if(!resource->URL.empty())
+					/*if(enable_dev_mode)
 					{
-						resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
-						if(FileUtils::fileExists(resource->getLocalPath()))
-							resource->setState(Resource::State_Present);
+						if(!resource->URL.empty())
+						{
+							resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
+							if(FileUtils::fileExists(resource->getLocalPath()))
+								resource->setState(Resource::State_Present);
+						}
 					}*/
 
 					resource->database_key = database_key;
@@ -403,11 +419,14 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 				//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
 				// TEMP HACK: Rewrite resource local path for testing server state on dev machine.
-				/*if(!resource->URL.empty())
+				/*if(enable_dev_mode)
 				{
-					resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
-					if(FileUtils::fileExists(resource->getLocalPath()))
-						resource->setState(Resource::State_Present);
+					if(!resource->URL.empty())
+					{
+						resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
+						if(FileUtils::fileExists(resource->getLocalPath()))
+							resource->setState(Resource::State_Present);
+					}
 				}*/
 
 				this->resource_manager->addResource(resource);
@@ -611,6 +630,8 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 
 void ServerAllWorldsState::addEverythingToDirtySets()
 {
+	Lock lock(mutex);
+
 	for(auto it = resource_manager->getResourcesForURL().begin(); it != resource_manager->getResourcesForURL().end(); ++it)
 		db_dirty_resources.insert(it->second);
 
@@ -651,8 +672,17 @@ void ServerAllWorldsState::addEverythingToDirtySets()
 }
 
 
+bool ServerAllWorldsState::isInReadOnlyMode()
+{ 
+	Lock lock(mutex); 
+	return read_only_mode; 
+}
+
+
 void ServerAllWorldsState::denormaliseData()
 {
+	Lock lock(mutex);
+
 	for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
 	{
 		Reference<ServerWorldState> world_state = world_it->second;
@@ -704,10 +734,11 @@ void ServerAllWorldsState::denormaliseData()
 }
 
 
-// Write any changed data (objects in dirty set) to disk.
+// Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
 void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 {
 	conPrint("Saving world state to disk...");
+
 	Timer timer;
 
 	try
@@ -1011,6 +1042,8 @@ void ServerAllWorldsState::serialiseToDisk(const std::string& path)
 
 UID ServerAllWorldsState::getNextObjectUID()
 {
+	Lock lock(mutex);
+
 	const UID next = next_object_uid;
 	next_object_uid = UID(next_object_uid.value() + 1);
 	return next;

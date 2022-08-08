@@ -98,7 +98,7 @@ typedef Reference<AudioSource> AudioSourceRef;
 struct AudioCallbackData
 {
 	Mutex buffer_mutex; // protects buffer
-	CircularBuffer<float> buffer;
+	CircularBuffer<float> buffer			GUARDED_BY(buffer_mutex);
 
 	//ThreadSafeQueue<Reference<AudioBuffer>> audio_buffer_queue;
 	vraudio::ResonanceAudioApi* resonance;
@@ -172,7 +172,7 @@ private:
 
 public:
 	Mutex mutex; // Guards access to audio_sources, and resonance
-	std::set<AudioSourceRef> audio_sources;
+	std::set<AudioSourceRef> audio_sources			GUARDED_BY(mutex);
 
 	ThreadManager thread_manager; // Manages: ResonanceThread, StreamerThread
 

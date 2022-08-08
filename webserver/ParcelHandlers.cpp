@@ -341,17 +341,17 @@ void renderAddParcelWriterPage(ServerAllWorldsState& world_state, const web::Req
 
 	page += "Add a user that will have write permissions for the parcel.  They will be able to create, edit and delete objects in the parcel.";
 
-	const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-	if(logged_in_user)
-	{
-		const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
-		if(!msg.empty())
-			page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
-	}
-
 	{ // Lock scope
 
 		Lock lock(world_state.mutex);
+
+		const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+		if(logged_in_user)
+		{
+			const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+			if(!msg.empty())
+				page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+		}
 
 		// Lookup parcel
 		const auto res = world_state.getRootWorldState()->parcels.find(ParcelID(parcel_id));
@@ -380,17 +380,17 @@ void renderRemoveParcelWriterPage(ServerAllWorldsState& world_state, const web::
 	std::string page = WebServerResponseUtils::standardHeader(world_state, request, "Remove writer from parcel");
 	page += "<div class=\"main\">   \n";
 
-	const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
-	if(logged_in_user)
-	{
-		const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
-		if(!msg.empty())
-			page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
-	}
-
 	{ // Lock scope
 
 		Lock lock(world_state.mutex);
+
+		const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request);
+		if(logged_in_user)
+		{
+			const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+			if(!msg.empty())
+				page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+		}
 
 		// Lookup writer
 		const auto writer_res = world_state.user_id_to_users.find(UserID(writer_id));
