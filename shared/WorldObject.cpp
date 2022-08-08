@@ -843,8 +843,8 @@ void WorldObject::compressVoxelGroup(const VoxelGroup& group, js::Vector<uint8, 
 
 	for(size_t z=0; z<counts.size(); ++z)
 	{
-		const int count = (int)counts[z];
-		data[write_i++] = count; // Write count of voxels with that material
+		const size_t count = counts[z];
+		data[write_i++] = (int)count; // Write count of voxels with that material
 
 		for(size_t i=0; i<count; ++i)
 		{
