@@ -59,8 +59,8 @@ public:
 
 	Mutex buffer_mutex; // protects buffer.  Lock should be held by threads other than the DownloadResourcesThread when reading from buffer,
 	// and will be held by DownloadResourcesThread when writing to buffer.
-	js::Vector<uint8, 16> buffer; // Streamed files will be downloaded to this buffer first, then saved to disk.
-	int64 num_buffer_readers; // If num_buffer_readers > 0, then the buffer won't be cleared when the resource has been fully downloaded.
+	js::Vector<uint8, 16> buffer	GUARDED_BY(buffer_mutex); // Streamed files will be downloaded to this buffer first, then saved to disk.
+	int64 num_buffer_readers		GUARDED_BY(buffer_mutex); // If num_buffer_readers > 0, then the buffer won't be cleared when the resource has been fully downloaded.
 	//std::set<Reference<ResourceDownloadListener>> listeners;
 
 	DatabaseKey database_key;

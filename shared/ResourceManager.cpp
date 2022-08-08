@@ -284,6 +284,9 @@ static const uint32 EOS_CHUNK = 1000;
 void ResourceManager::loadFromDisk(const std::string& path)
 {
 	conPrint("Reading resources from '" + path + "'...");
+
+	Lock lock(mutex);
+
 	Timer timer;
 
 	FileInStream stream(path);

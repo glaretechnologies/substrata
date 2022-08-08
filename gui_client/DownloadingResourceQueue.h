@@ -61,6 +61,6 @@ private:
 
 	mutable Mutex mutex;
 	Condition nonempty;
-	size_t begin_i;
-	js::Vector<DownloadQueueItem, 16> items;
+	size_t begin_i									GUARDED_BY(mutex);
+	js::Vector<DownloadQueueItem, 16> items			GUARDED_BY(mutex);
 };

@@ -85,7 +85,7 @@ private:
 	std::string base_resource_dir;
 
 	mutable Mutex mutex;
-	std::map<std::string, ResourceRef> resource_for_url;
+	std::map<std::string, ResourceRef> resource_for_url			GUARDED_BY(mutex);
 	glare::AtomicInt changed;
 
 

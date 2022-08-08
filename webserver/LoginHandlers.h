@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #pragma once
 
 
+#include "../server/ServerWorldState.h"
 class ServerAllWorldsState;
 class User;
 
@@ -32,7 +33,7 @@ namespace LoginHandlers
 
 	// Returns NULL if not logged in as a valid user.
 	// ServerAllWorldsState should be locked
-	User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info);
+	User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info) REQUIRES(world_state.mutex);
 
 	void renderLoginPage(const web::RequestInfo& request_info, web::ReplyInfo& reply_info);
 	void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info);

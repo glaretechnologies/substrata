@@ -183,7 +183,7 @@ void ClientThread::doRun()
 				{
 				case Protocol::AllObjectsSent:
 					{
-						conPrint("All objects finished sending.  " + toString(world_state->objects.size()) + " objects.");
+						conPrint("All objects finished sending.");
 						// This message has no payload.
 						this->all_objects_received = true;
 						break;

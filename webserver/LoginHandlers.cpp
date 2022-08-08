@@ -438,6 +438,8 @@ void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::Reque
 			try
 			{
 				matching_user->sendPasswordResetEmail(world_state.server_credentials);
+
+				Lock lock(world_state.mutex);
 				world_state.addUserAsDBDirty(matching_user);
 				
 				conPrint("Sent user password reset email to '" + matching_user->email_address + ", username '" + matching_user->name + "'");
