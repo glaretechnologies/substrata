@@ -70,13 +70,6 @@ if(WIN32)
 endif()
 
 
-
-# To use a Clang sanitizer, for example address sanitizer, set on command line like so:
-# -DINDIGO_USE_SANITIZER=address
-#SET(INDIGO_USE_SANITIZER "" CACHE STRING "INDIGO_USE_SANITIZER")
-
-#MESSAGE("INDIGO_USE_SANITIZER: ${INDIGO_USE_SANITIZER}")
-
 SET(INDIGO_USE_LIBRESSL TRUE)
 #MESSAGE("INDIGO_USE_LIBRESSL: ${INDIGO_USE_LIBRESSL}")
 
@@ -154,10 +147,13 @@ message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 SET(INDIGO_LLVM_VERSION 6.0.0)
 SET(INDIGO_LIBRESSL_VERSION 3.5.2)
 
-SET(INDIGO_USE_SANITIZER "")
-
 SET(PERFORMANCEAPI_ENABLED 0) # Superluminal instrumentation support
 MESSAGE("PERFORMANCEAPI_ENABLED (Superluminal instrumentation support): ${PERFORMANCEAPI_ENABLED}")
+
+# To use a Clang sanitizer, for example address sanitizer, set on command line like so:
+# -DUSE_SANITIZER=address or -DUSE_SANITIZER=thread
+SET(USE_SANITIZER "" CACHE STRING "USE_SANITIZER")
+MESSAGE("USE_SANITIZER: ${USE_SANITIZER}")
 
 if(WIN32)
 	set(jpegturbodir "${INDIGO_LIBS_ENV}/libjpeg-turbo/libjpeg-turbo-vs${CYBERSPACE_LIBS_VS_VER}-install") # e.g. D:\programming\libjpeg-turbo\libjpeg-turbo-vs2019-install
