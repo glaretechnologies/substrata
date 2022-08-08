@@ -24,9 +24,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <PoolAllocator.h>
 
 
-static const bool VERBOSE = false;
-
-
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
 						   const std::string& avatar_URL_, const std::string& world_name_, struct tls_config* config_, const Reference<glare::PoolAllocator>& world_ob_pool_allocator_)
 :	out_msg_queue(out_msg_queue_),
@@ -745,12 +742,12 @@ void ClientThread::doRun()
 			{
 #if defined(_WIN32) || defined(OSX)
 #else
-				if(VERBOSE) conPrint("WorkerThread: event FD was signalled.");
+				// conPrint("WorkerThread: event FD was signalled.");
 
 				// The event FD was signalled, which means should_die has been set.
 				event_fd.read(); // Reset the event fd by reading from it.
 
-				if(VERBOSE) conPrint("WorkerThread: event FD has been reset.");
+				// conPrint("WorkerThread: event FD has been reset.");
 #endif
 			}
 		}
