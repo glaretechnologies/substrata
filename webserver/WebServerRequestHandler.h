@@ -28,6 +28,7 @@ public:
 	WebDataStore* data_store;
 	Server* server;
 	ServerAllWorldsState* world_state;
+	bool dev_mode;
 private:
 };
 
@@ -35,7 +36,7 @@ private:
 class WebServerSharedRequestHandler : public web::SharedRequestHandler
 {
 public:
-	WebServerSharedRequestHandler(){}
+	WebServerSharedRequestHandler() : dev_mode(false) {}
 	virtual ~WebServerSharedRequestHandler(){}
 
 	virtual Reference<web::RequestHandler> getOrMakeRequestHandler() // Factory method for request handler.
@@ -44,11 +45,13 @@ public:
 		h->data_store = data_store;
 		h->server = server;
 		h->world_state = world_state;
+		h->dev_mode = dev_mode;
 		return h;
 	}
 
 	WebDataStore* data_store;
 	Server* server;
 	ServerAllWorldsState* world_state;
+	bool dev_mode;
 private:
 };
