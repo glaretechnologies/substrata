@@ -362,15 +362,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 }
 
 
-#if defined(_WIN32)
-static inline void throwOnError(HRESULT hres)
-{
-	if(FAILED(hres))
-		throw glare::Exception("Error: " + PlatformUtils::COMErrorString(hres));
-}
-#endif
-
-
 static std::string computeWindowTitle()
 {
 	return "Substrata v" + ::cyberspace_version;
@@ -449,7 +440,7 @@ void MainWindow::initialise()
 
 	//test_obs.resize(5);
 	test_srcs.resize(test_obs.size());
-	for(int i=0; i<test_srcs.size(); ++i)
+	for(size_t i=0; i<test_srcs.size(); ++i)
 	{
 		test_srcs[i] = new glare::AudioSource();
 		std::vector<float> buf(48000);
@@ -2037,6 +2028,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 
 						source->volume = ob->audio_volume;
 
+						Lock lock(world_state->mutex);
 						const Parcel* parcel = world_state->getParcelPointIsIn(ob->pos);
 						source->userdata_1 = parcel ? parcel->id.value() : ParcelID::invalidParcelID().value(); // Save the ID of the parcel the object is in, in userdata_1 field of the audio source.
 
@@ -2577,6 +2569,8 @@ void MainWindow::setUpForScreenshot()
 	// Highlight requested parcel_id
 	if(screenshot_highlight_parcel_id != -1)
 	{
+		Lock lock(world_state->mutex);
+
 		addParcelObjects();
 
 		auto res = world_state->parcels.find(ParcelID(screenshot_highlight_parcel_id));
@@ -2726,6 +2720,8 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 
 void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos)
 {
+	Lock lock(world_state->mutex);
+
 	GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
 
 	Matrix4f tentative_new_to_world = opengl_ob->ob_to_world_matrix;
@@ -3156,7 +3152,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		{
 			msg += "\nAudio engine:\n";
-			msg += "Num audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
+			{
+				Lock lock(audio_engine.mutex);
+				msg += "Num audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
+			}
 			/*msg += "Audio sources\n";
 			Lock lock(audio_engine.mutex);
 			for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
@@ -3176,7 +3175,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	{
 		Lock audio_engine_lock(audio_engine.mutex);
 
-		for(int i=0; i<test_obs.size(); ++i)
+		for(size_t i=0; i<test_obs.size(); ++i)
 		{
 			const double phase = (double)i / test_obs.size() * Maths::get2Pi<double>();
 			const double t = total_timer.elapsed() * 0.1;
@@ -3875,6 +3874,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					// conPrint("Handling model loaded message, model_url: " + message->model_url);
 					num_models_loaded++;
+
+					Lock lock(world_state->mutex);
 
 					try
 					{
@@ -7298,14 +7299,22 @@ void MainWindow::on_actionGo_to_Parcel_triggered()
 		{
 			const int parcel_num = stringToInt(QtUtils::toStdString(d.parcelNumberLineEdit->text()));
 
-			auto res = world_state->parcels.find(ParcelID(parcel_num));
-			if(res != world_state->parcels.end())
+			bool found = true;
 			{
-				const Parcel* parcel = res->second.ptr();
+				Lock lock(world_state->mutex);
 
-				cam_controller.setPosition(parcel->getVisitPosition()); 
+				auto res = world_state->parcels.find(ParcelID(parcel_num));
+				if(res != world_state->parcels.end())
+				{
+					const Parcel* parcel = res->second.ptr();
+
+					cam_controller.setPosition(parcel->getVisitPosition());
+				}
+				else
+					found = false;
 			}
-			else
+
+			if(!found)
 			{
 				QMessageBox msgBox;
 				msgBox.setWindowTitle("Invalid parcel number");
@@ -7334,15 +7343,23 @@ void MainWindow::on_actionFind_Object_triggered()
 		{
 			const int ob_id = stringToInt(QtUtils::toStdString(d.objectIDLineEdit->text()));
 
-			auto res = world_state->objects.find(UID(ob_id));
-			if(res != world_state->objects.end())
+			bool found = true;
 			{
-				WorldObject* ob = res.getValue().ptr();
+				Lock lock(world_state->mutex);
 
-				deselectObject();
-				selectObject(ob, /*selected_tri_index=*/0);
+				auto res = world_state->objects.find(UID(ob_id));
+				if(res != world_state->objects.end())
+				{
+					WorldObject* ob = res.getValue().ptr();
+
+					deselectObject();
+					selectObject(ob, /*selected_tri_index=*/0);
+				}
+				else
+					found = false;
 			}
-			else
+
+			if(!found)
 			{
 				QMessageBox msgBox;
 				msgBox.setWindowTitle("Invalid object id");
@@ -7370,15 +7387,22 @@ void MainWindow::on_actionList_Objects_Nearby_triggered()
 		const UID ob_id = d.getSelectedUID();
 		if(ob_id.valid())
 		{
-			auto res = world_state->objects.find(UID(ob_id));
-			if(res != world_state->objects.end())
+			bool found = true;
 			{
-				WorldObject* ob = res.getValue().ptr();
+				Lock lock(world_state->mutex);
+				auto res = world_state->objects.find(UID(ob_id));
+				if(res != world_state->objects.end())
+				{
+					WorldObject* ob = res.getValue().ptr();
 
-				deselectObject();
-				selectObject(ob, /*selected_tri_index=*/0);
+					deselectObject();
+					selectObject(ob, /*selected_tri_index=*/0);
+				}
+				else
+					found = false;
 			}
-			else
+
+			if(!found)
 			{
 				QMessageBox msgBox;
 				msgBox.setWindowTitle("Invalid object id");
@@ -7938,6 +7962,8 @@ void MainWindow::objectEditedSlot()
 				// TODO: set max_lod_level here?
 				//selected_ob->max_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 
+				Lock lock(this->world_state->mutex);
+
 				// Mark as from-local-dirty to send an object updated message to the server
 				this->selected_ob->from_local_other_dirty = true;
 				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
@@ -7992,6 +8018,7 @@ void MainWindow::parcelEditedSlot()
 	{
 		ui->parcelEditor->toParcel(*this->selected_parcel);
 
+		Lock lock(this->world_state->mutex);
 		//this->selected_parcel->from_local_other_dirty = true;
 		this->world_state->dirty_from_local_parcels.insert(this->selected_parcel);
 	}
@@ -8190,6 +8217,7 @@ void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub:/
 		// Note that this could fail if the parcels are not loaded yet.
 		if(parse_res.parsed_parcel_uid)
 		{
+			Lock lock(this->world_state->mutex);
 			const auto res = this->world_state->parcels.find(ParcelID(parse_res.parcel_uid));
 			if(res != this->world_state->parcels.end())
 			{
@@ -8254,6 +8282,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
 	if(world_state.nonNull())
 	{
+		Lock lock(this->world_state->mutex);
+
 		for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
 		{
 			WorldObject* ob = it.getValue().ptr();
@@ -8994,6 +9024,8 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob)
 {
+	Lock lock(this->world_state->mutex);
+
 	ob->compressVoxels();
 
 
@@ -9510,9 +9542,11 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		ob->aabb_ws = opengl_ob->aabb_ws; // Will have been set above in updateObjectTransformData().
 
 		// Mark as from-local-dirty to send an object updated message to the server.
-		ob->from_local_transform_dirty = true;
-		this->world_state->dirty_from_local_objects.insert(ob);
-
+		{
+			Lock lock(world_state->mutex);
+			ob->from_local_transform_dirty = true;
+			this->world_state->dirty_from_local_objects.insert(ob);
+		}
 
 		if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
 		{
@@ -10615,7 +10649,7 @@ int main(int argc, char *argv[])
 			}
 
 
-			for(int i=0; i<mw.test_obs.size(); ++i)
+			for(size_t i=0; i<mw.test_obs.size(); ++i)
 			{
 				mw.test_obs[i] = mw.ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(0.9, 0.2, 0.5, 1.f));
 				mw.ui->glWidget->opengl_engine->addObject(mw.test_obs[i]);
