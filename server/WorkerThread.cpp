@@ -153,7 +153,8 @@ void WorkerThread::handleResourceUploadConnection()
 
 		conPrint("\tusername: '" + username + "'");
 
-		UserRef client_user;
+		UserID client_user_id = UserID::invalidUserID();
+		std::string client_user_name;
 		{
 			Lock lock(server->world_state->mutex);
 			auto res = server->world_state->name_to_users.find(username);
@@ -161,11 +162,15 @@ void WorkerThread::handleResourceUploadConnection()
 			{
 				User* user = res->second.getPointer();
 				if(user->isPasswordValid(password))
-					client_user = user; // Password is valid, log user in.
+				{
+					// Password is valid, log user in.
+					client_user_id = user->id;
+					client_user_name = user->name;
+				}
 			}
 		}
 
-		if(client_user.isNull())
+		if(!client_user_id.valid())
 		{
 			conPrint("\tLogin failed.");
 			socket->writeUInt32(Protocol::LogInFailure); // Note that this is not a framed message.
@@ -210,7 +215,7 @@ void WorkerThread::handleResourceUploadConnection()
 		}
 		else // else if resource already existed:
 		{
-			if(resource->owner_id != client_user->id) // If this resource already exists and was created by someone else:
+			if(resource->owner_id != client_user_id) // If this resource already exists and was created by someone else:
 			{
 				socket->writeUInt32(Protocol::NoWritePermissions); // Note that this is not a framed message.
 				socket->writeStringLengthFirst("Not allowed to upload resource to URL '" + URL + ", someone else created a resource at this URL already.");
@@ -255,7 +260,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 		conPrint("\tWritten to disk.");
 
-		resource->owner_id = client_user->id;
+		resource->owner_id = client_user_id;
 		resource->setState(Resource::State_Present);
 
 		{
@@ -485,10 +490,14 @@ void WorkerThread::handleScreenshotBotConnection()
 
 					screenshot->state = Screenshot::ScreenshotState_done;
 					screenshot->local_path = screenshot_path;
-					server->world_state->addScreenshotAsDBDirty(screenshot);
 
-					if(screenshot->is_map_tile) // If we received a tile screenshot, mark map tile info as dirty to get it saved.
-						server->world_state->map_tile_info.db_dirty = true;
+					{
+						Lock lock(server->world_state->mutex);
+						server->world_state->addScreenshotAsDBDirty(screenshot);
+
+						if(screenshot->is_map_tile) // If we received a tile screenshot, mark map tile info as dirty to get it saved.
+							server->world_state->map_tile_info.db_dirty = true;
+					}
 				}
 				else
 					throw glare::Exception("Client reported screenshot taking failed.");
@@ -636,16 +645,16 @@ void WorkerThread::handleEthBotConnection()
 }
 
 
-static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const User& user, ServerWorldState& world_state)
+static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject& ob, const UserID& user_id, ServerWorldState& world_state)
 {
-	assert(user.id.valid());
+	assert(user_id.valid());
 
 	const Vec4f ob_pos = ob.pos.toVec4fPoint();
 
 	for(auto& it : world_state.parcels)
 	{
 		const Parcel* parcel = it.second.ptr();
-		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(user.id))
+		if(parcel->pointInParcel(ob_pos) && parcel->userHasWritePerms(user_id))
 			return true;
 	}
 
@@ -654,15 +663,15 @@ static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject&
 
 
 // NOTE: world state mutex should be locked before calling this method.
-static bool userHasObjectWritePermissions(const WorldObject& ob, const User& user, const std::string& connected_world_name, ServerWorldState& world_state)
+static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state)
 {
-	if(user.id.valid())
+	if(user_id.valid())
 	{
-		return (user.id == ob.creator_id) || // If the user created/owns the object
-			isGodUser(user.id) || // or if the user is the god user (id 0)
-			user.name == "lightmapperbot" || // lightmapper bot has full write permissions for now.
-			(!connected_world_name.empty() && (user.name == connected_world_name)) || // or if this is the user's personal world
-			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user, world_state); // Can modify objects owned by other people if they are in parcels you have write permissions for.
+		return (user_id == ob.creator_id) || // If the user created/owns the object
+			isGodUser(user_id) || // or if the user is the god user (id 0)
+			user_name == "lightmapperbot" || // lightmapper bot has full write permissions for now.
+			(!connected_world_name.empty() && (user_name == connected_world_name)) || // or if this is the user's personal world
+			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 	}
 	else
 		return false;
@@ -671,12 +680,12 @@ static bool userHasObjectWritePermissions(const WorldObject& ob, const User& use
 
 // This is for editing the parcel itself.
 // NOTE: world state mutex should be locked before calling this method.
-static bool userHasParcelWritePermissions(const Parcel& parcel, const User& user, const std::string& connected_world_name, ServerWorldState& world_state)
+static bool userHasParcelWritePermissions(const Parcel& parcel, const UserID& user_id, const std::string& connected_world_name, ServerWorldState& world_state)
 {
-	if(user.id.valid())
+	if(user_id.valid())
 	{
-		return (user.id == parcel.owner_id) || // If the user created/owns the object
-			isGodUser(user.id); // or if the user is the god user (id 0)
+		return (user_id == parcel.owner_id) || // If the user created/owns the object
+			isGodUser(user_id); // or if the user is the god user (id 0)
 		// TODO: Add if user is a parcel admin also?
 	}
 	else
@@ -691,7 +700,10 @@ void WorkerThread::doRun()
 	ServerAllWorldsState* world_state = server->world_state.getPointer();
 
 	UID client_avatar_uid(0);
-	Reference<User> client_user; // Will be a null reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
+	UserID client_user_id = UserID::invalidUserID(); // Will be an invalid reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
+	std::string client_user_name;
+	AvatarSettings client_user_avatar_settings;
+
 	Reference<ServerWorldState> cur_world_state; // World the client is connected to.
 	bool logged_in_user_is_lightmapper_bot = false; // Just for updating the last_lightmapper_bot_contact_time.
 
@@ -773,20 +785,27 @@ void WorkerThread::doRun()
 			client_avatar_uid = world_state->getNextAvatarUID();
 			writeToStream(client_avatar_uid, *socket);
 
-
-
 			// If the client connected via a websocket, they can be logged in with a session cookie.
 			// Note that this may only work if the websocket connects over TLS.
-			User* cookie_logged_in_user = LoginHandlers::getLoggedInUser(*world_state, this->websocket_request_info);
-			if(cookie_logged_in_user != NULL)
 			{
-				client_user = cookie_logged_in_user;
+				Lock lock(world_state->mutex);
+				User* cookie_logged_in_user = LoginHandlers::getLoggedInUser(*world_state, this->websocket_request_info);
+	
+				if(cookie_logged_in_user != NULL)
+				{
+					client_user_id = cookie_logged_in_user->id;
+					client_user_name = cookie_logged_in_user->name;
+					client_user_avatar_settings = cookie_logged_in_user->avatar_settings; // TODO: clone materials?
+				}
+			}
 
+			if(client_user_id.valid())
+			{
 				// Send logged-in message to client
 				initPacket(scratch_packet, Protocol::LoggedInMessageID);
-				writeToStream(client_user->id, scratch_packet);
-				scratch_packet.writeStringLengthFirst(client_user->name);
-				writeToStream(client_user->avatar_settings, scratch_packet);
+				writeToStream(client_user_id, scratch_packet);
+				scratch_packet.writeStringLengthFirst(client_user_name);
+				writeToStream(client_user_avatar_settings, scratch_packet);
 				updatePacketLengthField(scratch_packet);
 
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -912,7 +931,10 @@ void WorkerThread::doRun()
 
 
 				if(logged_in_user_is_lightmapper_bot)
+				{
+					Lock lock(server->world_state->mutex);
 					server->world_state->last_lightmapper_bot_contact_time = TimeStamp::currentTime(); // bit of a hack
+				}
 
 
 #if defined(_WIN32) || defined(OSX)
@@ -982,7 +1004,7 @@ void WorkerThread::doRun()
 
 							//conPrint("Received AvatarPerformGesture: '" + gesture_name + "'");
 
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to perform a gesture.");
 							}
@@ -1003,7 +1025,7 @@ void WorkerThread::doRun()
 							//conPrint("AvatarStopGesture");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to stop a gesture.");
 							}
@@ -1038,17 +1060,23 @@ void WorkerThread::doRun()
 
 
 									// Store avatar settings in the user data
-									if(client_user.nonNull())
+									if(client_user_id.valid())
 									{
-										const bool avatar_settings_changed = !(client_user->avatar_settings == avatar->avatar_settings);
+										const bool avatar_settings_changed = !(client_user_avatar_settings == avatar->avatar_settings);
 
 										if(avatar_settings_changed && !world_state->isInReadOnlyMode())
 										{
-											client_user->avatar_settings = avatar->avatar_settings;
+											client_user_avatar_settings = avatar->avatar_settings;
 
-											world_state->addUserAsDBDirty(client_user);
+											auto res2 = world_state->user_id_to_users.find(client_user_id);
+											if(res2 != world_state->user_id_to_users.end())
+											{
+												Reference<User> client_user = res2->second;
+												client_user->avatar_settings = avatar->avatar_settings;
+												world_state->addUserAsDBDirty(client_user);
 
-											conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+												conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+											}
 										}
 									}
 
@@ -1077,7 +1105,7 @@ void WorkerThread::doRun()
 							temp_avatar.uid = readUIDFromStream(msg_buffer); // Will be replaced.
 							readFromNetworkStreamGivenUID(msg_buffer, temp_avatar); // Read message data before grabbing lock
 
-							temp_avatar.name = client_user.isNull() ? "Anonymous" : client_user->name;
+							temp_avatar.name = client_user_id.valid() ? client_user_name : "Anonymous";
 
 							const UID use_avatar_uid = client_avatar_uid;
 							temp_avatar.uid = use_avatar_uid;
@@ -1144,7 +1172,7 @@ void WorkerThread::doRun()
 								msg_buffer.readData(aabb_data, sizeof(float)*6);
 
 							// If client is not logged in, refuse object modification.
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
 							}
@@ -1164,7 +1192,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state))
 											err_msg_to_client = "You must be the owner of this object to change it.";
 										else
 										{
@@ -1202,7 +1230,7 @@ void WorkerThread::doRun()
 							readFromNetworkStreamGivenUID(msg_buffer, temp_ob); // Read rest of ObjectFullUpdate message.
 
 							// If client is not logged in, refuse object modification.
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
 							}
@@ -1222,7 +1250,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state))
 										{
 											send_must_be_owner_msg = true;
 										}
@@ -1345,7 +1373,7 @@ void WorkerThread::doRun()
 							conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 
 							// If client is not logged in, refuse object creation.
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								conPrint("Creation denied, user was not logged in.");
 								initPacket(scratch_packet, Protocol::ErrorMessageID);
@@ -1360,9 +1388,9 @@ void WorkerThread::doRun()
 							}
 							else
 							{
-								new_ob->creator_id = client_user->id;
+								new_ob->creator_id = client_user_id;
 								new_ob->created_time = TimeStamp::currentTime();
-								new_ob->creator_name = client_user->name;
+								new_ob->creator_name = client_user_name;
 
 								std::set<DependencyURL> URLs;
 								new_ob->getDependencyURLSetForAllLODLevels(URLs);
@@ -1392,7 +1420,7 @@ void WorkerThread::doRun()
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
 							// If client is not logged in, refuse object modification.
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to destroy an object.");
 							}
@@ -1411,7 +1439,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										const bool have_delete_perms = userHasObjectWritePermissions(*ob, *client_user, this->connected_world_name, *cur_world_state);
+										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state);
 										if(!have_delete_perms)
 											send_must_be_owner_msg = true;
 										else
@@ -1604,7 +1632,7 @@ void WorkerThread::doRun()
 							readFromNetworkStreamGivenID(msg_buffer, temp_parcel, client_protocol_version);
 
 							// If client is not logged in, refuse parcel modification.
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to modify a parcel.");
 							}
@@ -1624,7 +1652,7 @@ void WorkerThread::doRun()
 										Parcel* parcel = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasParcelWritePermissions(*parcel, *client_user, this->connected_world_name, *cur_world_state))
+										if(!userHasParcelWritePermissions(*parcel, client_user_id, this->connected_world_name, *cur_world_state))
 										{
 											error_msg = "You must be the owner of this parcel (or have write permissions) to modify it";
 										}
@@ -1653,7 +1681,7 @@ void WorkerThread::doRun()
 
 							conPrint("Received chat message: '" + msg + "'");
 
-							if(client_user.isNull())
+							if(!client_user_id.valid())
 							{
 								writeErrorMessageToClient(socket, "You must be logged in to chat.");
 							}
@@ -1662,7 +1690,7 @@ void WorkerThread::doRun()
 								// Enqueue chat messages to worker threads to send
 								// Send ChatMessageID packet
 								initPacket(scratch_packet, Protocol::ChatMessageID);
-								scratch_packet.writeStringLengthFirst(client_user->name);
+								scratch_packet.writeStringLengthFirst(client_user_name);
 								scratch_packet.writeStringLengthFirst(msg);
 								updatePacketLengthField(scratch_packet);
 
@@ -1725,7 +1753,9 @@ void WorkerThread::doRun()
 									if(password_valid)
 									{
 										// Password is valid, log user in.
-										client_user = user;
+										client_user_id = user->id;
+										client_user_name = user->name;
+										client_user_avatar_settings = user->avatar_settings;
 
 										logged_in = true;
 									}
@@ -1740,9 +1770,9 @@ void WorkerThread::doRun()
 
 								// Send logged-in message to client
 								initPacket(scratch_packet, Protocol::LoggedInMessageID);
-								writeToStream(client_user->id, scratch_packet);
+								writeToStream(client_user_id, scratch_packet);
 								scratch_packet.writeStringLengthFirst(username);
-								writeToStream(client_user->avatar_settings, scratch_packet);
+								writeToStream(client_user_avatar_settings, scratch_packet);
 								updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1765,7 +1795,8 @@ void WorkerThread::doRun()
 						{
 							conPrint("LogOutMessage");
 
-							client_user = NULL; // Mark the client as not logged in.
+							client_user_id = UserID::invalidUserID(); // Mark the client as not logged in.
+							client_user_name = "";
 
 							// Send logged-out message to client
 							initPacket(scratch_packet, Protocol::LoggedOutMessageID);
@@ -1832,7 +1863,10 @@ void WorkerThread::doRun()
 												world_state->name_to_users   .insert(std::make_pair(username,     new_user));
 												world_state->markAsChanged(); // Mark as changed so gets saved to disk.
 
-												client_user = new_user; // Log user in as well.
+												client_user_id = new_user->id; // Log user in as well.
+												client_user_name = new_user->name;
+												client_user_avatar_settings = new_user->avatar_settings;
+
 												signed_up = true;
 											}
 										}
@@ -1845,7 +1879,7 @@ void WorkerThread::doRun()
 									conPrint("Sign up successful");
 									// Send signed-up message to client
 									initPacket(scratch_packet, Protocol::SignedUpMessageID);
-									writeToStream(client_user->id, scratch_packet);
+									writeToStream(client_user_id, scratch_packet);
 									scratch_packet.writeStringLengthFirst(username);
 									updatePacketLengthField(scratch_packet);
 
