@@ -264,7 +264,7 @@ static void makeRoad(ServerAllWorldsState& world_state, const Vec3d& pos, const 
 }
 
 
-static bool isParcelInCurrentAuction(ServerAllWorldsState& world_state, const Parcel* parcel, TimeStamp now)
+static bool isParcelInCurrentAuction(ServerAllWorldsState& world_state, const Parcel* parcel, TimeStamp now) REQUIRES(world_state.mutex)
 {
 	for(size_t i=0; i<parcel->parcel_auction_ids.size(); ++i)
 	{
@@ -645,6 +645,7 @@ int main(int argc, char *argv[])
 		//---------------------- Parse and process comment line arguments -------------------------
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
 		syntax["--src_resource_dir"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
+		syntax["--enable_dev_mode"] = std::vector<ArgumentParser::ArgumentType>();
 
 		std::vector<std::string> args;
 		for(int i=0; i<argc; ++i)
@@ -658,6 +659,8 @@ int main(int argc, char *argv[])
 			src_resource_dir = parsed_args.getArgStringValue("--src_resource_dir");
 
 		conPrint("src_resource_dir: '" + src_resource_dir + "'");
+
+		const bool dev_mode = parsed_args.isArgPresent("--enable_dev_mode");
 
 		Server server;
 
@@ -681,6 +684,11 @@ int main(int argc, char *argv[])
 			//RLP::test();
 			//Signing::test();
 			//Keccak256::test();
+			//Infura::test();
+			SHA256::test();
+			RLP::test();
+			Signing::test();
+			Keccak256::test();
 			//Infura::test();
 			//AccountHandlers::test();
 			//web::WorkerThreadTests::test();
@@ -733,7 +741,7 @@ int main(int argc, char *argv[])
 		conPrint("server_state_path: " + server_state_path);
 
 		if(FileUtils::fileExists(server_state_path))
-			server.world_state->readFromDisk(server_state_path);
+			server.world_state->readFromDisk(server_state_path, dev_mode);
 		else
 			server.world_state->createNewDatabase(server_state_path);
 
@@ -858,7 +866,7 @@ int main(int argc, char *argv[])
 		}
 
 
-		if(max_parcel_id.value() == 429)
+		if(false)//max_parcel_id.value() == 429)
 		{
 			// Make market and random east district
 			const int start_id = (int)max_parcel_id.value() + 1;
@@ -1202,16 +1210,16 @@ int main(int argc, char *argv[])
 		struct tls_config* web_tls_configuration = tls_config_new();
 
 #ifdef WIN32
-		//if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()/*"O:\\new_cyberspace\\trunk\\scripts\\cert.pem"*/) != 0)
-		//	throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
-		//if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str() /*"O:\\new_cyberspace\\trunk\\scripts\\key.pem"*/) != 0) // set private key
-		//	throw glare::Exception("tls_config_set_key_file failed.");
+		if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()/*"O:\\new_cyberspace\\trunk\\scripts\\cert.pem"*/) != 0)
+			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+		if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str() /*"O:\\new_cyberspace\\trunk\\scripts\\key.pem"*/) != 0) // set private key
+			throw glare::Exception("tls_config_set_key_file failed.");
 
-		const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
+		/*const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
 		if(tls_config_set_cert_file(web_tls_configuration, (certdir + "/godaddy-1da07c9956c94289.crt").c_str()) != 0)
 			throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 		if(tls_config_set_key_file(web_tls_configuration, (certdir + "/godaddy-generated-private-key.txt").c_str()) != 0) // set private key
-			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));*/
 
 #else
 		//const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
@@ -1253,12 +1261,20 @@ int main(int argc, char *argv[])
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
-#ifdef WIN32		
-		web_data_store->public_files_dir = "N:\\new_cyberspace\\trunk\\webserver_public_files";
-		web_data_store->webclient_dir = "N:\\new_cyberspace\\trunk\\webclient";
-		//web_data_store->public_files_dir = "C:\\programming\\cyberspace\\webdata\\public_files";
-		//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
-		web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
+#ifdef WIN32
+		if(dev_mode)
+		{
+			web_data_store->public_files_dir = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webserver_public_files";
+			web_data_store->webclient_dir    = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webclient";
+		}
+		else
+		{
+			web_data_store->public_files_dir = "N:\\new_cyberspace\\trunk\\webserver_public_files";
+			web_data_store->webclient_dir = "N:\\new_cyberspace\\trunk\\webclient";
+			//web_data_store->public_files_dir = "C:\\programming\\cyberspace\\webdata\\public_files";
+			//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
+			web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
+		}
 #else
 		web_data_store->public_files_dir = "/var/www/cyberspace/public_html";
 		web_data_store->webclient_dir = "/var/www/cyberspace/webclient";
@@ -1271,15 +1287,18 @@ int main(int argc, char *argv[])
 		shared_request_handler->data_store = web_data_store.ptr();
 		shared_request_handler->server = &server;
 		shared_request_handler->world_state = server.world_state.ptr();
+		shared_request_handler->dev_mode = dev_mode;
 
 		ThreadManager web_thread_manager;
 		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
 		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), web_tls_configuration));
 
 		// While Coinbase webhooks are not working, add a Coinbase polling thread.
-		web_thread_manager.addThread(new CoinbasePollerThread(server.world_state.ptr()));
+		if(!dev_mode)
+			web_thread_manager.addThread(new CoinbasePollerThread(server.world_state.ptr()));
 
-		web_thread_manager.addThread(new OpenSeaPollerThread(server.world_state.ptr()));
+		if(!dev_mode)
+			web_thread_manager.addThread(new OpenSeaPollerThread(server.world_state.ptr()));
 
 
 		//-----------------------------------------------------------------------------------------
