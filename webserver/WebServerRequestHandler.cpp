@@ -35,6 +35,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 WebServerRequestHandler::WebServerRequestHandler()
+:	dev_mode(false)
 {}
 
 
@@ -499,27 +500,45 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file /webclient");
 			}
 		}
-		else if(
-			request.path == "/fzstd.js" ||
-			request.path == "/bufferin.js" ||
-			request.path == "/bufferout.js" ||
-			request.path == "/bmeshloading.js" ||
-			request.path == "/voxelloading.js" ||
-			request.path == "/webclient.js" ||
-			request.path == "/downloadqueue.js" ||
-			request.path == "/examples/jsm/loaders/GLTFLoader.js" ||
-			request.path == "/examples/jsm/objects/Sky.js" ||
+		else if( // Files for the web client:
+			request.path == "/webclient/fzstd.js" ||
+			request.path == "/webclient/bufferin.js" ||
+			request.path == "/webclient/bufferout.js" ||
+			request.path == "/webclient/bmeshloading.js" ||
+			request.path == "/webclient/voxelloading.js" ||
+			request.path == "/webclient/webclient.js" ||
+			request.path == "/webclient/downloadqueue.js" ||
+			request.path == "/webclient/examples/jsm/loaders/GLTFLoader.js" ||
+			request.path == "/webclient/examples/jsm/objects/Sky.js" ||
 			//request.path == "/examples/jsm/csm/CSM.js" ||
 			//request.path == "/examples/jsm/csm/CSMFrustum.js" ||
 			//request.path == "/examples/jsm/csm/CSMHelper.js" ||
 			//request.path == "/examples/jsm/csm/CSMShader.js" ||
-			request.path == "/build/three.module.js"
+			request.path == "/webclient/build/three.module.js"
 			)
 		{
 			try
 			{
 				std::string contents;
-				FileUtils::readEntireFile(data_store->webclient_dir + request.path, contents);
+				FileUtils::readEntireFile(data_store->webclient_dir + ::eatPrefix(request.path, "/webclient"), contents);
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
+			}
+			catch(FileUtils::FileUtilsExcep& e)
+			{
+				conPrint("Failed to load file: " + e.what());
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
+			}
+		}
+		else if(dev_mode && ::hasPrefix(request.path, "/webclient/"))
+		{
+			// In development mode, serve any requested files out of webclient dir.
+			if(!FileUtils::isPathSafe(request.path))
+				throw glare::Exception("request '" + request.path + "' is not safe.");
+
+			try
+			{
+				std::string contents;
+				FileUtils::readEntireFile(data_store->webclient_dir + ::eatPrefix(request.path, "/webclient"), contents);
 				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
 			}
 			catch(FileUtils::FileUtilsExcep& e)
