@@ -42,11 +42,17 @@ struct MaterialAnimatedTexData
 };
 
 
+struct AnimatedTexObDataProcessStats
+{
+	int num_gif_textures_processed;
+	int num_mp4_textures_processed;
+};
+
 struct AnimatedTexObData : public RefCounted
 {
 	std::vector<MaterialAnimatedTexData> mat_animtexdata; // size() == ob.material.size()
 
-	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
+	AnimatedTexObDataProcessStats process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
 private:
 	void processGIFAnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,

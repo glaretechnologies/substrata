@@ -898,18 +898,43 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 }
 
 
-void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
+static inline float largestDim(const js::AABBox& aabb)
 {
+	return horizontalMax((aabb.max_ - aabb.min_).v);
+}
+
+
+AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt)
+{
+	AnimatedTexObDataProcessStats stats;
+	stats.num_gif_textures_processed = 0;
+	stats.num_mp4_textures_processed = 0;
+
 	if(ob->opengl_engine_ob.isNull())
-		return;
+		return stats;
 
-	const float ob_dist_from_cam2 = ob->aabb_ws.centroid().getDist2(main_window->cam_controller.getPosition().toVec4fPoint());
-	const double max_play_dist = AnimatedTexData::maxVidPlayDist();
-	const bool in_process_dist = ob_dist_from_cam2 < Maths::square(max_play_dist);
+	const bool in_cam_frustum = opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
 
-	const bool should_update_ob_tex = in_process_dist && opengl_engine->isObjectInCameraFrustum(*ob->opengl_engine_ob);
+	// Work out if the object is sufficiently large, as seen from the camera, and sufficiently close to the camera.
+	// Gifs will play further away than mp4s.
+	bool large_enough;
+	bool mp4_large_enough;
+	{
+		const float max_dist = 200.f; // textures <= max_dist are updated
+		const float min_recip_dist = 1 / max_dist; // textures >= min_recip_dist are updated
 
-	if(should_update_ob_tex)
+		const float max_mp4_dist = AnimatedTexData::maxVidPlayDist(); // textures <= max_dist are updated
+		const float min_mp4_recip_dist = 1 / max_mp4_dist; // textures >= min_recip_dist are updated
+
+		const float ob_w = largestDim(ob->aabb_ws);
+		const float recip_dist = (ob->aabb_ws.centroid() - main_window->cam_controller.getPosition().toVec4fPoint()).fastApproxRecipLength();
+		const float proj_len = ob_w * recip_dist;
+
+		large_enough     = (proj_len > 0.01f) && (recip_dist > min_recip_dist);
+		mp4_large_enough = (proj_len > 0.01f) && (recip_dist > min_mp4_recip_dist);
+	}
+
+	if(in_cam_frustum && large_enough)
 	{
 		AnimatedTexObData& animation_data = *this;
 		animation_data.mat_animtexdata.resize(ob->opengl_engine_ob->materials.size());
@@ -925,14 +950,18 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 					animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
 
 				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
-				
+				stats.num_gif_textures_processed++;
 			}
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
 			{
-				if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
-					animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
+				if(mp4_large_enough)
+				{
+					if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
+						animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
 
-				processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
+					processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
+					stats.num_mp4_textures_processed++;
+				}
 			}
 
 			//---- Handle animated emission texture ----
@@ -942,19 +971,26 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 					animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
 
 				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
+				stats.num_gif_textures_processed++;
 
 			}
 			else if(hasExtensionStringView(mat.emission_tex_path, "mp4"))
 			{
-				if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
-					animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
+				if(mp4_large_enough)
+				{
+					if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
+						animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
 
-				processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
+					processMP4AnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
+					stats.num_mp4_textures_processed++;
+				}
 			}
 		}
 	}
 
-	if(!in_process_dist)
+	// If the object is sufficiently far from the camera, clean up browser anim data.
+	// Note that we only want to do this when the object is far away, not just when it moves outside the camera frustum.
+	if(!mp4_large_enough)
 	{
 #if CEF_SUPPORT
 		// Close any browsers for animated textures on this object.
@@ -998,4 +1034,34 @@ void AnimatedTexObData::process(MainWindow* main_window, OpenGLEngine* opengl_en
 		}
 #endif
 	}
+
+	// If the object is sufficiently far from the camera, clean up gif playback data.
+	if(!large_enough)
+	{
+		for(size_t m=0; m<this->mat_animtexdata.size(); ++m)
+		{
+			if(this->mat_animtexdata[m].refl_col_animated_tex_data.nonNull())
+			{
+				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].refl_col_animated_tex_data;
+				if(animtexdata.texdata.nonNull())
+				{
+					//conPrint("Unloading texture data: " + animtexdata.texdata_tex_path);
+					animtexdata.texdata = NULL;
+					animtexdata.texdata_tex_path.clear();
+				}
+			}
+			if(this->mat_animtexdata[m].emission_col_animated_tex_data.nonNull())
+			{
+				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].emission_col_animated_tex_data;
+				if(animtexdata.texdata.nonNull())
+				{
+					//conPrint("Unloading texture data: " + animtexdata.texdata_tex_path);
+					animtexdata.texdata = NULL;
+					animtexdata.texdata_tex_path.clear();
+				}
+			}
+		}
+	}
+
+	return stats;
 }
