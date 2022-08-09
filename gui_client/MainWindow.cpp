@@ -3078,6 +3078,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		msg += "FPS: " + doubleToStringNDecimalPlaces(this->last_fps, 1) + "\n";
 		msg += "main loop CPU time: " + doubleToStringNSigFigs(this->last_timerEvent_CPU_work_elapsed * 1000, 3) + " ms\n";
 		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
+		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
+		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
 		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
 		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
 		msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
@@ -3210,6 +3212,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//Timer tex_upload_timer;
 		//tex_upload_timer.pause();
 
+		int num_gif_textures_processed = 0;
+		int num_mp4_textures_processed = 0;
+
 		const double anim_time = total_timer.elapsed();
 
 		{
@@ -3222,7 +3227,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				try
 				{
-					animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+					const AnimatedTexObDataProcessStats stats = animation_data.process(this, ui->glWidget->opengl_engine.ptr(), ob, anim_time, dt);
+					num_gif_textures_processed += stats.num_gif_textures_processed;
+					num_mp4_textures_processed += stats.num_mp4_textures_processed;
 				}
 				catch(glare::Exception& e)
 				{
@@ -3230,6 +3237,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 			}
 		 } // End lock scope
+
+		this->last_num_gif_textures_processed = num_gif_textures_processed;
+		this->last_num_mp4_textures_processed = num_mp4_textures_processed;
 
 		// Process web-view objects
 		for(auto it = web_view_obs.begin(); it != web_view_obs.end(); ++it)

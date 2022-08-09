@@ -536,6 +536,8 @@ public:
 	double last_timerEvent_CPU_work_elapsed;
 	double last_animated_tex_time;
 	double last_model_and_tex_loading_time;
+	int last_num_gif_textures_processed;
+	int last_num_mp4_textures_processed;
 
 	Timer time_since_object_edited; // For undo edit merging.
 	bool force_new_undo_edit; // // Multiple edits using the object editor, in a short timespan, will be merged together, unless force_new_undo_edit is true (is set when undo or redo is issued).
