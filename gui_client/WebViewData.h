@@ -33,7 +33,7 @@ public:
 
 	void process(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt);
 
-	static const double maxBrowserDist() { return 20.0; }
+	static double maxBrowserDist() { return 20.0; }
 
 	void mousePressed(QMouseEvent* e, const Vec2<float>& uv_coords);
 	void mouseReleased(QMouseEvent* e, const Vec2<float>& uv_coords);
