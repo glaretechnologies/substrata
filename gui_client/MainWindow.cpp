@@ -3875,8 +3875,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					// conPrint("Handling model loaded message, model_url: " + message->model_url);
 					num_models_loaded++;
 
-					Lock lock(world_state->mutex);
-
 					try
 					{
 						if(message->voxel_ob_uid.valid()) // If we loaded a voxel object:
