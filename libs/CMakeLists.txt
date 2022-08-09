@@ -388,7 +388,7 @@ SOURCE_GROUP(openexr FILES ${openexr})
 #SOURCE_GROUP(lib3ds FILES ${lib3ds})
 SOURCE_GROUP(libjpg FILES ${libjpg})
 SOURCE_GROUP(libpng FILES ${libpng})
-SOURCE_GROUP(libtiff FILES ${libtiff})
+#SOURCE_GROUP(libtiff FILES ${libtiff})
 #SOURCE_GROUP(lua FILES ${lua})
 SOURCE_GROUP(zlib FILES ${zlib})
 SOURCE_GROUP(zlib\\minizip FILES ${minizip})
@@ -425,7 +425,7 @@ ${openexr}
 #${lib3ds}
 #${libjpg}
 ${libpng}
-${libtiff}
+#${libtiff}
 #${lua}
 ${zlib}
 ${minizip}

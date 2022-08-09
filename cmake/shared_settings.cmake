@@ -10,8 +10,8 @@ ${INDIGO_GRAPHICS_DIR}/BatchedMeshTests.cpp
 ${INDIGO_GRAPHICS_DIR}/BatchedMeshTests.h
 ${INDIGO_GRAPHICS_DIR}/bitmap.cpp
 ${INDIGO_GRAPHICS_DIR}/bitmap.h
-${INDIGO_GRAPHICS_DIR}/bmpdecoder.cpp
-${INDIGO_GRAPHICS_DIR}/bmpdecoder.h
+#${INDIGO_GRAPHICS_DIR}/bmpdecoder.cpp
+#${INDIGO_GRAPHICS_DIR}/bmpdecoder.h
 ${INDIGO_GRAPHICS_DIR}/BoxFilterFunction.cpp
 ${INDIGO_GRAPHICS_DIR}/BoxFilterFunction.h
 ${INDIGO_GRAPHICS_DIR}/colour3.h
@@ -30,8 +30,8 @@ ${INDIGO_GRAPHICS_DIR}/FilterFunction.cpp
 ${INDIGO_GRAPHICS_DIR}/FilterFunction.h
 ${INDIGO_GRAPHICS_DIR}/FFTPlan.cpp
 ${INDIGO_GRAPHICS_DIR}/FFTPlan.h
-${INDIGO_GRAPHICS_DIR}/FloatDecoder.cpp
-${INDIGO_GRAPHICS_DIR}/FloatDecoder.h
+#${INDIGO_GRAPHICS_DIR}/FloatDecoder.cpp
+#${INDIGO_GRAPHICS_DIR}/FloatDecoder.h
 ${INDIGO_GRAPHICS_DIR}/FormatDecoderGLTF.cpp
 ${INDIGO_GRAPHICS_DIR}/FormatDecoderGLTF.h
 ${INDIGO_GRAPHICS_DIR}/formatdecoderobj.cpp
@@ -87,17 +87,17 @@ ${INDIGO_GRAPHICS_DIR}/PerlinNoise.cpp
 ${INDIGO_GRAPHICS_DIR}/PerlinNoise.h
 ${INDIGO_GRAPHICS_DIR}/PNGDecoder.cpp
 ${INDIGO_GRAPHICS_DIR}/PNGDecoder.h
-${INDIGO_GRAPHICS_DIR}/RGBEDecoder.cpp
-${INDIGO_GRAPHICS_DIR}/RGBEDecoder.h
+#${INDIGO_GRAPHICS_DIR}/RGBEDecoder.cpp
+#${INDIGO_GRAPHICS_DIR}/RGBEDecoder.h
 ${INDIGO_GRAPHICS_DIR}/SharpFilterFunction.cpp
 ${INDIGO_GRAPHICS_DIR}/SharpFilterFunction.h
 ${INDIGO_GRAPHICS_DIR}/spherehammersly.h
 ${INDIGO_GRAPHICS_DIR}/TextDrawer.cpp
 ${INDIGO_GRAPHICS_DIR}/TextDrawer.h
-${INDIGO_GRAPHICS_DIR}/tgadecoder.cpp
-${INDIGO_GRAPHICS_DIR}/tgadecoder.h
-${INDIGO_GRAPHICS_DIR}/TIFFDecoder.cpp
-${INDIGO_GRAPHICS_DIR}/TIFFDecoder.h
+#${INDIGO_GRAPHICS_DIR}/tgadecoder.cpp
+#${INDIGO_GRAPHICS_DIR}/tgadecoder.h
+#${INDIGO_GRAPHICS_DIR}/TIFFDecoder.cpp
+#${INDIGO_GRAPHICS_DIR}/TIFFDecoder.h
 ${INDIGO_GRAPHICS_DIR}/TriBoxIntersection.cpp
 ${INDIGO_GRAPHICS_DIR}/TriBoxIntersection.h
 ${INDIGO_GRAPHICS_DIR}/Voronoi.cpp
@@ -343,7 +343,7 @@ FILE(GLOB networking "${INDIGO_TRUNK_DIR_ENV}/networking/*.cpp" "${INDIGO_TRUNK_
 FILE(GLOB opencl "${INDIGO_TRUNK_DIR_ENV}/opencl/*.cl" "${INDIGO_TRUNK_DIR_ENV}/opencl/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/opencl/*.h")
 #FILE(GLOB physics "${INDIGO_TRUNK_DIR_ENV}/physics/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/physics/*.h")
 #FILE(GLOB raytracing "${INDIGO_TRUNK_DIR_ENV}/raytracing/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/raytracing/*.h")
-FILE(GLOB hdr "${INDIGO_TRUNK_DIR_ENV}/hdr/*.c" "${INDIGO_TRUNK_DIR_ENV}/hdr/*.h")
+#FILE(GLOB hdr "${INDIGO_TRUNK_DIR_ENV}/hdr/*.c" "${INDIGO_TRUNK_DIR_ENV}/hdr/*.h")
 #FILE(GLOB simpleraytracer "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.h")
 #FILE(GLOB utils "${INDIGO_TRUNK_DIR_ENV}/utils/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/utils/*.h")
 FILE(GLOB scripts "../scripts/*.rb")
@@ -507,7 +507,7 @@ SOURCE_GROUP(maths FILES ${maths})
 SOURCE_GROUP(networking FILES ${networking})
 SOURCE_GROUP(physics FILES ${physics})
 SOURCE_GROUP(raytracing FILES ${raytracing})
-SOURCE_GROUP(hdr FILES ${hdr})
+#SOURCE_GROUP(hdr FILES ${hdr})
 SOURCE_GROUP(simpleraytracer FILES ${simpleraytracer})
 SOURCE_GROUP(utils FILES ${utils})
 SOURCE_GROUP(scripts FILES ${scripts})
