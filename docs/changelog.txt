@@ -1,3 +1,26 @@
+0.95
+====
+Added hologram check box in material editor.
+Optimised voxel loading.
+Sanitising albedo colour in ModelLoading.  Fixes extremely bright light coming from RTFKT pods.
+Some graphics fixes + optimisations.
+Loading emission factor and textures in the GLTF loader.
+Added cloud reflections to transparent material shader.
+Always rendering to offscreen buffer.
+Added initial implementation of order-independent transparency.
+Added local light reflections to transparent shader.
+Changed main colour buffer and downsize/blur buffers to use half-precision floats, instead of full-precision.
+Added emission support to transparent materials.
+Not showing material editor when selecting spotlights in the object editor.
+Added colour button to spotlight editor.
+Fixed up/down keys not moving player on mac + linux.
+If opengl widget loses focus, just consider all keys up on mac + linux.
+Fixed changing world hanging sometimes (hopefully)
+Fix occasional deadlock communicating with server.
+Fixed some jitter while moving around in some cases.
+Make it so the toolbar can't be hidden, as it's confusing for users when it disappears.
+Gifs now play further away than 20m: up to 200m depending on object size.
+
 0.94
 ====
 Added emission texture, emission RGB, and luminance settings to materials.
