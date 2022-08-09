@@ -11,9 +11,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 ObInfoUI::ObInfoUI()
-:	main_window(NULL),
-	gestures_visible(false),
-	untoggle_button_time(-1)
+:	main_window(NULL)
 {}
 
 

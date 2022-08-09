@@ -52,14 +52,9 @@ private:
 
 	GLUITextViewRef info_text_view;
 
-	bool gestures_visible;
-
 	GLUIRef gl_ui;
 
 	Reference<OpenGLEngine> opengl_engine;
-
-	Timer timer;
-	double untoggle_button_time;
 
 	std::string currently_showing_url;
 };

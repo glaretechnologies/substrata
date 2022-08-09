@@ -24,7 +24,7 @@ struct AnimatedTexData : public RefCounted
 	AnimatedTexData();
 	~AnimatedTexData();
 
-	static const double maxVidPlayDist() { return 20.0; }
+	static double maxVidPlayDist() { return 20.0; }
 
 	Reference<TextureData> texdata;
 	std::string texdata_tex_path; // The path that texdata corresponds to.
