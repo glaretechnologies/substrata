@@ -32,6 +32,7 @@ public:
 
 	void setFromObject(const WorldObject& ob, int selected_mat_index);
 	void updateObjectPos(const WorldObject& ob);
+	void setTransformFromObject(const WorldObject& ob);
 
 	void toObject(WorldObject& ob_out);
 
