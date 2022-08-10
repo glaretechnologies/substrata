@@ -156,26 +156,8 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	this->posXDoubleSpinBox->setEnabled(true);
 	this->posYDoubleSpinBox->setEnabled(true);
 	this->posZDoubleSpinBox->setEnabled(true);
-	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
-	SignalBlocker::setValue(this->posYDoubleSpinBox, ob.pos.y);
-	SignalBlocker::setValue(this->posZDoubleSpinBox, ob.pos.z);
 
-	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
-	SignalBlocker::setValue(this->scaleYDoubleSpinBox, ob.scale.y);
-	SignalBlocker::setValue(this->scaleZDoubleSpinBox, ob.scale.z);
-
-	this->last_x_scale_over_z_scale = ob.scale.x / ob.scale.z;
-	this->last_x_scale_over_y_scale = ob.scale.x / ob.scale.y;
-	this->last_y_scale_over_z_scale = ob.scale.y / ob.scale.z;
-
-
-	const Matrix3f rot_mat = Matrix3f::rotationMatrix(normalise(ob.axis), ob.angle);
-
-	const Vec3f angles = rot_mat.getAngles();
-	
-	SignalBlocker::setValue(this->rotAxisXDoubleSpinBox, angles.x * 360 / Maths::get2Pi<float>());
-	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, angles.y * 360 / Maths::get2Pi<float>());
-	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, angles.z * 360 / Maths::get2Pi<float>());
+	setTransformFromObject(ob);
 
 	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
 	
@@ -276,6 +258,31 @@ void ObjectEditor::updateObjectPos(const WorldObject& ob)
 	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
 	SignalBlocker::setValue(this->posYDoubleSpinBox, ob.pos.y);
 	SignalBlocker::setValue(this->posZDoubleSpinBox, ob.pos.z);
+}
+
+
+void ObjectEditor::setTransformFromObject(const WorldObject& ob)
+{
+	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
+	SignalBlocker::setValue(this->posYDoubleSpinBox, ob.pos.y);
+	SignalBlocker::setValue(this->posZDoubleSpinBox, ob.pos.z);
+
+	SignalBlocker::setValue(this->scaleXDoubleSpinBox, ob.scale.x);
+	SignalBlocker::setValue(this->scaleYDoubleSpinBox, ob.scale.y);
+	SignalBlocker::setValue(this->scaleZDoubleSpinBox, ob.scale.z);
+
+	this->last_x_scale_over_z_scale = ob.scale.x / ob.scale.z;
+	this->last_x_scale_over_y_scale = ob.scale.x / ob.scale.y;
+	this->last_y_scale_over_z_scale = ob.scale.y / ob.scale.z;
+
+
+	const Matrix3f rot_mat = Matrix3f::rotationMatrix(normalise(ob.axis), ob.angle);
+
+	const Vec3f angles = rot_mat.getAngles();
+
+	SignalBlocker::setValue(this->rotAxisXDoubleSpinBox, angles.x * 360 / Maths::get2Pi<float>());
+	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, angles.y * 360 / Maths::get2Pi<float>());
+	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, angles.z * 360 / Maths::get2Pi<float>());
 }
 
 

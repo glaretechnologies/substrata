@@ -421,6 +421,8 @@ public:
 	std::vector<LineSegment4f> rot_handle_lines[3];
 	GLObjectRef rot_handle_arc_objects[3];
 
+	bool axis_and_rot_obs_enabled; // Are the axis arrow objects and rotation arcs inserted into the opengl engine? (and grabbable)
+
 	int grabbed_axis; // -1 if no axis grabbed, [0, 3) if grabbed a translation arrow, [3, 6) if grabbed a rotation arc.
 	Vec4f grabbed_point_ws; // Approximate point on arrow line we grabbed, in world space.
 	Vec4f ob_origin_at_grab;
