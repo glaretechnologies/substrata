@@ -169,6 +169,7 @@ private slots:;
 	void URLChangedSlot();
 	void materialSelectedInBrowser(const std::string& path);
 	void sendLightmapNeededFlagsSlot();
+	void updateObjectEditorObTransformSlot();
 	void handleURL(const QUrl& url);
 public:
 	void webViewDataLinkHovered(const QString& url);
@@ -486,6 +487,8 @@ private:
 
 	std::unordered_set<std::string> script_content_processed;
 
+
+	QTimer* update_ob_editor_transform_timer;
 
 	QTimer* lightmap_flag_timer;
 

@@ -227,6 +227,10 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 	setAcceptDrops(true);
 
+	update_ob_editor_transform_timer = new QTimer(this);
+	update_ob_editor_transform_timer->setSingleShot(true);
+	connect(update_ob_editor_transform_timer, SIGNAL(timeout()), this, SLOT(updateObjectEditorObTransformSlot()));
+
 	// Add dock widgets to Window menu
 	ui->menuWindow->addSeparator();
 	ui->menuWindow->addAction(ui->editorDockWidget->toggleViewAction());
@@ -2815,7 +2819,9 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*selected_ob);
 
-		this->ui->objectEditor->updateObjectPos(*selected_ob);
+		// Set a timer to call updateObjectEditorObTransformSlot() later. Not calling this every frame avoids stutters with webviews playing back videos interacting with Qt updating spinboxes.
+		if(!update_ob_editor_transform_timer->isActive())
+			update_ob_editor_transform_timer->start(/*msec=*/50);
 
 		this->selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
 
@@ -9614,8 +9620,10 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*ob);
 
-		// Update object values in editor
-		ui->objectEditor->setTransformFromObject(*ob);
+		// Set a timer to call updateObjectEditorObTransformSlot() later.  Not calling this every frame avoids stutters with webviews playing back videos interacting with Qt updating spinboxes.
+		if(!update_ob_editor_transform_timer->isActive())
+			update_ob_editor_transform_timer->start(/*msec=*/50);
+
 
 		ob->aabb_ws = opengl_ob->aabb_ws; // Will have been set above in updateObjectTransformData().
 
@@ -9642,6 +9650,13 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		//objs_with_lightmap_rebuild_needed.insert(ob);
 		//lightmap_flag_timer->start(/*msec=*/2000); 
 	}
+}
+
+
+void MainWindow::updateObjectEditorObTransformSlot()
+{
+	if(this->selected_ob.nonNull())
+		ui->objectEditor->setTransformFromObject(*this->selected_ob);
 }
 
 
