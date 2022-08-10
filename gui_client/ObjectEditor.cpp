@@ -253,14 +253,6 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 }
 
 
-void ObjectEditor::updateObjectPos(const WorldObject& ob)
-{
-	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
-	SignalBlocker::setValue(this->posYDoubleSpinBox, ob.pos.y);
-	SignalBlocker::setValue(this->posZDoubleSpinBox, ob.pos.z);
-}
-
-
 void ObjectEditor::setTransformFromObject(const WorldObject& ob)
 {
 	SignalBlocker::setValue(this->posXDoubleSpinBox, ob.pos.x);
