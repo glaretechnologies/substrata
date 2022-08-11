@@ -146,15 +146,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev
 					// Read world name
 					/*const*/ std::string world_name = stream.readStringLengthFirst(10000);
 
-					//TEMP HACK: move objects from Kuisx to cody2343 personal world.
-					bool dirty_from_move = false;
-					if(world_name == "Kuisx")
-					{
-						conPrint("Moving object from 'Kuisx' world to 'cody2343' world.");
-						world_name = "cody2343";
-						dirty_from_move = true;
-					}
-
 					// Create ServerWorldState for world name if needed
 					if(world_states.count(world_name) == 0) 
 						world_states[world_name] = new ServerWorldState();
@@ -171,13 +162,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev
 					num_obs++;
 
 					next_object_uid = UID(myMax(world_ob->uid.value() + 1, next_object_uid.value()));
-
-					//TEMP:
-					if(dirty_from_move)
-					{
-						world_ob->creator_id = UserID(23); // id: 23, username: cody2343
-						world_states[world_name]->addWorldObjectAsDBDirty(world_ob);
-					}
 				}
 				else if(chunk == USER_CHUNK)
 				{
