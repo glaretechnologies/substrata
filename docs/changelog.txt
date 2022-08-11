@@ -20,6 +20,9 @@ Fix occasional deadlock communicating with server.
 Fixed some jitter while moving around in some cases.
 Make it so the toolbar can't be hidden, as it's confusing for users when it disappears.
 Gifs now play further away than 20m: up to 200m depending on object size.
+Fixed axis arrows and rotation arcs not being in correct place for newly created objects in some cases, which was causing glitches when dragging them.
+Fixed issue with stutters while moving or rotating objects in some cases.
+Fixed axis arrows not being selectable when intersecting camera front half-space plane.
 
 0.94
 ====
