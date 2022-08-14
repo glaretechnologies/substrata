@@ -208,7 +208,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 				preview_gl_ob->materials[i].emission_texture = avatarPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].emission_tex_path);
 		}
 
-		avatarPreviewGLWidget->addObject(preview_gl_ob);
+		avatarPreviewGLWidget->opengl_engine->addObject(preview_gl_ob);
 	}
 	catch(Indigo::IndigoException& e)
 	{

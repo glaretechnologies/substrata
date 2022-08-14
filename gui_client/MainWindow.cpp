@@ -907,7 +907,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_leve
 void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 {
 	if(ob.opengl_engine_ob.nonNull())
-		ui->glWidget->removeObject(ob.opengl_engine_ob);
+		ui->glWidget->opengl_engine->removeObject(ob.opengl_engine_ob);
 
 	if(ob.opengl_light.nonNull())
 		ui->glWidget->opengl_engine->removeLight(ob.opengl_light);
@@ -941,7 +941,7 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 
 	// Remove any existing OpenGL and physics model
 	if(ob->opengl_engine_ob.nonNull())
-		ui->glWidget->removeObject(ob->opengl_engine_ob);
+		ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
 
 	if(ob->opengl_light.nonNull())
 		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
@@ -952,7 +952,7 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(/*min=*/ob->aabb_ws.min_, /*max=*/ob->aabb_ws.max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
 
 	ob->opengl_engine_ob = cube_gl_ob;
-	ui->glWidget->addObject(cube_gl_ob);
+	ui->glWidget->opengl_engine->addObject(cube_gl_ob);
 
 	// Make physics object
 	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false); // Make non-collidable, so avatar doesn't get stuck in large placeholder objects.
@@ -1381,7 +1381,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				ob->physics_object = physics_ob;
 				ob->loaded_content = ob->content;
 
-				ui->glWidget->addObject(ob->opengl_engine_ob);
+				ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 
 				physics_world->addObject(ob->physics_object);
 			}
@@ -1432,7 +1432,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				ob->physics_object = physics_ob;
 				ob->loaded_content = ob->content;
 
-				ui->glWidget->addObject(ob->opengl_engine_ob);
+				ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 				ui->glWidget->opengl_engine->addLight(ob->opengl_light);
 
 				physics_world->addObject(ob->physics_object);
@@ -1463,7 +1463,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				ob->physics_object = physics_ob;
 				ob->loaded_content = ob->content;
 
-				ui->glWidget->addObject(ob->opengl_engine_ob);
+				ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 
 				physics_world->addObject(ob->physics_object);
 
@@ -1539,7 +1539,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						ob->loaded_model_lod_level = ob_model_lod_level;
 
 						//Timer timer;
-						ui->glWidget->addObject(ob->opengl_engine_ob);
+						ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
 
 						physics_world->addObject(ob->physics_object);
@@ -1717,7 +1717,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 
 				avatar->graphics.loaded_lod_level = ob_lod_level;
 
-				ui->glWidget->addObject(avatar->graphics.skinned_gl_ob);
+				ui->glWidget->opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
 
 				// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
 				const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
@@ -1783,7 +1783,7 @@ void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 	{
 		WorldObject* instance = prototype_ob->instances[z].ptr();
 		
-		if(instance->opengl_engine_ob.nonNull()) ui->glWidget->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
+		if(instance->opengl_engine_ob.nonNull()) ui->glWidget->opengl_engine->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
 		if(instance->opengl_light.nonNull()) ui->glWidget->opengl_engine->removeLight(instance->opengl_light); // Remove light from 3d engine
 
 		if(instance->physics_object.nonNull()) physics_world->removeObject(instance->physics_object); // Remove from physics engine
@@ -2738,6 +2738,11 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 	Lock lock(world_state->mutex);
 
 	GLObjectRef opengl_ob = this->selected_ob->opengl_engine_ob;
+	if(opengl_ob.isNull())
+	{
+		// conPrint("MainWindow::tryToMoveObject: opengl_ob is NULL");
+		return;
+	}
 
 	Matrix4f tentative_new_to_world = opengl_ob->ob_to_world_matrix;
 	tentative_new_to_world.setColumn(3, desired_new_ob_pos);
@@ -3001,6 +3006,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	in_CEF_message_loop = true;
 	CEF::doMessageLoopWork();
 	in_CEF_message_loop = false;
+
+	ui->glWidget->makeCurrent();
 	
 	//TEMP HACK:
 	//for(int i=0; i<8; ++i)
@@ -3218,7 +3225,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	updateStatusBar();
 
-	ui->glWidget->makeCurrent();
+	
 
 	// Set current animation frame for objects with animated textures
 	//double animated_tex_time = 0;
@@ -3693,7 +3700,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 											assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
-											ui->glWidget->addObject(ob->opengl_engine_ob);
+											ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 
 											physics_world->addObject(ob->physics_object);
 
@@ -3774,7 +3781,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 											assignedLoadedOpenGLTexturesToMats(av, *ui->glWidget->opengl_engine, *resource_manager);
 
-											ui->glWidget->addObject(av->graphics.skinned_gl_ob);
+											ui->glWidget->opengl_engine->addObject(av->graphics.skinned_gl_ob);
 
 											// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
 											if(our_avatar)
@@ -3865,7 +3872,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								assignedLoadedOpenGLTexturesToMats(voxel_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 
-								ui->glWidget->addObject(opengl_ob);
+								ui->glWidget->opengl_engine->addObject(opengl_ob);
 
 								physics_world->addObject(physics_ob);
 
@@ -4686,8 +4693,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 
-
-	ui->glWidget->setCurrentTime((float)cur_time);
+	ui->glWidget->opengl_engine->setCurrentTime((float)cur_time);
 	ui->glWidget->playerPhyicsThink((float)dt);
 
 	if(physics_world.nonNull())
@@ -4956,7 +4962,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						avatar->graphics.destroy(*ui->glWidget->opengl_engine);
 						
 						if(avatar->opengl_engine_nametag_ob.nonNull()) // Remove nametag ob
-							ui->glWidget->removeObject(avatar->opengl_engine_nametag_ob);
+							ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
 
 						print("Adding Avatar to OpenGL Engine, UID " + toString(avatar->uid.value()));
 
@@ -4970,7 +4976,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// Set transform to be above avatar.  This transform will be updated later.
 							avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(avatar->pos.toVec4fVector());
 
-							ui->glWidget->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
+							ui->glWidget->opengl_engine->addObject(avatar->opengl_engine_nametag_ob); // Add to 3d engine
 
 							// Play entry teleport sound
 							audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", avatar->pos.toVec4fVector());
@@ -8381,7 +8387,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	for(auto it = ground_quads.begin(); it != ground_quads.end(); ++it)
 	{
 		// Remove this ground quad as it is not needed any more.
-		ui->glWidget->removeObject(it->second.gl_ob);
+		ui->glWidget->opengl_engine->removeObject(it->second.gl_ob);
 		physics_world->removeObject(it->second.phy_ob);
 	}
 	ground_quads.clear();
@@ -9122,7 +9128,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 	// Remove any existing OpenGL and physics model
 	if(ob->opengl_engine_ob.nonNull())
-		ui->glWidget->removeObject(ob->opengl_engine_ob);
+		ui->glWidget->opengl_engine->removeObject(ob->opengl_engine_ob);
 
 	if(ob->opengl_light.nonNull())
 		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
@@ -9163,7 +9169,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 
 		ob->opengl_engine_ob = gl_ob;
-		ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
+		ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
 
 		// Update in Indigo view
 		ui->indigoView->objectAdded(*ob, *this->resource_manager);
@@ -9274,11 +9280,6 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 
 	if(results.hit_object)
 	{
-		const Vec4f selection_point_ws = origin + dir*results.hitdist_ws;
-
-		// Store the object-space selection point.  This will be used for moving the object.
-		this->selection_point_os = results.hit_object->getWorldToObMatrix() * selection_point_ws;
-
 		// Debugging: Add an object at the hit point
 		//this->glWidget->addObject(glWidget->opengl_engine->makeAABBObject(this->selection_point_ws - Vec4f(0.03f, 0.03f, 0.03f, 0.f), this->selection_point_ws + Vec4f(0.03f, 0.03f, 0.03f, 0.f), Colour4f(0.6f, 0.6f, 0.2f, 1.f)));
 
@@ -9311,6 +9312,12 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 		{
 			ui->objectEditor->setEnabled(false);
 		}
+
+		const Vec4f selection_point_ws = origin + dir*results.hitdist_ws;
+
+		// Store the object-space selection point.  This will be used for moving the object.
+		// Note: we set this after the selectObject() call above, which sets selection_point_os to (0,0,0).
+		this->selection_point_os = results.hit_object->getWorldToObMatrix() * selection_point_ws;
 	}
 	else
 	{
@@ -9699,6 +9706,8 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_tri_index)
 	assert(this->selected_ob->getRefCount() >= 0);
 
 	this->selected_ob->is_selected = true;
+
+	this->selection_point_os = Vec4f(0, 0, 0, 1); // Store a default value for this (kind of a pivot point).
 
 	// If we hit an instance, select the prototype object instead.
 	if(this->selected_ob->prototype_object)
@@ -10205,7 +10214,7 @@ void MainWindow::updateGroundPlane()
 				gl_ob->ob_to_world_matrix.setToTranslationMatrix(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0);
 				gl_ob->mesh_data = ground_quad_mesh_opengl_data;
 
-				ui->glWidget->addObject(gl_ob, /*force_load_textures_immediately=*/true);
+				ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
 
 				Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
 				phy_ob->geometry = ground_quad_raymesh;
@@ -10229,7 +10238,7 @@ void MainWindow::updateGroundPlane()
 				//conPrint("Removed ground quad (" + toString(it->first.x) + ", " + toString(it->first.y) + ")");
 
 				// Remove this ground quad as it is not needed any more.
-				ui->glWidget->removeObject(it->second.gl_ob);
+				ui->glWidget->opengl_engine->removeObject(it->second.gl_ob);
 				physics_world->removeObject(it->second.phy_ob);
 
 				it = ground_quads.erase(it);
@@ -10705,7 +10714,7 @@ int main(int argc, char *argv[])
 				}
 				env_mat.tex_matrix = Matrix2f(-1 / Maths::get2Pi<float>(), 0, 0, 1 / Maths::pi<float>());
 
-				mw.ui->glWidget->setEnvMat(env_mat);
+				mw.ui->glWidget->opengl_engine->setEnvMat(env_mat);
 			}
 
 
@@ -10846,7 +10855,7 @@ int main(int argc, char *argv[])
 
 				ob->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
 
-				mw.ui->glWidget->addOverlayObject(ob);
+				mw.ui->glWidget->opengl_engine->addOverlayObject(ob);
 			}
 
 
@@ -11151,7 +11160,7 @@ int main(int argc, char *argv[])
 					ob->ob_to_world_matrix = Matrix4f::translationMatrix(10, 10, 0) * Matrix4f::uniformScaleMatrix(100.f);
 					ob->mesh_data = GLMeshBuilding::buildIndigoMesh(mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), mesh, false);
 
-					mw.ui->glWidget->addObject(ob);
+					mw.ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(ob);
 
 					// mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}
@@ -11180,7 +11189,7 @@ int main(int argc, char *argv[])
 
 					ob->ob_to_world_matrix = Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f);
 
-					mw.ui->glWidget->addObject(ob);
+					mw.ui->glWidget->opengl_engine->addObject(ob);
 
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}
@@ -11243,7 +11252,7 @@ int main(int argc, char *argv[])
 						new_ob->materials = ob->materials;
 
 						
-						mw.ui->glWidget->addObject(new_ob);
+						mw.ui->glWidget->opengl_engine->addObject(new_ob);
 					}
 
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
@@ -11264,7 +11273,7 @@ int main(int argc, char *argv[])
 
 					ob->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,2) * Matrix4f::uniformScaleMatrix(0.03f);
 
-					mw.ui->glWidget->addObject(ob);
+					mw.ui->glWidget->opengl_engine->addObject(ob);
 
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}

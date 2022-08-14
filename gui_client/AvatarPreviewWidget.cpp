@@ -20,9 +20,6 @@
 #include "../utils/TaskManager.h"
 #include <QtGui/QMouseEvent>
 #include <QtCore/QSettings>
-#include <set>
-#include <stack>
-#include <algorithm>
 
 
 // https://wiki.qt.io/How_to_use_OpenGL_Core_Profile_with_Qt
@@ -73,7 +70,6 @@ void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* set
 	gl_settings.shadow_mapping = true;
 	gl_settings.compress_textures = true;
 	gl_settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
-	//gl_settings.use_final_image_buffer = settings_->value(MainOptionsDialog::BloomKey(), /*default val=*/true).toBool();
 	opengl_engine = new OpenGLEngine(gl_settings);
 
 	viewport_w = viewport_h = 100;
@@ -112,7 +108,6 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 void AvatarPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl/shaders" // shader dir
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server_ptr,
 		NULL // print output
@@ -209,30 +204,6 @@ void AvatarPreviewWidget::paintGL()
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 	opengl_engine->setCurrentTime((float)timer.elapsed());
 	opengl_engine->draw();
-}
-
-
-void AvatarPreviewWidget::addObject(const Reference<GLObject>& object)
-{
-	this->makeCurrent();
-
-	opengl_engine->addObject(object);
-}
-
-
-void AvatarPreviewWidget::addOverlayObject(const Reference<OverlayObject>& object)
-{
-	this->makeCurrent();
-
-	opengl_engine->addOverlayObject(object);
-}
-
-
-void AvatarPreviewWidget::setEnvMat(OpenGLMaterial& mat)
-{
-	this->makeCurrent();
-
-	opengl_engine->setEnvMat(mat);
 }
 
 
