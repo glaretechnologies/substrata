@@ -41,22 +41,16 @@ public:
 	void init(const std::string& base_dir_path_, QSettings* settings_);
 	void shutdown();
 
-	void addObject(const Reference<GLObject>& object);
-	void addOverlayObject(const Reference<OverlayObject>& object);
-
-	void setEnvMat(OpenGLMaterial& mat);
-
 protected:
+	virtual void initializeGL() override;
+	virtual void resizeGL(int w, int h) override; // Gets called whenever the widget has been resized (and also when it is shown for the first time because all newly created widgets get a resize event automatically).
+	virtual void paintGL() override; // Gets called whenever the widget needs to be updated.
 
-	virtual void initializeGL();
-	virtual void resizeGL(int w, int h); // Gets called whenever the widget has been resized (and also when it is shown for the first time because all newly created widgets get a resize event automatically).
-	virtual void paintGL(); // Gets called whenever the widget needs to be updated.
-
-	virtual void keyPressEvent(QKeyEvent* e);
-	virtual void keyReleaseEvent(QKeyEvent* e);
-	virtual void mousePressEvent(QMouseEvent* e);
-	virtual void mouseMoveEvent(QMouseEvent* e);
-	virtual void wheelEvent(QWheelEvent* e);
+	virtual void keyPressEvent(QKeyEvent* e) override;
+	virtual void keyReleaseEvent(QKeyEvent* e) override;
+	virtual void mousePressEvent(QMouseEvent* e) override;
+	virtual void mouseMoveEvent(QMouseEvent* e) override;
+	virtual void wheelEvent(QWheelEvent* e) override;
 	
 	void showEvent(QShowEvent* e);
 

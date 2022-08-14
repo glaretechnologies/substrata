@@ -314,7 +314,13 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				preview_gl_ob->materials[i].emission_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].emission_tex_path);
 		}
 
-		objectPreviewGLWidget->addObject(preview_gl_ob);
+
+		// Offset object vertically so it rests on the ground plane.
+		const js::AABBox cur_aabb_ws = preview_gl_ob->mesh_data->aabb_os.transformedAABBFast(preview_gl_ob->ob_to_world_matrix);
+		const float z_trans = -cur_aabb_ws.min_[2];
+		preview_gl_ob->ob_to_world_matrix = ::leftTranslateAffine3(Vec4f(0, 0, z_trans, 0), preview_gl_ob->ob_to_world_matrix);
+
+		objectPreviewGLWidget->opengl_engine->addObject(preview_gl_ob);
 	}
 	catch(Indigo::IndigoException& e)
 	{

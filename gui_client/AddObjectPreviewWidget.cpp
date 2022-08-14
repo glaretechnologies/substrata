@@ -113,7 +113,6 @@ void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 void AddObjectPreviewWidget::initializeGL()
 {
 	opengl_engine->initialise(
-		//"n:/indigo/trunk/opengl", // data dir
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server_ptr,
 		NULL // print output
@@ -212,22 +211,6 @@ void AddObjectPreviewWidget::paintGL()
 	opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 	opengl_engine->setCurrentTime((float)timer.elapsed());
 	opengl_engine->draw();
-}
-
-
-void AddObjectPreviewWidget::addObject(const Reference<GLObject>& object)
-{
-	this->makeCurrent();
-
-	opengl_engine->addObject(object);
-}
-
-
-void AddObjectPreviewWidget::addOverlayObject(const Reference<OverlayObject>& object)
-{
-	this->makeCurrent();
-
-	opengl_engine->addOverlayObject(object);
 }
 
 

@@ -94,7 +94,6 @@ GlWidget::GlWidget(QWidget *parent)
 	QGLWidget(makeFormat(), parent),
 #endif
 	cam_controller(NULL),
-	current_time(0.f),
 	cam_rot_on_mouse_move_enabled(true),
 	cam_move_on_key_input_enabled(true),
 	near_draw_dist(0.22f), // As large as possible as we can get without clipping becoming apparent.
@@ -292,7 +291,6 @@ void GlWidget::paintGL()
 		opengl_engine->setNearDrawDistance(near_draw_dist);
 		opengl_engine->setMaxDrawDistance(max_draw_dist);
 		opengl_engine->setDiagonalOrthoCameraTransform(world_to_camera_space_matrix, /*sensor_width*/screenshot_ortho_sensor_width_m, /*render_aspect_ratio=*/1.f);
-		opengl_engine->setCurrentTime(current_time);
 		opengl_engine->draw();
 		return;
 	}
@@ -318,60 +316,11 @@ void GlWidget::paintGL()
 		opengl_engine->setMaxDrawDistance(max_draw_dist);
 		opengl_engine->setPerspectiveCameraTransform(world_to_camera_space_matrix, sensor_width, lens_sensor_dist, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
 		//opengl_engine->setOrthoCameraTransform(world_to_camera_space_matrix, 1000.f, render_aspect_ratio, /*lens shift up=*/0.f, /*lens shift right=*/0.f);
-		opengl_engine->setCurrentTime(current_time);
 		opengl_engine->draw();
 	}
 
 	//conPrint("FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
 	//timer.reset();
-}
-
-
-void GlWidget::addObject(const Reference<GLObject>& object, bool force_load_textures_immediately)
-{
-	this->makeCurrent();
-	if(!opengl_engine->initSucceeded())
-		return;
-
-	if(force_load_textures_immediately)
-	{
-		try
-		{
-			for(size_t i=0; i<object->materials.size(); ++i)
-				if(!object->materials[i].tex_path.empty())
-					object->materials[i].albedo_texture = opengl_engine->getTexture(object->materials[i].tex_path);
-		}
-		catch(glare::Exception& e)
-		{
-			conPrint("ERROR: " + e.what());
-		}
-	}
-
-	opengl_engine->addObject(object);
-}
-
-
-void GlWidget::removeObject(const Reference<GLObject>& object)
-{
-	this->makeCurrent();
-
-	opengl_engine->removeObject(object);
-}
-
-
-void GlWidget::addOverlayObject(const Reference<OverlayObject>& object)
-{
-	this->makeCurrent();
-
-	opengl_engine->addOverlayObject(object);
-}
-
-
-void GlWidget::setEnvMat(OpenGLMaterial& mat)
-{
-	this->makeCurrent();
-
-	opengl_engine->setEnvMat(mat);
 }
 
 
@@ -506,8 +455,6 @@ void GlWidget::playerPhyicsThink(float dt)
 {
 	if(!player_physics)
 		return;
-
-	
 
 	bool cam_changed = false;
 	bool move_key_pressed = false;

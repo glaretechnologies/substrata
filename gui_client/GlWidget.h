@@ -50,13 +50,6 @@ public:
 	void setCameraController(CameraController* cam_controller_);
 	void setPlayerPhysics(PlayerPhysics* player_physics_);
 
-	void addObject(const Reference<GLObject>& object, bool force_load_textures_immediately = false);
-	void removeObject(const Reference<GLObject>& object);
-	void addOverlayObject(const Reference<OverlayObject>& object);
-
-	void setEnvMat(OpenGLMaterial& mat);
-
-	void setCurrentTime(float time) { current_time = time; }
 	void playerPhyicsThink(float dt); // Process keys held down.
 
 	void setCamRotationOnMouseMoveEnabled(bool enabled) { cam_rot_on_mouse_move_enabled = enabled; }
@@ -116,7 +109,6 @@ private:
 
 	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down;
 	Timer timer;
-	float current_time;
 	bool cam_rot_on_mouse_move_enabled;
 	bool cam_move_on_key_input_enabled;
 
