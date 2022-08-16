@@ -52,6 +52,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../shared/Version.h"
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
+#include "../shared/MessageUtils.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -2664,29 +2665,9 @@ void MainWindow::saveScreenshot() // Throws glare::Exception on failure
 }
 
 
-static void updatePacketLengthField(SocketBufferOutStream& packet)
-{
-	// length field is second uint32
-	assert(packet.buf.size() >= sizeof(uint32) * 2);
-	if(packet.buf.size() >= sizeof(uint32) * 2)
-	{
-		const uint32 len = (uint32)packet.buf.size();
-		std::memcpy(&packet.buf[4], &len, 4);
-	}
-}
-
-
-static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
-{
-	scratch_packet.buf.resize(sizeof(uint32) * 2);
-	std::memcpy(&scratch_packet.buf[0], &message_id, sizeof(uint32));
-	std::memset(&scratch_packet.buf[4], 0, sizeof(uint32)); // Write dummy message length, will be updated later when size of message is known.
-}
-
-
 static void enqueueMessageToSend(ClientThread& client_thread, SocketBufferOutStream& packet)
 {
-	updatePacketLengthField(packet);
+	MessageUtils::updatePacketLengthField(packet);
 
 	client_thread.enqueueDataToSend(packet.buf);
 }
@@ -2722,7 +2703,7 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 	if(this->client_thread.nonNull())
 	{
 		// Make QueryObjects packet and enqueue to send to server
-		initPacket(scratch_packet, Protocol::QueryObjects);
+		MessageUtils::initPacket(scratch_packet, Protocol::QueryObjects);
 		scratch_packet.writeUInt32(1); // Num cells to query
 		scratch_packet.writeInt32(cell_coords.x);
 		scratch_packet.writeInt32(cell_coords.y);
@@ -4185,7 +4166,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const std::string password = manager.getDecryptedPasswordForDomain(server_hostname);
 
 						// Make LogInMessage packet and enqueue to send
-						initPacket(scratch_packet, Protocol::LogInMessage);
+						MessageUtils::initPacket(scratch_packet, Protocol::LogInMessage);
 						scratch_packet.writeStringLengthFirst(username);
 						scratch_packet.writeStringLengthFirst(password);
 
@@ -4195,7 +4176,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				
 				// Send CreateAvatar packet for this client's avatar
 				{
-					initPacket(scratch_packet, Protocol::CreateAvatar);
+					MessageUtils::initPacket(scratch_packet, Protocol::CreateAvatar);
 
 					const Vec3d cam_angles = this->cam_controller.getAngles();
 					Avatar avatar;
@@ -4365,7 +4346,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.avatar_settings = m->avatar_settings;
 				avatar.name = m->username;
 
-				initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 				writeToNetworkStream(avatar, scratch_packet);
 				
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -4387,7 +4368,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.avatar_settings.model_url = "";
 				avatar.name = "Anonymous";
 
-				initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 				writeToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -4413,7 +4394,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				avatar.avatar_settings.model_url = "";
 				avatar.name = m->username;
 
-				initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+				MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 				writeToNetworkStream(avatar, scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -5590,7 +5571,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			const uint32 anim_state = (player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
 
-			initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
 			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
 			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), scratch_packet);
@@ -5611,7 +5592,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				if(world_ob->from_local_other_dirty)
 				{
 					// Enqueue ObjectFullUpdate
-					initPacket(scratch_packet, Protocol::ObjectFullUpdate);
+					MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
 					world_ob->writeToNetworkStream(scratch_packet);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -5622,7 +5603,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				else if(world_ob->from_local_transform_dirty)
 				{
 					// Enqueue ObjectTransformUpdate
-					initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
+					MessageUtils::initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
 					writeToStream(world_ob->uid, scratch_packet);
 					writeToStream(Vec3d(world_ob->pos), scratch_packet);
 					writeToStream(Vec3f(world_ob->axis), scratch_packet);
@@ -5648,7 +5629,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const Parcel* parcel= it->getPointer();
 			
 				// Enqueue ParcelFullUpdate
-				initPacket(scratch_packet, Protocol::ParcelFullUpdate);
+				MessageUtils::initPacket(scratch_packet, Protocol::ParcelFullUpdate);
 				writeToNetworkStream(*parcel, scratch_packet, /*peer_protocol_version=*/Protocol::CyberspaceProtocolVersion);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -5983,7 +5964,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *resource_manager, task_manager);
 
 			// Send AvatarFullUpdate message to server
-			initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 			writeToNetworkStream(avatar, scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -6304,7 +6285,7 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 
 	// Send CreateObject message to server
 	{
-		initPacket(scratch_packet, Protocol::CreateObject);
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -6417,7 +6398,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 
 	// Send CreateObject message to server
 	{
-		initPacket(scratch_packet, Protocol::CreateObject);
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -6468,7 +6449,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 
 	// Send CreateObject message to server
 	{
-		initPacket(scratch_packet, Protocol::CreateObject);
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -6519,7 +6500,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 
 	// Send CreateObject message to server
 	{
-		initPacket(scratch_packet, Protocol::CreateObject);
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -6610,7 +6591,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 
 			// Send CreateObject message to server
 			{
-				initPacket(scratch_packet, Protocol::CreateObject);
+				MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 				new_world_object->writeToNetworkStream(scratch_packet);
 
 				enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -6662,7 +6643,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 
 	// Send CreateObject message to server
 	{
-		initPacket(scratch_packet, Protocol::CreateObject);
+		MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 		new_world_object->writeToNetworkStream(scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -6823,7 +6804,7 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 
 
 	// Send CreateObject message to server
-	initPacket(scratch_packet, Protocol::CreateObject);
+	MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 	new_world_object->writeToNetworkStream(scratch_packet);
 	enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -6910,7 +6891,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					// Create object, by sending CreateObject message to server
 					// Note that the recreated object will have a different ID than in the clipboard.
 					{
-						initPacket(scratch_packet, Protocol::CreateObject);
+						MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 						pasted_ob->writeToNetworkStream(scratch_packet);
 
 						enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -7001,7 +6982,7 @@ void MainWindow::on_actionCloneObject_triggered()
 
 		// Send CreateObject message to server
 		{
-			initPacket(scratch_packet, Protocol::CreateObject);
+			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 			new_world_object->writeToNetworkStream(scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -7091,7 +7072,7 @@ void MainWindow::on_actionLogIn_triggered()
 		//this->last_login_username = username;
 
 		// Make LogInMessage packet and enqueue to send
-		initPacket(scratch_packet, Protocol::LogInMessage);
+		MessageUtils::initPacket(scratch_packet, Protocol::LogInMessage);
 		scratch_packet.writeStringLengthFirst(username);
 		scratch_packet.writeStringLengthFirst(password);
 
@@ -7103,7 +7084,7 @@ void MainWindow::on_actionLogIn_triggered()
 void MainWindow::on_actionLogOut_triggered()
 {
 	// Make message packet and enqueue to send
-	initPacket(scratch_packet, Protocol::LogOutMessage);
+	MessageUtils::initPacket(scratch_packet, Protocol::LogOutMessage);
 	enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 	settings->setValue("LoginDialog/auto_login", false); // Don't log in automatically next start.
@@ -7135,7 +7116,7 @@ void MainWindow::on_actionSignUp_triggered()
 		//this->last_login_username = username;
 
 		// Make message packet and enqueue to send
-		initPacket(scratch_packet, Protocol::SignUpMessage);
+		MessageUtils::initPacket(scratch_packet, Protocol::SignUpMessage);
 		scratch_packet.writeStringLengthFirst(username);
 		scratch_packet.writeStringLengthFirst(email);
 		scratch_packet.writeStringLengthFirst(password);
@@ -7620,7 +7601,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 				// Note that the recreated object will have a different ID.
 				// To apply more undo edits to the recreated object, use recreated_ob_uid to map from edit UID to recreated object UID.
 				{
-					initPacket(scratch_packet, Protocol::CreateObject);
+					MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
 					restored_ob->writeToNetworkStream(scratch_packet);
 
 					this->last_restored_ob_uid_in_edit = restored_ob->uid; // Store edit UID, will be used when receiving new object to add entry to recreated_ob_uid map.
@@ -7752,7 +7733,7 @@ void MainWindow::sendChatMessageSlot()
 	const std::string message = QtUtils::toIndString(ui->chatMessageLineEdit->text());
 
 	// Make message packet and enqueue to send
-	initPacket(scratch_packet, Protocol::ChatMessageID);
+	MessageUtils::initPacket(scratch_packet, Protocol::ChatMessageID);
 	scratch_packet.writeStringLengthFirst(message);
 
 	enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -8214,7 +8195,7 @@ void MainWindow::sendLightmapNeededFlagsSlot()
 		WorldObjectRef ob = *it;
 
 		// Enqueue ObjectFlagsChanged
-		initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
+		MessageUtils::initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
 		writeToStream(ob->uid, scratch_packet);
 		scratch_packet.writeUInt32(ob->flags);
 
@@ -8489,7 +8470,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	// Send QueryObjectsInAABB for initial volume around camera to server
 	{
 		// Make QueryObjectsInAABB packet and enqueue to send
-		initPacket(scratch_packet, Protocol::QueryObjectsInAABB);
+		MessageUtils::initPacket(scratch_packet, Protocol::QueryObjectsInAABB);
 		scratch_packet.writeFloat((float)initial_aabb.min_[0]);
 		scratch_packet.writeFloat((float)initial_aabb.min_[1]);
 		scratch_packet.writeFloat((float)initial_aabb.min_[2]);
@@ -9211,7 +9192,7 @@ void MainWindow::pickUpSelectedObject()
 			ui->glWidget->opengl_engine->setSelectionOutlineColour(PICKED_UP_OUTLINE_COLOUR);
 
 			// Send UserSelectedObject message to server
-			initPacket(scratch_packet, Protocol::UserSelectedObject);
+			MessageUtils::initPacket(scratch_packet, Protocol::UserSelectedObject);
 			writeToStream(selected_ob->uid, scratch_packet);
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -9236,7 +9217,7 @@ void MainWindow::dropSelectedObject()
 	if(selected_ob.nonNull() && selected_ob_picked_up)
 	{
 		// Send UserDeselectedObject message to server
-		initPacket(scratch_packet, Protocol::UserDeselectedObject);
+		MessageUtils::initPacket(scratch_packet, Protocol::UserDeselectedObject);
 		writeToStream(selected_ob->uid, scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -9681,7 +9662,7 @@ void MainWindow::deleteSelectedObject()
 			undo_buffer.finishWorldObjectEdit(*selected_ob);
 
 			// Send DestroyObject packet
-			initPacket(scratch_packet, Protocol::DestroyObject);
+			MessageUtils::initPacket(scratch_packet, Protocol::DestroyObject);
 			writeToStream(selected_ob->uid, scratch_packet);
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -10279,7 +10260,7 @@ void MainWindow::performGestureClicked(const std::string& gesture_name, bool ani
 
 	// Send AvatarPerformGesture message
 	{
-		initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 		writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
 		scratch_packet.writeStringLengthFirst(gesture_name);
 
@@ -10311,7 +10292,7 @@ void MainWindow::stopGesture()
 	// If we are not logged in, we can't perform a gesture, so don't send a AvatarStopGesture message or we will just get error messages back from the server.
 	if(this->logged_in_user_id.valid())
 	{
-		initPacket(scratch_packet, Protocol::AvatarStopGesture);
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
 		writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);

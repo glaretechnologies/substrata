@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../shared/Protocol.h"
 #include "../shared/UID.h"
 #include "../shared/WorldObject.h"
+#include "../shared/MessageUtils.h"
 #include <vec3.h>
 #include <ConPrint.h>
 #include <Clock.h>
@@ -53,26 +54,6 @@ WorkerThread::~WorkerThread()
 }
 
 
-static void updatePacketLengthField(SocketBufferOutStream& packet)
-{
-	// length field is second uint32
-	assert(packet.buf.size() >= sizeof(uint32) * 2);
-	if(packet.buf.size() >= sizeof(uint32) * 2)
-	{
-		const uint32 len = (uint32)packet.buf.size();
-		std::memcpy(&packet.buf[4], &len, 4);
-	}
-}
-
-
-static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
-{
-	scratch_packet.buf.resize(sizeof(uint32) * 2);
-	std::memcpy(&scratch_packet.buf[0], &message_id, sizeof(uint32));
-	std::memset(&scratch_packet.buf[4], 0, sizeof(uint32)); // Write dummy message length, will be updated later when size of message is known.
-}
-
-
 // Checks if the resource is present on the server, if not, sends a GetFile message (or rather enqueues to send) to the client.
 void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 {
@@ -104,9 +85,9 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 
 			// We need the file from the client.
 			// Send the client a 'get file' message
-			initPacket(scratch_packet, Protocol::GetFile);
+			MessageUtils::initPacket(scratch_packet, Protocol::GetFile);
 			scratch_packet.writeStringLengthFirst(resource_URL);
-			updatePacketLengthField(scratch_packet);
+			MessageUtils::updatePacketLengthField(scratch_packet);
 
 			this->enqueueDataToSend(scratch_packet);
 		}
@@ -117,9 +98,9 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 static void writeErrorMessageToClient(SocketInterfaceRef& socket, const std::string& msg)
 {
 	SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-	initPacket(packet, Protocol::ErrorMessageID);
+	MessageUtils::initPacket(packet, Protocol::ErrorMessageID);
 	packet.writeStringLengthFirst(msg);
-	updatePacketLengthField(packet);
+	MessageUtils::updatePacketLengthField(packet);
 
 	socket->writeData(packet.buf.data(), packet.buf.size());
 	socket->flush();
@@ -270,9 +251,9 @@ void WorkerThread::handleResourceUploadConnection()
 
 		// Send NewResourceOnServer message to connected clients
 		{
-			initPacket(scratch_packet, Protocol::NewResourceOnServer);
+			MessageUtils::initPacket(scratch_packet, Protocol::NewResourceOnServer);
 			scratch_packet.writeStringLengthFirst(URL);
-			updatePacketLengthField(scratch_packet);
+			MessageUtils::updatePacketLengthField(scratch_packet);
 
 			enqueuePacketToBroadcast(scratch_packet, server);
 		}
@@ -802,11 +783,11 @@ void WorkerThread::doRun()
 			if(client_user_id.valid())
 			{
 				// Send logged-in message to client
-				initPacket(scratch_packet, Protocol::LoggedInMessageID);
+				MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 				writeToStream(client_user_id, scratch_packet);
 				scratch_packet.writeStringLengthFirst(client_user_name);
 				writeToStream(client_user_avatar_settings, scratch_packet);
-				updatePacketLengthField(scratch_packet);
+				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 				socket->flush();
@@ -814,9 +795,9 @@ void WorkerThread::doRun()
 
 			// Send TimeSyncMessage packet to client
 			{
-				initPacket(scratch_packet, Protocol::TimeSyncMessage);
+				MessageUtils::initPacket(scratch_packet, Protocol::TimeSyncMessage);
 				scratch_packet.writeDouble(server->getCurrentGlobalTime());
-				updatePacketLengthField(scratch_packet);
+				MessageUtils::updatePacketLengthField(scratch_packet);
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 			}
 
@@ -828,9 +809,9 @@ void WorkerThread::doRun()
 			} // End lock scope
 			if(!server_admin_msg.empty())
 			{
-				initPacket(scratch_packet, Protocol::ServerAdminMessageID);
+				MessageUtils::initPacket(scratch_packet, Protocol::ServerAdminMessageID);
 				scratch_packet.writeStringLengthFirst(server_admin_msg);
-				updatePacketLengthField(scratch_packet);
+				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 				socket->flush();
@@ -847,9 +828,9 @@ void WorkerThread::doRun()
 						const Avatar* avatar = it->second.getPointer();
 
 						// Write AvatarIsHere message
-						initPacket(scratch_packet, Protocol::AvatarIsHere);
+						MessageUtils::initPacket(scratch_packet, Protocol::AvatarIsHere);
 						writeToNetworkStream(*avatar, scratch_packet);
-						updatePacketLengthField(scratch_packet);
+						MessageUtils::updatePacketLengthField(scratch_packet);
 
 						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 					}
@@ -884,9 +865,9 @@ void WorkerThread::doRun()
 						const Parcel* parcel = it->second.getPointer();
 
 						// Send ParcelCreated message
-						initPacket(scratch_packet, Protocol::ParcelCreated);
+						MessageUtils::initPacket(scratch_packet, Protocol::ParcelCreated);
 						writeToNetworkStream(*parcel, scratch_packet, client_protocol_version);
-						updatePacketLengthField(scratch_packet);
+						MessageUtils::updatePacketLengthField(scratch_packet);
 
 						packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 					}
@@ -1011,10 +992,10 @@ void WorkerThread::doRun()
 							else
 							{
 								// Enqueue AvatarPerformGesture messages to worker threads to send
-								initPacket(scratch_packet, Protocol::AvatarPerformGesture);
+								MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
 								writeToStream(avatar_uid, scratch_packet);
 								scratch_packet.writeStringLengthFirst(gesture_name);
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);
 							}
@@ -1032,9 +1013,9 @@ void WorkerThread::doRun()
 							else
 							{
 								// Enqueue AvatarStopGesture messages to worker threads to send
-								initPacket(scratch_packet, Protocol::AvatarStopGesture);
+								MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
 								writeToStream(avatar_uid, scratch_packet);
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);
 							}
@@ -1376,9 +1357,9 @@ void WorkerThread::doRun()
 							if(!client_user_id.valid())
 							{
 								conPrint("Creation denied, user was not logged in.");
-								initPacket(scratch_packet, Protocol::ErrorMessageID);
+								MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
 								scratch_packet.writeStringLengthFirst("You must be logged in to create an object.");
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 								socket->flush();
 							}
@@ -1473,16 +1454,16 @@ void WorkerThread::doRun()
 								const WorldObject* ob = it->second.getPointer();
 
 								// Build ObjectInitialSend message
-								initPacket(scratch_packet, Protocol::ObjectInitialSend);
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
 								ob->writeToNetworkStream(scratch_packet);
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 							}
 						}
 
-						initPacket(scratch_packet, Protocol::AllObjectsSent);// Terminate the buffer with an AllObjectsSent message.
-						updatePacketLengthField(scratch_packet);
+						MessageUtils::initPacket(scratch_packet, Protocol::AllObjectsSent); // Terminate the buffer with an AllObjectsSent message.
+						MessageUtils::updatePacketLengthField(scratch_packet);
 						temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 
 						socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
@@ -1539,9 +1520,9 @@ void WorkerThread::doRun()
 								if(in_cell)
 								{
 									// Send ObjectInitialSend packet
-									initPacket(scratch_packet, Protocol::ObjectInitialSend);
+									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
 									ob->writeToNetworkStream(scratch_packet);
-									updatePacketLengthField(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
 
@@ -1586,9 +1567,9 @@ void WorkerThread::doRun()
 								if(aabb.contains(ob->pos.toVec4fPoint()))
 								{
 									// Create ObjectInitialSend packet
-									initPacket(scratch_packet, Protocol::ObjectInitialSend);
+									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
 									ob->writeToNetworkStream(scratch_packet);
-									updatePacketLengthField(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append to packet
 
@@ -1611,14 +1592,14 @@ void WorkerThread::doRun()
 						{
 							conPrint("QueryParcels");
 							// Send all current parcel data to client
-							initPacket(scratch_packet, Protocol::ParcelList);
+							MessageUtils::initPacket(scratch_packet, Protocol::ParcelList);
 							{
 								Lock lock(world_state->mutex);
 								scratch_packet.writeUInt64(cur_world_state->parcels.size()); // Write num parcels
 								for(auto it = cur_world_state->parcels.begin(); it != cur_world_state->parcels.end(); ++it)
 									writeToNetworkStream(*it->second, scratch_packet, client_protocol_version); // Write parcel
 							}
-							updatePacketLengthField(scratch_packet);
+							MessageUtils::updatePacketLengthField(scratch_packet);
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Send the data
 							socket->flush();
 							break;
@@ -1689,10 +1670,10 @@ void WorkerThread::doRun()
 							{
 								// Enqueue chat messages to worker threads to send
 								// Send ChatMessageID packet
-								initPacket(scratch_packet, Protocol::ChatMessageID);
+								MessageUtils::initPacket(scratch_packet, Protocol::ChatMessageID);
 								scratch_packet.writeStringLengthFirst(client_user_name);
 								scratch_packet.writeStringLengthFirst(msg);
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);
 							}
@@ -1706,10 +1687,10 @@ void WorkerThread::doRun()
 
 							// Send message to connected clients
 							{
-								initPacket(scratch_packet, Protocol::UserSelectedObject);
+								MessageUtils::initPacket(scratch_packet, Protocol::UserSelectedObject);
 								writeToStream(client_avatar_uid, scratch_packet);
 								writeToStream(object_uid, scratch_packet);
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);
 							}
@@ -1723,10 +1704,10 @@ void WorkerThread::doRun()
 
 							// Send message to connected clients
 							{
-								initPacket(scratch_packet, Protocol::UserDeselectedObject);
+								MessageUtils::initPacket(scratch_packet, Protocol::UserDeselectedObject);
 								writeToStream(client_avatar_uid, scratch_packet);
 								writeToStream(object_uid, scratch_packet);
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								enqueuePacketToBroadcast(scratch_packet, server);
 							}
@@ -1769,11 +1750,11 @@ void WorkerThread::doRun()
 									logged_in_user_is_lightmapper_bot = true;
 
 								// Send logged-in message to client
-								initPacket(scratch_packet, Protocol::LoggedInMessageID);
+								MessageUtils::initPacket(scratch_packet, Protocol::LoggedInMessageID);
 								writeToStream(client_user_id, scratch_packet);
 								scratch_packet.writeStringLengthFirst(username);
 								writeToStream(client_user_avatar_settings, scratch_packet);
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 								socket->flush();
@@ -1781,9 +1762,9 @@ void WorkerThread::doRun()
 							else
 							{
 								// Login failed.  Send error message back to client
-								initPacket(scratch_packet, Protocol::ErrorMessageID);
+								MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
 								scratch_packet.writeStringLengthFirst("Login failed: username or password incorrect.");
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 								socket->flush();
@@ -1799,8 +1780,8 @@ void WorkerThread::doRun()
 							client_user_name = "";
 
 							// Send logged-out message to client
-							initPacket(scratch_packet, Protocol::LoggedOutMessageID);
-							updatePacketLengthField(scratch_packet);
+							MessageUtils::initPacket(scratch_packet, Protocol::LoggedOutMessageID);
+							MessageUtils::updatePacketLengthField(scratch_packet);
 
 							socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 							socket->flush();
@@ -1878,10 +1859,10 @@ void WorkerThread::doRun()
 								{
 									conPrint("Sign up successful");
 									// Send signed-up message to client
-									initPacket(scratch_packet, Protocol::SignedUpMessageID);
+									MessageUtils::initPacket(scratch_packet, Protocol::SignedUpMessageID);
 									writeToStream(client_user_id, scratch_packet);
 									scratch_packet.writeStringLengthFirst(username);
-									updatePacketLengthField(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 									socket->flush();
@@ -1891,9 +1872,9 @@ void WorkerThread::doRun()
 									conPrint("Sign up failed.");
 
 									// signup failed.  Send error message back to client
-									initPacket(scratch_packet, Protocol::ErrorMessageID);
+									MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
 									scratch_packet.writeStringLengthFirst(msg_to_client);
-									updatePacketLengthField(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
 
 									socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 									socket->flush();
@@ -1904,9 +1885,9 @@ void WorkerThread::doRun()
 								conPrint("Sign up failed, internal error: " + e.what());
 
 								// signup failed.  Send error message back to client
-								initPacket(scratch_packet, Protocol::ErrorMessageID);
+								MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
 								scratch_packet.writeStringLengthFirst("Signup failed: internal error.");
-								updatePacketLengthField(scratch_packet);
+								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
 								socket->flush();
