@@ -109,8 +109,12 @@ public:
 
 	void readFromDisk(const std::string& path, bool enable_dev_mode);
 	void createNewDatabase(const std::string& path);
-	void serialiseToDisk(const std::string& path) REQUIRES(mutex); // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
+	void serialiseToDisk() REQUIRES(mutex); // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
 	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.  Mutex should be locked already.
+
+	// Removes sensitive information from the database, such as user passwords, email addresses, billing information, web sessions etc.
+	// Then saves the updates to disk.
+	void saveSanitisedDatabase();
 
 	UID getNextObjectUID(); // Gets and then increments next_object_uid.  Locks mutex.
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.

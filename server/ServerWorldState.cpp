@@ -718,8 +718,136 @@ void ServerAllWorldsState::denormaliseData()
 }
 
 
+// Removes sensitive information from the database, such as user passwords, email addresses, billing information, web sessions etc.
+// Then saves the updates to disk.
+void ServerAllWorldsState::saveSanitisedDatabase()
+{
+	conPrint("Saving sanitised world state to disk...");
+
+	Lock lock(mutex);
+
+	try
+	{
+		// Clear some sensitive fields (passwords etc.), and just delete some sensitive object types (SubEthTransactions).
+
+		// For each world
+		for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
+		{
+			Reference<ServerWorldState> world_state = world_it->second;
+
+			// Sanitise parcels
+			for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
+			{
+				Parcel* parcel = it->second.ptr();
+				parcel->minting_transaction_id = std::numeric_limits<uint64>::max();
+				parcel->parcel_auction_ids.clear();
+
+				world_state->db_dirty_parcels.insert(parcel); // Mark parcel as dirty
+			}
+		}
+
+		// Sanitise users
+		{
+			int i = 0;
+			for(auto it=user_id_to_users.begin(); it != user_id_to_users.end(); ++it)
+			{
+				User* user = it->second.ptr();
+				user->name = "User " + toString(i); // Replace name and email address with something generic.
+				user->email_address = "user_" + toString(i) + "@email.com";
+				user->hashed_password = std::string(32, 'a');
+				user->password_hash_salt = "";
+				user->controlled_eth_address = "";
+				user->password_resets.clear();
+
+				db_dirty_users.insert(user); // Mark as dirty
+
+				i++;
+			}
+		}
+
+		// resource objects
+		{
+			/*for(auto i=db_dirty_resources.begin(); i != db_dirty_resources.end(); ++i)
+			{
+				Resource* resource = i->ptr();
+			}*/
+		}
+
+		// Sanitise orders
+		{
+			for(auto i=orders.begin(); i != orders.end(); ++i)
+			{
+				Order* order = i->second.ptr();
+				order->payer_email = "";
+				order->gross_payment = 0;
+				order->currency = "";
+				order->paypal_data = "";
+				order->coinbase_charge_code = "";
+				order->coinbase_status = "";
+
+				db_dirty_orders.insert(order);
+			}
+		}
+
+		// Delete all UserWebSessions
+		{
+			for(auto i=user_web_sessions.begin(); i != user_web_sessions.end(); ++i)
+			{
+				UserWebSession* session = i->second.ptr();
+				assert(session->database_key.valid());
+				
+				db_records_to_delete.insert(session->database_key);
+			}
+		}
+
+		// Delete all ParcelAuctions for now
+		{
+			for(auto i=parcel_auctions.begin(); i != parcel_auctions.end(); ++i)
+			{
+				ParcelAuction* auction = i->second.ptr();
+				assert(auction->database_key.valid());
+
+				db_records_to_delete.insert(auction->database_key);
+			}
+		}
+
+		// Screenshots
+		{
+			/*for(auto it=screenshots.begin(); it != screenshots.end(); ++it)
+			{
+				Screenshot* shot = it->second.ptr();
+			}*/
+		}
+
+		// Delete all SubEthTransactions
+		{
+			for(auto i=sub_eth_transactions.begin(); i != sub_eth_transactions.end(); ++i)
+			{
+				SubEthTransaction* trans = i->second.ptr();
+				assert(trans->database_key.valid());
+
+				db_records_to_delete.insert(trans->database_key);
+			}
+		}
+
+		// MAP_TILE_INFO_CHUNK
+		
+		// LAST_PARCEL_SALE_UPDATE_CHUNK
+
+		// ETH_INFO_CHUNK
+
+		// Write to disk.  Will do the updates we have added to dirty sets, and delete records we have added to db_records_to_delete.
+		serialiseToDisk();
+	}
+	catch(FileUtils::FileUtilsExcep& e)
+	{
+		throw glare::Exception(e.what());
+	}
+}
+
+
 // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
-void ServerAllWorldsState::serialiseToDisk(const std::string& path)
+void ServerAllWorldsState::serialiseToDisk()
 {
 	conPrint("Saving world state to disk...");
 

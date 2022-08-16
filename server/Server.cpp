@@ -372,6 +372,7 @@ int main(int argc, char *argv[])
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
 		syntax["--src_resource_dir"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
 		syntax["--enable_dev_mode"] = std::vector<ArgumentParser::ArgumentType>();
+		syntax["--save_sanitised_database"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
 
 		std::vector<std::string> args;
 		for(int i=0; i<argc; ++i)
@@ -404,17 +405,17 @@ int main(int argc, char *argv[])
 			//glare::BestFitAllocator::test();
 			//Parser::doUnitTests();
 			//FormatDecoderGLTF::test();
-			//DatabaseTests::test();
+			DatabaseTests::test();
 			//StringUtils::test();
 			//SHA256::test();
 			//RLP::test();
 			//Signing::test();
 			//Keccak256::test();
 			//Infura::test();
-			SHA256::test();
-			RLP::test();
-			Signing::test();
-			Keccak256::test();
+			//SHA256::test();
+			//RLP::test();
+			//Signing::test();
+			//Keccak256::test();
 			//Infura::test();
 			//AccountHandlers::test();
 			//web::WorkerThreadTests::test();
@@ -431,8 +432,6 @@ int main(int argc, char *argv[])
 		//-----------------------------------------------------------------------------------------
 
 
-
-
 		const int listen_port = 7600;
 		conPrint("listen port: " + toString(listen_port));
 
@@ -443,16 +442,35 @@ int main(int argc, char *argv[])
 		const std::string username = PlatformUtils::getLoggedInUserName();
 		const std::string server_state_dir = "/home/" + username + "/cyberspace_server_state";
 #endif
-
 		FileUtils::createDirIfDoesNotExist(server_state_dir);
 
 		const std::string server_resource_dir = server_state_dir + "/server_resources";
 		conPrint("server_resource_dir: " + server_resource_dir);
-
-
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
-		
+
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
+
+
+		// Reads database at the path given by arg 0, writes a sanitised and compacted database at arg 0 path, with "_sanitised" appended to filename.
+		if(parsed_args.isArgPresent("--save_sanitised_database"))
+		{
+			const std::string src_db_path = parsed_args.getArgStringValue("--save_sanitised_database");
+			const std::string sanitised_db_path = ::removeDotAndExtension(src_db_path) + "_sanitised.bin";
+
+			// Copy database from src database path to sanitised path.
+			FileUtils::copyFile(/*src=*/src_db_path, /*dest=*/sanitised_db_path);
+
+			server.world_state->readFromDisk(sanitised_db_path, dev_mode);
+
+			server.world_state->saveSanitisedDatabase();
+
+			server.world_state = NULL; // Close database
+
+			Database db;
+			db.removeOldRecordsOnDisk(sanitised_db_path); // Remove deleted and old records from the database file.
+			return 0;
+		}
+
 
 #ifdef WIN32
 		server.screenshot_dir = "C:\\programming\\cyberspace\\webdata\\screenshots"; // Dir generated screenshots will be saved to.
@@ -972,7 +990,7 @@ int main(int argc, char *argv[])
 					// Save world state to disk
 					Lock lock2(server.world_state->mutex);
 
-					server.world_state->serialiseToDisk(server_state_path);
+					server.world_state->serialiseToDisk();
 
 					server.world_state->clearChangedFlag();
 					save_state_timer.reset();
