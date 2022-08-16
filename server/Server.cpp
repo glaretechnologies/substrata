@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "WorkerThread.h"
 #include "../shared/Protocol.h"
 #include "../shared/Version.h"
+#include "../shared/MessageUtils.h"
 #include "../networking/Networking.h"
 #include <ThreadManager.h>
 #include <PlatformUtils.h>
@@ -280,21 +281,11 @@ void updateMapTiles(ServerAllWorldsState& world_state)
 }
 
 
-static void updatePacketLengthField(SocketBufferOutStream& packet)
-{
-	// length field is second uint32
-	assert(packet.buf.size() >= sizeof(uint32) * 2);
-	if(packet.buf.size() >= sizeof(uint32) * 2)
-	{
-		const uint32 len = (uint32)packet.buf.size();
-		std::memcpy(&packet.buf[4], &len, 4);
-	}
-}
 
 
 static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std::vector<std::string>& broadcast_packets)
 {
-	updatePacketLengthField(packet_buffer);
+	MessageUtils::updatePacketLengthField(packet_buffer);
 
 	if(packet_buffer.buf.size() > 0)
 	{
@@ -304,14 +295,6 @@ static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std:
 
 		broadcast_packets.push_back(packet_string);
 	}
-}
-
-
-static void initPacket(SocketBufferOutStream& scratch_packet, uint32 message_id)
-{
-	scratch_packet.buf.resize(sizeof(uint32) * 2);
-	std::memcpy(&scratch_packet.buf[0], &message_id, sizeof(uint32));
-	std::memset(&scratch_packet.buf[4], 0, sizeof(uint32)); // Write dummy message length, will be updated later when size of message is known.
 }
 
 
@@ -692,7 +675,7 @@ int main(int argc, char *argv[])
 							if(avatar->state == Avatar::State_Alive)
 							{
 								// Send AvatarFullUpdate packet
-								initPacket(scratch_packet, Protocol::AvatarFullUpdate);
+								MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 								writeToNetworkStream(*avatar, scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
@@ -704,7 +687,7 @@ int main(int argc, char *argv[])
 							else if(avatar->state == Avatar::State_JustCreated)
 							{
 								// Send AvatarCreated packet
-								initPacket(scratch_packet, Protocol::AvatarCreated);
+								MessageUtils::initPacket(scratch_packet, Protocol::AvatarCreated);
 								writeToNetworkStream(*avatar, scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
@@ -718,7 +701,7 @@ int main(int argc, char *argv[])
 							else if(avatar->state == Avatar::State_Dead)
 							{
 								// Send AvatarDestroyed packet
-								initPacket(scratch_packet, Protocol::AvatarDestroyed);
+								MessageUtils::initPacket(scratch_packet, Protocol::AvatarDestroyed);
 								writeToStream(avatar->uid, scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
@@ -740,7 +723,7 @@ int main(int argc, char *argv[])
 							if(avatar->state == Avatar::State_Alive)
 							{
 								// Send AvatarTransformUpdate packet
-								initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
+								MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
 								writeToStream(avatar->uid, scratch_packet);
 								writeToStream(avatar->pos, scratch_packet);
 								writeToStream(avatar->rotation, scratch_packet);
@@ -770,7 +753,7 @@ int main(int argc, char *argv[])
 							if(ob->state == WorldObject::State_Alive)
 							{
 								// Send ObjectFullUpdate packet
-								initPacket(scratch_packet, Protocol::ObjectFullUpdate);
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectFullUpdate);
 								ob->writeToNetworkStream(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
@@ -782,7 +765,7 @@ int main(int argc, char *argv[])
 							else if(ob->state == WorldObject::State_JustCreated)
 							{
 								// Send ObjectCreated packet
-								initPacket(scratch_packet, Protocol::ObjectCreated);
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectCreated);
 								ob->writeToNetworkStream(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
@@ -794,7 +777,7 @@ int main(int argc, char *argv[])
 							else if(ob->state == WorldObject::State_Dead)
 							{
 								// Send ObjectDestroyed packet
-								initPacket(scratch_packet, Protocol::ObjectDestroyed);
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectDestroyed);
 								writeToStream(ob->uid, scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
@@ -824,7 +807,7 @@ int main(int argc, char *argv[])
 							if(ob->state == WorldObject::State_Alive)
 							{
 								// Send ObjectTransformUpdate packet
-								initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectTransformUpdate);
 								writeToStream(ob->uid, scratch_packet);
 								writeToStream(ob->pos, scratch_packet);
 								writeToStream(ob->axis, scratch_packet);
@@ -847,7 +830,7 @@ int main(int argc, char *argv[])
 						else if(ob->from_remote_lightmap_url_dirty)
 						{
 							// Send ObjectLightmapURLChanged packet
-							initPacket(scratch_packet, Protocol::ObjectLightmapURLChanged);
+							MessageUtils::initPacket(scratch_packet, Protocol::ObjectLightmapURLChanged);
 							writeToStream(ob->uid, scratch_packet);
 							scratch_packet.writeStringLengthFirst(ob->lightmap_url);
 
@@ -859,7 +842,7 @@ int main(int argc, char *argv[])
 						else if(ob->from_remote_model_url_dirty)
 						{
 							// Send ObjectModelURLChanged packet
-							initPacket(scratch_packet, Protocol::ObjectModelURLChanged);
+							MessageUtils::initPacket(scratch_packet, Protocol::ObjectModelURLChanged);
 							writeToStream(ob->uid, scratch_packet);
 							scratch_packet.writeStringLengthFirst(ob->model_url);
 
@@ -871,7 +854,7 @@ int main(int argc, char *argv[])
 						else if(ob->from_remote_flags_dirty)
 						{
 							// Send ObjectFlagsChanged packet
-							initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
+							MessageUtils::initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
 							writeToStream(ob->uid, scratch_packet);
 							scratch_packet.writeUInt32(ob->flags);
 
@@ -892,9 +875,9 @@ int main(int argc, char *argv[])
 					conPrint("Sending ServerAdminMessages to clients...");
 
 					// Send out ServerAdminMessageID packets to clients
-					initPacket(scratch_packet, Protocol::ServerAdminMessageID);
+					MessageUtils::initPacket(scratch_packet, Protocol::ServerAdminMessageID);
 					scratch_packet.writeStringLengthFirst(server.world_state->server_admin_message);
-					updatePacketLengthField(scratch_packet);
+					MessageUtils::updatePacketLengthField(scratch_packet);
 
 					Lock lock3(server.worker_thread_manager.getMutex());
 					for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)
@@ -929,9 +912,9 @@ int main(int argc, char *argv[])
 			if((loop_iter % 40) == 0) // Approx every 4 s.
 			{
 				// Send out TimeSyncMessage packets to clients
-				initPacket(scratch_packet, Protocol::TimeSyncMessage);
+				MessageUtils::initPacket(scratch_packet, Protocol::TimeSyncMessage);
 				scratch_packet.writeDouble(server.getCurrentGlobalTime());
-				updatePacketLengthField(scratch_packet);
+				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				Lock lock3(server.worker_thread_manager.getMutex());
 				for(auto i = server.worker_thread_manager.getThreads().begin(); i != server.worker_thread_manager.getThreads().end(); ++i)

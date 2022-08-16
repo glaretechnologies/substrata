@@ -18,6 +18,7 @@ SET(shared_files
 ../shared/ImageDecoding.h
 ../shared/LODGeneration.cpp
 ../shared/LODGeneration.h
+../shared/MessageUtils.h
 ../shared/Parcel.cpp
 ../shared/Parcel.h
 ../shared/ParcelID.h
