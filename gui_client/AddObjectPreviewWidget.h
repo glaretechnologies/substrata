@@ -52,7 +52,7 @@ protected:
 	virtual void mouseMoveEvent(QMouseEvent* e) override;
 	virtual void wheelEvent(QWheelEvent* e) override;
 	
-	void showEvent(QShowEvent* e);
+	virtual void showEvent(QShowEvent* e) override;
 
 signals:;
 	void cameraUpdated();

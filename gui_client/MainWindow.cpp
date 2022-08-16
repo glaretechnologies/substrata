@@ -3566,7 +3566,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 
-	double frame_loading_time = 0;
+	//double frame_loading_time = 0;
 	//std::vector<std::string> loading_times; // TEMP just for profiling/debugging
 	if(world_state.nonNull())
 	{
@@ -4001,7 +4001,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//if(num_models_loaded > 0 || num_textures_loaded > 0)
 		//	conPrint("Done loading, num_textures_loaded: " + toString(num_textures_loaded) + ", num_models_loaded: " + toString(num_models_loaded) + ", elapsed: " + loading_timer.elapsedStringNPlaces(4));
 
-		frame_loading_time = loading_timer.elapsed();
+		//frame_loading_time = loading_timer.elapsed();
 
 		this->last_model_and_tex_loading_time = loading_timer.elapsed();
 	}
