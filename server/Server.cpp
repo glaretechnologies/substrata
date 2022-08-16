@@ -519,7 +519,6 @@ int main(int argc, char *argv[])
 			throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));*/
 
 #else
-		//const std::string certdir = "N:\\new_cyberspace\\trunk\\certs\\substrata.info";
 		const std::string certdir = "/home/" + username + "/certs/substrata.info";
 		if(FileUtils::fileExists(certdir))
 		{
@@ -568,14 +567,11 @@ int main(int argc, char *argv[])
 		{
 			web_data_store->public_files_dir = "N:\\new_cyberspace\\trunk\\webserver_public_files";
 			web_data_store->webclient_dir = "N:\\new_cyberspace\\trunk\\webclient";
-			//web_data_store->public_files_dir = "C:\\programming\\cyberspace\\webdata\\public_files";
-			//web_data_store->resources_dir    = "C:\\programming\\new_cyberspace\\webdata\\resources";
 			web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 		}
 #else
 		web_data_store->public_files_dir = "/var/www/cyberspace/public_html";
 		web_data_store->webclient_dir = "/var/www/cyberspace/webclient";
-		//web_data_store->resources_dir    = "/var/www/cyberspace/resources";
 		web_data_store->letsencrypt_webroot = "/var/www/cyberspace/letsencrypt_webroot";
 #endif
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
@@ -656,7 +652,6 @@ int main(int argc, char *argv[])
 		thread_manager.addThread(new ListenerThread(listen_port, &server, tls_configuration));
 		
 		conPrint("Done.");
-		//thread_manager.addThread(new DataStoreSavingThread(data_store));
 		//----------------------------------------------- End launch substrata protocol server -----------------------------------------------
 
 
@@ -711,7 +706,6 @@ int main(int argc, char *argv[])
 								// Send AvatarCreated packet
 								initPacket(scratch_packet, Protocol::AvatarCreated);
 								writeToNetworkStream(*avatar, scratch_packet);
-								updatePacketLengthField(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -726,7 +720,6 @@ int main(int argc, char *argv[])
 								// Send AvatarDestroyed packet
 								initPacket(scratch_packet, Protocol::AvatarDestroyed);
 								writeToStream(avatar->uid, scratch_packet);
-								updatePacketLengthField(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -752,7 +745,6 @@ int main(int argc, char *argv[])
 								writeToStream(avatar->pos, scratch_packet);
 								writeToStream(avatar->rotation, scratch_packet);
 								scratch_packet.writeUInt32(avatar->anim_state);
-								updatePacketLengthField(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -780,7 +772,6 @@ int main(int argc, char *argv[])
 								// Send ObjectFullUpdate packet
 								initPacket(scratch_packet, Protocol::ObjectFullUpdate);
 								ob->writeToNetworkStream(scratch_packet);
-								updatePacketLengthField(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -793,7 +784,6 @@ int main(int argc, char *argv[])
 								// Send ObjectCreated packet
 								initPacket(scratch_packet, Protocol::ObjectCreated);
 								ob->writeToNetworkStream(scratch_packet);
-								updatePacketLengthField(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -806,7 +796,6 @@ int main(int argc, char *argv[])
 								// Send ObjectDestroyed packet
 								initPacket(scratch_packet, Protocol::ObjectDestroyed);
 								writeToStream(ob->uid, scratch_packet);
-								updatePacketLengthField(scratch_packet);
 
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -849,8 +838,6 @@ int main(int argc, char *argv[])
 								};
 								scratch_packet.writeData(aabb_data, sizeof(float) * 6);
 
-								updatePacketLengthField(scratch_packet);
-
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								ob->from_remote_transform_dirty = false;
@@ -863,7 +850,6 @@ int main(int argc, char *argv[])
 							initPacket(scratch_packet, Protocol::ObjectLightmapURLChanged);
 							writeToStream(ob->uid, scratch_packet);
 							scratch_packet.writeStringLengthFirst(ob->lightmap_url);
-							updatePacketLengthField(scratch_packet);
 
 							enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -876,7 +862,6 @@ int main(int argc, char *argv[])
 							initPacket(scratch_packet, Protocol::ObjectModelURLChanged);
 							writeToStream(ob->uid, scratch_packet);
 							scratch_packet.writeStringLengthFirst(ob->model_url);
-							updatePacketLengthField(scratch_packet);
 
 							enqueueMessageToBroadcast(scratch_packet, world_packets);
 
@@ -889,7 +874,6 @@ int main(int argc, char *argv[])
 							initPacket(scratch_packet, Protocol::ObjectFlagsChanged);
 							writeToStream(ob->uid, scratch_packet);
 							scratch_packet.writeUInt32(ob->flags);
-							updatePacketLengthField(scratch_packet);
 
 							enqueueMessageToBroadcast(scratch_packet, world_packets);
 
