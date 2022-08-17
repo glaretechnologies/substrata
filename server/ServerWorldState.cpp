@@ -1152,6 +1152,17 @@ void ServerAllWorldsState::serialiseToDisk()
 }
 
 
+std::string ServerAllWorldsState::getCredential(const std::string& key) // Throws glare::Exception if not found
+{
+	Lock lock(mutex);
+
+	auto res = server_credentials.creds.find(key);
+	if(res == server_credentials.creds.end())
+		throw glare::Exception("Couldn't find '" + key + "' in credentials.");
+	return res->second;
+}
+
+
 UID ServerAllWorldsState::getNextObjectUID()
 {
 	Lock lock(mutex);

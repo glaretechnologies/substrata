@@ -116,6 +116,8 @@ public:
 	// Then saves the updates to disk.
 	void saveSanitisedDatabase();
 
+	std::string getCredential(const std::string& key); // Throws glare::Exception if not found
+
 	UID getNextObjectUID(); // Gets and then increments next_object_uid.  Locks mutex.
 	UID getNextAvatarUID(); // Gets and then increments next_avatar_uid.  Locks mutex.
 	uint64 getNextOrderUID(); // Gets and then increments next_order_uid.  Locks mutex.
