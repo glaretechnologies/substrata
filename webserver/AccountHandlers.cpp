@@ -1,7 +1,7 @@
 /*=====================================================================
 AccountHandlers.cpp
 -------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "AccountHandlers.h"
 
@@ -583,10 +583,14 @@ void handleClaimParcelOwnerByNFTPost(ServerAllWorldsState& world_state, const we
 	bool succeeded = false;
 	try
 	{
+		InfuraCredentials infura_credentials;
+		infura_credentials.infura_project_id		= world_state.getCredential("infura_project_id");
+		infura_credentials.infura_project_secret	= world_state.getCredential("infura_project_secret");
+
 		const std::string network = "mainnet";
 		const EthAddress substrata_smart_contact_addr = EthAddress::parseFromHexString("0xa4535F84e8D746462F9774319E75B25Bc151ba1D"); // This should be address of the Substrata parcel smart contract
 
-		const EthAddress eth_parcel_owner = Infura::getOwnerOfERC721Token(network, substrata_smart_contact_addr, UInt256(parcel_id.value()));
+		const EthAddress eth_parcel_owner = Infura::getOwnerOfERC721Token(infura_credentials, network, substrata_smart_contact_addr, UInt256(parcel_id.value()));
 
 		if(eth_parcel_owner == EthAddress::parseFromHexString(user_controlled_eth_address))
 		{

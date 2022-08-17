@@ -1,7 +1,7 @@
 /*=====================================================================
 Infura.h
-----------------------
-Copyright Glare Technologies Limited 2021 -
+--------
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
@@ -22,6 +22,13 @@ class DataStore;
 class ServerAllWorldsState;
 
 
+struct InfuraCredentials
+{
+	std::string infura_project_id;
+	std::string infura_project_secret;
+};
+
+
 /*=====================================================================
 Infura
 ------
@@ -39,34 +46,34 @@ public:
 	
 	// token_id is a 256 bit unsigned integer, encoded in a big-endian order as a 32 byte binary string.
 	// Throws glare::Exception on failure.
-	static EthAddress getOwnerOfERC721Token(const std::string& network, const EthAddress& contract_address, const UInt256& token_id);
+	static EthAddress getOwnerOfERC721Token(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address, const UInt256& token_id);
 
-	static EthAddress getContractOwner(const std::string& network, const EthAddress& contract_address);
+	static EthAddress getContractOwner(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address);
 
 
-	static UInt256 transferContractOwnership(const std::string& network, const EthAddress& contract_address, const EthAddress& new_owner, int nonce);
+	static UInt256 transferContractOwnership(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address, const EthAddress& new_owner, int nonce);
 
 	// Execute an ethereum function call on the given smart contract.
 	// The function must take zero or more uint256 args, and should return an eth address.
-	static EthAddress doEthCallReturningAddress(const std::string& network, const EthAddress& contract_address, const std::string& func_name, const std::vector<UInt256>& uint256_args);
+	static EthAddress doEthCallReturningAddress(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address, const std::string& func_name, const std::vector<UInt256>& uint256_args);
 
-	static UInt256 doEthCallReturningTransactionHash(const std::string& network, const EthAddress& contract_address, const std::string& func_name, const std::vector<EthAddress>& address_args);
+	static UInt256 doEthCallReturningTransactionHash(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address, const std::string& func_name, const std::vector<EthAddress>& address_args);
 
 	// network should be one of "mainnet" etc..
 	// Returns transaction hash
-	static UInt256 sendRawTransaction(const std::string& network, const std::vector<uint8>& pre_signed_transaction);
+	static UInt256 sendRawTransaction(const InfuraCredentials& credentials, const std::string& network, const std::vector<uint8>& pre_signed_transaction);
 
 	// Returns transaction hash
-	static UInt256 deployContract(const std::string& network, const std::vector<uint8>& compiled_contract);
+	static UInt256 deployContract(const InfuraCredentials& credentials, const std::string& network, const std::vector<uint8>& compiled_contract);
 
 	struct TransactionReceipt
 	{
 		EthAddress contract_address;
 	};
-	static TransactionReceipt getTransactionReceipt(const std::string& network, const UInt256& transaction_hash);
+	static TransactionReceipt getTransactionReceipt(const InfuraCredentials& credentials, const std::string& network, const UInt256& transaction_hash);
 
 
-	static uint64 getCurrentGasPrice(const std::string& network); // In wei (1 ETH = 10^-18 wei)
+	static uint64 getCurrentGasPrice(const InfuraCredentials& credentials, const std::string& network); // In wei (1 ETH = 10^-18 wei)
 
 	static void test();
 
