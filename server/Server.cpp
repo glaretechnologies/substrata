@@ -563,7 +563,7 @@ int main(int argc, char *argv[])
 		if(FileUtils::fileExists(web_data_store->public_files_dir))
 		{
 			const std::vector<std::string> public_file_filenames = FileUtils::getFilesInDir(web_data_store->public_files_dir);
-			web_data_store->public_file_filenames = std::set(public_file_filenames.begin(), public_file_filenames.end());
+			web_data_store->public_file_filenames = std::set<std::string>(public_file_filenames.begin(), public_file_filenames.end());
 		}
 
 		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
