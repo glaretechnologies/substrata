@@ -43,22 +43,22 @@ WebServerRequestHandler::~WebServerRequestHandler()
 {}
 
 
-static bool isLetsEncryptFileQuerySafe(const std::string& s)
+/*static bool isLetsEncryptFileQuerySafe(const std::string& s)
 {
 	for(size_t i=0; i<s.size(); ++i)
 		if(!(::isAlphaNumeric(s[i]) || (s[i] == '-') || (s[i] == '_') || (s[i] == '.')))
 			return false;
 	return true;
-}
+}*/
 
 
-static bool isFileNameSafe(const std::string& s)
+/*static bool isFileNameSafe(const std::string& s)
 {
 	for(size_t i=0; i<s.size(); ++i)
 		if(!(::isAlphaNumeric(s[i]) || (s[i] == '-') || (s[i] == '_') || (s[i] == '.')))
 			return false;
 	return true;
-}
+}*/
 
 
 void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web::ReplyInfo& reply_info)
@@ -435,28 +435,35 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{
+			// Only serve files that are in the precomputed set of filenames: public_file_filenames
+			// This is to avoid directory traversal issues, where "../" or absolute paths are used to traverse out of the public_files_dir.
 			const std::string filename = ::eatPrefix(request.path, "/files/");
-			if(isFileNameSafe(filename))
+			
+			const auto lookup_res = data_store->public_file_filenames.find(filename);
+			if(lookup_res != data_store->public_file_filenames.end())
 			{
+				const std::string use_filename = *lookup_res; // Use the filename we lookup up, instead of the one passed in in the request, just to be safe/paranoid.
+
 				try
 				{
-					MemMappedFile file(data_store->public_files_dir + "/" + filename);
+					MemMappedFile file(data_store->public_files_dir + "/" + use_filename);
 					
-					const std::string content_type = web::ResponseUtils::getContentTypeForPath(filename);
+					const std::string content_type = web::ResponseUtils::getContentTypeForPath(use_filename);
 
 					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14);
 				}
 				catch(glare::Exception&)
 				{
-					web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file '" + filename + "'.");
+					web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file '" + use_filename + "'.");
 				}
 			}
 			else
 			{
-				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "invalid/unsafe filename");
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "No such file found or invalid filename");
 				return;
 			}
 		}
+		/* // Let's encrypt challenge response handling is disabled for now, as using godaddy certs
 		else if(::hasPrefix(request.path, "/.well-known/acme-challenge/")) // Support for Let's encrypt: Serve up challenge response file.
 		{
 			const std::string filename = ::eatPrefix(request.path, "/.well-known/acme-challenge/");
@@ -477,7 +484,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			{
 				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Failed to load file '" + filename + "': " + e.what());
 			}
-		}
+		}*/
 		else if(::hasPrefix(request.path, "/resource/"))
 		{
 			ResourceHandlers::handleResourceRequest(*this->world_state, request, reply_info);

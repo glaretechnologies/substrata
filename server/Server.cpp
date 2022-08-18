@@ -559,6 +559,13 @@ int main(int argc, char *argv[])
 #endif
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
 
+		// Create list of filenames of files in public files dir.
+		if(FileUtils::fileExists(web_data_store->public_files_dir))
+		{
+			const std::vector<std::string> public_file_filenames = FileUtils::getFilesInDir(web_data_store->public_files_dir);
+			web_data_store->public_file_filenames = std::set(public_file_filenames.begin(), public_file_filenames.end());
+		}
+
 		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
 		shared_request_handler->data_store = web_data_store.ptr();
 		shared_request_handler->server = &server;
