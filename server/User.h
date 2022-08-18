@@ -19,7 +19,15 @@ Copyright Glare Technologies Limited 2017 -
 #include <DatabaseKey.h>
 
 
-struct ServerCredentials;
+struct EmailSendingInfo
+{
+	std::string smtp_servername;
+	std::string smtp_username;
+	std::string smtp_password;
+	std::string from_name;
+	std::string from_email_addr;
+	std::string reset_webserver_hostname;
+};
 
 
 /*=====================================================================
@@ -41,7 +49,8 @@ public:
 	bool isPasswordValid(const std::string& password) const;
 
 	// Adds reset token to list of reset tokens for user.
-	void sendPasswordResetEmail(const ServerCredentials& server_credentials); // throws glare::Exception on error
+
+	void sendPasswordResetEmail(const EmailSendingInfo& sending_info); // throws glare::Exception on error
 
 	bool isResetTokenHashValidForUser(const std::array<uint8, 32>& reset_token_hash) const;
 	bool resetPasswordWithTokenHash(const std::array<uint8, 32>& reset_token_hash, const std::string& new_password);

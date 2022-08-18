@@ -437,7 +437,15 @@ void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::Reque
 			// TODO: move to another thread (make some kind of background task?)
 			try
 			{
-				matching_user->sendPasswordResetEmail(world_state.server_credentials);
+				EmailSendingInfo sending_info;
+				sending_info.smtp_servername			= world_state.getCredential("email_sending_smtp_servername");
+				sending_info.smtp_username				= world_state.getCredential("email_sending_smtp_username");
+				sending_info.smtp_password				= world_state.getCredential("email_sending_smtp_password");
+				sending_info.from_name					= world_state.getCredential("email_sending_from_name");
+				sending_info.from_email_addr			= world_state.getCredential("email_sending_from_email_addr");
+				sending_info.reset_webserver_hostname	= world_state.getCredential("email_sending_reset_webserver_hostname");
+
+				matching_user->sendPasswordResetEmail(sending_info);
 
 				Lock lock(world_state.mutex);
 				world_state.addUserAsDBDirty(matching_user);
