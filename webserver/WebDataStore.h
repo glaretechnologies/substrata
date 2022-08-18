@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2021 -
 
 #include <ThreadSafeRefCounted.h>
 #include <string>
+#include <set>
 
 
 /*=====================================================================
@@ -25,4 +26,7 @@ public:
 	std::string public_files_dir;
 	std::string webclient_dir; // Dir that webclient files are in - client.html, webclient.js etc..
 	std::string screenshot_dir;
+
+	// Filenames of files in public_files_dir
+	std::set<std::string> public_file_filenames;
 };
