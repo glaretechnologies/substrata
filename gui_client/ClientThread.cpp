@@ -135,12 +135,22 @@ void ClientThread::doRun()
 
 		// Now that we have finished the initial query-response part of protocol, start client_sender_thread, which will do the sending of data on the socket.
 		// We do this on a separate thread to avoid deadlocks where both the client and server get stuck send()ing large amounts of data to each other, without doing any reads.
-		this->client_sender_thread = new ClientSenderThread(socket);
-		client_sender_thread_manager.addThread(client_sender_thread);
+		Reference<ClientSenderThread> sender_thread = new ClientSenderThread(socket);
+		{
+			Lock lock(data_to_send_mutex);
+			this->client_sender_thread = sender_thread;
+		}
+		client_sender_thread_manager.addThread(sender_thread);
 
 		// Enqueue any data we have to send into the client_sender_thread queue.
-		client_sender_thread->enqueueDataToSend(data_to_send);
-		data_to_send.clear();
+		js::Vector<uint8, 16> data_to_send_copy;
+		{
+			Lock lock(data_to_send_mutex);
+			data_to_send_copy = data_to_send;
+			data_to_send.clear();
+		}
+		
+		sender_thread->enqueueDataToSend(data_to_send_copy);
 
 
 		socket->setNoDelayEnabled(true); // We will want to send out lots of little packets with low latency.  So disable Nagle's algorithm, e.g. send coalescing.
@@ -769,6 +779,8 @@ void ClientThread::doRun()
 
 void ClientThread::enqueueDataToSend(const ArrayRef<uint8> data)
 {
+	Lock lock(data_to_send_mutex);
+
 	if(client_sender_thread.nonNull())
 		client_sender_thread->enqueueDataToSend(data);
 	else
