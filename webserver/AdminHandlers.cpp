@@ -261,7 +261,7 @@ void renderAdminParcelAuctionPage(ServerAllWorldsState& world_state, const web::
 	}
 
 	// Parse parcel auction id from request path
-	Parser parser(request.path.c_str(), request.path.size());
+	Parser parser(request.path);
 	if(!parser.parseString("/admin_parcel_auction/"))
 		throw glare::Exception("Failed to parse /admin_parcel_auction/");
 
@@ -466,7 +466,7 @@ void renderAdminSubEthTransactionPage(ServerAllWorldsState& world_state, const w
 	}
 
 	// Parse order id from request path
-	Parser parser(request.path.c_str(), request.path.size());
+	Parser parser(request.path);
 	if(!parser.parseString("/admin_sub_eth_transaction/"))
 		throw glare::Exception("Failed to parse /admin_sub_eth_transactions/");
 
@@ -616,7 +616,7 @@ void renderAdminOrderPage(ServerAllWorldsState& world_state, const web::RequestI
 	}
 
 	// Parse order id from request path
-	Parser parser(request.path.c_str(), request.path.size());
+	Parser parser(request.path);
 	if(!parser.parseString("/admin_order/"))
 		throw glare::Exception("Failed to parse /admin_order/");
 
@@ -681,7 +681,7 @@ void renderCreateParcelAuction(ServerAllWorldsState& world_state, const web::Req
 	}
 
 	// Parse parcel id from request path
-	Parser parser(request.path.c_str(), request.path.size());
+	Parser parser(request.path);
 	if(!parser.parseString("/admin_create_parcel_auction/"))
 		throw glare::Exception("Failed to parse /admin_create_parcel_auction/");
 
@@ -812,7 +812,7 @@ void renderSetParcelOwnerPage(ServerAllWorldsState& world_state, const web::Requ
 	}
 
 	// Parse parcel id from request path
-	Parser parser(request.path.c_str(), request.path.size());
+	Parser parser(request.path);
 	if(!parser.parseString("/admin_set_parcel_owner/"))
 		throw glare::Exception("Failed to parse /admin_set_parcel_owner/");
 

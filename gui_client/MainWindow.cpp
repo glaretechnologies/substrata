@@ -1856,7 +1856,7 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 			{
 				if(::hasPrefix(lines[z], "#instancing"))
 				{
-					Parser parser(lines[z].data(), lines[z].size());
+					Parser parser(lines[z]);
 					parser.parseString("#instancing");
 					parser.parseWhiteSpace();
 					if(!parser.parseInt(count))
