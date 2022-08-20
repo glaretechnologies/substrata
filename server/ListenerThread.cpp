@@ -60,7 +60,7 @@ void ListenerThread::doRun()
 		}
 
 		if(bound)
-			conPrint("Successfully bound and listening on port " + toString(listenport));
+			conPrint("ListenerThread: Successfully bound and listening on port " + toString(listenport));
 		else
 			throw MySocketExcep("Failed to bind and listen.");
 
