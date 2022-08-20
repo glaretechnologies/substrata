@@ -34,7 +34,7 @@ void handleScreenshotRequest(ServerAllWorldsState& world_state, WebDataStore& da
 	try
 	{
 		// Parse screenshot id from request path
-		Parser parser(request.path.c_str(), request.path.size());
+		Parser parser(request.path);
 		if(!parser.parseString("/screenshot/"))
 			throw glare::Exception("Failed to parse /screenshot/");
 

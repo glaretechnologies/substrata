@@ -34,7 +34,7 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 	try
 	{
 		// Parse parcel id from request path
-		Parser parser(request.path.c_str(), request.path.size());
+		Parser parser(request.path);
 		if(!parser.parseString("/parcel/"))
 			throw glare::Exception("Failed to parse /parcel/");
 
@@ -425,7 +425,7 @@ void renderMetadata(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	try
 	{
 		// Parse parcel id from request path
-		Parser parser(request.path.c_str(), request.path.size());
+		Parser parser(request.path);
 		if(!parser.parseString("/p/"))
 			throw glare::Exception("Failed to parse /p/");
 

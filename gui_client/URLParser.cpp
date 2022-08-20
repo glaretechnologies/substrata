@@ -18,7 +18,7 @@ static const double DEFAULT_Z = 2;
 
 URLParseResults URLParser::parseURL(const std::string& URL)
 {
-	Parser parser(URL.c_str(), URL.size());
+	Parser parser(URL);
 
 	// Parse protocol
 	string_view protocol;
