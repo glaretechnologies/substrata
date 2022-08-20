@@ -210,12 +210,13 @@ private:
 	std::string world_name;
 	struct tls_config* config;
 
-	js::Vector<uint8, 16> data_to_send;
+	Mutex data_to_send_mutex;
+	js::Vector<uint8, 16> data_to_send						GUARDED_BY(data_to_send_mutex);
 
 	BufferInStream msg_buffer;
 
 	Reference<glare::PoolAllocator> world_ob_pool_allocator;
 
 	ThreadManager client_sender_thread_manager;
-	Reference<ClientSenderThread> client_sender_thread;
+	Reference<ClientSenderThread> client_sender_thread		GUARDED_BY(data_to_send_mutex);
 };
