@@ -291,10 +291,10 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, float raw_dtime,
 				const float foot_z = campos[2] - EYE_HEIGHT;
 				const float hitpos_height_above_foot = closest_hit_pos_ws[2] - foot_z;
 
-				bool hit_step = false;
+				//bool hit_step = false;
 				if(!closest_point_in_tri && hitpos_height_above_foot > 0.003f && hitpos_height_above_foot < 0.25f)
 				{
-					hit_step = true;
+					//hit_step = true;
 
 					const float jump_up_amount = hitpos_height_above_foot + 0.01f; // Distance to displace the player upwards
 
@@ -429,11 +429,11 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 		Vec3f force(0,0,0); // sum of forces acting on spheres from all springs
 		int numforces = 0; // num forces acting on spheres
 
-		for(int s=0; s<springspheresets.size(); ++s)
+		for(size_t s=0; s<springspheresets.size(); ++s)
 		{
 			const Vec3f currentspherepos = toVec3f(springspheresets[s].sphere.getCenter()) + displacement;
 
-			for(int c=0; c<springspheresets[s].collpoints.size(); ++c)
+			for(size_t c=0; c<springspheresets[s].collpoints.size(); ++c)
 			{
 				//-----------------------------------------------------------------
 				//get vec from collision point to sphere center == spring vec
@@ -479,11 +479,11 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 		displacement += force * 0.3f;//0.1;//TEMP was 0.1
 	}
 
-	int numsprings = 0;
-	for(int s=0; s<springspheresets.size(); ++s)
-		numsprings += (int)springspheresets[s].collpoints.size();
-
-	//conPrint("springs took " + toString(num_iters_done) + " iterations to solve for " + toString(numsprings) + " springs"); 
+	// int numsprings = 0;
+	// for(int s=0; s<springspheresets.size(); ++s)
+	// 	numsprings += (int)springspheresets[s].collpoints.size();
+	// 
+	// conPrint("springs took " + toString(num_iters_done) + " iterations to solve for " + toString(numsprings) + " springs"); 
 
 	return displacement;
 }

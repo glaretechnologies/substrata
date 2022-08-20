@@ -84,7 +84,7 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 	models.push_back("Platonic_Solid");
 	models.push_back("Torus");
 
-	for(int i=0; i<models.size(); ++i)
+	for(size_t i=0; i<models.size(); ++i)
 	{
 		const std::string image_path = base_dir_path + "/resources/models/" + models[i] + ".png";
 

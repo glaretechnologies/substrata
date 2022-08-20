@@ -32,10 +32,10 @@ void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_worl
 	{
 		Reference<ObBiomeData> data = it->second;
 
-		for(int i=0; i<data->opengl_obs.size(); ++i)
+		for(size_t i=0; i<data->opengl_obs.size(); ++i)
 			opengl_engine.removeObject(data->opengl_obs[i]);
 
-		for(int i=0; i<data->physics_objects.size(); ++i)
+		for(size_t i=0; i<data->physics_objects.size(); ++i)
 			physics_world.removeObject(data->physics_objects[i]);
 	}
 
@@ -52,17 +52,17 @@ void BiomeManager::clear(OpenGLEngine& opengl_engine, PhysicsWorld& physics_worl
 
 
 	for(auto it = patches_a.begin(); it != patches_a.end(); ++it)
-		for(int t=0; t<it->second.opengl_obs.size(); ++t)
+		for(size_t t=0; t<it->second.opengl_obs.size(); ++t)
 			opengl_engine.removeObject(it->second.opengl_obs[t]);
 	patches_a.clear();
 
 	for(auto it = patches_b.begin(); it != patches_b.end(); ++it)
-		for(int t=0; t<it->second.opengl_obs.size(); ++t)
+		for(size_t t=0; t<it->second.opengl_obs.size(); ++t)
 			opengl_engine.removeObject(it->second.opengl_obs[t]);
 	patches_b.clear();
 
 	for(auto it = patches_c.begin(); it != patches_c.end(); ++it)
-		for(int t=0; t<it->second.opengl_obs.size(); ++t)
+		for(size_t t=0; t<it->second.opengl_obs.size(); ++t)
 			opengl_engine.removeObject(it->second.opengl_obs[t]);
 	patches_c.clear();
 }
@@ -609,7 +609,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 			// conPrint("Removed ground quad (" + toString(it->first.x) + ", " + toString(it->first.y) + ")");
 			
 			// Remove opengl objects on the patch
-			for(int t=0; t<patch.opengl_obs.size(); ++t)
+			for(size_t t=0; t<patch.opengl_obs.size(); ++t)
 				opengl_engine.removeObject(patch.opengl_obs[t]);
 
 			it = patches.erase(it); // Erase patch from map, set iterator to next item in map
