@@ -1,0 +1,82 @@
+
+Notes for running the substrata server for development
+======================================================
+server_state_dir is:
+On Windows: APPDATA/Substrata/server_data 
+On Mac: /Users/USERNAME/cyberspace_server_state
+On Linux: /home/USERNAME/cyberspace_server_state
+
+Where USERNAME is the current user name
+
+Resources are saved in server_state_dir + "/resources"
+
+The server state database file is located at server_state_dir + "/server_state.bin"
+
+
+Webserver public files dir
+--------------------------
+This directory holds files used by the website, such as CSS files, images, javascript files (map.js) etc.
+
+On Windows, in dev mode:		server_state_dir + "/webserver_public_files"
+On Mac:							server_state_dir + "/webserver_public_files"
+On Linux:						/var/www/cyberspace/public_html
+
+NOTE: New files in this directory will not be served by the server until it is restarted.
+
+
+Webclient files dir
+-------------------
+This directory holds files used for the webclient, such as webclient.js, client.html etc.
+
+On Windows, in dev mode:		server_state_dir + "/webclient"
+On Mac:							server_state_dir + "/webclient"
+On Linux:						/var/www/cyberspace/webclient
+
+
+Updating public and webclient files while the server is running
+---------------------------------------------------------------
+On Windows and Linux, whenever a file is changed in the public files dir or the webclient files dir, all public and webclient files will be reloaded from disk.
+This is done via file-system watching.  
+This is not implemented on Mac yet.
+
+When running in dev mode (--enable_dev_mode), files in the webclient files dir will be reloaded from disk freshly on each request.
+
+
+Screenshot dir
+--------------
+This directory holds upload screenshots from the screenshot bot.
+
+On Windows, Mac:				server_state_dir + "/screenshot_dir"
+On Linux:						/var/www/cyberspace/screenshots
+
+Server TLS keypair
+------------------
+On Windows and Mac, the certificate is read from 
+	
+	server_state_dir + "/MyCertificate.crt"
+
+and the private key is read from 
+	
+	server_state_dir + "/MyKey.key"
+
+You can generate such a keypair using OpenSSL / LibreSSL like so:
+
+	openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key
+
+
+
+Server Credentials
+------------------
+Server credentials are stored at
+	
+On Windows, Mac:				server_state_dir + "/substrata_server_credentials.txt"
+Linux:							"/home/" + username + "/substrata_server_credentials.txt"			[Will change]
+
+This contains stuff like
+
+	email_sending_smtp_servername
+
+for sending password reset emails etc.
+
+The Substrata server can run without the server credentials file present, however some features will not work, such as password reset emails.
+
