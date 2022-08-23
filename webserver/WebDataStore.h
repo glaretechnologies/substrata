@@ -1,14 +1,28 @@
 /*=====================================================================
 WebDataStore.h
 --------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
 
 #include <ThreadSafeRefCounted.h>
+#include <Reference.h>
+#include <Vector.h>
+#include <Mutex.h>
 #include <string>
 #include <set>
+#include <map>
+
+
+
+class WebDataStoreFile : public ThreadSafeRefCounted
+{
+public:
+	js::Vector<uint8, 16> data;
+	bool compressed;
+	std::string content_type;
+};
 
 
 /*=====================================================================
@@ -22,11 +36,17 @@ public:
 	WebDataStore();
 	~WebDataStore();
 
+	void loadAndCompressFiles(); // Loads or reloads files.  Compresses files if needed.
+
+
 	std::string letsencrypt_webroot;
 	std::string public_files_dir;
 	std::string webclient_dir; // Dir that webclient files are in - client.html, webclient.js etc..
 	std::string screenshot_dir;
 
-	// Filenames of files in public_files_dir
-	std::set<std::string> public_file_filenames;
+	std::map<std::string, Reference<WebDataStoreFile>> public_files			GUARDED_BY(mutex);
+
+	std::map<std::string, Reference<WebDataStoreFile>> webclient_dir_files	GUARDED_BY(mutex);
+
+	Mutex mutex;
 };
