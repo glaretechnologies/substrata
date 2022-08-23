@@ -428,119 +428,124 @@ public:
 
 void AudioEngine::init()
 {
-	try
+#if defined(_WIN32)
+	const RtAudio::Api rtaudio_api = RtAudio::WINDOWS_DS;
+#elif defined(OSX)
+	const RtAudio::Api rtaudio_api = RtAudio::MACOSX_CORE;
+#else // else linux:
+	const RtAudio::Api rtaudio_api = RtAudio::LINUX_PULSE;
+#endif
+
+	audio = new RtAudio(rtaudio_api);
+	
+	// Determine the number of devices available
+	const unsigned int devices = audio->getDeviceCount();
+	if(devices == 0)
+		throw glare::Exception("No audio devices found");
+
+	// Scan through devices for various capabilities
+	RtAudio::DeviceInfo info;
+	for(unsigned int i=0; i<devices; i++ )
 	{
-		audio = new RtAudio();
-	
-		// Determine the number of devices available
-		const unsigned int devices = audio->getDeviceCount();
-		if(devices == 0)
-			throw glare::Exception("No audio devices found");
-
-		// Scan through devices for various capabilities
-		RtAudio::DeviceInfo info;
-		for(unsigned int i=0; i<devices; i++ )
+		info = audio->getDeviceInfo(i);
+		//if(info.probed)
 		{
-			info = audio->getDeviceInfo(i);
-			if(info.probed)
-			{
-				// Print, for example, the maximum number of output channels for each device
+			// Print, for example, the maximum number of output channels for each device
 
-				// conPrint("name = " + info.name);
-				// conPrint("maximum output channels = " + toString(info.outputChannels));
-				// conPrint("maximum input channels = " + toString(info.inputChannels));
-				// conPrint("supported sample rates = " + toString(info.inputChannels));
-				// for(auto r : info.sampleRates)
-				// 	conPrint(toString(r) + " hz");
-				// conPrint("preferredSampleRate = " + toString(info.preferredSampleRate));
-			}
+			// conPrint("name = " + info.name);
+			// conPrint("maximum output channels = " + toString(info.outputChannels));
+			// conPrint("maximum input channels = " + toString(info.inputChannels));
+			// conPrint("supported sample rates = " + toString(info.inputChannels));
+			// for(auto r : info.sampleRates)
+			// 	conPrint(toString(r) + " hz");
+			// conPrint("preferredSampleRate = " + toString(info.preferredSampleRate));
 		}
-
-
-		const unsigned int default_output_dev = audio->getDefaultOutputDevice();
-		// conPrint("default_output_dev: " + toString(default_output_dev));
-
-		info = audio->getDeviceInfo(default_output_dev);
-		if(!info.isDefaultOutput)
-			throw glare::Exception("Failed to find output audio device");
-
-		unsigned int desired_sample_rate = 44100;// info.preferredSampleRate;
-
-		RtAudio::StreamParameters parameters;
-		parameters.deviceId = audio->getDefaultOutputDevice();
-		parameters.nChannels = 2;
-		parameters.firstChannel = 0;
-		unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
-
-		// conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
-
-		callback_data.resonance = NULL;
-		callback_data.engine = this;
-
-		audio->openStream(&parameters, /*input parameters=*/NULL, RTAUDIO_FLOAT32, desired_sample_rate, &buffer_frames, rtAudioCallback, /*userdata=*/&callback_data);
-
-		this->sample_rate = audio->getStreamSampleRate(); // Get actual sample rate used.
-
-		// conPrint("Using sample rate of " + toString(sample_rate) + " hz");
-	
-
-		// Resonance audio
-		resonance = vraudio::CreateResonanceAudioApi(
-			2, // num channels
-			buffer_frames, // frames per buffer
-			sample_rate // sample rate, hz
-		);
-
-		/*vraudio::ReflectionProperties refl_props;
-
-		// (7.6, 51.8, 0),   (22.5, 69.2, 5.4)
-		refl_props.room_dimensions[0] = 22.5f - 7.6f;
-		refl_props.room_dimensions[1] = 69.2f - 51.8f;
-		refl_props.room_dimensions[2] = 5.4f;
-
-	
-		refl_props.room_position[0] = (7.6f + 22.5f)/2;
-		refl_props.room_position[1] = (51.8f + 69.2f)/2;
-		refl_props.room_position[2] = (5.4f)/2;
-
-		for(int i=0; i<6; ++i)
-			refl_props.coefficients[i] = 0.8f;
-		refl_props.coefficients[5] = 0.2f;
-		refl_props.coefficients[2] = 0.3f;
-		refl_props.gain = 0.7f;
-		resonance->SetReflectionProperties(refl_props);
-
-		vraudio::ReverbProperties reverb_props;
-		reverb_props.gain = 0.02f;
-		for(int i=0; i<9; ++i)
-			reverb_props.rt60_values[i] = 0.5f;
-		resonance->SetReverbProperties(reverb_props);
-
-		resonance->EnableRoomEffects(true);*/
-
-		callback_data.resonance = resonance;
-
-		{
-			Reference<ResonanceThread> t = new ResonanceThread();
-			t->engine = this;
-			t->resonance = this->resonance;
-			t->callback_data = &this->callback_data;
-			t->frames_per_buffer = buffer_frames;
-			t->temp_buf.resize(buffer_frames * 2);
-			thread_manager.addThread(t);
-		}
-
-		{
-			Reference<StreamerThread> t = new StreamerThread(this);
-			thread_manager.addThread(t);
-		}
-
-		audio->startStream();
 	}
-	catch(RtAudioError& e)
+
+
+	const unsigned int default_output_dev = audio->getDefaultOutputDevice();
+	// conPrint("default_output_dev: " + toString(default_output_dev));
+
+	info = audio->getDeviceInfo(default_output_dev);
+	if(!info.isDefaultOutput)
+		throw glare::Exception("Failed to find output audio device");
+
+	unsigned int desired_sample_rate = 44100;// info.preferredSampleRate;
+
+	RtAudio::StreamParameters parameters;
+	parameters.deviceId = audio->getDefaultOutputDevice();
+	parameters.nChannels = 2;
+	parameters.firstChannel = 0;
+	unsigned int buffer_frames = 256; // 256 sample frames. NOTE: might be changed by openStream() below.
+
+	// conPrint("Using sample rate of " + toString(use_sample_rate) + " hz");
+
+	callback_data.resonance = NULL;
+	callback_data.engine = this;
+
+	RtAudioErrorType rtaudio_res = audio->openStream(&parameters, /*input parameters=*/NULL, RTAUDIO_FLOAT32, desired_sample_rate, &buffer_frames, rtAudioCallback, /*userdata=*/&callback_data);
+	if(rtaudio_res != RTAUDIO_NO_ERROR)
+		throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
+
+	this->sample_rate = audio->getStreamSampleRate(); // Get actual sample rate used.
+
+	// conPrint("Using sample rate of " + toString(sample_rate) + " hz");
+	
+
+	// Resonance audio
+	resonance = vraudio::CreateResonanceAudioApi(
+		2, // num channels
+		buffer_frames, // frames per buffer
+		sample_rate // sample rate, hz
+	);
+
+	/*vraudio::ReflectionProperties refl_props;
+
+	// (7.6, 51.8, 0),   (22.5, 69.2, 5.4)
+	refl_props.room_dimensions[0] = 22.5f - 7.6f;
+	refl_props.room_dimensions[1] = 69.2f - 51.8f;
+	refl_props.room_dimensions[2] = 5.4f;
+
+	
+	refl_props.room_position[0] = (7.6f + 22.5f)/2;
+	refl_props.room_position[1] = (51.8f + 69.2f)/2;
+	refl_props.room_position[2] = (5.4f)/2;
+
+	for(int i=0; i<6; ++i)
+		refl_props.coefficients[i] = 0.8f;
+	refl_props.coefficients[5] = 0.2f;
+	refl_props.coefficients[2] = 0.3f;
+	refl_props.gain = 0.7f;
+	resonance->SetReflectionProperties(refl_props);
+
+	vraudio::ReverbProperties reverb_props;
+	reverb_props.gain = 0.02f;
+	for(int i=0; i<9; ++i)
+		reverb_props.rt60_values[i] = 0.5f;
+	resonance->SetReverbProperties(reverb_props);
+
+	resonance->EnableRoomEffects(true);*/
+
+	callback_data.resonance = resonance;
+
 	{
-		throw glare::Exception(e.what());
+		Reference<ResonanceThread> t = new ResonanceThread();
+		t->engine = this;
+		t->resonance = this->resonance;
+		t->callback_data = &this->callback_data;
+		t->frames_per_buffer = buffer_frames;
+		t->temp_buf.resize(buffer_frames * 2);
+		thread_manager.addThread(t);
 	}
+
+	{
+		Reference<StreamerThread> t = new StreamerThread(this);
+		thread_manager.addThread(t);
+	}
+
+	rtaudio_res = audio->startStream();
+	if(rtaudio_res != RTAUDIO_NO_ERROR)
+		throw glare::Exception("Error opening audio stream: code: " + toString((int)rtaudio_res));
 
 	this->initialised = true;
 }
@@ -584,22 +589,15 @@ void AudioEngine::shutdown()
 {
 	thread_manager.killThreadsBlocking();
 	
-	try
+	if(audio)
 	{
-		if(audio)
+		if(audio->isStreamOpen())
 		{
-			if(audio->isStreamOpen())
-			{
-				if(audio->isStreamRunning())
-					audio->stopStream();
+			if(audio->isStreamRunning())
+				audio->stopStream();
 
-				audio->closeStream();
-			}
+			audio->closeStream();
 		}
-	}
-	catch(RtAudioError& e)
-	{
-		conPrint(std::string("AudioEngine::shutdown(): RtAudioError: ") + e.what());
 	}
 
 	delete resonance;
