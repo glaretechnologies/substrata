@@ -438,24 +438,23 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			// Only serve files that are in the precomputed set of filenames: public_file_filenames
 			// This is to avoid directory traversal issues, where "../" or absolute paths are used to traverse out of the public_files_dir.
 			const std::string filename = ::eatPrefix(request.path, "/files/");
-			
-			const auto lookup_res = data_store->public_file_filenames.find(filename);
-			if(lookup_res != data_store->public_file_filenames.end())
+
+			Reference<WebDataStoreFile> store_file;
 			{
-				const std::string use_filename = *lookup_res; // Use the filename we lookup up, instead of the one passed in in the request, just to be safe/paranoid.
+				Lock lock(data_store->mutex);
+				const auto compressed_lookup_res = data_store->public_files.find(filename);
+				if(compressed_lookup_res != data_store->public_files.end())
+					store_file = compressed_lookup_res->second;
+			}
 
-				try
-				{
-					MemMappedFile file(data_store->public_files_dir + "/" + use_filename);
-					
-					const std::string content_type = web::ResponseUtils::getContentTypeForPath(use_filename);
-
-					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14);
-				}
-				catch(glare::Exception&)
-				{
-					web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file '" + use_filename + "'.");
-				}
+			if(store_file.nonNull())
+			{
+				const js::Vector<uint8, 16>& file_data = store_file->data;
+				const std::string& content_type = store_file->content_type;
+				if(store_file->compressed)
+					web::ResponseUtils::writeHTTPOKHeaderAndDeflatedDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
+				else
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
 			}
 			else
 			{
@@ -507,38 +506,9 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file /webclient");
 			}
 		}
-		else if( // Files for the web client:
-			request.path == "/webclient/fzstd.js" ||
-			request.path == "/webclient/bufferin.js" ||
-			request.path == "/webclient/bufferout.js" ||
-			request.path == "/webclient/bmeshloading.js" ||
-			request.path == "/webclient/voxelloading.js" ||
-			request.path == "/webclient/webclient.js" ||
-			request.path == "/webclient/downloadqueue.js" ||
-			request.path == "/webclient/examples/jsm/loaders/GLTFLoader.js" ||
-			request.path == "/webclient/examples/jsm/objects/Sky.js" ||
-			//request.path == "/examples/jsm/csm/CSM.js" ||
-			//request.path == "/examples/jsm/csm/CSMFrustum.js" ||
-			//request.path == "/examples/jsm/csm/CSMHelper.js" ||
-			//request.path == "/examples/jsm/csm/CSMShader.js" ||
-			request.path == "/webclient/build/three.module.js"
-			)
-		{
-			try
-			{
-				std::string contents;
-				FileUtils::readEntireFile(data_store->webclient_dir + ::eatPrefix(request.path, "/webclient"), contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
-			}
-			catch(FileUtils::FileUtilsExcep& e)
-			{
-				conPrint("Failed to load file: " + e.what());
-				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
-			}
-		}
 		else if(dev_mode && ::hasPrefix(request.path, "/webclient/"))
 		{
-			// In development mode, serve any requested files out of webclient dir.
+			// In development mode, serve any requested files directly from disk, out of the webclient dir.
 			if(!FileUtils::isPathSafe(request.path))
 				throw glare::Exception("request '" + request.path + "' is not safe.");
 
@@ -552,6 +522,33 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			{
 				conPrint("Failed to load file: " + e.what());
 				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
+			}
+		}
+		else if(::hasPrefix(request.path, "/webclient/"))
+		{
+			const std::string path = ::eatPrefix(request.path, "/webclient/");
+
+			Reference<WebDataStoreFile> store_file;
+			{
+				Lock lock(data_store->mutex);
+				const auto compressed_lookup_res = data_store->webclient_dir_files.find(path);
+				if(compressed_lookup_res != data_store->webclient_dir_files.end())
+					store_file = compressed_lookup_res->second;
+			}
+
+			if(store_file.nonNull())
+			{
+				const js::Vector<uint8, 16>& file_data = store_file->data;
+				const std::string& content_type = store_file->content_type;
+				if(store_file->compressed)
+					web::ResponseUtils::writeHTTPOKHeaderAndDeflatedDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
+				else
+					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file_data.data(), file_data.size(), content_type, 3600*24*14);
+			}
+			else
+			{
+				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "No such file found or invalid filename");
+				return;
 			}
 		}
 		else if(request.path == "/obstacle.png") // Data files used by the webclient

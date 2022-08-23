@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 #include "ListenerThread.h"
+#include "../webserver/WebDataFileWatcherThread.h"
 #include "MeshLODGenThread.h"
 //#include "ChunkGenThread.h"
 #include "WorkerThread.h"
@@ -298,44 +299,37 @@ static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std:
 }
 
 
-static ServerCredentials parseServerCredentials()
+// Throws glare::Exception on failure.
+static ServerCredentials parseServerCredentials(const std::string& server_state_dir)
 {
-	try
-	{
-		std::string path;
-#ifdef WIN32
-		path = "D:\\substrata_stuff\\substrata_server_credentials.txt";
+#if defined(_WIN32) || defined(OSX)
+	const std::string path = server_state_dir + "/substrata_server_credentials.txt";
 #else
-		path = "/home/nick/substrata_server_credentials.txt";
+	const std::string username = PlatformUtils::getLoggedInUserName();
+	const std::string path = "/home/" + username + "/substrata_server_credentials.txt";
 #endif
 
-		const std::string contents = FileUtils::readEntireFileTextMode(path);
+	const std::string contents = FileUtils::readEntireFileTextMode(path);
 
+	ServerCredentials creds;
 
-		ServerCredentials creds;
+	Parser parser(contents);
 
-		Parser parser(contents.c_str(), contents.size());
-
-		while(!parser.eof())
-		{
-			string_view key, value;
-			if(!parser.parseToChar(':', key))
-				throw glare::Exception("Error parsing key from '" + path + "'.");
-			if(!parser.parseChar(':'))
-				throw glare::Exception("Error parsing ':' from '" + path + "'.");
-
-			parser.parseWhiteSpace();
-			parser.parseLine(value);
-
-			creds.creds[key.to_string()] = ::stripHeadAndTailWhitespace(value.to_string());
-		}
-
-		return creds;
-	}
-	catch(glare::Exception& e)
+	while(!parser.eof())
 	{
-		throw glare::Exception("Error while loading server credentials: " + e.what());
+		string_view key, value;
+		if(!parser.parseToChar(':', key))
+			throw glare::Exception("Error parsing key from '" + path + "'.");
+		if(!parser.parseChar(':'))
+			throw glare::Exception("Error parsing ':' from '" + path + "'.");
+
+		parser.parseWhiteSpace();
+		parser.parseLine(value);
+
+		creds.creds[key.to_string()] = ::stripHeadAndTailWhitespace(value.to_string());
 	}
+
+	return creds;
 }
 
 
@@ -353,7 +347,6 @@ int main(int argc, char *argv[])
 	{
 		//---------------------- Parse and process comment line arguments -------------------------
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
-		syntax["--src_resource_dir"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
 		syntax["--enable_dev_mode"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["--save_sanitised_database"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
 
@@ -363,19 +356,9 @@ int main(int argc, char *argv[])
 
 		ArgumentParser parsed_args(args, syntax);
 
-		// src_resource_dir can be set to something like C:\programming\chat_site\trunk to read e.g. script.js directly from trunk
-		std::string src_resource_dir = "./";
-		if(parsed_args.isArgPresent("--src_resource_dir"))
-			src_resource_dir = parsed_args.getArgStringValue("--src_resource_dir");
-
-		conPrint("src_resource_dir: '" + src_resource_dir + "'");
-
 		const bool dev_mode = parsed_args.isArgPresent("--enable_dev_mode");
 
 		Server server;
-
-		const ServerCredentials server_credentials = parseServerCredentials();
-		server.world_state->server_credentials = server_credentials;
 
 		// Run tests if --test is present.
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
@@ -418,17 +401,31 @@ int main(int argc, char *argv[])
 		const int listen_port = 7600;
 		conPrint("listen port: " + toString(listen_port));
 
-#if _WIN32
+#if defined(_WIN32)
 		const std::string substrata_appdata_dir = PlatformUtils::getOrCreateAppDataDirectory("Substrata");
 		const std::string server_state_dir = substrata_appdata_dir + "/server_data";
+#elif defined(OSX)
+		const std::string username = PlatformUtils::getLoggedInUserName();
+		const std::string server_state_dir = "/Users/" + username + "/cyberspace_server_state";
 #else
 		const std::string username = PlatformUtils::getLoggedInUserName();
 		const std::string server_state_dir = "/home/" + username + "/cyberspace_server_state";
 #endif
+		conPrint("server_state_dir: " + server_state_dir);
 		FileUtils::createDirIfDoesNotExist(server_state_dir);
 
+		try
+		{
+			const ServerCredentials server_credentials = parseServerCredentials(server_state_dir);
+			server.world_state->server_credentials = server_credentials;
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("WARNING: Error while loading server credentials: " + e.what());
+		}
+
+
 		const std::string server_resource_dir = server_state_dir + "/server_resources";
-		conPrint("server_resource_dir: " + server_resource_dir);
 		FileUtils::createDirIfDoesNotExist(server_resource_dir);
 
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
@@ -455,8 +452,8 @@ int main(int argc, char *argv[])
 		}
 
 
-#ifdef WIN32
-		server.screenshot_dir = "C:\\programming\\cyberspace\\webdata\\screenshots"; // Dir generated screenshots will be saved to.
+#if defined(_WIN32) || defined(OSX)
+		server.screenshot_dir = server_state_dir + "/screenshots"; // Dir generated screenshots will be saved to.
 #else
 		server.screenshot_dir = "/var/www/cyberspace/screenshots";
 #endif
@@ -464,8 +461,6 @@ int main(int argc, char *argv[])
 
 
 		const std::string server_state_path = server_state_dir + "/server_state.bin";
-
-		conPrint("server_state_path: " + server_state_path);
 
 		if(FileUtils::fileExists(server_state_path))
 			server.world_state->readFromDisk(server_state_path, dev_mode);
@@ -485,7 +480,7 @@ int main(int argc, char *argv[])
 		// Create TLS configuration
 		struct tls_config* web_tls_configuration = tls_config_new();
 
-#ifdef WIN32
+#if defined(_WIN32) || defined(OSX)
 		// NOTE: key generated with 
 		// cd D:\programming\LibreSSL\libressl-2.8.3-x64-vs2019-install\bin
 		// ./openssl req -new -newkey rsa:4096 -x509 -sha256 -days 3650 -nodes -out MyCertificate.crt -keyout MyKey.key
@@ -514,10 +509,10 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			conPrint("Using Lets-encrypt certs");
-
 			if(FileUtils::fileExists("/etc/letsencrypt/live/substrata.info"))
 			{
+				conPrint("Using Lets-encrypt certs");
+
 				if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
 					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 				if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
@@ -525,6 +520,8 @@ int main(int argc, char *argv[])
 			}
 			else if(FileUtils::fileExists("/etc/letsencrypt/live/test.substrata.info"))
 			{
+				conPrint("Using Lets-encrypt certs");
+
 				if(tls_config_set_cert_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/cert.pem") != 0)
 					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
 				if(tls_config_set_key_file(web_tls_configuration, "/etc/letsencrypt/live/test.substrata.info/privkey.pem") != 0) // set private key
@@ -532,19 +529,31 @@ int main(int argc, char *argv[])
 			}
 			else
 			{
-				conPrint("No Lets-encrypt cert dir found, skipping loading cert.");
-				// We need to be able to start without a cert, so we can do the initial Lets-Encrypt challenge
+				if(dev_mode)
+				{
+					if(tls_config_set_cert_file(web_tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
+						throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+					if(tls_config_set_key_file(web_tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
+						throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(web_tls_configuration));
+				}
+				else
+				{
+					// We need to be able to start without a cert, so we can do the initial Lets-Encrypt challenge
+					conPrint("No Lets-encrypt cert dir found, skipping loading cert.");
+				}
 			}
 		}
 #endif
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
-#ifdef WIN32
+#if defined(_WIN32)
 		if(dev_mode)
 		{
-			web_data_store->public_files_dir = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webserver_public_files";
-			web_data_store->webclient_dir    = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webclient";
+			//web_data_store->public_files_dir = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webserver_public_files";
+			//web_data_store->webclient_dir    = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webclient";
+			web_data_store->public_files_dir			= server_state_dir + "/webserver_public_files";
+			web_data_store->webclient_dir				= server_state_dir + "/webclient";
 		}
 		else
 		{
@@ -552,19 +561,17 @@ int main(int argc, char *argv[])
 			web_data_store->webclient_dir = "N:\\new_cyberspace\\trunk\\webclient";
 			web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 		}
+#elif defined(OSX)
+		web_data_store->public_files_dir			= server_state_dir + "/webserver_public_files";
+		web_data_store->webclient_dir				= server_state_dir + "/webclient";
 #else
-		web_data_store->public_files_dir = "/var/www/cyberspace/public_html";
-		web_data_store->webclient_dir = "/var/www/cyberspace/webclient";
-		web_data_store->letsencrypt_webroot = "/var/www/cyberspace/letsencrypt_webroot";
+		web_data_store->public_files_dir			= "/var/www/cyberspace/public_html";
+		web_data_store->webclient_dir				= "/var/www/cyberspace/webclient";
+		web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
 #endif
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
 
-		// Create list of filenames of files in public files dir.
-		if(FileUtils::fileExists(web_data_store->public_files_dir))
-		{
-			const std::vector<std::string> public_file_filenames = FileUtils::getFilesInDir(web_data_store->public_files_dir);
-			web_data_store->public_file_filenames = std::set<std::string>(public_file_filenames.begin(), public_file_filenames.end());
-		}
+		web_data_store->loadAndCompressFiles();
 
 		Reference<WebServerSharedRequestHandler> shared_request_handler = new WebServerSharedRequestHandler();
 		shared_request_handler->data_store = web_data_store.ptr();
@@ -575,6 +582,10 @@ int main(int argc, char *argv[])
 		ThreadManager web_thread_manager;
 		web_thread_manager.addThread(new web::WebListenerThread(80,  shared_request_handler.getPointer(), NULL));
 		web_thread_manager.addThread(new web::WebListenerThread(443, shared_request_handler.getPointer(), web_tls_configuration));
+
+
+		web_thread_manager.addThread(new WebDataFileWatcherThread(web_data_store));
+
 		//----------------------------------------------- End launch webserver -----------------------------------------------
 
 
@@ -590,7 +601,7 @@ int main(int argc, char *argv[])
 		// Create TLS configuration for substrata protocol server
 		struct tls_config* tls_configuration = tls_config_new();
 
-#ifdef WIN32
+#if defined(_WIN32) || defined(OSX)
 		if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
 			throw glare::Exception("tls_config_set_cert_file failed.");
 		
@@ -618,10 +629,10 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			conPrint("Using Lets-encrypt certs");
-
 			if(FileUtils::fileExists("/etc/letsencrypt/live/substrata.info"))
 			{
+				conPrint("Using Lets-encrypt certs");
+
 				if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/cert.pem") != 0)
 					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
 				if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/substrata.info/privkey.pem") != 0) // set private key
@@ -629,10 +640,23 @@ int main(int argc, char *argv[])
 			}
 			else if(FileUtils::fileExists("/etc/letsencrypt/live/test.substrata.info"))
 			{
+				conPrint("Using Lets-encrypt certs");
+
 				if(tls_config_set_cert_file(tls_configuration, "/etc/letsencrypt/live/test.substrata.info/cert.pem") != 0)
 					throw glare::Exception("tls_config_set_cert_file failed: " + getTLSConfigErrorString(tls_configuration));
 				if(tls_config_set_key_file(tls_configuration, "/etc/letsencrypt/live/test.substrata.info/privkey.pem") != 0) // set private key
 					throw glare::Exception("tls_config_set_key_file failed: " + getTLSConfigErrorString(tls_configuration));
+			}
+			else
+			{
+				if(dev_mode)
+				{
+					if(tls_config_set_cert_file(tls_configuration, (server_state_dir + "/MyCertificate.crt").c_str()) != 0)
+						throw glare::Exception("tls_config_set_cert_file failed.");
+
+					if(tls_config_set_key_file(tls_configuration, (server_state_dir + "/MyKey.key").c_str()) != 0) // set private key
+						throw glare::Exception("tls_config_set_key_file failed.");
+				}
 			}
 		}
 #endif
