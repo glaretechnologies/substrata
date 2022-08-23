@@ -98,14 +98,15 @@ void WebDataFileWatcherThread::doRun()
 				throw glare::Exception("inotify_add_watch failed: " + PlatformUtils::getLastErrorString());
 		}
 
-		struct inotify_event event;
+		std::vector<uint8> buf(sizeof(struct inotify_event) + NAME_MAX + 1); // We have to read more than just sizeof(struct inotify_event), as the name field extends past end of structure.
+		// See https://man7.org/linux/man-pages/man7/inotify.7.html
 		while(1)
 		{
-			const int length = read(inotify_fd, &event, sizeof(event)); // Do a blocking read call.
+			const int length = read(inotify_fd, buf.data(), buf.size()); // Do a blocking read call.
 			if(length == -1)
 				throw glare::Exception("read failed: " + PlatformUtils::getLastErrorString());
 
-			if(length >= sizeof(struct inotify_event))
+			if(length >= (int)sizeof(struct inotify_event))
 			{
 				conPrint("public_files_dir or webclient_dir file(s) changed, reloading files...");
 
@@ -120,7 +121,7 @@ void WebDataFileWatcherThread::doRun()
 			assertOrDeclareUsed(res != -1);
 		}
 
-		res = close(inotify_fd);
+		int res = close(inotify_fd);
 		assertOrDeclareUsed(res != -1);
 
 #endif
