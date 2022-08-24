@@ -194,7 +194,12 @@ void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev
 				{
 					// Deserialise resource
 					ResourceRef resource = new Resource();
-					readFromStream(stream, *resource);
+					const uint32 res_version = readFromStream(stream, *resource);
+					
+					// Resource serialisation version 3 added serialisation of resource state.  If we are reading a resource before that, just assume it is present on disk,
+					// which is what addResource() below used to do.
+					if(res_version < 3)
+						resource->setState(Resource::State_Present);
 
 					//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
@@ -347,9 +352,9 @@ void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev
 			throw glare::Exception("Invalid magic number " + toString(m) + ", expected " + toString(WORLD_STATE_MAGIC_NUMBER) + ".");
 
 		// Read version
-		const uint32 v = stream.readUInt32();
-		if(v > WORLD_STATE_SERIALISATION_VERSION)
-			throw glare::Exception("Unknown version " + toString(v) + ", expected " + toString(WORLD_STATE_SERIALISATION_VERSION) + ".");
+		const uint32 version = stream.readUInt32();
+		if(version > WORLD_STATE_SERIALISATION_VERSION)
+			throw glare::Exception("Unknown version " + toString(version) + ", expected " + toString(WORLD_STATE_SERIALISATION_VERSION) + ".");
 
 		while(1)
 		{

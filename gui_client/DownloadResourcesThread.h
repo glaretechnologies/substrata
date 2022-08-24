@@ -39,7 +39,7 @@ DownloadResourcesThread
 -------------------
 Downloads any resources from the server as needed.
 This thread gets sent DownloadResourceMessage from MainWindow, when a new file is needed to be downloaded.
-It sends ResourceDownloadedMessage's back to MainWindow via the out_msg_queue when files are downloaded.
+It sends ResourceDownloadedMessages back to MainWindow via the out_msg_queue when files are downloaded.
 =====================================================================*/
 class DownloadResourcesThread : public MessageableThread
 {

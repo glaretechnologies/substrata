@@ -248,7 +248,6 @@ void ResourceManager::addResource(ResourceRef& res)
 	Lock lock(mutex);
 
 	resource_for_url[res->URL] = res;
-	res->setState(Resource::State_Present); // Assume present for now.
 
 	this->changed = 1;
 }
@@ -276,10 +275,13 @@ bool ResourceManager::isInDownloadFailedURLs(const std::string& URL) const
 
 
 static const uint32 RESOURCE_MANAGER_MAGIC_NUMBER = 587732371;
-static const uint32 RESOURCE_MANAGER_SERIALISATION_VERSION = 1;
+static const uint32 RESOURCE_MANAGER_SERIALISATION_VERSION = 2;
 static const uint32 RESOURCE_CHUNK = 103;
 static const uint32 EOS_CHUNK = 1000;
-
+/*
+Version history:
+2: Serialising resource state
+*/
 
 void ResourceManager::loadFromDisk(const std::string& path)
 {
@@ -297,9 +299,9 @@ void ResourceManager::loadFromDisk(const std::string& path)
 		throw glare::Exception("Invalid magic number " + toString(m) + ", expected " + toString(RESOURCE_MANAGER_MAGIC_NUMBER) + ".");
 
 	// Read version
-	const uint32 v = stream.readUInt32();
-	if(v != RESOURCE_MANAGER_SERIALISATION_VERSION)
-		throw glare::Exception("Unknown version " + toString(v) + ", expected " + toString(RESOURCE_MANAGER_SERIALISATION_VERSION) + ".");
+	const uint32 version = stream.readUInt32();
+	if(version > RESOURCE_MANAGER_SERIALISATION_VERSION)
+		throw glare::Exception("Unknown version " + toString(version) + ", expected " + toString(RESOURCE_MANAGER_SERIALISATION_VERSION) + ".");
 	
 	size_t num_resources_present = 0;
 	while(1)
@@ -319,10 +321,27 @@ void ResourceManager::loadFromDisk(const std::string& path)
 			//if(resource->getLocalPath().size() >= 260)
 			//	resource->setLocalPath(this->computeLocalPathFromURLHash(resource->URL, ::getExtension(resource->getLocalPath())));
 
-			if(FileUtils::fileExists(resource->getLocalPath()))
+			// From version 2, we save the resource state with the resources, so we don't have to recompute it when loading the resources.
+			if(version == 1)
 			{
-				resource->setState(Resource::State_Present);
-				num_resources_present++;
+				if(FileUtils::fileExists(resource->getLocalPath()))
+				{
+					resource->setState(Resource::State_Present);
+					num_resources_present++;
+				}
+			}
+			else
+			{
+				if(resource->getState() == Resource::State_Present)
+				{
+					num_resources_present++;
+				}
+				else if(resource->getState() == Resource::State_Transferring)
+				{
+					// Any resources that were transferring when the resources database was last saved, may not have been completely downloaded.
+					// Mark them as NotPresent so they will be re-downloaded.
+					resource->setState(Resource::State_NotPresent);
+				}
 			}
 		}
 		else if(chunk == EOS_CHUNK)
