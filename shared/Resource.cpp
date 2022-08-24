@@ -1,7 +1,7 @@
 /*=====================================================================
 Resource.cpp
 ------------
-Copyright Glare Technologies Limited 2018 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "Resource.h"
 

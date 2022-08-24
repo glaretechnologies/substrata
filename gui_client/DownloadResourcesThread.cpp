@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <FileUtils.h>
 #include <KillThreadMessage.h>
 #include <PlatformUtils.h>
+#include <FileOutStream.h>
 
 
 DownloadResourcesThread::DownloadResourcesThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<ResourceManager> resource_manager_, const std::string& hostname_, int port_, 
@@ -69,10 +70,10 @@ struct NumNonNetResourcesDownloadingDecrementor
 };
 
 // Some resources, such as MP4 videos, shouldn't be downloaded fully before displaying, but instead can be streamed and displayed when only part of the stream is downloaded.
-static bool shouldStreamResource(const std::string& url)
-{
-	return ::hasExtensionStringView(url, "mp4");
-}
+//static bool shouldStreamResource(const std::string& url)
+//{
+//	return ::hasExtensionStringView(url, "mp4");
+//}
 
 
 void DownloadResourcesThread::kill()
@@ -192,8 +193,7 @@ void DownloadResourcesThread::doRun()
 						const std::string URL = *it;
 						ResourceRef resource = resource_manager->getOrCreateResourceForURL(URL);
 
-						const bool stream = shouldStreamResource(URL);
-
+						
 						const uint32 result = socket->readUInt32();
 						if(result == 0) // If OK:
 						{
@@ -201,73 +201,42 @@ void DownloadResourcesThread::doRun()
 							const uint64 file_len = socket->readUInt64();
 							if(file_len > 0)
 							{
-								// TODO: cap length in a better way
 								if(file_len > 1000000000)
 									throw glare::Exception("downloaded file too large (len=" + toString(file_len) + ").");
 
-								// If 'streaming' the file, download in chunks, while locking the buffer mutex.
-								// This is so the main thread can read from the resource buffer.
-								if(stream)
-								{
-									{
-										Lock lock(resource->buffer_mutex);
-										resource->buffer.reserve(file_len);
-									}
+								resource->setState(Resource::State_Transferring);
 
-									js::Vector<uint8, 16> temp_buf(1024 * 16);
-
-									size_t buf_i = 0;
-									size_t readlen = file_len;
-									while(readlen > 0) // While still bytes to read
-									{
-										const size_t num_bytes_to_read = myMin<size_t>(temp_buf.size(), readlen);
-										assert(num_bytes_to_read > 0);
-
-										socket->readData(temp_buf.data(), num_bytes_to_read);
-
-										{
-											Lock lock(resource->buffer_mutex);
-											resource->buffer.resize(buf_i + num_bytes_to_read);
-											std::memcpy(&resource->buffer[buf_i], temp_buf.data(), num_bytes_to_read);
-
-											//for(auto list_it = resource->listeners.begin(); list_it != resource->listeners.end(); ++list_it)
-											//	(*list_it)->dataReceived();
-										}
-
-										readlen -= num_bytes_to_read;
-										buf_i += num_bytes_to_read;
-									}
-								}
-								else
-								{
-									Lock lock(resource->buffer_mutex);
-									resource->buffer.resize(file_len);
-									socket->readData(resource->buffer.data(), file_len); // Just read entire file.
-								}
-
-
-								// Save to disk
-								const std::string path = resource_manager->pathForURL(URL);
 								try
 								{
-									// Write downloaded file to disk, clear in-mem buffer.
-									FileUtils::writeEntireFile(path, (const char*)resource->buffer.data(), resource->buffer.size());
-
+									const std::string path = resource->getLocalPath();
 									{
-										Lock lock(resource->buffer_mutex);
-										if(resource->num_buffer_readers == 0) // Only clear if no other threads reading buffer.
-											resource->buffer.clearAndFreeMem(); // TODO: clear resource buffer later when num readers drops to zero.
-									}
+										FileOutStream file(path, std::ios::binary | std::ios::trunc); // Remove any existing data in the file
 
-									//conPrint("DownloadResourcesThread: Wrote downloaded file to '" + path + "'. (len=" + toString(file_len) + ") ");
+										uint64 offset = 0;
+										const uint64 MAX_CHUNK_SIZE = 1ull << 14;
+										js::Vector<uint8, 16> temp_buf(MAX_CHUNK_SIZE);
+										while(offset < file_len)
+										{
+											const uint64 chunk_size = myMin(file_len - offset, MAX_CHUNK_SIZE);
+											assert(offset + chunk_size <= file_len);
+											socket->readData(temp_buf.data(), chunk_size);
+											file.writeData(temp_buf.data(), chunk_size);
+											offset += chunk_size;
+										}
+
+										file.close(); // Manually call close, to check for any errors via failbit.
+									} // End scope for FileOutStream
 
 									resource->setState(Resource::State_Present);
+									resource_manager->markAsChanged();
 
 									out_msg_queue->enqueue(new ResourceDownloadedMessage(URL));
 								}
-								catch(FileUtils::FileUtilsExcep& e)
+								catch(glare::Exception& e)
 								{
 									resource->setState(Resource::State_NotPresent);
+									resource_manager->markAsChanged();
+
 									//conPrint("DownloadResourcesThread: Error while writing file to disk: " + e.what());
 									out_msg_queue->enqueue(new LogMessage("DownloadResourcesThread: Error while writing file to disk: " + e.what()));
 								}
@@ -302,3 +271,70 @@ void DownloadResourcesThread::doRun()
 		conPrint("DownloadResourcesThread glare::Exception: " + e.what());
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
+//const bool stream = shouldStreamResource(URL);
+// 
+// If 'streaming' the file, download in chunks, while locking the buffer mutex.
+// This is so the main thread can read from the resource buffer.
+
+if(stream)
+{
+	{
+		Lock lock(resource->buffer_mutex);
+		resource->buffer.reserve(file_len);
+	}
+
+	js::Vector<uint8, 16> temp_buf(1024 * 16);
+
+	size_t buf_i = 0;
+	size_t readlen = file_len;
+	while(readlen > 0) // While still bytes to read
+	{
+		const size_t num_bytes_to_read = myMin<size_t>(temp_buf.size(), readlen);
+		assert(num_bytes_to_read > 0);
+
+		socket->readData(temp_buf.data(), num_bytes_to_read);
+
+		{
+			Lock lock(resource->buffer_mutex);
+			resource->buffer.resize(buf_i + num_bytes_to_read);
+			std::memcpy(&resource->buffer[buf_i], temp_buf.data(), num_bytes_to_read);
+
+			//for(auto list_it = resource->listeners.begin(); list_it != resource->listeners.end(); ++list_it)
+			//	(*list_it)->dataReceived();
+		}
+
+		readlen -= num_bytes_to_read;
+		buf_i += num_bytes_to_read;
+	}
+}
+else
+{
+	Lock lock(resource->buffer_mutex);
+	resource->buffer.resize(file_len);
+	socket->readData(resource->buffer.data(), file_len); // Just read entire file.
+}
+#endif
+
+#if 0
+// Write downloaded file to disk, clear in-mem buffer.
+FileUtils::writeEntireFile(path, (const char*)resource->buffer.data(), resource->buffer.size());
+
+{
+	Lock lock(resource->buffer_mutex);
+	if(resource->num_buffer_readers == 0) // Only clear if no other threads reading buffer.
+		resource->buffer.clearAndFreeMem(); // TODO: clear resource buffer later when num readers drops to zero.
+}
+#endif
