@@ -36,9 +36,9 @@ class Resource : public ThreadSafeRefCounted
 public:
 	enum State
 	{
-		State_NotPresent, // Resource is not present on local disk.
-		State_Transferring, // Resource is currently downloading to the local client from the server.
-		State_Present // Resource is completely present on local disk.
+		State_NotPresent = 0, // Resource is not present on local disk.
+		State_Transferring = 1, // Resource is currently downloading to the local client from the server.
+		State_Present = 2 // Resource is completely present on local disk.
 		//State_ResourceDownloadFailed
 	};
 
@@ -76,7 +76,7 @@ typedef Reference<Resource> ResourceRef;
 
 
 void writeToStream(const Resource& resource, OutStream& stream);
-void readFromStream(InStream& stream, Resource& resource);
+uint32 readFromStream(InStream& stream, Resource& resource); // Returns serialisation version
 
 //void writeToNetworkStream(const Resource& resource, OutStream& stream); // write without version
 //void readFromNetworkStream/*GivenID*/(InStream& stream, Resource& resource);
