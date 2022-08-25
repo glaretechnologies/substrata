@@ -445,22 +445,22 @@ void AudioEngine::init()
 
 	// Scan through devices for various capabilities
 	RtAudio::DeviceInfo info;
-	for(unsigned int i=0; i<devices; i++ )
-	{
-		info = audio->getDeviceInfo(i);
-		//if(info.probed)
-		{
-			// Print, for example, the maximum number of output channels for each device
-
-			// conPrint("name = " + info.name);
-			// conPrint("maximum output channels = " + toString(info.outputChannels));
-			// conPrint("maximum input channels = " + toString(info.inputChannels));
-			// conPrint("supported sample rates = " + toString(info.inputChannels));
-			// for(auto r : info.sampleRates)
-			// 	conPrint(toString(r) + " hz");
-			// conPrint("preferredSampleRate = " + toString(info.preferredSampleRate));
-		}
-	}
+	//for(unsigned int i=0; i<devices; i++ )
+	//{
+	//	info = audio->getDeviceInfo(i);
+	//	//if(info.probed)
+	//	{
+	//		// Print, for example, the maximum number of output channels for each device
+	//
+	//		// conPrint("name = " + info.name);
+	//		// conPrint("maximum output channels = " + toString(info.outputChannels));
+	//		// conPrint("maximum input channels = " + toString(info.inputChannels));
+	//		// conPrint("supported sample rates = " + toString(info.inputChannels));
+	//		// for(auto r : info.sampleRates)
+	//		// 	conPrint(toString(r) + " hz");
+	//		// conPrint("preferredSampleRate = " + toString(info.preferredSampleRate));
+	//	}
+	//}
 
 
 	const unsigned int default_output_dev = audio->getDefaultOutputDevice();
