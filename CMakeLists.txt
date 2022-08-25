@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.8.7)
+cmake_minimum_required (VERSION 3.0)
 
 # set a dummy project name, so we can detect the bitness
 project (dummy)
@@ -25,12 +25,12 @@ if(WIN32)
 	else()
 		message(FATAL_ERROR "Unhandled MSVC version")
 	endif()
-else()
-	#linux stuff goes here
+	
+	MESSAGE("CYBERSPACE_VS_VER: ${CYBERSPACE_VS_VER}")
+	MESSAGE("CYBERSPACE_LIBS_VS_VER: ${CYBERSPACE_LIBS_VS_VER}")	
 endif()
 
-MESSAGE("CYBERSPACE_VS_VER: ${CYBERSPACE_VS_VER}")
-MESSAGE("CYBERSPACE_LIBS_VS_VER: ${CYBERSPACE_LIBS_VS_VER}")
+
 
 # Set the real project name
 project (${PROJECT_NAME})
@@ -51,7 +51,6 @@ endif()
 
 MESSAGE("
 Boolean options: (Set with -DOPTION_NAME=TRUE)
-
 
 Other options: (Set with -DOPTION_NAME=value)
 Unix only:
