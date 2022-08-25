@@ -1,6 +1,8 @@
 
-Notes for running the substrata server for development
+Notes for running the Substrata server for development
 ======================================================
+
+
 server_state_dir is:
 On Windows: APPDATA/Substrata/server_data 
 On Mac: /Users/USERNAME/cyberspace_server_state
@@ -8,7 +10,7 @@ On Linux: /home/USERNAME/cyberspace_server_state
 
 Where USERNAME is the current user name
 
-Resources are saved in server_state_dir + "/resources"
+Resources (models, textures etc. uploaded by users) are saved in server_state_dir + "/resources"
 
 The server state database file is located at server_state_dir + "/server_state.bin"
 
@@ -20,8 +22,6 @@ This directory holds files used by the website, such as CSS files, images, javas
 On Windows, in dev mode:		server_state_dir + "/webserver_public_files"
 On Mac:							server_state_dir + "/webserver_public_files"
 On Linux:						/var/www/cyberspace/public_html
-
-NOTE: New files in this directory will not be served by the server until it is restarted.
 
 
 Webclient files dir
@@ -36,8 +36,8 @@ On Linux:						/var/www/cyberspace/webclient
 Updating public and webclient files while the server is running
 ---------------------------------------------------------------
 On Windows and Linux, whenever a file is changed in the public files dir or the webclient files dir, all public and webclient files will be reloaded from disk.
-This is done via file-system watching.  
-This is not implemented on Mac yet.
+This is done via file-system watching.  This is not implemented on Mac yet.
+On linux, files added in a subdirectory will not be noticed, to work around this, change one of the existing files.
 
 When running in dev mode (--enable_dev_mode), files in the webclient files dir will be reloaded from disk freshly on each request.
 
@@ -48,6 +48,7 @@ This directory holds upload screenshots from the screenshot bot.
 
 On Windows, Mac:				server_state_dir + "/screenshot_dir"
 On Linux:						/var/www/cyberspace/screenshots
+
 
 Server TLS keypair
 ------------------
@@ -78,5 +79,5 @@ This contains stuff like
 
 for sending password reset emails etc.
 
-The Substrata server can run without the server credentials file present, however some features will not work, such as password reset emails.
+The Substrata server can run without the server credentials file present, however some features will not work, such as sending password reset emails.
 
