@@ -318,7 +318,7 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 
 	ob_out.setCollidable(this->collidableCheckBox->isChecked());
 
-	if(selected_mat_index >= cloned_materials.size())
+	if(selected_mat_index >= (int)cloned_materials.size())
 	{
 		cloned_materials.resize(selected_mat_index + 1);
 		for(size_t i=0; i<cloned_materials.size(); ++i)
@@ -460,7 +460,7 @@ void ObjectEditor::on_materialComboBox_currentIndexChanged(int index)
 {
 	this->selected_mat_index = index;
 
-	if(index < this->cloned_materials.size())
+	if(index < (int)this->cloned_materials.size())
 		this->matEditor->setFromMaterial(*this->cloned_materials[index]);
 }
 
@@ -563,7 +563,7 @@ void ObjectEditor::materialSelectedInBrowser(const std::string& path)
 	{
 		WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(path);
 
-		if(selected_mat_index >= 0 && selected_mat_index < this->cloned_materials.size())
+		if(selected_mat_index >= 0 && selected_mat_index < (int)this->cloned_materials.size())
 		{
 			this->cloned_materials[this->selected_mat_index] = mat;
 			this->matEditor->setFromMaterial(*mat);
