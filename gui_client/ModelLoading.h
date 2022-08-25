@@ -39,8 +39,7 @@ public:
 
 	static void applyScaleToMesh(Indigo::Mesh& mesh, float scale);
 
-
-	static bool hasSupportedModelExtension(const std::string& path);
+	inline static bool hasSupportedModelExtension(const std::string& path);
 
 	// Load a mesh from disk.
 	// Make an OpenGL object from it, also make an IndigoMesh from it (unless we are loading a voxel format such as .vox).
@@ -83,3 +82,18 @@ public:
 	static void test();
 };
 
+
+bool ModelLoading::hasSupportedModelExtension(const std::string& path)
+{
+	const string_view extension = getExtensionStringView(path);
+
+	return
+		StringUtils::equalCaseInsensitive(extension, "bmesh") ||
+		StringUtils::equalCaseInsensitive(extension, "vox") ||
+		StringUtils::equalCaseInsensitive(extension, "obj") ||
+		StringUtils::equalCaseInsensitive(extension, "stl") ||
+		StringUtils::equalCaseInsensitive(extension, "gltf") ||
+		StringUtils::equalCaseInsensitive(extension, "glb") ||
+		StringUtils::equalCaseInsensitive(extension, "vrm") ||
+		StringUtils::equalCaseInsensitive(extension, "igmesh");
+}

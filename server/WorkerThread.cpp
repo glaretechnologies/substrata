@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "../shared/UID.h"
 #include "../shared/WorldObject.h"
 #include "../shared/MessageUtils.h"
+#include "../shared/FileTypes.h"
 #include <vec3.h>
 #include <ConPrint.h>
 #include <Clock.h>
@@ -202,6 +203,14 @@ void WorkerThread::handleResourceUploadConnection()
 				socket->writeStringLengthFirst("Not allowed to upload resource to URL '" + URL + ", someone else created a resource at this URL already.");
 				return;
 			}
+		}
+
+		const bool valid_extension = FileTypes::hasSupportedExtension(URL);
+		if(!valid_extension)
+		{
+			socket->writeUInt32(Protocol::InvalidFileType); // Note that this is not a framed message.
+			socket->writeStringLengthFirst("Invalid file extension.");
+			return;
 		}
 		
 		// resource->setState(Resource::State_Transferring); // Don't set this (for now) or we will have to handle changing it on exceptions below.

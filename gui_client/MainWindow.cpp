@@ -53,6 +53,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../shared/LODGeneration.h"
 #include "../shared/ImageDecoding.h"
 #include "../shared/MessageUtils.h"
+#include "../shared/FileTypes.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -969,18 +970,6 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 }
 
 
-static bool hasAudioFileExtension(const std::string& url)
-{
-	return hasExtensionStringView(url, "mp3") || hasExtensionStringView(url, "m4a") || hasExtensionStringView(url, "wav") || hasExtensionStringView(url, "aac") || hasExtensionStringView(url, "flac");
-}
-
-
-static inline bool hasSupportedVideoFileExtension(const std::string& url)
-{
-	return hasExtensionStringView(url, "mp4");
-}
-
-
 static const float MAX_AUDIO_DIST = 60;
 
 
@@ -997,8 +986,8 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 		// If resources are streamable, don't download them.
 		//const bool stream = shouldStreamResourceViaHTTP(url);
 
-		const bool has_audio_extension = hasAudioFileExtension(url);
-		const bool has_video_extension = hasSupportedVideoFileExtension(url);
+		const bool has_audio_extension = FileTypes::hasAudioFileExtension(url);
+		const bool has_video_extension = FileTypes::hasSupportedVideoFileExtension(url);
 
 		if(has_audio_extension || has_video_extension || ImageDecoding::hasSupportedImageExtension(url) || ModelLoading::hasSupportedModelExtension(url))
 		{
@@ -1043,7 +1032,7 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 		const DependencyURL& url_info = *it;
 		const std::string& url = url_info.URL;
 
-		const bool has_video_extension = hasSupportedVideoFileExtension(url);
+		const bool has_video_extension = FileTypes::hasSupportedVideoFileExtension(url);
 
 		if(has_video_extension || ImageDecoding::hasSupportedImageExtension(url) || ModelLoading::hasSupportedModelExtension(url))
 		{
@@ -4505,9 +4494,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								}
 							}
 
-							conPrint("need_resource: " + boolToString(need_resource));
+							const bool valid_extension = FileTypes::hasSupportedExtension(m->URL);
+							conPrint("need_resource: " + boolToString(need_resource) + " valid_extension: " + boolToString(valid_extension));
 
-							if(need_resource)// && !shouldStreamResourceViaHTTP(m->URL))
+							if(need_resource && valid_extension)// && !shouldStreamResourceViaHTTP(m->URL))
 							{
 								conPrint("Need resource, downloading: " + m->URL);
 								this->resource_download_thread_manager.enqueueMessage(new DownloadResourceMessage(m->URL));
@@ -4570,7 +4560,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									load_item_queue.enqueueItem(pos, size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_SRGB)); 
 							}
 						}
-						else if(hasAudioFileExtension(local_path))
+						else if(FileTypes::hasAudioFileExtension(local_path))
 						{
 							// Iterate over objects, if any object is using this audio file, load it.
 							{

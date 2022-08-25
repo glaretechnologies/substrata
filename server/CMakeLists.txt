@@ -16,6 +16,8 @@ SET(shared_files
 ../shared/Avatar.h
 ../shared/ImageDecoding.cpp
 ../shared/ImageDecoding.h
+../shared/FileTypes.cpp
+../shared/FileTypes.h
 ../shared/LODGeneration.cpp
 ../shared/LODGeneration.h
 ../shared/MessageUtils.h

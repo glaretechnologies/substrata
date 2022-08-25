@@ -153,6 +153,8 @@ SET(shared_files
 ../shared/Avatar.h
 ../shared/ImageDecoding.cpp
 ../shared/ImageDecoding.h
+../shared/FileTypes.cpp
+../shared/FileTypes.h
 ../shared/GroundPatch.cpp
 ../shared/GroundPatch.h
 ../shared/LODGeneration.cpp
