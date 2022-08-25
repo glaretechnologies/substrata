@@ -45,7 +45,7 @@ AboutDialog::~AboutDialog()
 void AboutDialog::on_generateCrashLabel_linkActivated(const QString& link)
 {
 	conPrint("Generating crash...");
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 	(*(int*)NULL) = 0;
 #else
 	__builtin_trap();
