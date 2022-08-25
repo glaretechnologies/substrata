@@ -61,7 +61,7 @@ void UndoBuffer::replaceFinishWorldObjectEdit(const WorldObject& ob)
 
 	const int index_to_replace = index - 1;
 
-	if(index_to_replace < 0 || index_to_replace >= chunks.size())
+	if(index_to_replace < 0 || index_to_replace >= (int)chunks.size())
 		return;
 
 	BufferOutStream temp_buf;
@@ -102,7 +102,7 @@ WorldObjectRef UndoBuffer::getUndoWorldObject()
 
 WorldObjectRef UndoBuffer::getRedoWorldObject()
 {
-	if(index >= chunks.size())
+	if(index >= (int)chunks.size())
 		return NULL;
 
 	const int chunk_to_pop = index;
