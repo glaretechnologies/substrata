@@ -184,11 +184,17 @@ public:
 		int64& bytes_skipped,
 		CefRefPtr<CefResourceSkipCallback> callback) override
 	{
+		//conPrint("Skipping " + toString(bytes_to_skip) + " B...");
 		if(file_in_stream)
 		{
 			try
 			{
-				file_in_stream->setReadIndex(file_in_stream->getReadIndex() + bytes_to_skip);
+				// There seems to be a CEF bug where are a Skip call is made at the start of a resource read, after a video repeats.
+				// This breaks video looping.  Work around it by detecting the skip call and doing nothing in that case.
+				// See https://magpcss.org/ceforum/viewtopic.php?f=6&t=19171
+				if(file_in_stream->getReadIndex() != 0)
+					file_in_stream->advanceReadIndex(bytes_to_skip);
+
 				bytes_skipped = bytes_to_skip;
 				return true;
 			}
@@ -223,6 +229,7 @@ public:
 		{
 			try
 			{
+				//conPrint("Reading up to " + toString(bytes_to_read) + " B, getReadIndex: " + toString(file_in_stream->getReadIndex()));
 				const size_t bytes_available = file_in_stream->fileSize() - file_in_stream->getReadIndex(); // bytes still available to read in the file
 				if(bytes_available == 0)
 				{
