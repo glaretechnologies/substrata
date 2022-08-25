@@ -71,7 +71,7 @@ public:
 		
 		this->current_format = format;
 		
-		switch(format.pixelFormat())
+		/*switch(format.pixelFormat())
 		{
 		case QVideoFrame::Format_ARGB32:
 			//conPrint("Format_ARGB32");
@@ -79,7 +79,7 @@ public:
 		case QVideoFrame::Format_RGB32:
 			//conPrint("Format_RGB32");
 			break;
-		}
+		}*/
 
 		//OpenGLTextureRef opengl_tex = new OpenGLTexture();
 		//opengl_tex->loadWithFormats(format.frameWidth(), format.frameHeight(), tex_data_arrayref,
