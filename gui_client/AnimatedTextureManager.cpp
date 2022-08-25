@@ -30,13 +30,15 @@ Copyright Glare Technologies Limited 2022-
 class AnimatedTexRenderHandler : public CefRenderHandler
 {
 public:
-	AnimatedTexRenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), main_window(NULL), ob(NULL) {}
+	AnimatedTexRenderHandler(Reference<OpenGLTexture> opengl_tex_, MainWindow* main_window_, WorldObject* ob_) : opengl_tex(opengl_tex_), opengl_engine(NULL), main_window(main_window_), ob(ob_) {}
 
 	~AnimatedTexRenderHandler() {}
 
 	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 	void onWebViewDataDestroyed()
 	{
+		CEF_REQUIRE_UI_THREAD();
+
 		opengl_tex = NULL;
 		opengl_engine = NULL;
 		ob = NULL;
@@ -275,15 +277,17 @@ public:
 class AnimatedTexCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler, public CefCommandHandler, public CefContextMenuHandler, public CefResourceRequestHandler
 {
 public:
-	AnimatedTexCefClient() : num_channels(0), sample_rate(0), main_window(NULL), ob(NULL) {}
+	AnimatedTexCefClient(MainWindow* main_window_, WorldObject* ob_) : num_channels(0), sample_rate(0), m_main_window(main_window_), m_ob(ob_) {}
 
 	// The browser will not be destroyed immediately.  NULL out references to object, gl engine etc. because they may be deleted soon.
 	void onWebViewDataDestroyed()
 	{
+		CEF_REQUIRE_UI_THREAD();
+
 		{
 			Lock lock(mutex);
-			main_window = NULL;
-			ob = NULL;
+			m_main_window = NULL;
+			m_ob = NULL;
 		}
 	}
 
@@ -410,7 +414,13 @@ public:
 		// TODO: check URL prefix for http://resource/, return new AnimatedTexResourceHandler only in that case?
 		// Will we need to handle other URLS here?
 
-		return new AnimatedTexResourceHandler(main_window->resource_manager);
+		Reference<ResourceManager> resouce_manager;
+		{
+			Lock lock(mutex);
+			resouce_manager = this->m_main_window->resource_manager;
+		}
+
+		return new AnimatedTexResourceHandler(resouce_manager);
 		//return nullptr;
 	}
 
@@ -447,6 +457,16 @@ public:
 	virtual bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
 		CefAudioParameters& params) override 
 	{
+		CEF_REQUIRE_UI_THREAD();
+
+		MainWindow* main_window;
+		WorldObject* ob;
+		{
+			Lock lock(mutex);
+			main_window = this->m_main_window;
+			ob = this->m_ob;
+		}
+
 		if(!main_window)
 			return false;
 
@@ -536,13 +556,13 @@ public:
 					temp_buf[z] = 0.f;
 			}
 
-
 			// We are accessing main_window, that might have been set to null in another thread via onWebViewDataDestroyed(), so lock mutex.
+			// We need to hold this mutex the entire time we using m_main_window, to prevent main_window closing in another thread.
 			{
 				Lock lock(mutex);
-				if(main_window)
+				if(m_main_window)
 				{
-					Lock audio_engine_lock(main_window->audio_engine.mutex);
+					Lock audio_engine_lock(m_main_window->audio_engine.mutex);
 					this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
 				}
 			}
@@ -569,8 +589,8 @@ public:
 	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
 
 	Mutex mutex; // Protects main_window, ob
-	MainWindow* main_window;
-	WorldObject* ob;
+	MainWindow* m_main_window			GUARDED_BY(mutex);
+	WorldObject* m_ob					GUARDED_BY(mutex);
 
 	Reference<glare::AudioSource> audio_source; // Store a direct reference to the audio_source, to make sure it's alive while we are using it.
 	int num_channels;
@@ -587,10 +607,10 @@ public:
 class AnimatedTexCEFBrowser : public RefCounted
 {
 public:
-	AnimatedTexCEFBrowser(AnimatedTexRenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
+	AnimatedTexCEFBrowser(AnimatedTexRenderHandler* render_handler, LifeSpanHandler* lifespan_handler, MainWindow* main_window_, WorldObject* ob_)
 	:	mRenderHandler(render_handler)
 	{
-		cef_client = new AnimatedTexCefClient();
+		cef_client = new AnimatedTexCefClient(main_window_, ob_);
 		cef_client->mRenderHandler = mRenderHandler;
 		cef_client->mLifeSpanHandler = lifespan_handler;
 	}
@@ -632,11 +652,11 @@ public:
 
 
 
-static Reference<AnimatedTexCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex)
+static Reference<AnimatedTexCEFBrowser> createBrowser(const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob)
 {
 	// conPrint(doubleToStringNDecimalPlaces(Clock::getTimeSinceInit(), 3) + ": creating browser.");
 
-	Reference<AnimatedTexCEFBrowser> browser = new AnimatedTexCEFBrowser(new AnimatedTexRenderHandler(opengl_tex), CEF::getLifespanHandler());
+	Reference<AnimatedTexCEFBrowser> browser = new AnimatedTexCEFBrowser(new AnimatedTexRenderHandler(opengl_tex, main_window, ob), CEF::getLifespanHandler(), main_window, ob);
 
 	CefWindowInfo window_info;
 	window_info.windowless_rendering_enabled = true;
@@ -889,12 +909,8 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 
 			const std::string data_URL = makeDataURL(html);
 
-			Reference<AnimatedTexCEFBrowser> browser = createBrowser(data_URL, new_tex);
-			browser->cef_client->main_window = main_window;
-			browser->cef_client->ob = ob;
+			Reference<AnimatedTexCEFBrowser> browser = createBrowser(data_URL, new_tex, main_window, ob);
 			browser->mRenderHandler->opengl_engine = opengl_engine;
-			browser->mRenderHandler->main_window = main_window;
-			browser->mRenderHandler->ob = ob;
 
 			animtexdata.browser = browser;
 

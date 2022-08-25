@@ -41,12 +41,14 @@ Copyright Glare Technologies Limited 2022 -
 class RenderHandler : public CefRenderHandler
 {
 public:
-	RenderHandler(Reference<OpenGLTexture> opengl_tex_) : opengl_tex(opengl_tex_), opengl_engine(NULL), main_window(NULL), ob(NULL), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
+	RenderHandler(Reference<OpenGLTexture> opengl_tex_, MainWindow* main_window_, WorldObject* ob_) : opengl_tex(opengl_tex_), opengl_engine(NULL), main_window(main_window_), ob(ob_), discarded_dirty_updates(false) /*discarded_dirty_rect(Vec2i(1000000,1000000), Vec2i(-1000000,-1000000))*/ {}
 
 	~RenderHandler() {}
 
 	void onWebViewDataDestroyed()
 	{
+		CEF_REQUIRE_UI_THREAD();
+
 		opengl_tex = NULL;
 		opengl_engine = NULL;
 		ob = NULL;
@@ -146,6 +148,8 @@ public:
 	// coordinates. Return true if the screen coordinates were provided.
 	virtual bool GetScreenPoint(CefRefPtr<CefBrowser> browser, int viewX, int viewY, int& screenX, int& screenY) override
 	{
+		CEF_REQUIRE_UI_THREAD();
+
 		if(!opengl_engine)
 			return false;
 
@@ -226,15 +230,17 @@ public:
 class WebDataCefClient : public CefClient, public CefRequestHandler, public CefLoadHandler, public CefDisplayHandler, public CefAudioHandler, public CefCommandHandler, public CefContextMenuHandler
 {
 public:
-	WebDataCefClient() : num_channels(0), sample_rate(0), main_window(NULL), ob(NULL) {}
+	WebDataCefClient(MainWindow* main_window_, WorldObject* ob_) : num_channels(0), sample_rate(0), m_main_window(main_window_), m_ob(ob_) {}
 
 	// Remove references to main_window and ob as they may be destroyed while this WebDataCefClient object is still alive.
 	void onWebViewDataDestroyed()
 	{
+		CEF_REQUIRE_UI_THREAD();
+
 		{
 			Lock lock(mutex);
-			main_window = NULL;
-			ob = NULL;
+			m_main_window = NULL;
+			m_ob = NULL;
 		}
 	}
 
@@ -327,6 +333,14 @@ public:
 	virtual void OnStatusMessage(CefRefPtr<CefBrowser> browser,
 		const CefString& value) override
 	{
+		CEF_REQUIRE_UI_THREAD();
+
+		MainWindow* main_window;
+		{
+			Lock lock(mutex);
+			main_window = this->m_main_window;
+		}
+
 		if(value.c_str())
 		{
 			//conPrint("OnStatusMessage: " + StringUtils::PlatformToUTF8UnicodeEncoding(value.c_str()));
@@ -385,6 +399,16 @@ public:
 	virtual bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
 		CefAudioParameters& params) override 
 	{
+		CEF_REQUIRE_UI_THREAD();
+
+		MainWindow* main_window;
+		WorldObject* ob;
+		{
+			Lock lock(mutex);
+			main_window = this->m_main_window;
+			ob = this->m_ob;
+		}
+
 		if(!main_window)
 			return false;
 
@@ -475,11 +499,12 @@ public:
 			}
 
 			// We are accessing main_window, that might have been set to null in another thread via onWebViewDataDestroyed(), so lock mutex.
+			// We need to hold this mutex the entire time we using m_main_window, to prevent main_window closing in another thread.
 			{
 				Lock lock(mutex);
-				if(main_window)
+				if(m_main_window)
 				{
-					Lock audio_engine_lock(main_window->audio_engine.mutex);
+					Lock audio_engine_lock(m_main_window->audio_engine.mutex);
 					this->audio_source->buffer.pushBackNItems(temp_buf.data(), num_samples);
 				}
 			}
@@ -513,8 +538,8 @@ public:
 	CefRefPtr<CefLifeSpanHandler> mLifeSpanHandler; // The lifespan handler has references to the CefBrowsers, so the browsers should 
 
 	Mutex mutex; // Protects main_window, ob
-	MainWindow* main_window			GUARDED_BY(mutex);
-	WorldObject* ob					GUARDED_BY(mutex);
+	MainWindow* m_main_window		GUARDED_BY(mutex);
+	WorldObject* m_ob				GUARDED_BY(mutex);
 
 	Reference<glare::AudioSource> audio_source; // Store a direct reference to the audio_source, to make sure it's alive while we are using it.
 	int num_channels;
@@ -531,12 +556,14 @@ public:
 class WebViewCEFBrowser : public RefCounted
 {
 public:
-	WebViewCEFBrowser(/*WebViewData* web_view_data_, */RenderHandler* render_handler, LifeSpanHandler* lifespan_handler)
+	WebViewCEFBrowser(/*WebViewData* web_view_data_, */RenderHandler* render_handler, LifeSpanHandler* lifespan_handler, MainWindow* main_window_, WorldObject* ob_)
 	:	//web_view_data(web_view_data_),
-		mRenderHandler(render_handler)
+		mRenderHandler(render_handler),
+		main_window(main_window_),
+		ob(ob_)
 		//mLifeSpanHandler(lifespan_handler)
 	{
-		cef_client = new WebDataCefClient();
+		cef_client = new WebDataCefClient(main_window, ob);
 		cef_client->mRenderHandler = mRenderHandler;
 		cef_client->mLifeSpanHandler = lifespan_handler;
 	}
@@ -674,11 +701,11 @@ public:
 
 
 
-static Reference<WebViewCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex)
+static Reference<WebViewCEFBrowser> createBrowser(/*WebViewData* web_view_data, */const std::string& URL, Reference<OpenGLTexture> opengl_tex, MainWindow* main_window, WorldObject* ob)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
-	Reference<WebViewCEFBrowser> browser = new WebViewCEFBrowser(/*web_view_data, */new RenderHandler(opengl_tex), CEF::getLifespanHandler());
+	Reference<WebViewCEFBrowser> browser = new WebViewCEFBrowser(/*web_view_data, */new RenderHandler(opengl_tex, main_window, ob), CEF::getLifespanHandler(), main_window, ob);
 
 	CefWindowInfo window_info;
 	window_info.windowless_rendering_enabled = true;
@@ -816,14 +843,8 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 						ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
 					}
 
-					browser = createBrowser(/*this, */ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture);
-					browser->main_window = main_window;
-					browser->ob = ob;
-					browser->cef_client->main_window = main_window;
-					browser->cef_client->ob = ob;
+					browser = createBrowser(/*this, */ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture, main_window, ob);
 					browser->mRenderHandler->opengl_engine = opengl_engine;
-					browser->mRenderHandler->main_window = main_window;
-					browser->mRenderHandler->ob = ob;
 				}
 				else
 				{
