@@ -222,6 +222,9 @@ void DownloadResourcesThread::doRun()
 											socket->readData(temp_buf.data(), chunk_size);
 											file.writeData(temp_buf.data(), chunk_size);
 											offset += chunk_size;
+
+											if(should_die)
+												throw glare::Exception("Interrupted");
 										}
 
 										file.close(); // Manually call close, to check for any errors via failbit.
