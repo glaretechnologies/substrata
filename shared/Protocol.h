@@ -96,6 +96,7 @@ const uint32 LogInFailure			= 5101;
 const uint32 InvalidFileSize		= 5102;
 const uint32 NoWritePermissions		= 5103;
 const uint32 ServerIsInReadOnlyMode	= 5104;
+const uint32 InvalidFileType		= 5105;
 
 
 //TEMP HACK move elsewhere

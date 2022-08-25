@@ -877,22 +877,6 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 }
 
 
-bool ModelLoading::hasSupportedModelExtension(const std::string& path)
-{
-	const string_view extension = getExtensionStringView(path);
-
-	return
-		StringUtils::equalCaseInsensitive(extension, "vox") ||
-		StringUtils::equalCaseInsensitive(extension, "obj") ||
-		StringUtils::equalCaseInsensitive(extension, "stl") ||
-		StringUtils::equalCaseInsensitive(extension, "gltf") ||
-		StringUtils::equalCaseInsensitive(extension, "glb") ||
-		StringUtils::equalCaseInsensitive(extension, "vrm") ||
-		StringUtils::equalCaseInsensitive(extension, "igmesh") ||
-		StringUtils::equalCaseInsensitive(extension, "bmesh");
-}
-
-
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
 	ResourceManager& resource_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
 	bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
