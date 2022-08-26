@@ -45,6 +45,7 @@ public:
 };
 
 
+// Does this UserID correspond to the admin user that has full control over the server?
 static inline bool isGodUser(const UserID logged_in_user_id)
 {
 	return logged_in_user_id.value() == 0;

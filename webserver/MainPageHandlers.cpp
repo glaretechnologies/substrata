@@ -37,7 +37,8 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 		"	<div id=\"login\" style=\"float: right; margin-top: -8px;\">\n"; // Start login div
 
 	web::UnsafeString logged_in_username;
-	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username);
+	bool is_user_admin;
+	const bool logged_in = LoginHandlers::isLoggedIn(world_state, request_info, logged_in_username, is_user_admin);
 
 	if(logged_in)
 	{

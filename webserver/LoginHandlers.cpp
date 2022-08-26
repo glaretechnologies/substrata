@@ -45,7 +45,7 @@ site-b cookie currently stores session ID.
 */
 
 
-bool isLoggedIn(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::UnsafeString& logged_in_username_out)
+bool isLoggedIn(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::UnsafeString& logged_in_username_out, bool& is_user_admin_out)
 {
 	Lock lock(world_state.mutex);
 
@@ -53,11 +53,13 @@ bool isLoggedIn(ServerAllWorldsState& world_state, const web::RequestInfo& reque
 	if(user == NULL)
 	{
 		logged_in_username_out = "";
+		is_user_admin_out = false;
 		return false;
 	}
 	else
 	{
 		logged_in_username_out = user->name;
+		is_user_admin_out = isGodUser(user->id);
 		return true;
 	}
 }
@@ -66,8 +68,9 @@ bool isLoggedIn(ServerAllWorldsState& world_state, const web::RequestInfo& reque
 bool loggedInUserHasAdminPrivs(ServerAllWorldsState& world_state, const web::RequestInfo& request_info)
 {
 	web::UnsafeString logged_in_username;
-	const bool logged_in = isLoggedIn(world_state, request_info, logged_in_username);
-	return logged_in && (logged_in_username.str() == "Ono-Sendai");
+	bool is_user_admin;
+	const bool logged_in = isLoggedIn(world_state, request_info, logged_in_username, is_user_admin);
+	return logged_in && is_user_admin;
 }
 
 
