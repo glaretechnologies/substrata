@@ -1,0 +1,4 @@
+Using version retrieved from https://github.com/thestk/rtaudio on 24/08/2022.
+
+Also fixed one compile warning locally: 
+  waveFormat.nChannels = (WORD)(channels + firstChannel);
