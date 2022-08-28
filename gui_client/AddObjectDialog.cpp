@@ -295,25 +295,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			throw glare::Exception("file did not have a supported image, video, or model extension: '" + getExtension(local_path) + "'");
 
 		// Try and load textures
-		for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
-		{
-			if(!preview_gl_ob->materials[i].tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].tex_path, "mp4"))
-			{
-				preview_gl_ob->materials[i].albedo_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].tex_path);
-
-				Reference<Map2D> map = this->objectPreviewGLWidget->texture_server_ptr->getTexForPath(".", preview_gl_ob->materials[i].tex_path); // Hopefully is arleady loaded
-
-				const bool has_alpha = LODGeneration::textureHasAlphaChannel(preview_gl_ob->materials[i].tex_path, map);// preview_gl_ob->materials[i].albedo_texture->hasAlpha();// && !preview_gl_ob->materials[i].albedo_texture->isAlphaChannelAllWhite();
-				BitUtils::setOrZeroBit(loaded_object->materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
-			}
-
-			if(!preview_gl_ob->materials[i].metallic_roughness_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].metallic_roughness_tex_path, "mp4"))
-				preview_gl_ob->materials[i].metallic_roughness_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].metallic_roughness_tex_path);
-
-			if(!preview_gl_ob->materials[i].emission_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].emission_tex_path, "mp4"))
-				preview_gl_ob->materials[i].emission_texture = objectPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].emission_tex_path);
-		}
-
+		tryLoadTexturesForPreviewOb(preview_gl_ob, loaded_object, objectPreviewGLWidget->opengl_engine.ptr(), this->objectPreviewGLWidget->texture_server_ptr, this);
 
 		// Offset object vertically so it rests on the ground plane.
 		const js::AABBox cur_aabb_ws = preview_gl_ob->mesh_data->aabb_os.transformedAABBFast(preview_gl_ob->ob_to_world_matrix);
@@ -333,6 +315,68 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 		this->loaded_object = NULL;
 
 		QtUtils::showErrorMessageDialog(QtUtils::toQString(e.what()), this);
+	}
+}
+
+
+void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, WorldObjectRef loaded_object, OpenGLEngine* opengl_engine, 
+	TextureServer* texture_server_ptr, QWidget* parent_widget)
+{
+	// Try and load textures.  Report any errors but continue with the loading.
+	for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
+	{
+		const std::string albedo_tex_path = preview_gl_ob->materials[i].tex_path;
+		if(!albedo_tex_path.empty() && !hasExtension(albedo_tex_path, "mp4"))
+		{
+			try
+			{
+				preview_gl_ob->materials[i].albedo_texture = opengl_engine->getTexture(albedo_tex_path); // Load texture
+
+				Reference<Map2D> map = texture_server_ptr->getTexForPath(".", albedo_tex_path); // Hopefully is arleady loaded
+
+				const bool has_alpha = LODGeneration::textureHasAlphaChannel(albedo_tex_path, map);// preview_gl_ob->materials[i].albedo_texture->hasAlpha();// && !preview_gl_ob->materials[i].albedo_texture->isAlphaChannelAllWhite();
+				BitUtils::setOrZeroBit(loaded_object->materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
+			}
+			catch(glare::Exception& e)
+			{
+				QtUtils::showErrorMessageDialog(QtUtils::toQString("Error while loading model texture: '" + albedo_tex_path + "': " + e.what() + 
+					"\nLoading will continue without this texture"), parent_widget);
+
+				loaded_object->materials[i]->colour_texture_url = ""; // Clear texture in WorldMaterial, so we don't insert an invalid texture into the world.
+			}
+		}
+
+		const std::string metallic_roughness_tex_path = preview_gl_ob->materials[i].metallic_roughness_tex_path;
+		if(!metallic_roughness_tex_path.empty() && !hasExtension(metallic_roughness_tex_path, "mp4"))
+		{
+			try
+			{
+				preview_gl_ob->materials[i].metallic_roughness_texture = opengl_engine->getTexture(metallic_roughness_tex_path);
+			}
+			catch(glare::Exception& e)
+			{
+				QtUtils::showErrorMessageDialog(QtUtils::toQString("Error while loading model texture: '" + metallic_roughness_tex_path + "': " + e.what() +
+					"\nLoading will continue without this texture"), parent_widget);
+
+				loaded_object->materials[i]->roughness.texture_url = ""; // Clear texture in WorldMaterial
+			}
+		}
+
+		const std::string emission_tex_path = preview_gl_ob->materials[i].emission_tex_path;
+		if(!emission_tex_path.empty() && !hasExtension(emission_tex_path, "mp4"))
+		{
+			try
+			{
+				preview_gl_ob->materials[i].emission_texture = opengl_engine->getTexture(emission_tex_path);
+			}
+			catch(glare::Exception& e)
+			{
+				QtUtils::showErrorMessageDialog(QtUtils::toQString("Error while loading model texture: '" + emission_tex_path + "': " + e.what() +
+					"\nLoading will continue without this texture"), parent_widget);
+
+				loaded_object->materials[i]->emission_texture_url = ""; // Clear texture in WorldMaterial
+			}
+		}
 	}
 }
 
