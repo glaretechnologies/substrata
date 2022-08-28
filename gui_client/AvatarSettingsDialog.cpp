@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "AvatarSettingsDialog.h"
 
 
+#include "AddObjectDialog.h"
 #include "ModelLoading.h"
 #include "../shared/ResourceManager.h"
 #include "../dll/include/IndigoMesh.h"
@@ -196,17 +197,7 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		preview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -foot_bottom_height) * preview_gl_ob->ob_to_world_matrix;
 
 		// Try and load textures
-		for(size_t i=0; i<preview_gl_ob->materials.size(); ++i)
-		{
-			if(!preview_gl_ob->materials[i].tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].tex_path, "mp4"))
-				preview_gl_ob->materials[i].albedo_texture = avatarPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].tex_path);
-
-			if(!preview_gl_ob->materials[i].metallic_roughness_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].metallic_roughness_tex_path, "mp4"))
-				preview_gl_ob->materials[i].metallic_roughness_texture = avatarPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].metallic_roughness_tex_path);
-
-			if(!preview_gl_ob->materials[i].emission_tex_path.empty() && !hasExtension(preview_gl_ob->materials[i].emission_tex_path, "mp4"))
-				preview_gl_ob->materials[i].emission_texture = avatarPreviewGLWidget->opengl_engine->getTexture(preview_gl_ob->materials[i].emission_tex_path);
-		}
+		AddObjectDialog::tryLoadTexturesForPreviewOb(preview_gl_ob, loaded_object, avatarPreviewGLWidget->opengl_engine.ptr(), this->avatarPreviewGLWidget->texture_server_ptr, this);
 
 		avatarPreviewGLWidget->opengl_engine->addObject(preview_gl_ob);
 	}

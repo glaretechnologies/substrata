@@ -32,6 +32,11 @@ public:
 	~AddObjectDialog();
 
 	void shutdownGL();
+
+
+	static void tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, WorldObjectRef loaded_object, OpenGLEngine* opengl_engine, 
+		TextureServer* texture_server, QWidget* parent_widget);
+
 private slots:;
 	void accepted();
 
