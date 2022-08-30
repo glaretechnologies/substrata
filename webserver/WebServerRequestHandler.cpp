@@ -508,21 +508,33 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(dev_mode && ::hasPrefix(request.path, "/webclient/"))
 		{
-			// In development mode, serve any requested files directly from disk, out of the webclient dir.
-			if(!FileUtils::isPathSafe(request.path))
-				throw glare::Exception("request '" + request.path + "' is not safe.");
-
 			try
 			{
-				std::string contents;
-				FileUtils::readEntireFile(data_store->webclient_dir + ::eatPrefix(request.path, "/webclient"), contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "text/javascript");
+				// In development mode, serve any requested files directly from disk, out of the webclient dir.
+				const std::string path_relative_to_webclient_dir = ::eatPrefix(request.path, "/webclient/");
+				if(!FileUtils::isPathSafe(path_relative_to_webclient_dir))
+					throw glare::Exception("request '" + request.path + "' is not safe.");
+
+				try
+				{
+					std::string contents;
+					FileUtils::readEntireFile(data_store->webclient_dir + "/" + path_relative_to_webclient_dir, contents);
+					const std::string content_type = web::ResponseUtils::getContentTypeForPath(path_relative_to_webclient_dir);
+					web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), content_type);
+				}
+				catch(FileUtils::FileUtilsExcep& e)
+				{
+					conPrint("Failed to load file: " + e.what());
+					web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
+				}
 			}
-			catch(FileUtils::FileUtilsExcep& e)
+			catch(glare::Exception& e)
 			{
-				conPrint("Failed to load file: " + e.what());
-				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
+				// Since we're in dev mode, print out a nice error message to stdout.
+				conPrint("Error while handling request with path '" + request.path + "': " + e.what());
+				throw e; // rethrow
 			}
+				
 		}
 		else if(::hasPrefix(request.path, "/webclient/"))
 		{

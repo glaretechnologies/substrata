@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
 		for(int i=0; i<argc; ++i)
 			args.push_back(argv[i]);
 
-		ArgumentParser parsed_args(args, syntax);
+		ArgumentParser parsed_args(args, syntax, /*allow_unnamed_arg=*/false);
 
 		const bool dev_mode = parsed_args.isArgPresent("--enable_dev_mode");
 
