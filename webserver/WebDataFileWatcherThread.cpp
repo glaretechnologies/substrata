@@ -15,7 +15,9 @@ Copyright Glare Technologies Limited 2022 -
 #include <Lock.h>
 #include <ResponseUtils.h>
 #ifdef __linux__
+#include <unistd.h>
 #include <sys/inotify.h>
+#include <linux/limits.h>
 #endif
 
 
