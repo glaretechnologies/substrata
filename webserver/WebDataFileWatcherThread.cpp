@@ -13,7 +13,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <FileUtils.h>
 #include <PlatformUtils.h>
 #include <Lock.h>
-#include <zlib.h>
 #include <ResponseUtils.h>
 #ifdef __linux__
 #include <sys/inotify.h>

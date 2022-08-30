@@ -126,7 +126,6 @@ Copyright Glare Technologies Limited 2020 -
 #include "../direct3d/Direct3DUtils.h"
 #include <Escaping.h>
 #include <clocale>
-#include <zlib.h>
 #include <tls.h>
 #include "superluminal/PerformanceAPI.h"
 #if BUGSPLAT_SUPPORT
