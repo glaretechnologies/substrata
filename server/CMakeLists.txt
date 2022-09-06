@@ -41,33 +41,33 @@ SET(shared_files
 ../shared/WorldMaterial.h
 )
 
-########### Website Core ################
-SET(website_core_files
-${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/WebListenerThread.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/WebListenerThread.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestInfo.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestInfo.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/ResponseUtils.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/ResponseUtils.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/Log.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/Log.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/StressTest.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/StressTest.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/TimeStamp.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/TimeStamp.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/WebsiteExcep.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThread.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThread.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestHandler.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/RequestHandler.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/UnsafeString.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/UnsafeString.h
-${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThreadTests.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/WorkerThreadTests.h
-#${WEBSITE_CORE_TRUNK_DIR_ENV}/StaticAssetManager.cpp
-#${WEBSITE_CORE_TRUNK_DIR_ENV}/StaticAssetManager.h
+########### Webserver ################
+SET(webserver_core_files
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebListenerThread.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebListenerThread.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestInfo.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestInfo.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/ResponseUtils.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Log.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Log.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StressTest.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StressTest.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/TimeStamp.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/TimeStamp.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebsiteExcep.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThread.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThread.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/UnsafeString.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/UnsafeString.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThreadTests.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThreadTests.h
+#${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StaticAssetManager.cpp
+#${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StaticAssetManager.h
 )
 
 # Add eliptical curve stuff for Eth code.
@@ -133,12 +133,12 @@ SET(ethereum_files
 )
 
 
-include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
+include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver/)
 
 
 SOURCE_GROUP(server FILES ${server})
 SOURCE_GROUP(webserver FILES ${webserver})
-SOURCE_GROUP(website_core FILES ${website_core_files})
+SOURCE_GROUP(webserver_core_files FILES ${webserver_core_files})
 SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
@@ -177,7 +177,7 @@ ${hdr}
 #${winter}
 ${server}
 ${webserver}
-${website_core_files}
+${webserver_core_files}
 ${shared_files}
 ${scripts}
 ${double_conversion}
