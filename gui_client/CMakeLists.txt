@@ -187,9 +187,9 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.h
 )
 
-SET(website_core_files
-${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.cpp
-${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.h
+SET(webserver_files
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/Escaping.h
 )
 
 SET(direct3d
@@ -215,7 +215,7 @@ SET(audio
 ../audio/WavAudioFileReader.h
 )
 
-include_directories(${WEBSITE_CORE_TRUNK_DIR_ENV})
+include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver)
 
 SET(doc_files
 ../docs/notes.txt
@@ -488,7 +488,7 @@ SOURCE_GROUP(docs FILES ${doc_files})
 SOURCE_GROUP(video FILES ${video})
 SOURCE_GROUP(indigo_audio FILES ${indigo_audio})
 SOURCE_GROUP(direct3d FILES ${direct3d})
-SOURCE_GROUP(website_core_files FILES ${website_core_files})
+SOURCE_GROUP(webserver_files FILES ${webserver_files})
 SOURCE_GROUP(rtaudio FILES ${rtaudio})
 SOURCE_GROUP(audio FILES ${audio})
 SOURCE_GROUP(resonance-audio FILES ${resonance})
@@ -564,7 +564,7 @@ ${qt}
 ${doc_files}
 ${lang}
 ${video}
-${website_core_files}
+${webserver_files}
 ${rtaudio}
 ${audio}
 ${indigo_audio}
