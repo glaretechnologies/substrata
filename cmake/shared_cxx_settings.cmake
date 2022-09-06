@@ -87,10 +87,7 @@ endif()
 
 add_definitions(-DNO_EMBREE)
 add_definitions(-DMAP2D_FILTERING_SUPPORT=1)
-
-if(INDIGO_USE_LIBRESSL)
-	add_definitions(-DUSING_LIBRESSL)
-endif()
+add_definitions(-DUSING_LIBRESSL)
 
 add_definitions(-DCMS_NO_REGISTER_KEYWORD) # Tell Little CMS not to use the register keyword, gives warnings and/or errors.
 

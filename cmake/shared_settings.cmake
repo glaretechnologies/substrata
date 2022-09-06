@@ -1,4 +1,3 @@
-# shared settings for console sdk and gui
 
 set(INDIGO_GRAPHICS_DIR "${INDIGO_TRUNK_DIR_ENV}/graphics")
 set(graphics

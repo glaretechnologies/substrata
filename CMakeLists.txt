@@ -3,14 +3,13 @@ cmake_minimum_required (VERSION 3.0)
 # set a dummy project name, so we can detect the bitness
 project (dummy)
 
-set(PROJECT_NAME "new_cyberspace")
+set(PROJECT_NAME "substrata")
 
 # detect bitness, vs version
 if(WIN32)
 	if(CMAKE_CL_64)
 		set(CYBERSPACE_BITNESS 64)
 		set(CYBERSPACE_PLATFORM "x64")
-		set(PROJECT_NAME "new_cyberspace64")
 	else()
 		message(FATAL_ERROR "Only 64 bit builds supported")
 	endif()
@@ -67,10 +66,6 @@ if(WIN32)
 	
 	MESSAGE("Platform toolset: ${USED_PLATFORM_TOOLSET}")
 endif()
-
-
-SET(INDIGO_USE_LIBRESSL TRUE)
-#MESSAGE("INDIGO_USE_LIBRESSL: ${INDIGO_USE_LIBRESSL}")
 
 if(NOT WIN32)
 	if("${CMAKE_BUILD_TYPE}" STREQUAL "")
@@ -243,16 +238,7 @@ MESSAGE("jpegturbodir: ${jpegturbodir}")
 
 MESSAGE("")
 MESSAGE("ACTUAL_FUCKING_OUTPUT_DIR: ${ACTUAL_FUCKING_OUTPUT_DIR}")
-
-
-# The custom prebuild step target.
-#add_custom_target(_INDIGO_PREBUILD_TARGET ALL ruby "${CMAKE_SOURCE_DIR}/scripts/prebuild.rb"
-#	COMMENT "Running Indigo prebuild step")
-
-# Also need to run the prebuild step before generating projects.
-#execute_process(COMMAND ruby "${CMAKE_SOURCE_DIR}/scripts/prebuild.rb" OUTPUT_QUIET)
-
-MESSAGE("") # New line
+MESSAGE("")
 
 
 ADD_SUBDIRECTORY(libs)
