@@ -198,7 +198,7 @@ include(../cmake/ssl.cmake)
 
 if(WIN32)
 	target_link_libraries(${CURRENT_TARGET}
-		indigo_libs
+		libs
 		
 		Iphlpapi # For GetAdaptersInfo() in SystemInfo::getMACAddresses().
 		ws2_32 # Winsock
@@ -214,7 +214,7 @@ elseif(APPLE)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++11 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices -framework Security")
 	
 	target_link_libraries(${CURRENT_TARGET}
-		indigo_libs
+		libs
 		${jpegturbodir}/lib/libjpeg.a
 	)
 	
@@ -229,7 +229,7 @@ else() # linux
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib'")
 	
 	target_link_libraries(${CURRENT_TARGET}
-		indigo_libs
+		libs
 		${jpegturbodir}/lib/libjpeg.a
 	)
 endif()

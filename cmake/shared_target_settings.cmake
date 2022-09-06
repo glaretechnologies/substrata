@@ -17,7 +17,7 @@ if(WIN32)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS_RELEASE "/DEBUG /OPT:REF /OPT:ICF /LTCG")
 
 	target_link_libraries(${CURRENT_TARGET}
-		indigo_libs
+		libs
 		odbc32
 		comctl32
 		rpcrt4
@@ -35,7 +35,7 @@ elseif(APPLE)
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++14 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices")
 	
 	target_link_libraries(${CURRENT_TARGET}
-		indigo_libs
+		libs
 		${jpegturbodir}/lib/libjpeg.a
 	)
 	
@@ -53,7 +53,7 @@ else()
 	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "-std=c++14 ${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
 	
 	target_link_libraries(${CURRENT_TARGET}
-		indigo_libs
+		libs
 		${jpegturbodir}/lib/libjpeg.a
 	)
 
