@@ -372,9 +372,9 @@ ${pugixmldir}/pugiconfig.hpp
 
 enable_language(ASM) # For the .S file in zstd below.
 
-FILE(GLOB giflib "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.c" "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/giflib/lib/*.h")
-FILE(GLOB little_cms "${INDIGO_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${INDIGO_TRUNK_DIR_ENV}/little_cms/include/*.h")
-#FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
+FILE(GLOB giflib "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.c" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.h")
+FILE(GLOB little_cms "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/include/*.h")
+#FILE(GLOB xxhash "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.h")
 FILE(GLOB zstandard "${zstddir}/lib/*.h"  
 "${zstddir}/lib/common/*.c"     "${zstddir}/lib/common/*.h"
 "${zstddir}/lib/compress/*.c"   "${zstddir}/lib/compress/*.h"        

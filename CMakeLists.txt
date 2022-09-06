@@ -103,8 +103,11 @@ MESSAGE("Winter location: ${winterdir}")
 checkAndGetEnvVar(CYBERSPACE_OUTPUT CYBERSPACE_OUTPUT_ENV)
 MESSAGE("CYBERSPACE_OUTPUT: ${CYBERSPACE_OUTPUT_ENV}")
 
-checkAndGetEnvVar(INDIGO_TRUNK_DIR INDIGO_TRUNK_DIR_ENV)
-MESSAGE("INDIGO_TRUNK_DIR: ${INDIGO_TRUNK_DIR_ENV}")
+#checkAndGetEnvVar(INDIGO_TRUNK_DIR INDIGO_TRUNK_DIR_ENV)
+#MESSAGE("INDIGO_TRUNK_DIR: ${INDIGO_TRUNK_DIR_ENV}")
+
+checkAndGetEnvVar(GLARE_CORE_TRUNK_DIR GLARE_CORE_TRUNK_DIR_ENV)
+MESSAGE("GLARE_CORE_TRUNK_DIR: ${GLARE_CORE_TRUNK_DIR_ENV}")
 
 checkAndGetEnvVar(WEBSITE_CORE_TRUNK_DIR WEBSITE_CORE_TRUNK_DIR_ENV)
 MESSAGE("WEBSITE_CORE_TRUNK_DIR: ${WEBSITE_CORE_TRUNK_DIR_ENV}")
@@ -116,14 +119,13 @@ MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
 
 
 # External library directory (apart from llvm, openssl and Qt)
-set(tiffdir		"${INDIGO_TRUNK_DIR_ENV}/tiff-3.8.2/libtiff")
-set(imathdir	"${INDIGO_TRUNK_DIR_ENV}/Imath")
-set(openexrdir	"${INDIGO_TRUNK_DIR_ENV}/OpenEXR")
-set(zlibdir		"${INDIGO_TRUNK_DIR_ENV}/zlib-1.2.12")
-set(pugixmldir	"${INDIGO_TRUNK_DIR_ENV}/pugixml-1.9/src")
-set(pngdir		"${INDIGO_TRUNK_DIR_ENV}/libpng-1.6.37")
-set(zstddir		"${INDIGO_TRUNK_DIR_ENV}/zstd-1.5.2")
-set(resonance_audio_dir "${INDIGO_LIBS_ENV}/resonance-audio/trunk/install/resonance_audio")
+set(tiffdir		"${GLARE_CORE_TRUNK_DIR_ENV}/tiff-3.8.2/libtiff")
+set(imathdir	"${GLARE_CORE_TRUNK_DIR_ENV}/Imath")
+set(openexrdir	"${GLARE_CORE_TRUNK_DIR_ENV}/OpenEXR")
+set(zlibdir		"${GLARE_CORE_TRUNK_DIR_ENV}/zlib-1.2.12")
+set(pugixmldir	"${GLARE_CORE_TRUNK_DIR_ENV}/pugixml-1.9/src")
+set(pngdir		"${GLARE_CORE_TRUNK_DIR_ENV}/libpng-1.6.37")
+set(zstddir		"${GLARE_CORE_TRUNK_DIR_ENV}/zstd-1.5.2")
 
 set(cef_binary_dist_dir ${CEF_BINARY_DISTRIB_DIR_ENV})
 

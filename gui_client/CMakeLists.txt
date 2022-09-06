@@ -122,8 +122,8 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_LogWindow.h
 )
 
 SET(qt
-../qt/QtUtils.cpp
-../qt/QtUtils.h
+${GLARE_CORE_TRUNK_DIR_ENV}/qt/QtUtils.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/qt/QtUtils.h
 ../qt/SignalBlocker.cpp
 ../qt/SignalBlocker.h
 ../qt/FlowLayout.cpp
@@ -181,10 +181,10 @@ SET(shared_files
 )
 
 SET(client_indigo_files
-${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.cpp
-${INDIGO_TRUNK_DIR_ENV}/indigo/TextureServer.h
-${INDIGO_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.cpp
-${INDIGO_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.h
+${GLARE_CORE_TRUNK_DIR_ENV}/indigo/TextureServer.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/indigo/TextureServer.h
+${GLARE_CORE_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/indigo/DiscreteDistribution.h
 )
 
 SET(website_core_files
@@ -193,8 +193,8 @@ ${WEBSITE_CORE_TRUNK_DIR_ENV}/Escaping.h
 )
 
 SET(direct3d
-${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.cpp
-${INDIGO_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.h
+${GLARE_CORE_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/direct3d/Direct3DUtils.h
 )
 
 SET(rtaudio

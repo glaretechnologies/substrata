@@ -7,7 +7,6 @@ Generated at Fri Apr 05 15:18:57 +0200 2013
 #include "AboutDialog.h"
 
 
-#include <indigo/License.h>
 #include "../shared/Version.h"
 #include <qt/QtUtils.h>
 #include <utils/ConPrint.h>

@@ -18,7 +18,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
 #include "../audio/AudioEngine.h"
-#include <SceneNodeModel.h>
+//#include <SceneNodeModel.h>
 #include "../gui_client/WinterShaderEvaluator.h"
 #include "../gui_client/WebViewData.h"
 #include "../gui_client/AnimatedTextureManager.h"
