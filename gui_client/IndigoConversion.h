@@ -11,8 +11,8 @@ Copyright Glare Technologies Limited 2019 -
 
 #include "../shared/WorldMaterial.h"
 #include "../shared/WorldObject.h"
-#include <IndigoMaterial.h>
-#include <SceneNodeModel.h>
+//#include <IndigoMaterial.h>
+//#include <SceneNodeModel.h>
 class ResourceManager;
 
 

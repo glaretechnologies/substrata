@@ -42,28 +42,28 @@ endif()
 
 
 addIncludeDirectory("${luadir}/src")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/utils")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/networking")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/maths")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/utils")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/networking")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/maths")
 #addIncludeDirectory("${CMAKE_SOURCE_DIR}/embree/common")
 #addIncludeDirectory("${CMAKE_SOURCE_DIR}/embree/rtcore")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opengl") # For Glew
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/opengl") # For Glew
 addIncludeDirectory("${sparsehashdir}/src")
 if(WIN32)
 addIncludeDirectory("${sparsehashdir}/src/windows")
 endif()
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/giflib/lib")
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/little_cms/include")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/include")
 addIncludeDirectory("${zstddir}/lib")
 addIncludeDirectory("${zstddir}/lib/common")
 
 #Indigo SDK:
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
+#addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/dll/include")
 
 
 # Add OpenCL paths
-addIncludeDirectory("${INDIGO_TRUNK_DIR_ENV}/opencl/khronos")
+addIncludeDirectory("${GLARE_CORE_TRUNK_DIR_ENV}/opencl/khronos")
 
 # BugSplat
 addIncludeDirectory("${INDIGO_LIBS_ENV}/BugSplat/inc")

@@ -7,7 +7,7 @@ Generated at Thu Aug 30 15:22:06 +0200 2012
 #include "FileSelectWidget.h"
 
 
-#include "QtUtils.h"
+#include "qt/QtUtils.h"
 #include "../../utils/FileUtils.h"
 #include <QtWidgets/QFileDialog>
 #include <assert.h>

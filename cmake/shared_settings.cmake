@@ -1,5 +1,5 @@
 
-set(INDIGO_GRAPHICS_DIR "${INDIGO_TRUNK_DIR_ENV}/graphics")
+set(INDIGO_GRAPHICS_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/graphics")
 set(graphics
 ${INDIGO_GRAPHICS_DIR}/AnimationData.cpp
 ${INDIGO_GRAPHICS_DIR}/AnimationData.h
@@ -103,7 +103,7 @@ ${INDIGO_GRAPHICS_DIR}/Voronoi.cpp
 ${INDIGO_GRAPHICS_DIR}/Voronoi.h
 )
 
-set(MESHOPTIMIZER_DIR "${INDIGO_TRUNK_DIR_ENV}/meshoptimizer/src")
+set(MESHOPTIMIZER_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/meshoptimizer/src")
 
 set(meshoptimizer
 ${MESHOPTIMIZER_DIR}/allocator.cpp
@@ -127,7 +127,7 @@ ${MESHOPTIMIZER_DIR}/vfetchoptimizer.cpp
 
 
 
-set(INDIGO_UTILS_DIR "${INDIGO_TRUNK_DIR_ENV}/utils")
+set(INDIGO_UTILS_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/utils")
 set(utils
 ${INDIGO_UTILS_DIR}/AESEncryption.cpp
 ${INDIGO_UTILS_DIR}/AESEncryption.h
@@ -225,7 +225,7 @@ ${INDIGO_UTILS_DIR}/PoolMap.cpp
 ${INDIGO_UTILS_DIR}/PoolMap.h
 ${INDIGO_UTILS_DIR}/GlareProcess.cpp
 ${INDIGO_UTILS_DIR}/GlareProcess.h
-${INDIGO_UTILS_DIR}/prebuild_repos_info.h
+#${INDIGO_UTILS_DIR}/prebuild_repos_info.h
 ${INDIGO_UTILS_DIR}/RefCounted.h
 ${INDIGO_UTILS_DIR}/Reference.h
 ${INDIGO_UTILS_DIR}/ReferenceTest.cpp
@@ -298,7 +298,7 @@ ${INDIGO_UTILS_DIR}/HashMapInsertOnly2Iterators.h
 )
 
 
-set(INDIGO_PHYSICS_DIR "${INDIGO_TRUNK_DIR_ENV}/physics")
+set(INDIGO_PHYSICS_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/physics")
 set(physics
 ${INDIGO_PHYSICS_DIR}/BVH.cpp
 ${INDIGO_PHYSICS_DIR}/BVH.h
@@ -329,126 +329,126 @@ ${INDIGO_PHYSICS_DIR}/SmallBVH.h
 
 
 set(raytracing 
-"${INDIGO_TRUNK_DIR_ENV}/raytracing/hitinfo.h"
+"${GLARE_CORE_TRUNK_DIR_ENV}/raytracing/hitinfo.h"
 )
 
 #if(WIN32) # Need .rc file on windows
-#	FILE(GLOB indigo_src "${INDIGO_TRUNK_DIR_ENV}/indigo/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/indigo/*.h" "${INDIGO_TRUNK_DIR_ENV}/indigo/*.txt" "${INDIGO_TRUNK_DIR_ENV}/indigo/version.rc")
+#	FILE(GLOB indigo_src "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.h" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.txt" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/version.rc")
 #else()
-#	FILE(GLOB indigo_src "${INDIGO_TRUNK_DIR_ENV}/indigo/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/indigo/*.h" "${INDIGO_TRUNK_DIR_ENV}/indigo/*.txt")
+#	FILE(GLOB indigo_src "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.h" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.txt")
 #endif()
-FILE(GLOB maths "${INDIGO_TRUNK_DIR_ENV}/maths/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/maths/*.h")
-FILE(GLOB networking "${INDIGO_TRUNK_DIR_ENV}/networking/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/networking/*.h")
-FILE(GLOB opencl "${INDIGO_TRUNK_DIR_ENV}/opencl/*.cl" "${INDIGO_TRUNK_DIR_ENV}/opencl/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/opencl/*.h")
-#FILE(GLOB physics "${INDIGO_TRUNK_DIR_ENV}/physics/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/physics/*.h")
-#FILE(GLOB raytracing "${INDIGO_TRUNK_DIR_ENV}/raytracing/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/raytracing/*.h")
-#FILE(GLOB hdr "${INDIGO_TRUNK_DIR_ENV}/hdr/*.c" "${INDIGO_TRUNK_DIR_ENV}/hdr/*.h")
-#FILE(GLOB simpleraytracer "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/*.h")
-#FILE(GLOB utils "${INDIGO_TRUNK_DIR_ENV}/utils/*.cpp" "${INDIGO_TRUNK_DIR_ENV}/utils/*.h")
+FILE(GLOB maths "${GLARE_CORE_TRUNK_DIR_ENV}/maths/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/maths/*.h")
+FILE(GLOB networking "${GLARE_CORE_TRUNK_DIR_ENV}/networking/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/networking/*.h")
+FILE(GLOB opencl "${GLARE_CORE_TRUNK_DIR_ENV}/opencl/*.cl" "${GLARE_CORE_TRUNK_DIR_ENV}/opencl/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/opencl/*.h")
+#FILE(GLOB physics "${GLARE_CORE_TRUNK_DIR_ENV}/physics/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/physics/*.h")
+#FILE(GLOB raytracing "${GLARE_CORE_TRUNK_DIR_ENV}/raytracing/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/raytracing/*.h")
+#FILE(GLOB hdr "${GLARE_CORE_TRUNK_DIR_ENV}/hdr/*.c" "${GLARE_CORE_TRUNK_DIR_ENV}/hdr/*.h")
+#FILE(GLOB simpleraytracer "${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/*.h")
+#FILE(GLOB utils "${GLARE_CORE_TRUNK_DIR_ENV}/utils/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/utils/*.h")
 FILE(GLOB scripts "../scripts/*.rb")
-FILE(GLOB double_conversion "${INDIGO_TRUNK_DIR_ENV}/double-conversion/*.cc" "${INDIGO_TRUNK_DIR_ENV}/double-conversion/*.h")
-FILE(GLOB xxhash "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${INDIGO_TRUNK_DIR_ENV}/xxHash-r39/*.h")
+FILE(GLOB double_conversion "${GLARE_CORE_TRUNK_DIR_ENV}/double-conversion/*.cc" "${GLARE_CORE_TRUNK_DIR_ENV}/double-conversion/*.h")
+FILE(GLOB xxhash "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.h")
 
 set(lang
-${INDIGO_TRUNK_DIR_ENV}/lang/WinterEnv.cpp
-${INDIGO_TRUNK_DIR_ENV}/lang/WinterEnv.h
+${GLARE_CORE_TRUNK_DIR_ENV}/lang/WinterEnv.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/lang/WinterEnv.h
 )
 
 
 set(simpleraytracer
-${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/geometry.cpp 
-${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/geometry.h
-${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/raymesh.cpp 
-${INDIGO_TRUNK_DIR_ENV}/simpleraytracer/raymesh.h
+${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/geometry.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/geometry.h
+${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/raymesh.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/raymesh.h
 )
 
 set(fft2d "../libs/fft2d/fft4f2d.c")
 
 set(opengl 
-${INDIGO_TRUNK_DIR_ENV}/opengl/gl3w.c 
-#${INDIGO_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.cpp 
-#${INDIGO_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/DrawIndirectBuffer.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/DrawIndirectBuffer.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/FrameBuffer.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/FrameBuffer.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/VAO.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/VAO.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/VBO.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/VBO.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/VertexBufferAllocator.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/VertexBufferAllocator.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLTexture.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLTexture.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngine.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngine.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/ShadowMapping.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/SSBO.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/SSBO.h
-#${INDIGO_TRUNK_DIR_ENV}/opengl/TerrainSystem.cpp 
-#${INDIGO_TRUNK_DIR_ENV}/opengl/TerrainSystem.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoading.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/UniformBufOb.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/UniformBufOb.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/WGL.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/WGL.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/gl3w.c 
+#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.cpp 
+#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/EnvMapProcessing.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/DrawIndirectBuffer.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/DrawIndirectBuffer.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/FrameBuffer.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/FrameBuffer.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/GLMeshBuilding.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/MeshPrimitiveBuilding.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VAO.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VAO.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VBO.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VBO.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VertexBufferAllocator.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/VertexBufferAllocator.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLTexture.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLTexture.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngine.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngine.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShadowMapping.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/SSBO.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/SSBO.h
+#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TerrainSystem.cpp 
+#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TerrainSystem.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/WGL.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/WGL.h
 )
 
 set(video 
-${INDIGO_TRUNK_DIR_ENV}/video/VideoReader.cpp
-${INDIGO_TRUNK_DIR_ENV}/video/VideoReader.h
+${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoReader.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/video/VideoReader.h
 )
 if(WIN32)
 set(video 
 ${video}
-${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReader.cpp
-${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReader.h
-${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.cpp
-${INDIGO_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.h
+${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReader.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReader.h
+${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/video/WMFVideoReaderCallback.h
 )
 endif()
 
 
 
 set(opengl_shaders
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/clear_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/clear_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/depth_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/downsize_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/downsize_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/env_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/env_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/outline_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/outline_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/overlay_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/overlay_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/phong_vert_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_frag_shader.glsl
-${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
-#${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_frag_shader.glsl
-#${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/water_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/clear_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/clear_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/depth_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/depth_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/downsize_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/downsize_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/edge_extract_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/env_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/env_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/final_imaging_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/gaussian_blur_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/outline_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/outline_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/overlay_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/overlay_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/phong_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/phong_vert_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/transparent_frag_shader.glsl
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
+#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/water_frag_shader.glsl
+#${GLARE_CORE_TRUNK_DIR_ENV}/opengl/shaders/water_vert_shader.glsl
 
 ../shaders/parcel_frag_shader.glsl
 ../shaders/parcel_vert_shader.glsl
@@ -458,23 +458,23 @@ ${INDIGO_TRUNK_DIR_ENV}/opengl/shaders/transparent_vert_shader.glsl
 
 
 set(opengl_ui
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUI.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUI.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.cpp 
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.h
-${INDIGO_TRUNK_DIR_ENV}/opengl/ui/GLUICallbackHandler.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIButton.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUI.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUI.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUITextView.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUIWidget.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUICallbackHandler.h
 )
 
 
-set(INDIGO_SRC_DIR "${INDIGO_TRUNK_DIR_ENV}/indigo")
+set(INDIGO_SRC_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/indigo")
 
 set(indigo_src
-${INDIGO_SRC_DIR}/DisplacementUtils.cpp
-${INDIGO_SRC_DIR}/DisplacementUtils.h
+#${INDIGO_SRC_DIR}/DisplacementUtils.cpp
+#${INDIGO_SRC_DIR}/DisplacementUtils.h
 #${INDIGO_SRC_DIR}/object.cpp
 #${INDIGO_SRC_DIR}/object.h
 ${INDIGO_SRC_DIR}/ThreadContext.cpp
@@ -484,12 +484,12 @@ ${INDIGO_SRC_DIR}/UVUnwrapper.h
 )
 
 set(indigo_files_in_sdk_lib
-${INDIGO_SRC_DIR}/TransformPath.cpp
-${INDIGO_SRC_DIR}/TransformPath.h
+#${INDIGO_SRC_DIR}/TransformPath.cpp
+#${INDIGO_SRC_DIR}/TransformPath.h
 )
 
 
-set(INDIGO_DLL_DIR "${INDIGO_TRUNK_DIR_ENV}/dll")
+set(INDIGO_DLL_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/dll")
 
 set(dll_src
 ${INDIGO_DLL_DIR}/IndigoMesh.cpp
@@ -497,6 +497,9 @@ ${INDIGO_DLL_DIR}/include/IndigoMesh.h
 ${INDIGO_DLL_DIR}/IndigoAllocation.cpp
 ${INDIGO_DLL_DIR}/include/IndigoAllocation.h
 )
+
+include_directories(${INDIGO_DLL_DIR})
+include_directories(${INDIGO_DLL_DIR}/include)
 
 
 SOURCE_GROUP(graphics FILES ${graphics})

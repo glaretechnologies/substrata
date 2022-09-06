@@ -25,8 +25,8 @@ SET(shared_files
 SOURCE_GROUP(shared_files FILES ${shared_files})
 
 SET(stress_test_maths
-${INDIGO_TRUNK_DIR_ENV}/maths/Matrix4f.cpp
-${INDIGO_TRUNK_DIR_ENV}/maths/Vec4f.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix4f.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4f.cpp
 )
 
 add_executable(${CURRENT_TARGET}
