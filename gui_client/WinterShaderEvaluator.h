@@ -11,7 +11,6 @@ Copyright Glare Technologies Limited 2017 -
 #include <wnt_FunctionSignature.h>
 #include <wnt_Type.h>
 #include <LanguageTests.h>
-#include "../../lang/WinterEnv.h"
 #include "../../dll/IndigoStringUtils.h"
 
 

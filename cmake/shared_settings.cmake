@@ -349,11 +349,6 @@ FILE(GLOB scripts "../scripts/*.rb")
 FILE(GLOB double_conversion "${GLARE_CORE_TRUNK_DIR_ENV}/double-conversion/*.cc" "${GLARE_CORE_TRUNK_DIR_ENV}/double-conversion/*.h")
 FILE(GLOB xxhash "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.h")
 
-set(lang
-${GLARE_CORE_TRUNK_DIR_ENV}/lang/WinterEnv.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/lang/WinterEnv.h
-)
-
 
 set(simpleraytracer
 ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/geometry.cpp 
@@ -504,7 +499,6 @@ include_directories(${INDIGO_DLL_DIR}/include)
 
 SOURCE_GROUP(graphics FILES ${graphics})
 SOURCE_GROUP(indigo FILES ${indigo_src})
-SOURCE_GROUP(lang FILES ${lang})
 SOURCE_GROUP(maths FILES ${maths})
 SOURCE_GROUP(networking FILES ${networking})
 SOURCE_GROUP(physics FILES ${physics})
