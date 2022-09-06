@@ -1,4 +1,4 @@
-# indigo libs
+# libraries
 
 
 
@@ -414,29 +414,21 @@ else()
 endif()
 
 
-add_library(indigo_libs
+add_library(libs
 ${fftss}
-
 ${imath}
 ${iex}
 ${ilmthread}
 ${openexr}
-
-#${lib3ds}
-#${libjpg}
 ${libpng}
-#${libtiff}
-#${lua}
 ${zlib}
 ${minizip}
 ${pugixml}
 ${giflib}
 ${little_cms}
-#${xxhash}
 ${zstandard}
 )
 
-
 if(WIN32)
-	set_target_properties(indigo_libs PROPERTIES STATIC_LIBRARY_FLAGS_RELEASE "/LTCG")
+	set_target_properties(libs PROPERTIES STATIC_LIBRARY_FLAGS_RELEASE "/LTCG")
 endif()
