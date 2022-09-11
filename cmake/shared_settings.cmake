@@ -327,11 +327,6 @@ ${INDIGO_PHYSICS_DIR}/SmallBVH.h
 )
 
 
-
-set(raytracing 
-"${GLARE_CORE_TRUNK_DIR_ENV}/raytracing/hitinfo.h"
-)
-
 #if(WIN32) # Need .rc file on windows
 #	FILE(GLOB indigo_src "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.h" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/*.txt" "${GLARE_CORE_TRUNK_DIR_ENV}/indigo/version.rc")
 #else()
@@ -341,7 +336,6 @@ FILE(GLOB maths "${GLARE_CORE_TRUNK_DIR_ENV}/maths/*.cpp" "${GLARE_CORE_TRUNK_DI
 FILE(GLOB networking "${GLARE_CORE_TRUNK_DIR_ENV}/networking/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/networking/*.h")
 FILE(GLOB opencl "${GLARE_CORE_TRUNK_DIR_ENV}/opencl/*.cl" "${GLARE_CORE_TRUNK_DIR_ENV}/opencl/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/opencl/*.h")
 #FILE(GLOB physics "${GLARE_CORE_TRUNK_DIR_ENV}/physics/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/physics/*.h")
-#FILE(GLOB raytracing "${GLARE_CORE_TRUNK_DIR_ENV}/raytracing/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/raytracing/*.h")
 #FILE(GLOB hdr "${GLARE_CORE_TRUNK_DIR_ENV}/hdr/*.c" "${GLARE_CORE_TRUNK_DIR_ENV}/hdr/*.h")
 #FILE(GLOB simpleraytracer "${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/*.h")
 #FILE(GLOB utils "${GLARE_CORE_TRUNK_DIR_ENV}/utils/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/utils/*.h")
@@ -355,6 +349,7 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/geometry.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/geometry.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/raymesh.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/raymesh.h
+${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/hitinfo.h
 )
 
 set(fft2d "../libs/fft2d/fft4f2d.c")
@@ -502,8 +497,6 @@ SOURCE_GROUP(indigo FILES ${indigo_src})
 SOURCE_GROUP(maths FILES ${maths})
 SOURCE_GROUP(networking FILES ${networking})
 SOURCE_GROUP(physics FILES ${physics})
-SOURCE_GROUP(raytracing FILES ${raytracing})
-#SOURCE_GROUP(hdr FILES ${hdr})
 SOURCE_GROUP(simpleraytracer FILES ${simpleraytracer})
 SOURCE_GROUP(utils FILES ${utils})
 SOURCE_GROUP(scripts FILES ${scripts})
