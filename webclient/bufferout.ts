@@ -40,6 +40,10 @@ function toUTF8Array(str) {
 
 export class BufferOut {
 
+    data: ArrayBuffer;
+    data_view: DataView;
+    size: number;
+
     constructor() {
         this.data = new ArrayBuffer(/*length=*/256);
         this.data_view = new DataView(this.data);

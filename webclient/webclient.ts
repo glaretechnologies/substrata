@@ -1,5 +1,5 @@
 /*=====================================================================
-webclient.js
+webclient.ts
 ------------
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
@@ -162,7 +162,7 @@ function readUInt32(buffer_in) {
     return x;
 }
 
-function readUInt64(buffer_in) {
+function readUInt64(buffer_in): bigint {
     let x = buffer_in.data_view.getBigUint64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 8;
     return x;
@@ -181,7 +181,7 @@ function readDouble(buffer_in) {
 }
 
 
-function readUIDFromStream(buffer_in) {
+function readUIDFromStream(buffer_in): bigint {
     return readUInt64(buffer_in);
 }
 
@@ -192,6 +192,9 @@ function writeUID(buffer_out, uid) {
 
 
 class Vec2d {
+    x: number;
+    y: number;
+
     constructor(x_, y_) {
         this.x = x_;
         this.y = y_;
@@ -199,6 +202,10 @@ class Vec2d {
 }
 
 class Vec3f {
+    x: number;
+    y: number;
+    z: number;
+
     constructor(x_, y_, z_) {
         this.x = x_;
         this.y = y_;
@@ -213,6 +220,11 @@ class Vec3f {
 }
 
 class Matrix2f {
+    x: number;
+    y: number;
+    z: number;
+    w: number;
+
     constructor(x_, y_, z_, w_) {
         this.x = x_;
         this.y = y_;
@@ -229,6 +241,10 @@ class Matrix2f {
 }
 
 class Colour3f {
+    r: number;
+    g: number;
+    b: number;
+
     constructor(x_, y_, z_) {
         this.r = x_;
         this.g = y_;
@@ -243,6 +259,10 @@ class Colour3f {
 }
 
 class Vec3d {
+    x: number;
+    y: number;
+    z: number;
+
     constructor(x_, y_, z_) {
         this.x = x_;
         this.y = y_;
@@ -311,7 +331,7 @@ function readUserIDFromStream(buffer_in) {
 
 const TIMESTAMP_SERIALISATION_VERSION = 1;
 
-function readTimeStampFromStream(buffer_in) {
+function readTimeStampFromStream(buffer_in): bigint {
     let version = readUInt32(buffer_in);
     if (version != TIMESTAMP_SERIALISATION_VERSION)
         throw "Unhandled version " + toString(version) + ", expected " + toString(TIMESTAMP_SERIALISATION_VERSION) + ".";
@@ -322,6 +342,10 @@ function readTimeStampFromStream(buffer_in) {
 
 
 class AvatarSettings {
+    model_url: string;
+    materials: Array<WorldMaterial>;
+    pre_ob_to_world_matrix: Array<number>;
+
     constructor() {
         this.model_url = "";
         this.materials = [];
@@ -360,8 +384,20 @@ class AvatarSettings {
 }
 
 class Avatar {
+    uid: bigint;
+    name: string;
+    pos: Vec3d;
+    rotation: Vec3f;
+    avatar_settings: AvatarSettings;
+
+    anim_state: number;
+
+
+    mesh_state: number;
+    mesh: THREE.Mesh;
+
     constructor() {
-        this.uid = 0; // uint64
+        //this.uid = BigInt(0); // uint64   // TEMP
         this.name = "";
         this.pos = new Vec3d(0, 0, 0);
         this.rotation = new Vec3f(0, 0, 0);
@@ -393,7 +429,22 @@ class Avatar {
 
 
 class Parcel {
-
+    parcel_id: number;
+    owner_id: number;
+    created_time: bigint;
+    description: string;
+    admin_ids: Array<Number>;
+    writer_ids: Array<Number>;
+    child_parcel_ids: Array<Number>;
+    all_writeable: boolean;
+    verts: Array<Vec2d>;
+    zbounds: Vec2d;
+    flags: number;
+    parcel_auction_ids: Array<Number>;
+    spawn_point: Vec3d;
+    owner_name: string;
+    admin_names: Array<string>;
+    writer_names: Array<string>;
 }
 
 
@@ -505,6 +556,43 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
 
 
 class WorldObject {
+    uid: bigint;
+    object_type: number;
+    model_url: string;
+    mats: Array<WorldMaterial>;
+    lightmap_url: string;
+
+    script: string;
+    content: string;
+    target_url: string;
+
+    audio_source_url: string;
+    audio_volume: number;
+
+    pos: Vec3d;
+    axis: Vec3f;
+    angle: number;
+
+    scale: Vec3f;
+
+    created_time: bigint;
+    creator_id: number;
+
+    flags: number;
+
+    creator_name: string;
+
+    aabb_ws_min: Vec3f;
+    aabb_ws_max: Vec3f;
+
+    max_model_lod_level: number;
+
+    compressed_voxels: Array<number>;
+
+
+
+    mesh_state: number;
+    mesh: THREE.Mesh;
 
     constructor() {
         this.mesh_state = MESH_NOT_LOADED;
@@ -515,6 +603,17 @@ const COLOUR_TEX_HAS_ALPHA_FLAG = 1;
 const MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
 
 class WorldMaterial {
+
+    colour_texture_url: string;
+    emission_texture_url: string;
+    colour_rgb: Colour3f;
+    emission_rgb: Colour3f;
+    roughness: ScalarVal;
+    metallic_fraction: ScalarVal;
+    opacity: ScalarVal;
+    tex_matrix: Matrix2f;
+    emission_lum_flux: number;
+    flags: number;
 
     colourTexHasAlpha() {
         return (this.flags & COLOUR_TEX_HAS_ALPHA_FLAG) != 0;
@@ -546,6 +645,9 @@ class WorldMaterial {
 }
 
 class ScalarVal {
+    val: number;
+    texture_url: string;
+
     constructor(val_, texture_url_) {
         this.val = val_;
         this.texture_url = texture_url_;
@@ -692,10 +794,10 @@ function sendQueryObjectsMessage() {
 }
 
 
-var parcels = new Map();
-var world_objects = new Map();
-var avatars = new Map();
-var client_avatar_uid = null;
+var parcels = new Map<number, Parcel>();
+var world_objects = new Map<bigint, WorldObject>();
+var avatars = new Map<bigint, Avatar>();
+var client_avatar_uid: bigint = null;
 
 
 //Log the messages that are returned from the server
@@ -768,7 +870,7 @@ ws.onmessage = function (event) {
 
                 let object_uid = readUIDFromStream(buffer);
 
-                let world_ob = readWorldObjectFromNetworkStreamGivenUID(buffer);
+                let world_ob: WorldObject = readWorldObjectFromNetworkStreamGivenUID(buffer);
                 world_ob.uid = object_uid;
 
                 let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
@@ -945,7 +1047,7 @@ function onChatSubmitted(event) {
     console.log("Chat submitted");
 
     //let msg = event.target.elements.chat_message.value;
-    let msg = document.getElementById("chat_message").value;
+    let msg = (<HTMLInputElement>document.getElementById("chat_message")).value;
     console.log("msg: " + msg)
 
 
@@ -961,7 +1063,7 @@ function onChatSubmitted(event) {
     event.preventDefault();
 
     //document.getElementById('chat_message').textContent = ""; // Clear chat box
-    document.getElementById('chatform').reset(); // Clear chat box
+    (<HTMLFormElement>document.getElementById('chatform')).reset(); // Clear chat box
 }
 
 const form = document.getElementById('form');
@@ -1254,7 +1356,7 @@ function addWorldObjectGraphics(world_ob) {
 
 // Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
 // Returns mesh (THREE.Mesh)
-function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level) {
+function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level): THREE.Mesh {
 
     let use_vert_colours = (geometry.getAttribute('color') !== undefined);
 
@@ -1376,7 +1478,7 @@ function startDownloadingResource(download_queue_item) {
                                     let use_ob_lod_level = getLODLevel(world_ob, camera.position); // Used for determining which texture LOD level to load
                                     let ob_aabb_longest_len = AABBLongestLength(world_ob);
 
-                                    let mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
+                                    let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
                                     world_ob_or_avatar.mesh = mesh;
                                     world_ob_or_avatar.mesh_state = MESH_LOADED;
@@ -1385,8 +1487,8 @@ function startDownloadingResource(download_queue_item) {
 
                                     let avatar = world_ob_or_avatar;
                                     if (avatar.uid != client_avatar_uid) {
-                                        let mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
-                                            /*angle=*/0, /*ob_lod_level=*/0);
+                                        let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
+                                            /*angle=*/0, /*ob_aabb_longest_len=*/1.0, /*ob_lod_level=*/0);
 
                                         //console.log("Loaded mesh '" + model_url + "'.");
                                         avatar.mesh = mesh;
@@ -1429,7 +1531,7 @@ function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_aabb_longest_l
     if (geom) {
         //console.log("Found already loaded geom for " + model_url);
 
-        let mesh = makeMeshAndAddToScene(geom, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
+        let mesh: THREE.Mesh = makeMeshAndAddToScene(geom, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
 
         //console.log("Loaded mesh '" + model_url + "'.");
         world_ob_or_avatar.mesh = mesh;
