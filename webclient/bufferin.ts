@@ -81,23 +81,23 @@ export class BufferIn {
 	
 	// See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView
 	// Typescript compiler complains about getBigUint64() 
-	getUint64(dataview, byteOffset, littleEndian) {
-		// split 64-bit number into two 32-bit (4-byte) parts
-		const left =  dataview.getUint32(byteOffset, littleEndian);
-		const right = dataview.getUint32(byteOffset+4, littleEndian);
-
-		// combine the two 32-bit values
-		const combined = littleEndian? left + 2**32*right : 2**32*left + right;
-
-		//if (!Number.isSafeInteger(combined))
-		//console.warn(combined, 'exceeds MAX_SAFE_INTEGER. Precision may be lost');
-
-		return combined;
-	}
+	//getUint64(dataview, byteOffset, littleEndian) {
+	//	// split 64-bit number into two 32-bit (4-byte) parts
+	//	const left =  dataview.getUint32(byteOffset, littleEndian);
+	//	const right = dataview.getUint32(byteOffset+4, littleEndian);
+	//
+	//	// combine the two 32-bit values
+	//	const combined = littleEndian? left + 2**32*right : 2**32*left + right;
+	//
+	//	//if (!Number.isSafeInteger(combined))
+	//	//console.warn(combined, 'exceeds MAX_SAFE_INTEGER. Precision may be lost');
+	//
+	//	return combined;
+	//}
 
 	readUInt64() {
-		//var x = this.data_view.getBigUint64(/*byte offset=*/this.read_index, /*little endian=*/true);
-		var x = this.getUint64(this.data_view, /*byte offset=*/this.read_index, /*little endian=*/true)
+		var x = this.data_view.getBigUint64(/*byte offset=*/this.read_index, /*little endian=*/true);
+		//var x = this.getUint64(this.data_view, /*byte offset=*/this.read_index, /*little endian=*/true)
 		this.read_index += 8;
 		return x;
 	}
