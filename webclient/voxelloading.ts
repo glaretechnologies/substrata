@@ -1,5 +1,5 @@
 /*=====================================================================
-voxelloading.js
+voxelloading.ts
 ---------------
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
@@ -8,51 +8,51 @@ import * as fzstd from './fzstd.js'; // from 'https://cdn.skypack.dev/fzstd?min'
 import * as THREE from './build/three.module.js';
 
 
-function decompressVoxels(compressed_voxels) {
+function decompressVoxels(compressed_voxels): Array<number> {
 	let decompressed_voxels_uint8 = fzstd.decompress(new Uint8Array(compressed_voxels));
 
-    // A voxel is
-	//Vec3<int> pos;
-	//int mat_index; // Index into materials
+	// A voxel is
+	// Vec3<int> pos;
+	// int mat_index; // Index into materials
 
-    let voxel_data = new Int32Array(decompressed_voxels_uint8.buffer, decompressed_voxels_uint8.byteOffset, decompressed_voxels_uint8.byteLength / 4);
+	let voxel_data = new Int32Array(decompressed_voxels_uint8.buffer, decompressed_voxels_uint8.byteOffset, decompressed_voxels_uint8.byteLength / 4);
 
-    let voxels_out = []
+	let voxels_out: Array<number> = []
 
-    let cur_x = 0;
-    let cur_y = 0;
-    let cur_z = 0;
+	let cur_x: number = 0;
+	let cur_y: number = 0;
+	let cur_z: number = 0;
 
-    let read_i = 0;
+	let read_i = 0;
 	let num_mats = voxel_data[read_i++];
-    if(num_mats > 2000)
-        throw "Too many voxel materials";
+	if(num_mats > 2000)
+		throw "Too many voxel materials";
 
-    for(let m=0; m<num_mats; ++m)
+	for(let m=0; m<num_mats; ++m)
 	{
 		let count = voxel_data[read_i++];
 		//console.log("mat: " + m + ", count: " + count)
 		for(let i=0; i<count; ++i)
 		{
-            let rel_x = voxel_data[read_i++];
-            let rel_y = voxel_data[read_i++];
-            let rel_z = voxel_data[read_i++];
+			let rel_x = voxel_data[read_i++];
+			let rel_y = voxel_data[read_i++];
+			let rel_z = voxel_data[read_i++];
 
 			//pos = current_pos + relative_pos;
-            let v_x = cur_x + rel_x;
-            let v_y = cur_y + rel_y;
-            let v_z = cur_z + rel_z;
+			let v_x = cur_x + rel_x;
+			let v_y = cur_y + rel_y;
+			let v_z = cur_z + rel_z;
 
-            voxels_out.push(v_x);
-            voxels_out.push(v_y);
-            voxels_out.push(v_z);
-            voxels_out.push(m);
+			voxels_out.push(v_x);
+			voxels_out.push(v_y);
+			voxels_out.push(v_z);
+			voxels_out.push(m);
 
-            //console.log("Added voxel at " + v_x + ", " + v_y + ", " + v_z + " with mat " + m);
+			//console.log("Added voxel at " + v_x + ", " + v_y + ", " + v_z + " with mat " + m);
 
 			cur_x = v_x;
-            cur_y = v_y;
-            cur_z = v_z;
+			cur_y = v_y;
+			cur_z = v_z;
 		}
 	}
 
@@ -62,7 +62,7 @@ function decompressVoxels(compressed_voxels) {
 
 // Does greedy meshing.  Adapted from VoxelMeshBuilding::doMakeIndigoMeshForVoxelGroupWith3dArray()
 // returns a THREE.BufferGeometry() object
-function doMakeMeshForVoxels(voxels, subsample_factor)
+function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number): THREE.BufferGeometry
 {
 	let num_voxels = voxels.length / 4;
 
@@ -531,7 +531,7 @@ function doMakeMeshForVoxels(voxels, subsample_factor)
 // returns [THREE.BufferGeometry(), subsample_factor]
 export function makeMeshForVoxelGroup(compressed_voxels, model_lod_level) {
 
-	let voxels = decompressVoxels(compressed_voxels);
+	let voxels: Array<number> = decompressVoxels(compressed_voxels);
 	// voxels is an Int32Array array of voxel data, with each voxel laid out as (pos_x, pos_y, pos_z, mat_index)
 
 	let num_voxels = voxels.length / 4;

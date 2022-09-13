@@ -1,8 +1,10 @@
 /*=====================================================================
-downloadqueue.js
+downloadqueue.ts
 ----------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
+
+import * as THREE from './build/three.module.js';
 
 
 export function sizeFactorForAABBWSLongestLen(aabb_ws_longest_len) {
@@ -34,7 +36,12 @@ export function sizeFactorForAABBWSLongestLen(aabb_ws_longest_len) {
 
 export class DownloadQueueItem
 {
-	constructor(/*THREE.Vector3*/ pos_, /*number*/size_factor_, /*string*/URL_, /*bool=*/is_texture_) {
+	pos: THREE.Vector3;
+	size_factor: number;
+	URL: string;
+	is_texture: boolean;
+
+	constructor(pos_: THREE.Vector3, size_factor_: number, URL_: string, is_texture_: boolean) {
 		this.pos = pos_;
 		this.size_factor = size_factor_;
 		this.URL = URL_;
@@ -50,6 +57,9 @@ export class DownloadQueueItem
 
 
 export class DownloadQueue {
+
+	items: Array<DownloadQueueItem>;
+
 	constructor() {
 		this.items = [];
 	}

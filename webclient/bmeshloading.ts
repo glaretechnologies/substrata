@@ -1,7 +1,7 @@
 /*=====================================================================
-bmeshloading.js
+bmeshloading.ts
 ---------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
 import * as fzstd from './fzstd.js';
@@ -10,6 +10,9 @@ import * as bufferin from './bufferin.js';
 
 
 class Vec3f {
+	x: number;
+	y: number;
+	z: number;
 	constructor(x_, y_, z_) {
 		this.x = x_;
 		this.y = y_;
@@ -101,6 +104,9 @@ const FLAG_USE_COMPRESSION = 1;
 
 
 class VertAttribute {
+	type : number;
+	component_type : number;
+	offset_B : number;
 	//VertAttributeType type;
 	//ComponentType component_type;
 	//size_t offset_B; // Offset of attribute in vertex data, in bytes.
@@ -166,7 +172,7 @@ export function loadBatchedMesh(data) {
 		throw "Invalid magic number.";
 
 	if (format_version < FORMAT_VERSION)
-		throw "Unsupported format version " + toString(header.format_version) + ".";
+		throw "Unsupported format version " + format_version + ".";
 
 
 	// Skip past rest of header
