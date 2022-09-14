@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2016 -
 #include <dll/include/IndigoMesh.h>
 #include <graphics/BatchedMesh.h>
 #include <utils/ManagerWithCache.h>
+#include <utils/Vector.h>
 
 
 struct GLObject;
@@ -74,7 +75,7 @@ public:
 
 
 	static Reference<OpenGLMeshRenderData> makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
-		glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, Reference<RayMesh>& raymesh_out);
+		glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, Reference<RayMesh>& raymesh_out);
 
 	//static Reference<BatchedMesh> makeBatchedMeshForVoxelGroup(const VoxelGroup& voxel_group);
 	//static Reference<Indigo::Mesh> makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group);

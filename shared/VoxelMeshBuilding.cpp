@@ -1,7 +1,7 @@
 /*=====================================================================
 VoxelMeshBuilding.cpp
 ---------------------
-Copyright Glare Technologies Limited 2020 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "VoxelMeshBuilding.h"
 
@@ -26,6 +26,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <limits>
 
 
+#if 0
 class VoxelHashFunc
 {
 public:
@@ -34,6 +35,7 @@ public:
 		return hashBytes((const uint8*)&v.x, sizeof(int)*3); // TODO: use better hash func.
 	}
 };
+#endif
 
 
 class Vec3fHashFunc
@@ -60,7 +62,7 @@ typedef uint8 VoxelMatIndexType;
 
 // Does greedy meshing.
 // Splats voxels to 3d array.
-static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js::Vector<Voxel, 16>& voxels, int subsample_factor)
+static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js::Vector<Voxel, 16>& voxels, int subsample_factor, const js::Vector<bool, 16>& mats_transparent_)
 {
 #if GUI_CLIENT
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
@@ -98,7 +100,14 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 		// We want to be able to fit all the material indices, plus the 'no voxel' index, into the 256 values of a uint8.  So mat_index of 255 = no voxel index.
 		if(max_mat_index >= 255) 
 			throw glare::Exception("Too many materials");
+
+
+		// Build a local array of mat-transparent booleans, one for each material.  If no such entry in mats_transparent_ for a given index, assume opaque.
+		bool mat_transparent[256];
+		for(size_t i=0; i<256; ++i)
+			mat_transparent[i] = (i < mats_transparent_.size()) && mats_transparent_[i];
 	
+
 		VoxelBounds bounds;
 		bounds.min = Vec3<int>(bounds_min[0], bounds_min[1], bounds_min[2]);
 		bounds.max = Vec3<int>(bounds_max[0], bounds_max[1], bounds_max[2]);
@@ -195,7 +204,12 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 						if(dim_coord > 0) // If adjacent vox indices are in array bounds: (if dim_coord - 1 >= 0)
 						{
 							const auto adjacent_vox_mat_index = voxel_array.elem(adjacent_vox_indices.x, adjacent_vox_indices.y, adjacent_vox_indices.z);
-							if(adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+
+							// For an opaque or transparent voxel (the material assigned to it at least), adjacent to an empty voxel, we want to create a face.
+							// For an opaque voxel adjacent to another opaque voxel, we don't want to create a face, as it won't be visible.
+							// For an opaque voxel adjacent to a transparent voxel, we want to create a single face with the opaque material.
+							if((adjacent_vox_mat_index == no_voxel_mat) || // If adjacent voxel is empty, or
+								(mat_transparent[adjacent_vox_mat_index] && (adjacent_vox_mat_index != vox_mat_index))) // the adjacent voxel is transparent, and the adjacent voxel has a different material.
 								this_face_needed_mat = vox_mat_index;
 						}
 						else
@@ -362,7 +376,8 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshForVoxelGroupWith3dArray(const js
 						if(dim_coord < dim_size - 1) // If adjacent vox indices are in array bounds: (if dim_coord + 1 < dim_size)
 						{
 							const auto adjacent_vox_mat_index = voxel_array.elem(adjacent_vox_indices.x, adjacent_vox_indices.y, adjacent_vox_indices.z);
-							if(adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+							if((adjacent_vox_mat_index == no_voxel_mat) || 
+								(mat_transparent[adjacent_vox_mat_index] && (adjacent_vox_mat_index != vox_mat_index)))
 								this_face_needed_mat = vox_mat_index;
 						}
 						else
@@ -960,12 +975,12 @@ static Reference<Indigo::Mesh> doMakeIndigoMeshWithNormalsForVoxelGroup(const js
 #endif
 
 
-Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, bool generate_shading_normals)
+Reference<Indigo::Mesh> VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(const VoxelGroup& voxel_group, const int subsample_factor, bool generate_shading_normals, const js::Vector<bool, 16>& mats_transparent)
 {
 	assert(voxel_group.voxels.size() > 0);
 	// conPrint("Adding " + toString(voxel_group.voxels.size()) + " voxels.");
 
-	return doMakeIndigoMeshForVoxelGroupWith3dArray(voxel_group.voxels, subsample_factor);
+	return doMakeIndigoMeshForVoxelGroupWith3dArray(voxel_group.voxels, subsample_factor, mats_transparent);
 }
 
 
@@ -1013,7 +1028,9 @@ void VoxelMeshBuilding::test()
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+		js::Vector<bool, 16> mat_transparent;
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
@@ -1021,7 +1038,7 @@ void VoxelMeshBuilding::test()
 		testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(1,1,1));
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 		testAssert(data->aabb_os.bound[0] == Indigo::Vec3f(0,0,0));
@@ -1033,7 +1050,9 @@ void VoxelMeshBuilding::test()
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(1, 2, 3), 0));
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+		js::Vector<bool, 16> mat_transparent;
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
@@ -1048,6 +1067,7 @@ void VoxelMeshBuilding::test()
 		//testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(1,1,1));
 	}
 
+	// Test several separated voxels
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
@@ -1057,7 +1077,9 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(40, 0, 1), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(50, 0, 1), 1));
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+		js::Vector<bool, 16> mat_transparent;
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 6 * 6 * 2);
@@ -1065,7 +1087,7 @@ void VoxelMeshBuilding::test()
 		testAssert(data->aabb_os.bound[1] == Indigo::Vec3f(51,1,2));
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent);
 		testAssert(data->num_materials_referenced == 2);
 		testAssert(data->triangles.size() == 6 * 6 * 2);
 		testAssert(data->aabb_os.bound[0] == Indigo::Vec3f(0,0,0));
@@ -1080,13 +1102,15 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+		js::Vector<bool, 16> mat_transparent;
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1097,14 +1121,15 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 0));
 
+		js::Vector<bool, 16> mat_transparent;
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1115,30 +1140,61 @@ void VoxelMeshBuilding::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+		js::Vector<bool, 16> mat_transparent;
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false, mat_transparent);
 		testAssert(data->num_materials_referenced == 1);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
 
-	// Test two adjacent voxels with different materials.  All faces should be added.
+	// Test two adjacent voxels with different opaque materials.  The faces between the voxels should not be added.
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
 
-		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+		js::Vector<bool, 16> mat_transparent(2, false);
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 		testAssert(data->num_materials_referenced == 2);
-		testAssert(data->triangles.size() == 2 * 6 * 2);
+		testAssert(data->triangles.size() == 2 * 5 * 2); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
 
 		// Test with subsampling
-		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false);
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent);
+		testAssert(data->num_materials_referenced <= 2);
+		testAssert(data->triangles.size() == 6 * 2);
+	}
+
+	// Test two adjacent voxels - one with an opaque mat, one with a transparent mat.  Exactly 1 face between the voxels should be added, with the opaque material (mat 0).
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
+
+		js::Vector<bool, 16> mat_transparent(2, false);
+		mat_transparent[1] = true;
+
+		Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
+
+		testAssert(data->num_materials_referenced == 2);
+		testAssert(data->triangles.size() == 11 * 2); // Each voxel should have 5 faces, plus the face in the middle, * 2 triangles/face.
+
+		size_t num_tris_with_mat_0 = 0;
+		for(size_t i=0; i<data->triangles.size(); ++i)
+			if(data->triangles[i].tri_mat_index == 0)
+				num_tris_with_mat_0++;
+
+		testAssert(num_tris_with_mat_0 == 6 * 2);
+
+		// Test with subsampling
+		data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/4, /*generate_shading_normals=*/false, mat_transparent);
 		testAssert(data->num_materials_referenced <= 2);
 		testAssert(data->triangles.size() == 6 * 2);
 	}
@@ -1163,11 +1219,13 @@ void VoxelMeshBuilding::test()
 				conPrint("AABB: " + group.getAABB().toString());
 				conPrint("AABB volume: " + toString(group.getAABB().volume()));
 
+				js::Vector<bool, 16> mat_transparent;
+
 				for(int i=0; i<1000; ++i)
 				{
 					Timer timer;
 
-					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=1 took " + timer.elapsedString());
 					conPrint("Resulting num tris: " + toString(data->triangles.size()));
@@ -1176,7 +1234,7 @@ void VoxelMeshBuilding::test()
 				{
 					Timer timer;
 
-					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false);
+					Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/2, /*generate_shading_normals=*/false, mat_transparent);
 
 					conPrint("Meshing of " + toString(group.voxels.size()) + " voxels with subsample_factor=2 took " + timer.elapsedString());
 					conPrint("Resulting num tris: " + toString(data->triangles.size()));
@@ -1185,6 +1243,8 @@ void VoxelMeshBuilding::test()
 
 			if(false)
 			{
+				js::Vector<bool, 16> mat_transparent;
+
 				VoxelGroup group;
 				for(int z=0; z<100; z += 2)
 					for(int y=0; y<100; ++y)
@@ -1194,7 +1254,7 @@ void VoxelMeshBuilding::test()
 
 				Timer timer;
 
-				Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false);
+				Reference<Indigo::Mesh> data = makeIndigoMeshForVoxelGroup(group, /*subsample_factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 
 				conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 				conPrint("Resulting num tris: " + toString(data->triangles.size()));

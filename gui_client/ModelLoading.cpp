@@ -453,10 +453,16 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		GLObjectRef ob = gl_engine.allocateObject();
 		ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
+
+		js::Vector<bool, 16> mat_transparent(loaded_object_out.materials.size());
+		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
+			mat_transparent[i] = loaded_object_out.materials[i]->opacity.val < 1.f;
+
+
 		Reference<RayMesh> raymesh;
 		const int subsample_factor = 1;
 		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), subsample_factor, ob->ob_to_world_matrix, task_manager, &vert_buf_allocator, /*do opengl stuff=*/true, 
-			/*need_lightmap_uvs=*/false, raymesh);
+			/*need_lightmap_uvs=*/false, mat_transparent, raymesh);
 
 		ob->materials.resize(loaded_object_out.materials.size());
 		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
@@ -1313,12 +1319,12 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
-	glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, Reference<RayMesh>& raymesh_out)
+	glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, Reference<RayMesh>& raymesh_out)
 {
 	// Timer timer;
 	StandardPrintOutput print_output;
 
-	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, /*generate_shading_normals=*/false);
+	Indigo::MeshRef indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, subsample_factor, /*generate_shading_normals=*/false, mats_transparent);
 	// We will compute geometric normals in the opengl shader, so don't need to compute them here.
 
 	if(need_lightmap_uvs)
@@ -1418,17 +1424,36 @@ void ModelLoading::test()
 	//}
 
 	
-	// Test a single voxel
+	// Test a single voxel, without lightmap UVs
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 
+		js::Vector<bool, 16> mat_transparent;
+
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, raymesh);
+
+		testAssert(data->getNumVerts()    == 8); // Verts can be shared due to no lightmap UVs.
+		testAssert(raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
+		testAssert(data->getNumTris()             == 6 * 2);
+		testAssert(raymesh->getTriangles().size() == 6 * 2);
+	}
+
+	// Test a single voxel, with lightmap UVs
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+
+		js::Vector<bool, 16> mat_transparent;
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
-		testAssert(raymesh->getNumVerts() == 8);
+		testAssert(raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
 		testAssert(data->getNumTris()             == 6 * 2);
 		testAssert(raymesh->getTriangles().size() == 6 * 2);
 	}
@@ -1439,9 +1464,11 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 0));
 
+		js::Vector<bool, 16> mat_transparent;
+
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1455,9 +1482,11 @@ void ModelLoading::test()
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 1, 0), 0));
 
+		js::Vector<bool, 16> mat_transparent;
+
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1466,15 +1495,36 @@ void ModelLoading::test()
 		testAssert(raymesh->getTriangles().size() == 2 * 6);
 	}
 
-	// Test two adjacent voxels (along z axis) with same material.
+
+	// Test two adjacent voxels (along z axis) with same material, without lightmap UVs
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
 
+		js::Vector<bool, 16> mat_transparent;
+
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, raymesh);
+
+		testAssert(data->getNumVerts()    == 8);
+		testAssert(raymesh->getNumVerts() == 8);
+		testAssert(data->getNumTris()             == 6 * 2);
+		testAssert(raymesh->getTriangles().size() == 2 * 6);
+	}
+
+	// Test two adjacent voxels (along z axis) with same material, with lightmap UVs
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 0));
+
+		js::Vector<bool, 16> mat_transparent;
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		testAssert(raymesh->getNumVerts() == 8);
@@ -1482,20 +1532,41 @@ void ModelLoading::test()
 		testAssert(raymesh->getTriangles().size() == 2 * 6);
 	}
 
-	// Test two adjacent voxels with different materials.  All faces should be added.
+
+	// Test two adjacent voxels with different opaque materials, without lightmap UVs.  The faces between the voxels should not be added.
 	{
 		VoxelGroup group;
 		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
 		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
 
+		js::Vector<bool, 16> mat_transparent(2, false);
+
+		Reference<RayMesh> raymesh;
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL,
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, raymesh);
+
+		testEqual(data->getNumVerts(), (size_t)(4 * 3));
+		testAssert(raymesh->getNumVerts() == 4 * 3);
+		testEqual(data->getNumTris(), (size_t)(2 * 5 * 2)); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
+		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+	}
+
+	// Test two adjacent voxels with different opaque materials.  The faces between the voxels should not be added.
+	{
+		VoxelGroup group;
+		group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+		group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
+
+		js::Vector<bool, 16> mat_transparent(2, false);
+
 		Reference<RayMesh> raymesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
 
-		testEqual(data->getNumVerts(), (size_t)(2 * 4 + 8 * 4));
+		testEqual(data->getNumVerts(), (size_t)32); // verts half way along the sides of the cuboid can be shared.
 		testAssert(raymesh->getNumVerts() == 4 * 3);
-		testEqual(data->getNumTris(), (size_t)(2 * 6 * 2));
-		testAssert(raymesh->getTriangles().size() == 2 * 6 * 2);
+		testEqual(data->getNumTris(), (size_t)(2 * 5 * 2)); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
+		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
 	}
 
 	// Performance test
@@ -1513,9 +1584,11 @@ void ModelLoading::test()
 		{
 			Timer timer;
 
+			js::Vector<bool, 16> mat_transparent;
+
 			Reference<RayMesh> raymesh;
 			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-				/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, raymesh);
+				/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
 
 			conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
 			conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
