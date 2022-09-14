@@ -9115,11 +9115,15 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 		const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 
+		js::Vector<bool, 16> mat_transparent(ob->materials.size());
+		for(size_t i=0; i<ob->materials.size(); ++i)
+			mat_transparent[i] = ob->materials[i]->opacity.val < 1.f;
+
 		// Add updated model!
 		Reference<RayMesh> raymesh;
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, 
-			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, raymesh);
+			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, raymesh);
 
 		GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;

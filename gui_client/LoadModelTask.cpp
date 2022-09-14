@@ -57,10 +57,15 @@ void LoadModelTask::run(size_t thread_index)
 				else if(use_model_lod_level == 2)
 					subsample_factor = 4;
 
+				js::Vector<bool, 16> mat_transparent(voxel_ob->materials.size());
+				for(size_t i=0; i<voxel_ob->materials.size(); ++i)
+					mat_transparent[i] = voxel_ob->materials[i]->opacity.val < 1.f;
+
 				// conPrint("Loading vox model for ob with UID " + voxel_ob->uid.toString() + " for LOD level " + toString(use_model_lod_level) + ", using subsample_factor " + toString(subsample_factor) + ", " + toString(voxel_group.voxels.size()) + " voxels");
 
 				const bool need_lightmap_uvs = !voxel_ob->lightmap_url.empty();
-				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, need_lightmap_uvs, raymesh);
+				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
+					need_lightmap_uvs, mat_transparent, raymesh);
 
 				// Temp for testing: Save voxels to disk.
 				//FileUtils::writeEntireFile("d:/files/voxeldata/ob_" + voxel_ob->uid.toString() + "_voxeldata.voxdata", (const char*)voxel_group.voxels.data(), voxel_group.voxels.dataSizeBytes());
