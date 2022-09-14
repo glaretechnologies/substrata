@@ -88,6 +88,8 @@ static Reference<WebDataStoreFile> loadAndMaybeCompressFile(const std::string& p
 
 void WebDataStore::loadAndCompressFiles()
 {
+	conPrint("WebDataStore::loadAndCompressFiles");
+
 	//-------------- Load public files --------------
 	const std::vector<std::string> public_file_filenames = FileUtils::getFilesInDir(this->public_files_dir);
 
@@ -137,4 +139,6 @@ void WebDataStore::loadAndCompressFiles()
 			conPrint("WebDataStore::loadAndCompressFiles: warning: " + e.what());
 		}
 	}
+
+	//conPrint("WebDataStore::loadAndCompressFiles done.");
 }

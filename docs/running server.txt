@@ -15,6 +15,18 @@ Resources (models, textures etc. uploaded by users) are saved in server_state_di
 The server state database file is located at server_state_dir + "/server_state.bin"
 
 
+Server Configuration file
+-------------------------
+If a file is present at server_state_dir + "/substrata_server_config.xml", then it will be parsed.  It should be an XML file like so:
+
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+	<webclient_dir>N:\substrata-web-client-git</webclient_dir>
+</config>
+
+If webclient_dir is present, then it overrides the default value of the webclient files dir specified below.
+
+
 Webserver public files dir
 --------------------------
 This directory holds files used by the website, such as CSS files, images, javascript files (map.js) etc.
