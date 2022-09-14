@@ -609,7 +609,7 @@ void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev
 #endif
 
 
-	conPrint("min_next_nonce: " + toString(eth_info.min_next_nonce));
+	//conPrint("min_next_nonce: " + toString(eth_info.min_next_nonce));
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
 		toString(num_sessions) + " session(s), " + toString(num_auctions) + " auction(s), " + toString(num_screenshots) + " screenshot(s), " + 

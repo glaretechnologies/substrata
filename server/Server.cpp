@@ -26,6 +26,8 @@ Copyright Glare Technologies Limited 2021 -
 #include <Base64.h>
 #include <FileChecksum.h>
 #include <CryptoRNG.h>
+#include <XMLParseUtils.h>
+#include <IndigoXMLDoc.h>
 #include <SHA256.h> //TEMP for testing
 #include <DatabaseTests.h> //TEMP for testing
 #include <ArgumentParser.h>
@@ -333,6 +335,23 @@ static ServerCredentials parseServerCredentials(const std::string& server_state_
 }
 
 
+struct ServerConfig
+{
+	std::string webclient_dir; // empty string = use default.
+};
+
+
+static ServerConfig parseServerConfig(const std::string& config_path)
+{
+	IndigoXMLDoc doc(config_path);
+	pugi::xml_node root_elem = doc.getRootElement();
+
+	ServerConfig config;
+	config.webclient_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
+	return config;
+}
+
+
 int main(int argc, char *argv[])
 {
 	Clock::init();
@@ -414,6 +433,21 @@ int main(int argc, char *argv[])
 		conPrint("server_state_dir: " + server_state_dir);
 		FileUtils::createDirIfDoesNotExist(server_state_dir);
 
+
+		// Parse server config, if present:
+		ServerConfig server_config;
+		{
+			const std::string config_path = server_state_dir + "/substrata_server_config.xml";
+			if(FileUtils::fileExists(config_path))
+			{
+				conPrint("Parsing server config from '" + config_path + "'...");
+				server_config = parseServerConfig(config_path);
+			}
+			else
+				conPrint("server config not found at '" + config_path + "', skipping...");
+		}
+
+		// Parse server credentials
 		try
 		{
 			const ServerCredentials server_credentials = parseServerCredentials(server_state_dir);
@@ -547,29 +581,37 @@ int main(int argc, char *argv[])
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
+		std::string default_webclient_dir;
 #if defined(_WIN32)
 		if(dev_mode)
 		{
 			//web_data_store->public_files_dir = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webserver_public_files";
 			//web_data_store->webclient_dir    = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webclient";
-			web_data_store->public_files_dir			= server_state_dir + "/webserver_public_files";
-			web_data_store->webclient_dir				= server_state_dir + "/webclient";
+			web_data_store->public_files_dir = server_state_dir + "/webserver_public_files";
 		}
 		else
 		{
 			web_data_store->public_files_dir = "N:\\new_cyberspace\\trunk\\webserver_public_files";
-			web_data_store->webclient_dir = "N:\\new_cyberspace\\trunk\\webclient";
 			web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 		}
+		default_webclient_dir = server_state_dir + "/webclient";
+
 #elif defined(OSX)
 		web_data_store->public_files_dir			= server_state_dir + "/webserver_public_files";
-		web_data_store->webclient_dir				= server_state_dir + "/webclient";
+		default_webclient_dir						= server_state_dir + "/webclient";
 #else
 		web_data_store->public_files_dir			= "/var/www/cyberspace/public_html";
-		web_data_store->webclient_dir				= "/var/www/cyberspace/webclient";
+		default_webclient_dir						= "/var/www/cyberspace/webclient";
 		web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
 #endif
+		// Use webclient_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
+		if(!server_config.webclient_dir.empty())
+			web_data_store->webclient_dir			= server_config.webclient_dir;
+		else
+			web_data_store->webclient_dir			= default_webclient_dir;
+
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
+		conPrint("webserver webclient_dir: " + web_data_store->webclient_dir);
 
 		web_data_store->loadAndCompressFiles();
 
