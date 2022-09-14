@@ -28,7 +28,6 @@ public:
 /*=====================================================================
 WebDataStore
 ------------
-Actually just stores a bunch of disk paths currently.
 =====================================================================*/
 class WebDataStore : public ThreadSafeRefCounted
 {

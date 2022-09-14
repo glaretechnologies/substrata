@@ -31,7 +31,7 @@ struct EthAddress
 		if(hex_string.size() != 40) // 20 bytes = 40 hex chars
 			throw glare::Exception("hex_string had invalid number of characters.");
 
-		const std::vector<uint8> v = StringUtils::convertHexToBinary(hex_string);// hex_string.substr(2)); // Remove 0x prefix
+		const std::vector<uint8> v = StringUtils::convertHexToBinary(hex_string);
 		assert(v.size() == 20);
 
 		EthAddress addr;

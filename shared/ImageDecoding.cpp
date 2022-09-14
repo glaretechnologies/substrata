@@ -6,17 +6,17 @@ Copyright Glare Technologies Limited 2022 -
 #include "ImageDecoding.h"
 
 
-#include "../utils/StringUtils.h"
-#include <stdlib.h>//for NULL
-#include <fstream>
-#include "../maths/mathstypes.h"
 #include <graphics/jpegdecoder.h>
 #include <graphics/PNGDecoder.h>
 #include <graphics/TIFFDecoder.h>
 #include <graphics/EXRDecoder.h>
 #include <graphics/GifDecoder.h>
 #include <graphics/KTXDecoder.h>
-#include "../graphics/Map2D.h"
+#include <graphics/Map2D.h>
+#include <utils/StringUtils.h>
+#include <maths/mathstypes.h>
+#include <stdlib.h> // for NULL
+#include <fstream>
 
 
 Reference<Map2D> ImageDecoding::decodeImage(const std::string& indigo_base_dir, const std::string& path) // throws ImFormatExcep on failure
