@@ -68,7 +68,7 @@ void sendCreateObjectMessageToServer(WorldObjectRef& ob, Reference<ClientThread>
 		packet.writeUInt32(Protocol::CreateObject);
 		ob->writeToNetworkStream(packet);
 
-		client_thread->enqueueDataToSend(packet);
+		client_thread->enqueueDataToSend(packet.buf);
 	}
 }
 
@@ -83,7 +83,7 @@ void sendDestroyObjectMessageToServer(WorldObjectRef& ob, Reference<ClientThread
 		packet.writeUInt32(Protocol::DestroyObject);
 		writeToStream(ob->uid, packet);
 
-		client_thread->enqueueDataToSend(packet);
+		client_thread->enqueueDataToSend(packet.buf);
 	}
 }
 
@@ -100,7 +100,7 @@ void sendObjectFullUpdateMessageToServer(WorldObjectRef& ob, Reference<ClientThr
 		packet.writeUInt32(Protocol::ObjectFullUpdate);
 		ob->writeToNetworkStream(packet);
 
-		client_thread->enqueueDataToSend(packet);
+		client_thread->enqueueDataToSend(packet.buf);
 	}
 }
 
@@ -324,29 +324,30 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 		{
 			Lock lock(world_state.mutex);
 
-			for(auto it = world_state.objects.begin(); it != world_state.objects.end(); ++it)
+			for(auto it = world_state.objects.valuesBegin(); it != world_state.objects.valuesEnd(); ++it)
 			{
-				max_existing_uid = myMax(it->second->uid.value(), max_existing_uid);
+				const WorldObjectRef& ob = it.getValue();
+				max_existing_uid = myMax(ob->uid.value(), max_existing_uid);
 
-				if(::hasPrefix(it->second->content, parcel_prefix))
+				if(::hasPrefix(ob->content, parcel_prefix))
 				{
-					Parser parser(it->second->content.data(), it->second->content.size());
+					Parser parser(ob->content.data(), ob->content.size());
 					parser.parseCString(parcel_prefix.c_str());
 					int id;
 					if(!parser.parseInt(id))
 						throw glare::Exception("Parsing parcel UID failed.");
 
-					parcel_obs[id] = it->second;
+					parcel_obs[id] = ob;
 				}
-				else if(::hasPrefix(it->second->content, feature_prefix))
+				else if(::hasPrefix(ob->content, feature_prefix))
 				{
-					Parser parser(it->second->content.data(), it->second->content.size());
+					Parser parser(ob->content.data(), ob->content.size());
 					parser.parseCString(feature_prefix.c_str());
 					string_view uuid;
 					if(!parser.parseNonWSToken(uuid))
 						throw glare::Exception("Parsing feature UID failed.");
 
-					feature_obs[uuid.to_string()] = it->second;
+					feature_obs[uuid.to_string()] = ob;
 				}
 			}
 		}
@@ -358,20 +359,23 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 		if(REMOVE_ALL_CV_OBS)
 		{
 			conPrint("Removing all CV objects...");
-			Lock lock(world_state.mutex);
-			const size_t initial_size = world_state.objects.size();
-			for(auto it = world_state.objects.begin(); it != world_state.objects.end();)
-			{
-				if(::hasPrefix(it->second->content, parcel_prefix) || ::hasPrefix(it->second->content, feature_prefix)) // If a CV object
-				{
-					auto ob_it = it++;
-					WorldObjectRef ob = ob_it->second;
-					//world_state.objects.erase(ob_it);
-					sendDestroyObjectMessageToServer(ob, client_thread);
-				}
-				else
-					++it;
-			}
+			
+			assert(0); // TODO: fix
+		//	Lock lock(world_state.mutex);
+		//	const size_t initial_size = world_state.objects.size();
+		//	for(auto it = world_state.objects.valuesBegin(); it != world_state.objects.valuesEnd();)
+		//	{
+		//		const WorldObjectRef& ob = it.getValue();
+		//		if(::hasPrefix(ob->content, parcel_prefix) || ::hasPrefix(ob->content, feature_prefix)) // If a CV object
+		//		{
+		//			auto ob_it = it++;
+		//			WorldObjectRef ob = ob_it->second;
+		//			//world_state.objects.erase(ob_it);
+		//			sendDestroyObjectMessageToServer(ob, client_thread);
+		//		}
+		//		else
+		//			++it;
+		//	}
 			//if(world_state.objects.size() != initial_size)
 			//	world_state.markAsChanged();
 
@@ -1124,7 +1128,7 @@ void CryptoVoxelsLoader::loadCryptoVoxelsData(WorldState& world_state, Reference
 					conPrint("");*/
 
 					if(transparent)
-						parcel_mats[mat_index]->opacity = 0.2;
+						parcel_mats[mat_index]->opacity.val = 0.2f;
 				}
 
 				VoxelGroup voxel_group;
