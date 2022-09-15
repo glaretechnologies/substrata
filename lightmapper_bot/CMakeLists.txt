@@ -83,6 +83,11 @@ endif()
 #${INDIGO_QT_LIB_DIR}
 #)
 
+checkAndGetEnvVar(INDIGO_TRUNK_DIR INDIGO_TRUNK_DIR_ENV)
+MESSAGE("INDIGO_TRUNK_DIR: ${INDIGO_TRUNK_DIR_ENV}")
+
+include_directories(${INDIGO_TRUNK_DIR_ENV})
+
 
 add_executable(${CURRENT_TARGET}
 ${graphics}
