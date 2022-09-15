@@ -31,6 +31,8 @@ Copyright Glare Technologies Limited 2020 -
 #include <GlareProcess.h>
 #include <FileOutStream.h>
 #include <BufferOutStream.h>
+#include <IndigoXMLDoc.h>
+#include <XMLParseUtils.h>
 #include <networking/URL.h>
 #define USE_INDIGO_SDK 1
 // Indigo SDK headers:
@@ -54,7 +56,6 @@ Copyright Glare Technologies Limited 2020 -
 
 
 static const std::string username = "lightmapperbot";
-static const std::string password = "3NzpaTM37N";
 
 
 static const std::string toStdString(const Indigo::String& s)
@@ -317,8 +318,12 @@ public:
 
 			const VoxelGroup& voxel_group = ob->getDecompressedVoxelGroup();
 
+			js::Vector<bool, 16> mat_transparent(ob->materials.size());
+			for(size_t i=0; i<ob->materials.size(); ++i)
+				mat_transparent[i] = ob->materials[i]->opacity.val < 1.f;
+
 			// Iterate over voxels and get voxel position bounds
-			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, /*subsample factor=*/1, /*generate_shading_normals=*/false);
+			indigo_mesh = VoxelMeshBuilding::makeIndigoMeshForVoxelGroup(voxel_group, /*subsample factor=*/1, /*generate_shading_normals=*/false, mat_transparent);
 			use_shading_normals = false;
 		}
 		else if(ob->object_type == WorldObject::ObjectType_Spotlight)
@@ -1298,6 +1303,7 @@ public:
 
 	std::string server_hostname;
 	int server_port;
+	std::string password;
 
 	glare::TaskManager task_manager;
 
@@ -1323,142 +1329,171 @@ public:
 };
 
 
+struct LightMapperBotConfig
+{
+	std::string lightmapper_bot_password;
+};
+
+
+static LightMapperBotConfig parseLightMapperBotConfig(const std::string& config_path)
+{
+	IndigoXMLDoc doc(config_path);
+	pugi::xml_node root_elem = doc.getRootElement();
+
+	LightMapperBotConfig config;
+	config.lightmapper_bot_password = XMLParseUtils::parseString(root_elem, "lightmapper_bot_password");
+	return config;
+}
+
+
 int main(int argc, char* argv[])
 {
-	Clock::init();
-	Networking::createInstance();
-	PlatformUtils::ignoreUnixSignals();
-	OpenSSL::init();
-	TLSSocket::initTLS();
-
-	ThreadSafeQueue<Reference<ThreadMessage> > msg_queue;
-
-	Reference<WorldState> world_state = new WorldState();
-
-	//const std::string server_hostname = "localhost";
-	const std::string server_hostname = "substrata.info";
-	const int server_port = 7600;
-
-
-	//--------------------- TEMP TEST--------------------------
-	if(false)
+	try
 	{
-		conPrint("Running tests");
-		//auto res = KTXDecoder::decode("D:\\art\\indigo\\new_NVTT_compressed.ktx");
+		Clock::init();
+		Networking::createInstance();
+		PlatformUtils::ignoreUnixSignals();
+		OpenSSL::init();
+		TLSSocket::initTLS();
 
-		try
+
+		const LightMapperBotConfig config = parseLightMapperBotConfig(PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmapper_bot_config.xml");
+
+		ThreadSafeQueue<Reference<ThreadMessage> > msg_queue;
+
+		Reference<WorldState> world_state = new WorldState();
+
+		//const std::string server_hostname = "localhost";
+		const std::string server_hostname = "substrata.info";
+		const int server_port = 7600;
+
+
+		//--------------------- TEMP TEST--------------------------
+		if(false)
 		{
-			const std::string exr_path = "D:\\art\\indigo\\ob_151688_lightmap.exr";
-			Reference<ImageMapFloat> image_map = EXRDecoder::decode(exr_path).downcast<ImageMapFloat>();
-			//204, 200
+			conPrint("Running tests");
+			//auto res = KTXDecoder::decode("D:\\art\\indigo\\new_NVTT_compressed.ktx");
 
-			Reference<ImageMapFloat> single_chunk_image = new ImageMapFloat(4, 4, 3);
-			for(int y=0; y<4; ++y)
-			for(int x=0; x<4; ++x)
-				for(int c=0; c<3; ++c)
+			try
+			{
+				const std::string exr_path = "D:\\art\\indigo\\ob_151688_lightmap.exr";
+				Reference<ImageMapFloat> image_map = EXRDecoder::decode(exr_path).downcast<ImageMapFloat>();
+				//204, 200
+
+				Reference<ImageMapFloat> single_chunk_image = new ImageMapFloat(4, 4, 3);
+				for(int y=0; y<4; ++y)
+					for(int x=0; x<4; ++x)
+						for(int c=0; c<3; ++c)
+						{
+							single_chunk_image->getPixel(x, y)[c] = image_map->getPixel(204 + x, 200 + y)[c];
+						}
+
+				EXRDecoder::saveImageToEXR(*single_chunk_image, "D:\\art\\indigo\\chunk.exr", "", EXRDecoder::SaveOptions());
+				//LightMapperBot::compressWithBC6ToDDS(single_chunk_image, "D:\\art\\indigo\\ob_151688_lightmap_chunk_compressed_2.dds");
+
+				//LightMapperBot::compressWithBC6ToDDS(image_map, "D:\\art\\indigo\\ob_151688_lightmap_compressed_2.dds");
+
+				return 0;
+			}
+			catch(glare::Exception& e)
+			{
+				conPrint("Error: " + e.what());
+				return 1;
+			}
+		}
+
+
+		// Create and init TLS client config
+		struct tls_config* client_tls_config = tls_config_new();
+		if(!client_tls_config)
+			throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
+		tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
+		tls_config_insecure_noverifyname(client_tls_config);
+
+
+		Reference<glare::PoolAllocator> world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
+
+		while(1) // While lightmapper bot should keep running:
+		{
+			// Connect to substrata server
+			try
+			{
+				// Reset msg queue (get rid of any disconnected msgs)
+				msg_queue.clear();
+
+				Reference<ClientThread> client_thread = new ClientThread(
+					&msg_queue,
+					server_hostname,
+					server_port, // port
+					"", // avatar URL
+					"", // world name - default world
+					client_tls_config,
+					world_ob_pool_allocator
+				);
+				client_thread->world_state = world_state;
+
+				ThreadManager client_thread_manager;
+				client_thread_manager.addThread(client_thread);
+
+				const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
+				const std::string resources_dir = appdata_path + "/resources";
+				conPrint("resources_dir: " + resources_dir);
+				Reference<ResourceManager> resource_manager = new ResourceManager(resources_dir);
+
+
+				// Make LogInMessage packet and enqueue to send
 				{
-					single_chunk_image->getPixel(x, y)[c] = image_map->getPixel(204 + x, 200 + y)[c];
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					initPacket(packet, Protocol::LogInMessage);
+					packet.writeStringLengthFirst(username);
+					packet.writeStringLengthFirst(config.lightmapper_bot_password);
+					updatePacketLengthField(packet);
+
+					client_thread->enqueueDataToSend(packet.buf);
 				}
 
-			EXRDecoder::saveImageToEXR(*single_chunk_image, "D:\\art\\indigo\\chunk.exr", "", EXRDecoder::SaveOptions());
-			//LightMapperBot::compressWithBC6ToDDS(single_chunk_image, "D:\\art\\indigo\\ob_151688_lightmap_chunk_compressed_2.dds");
+				// Send GetAllObjects msg
+				{
+					SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+					initPacket(packet, Protocol::GetAllObjects);
+					updatePacketLengthField(packet);
+					client_thread->enqueueDataToSend(packet.buf);
+				}
 
-			//LightMapperBot::compressWithBC6ToDDS(image_map, "D:\\art\\indigo\\ob_151688_lightmap_compressed_2.dds");
+				// Wait until we have received all object data.
+				conPrint("Waiting for initial data to be received");
+				while(!client_thread->all_objects_received)
+				{
+					if(checkForDisconnect(msg_queue))
+						throw glare::Exception("client thread disconnected.");
 
-			return 0;
+					PlatformUtils::Sleep(100);
+					conPrintStr(".");
+				}
+
+				conPrint("Received objects.  world_state->objects.size(): " + toString(world_state->objects.size()));
+
+				conPrint("===================== Running LightMapperBot =====================");
+
+				LightMapperBot bot(server_hostname, server_port, resource_manager, client_tls_config);
+				bot.base_dir_path = PlatformUtils::getResourceDirectoryPath();
+				bot.password = config.lightmapper_bot_password;
+				bot.doLightMapping(*world_state, client_thread, msg_queue);
+
+				conPrint("===================== Done Running LightMapperBot. =====================");
+			}
+			catch(glare::Exception& e)
+			{
+				// Connection failed.
+				conPrint("Error: " + e.what());
+				PlatformUtils::Sleep(5000);
+			}
 		}
-		catch(glare::Exception& e)
-		{
-			conPrint("Error: " + e.what());
-			return 1;
-		}
+		return 0;
 	}
-
-
-	// Create and init TLS client config
-	struct tls_config* client_tls_config = tls_config_new();
-	if(!client_tls_config)
-		throw glare::Exception("Failed to initialise TLS (tls_config_new failed)");
-	tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
-	tls_config_insecure_noverifyname(client_tls_config);
-
-
-	Reference<glare::PoolAllocator> world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
-
-	while(1) // While lightmapper bot should keep running:
+	catch(glare::Exception& e)
 	{
-		// Connect to substrata server
-		try
-		{
-			// Reset msg queue (get rid of any disconnected msgs)
-			msg_queue.clear();
-
-			Reference<ClientThread> client_thread = new ClientThread(
-				&msg_queue,
-				server_hostname,
-				server_port, // port
-				"", // avatar URL
-				"", // world name - default world
-				client_tls_config,
-				world_ob_pool_allocator
-			);
-			client_thread->world_state = world_state;
-
-			ThreadManager client_thread_manager;
-			client_thread_manager.addThread(client_thread);
-
-			const std::string appdata_path = PlatformUtils::getOrCreateAppDataDirectory("Cyberspace");
-			const std::string resources_dir = appdata_path + "/resources";
-			conPrint("resources_dir: " + resources_dir);
-			Reference<ResourceManager> resource_manager = new ResourceManager(resources_dir);
-
-
-			// Make LogInMessage packet and enqueue to send
-			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				initPacket(packet, Protocol::LogInMessage);
-				packet.writeStringLengthFirst(username);
-				packet.writeStringLengthFirst(password);
-				updatePacketLengthField(packet);
-
-				client_thread->enqueueDataToSend(packet.buf);
-			}
-
-			// Send GetAllObjects msg
-			{
-				SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-				initPacket(packet, Protocol::GetAllObjects);
-				updatePacketLengthField(packet);
-				client_thread->enqueueDataToSend(packet.buf);
-			}
-
-			// Wait until we have received all object data.
-			conPrint("Waiting for initial data to be received");
-			while(!client_thread->all_objects_received)
-			{
-				if(checkForDisconnect(msg_queue))
-					throw glare::Exception("client thread disconnected.");
-
-				PlatformUtils::Sleep(100);
-				conPrintStr(".");
-			}
-
-			conPrint("Received objects.  world_state->objects.size(): " + toString(world_state->objects.size()));
-
-			conPrint("===================== Running LightMapperBot =====================");
-
-			LightMapperBot bot(server_hostname, server_port, resource_manager, client_tls_config);
-			bot.base_dir_path = PlatformUtils::getResourceDirectoryPath();
-			bot.doLightMapping(*world_state, client_thread, msg_queue);
-
-			conPrint("===================== Done Running LightMapperBot. =====================");
-		}
-		catch(glare::Exception& e)
-		{
-			// Connection failed.
-			conPrint("Error: " + e.what());
-			PlatformUtils::Sleep(5000);
-		}
+		stdErrPrint("Error: " + e.what());
+		return 1;
 	}
-	return 0;
 }

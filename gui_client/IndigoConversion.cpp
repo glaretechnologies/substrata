@@ -1,7 +1,7 @@
 /*=====================================================================
 IndigoConversion.cpp
 --------------------
-Copyright Glare Technologies Limited 2019 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "IndigoConversion.h"
 
@@ -16,6 +16,10 @@ Copyright Glare Technologies Limited 2019 -
 
 
 #if INDIGO_SUPPORT
+
+
+#include <dll/include/IndigoMaterial.h>
+#include <dll/include/SceneNodeModel.h>
 
 
 inline static Indigo::Vec3d toIndigoVec3d(const Colour3f& c)
