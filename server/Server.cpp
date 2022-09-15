@@ -335,12 +335,6 @@ static ServerCredentials parseServerCredentials(const std::string& server_state_
 }
 
 
-struct ServerConfig
-{
-	std::string webclient_dir; // empty string = use default.
-};
-
-
 static ServerConfig parseServerConfig(const std::string& config_path)
 {
 	IndigoXMLDoc doc(config_path);
@@ -348,6 +342,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 
 	ServerConfig config;
 	config.webclient_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
+	config.allow_light_mapper_bot_full_perms = XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
 	return config;
 }
 
@@ -446,6 +441,8 @@ int main(int argc, char *argv[])
 			else
 				conPrint("server config not found at '" + config_path + "', skipping...");
 		}
+
+		server.config = server_config;
 
 		// Parse server credentials
 		try

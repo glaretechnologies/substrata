@@ -388,7 +388,9 @@ void WorkerThread::handleScreenshotBotConnection()
 {
 	conPrint("handleScreenshotBotConnection()");
 
-	// TODO: authentication
+	const std::string password = socket->readStringLengthFirst(10000);
+	if(password != server->world_state->getCredential("screenshot_bot_password"))
+		throw glare::Exception("screenshot bot password was not correct.");
 
 	try
 	{
@@ -653,13 +655,13 @@ static bool objectIsInParcelForWhichLoggedInUserHasWritePerms(const WorldObject&
 
 
 // NOTE: world state mutex should be locked before calling this method.
-static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state)
+static bool userHasObjectWritePermissions(const WorldObject& ob, const UserID& user_id, const std::string& user_name, const std::string& connected_world_name, ServerWorldState& world_state, bool allow_light_mapper_bot_full_perms)
 {
 	if(user_id.valid())
 	{
 		return (user_id == ob.creator_id) || // If the user created/owns the object
 			isGodUser(user_id) || // or if the user is the god user (id 0)
-			user_name == "lightmapperbot" || // lightmapper bot has full write permissions for now.
+			(allow_light_mapper_bot_full_perms && (user_name == "lightmapperbot")) || // lightmapper bot has full write permissions for now.
 			(!connected_world_name.empty() && (user_name == connected_world_name)) || // or if this is the user's personal world
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob, user_id, world_state); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 	}
@@ -1182,7 +1184,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms))
 											err_msg_to_client = "You must be the owner of this object to change it.";
 										else
 										{
@@ -1240,7 +1242,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state))
+										if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms))
 										{
 											send_must_be_owner_msg = true;
 										}
@@ -1429,7 +1431,7 @@ void WorkerThread::doRun()
 										WorldObject* ob = res->second.getPointer();
 
 										// See if the user has permissions to alter this object:
-										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state);
+										const bool have_delete_perms = userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms);
 										if(!have_delete_perms)
 											send_must_be_owner_msg = true;
 										else
