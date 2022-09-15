@@ -522,8 +522,9 @@ void WorkerThread::handleEthBotConnection()
 	{
 		// Do authentication
 		const std::string password = socket->readStringLengthFirst(10000);
-		if(SHA256::hash(password) != StringUtils::convertHexToBinary("9bd7674cb1e7ec496f88b31264aaa3ff75ce9d60aabc5e6fd0f8e7ba8a27f829")) // See ethBotTests().
-			throw glare::Exception("Invalid password");
+		if(password != server->world_state->getCredential("eth_bot_password"))
+			throw glare::Exception("eth bot password was not correct.");
+
 			
 		while(1)
 		{
