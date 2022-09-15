@@ -31,7 +31,7 @@ struct ScreenshotBotConfig
 };
 
 
-static ScreenshotBotConfig parseScreenshotBotConfigConfig(const std::string& config_path)
+static ScreenshotBotConfig parseScreenshotBotConfig(const std::string& config_path)
 {
 	IndigoXMLDoc doc(config_path);
 	pugi::xml_node root_elem = doc.getRootElement();
@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
 		OpenSSL::init();
 		TLSSocket::initTLS();
 
-		const ScreenshotBotConfig config = parseScreenshotBotConfigConfig(PlatformUtils::getAppDataDirectory("Cyberspace") + "/screenshot_bot_config.xml");
+		const ScreenshotBotConfig config = parseScreenshotBotConfig(PlatformUtils::getAppDataDirectory("Cyberspace") + "/screenshot_bot_config.xml");
 
 		// Create and init TLS client config
 		struct tls_config* client_tls_config = tls_config_new();
