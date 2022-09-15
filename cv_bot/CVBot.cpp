@@ -17,11 +17,31 @@ Copyright Glare Technologies Limited 2019 -
 #include <ConPrint.h>
 #include <OpenSSL.h>
 #include <JSONParser.h>
+#include <PoolAllocator.h>
 #include <Exception.h>
 #include <tls.h>
+#include <IndigoXMLDoc.h>
+#include <XMLParseUtils.h>
 
 
 const int server_port = 7600;
+
+
+struct CVBotConfig
+{
+	std::string cv_bot_password;
+};
+
+
+static CVBotConfig parseCVBotConfig(const std::string& config_path)
+{
+	IndigoXMLDoc doc(config_path);
+	pugi::xml_node root_elem = doc.getRootElement();
+
+	CVBotConfig config;
+	config.cv_bot_password = XMLParseUtils::parseString(root_elem, "cv_bot_password");
+	return config;
+}
 
 
 int main(int argc, char* argv[])
@@ -33,6 +53,8 @@ int main(int argc, char* argv[])
 		PlatformUtils::ignoreUnixSignals();
 		OpenSSL::init();
 		TLSSocket::initTLS();
+
+		const CVBotConfig config = parseCVBotConfig(PlatformUtils::getAppDataDirectory("Cyberspace") + "/cv_bot_config.xml");
 
 		ThreadSafeQueue<Reference<ThreadMessage> > msg_queue;
 
@@ -46,6 +68,7 @@ int main(int argc, char* argv[])
 		tls_config_insecure_noverifycert(client_tls_config); // TODO: Fix this, check cert etc..
 		tls_config_insecure_noverifyname(client_tls_config);
 
+		Reference<glare::PoolAllocator> world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
 
 		Reference<ClientThread> client_thread = new ClientThread(
 			&msg_queue,
@@ -54,7 +77,8 @@ int main(int argc, char* argv[])
 			server_port, // port
 			"sdfsdf", // avatar URL
 			"cryptovoxels", // world name
-			client_tls_config
+			client_tls_config,
+			world_ob_pool_allocator
 		);
 		client_thread->world_state = world_state;
 
@@ -69,19 +93,21 @@ int main(int argc, char* argv[])
 
 		// Make LogInMessage packet and enqueue to send
 		{
+			// TODO: do length prefix stuff
+
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::LogInMessage);
-			packet.writeStringLengthFirst("cryptovoxels");
-			packet.writeStringLengthFirst("MQqpGu9L");
+			packet.writeStringLengthFirst("cryptovoxels"); // Username
+			packet.writeStringLengthFirst(config.cv_bot_password); // Password
 
-			client_thread->enqueueDataToSend(packet);
+			client_thread->enqueueDataToSend(packet.buf);
 		}
 
 		// Send GetAllObjects msg
 		{
 			SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 			packet.writeUInt32(Protocol::GetAllObjects);
-			client_thread->enqueueDataToSend(packet);
+			client_thread->enqueueDataToSend(packet.buf);
 		}
 
 		// Wait until we have received all object data.
