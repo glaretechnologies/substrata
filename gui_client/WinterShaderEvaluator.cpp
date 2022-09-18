@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2017 -
 #include <utils/StringUtils.h>
 #include <utils/Timer.h>
 #include <utils/ConPrint.h>
+#include <maths/Quat.h>
 
 
 static Winter::TypeVRef vec3Type()
@@ -78,6 +79,60 @@ WinterShaderEvaluator::~WinterShaderEvaluator()
 }
 
 
+void WINTER_JIT_CALLING_CONV composeRotations(Vec4f* return_value_ptr, const Vec4f* a_, const Vec4f* b_)
+{
+	const Vec4f a = *a_;
+	const Vec4f b = *b_;
+
+	const float a_len = a.length();
+	Vec4f a_unit_axis;
+	if(a_len > 1.0e-10f)
+		a_unit_axis = a / a_len;
+	else
+		a_unit_axis = Vec4f(1, 0, 0, 0);
+
+	const float b_len = b.length();
+	Vec4f b_unit_axis;
+	if(b_len > 1.0e-10f)
+		b_unit_axis = b / b_len;
+	else
+		b_unit_axis = Vec4f(1, 0, 0, 0);
+
+	const Quatf combined_rot = Quatf::fromAxisAndAngle(a_unit_axis, a_len) * Quatf::fromAxisAndAngle(b_unit_axis, b_len);
+
+	Vec4f unit_axis;
+	float angle;
+	combined_rot.toAxisAndAngle(unit_axis, angle);
+
+	*return_value_ptr = unit_axis * angle;
+}
+
+
+static Vec4f getVec3Arg(const std::vector<Winter::ValueRef>& arg_values, int arg_i)
+{
+	const Winter::StructureValue* struct_val =  Winter::checkedCast<const Winter::StructureValue>(arg_values[arg_i]);
+	const Winter::VectorValue* vector_val = Winter::checkedCast<const Winter::VectorValue>(struct_val->fields[0]);
+	Vec4f v;
+	for(int i=0; i<4; ++i)
+		v[i] = Winter::checkedCast<const Winter::FloatValue>(vector_val->e[i])->value;
+	return v;
+}
+
+
+static Winter::ValueRef composeRotationsInterpreted(const std::vector<Winter::ValueRef>& args)
+{
+	const Vec4f a = getVec3Arg(args, 0);
+	const Vec4f b = getVec3Arg(args, 1);
+	Vec4f res;
+	composeRotations(&res, &a, &b);
+	std::vector<Winter::ValueRef> vector_elems(4);
+	for(int i=0; i<4; ++i)
+		vector_elems[i] = new Winter::FloatValue(res[i]);
+
+	return new Winter::StructureValue(std::vector<Winter::ValueRef>(1, new Winter::VectorValue(vector_elems)));
+}
+
+
 void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const std::string& shader,
 	Winter::VirtualMachineRef& vm_out,
 	EVAL_ROTATION_TYPE& jitted_evalRotation_out,
@@ -92,6 +147,19 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 		vm_args.try_coerce_int_to_double_first = false;
 		vm_args.real_is_double = false;
 		Winter::MathsFuncs::appendExternalMathsFuncs(vm_args.external_functions);
+
+
+		Winter::TypeVRef vec3_type = vec3Type();
+
+		vm_args.external_functions.push_back(new Winter::ExternalFunction(
+			(void*)composeRotations,
+			composeRotationsInterpreted,
+			Winter::FunctionSignature("composeRotations", std::vector<Winter::TypeVRef>(2, vec3_type)),
+			vec3_type, // return_type
+			128, // time_bound
+			1024, // stack size bound
+			0 // heap size bound
+		));
 
 		vm_args.source_buffers.push_back(::Winter::SourceBuffer::loadFromDisk(base_cyberspace_path + "/resources/winter_stdlib.txt"));
 		vm_args.source_buffers.push_back(new Winter::SourceBuffer("buffer", shader));
@@ -124,7 +192,7 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 
 			if(func.nonNull())
 			{
-				if(*func->returnType() != *vec3Type())
+				if(*func->returnType() != *vec3_type)
 					throw glare::Exception(func->sig.toString() + "  must return vec3.");
 
 				jitted_evalRotation_out = (EVAL_ROTATION_TYPE)vm_out->getJittedFunction(evalRotation_sig);
@@ -138,7 +206,7 @@ void WinterShaderEvaluator::build(const std::string& base_cyberspace_path, const
 
 			if(func.nonNull())
 			{
-				if(*func->returnType() != *vec3Type())
+				if(*func->returnType() != *vec3_type)
 					throw glare::Exception(func->sig.toString() + "  must return vec3.");
 
 				jitted_evalTranslation_out = (EVAL_ROTATION_TYPE)vm_out->getJittedFunction(evalTranslation_sig);
