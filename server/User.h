@@ -55,6 +55,8 @@ public:
 	bool isResetTokenHashValidForUser(const std::array<uint8, 32>& reset_token_hash) const;
 	bool resetPasswordWithTokenHash(const std::array<uint8, 32>& reset_token_hash, const std::string& new_password);
 
+	void setNewPasswordAndSalt(const std::string& new_password);
+
 	UserID id;
 
 	TimeStamp created_time;

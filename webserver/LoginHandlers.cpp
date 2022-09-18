@@ -74,6 +74,7 @@ bool loggedInUserHasAdminPrivs(ServerAllWorldsState& world_state, const web::Req
 }
 
 
+// Returns NULL if not logged in as a valid user.
 // ServerAllWorldsState should be locked
 User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info)
 {
@@ -107,6 +108,17 @@ User* getLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo&
 	}
 
 	return NULL;
+}
+
+
+void setUserWebMessageForLoggedInUser(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, const std::string& message)
+{
+	Lock lock(world_state.mutex);
+	User* user = getLoggedInUser(world_state, request_info);
+	if(user)
+	{
+		world_state.setUserWebMessage(user->id, message);
+	}
 }
 
 
@@ -604,6 +616,103 @@ void handleSetNewPasswordPost(ServerAllWorldsState& world_state, const web::Requ
 		{
 			conPrint("handleSetNewPasswordPost(): User failed to reset password.");
 			web::ResponseUtils::writeRedirectTo(reply_info, "/login?msg=" + web::Escaping::URLEscape("Failed to set new password"));
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		conPrint("handleSignUpPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void renderChangePasswordPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		std::string page_out = WebServerResponseUtils::standardHTMLHeader(request_info, "Change Password");
+
+		page_out += "<body>";
+		page_out += "</head><h1>Change Password</h1><body>";
+
+		// Display any messages for the user
+		{ // lock scope
+			Lock lock(world_state.mutex);
+
+			const User* logged_in_user = LoginHandlers::getLoggedInUser(world_state, request_info);
+			if(logged_in_user)
+			{
+				const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+				if(!msg.empty())
+					page_out += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+			}
+			else
+				throw glare::Exception("Must be logged in to change password");
+		}
+
+		page_out += "<form action=\"change_password_post\" method=\"post\">";
+		page_out += "Enter current password: <input type=\"password\" name=\"current_password\"><br>";
+		page_out += "Enter a new password: <input type=\"password\" name=\"new_password\"><br>";
+		page_out += "<input type=\"submit\" value=\"Set new password\">";
+		page_out += "</form>";
+
+		page_out += "<br/><br/><br/>";
+
+		page_out += WebServerResponseUtils::standardFooter(request_info, true);
+
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+	}
+	catch(glare::Exception& e)
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleChangePasswordPost(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+{
+	try
+	{
+		if(world_state.isInReadOnlyMode())
+			throw glare::Exception("Server is in read-only mode, password changing disabled currently.");
+
+		const std::string current_password = request_info.getPostField("current_password").str();
+		const std::string new_password = request_info.getPostField("new_password").str();
+
+		if(new_password.size() < 6)
+		{
+			setUserWebMessageForLoggedInUser(world_state, request_info, "Password is too short, must have at least 6 characters.");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/change_password");
+			return;
+		}
+
+		bool password_changed = false;
+		{
+			Lock lock(world_state.mutex);
+
+			User* user = getLoggedInUser(world_state, request_info);
+			if(!user)
+				throw glare::Exception("Must be logged in");
+
+			if(user->isPasswordValid(current_password))
+			{
+				user->setNewPasswordAndSalt(new_password);
+				world_state.addUserAsDBDirty(user);
+				password_changed = true;
+			}
+		}
+
+		if(password_changed)
+		{
+			conPrint("handleSetNewPasswordPost(): User succesfully changed password.");
+			setUserWebMessageForLoggedInUser(world_state, request_info, "New password set.");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/account");
+		}
+		else
+		{
+			conPrint("handleSetNewPasswordPost(): User failed to changed password.");
+			setUserWebMessageForLoggedInUser(world_state, request_info, "Failed to set new password.  Please check you entered current password correctly.");
+			web::ResponseUtils::writeRedirectTo(reply_info, "/change_password");
 		}
 	}
 	catch(glare::Exception& e)
