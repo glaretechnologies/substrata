@@ -139,12 +139,12 @@ void renderLoginPage(const web::RequestInfo& request_info, web::ReplyInfo& reply
 
 	page_out += "<div class=\"form-field\">";
 	page_out += "<label for=\"username\">username</label><br/>";
-	page_out += "<input id=\"username\"			autocomplete=\"username\"			type=\"text\"		name=\"username\">";
+	page_out += "<input id=\"username\"			autocomplete=\"username\"			required=\"required\"	type=\"text\"		name=\"username\">";
 	page_out += "</div>";
 
 	page_out += "<div class=\"form-field\">";
 	page_out += "<label for=\"current-password\">password</label><br/>";
-	page_out += "<input id=\"current-password\"	autocomplete=\"current-password\"	type=\"password\"	name=\"password\">"; // See https://web.dev/sign-in-form-best-practices/#current-password
+	page_out += "<input id=\"current-password\"	autocomplete=\"current-password\"	required=\"required\"	type=\"password\"	name=\"password\">"; // See https://web.dev/sign-in-form-best-practices/#current-password
 	page_out += "</div>";
 
 	page_out += "<input type=\"submit\" value=\"Log in\">";
@@ -283,17 +283,17 @@ void renderSignUpPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 		page_out += "<div class=\"form-field\">";
 		page_out += "<label for=\"username\">username</label><br/>";
-		page_out += "<input id=\"username\"		autocomplete=\"username\"		type=\"text\"		name=\"username\">";
+		page_out += "<input id=\"username\"		autocomplete=\"username\"		required=\"required\"	type=\"text\"		name=\"username\">";
 		page_out += "</div>";
 
 		page_out += "<div class=\"form-field\">";
 		page_out += "<label for=\"email\">email<label><br/>";
-		page_out += "<input id=\"email\"			autocomplete=\"email\"			type=\"email\"		name=\"email\">";
+		page_out += "<input id=\"email\"			autocomplete=\"email\"		required=\"required\"	type=\"email\"		name=\"email\">";
 		page_out += "</div>";
 
 		page_out += "<div class=\"form-field\">";
 		page_out += "<label for=\"new-password\">password</label><br/>";
-		page_out += "<input id=\"new-password\"	autocomplete=\"new-password\"	type=\"password\"	name=\"password\">"; // See https://web.dev/sign-in-form-best-practices/#new-password
+		page_out += "<input id=\"new-password\"	autocomplete=\"new-password\"	required=\"required\"	type=\"password\"	name=\"password\">"; // See https://web.dev/sign-in-form-best-practices/#new-password
 		page_out += "</div>";
 
 		page_out += "<input type=\"submit\" value=\"Sign Up\">";
@@ -419,7 +419,7 @@ void renderResetPasswordPage(const web::RequestInfo& request_info, web::ReplyInf
 
 	page_out += "<div class=\"form-field\">";
 	page_out += "<label for=\"username\">Enter your email or username</label><br/>";
-	page_out += "<input id=\"username\" autocomplete=\"username\" type=\"text\" name=\"username\">";
+	page_out += "<input id=\"username\" autocomplete=\"username\" required=\"required\"	type=\"text\" name=\"username\">";
 	page_out += "</div>";
 
 	page_out += "<input type=\"submit\" value=\"Reset password\">";
@@ -681,12 +681,12 @@ void renderChangePasswordPage(ServerAllWorldsState& world_state, const web::Requ
 
 		page_out += "<div class=\"form-field\">";
 		page_out += "<label for=\"current-password\">Enter current password:</label><br/>";
-		page_out += "<input id=\"current-password\" type=\"password\" autocomplete=\"current-password\" name=\"current_password\">";
+		page_out += "<input id=\"current-password\"	required=\"required\"	type=\"password\"	autocomplete=\"current-password\"	name=\"current_password\">";
 		page_out += "</div>";
 
 		page_out += "<div class=\"form-field\">";
 		page_out += "<label for=\"new-password\">Enter a new password:</label><br/>";
-		page_out += "<input id=\"new-password\" type=\"password\" autocomplete=\"new-password\" name=\"new_password\">";
+		page_out += "<input id=\"new-password\"		required=\"required\"	type=\"password\"	autocomplete=\"new-password\"		name=\"new_password\">";
 		page_out += "</div>";
 
 		page_out += "<input type=\"submit\" value=\"Set new password\">";
