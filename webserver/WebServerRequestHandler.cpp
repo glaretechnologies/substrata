@@ -488,10 +488,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			ResourceHandlers::handleResourceRequest(*this->world_state, request, reply_info);
 		}
-		else if(request.path ==  "/list_resources")
+		/*else if(request.path ==  "/list_resources") // Disabled for now, rsync resources to back up instead.
 		{
 			ResourceHandlers::listResources(*this->world_state, request, reply_info);
-		}
+		}*/
 		else if(request.path == "/webclient")
 		{
 			try
