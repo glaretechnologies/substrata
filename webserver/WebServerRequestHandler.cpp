@@ -104,6 +104,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			LoginHandlers::handleResetPasswordPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/change_password_post")
+		{
+			LoginHandlers::handleChangePasswordPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/set_new_password_post")
 		{
 			LoginHandlers::handleSetNewPasswordPost(*this->world_state, request, reply_info);
@@ -384,6 +388,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/reset_password_email")
 		{
 			LoginHandlers::renderResetPasswordFromEmailPage(*this->world_state, request, reply_info);
+		}
+		else if(request.path == "/change_password")
+		{
+			LoginHandlers::renderChangePasswordPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/account")
 		{

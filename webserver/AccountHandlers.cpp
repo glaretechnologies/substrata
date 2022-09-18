@@ -60,6 +60,17 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		page += WebServerResponseUtils::standardHeader(world_state, request, /*page title=*/logged_in_user->name);
 		page += "<div class=\"main\">   \n";
 
+
+		// Display any messages for the user
+		if(logged_in_user)
+		{
+			const std::string msg = world_state.getAndRemoveUserWebMessage(logged_in_user->id);
+			if(!msg.empty())
+				page += "<div class=\"msg\" style=\"background-color: yellow\">" + web::Escaping::HTMLEscape(msg) + "</div>  \n";
+		}
+
+
+
 		//-------------------------------- List parcels owned by user --------------------------------
 
 		page += "<h2>Parcels</h2>\n";
@@ -105,6 +116,10 @@ void renderUserAccountPage(ServerAllWorldsState& world_state, const web::Request
 		page += "<br/>";
 		page += "<br/>";
 		page += "<a href=\"/prove_parcel_owner_by_nft\">Claim ownership of a parcel on substrata.info based on NFT ownership</a>";
+
+
+		page += "<h2>Account</h2>\n";
+		page += "<a href=\"/change_password\">Change password</a>";
 	}
 
 	page += WebServerResponseUtils::standardFooter(request, /*include_email_link=*/true);

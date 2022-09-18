@@ -1839,15 +1839,7 @@ void WorkerThread::doRun()
 												new_user->name = username;
 												new_user->email_address = email;
 
-												// We need a random salt for the user.
-												uint8 random_bytes[32];
-												CryptoRNG::getRandomBytes(random_bytes, 32); // throws glare::Exception
-
-												std::string user_salt;
-												Base64::encode(random_bytes, 32, user_salt); // Convert random bytes to base-64.
-
-												new_user->password_hash_salt = user_salt;
-												new_user->hashed_password = User::computePasswordHash(password, user_salt);
+												new_user->setNewPasswordAndSalt(password);
 
 												world_state->addUserAsDBDirty(new_user);
 
