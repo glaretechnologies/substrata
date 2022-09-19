@@ -304,12 +304,7 @@ static void enqueueMessageToBroadcast(SocketBufferOutStream& packet_buffer, std:
 // Throws glare::Exception on failure.
 static ServerCredentials parseServerCredentials(const std::string& server_state_dir)
 {
-#if defined(_WIN32) || defined(OSX)
 	const std::string path = server_state_dir + "/substrata_server_credentials.txt";
-#else
-	const std::string username = PlatformUtils::getLoggedInUserName();
-	const std::string path = "/home/" + username + "/substrata_server_credentials.txt";
-#endif
 
 	const std::string contents = FileUtils::readEntireFileTextMode(path);
 
