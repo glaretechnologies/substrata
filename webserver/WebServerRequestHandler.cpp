@@ -16,11 +16,13 @@ Copyright Glare Technologies Limited 2021 -
 #include "ResponseUtils.h"
 #include "RequestHandler.h"
 #include "ResourceHandlers.h"
+#if USE_GLARE_PARCEL_AUCTION_CODE
 #include "PayPalHandlers.h"
 #include "CoinbaseHandlers.h"
 #include "AuctionHandlers.h"
-#include "ScreenshotHandlers.h"
 #include "OrderHandlers.h"
+#endif
+#include "ScreenshotHandlers.h"
 #include "ParcelHandlers.h"
 #include "../server/WorkerThread.h"
 #include "../server/Server.h"
@@ -112,6 +114,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			LoginHandlers::handleSetNewPasswordPost(*this->world_state, request, reply_info);
 		}
+#if USE_GLARE_PARCEL_AUCTION_CODE
 		else if(request.path == "/ipn_listener")
 		{
 			PayPalHandlers::handleIPNPost(*this->world_state, request, reply_info);
@@ -136,6 +139,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AuctionHandlers::handleBuyParcelWithCoinbasePost(*this->world_state, request, reply_info);
 		}
+#endif
 		else if(request.path == "/admin_create_parcel_auction_post")
 		{
 			AdminHandlers::createParcelAuctionPost(*this->world_state, request, reply_info);
@@ -281,6 +285,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			MainPageHandlers::renderMapPage(*this->world_state, request, reply_info);
 		}
+#if USE_GLARE_PARCEL_AUCTION_CODE
 		else if(request.path == "/pdt_landing")
 		{
 			PayPalHandlers::handlePayPalPDTOrderLanding(*this->world_state, request, reply_info);
@@ -309,6 +314,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			OrderHandlers::renderOrderPage(*this->world_state, request, reply_info);
 		}
+#endif
 		else if(::hasPrefix(request.path, "/parcel/")) // Parcel ID follows in URL
 		{
 			ParcelHandlers::renderParcelPage(*this->world_state, request, reply_info);

@@ -49,8 +49,10 @@ Copyright Glare Technologies Limited 2021 -
 #include "../ethereum/Infura.h"
 #include <WorkerThreadTests.h>//TEMP for testing
 #include <WebListenerThread.h>
+#if USE_GLARE_PARCEL_AUCTION_CODE
 #include "../webserver/CoinbasePollerThread.h"
 #include "../webserver/OpenSeaPollerThread.h"
+#endif
 #include "../ethereum/RLP.h"//TEMP for testing
 #include "../ethereum/Signing.h"//TEMP for testing
 //#include <graphics/FormatDecoderGLTF.h>//TEMP for testing
@@ -624,11 +626,13 @@ int main(int argc, char *argv[])
 
 
 		// While Coinbase webhooks are not working, add a Coinbase polling thread.
+#if USE_GLARE_PARCEL_AUCTION_CODE
 		if(!dev_mode)
 			web_thread_manager.addThread(new CoinbasePollerThread(server.world_state.ptr()));
 
 		if(!dev_mode)
 			web_thread_manager.addThread(new OpenSeaPollerThread(server.world_state.ptr()));
+#endif
 
 
 		//----------------------------------------------- Launch Substrata protocol server -----------------------------------------------
