@@ -9,10 +9,14 @@ require './dist_utils.rb'
 
 def copy_files(vs_version)
 
+	substrata_repos_dir = ".."
+	glare_core_rev_path = "trunk"
+	glare_core_repos_dir = getAndCheckEnvVar('GLARE_CORE_TRUNK_DIR') + "/../" + glare_core_rev_path
+
 	begin
 		output_dir = getCmakeBuildDir(vs_version, "Debug")
 
-		copyCyberspaceResources(output_dir)
+		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir)
 		copyBugSplatRedist(output_dir)
 	end
@@ -20,7 +24,15 @@ def copy_files(vs_version)
 	begin
 		output_dir = getCmakeBuildDir(vs_version, "RelWithDebInfo")
 
-		copyCyberspaceResources(output_dir)
+		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
+		copyCEFRedistWindows(output_dir)
+		copyBugSplatRedist(output_dir)
+	end
+
+	begin
+		output_dir = getCmakeBuildDir(vs_version, "Release")
+
+		copyCyberspaceResources(substrata_repos_dir, glare_core_repos_dir, output_dir)
 		copyCEFRedistWindows(output_dir)
 		copyBugSplatRedist(output_dir)
 	end
