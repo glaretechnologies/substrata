@@ -218,9 +218,6 @@ SET(audio
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver)
 
 SET(doc_files
-../docs/notes.txt
-../docs/todo.txt
-../docs/deploying.txt
 )
 
 
