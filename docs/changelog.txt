@@ -1,3 +1,11 @@
+0.96
+====
+Improved voxel meshing: only create a face between voxels with different materials, when one is transparent.
+Fixed Substrata not closing immediately when a long download is in progress.
+Faster client startups due to not scanning for resource presence.
+Fixed some videos not looping.
+Allowing loading of models in AddObjectDialog and AvatarSettingsDialog, even if some textures are missing or invalid.
+
 0.95
 ====
 Added hologram check box in material editor.
