@@ -1,2 +1,6 @@
 Downloaded from github 23/06/2021.
 https://github.com/bitcoin-core/secp256k1
+
+Modified secp256k1_ecdsa_sign to return the recovery id.
+in  secp256k1-master/include/secp256k1.h
+and secp256k1-master/src/secp256k1.c
