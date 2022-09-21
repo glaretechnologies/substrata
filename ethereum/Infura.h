@@ -51,7 +51,7 @@ public:
 	static EthAddress getContractOwner(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address);
 
 
-	static UInt256 transferContractOwnership(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address, const EthAddress& new_owner, int nonce);
+	static UInt256 transferContractOwnership(const InfuraCredentials& credentials, const std::string& network, const EthAddress& contract_address, const EthAddress& new_owner, int nonce, const std::vector<uint8>& priv_key);
 
 	// Execute an ethereum function call on the given smart contract.
 	// The function must take zero or more uint256 args, and should return an eth address.
@@ -64,7 +64,7 @@ public:
 	static UInt256 sendRawTransaction(const InfuraCredentials& credentials, const std::string& network, const std::vector<uint8>& pre_signed_transaction);
 
 	// Returns transaction hash
-	static UInt256 deployContract(const InfuraCredentials& credentials, const std::string& network, const std::vector<uint8>& compiled_contract);
+	static UInt256 deployContract(const InfuraCredentials& credentials, const std::string& network, const std::vector<uint8>& compiled_contract, const std::vector<uint8>& priv_key);
 
 	struct TransactionReceipt
 	{
