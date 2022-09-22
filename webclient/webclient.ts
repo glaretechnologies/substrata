@@ -12,6 +12,8 @@ import * as bufferin from './bufferin.js';
 import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
+import BVH from './physics/bvh.js';
+
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
 
@@ -589,7 +591,8 @@ class WorldObject {
 
     compressed_voxels: Array<number>;
 
-
+    bvh: BVH
+    bvh_mesh?: THREE.LineMesh
 
     mesh_state: number;
     mesh: THREE.Mesh;
@@ -1454,7 +1457,11 @@ function startDownloadingResource(download_queue_item) {
 
                     //console.log("Downloaded the file: '" + model_url + "'!");
                     try {
-                        let geometry = loadBatchedMesh(array_buffer);
+                        let [geometry, triangles] = loadBatchedMesh(array_buffer);
+
+                        if(triangles) {
+
+                        }
 
                         //console.log("Inserting " + model_url + " into url_to_geom_map");
                         url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
@@ -1480,6 +1487,21 @@ function startDownloadingResource(download_queue_item) {
 
                                     let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
+                                    // For now, build the BVH in the main thread while testing performance
+                                    if(triangles != null) {
+                                        const start_time = performance.now() * .001;
+                                        world_ob_or_avatar.bvh = new BVH(triangles);
+                                        const build_time = performance.now() * .001;
+                                        console.log('Construction Time:', world_ob_or_avatar.model_url, build_time - start_time);
+                                        world_ob_or_avatar.bvh_mesh = world_ob_or_avatar.bvh.getBVHMesh();
+                                        world_ob_or_avatar.bvh_mesh.position.copy(mesh.position)
+                                        world_ob_or_avatar.bvh_mesh.rotation.copy(mesh.rotation)
+                                        world_ob_or_avatar.bvh_mesh.scale.copy(mesh.scale)
+
+                                        const mesh_build_time = performance.now() * .001;
+                                        console.log('BVH Mesh Build', mesh_build_time - build_time);
+                                        scene.add(world_ob_or_avatar.bvh_mesh)
+                                    }
                                     world_ob_or_avatar.mesh = mesh;
                                     world_ob_or_avatar.mesh_state = MESH_LOADED;
                                 }
