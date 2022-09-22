@@ -149,9 +149,29 @@ set(webclient_files
 
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver/)
 
+include_directories(../webserver/)
+
+
+
+if(ENABLE_GLARE_PARCEL_AUCTION_CODE)
+	#MESSAGE("Server: enabling USE_GLARE_PARCEL_AUCTION_CODE")
+	#MESSAGE("SUBSTRATA_PRIVATE_REPO_PATH: ${SUBSTRATA_PRIVATE_REPO_PATH}")
+	
+	add_definitions(-DUSE_GLARE_PARCEL_AUCTION_CODE=1)
+	
+	FILE(GLOB substrata_private_webserver 
+	"${SUBSTRATA_PRIVATE_REPO_PATH}/webserver/*.cpp" 
+	"${SUBSTRATA_PRIVATE_REPO_PATH}/webserver/*.h"
+	)
+	
+	include_directories(${SUBSTRATA_PRIVATE_REPO_PATH}/webserver)
+endif()
+
+
 
 SOURCE_GROUP(server FILES ${server})
 SOURCE_GROUP(webserver FILES ${webserver})
+SOURCE_GROUP(substrata_private_webserver FILES ${substrata_private_webserver})
 SOURCE_GROUP(webserver_core_files FILES ${webserver_core_files})
 SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
@@ -205,6 +225,7 @@ ${secp256k1_files}
 ${ethereum_files}
 ${meshoptimizer}
 ${webclient_files}
+${substrata_private_webserver}
 )
 
 
