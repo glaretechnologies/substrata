@@ -43,7 +43,7 @@ void AudioSource::startMuting(double cur_time, double transition_period)
 		mute_vol_fac_start = mute_volume_factor;
 		mute_vol_fac_end = 0;
 
-		// conPrint("Started muting");
+		// conPrint("Started muting, current mute_volume_factor: " + toString(mute_volume_factor));
 	}
 }
 
@@ -76,6 +76,13 @@ void AudioSource::updateCurrentMuteVolumeFactor(double cur_time)
 	{
 		mute_volume_factor = mute_vol_fac_end;
 	}
+}
+
+
+void AudioSource::setMuteVolumeFactorImmediately(float factor)
+{ 
+	mute_change_end_time = -1;
+	mute_volume_factor = factor;
 }
 
 
