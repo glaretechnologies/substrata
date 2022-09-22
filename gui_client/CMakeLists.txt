@@ -577,9 +577,13 @@ if(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
 	
-	add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
-	
-	add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
+	if(BUGSPLAT_SUPPORT)
+		add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
+	endif()
+		
+	if(CEF_SUPPORT)
+		add_definitions(-DCEF_SUPPORT=1) # Enable Chromium Embedded Framework (CEF) support (Used for WebView).
+	endif()
 
 	target_link_libraries(${CURRENT_TARGET}
 		OpenGL32
@@ -633,17 +637,24 @@ if(WIN32)
 		ole32
 		winmm 
 		dsound
-		
-		# Chromium embedded framework
-		debug 		${cef_binary_dist_dir}/Debug/libcef.lib
-		optimized 	${cef_binary_dist_dir}/Release/libcef.lib
-		
-		debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Debug/libcef_dll_wrapper.lib
-		optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib
-		
-		# BugSplat
-		${INDIGO_LIBS_ENV}/BugSplat/lib64/BugSplat64.lib
 	)
+	
+	# Chromium embedded framework
+	if(CEF_SUPPORT)
+		target_link_libraries(${CURRENT_TARGET}
+			debug 		${cef_binary_dist_dir}/Debug/libcef.lib
+			optimized 	${cef_binary_dist_dir}/Release/libcef.lib
+			
+			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Debug/libcef_dll_wrapper.lib
+			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/Release/libcef_dll_wrapper.lib
+		)
+	endif()
+	
+	if(BUGSPLAT_SUPPORT)
+		target_link_libraries(${CURRENT_TARGET}
+			${INDIGO_LIBS_ENV}/BugSplat/lib64/BugSplat64.lib
+		)
+	endif()
 
 	# Superluminal profiler:
 	if(PERFORMANCEAPI_ENABLED)
@@ -665,14 +676,16 @@ elseif(APPLE)
 	
 	set_target_properties(${CURRENT_TARGET} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/osx/CyberspaceInfo.plist.in")
 
-	target_link_libraries(${CURRENT_TARGET}
-		# Chromium embedded framework
-		#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
-		#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
-		
-        debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-        optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-		)
+	if(CEF_SUPPORT)
+		target_link_libraries(${CURRENT_TARGET}
+			# Chromium embedded framework
+			#debug 		${cef_binary_dist_dir}/Debug/libcef.lib
+			#optimized 	${cef_binary_dist_dir}/Release/libcef.lib
+			
+			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+			)
+	endif()
 
 	get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
  
@@ -703,14 +716,16 @@ else() # linux
 		#asound # ALSA lib required by RTAudio
 		pulse # PulseAudio lib required by RTAudio
 		pulse-simple # PulseAudio lib required by RTAudio
-		
-		${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
-
-		debug		${cef_binary_dist_dir}/Debug/libcef.so
-		optimized	${cef_binary_dist_dir}/Release/libcef.so
-		
-		
 	)
+	
+	if(CEF_SUPPORT)
+		target_link_libraries(${CURRENT_TARGET}
+			${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+
+			debug		${cef_binary_dist_dir}/Debug/libcef.so
+			optimized	${cef_binary_dist_dir}/Release/libcef.so
+		)
+	endif()	
 
 	#get_target_property(OLD_TARGET_PROPERTIES ${CURRENT_TARGET} LINK_FLAGS)
 	#set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "${OLD_TARGET_PROPERTIES} -Xlinker -rpath='$ORIGIN/lib'")
