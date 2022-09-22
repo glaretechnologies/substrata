@@ -2034,14 +2034,35 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 
 						ob->audio_source = source;
 						ob->audio_state = WorldObject::AudioState_Loaded;
+
+						//---------------- Mute audio sources outside the parcel we are in, if required ----------------
+						// Find out which parcel we are in, if any.
+						ParcelID in_parcel_id = ParcelID::invalidParcelID(); // Which parcel camera is in
+						bool mute_outside_audio = false; // Does the parcel the camera is in have 'mute outside audio' set?
+						const Parcel* cam_parcel = world_state->getParcelPointIsIn(this->cam_controller.getFirstPersonPosition());
+						if(cam_parcel)
+						{
+							in_parcel_id = cam_parcel->id;
+							if(BitUtils::isBitSet(cam_parcel->flags, Parcel::MUTE_OUTSIDE_AUDIO_FLAG))
+								mute_outside_audio = true;
+						}
+
+						if((source->type != glare::AudioSource::SourceType_OneShot) && // Only mute looping/streaming sounds: (We won't be muting footsteps etc.)
+							mute_outside_audio && // If we are in a parcel, which has the mute-outside-audio option enabled:
+							(source->userdata_1 != in_parcel_id.value())) // And the source is in another parcel (or not in any parcel):
+						{
+							source->setMuteVolumeFactorImmediately(0.f); // Mute it (set mute volume factor)
+							audio_engine.sourceVolumeUpdated(*source); // Tell audio engine to mute it.
+						}
+						//----------------------------------------------------------------------------------------------
 					}
-					else
+					else // else loading a non-streaming source, such as a WAV file.
 					{
 						const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 						if(just_inserted)
 						{
 							// conPrint("Launching LoadAudioTask");
-							// Do the model loading in a different thread
+							// Do the audio file loading in a different thread
 							Reference<LoadAudioTask> load_audio_task = new LoadAudioTask();
 
 							load_audio_task->audio_source_url = ob->audio_source_url;
@@ -4829,7 +4850,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			if(dist2 < Maths::square(MAX_AUDIO_DIST)) // Only do tracing for nearby objects
 			{
 				const float dist = std::sqrt(dist2);
-				const Vec4f trace_dir = normalise(source->pos - campos); // Trace from camera to source position
+				const Vec4f trace_dir = (source->pos - campos) / dist; // Trace from camera to source position
+				assert(trace_dir.isUnitLength());
 
 				const float use_dist = myMax(0.f, dist - 1.f); // Ignore intersections with x metres of the source.  This is so meshes that contain the source (e.g. speaker models)
 				// don't occlude the source.
@@ -4846,7 +4868,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				else
 					source->num_occlusions = 0;
 
-				//conPrint("source: " + toString((uint64)source) + ", source->userdata_1: " + toString(source->userdata_1));
+				//conPrint("source: " + toString((uint64)source) + ", hit_object: " + boolToString(hit_object) + ", source parcel: " + toString(source->userdata_1));
 
 				
 				if(source->type != glare::AudioSource::SourceType_OneShot) // We won't be muting footsteps etc.

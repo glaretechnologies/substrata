@@ -61,6 +61,7 @@ public:
 	void startUnmuting(double cur_time, double transition_period);
 	void updateCurrentMuteVolumeFactor(double cur_time);
 
+	void setMuteVolumeFactorImmediately(float factor);
 	inline float getMuteVolumeFactor() const { return mute_volume_factor; }
 
 	int resonance_handle; // Set in AudioEngine::addSource().
