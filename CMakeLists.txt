@@ -113,6 +113,13 @@ SET(CEF_BINARY_DISTRIB_DIR_ENV $ENV{CEF_BINARY_DISTRIB_DIR})
 MESSAGE("CEF_BINARY_DISTRIB_DIR: ${CEF_BINARY_DISTRIB_DIR_ENV}")
 
 
+SET(CEF_SUPPORT ON CACHE BOOL "Enable use of Chromium Embedded Framework (CEF) - needed for webviews and video playback")
+MESSAGE("CEF_SUPPORT: ${CEF_SUPPORT}")
+
+SET(BUGSPLAT_SUPPORT ON CACHE BOOL "Enable building with BugSplat - the crash handling and bug reporting tool.")
+MESSAGE("BUGSPLAT_SUPPORT: ${BUGSPLAT_SUPPORT}")
+
+
 SET(ENABLE_GLARE_PARCEL_AUCTION_CODE OFF CACHE BOOL "Enable use of private parcel auction code.")
 SET(SUBSTRATA_PRIVATE_REPO_PATH "" CACHE PATH "Path to substrata-private repo.")
 
@@ -264,43 +271,45 @@ ADD_SUBDIRECTORY(server server)
 
 #ADD_SUBDIRECTORY(stress_test stress_test)
 
-if(APPLE)
-else()
-	SET(browser_process_suffix "")
-	ADD_SUBDIRECTORY(browser_process browser_process)
+if(CEF_SUPPORT)
+	if(APPLE)
+	else()
+		SET(browser_process_suffix "")
+		ADD_SUBDIRECTORY(browser_process browser_process)
 
-	add_dependencies("gui_client" "browser_process")
-endif()
+		add_dependencies("gui_client" "browser_process")
+	endif()
 
-if(APPLE)
-	# Build all the helper processes that CEF requires.
-	#SET(browser_process_suffix "")
-	SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper") # Target names shouldn't have spaces in them.
-	SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper") # CEF on Mac requires a very particular naming scheme for CEF helper processes.
-	ADD_SUBDIRECTORY(browser_process
-		browser_process # binary (output) dir
-	)
-	
-	SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper_GPU")
-	SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper (GPU)")
-	ADD_SUBDIRECTORY(browser_process
-		browser_process_gpu # binary dir
-	)
-	
-	SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper_Renderer")
-	SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper (Renderer)")
-	ADD_SUBDIRECTORY(browser_process
-		browser_process_renderer
-	)
-	
-	SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper_Plugin")
-	SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper (Plugin)")
-	ADD_SUBDIRECTORY(browser_process
-		browser_process_plugin
-	)
- 
-	add_dependencies("gui_client" "gui_client_Helper")
-	add_dependencies("gui_client" "gui_client_Helper_GPU")
-	add_dependencies("gui_client" "gui_client_Helper_Renderer")
-	add_dependencies("gui_client" "gui_client_Helper_Plugin")
+	if(APPLE)
+		# Build all the helper processes that CEF requires.
+		#SET(browser_process_suffix "")
+		SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper") # Target names shouldn't have spaces in them.
+		SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper") # CEF on Mac requires a very particular naming scheme for CEF helper processes.
+		ADD_SUBDIRECTORY(browser_process
+			browser_process # binary (output) dir
+		)
+		
+		SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper_GPU")
+		SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper (GPU)")
+		ADD_SUBDIRECTORY(browser_process
+			browser_process_gpu # binary dir
+		)
+		
+		SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper_Renderer")
+		SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper (Renderer)")
+		ADD_SUBDIRECTORY(browser_process
+			browser_process_renderer
+		)
+		
+		SET(BROWSER_PROCESS_TARGET_NAME "gui_client_Helper_Plugin")
+		SET(BROWSER_PROCESS_OUTPUT_NAME "gui_client Helper (Plugin)")
+		ADD_SUBDIRECTORY(browser_process
+			browser_process_plugin
+		)
+	 
+		add_dependencies("gui_client" "gui_client_Helper")
+		add_dependencies("gui_client" "gui_client_Helper_GPU")
+		add_dependencies("gui_client" "gui_client_Helper_Renderer")
+		add_dependencies("gui_client" "gui_client_Helper_Plugin")
+	endif()
 endif()
