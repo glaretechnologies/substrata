@@ -807,6 +807,7 @@ var client_avatar_uid: bigint = null;
 
 // This is a temporary array - will be moved to a uniform grid of quadtrees later
 var collision_meshes = new Array<WorldObject>()
+globalThis.collision_meshes = collision_meshes
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
@@ -1368,13 +1369,26 @@ function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, sc
 
     let use_vert_colours = (geometry.getAttribute('color') !== undefined);
 
+    const DEBUG_MATERIAL = true
+
     let three_mats = []
-    for (let i = 0; i < mats.length; ++i) {
-        let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
-        //csm.setupMaterial(three_mat); // TEMP
-        setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
-        three_mats.push(three_mat);
+
+    if(DEBUG_MATERIAL) {
+        for (let i = 0; i < mats.length; ++i) {
+            let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
+            //csm.setupMaterial(three_mat); // TEMP
+            setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
+            three_mats.push(three_mat);
+        }
+    } else {
+        for (let i = 0; i < mats.length; ++i) {
+            const mat = new THREE.MeshLambertMaterial({color: 'white'})
+            mat.wireframe = true
+            mat.flatShading = true
+            three_mats.push(mat)
+        }
     }
+
 
     const mesh = new THREE.Mesh(geometry, three_mats);
     mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
@@ -1803,6 +1817,7 @@ const caster = (() => {
     const dims = new THREE.Vector2()
     const theta = DEFAULT_FOV * Math.PI / 360
     const htan = Math.tan(theta)
+    const top = DEFAULT_NEAR * htan; const bottom = -top
     const rayPosBuf = new Float32Array(6)
     const origin = new THREE.Vector3()
     const U = new THREE.Vector3()
@@ -1817,15 +1832,16 @@ const caster = (() => {
         debugRayMesh.frustumCulled = false
     }
 
-    function getPickRay (x: number, y: number): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
+    // Calculate a pick ray based on the current camera view at screen coordinates [x, y]
+    // pass setRay === true to draw the ray as a line segment in world space
+    function getPickRay (x: number, y: number, setRay=false): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
         renderer.getSize(dims)
         if(x < 0 || x > dims.x || y < 0 || y > dims.y) return null
 
         const invH = 1. / dims.y
         const AR = dims.x * invH
         const r = x / dims.x, u = (dims.y - y) * invH
-        const top = DEFAULT_NEAR * htan; const right = AR * top
-        const bottom = -top; const left = -right
+        const right = AR * top; const left = -right
 
         const R = camRightVec()
         const D = camForwardsVec()
@@ -1838,8 +1854,10 @@ const caster = (() => {
 
         camera.getWorldPosition(origin)
 
-        rayPosBuf.set([origin.x, origin.y, origin.z, origin.x+10*dir.x, origin.y+10*dir.y, origin.z+10*dir.z])
-        debugRayMesh.geometry.getAttribute('position').needsUpdate = true
+        if(setRay) {
+            rayPosBuf.set([origin.x, origin.y, origin.z, origin.x+10*dir.x, origin.y+10*dir.y, origin.z+10*dir.z])
+            debugRayMesh.geometry.getAttribute('position').needsUpdate = true
+        }
 
         return [
             camera.getWorldPosition(new THREE.Vector3()),
@@ -1847,17 +1865,20 @@ const caster = (() => {
         ]
     }
 
+    // These are temporaries that we don't want to recreate
     const O = new THREE.Vector3()
     const d = new THREE.Vector3()
     const Of = new Float32Array(3) // TODO: Build custom query that takes Vector3
     const df = new Float32Array(3)
 
-    function testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, invWorldMat: THREE.Matrix4, bvh: BVH): boolean {
+    // Test a BVH with the world ray using the inverse world matrix for the BVH.
+    function testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, invWorldMat: THREE.Matrix4, bvh: BVH): [boolean, number] {
         O.copy(origin); d.copy(dir)
         O.applyMatrix4(invWorldMat); d.transformDirection(invWorldMat)
         Of[0] = O.x; Of[1] = O.y; Of[2] = O.z
         df[0] = d.x; df[1] = d.y; df[2] = d.z
-        return bvh.testRayRoot(Of, df)
+
+        return [bvh.testRayRoot(Of, df), bvh.testRayLeaf(Of, df)]
     }
 
     return {
@@ -1868,6 +1889,9 @@ const caster = (() => {
     }
 })()
 
+// Set this to true or false to highlight the leaf AABB node intersected by the mouse
+const CONSTANT_QUERY = true
+
 function onDocumentMouseDown(ev: MouseEvent) {
     is_mouse_down = true;
 
@@ -1875,7 +1899,7 @@ function onDocumentMouseDown(ev: MouseEvent) {
         caster.init()
     }
 
-    const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY)
+    const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true)
     const mat = new THREE.Matrix4()
 
     for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
@@ -1883,8 +1907,11 @@ function onDocumentMouseDown(ev: MouseEvent) {
         mat.copy(obj.bvh_mesh.matrixWorld)
         mat.invert()
 
-        const test = caster.testRayBVH(origin, dir, mat, obj.bvh)
+        const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
         if(test) console.log('hit:', obj.model_url)
+        if(idx !== -1) {
+            obj.bvh.updateAABBMesh(obj.bound, idx)
+        }
     }
 }
 
@@ -1896,6 +1923,22 @@ function onDocumentMouseUp() {
 function onDocumentMouseMove(e) {
     //console.log("onDocumentMouseMove()");
     //console.log(e.movementX);
+
+    if(caster.initialised() && CONSTANT_QUERY) {
+        const [origin, dir] = caster.getPickRay(e.offsetX, e.offsetY)
+        const mat = new THREE.Matrix4()
+
+        for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
+            const obj = collision_meshes[i]
+            mat.copy(obj.bvh_mesh.matrixWorld)
+            mat.invert()
+
+            const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
+            if(idx !== -1) {
+                obj.bvh.updateAABBMesh(obj.bound, idx)
+            }
+        }
+    }
 
     if(is_mouse_down){
         let rot_factor = 0.003;
