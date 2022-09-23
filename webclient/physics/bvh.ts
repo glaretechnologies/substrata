@@ -1,4 +1,7 @@
 import * as THREE from '../build/three.module.js'
+import { print3 } from '../maths/functions.js'
+
+const EPSILON = .000001
 
 export type IndexType = Uint32Array | Uint16Array | Uint8Array
 
@@ -56,8 +59,32 @@ export function testAABB (lhs: Float32Array, loff: number, rhs: Float32Array, ro
   return !(lhs[loff+5] < rhs[roff+2] || lhs[loff+2] > rhs[roff+5])
 }
 
-export function testRayAABB (OP: Float32Array, d: Float32Array, aabb: Float32Array, off: number): [boolean, number] | null {
-  return null
+export function testRayAABB (OP: Float32Array, d: Float32Array, aabb: Float32Array, off: number=0): [boolean, number] | null {
+  let t_min = 0
+  let t_max = Number.MAX_VALUE
+  const min = aabb.slice(off, off+3)
+  const max = aabb.slice(off+3, off+6)
+
+  //print3('min', min, 'max', max)
+
+  for (let i = 0; i < 3; ++i) {
+    if(Math.abs(d[i]) < EPSILON) {
+      if (OP[i] < min[i] || OP[i] > max[i]) return [false, Number.POSITIVE_INFINITY]
+    } else {
+      let invD = 1. / d[i]
+      let t0 = (min[i] - OP[i]) * invD
+      let t1 = (max[i] - OP[i]) * invD
+      if (t0 > t1) {
+        const tmp = t0; t0 = t1; t1 = tmp
+      }
+      t_min = Math.max(t_min, t0)
+      t_max = Math.min(t_max, t1)
+
+      if(t_min > t_max) return [false, Number.POSITIVE_INFINITY]
+    }
+  }
+
+  return [true, t_min]
 }
 
 function range (count: number): Uint32Array {
@@ -160,14 +187,31 @@ export default class BVH {
     this.split(0)
   }
 
+  // Boolean Result
+  public testRayRoot (origin: Float32Array, dir: Float32Array): boolean {
+    //print3('origin', origin, 'dir', dir)
+    // Will generally prefer using Float32Arrays rather than Vector3 which involve a whole lot of copying...
+    const query = testRayAABB(origin, dir, this.aabbBuffer)
+    //console.log('query:', query)
+    return query[0]
+  }
+
+  // Returns intersection and distance along ray
+  private intersectRayRoot (origin: THREE.Vector3, dir: THREE.Vector3, P: THREE.Vector3): number {
+    return 0
+  }
+
   private computeBound (idx: number) {
     const aabb = this.aabbBuffer, data = this.dataBuffer
     const min_idx = 6 * idx, max_idx = min_idx + 3, data_idx = 2 * idx
+
     aabb.fill(Number.MAX_VALUE, min_idx, max_idx)
     aabb.fill(-Number.MAX_VALUE, max_idx, max_idx+3)
+
     const offset = data[data_idx]
     const count = data[data_idx+1]
     const [t0] = this.tmp
+
     for(let i = 0; i < count; ++i) {
       const tri = this.index[offset+i]
       min3(aabb, min_idx, this.tri.getTriVertex(tri, 0, t0), 0)
@@ -308,7 +352,7 @@ export default class BVH {
     vertices[i++] = maxx; vertices[i++] = maxy; vertices[i++] = minz // 7
 
     i = offset
-    const off_idx = offset/3
+    const off_idx = offset / 3
     index[i++] = off_idx;   index[i++] = off_idx+1; index[i++] = off_idx+1; index[i++] = off_idx+3
     index[i++] = off_idx;   index[i++] = off_idx+2; index[i++] = off_idx+2; index[i++] = off_idx+3
     index[i++] = off_idx+4; index[i++] = off_idx+5; index[i++] = off_idx+5; index[i++] = off_idx+7
@@ -320,6 +364,7 @@ export default class BVH {
   public getRootAABBMesh (): THREE.LineMesh {
     const buf = new Float32Array(24)
     const [minx, miny, minz, maxx, maxy, maxz] = this.aabbBuffer.slice(0, 6)
+
     let i = 0
     buf[i++] = minx; buf[i++] = miny; buf[i++] = maxz // 0
     buf[i++] = minx; buf[i++] = miny; buf[i++] = minz // 1
@@ -348,6 +393,6 @@ export default class BVH {
     geo.setAttribute('position', new THREE.BufferAttribute(buf, 3, false))
     geo.setIndex(new THREE.BufferAttribute(idx, 1))
 
-    return new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 'green'}))
+    return new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 'red'}))
   }
 }

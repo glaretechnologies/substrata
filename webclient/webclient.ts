@@ -13,6 +13,8 @@ import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
 import BVH from './physics/bvh.js';
+import { lerpN } from './maths/functions.js';
+import {or} from "three/examples/jsm/nodes/shadernode/ShaderNodeBaseElements";
 
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
@@ -593,6 +595,7 @@ class WorldObject {
 
     bvh: BVH
     bvh_mesh?: THREE.LineMesh
+    bound?: THREE.LineMesh
 
     mesh_state: number;
     mesh: THREE.Mesh;
@@ -802,6 +805,8 @@ var world_objects = new Map<bigint, WorldObject>();
 var avatars = new Map<bigint, Avatar>();
 var client_avatar_uid: bigint = null;
 
+// This is a temporary array - will be moved to a uniform grid of quadtrees later
+var collision_meshes = new Array<WorldObject>()
 
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
@@ -1459,10 +1464,6 @@ function startDownloadingResource(download_queue_item) {
                     try {
                         let [geometry, triangles] = loadBatchedMesh(array_buffer);
 
-                        if(triangles) {
-
-                        }
-
                         //console.log("Inserting " + model_url + " into url_to_geom_map");
                         url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
 
@@ -1493,14 +1494,24 @@ function startDownloadingResource(download_queue_item) {
                                         world_ob_or_avatar.bvh = new BVH(triangles);
                                         const build_time = performance.now() * .001;
                                         console.log('Construction Time:', world_ob_or_avatar.model_url, build_time - start_time);
+                                        console.log('Triangle Count:', triangles.tri_count);
                                         world_ob_or_avatar.bvh_mesh = world_ob_or_avatar.bvh.getBVHMesh();
-                                        world_ob_or_avatar.bvh_mesh.position.copy(mesh.position)
-                                        world_ob_or_avatar.bvh_mesh.rotation.copy(mesh.rotation)
-                                        world_ob_or_avatar.bvh_mesh.scale.copy(mesh.scale)
+                                        world_ob_or_avatar.bvh_mesh.position.copy(mesh.position);
+                                        world_ob_or_avatar.bvh_mesh.rotation.copy(mesh.rotation);
+                                        world_ob_or_avatar.bvh_mesh.scale.copy(mesh.scale);
 
                                         const mesh_build_time = performance.now() * .001;
                                         console.log('BVH Mesh Build', mesh_build_time - build_time);
-                                        scene.add(world_ob_or_avatar.bvh_mesh)
+                                        scene.add(world_ob_or_avatar.bvh_mesh);
+
+                                        world_ob_or_avatar.bound = world_ob_or_avatar.bvh.getRootAABBMesh();
+                                        world_ob_or_avatar.bound.position.copy(mesh.position);
+                                        world_ob_or_avatar.bound.rotation.copy(mesh.rotation);
+                                        world_ob_or_avatar.bound.scale.copy(mesh.scale);
+                                        scene.add(world_ob_or_avatar.bound);
+
+                                        // Add this World Object to the collision_meshes container for testing
+                                        collision_meshes.push(world_ob_or_avatar)
                                     }
                                     world_ob_or_avatar.mesh = mesh;
                                     world_ob_or_avatar.mesh_state = MESH_LOADED;
@@ -1509,6 +1520,7 @@ function startDownloadingResource(download_queue_item) {
 
                                     let avatar = world_ob_or_avatar;
                                     if (avatar.uid != client_avatar_uid) {
+                                        console.log('Avatar:', avatar)
                                         let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
                                             /*angle=*/0, /*ob_aabb_longest_len=*/1.0, /*ob_lod_level=*/0);
 
@@ -1609,7 +1621,11 @@ client_avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
 THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, /*near=*/0.1, /*far=*/1000);
+const DEFAULT_FOV = 75
+const DEFAULT_AR = window.innerWidth / window.innerHeight
+const DEFAULT_NEAR = 0.1
+const DEFAULT_FAR = 1000.0
+const camera = new THREE.PerspectiveCamera(DEFAULT_FOV, DEFAULT_AR, DEFAULT_NEAR, DEFAULT_FAR);
 
 let renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
@@ -1782,9 +1798,94 @@ function camRightVec() {
     return new THREE.Vector3(Math.sin(heading), -Math.cos(heading), 0);
 }
 
-function onDocumentMouseDown() {
-    //console.log("onDocumentMouseDown()");
+const caster = (() => {
+    let debugRayMesh: THREE.LineSegments | undefined
+    const dims = new THREE.Vector2()
+    const theta = DEFAULT_FOV * Math.PI / 360
+    const htan = Math.tan(theta)
+    const rayPosBuf = new Float32Array(6)
+    const origin = new THREE.Vector3()
+    const U = new THREE.Vector3()
+
+    const initialised = (): boolean => debugRayMesh != null
+
+    function init () {
+        const geo = new THREE.BufferGeometry()
+        geo.setAttribute('position', new THREE.BufferAttribute(rayPosBuf, 3, false))
+        debugRayMesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 'red'}))
+        scene.add(debugRayMesh)
+        debugRayMesh.frustumCulled = false
+    }
+
+    function getPickRay (x: number, y: number): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
+        renderer.getSize(dims)
+        if(x < 0 || x > dims.x || y < 0 || y > dims.y) return null
+
+        const invH = 1. / dims.y
+        const AR = dims.x * invH
+        const r = x / dims.x, u = (dims.y - y) * invH
+        const top = DEFAULT_NEAR * htan; const right = AR * top
+        const bottom = -top; const left = -right
+
+        const R = camRightVec()
+        const D = camForwardsVec()
+        U.crossVectors(D, R)
+        R.multiplyScalar(lerpN(left, right, r))
+        U.multiplyScalar(lerpN(top, bottom, u))
+
+        const dir = R.add(U).add(D.multiplyScalar(DEFAULT_NEAR))
+        dir.normalize()
+
+        camera.getWorldPosition(origin)
+
+        rayPosBuf.set([origin.x, origin.y, origin.z, origin.x+10*dir.x, origin.y+10*dir.y, origin.z+10*dir.z])
+        debugRayMesh.geometry.getAttribute('position').needsUpdate = true
+
+        return [
+            camera.getWorldPosition(new THREE.Vector3()),
+            dir
+        ]
+    }
+
+    const O = new THREE.Vector3()
+    const d = new THREE.Vector3()
+    const Of = new Float32Array(3) // TODO: Build custom query that takes Vector3
+    const df = new Float32Array(3)
+
+    function testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, invWorldMat: THREE.Matrix4, bvh: BVH): boolean {
+        O.copy(origin); d.copy(dir)
+        O.applyMatrix4(invWorldMat); d.transformDirection(invWorldMat)
+        Of[0] = O.x; Of[1] = O.y; Of[2] = O.z
+        df[0] = d.x; df[1] = d.y; df[2] = d.z
+        return bvh.testRayRoot(Of, df)
+    }
+
+    return {
+        initialised,
+        init,
+        getPickRay,
+        testRayBVH
+    }
+})()
+
+function onDocumentMouseDown(ev: MouseEvent) {
     is_mouse_down = true;
+
+    if(!caster.initialised()) {
+        caster.init()
+    }
+
+    const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY)
+    const mat = new THREE.Matrix4()
+
+    for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
+        const obj = collision_meshes[i]
+        mat.copy(obj.bvh_mesh.matrixWorld)
+        mat.invert()
+
+        const test = caster.testRayBVH(origin, dir, mat, obj.bvh)
+        if(test) console.log('hit:', obj.model_url)
+    }
 }
 
 function onDocumentMouseUp() {
