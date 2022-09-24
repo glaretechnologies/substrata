@@ -5,25 +5,25 @@ const EPSILON = .000001
 
 export type IndexType = Uint32Array | Uint16Array | Uint8Array
 
-// Compare current against compare arrays and store the minimum in current
-export function min3 (curr: Float32Array, currOffset: number, cmp: Float32Array, cmpOffset: number=0): Float32Array {
-  curr[currOffset] = Math.min(curr[currOffset], cmp[cmpOffset++]); currOffset++
-  curr[currOffset] = Math.min(curr[currOffset], cmp[cmpOffset++]); currOffset++
-  curr[currOffset] = Math.min(curr[currOffset], cmp[cmpOffset++]); currOffset++
+// Compare current against compare array and store the minimum in current
+export function min3 (curr: Float32Array, coff: number, cmp: Float32Array, cmpoff: number=0): Float32Array {
+  curr[coff] = Math.min(curr[coff], cmp[cmpoff]); coff++
+  curr[coff] = Math.min(curr[coff], cmp[cmpoff+1]); coff++
+  curr[coff] = Math.min(curr[coff], cmp[cmpoff+2]); coff++
   return curr
 }
 
-// Compare current against compare arrays and store the maximum in current
-export function max3 (curr: Float32Array, currOffset: number, cmp: Float32Array, cmpOffset: number=0): Float32Array {
-  curr[currOffset] = Math.max(curr[currOffset], cmp[cmpOffset++]); currOffset++
-  curr[currOffset] = Math.max(curr[currOffset], cmp[cmpOffset++]); currOffset++
-  curr[currOffset] = Math.max(curr[currOffset], cmp[cmpOffset++]); currOffset++
+// Compare current against compare array and store the maximum in current
+export function max3 (curr: Float32Array, coff: number, cmp: Float32Array, cmpoff: number=0): Float32Array {
+  curr[coff] = Math.max(curr[coff], cmp[cmpoff]); coff++
+  curr[coff] = Math.max(curr[coff], cmp[cmpoff+1]); coff++
+  curr[coff] = Math.max(curr[coff], cmp[cmpoff+2]); coff++
   return curr
 }
 
 // Compare two floating point numbers for equality
 export function eq (a: number, b: number, epsilon=EPSILON): boolean {
-  return Math.abs(b - a) < epsilon
+  return Math.abs(b - a) <= epsilon
 }
 
 // Compare two 3-component arrays for equality
@@ -212,20 +212,33 @@ export class Triangles {
     new Float32Array(3), new Float32Array(3)
   ]
 
-  // Note: Not finished
+  // Moeller-Trumbore ray triangle intersection
   public intersectTriangle (origin: Float32Array, dir: Float32Array, triIndex: number): number | null {
     // Destructure the array into the named variables we'll use in the function
     const [v0, v1, v2, e0, e1, h, s, q] = this.tmp
+
     this.getTriVertex(triIndex, 0, v0)
-    this.getTriVertex(triIndex, 0, v1)
-    this.getTriVertex(triIndex, 0, v2)
+    this.getTriVertex(triIndex, 1, v1)
+    this.getTriVertex(triIndex, 2, v2)
+
     sub3(v1, v0, e0)
     sub3(v2, v0, e1)
     cross3(dir, e1, h)
-    const a = dot3(e0, h)
-    if (eq(a, 0, .0001)) return null
 
-    // TODO: Back here...
+    const a = dot3(e0, h)
+    if (eq(a, 0, EPSILON)) return null
+
+    const f = 1.0 / a
+    sub3(origin, v0, s)
+    const u = f * dot3(s, h)
+    if (u < 0 || u > 1) return null
+
+    cross3(s, e0, q)
+    const v = f * dot3(dir, q)
+    if (v < 0 || u + v > 1) return null
+
+    const t = f * dot3(e1, q)
+    return t > EPSILON ? t : null
   }
 
   // Traverse the collection of triangles and build the centroids
@@ -241,6 +254,8 @@ export class Triangles {
     }
   }
 }
+
+export type heuristicFunction = (nodeIdx: number) => [number, number]
 
 /*
 The BVH nodes are directly stored in two arrays
@@ -259,8 +274,11 @@ export default class BVH {
   private readonly maxNodes: number
   private nodeCount: number // Number of used nodes
 
+  private heuristic_fnc: heuristicFunction
+
   // Temporaries used in functions to avoid creating new arrays on each call
   private readonly tmp = [
+    new Float32Array(3),
     new Float32Array(3),
     new Float32Array(3)
   ]
@@ -271,6 +289,9 @@ export default class BVH {
     this.maxNodes = 2 * tri.tri_count - 1 // TODO: Trim after building
     this.aabbBuffer = new Float32Array(this.maxNodes * 6)
     this.dataBuffer = new Uint32Array(this.maxNodes * 2)
+
+    // Set the default heuristic for split cost calculation
+    this.heuristic_fnc = this.computeLongestSplit
 
     // Set the root node with the all the triangles...
     // Set offset = 0 and count = tri.tri_count for node 0
@@ -294,26 +315,53 @@ export default class BVH {
     return 0
   }
 
-  // Returns the index of the BVH node of intersection with the ray
-  public testRayLeaf (origin: Float32Array, dir: Float32Array): number {
+  // Returns the index of the BVH node, and triangle of intersection with the ray
+  public testRayLeaf (origin: Float32Array, dir: Float32Array): [number, number] { // [nodeIdx, triIdx]
     let t_min = Number.MAX_VALUE
     let idx = -1
+    let tri_idx = -1
     let q = [0]
     while (q.length > 0) {
       const curr = q.shift()
       const isLeaf = this.dataBuffer[2*curr+1] > 0
       const [test, t] = testRayAABB(origin, dir, this.aabbBuffer, 6 * curr)
       if (test) {
-        if (isLeaf && t < t_min && t < Number.MAX_VALUE) {
-          t_min = t
-          idx = curr
+        if (isLeaf) {
+          const offset = this.dataBuffer[2*curr], count = this.dataBuffer[2*curr+1]
+          for(let i = 0; i < count; ++i) {
+            const tri = this.index[offset+i]
+            const t = this.tri.intersectTriangle(origin, dir, tri)
+            if(t != null && t < t_min) {
+              t_min = t
+              tri_idx = tri
+              idx = curr
+            }
+          }
+
         }
         if(!isLeaf) {
           q.push(this.dataBuffer[2*curr], this.dataBuffer[2*curr]+1)
         }
       }
     }
-    return idx
+
+    /*
+    let triIdx = -1
+    if(idx !== -1) {
+      const offset = this.dataBuffer[2*idx], count = this.dataBuffer[2*idx+1]
+      let t_min = Number.MAX_VALUE
+      for(let i = 0; i < count; ++i) {
+        const tri = this.index[offset+i]
+        console.log('testing:', tri)
+        const t = this.tri.intersectTriangle(origin, dir, tri)
+        if(t != null && t < t_min) {
+          t_min = t
+          triIdx = tri
+        }
+      }
+    }
+    */
+    return [idx, tri_idx]
   }
 
   // Compute the AABB for the input node and store the result in the AABB buffer
@@ -354,6 +402,7 @@ export default class BVH {
     if(count === 0) return null
 
     const [t0, t1] = this.tmp
+    t0.fill(0)
 
     for(let i = 0; i !== count; ++i) {
       // Read the triangle centroid into t1
@@ -414,14 +463,18 @@ export default class BVH {
     return left
   }
 
-  private split (idx: number) {
+  public set heuristic (fnc: (nodeIdx: number) => [number, number]) {
+    this.heuristic_fnc = fnc
+  }
+
+  // Split an input node (if possible) based on selected heuristic
+  private split (nodeIdx: number) {
     const data = this.dataBuffer
-    const curr_off = 2 * idx
+    const curr_off = 2 * nodeIdx
     const offset = data[curr_off], count = data[curr_off+1]
     if(count < 2) return
 
-    const [splitPoint, axis] = this.computeMean(idx)
-    //const [splitPoint, axis] = this.computeLongestSplit(idx)
+    const [splitPoint, axis] = this.heuristic_fnc(nodeIdx)
     const cut = this.partition(offset, count, splitPoint, axis)
 
     // We have left in data[offset, cut] and right in data[cut, offset+count]
@@ -434,6 +487,7 @@ export default class BVH {
     // Store the left and right triangle collections in the two consecutive nodes
     data[2*leftNode] = offset; data[2*leftNode+1] = leftCount
     data[2*rightNode] = cut; data[2*rightNode+1] = rightCount
+    // Set the split node to the index of the left child & count to 0
     data[curr_off] = leftNode; data[curr_off+1] = 0
 
     // Compute the bound for each node and try to split each
@@ -442,8 +496,8 @@ export default class BVH {
   }
 
   // Build a visualisation of a leaves-only BVH tree
-  public getBVHMesh (): THREE.LineMesh {
-    const icount = this.nodeCount * 24
+  public getBVHMesh (): THREE.LineSegments {
+    const icount = this.nodeCount * 24 // Max possible nodes, TODO optimise this
     const buf = new Float32Array(icount)
     const idx = new Uint32Array(icount)
 
@@ -497,7 +551,7 @@ export default class BVH {
   }
 
   // Build an AABB mesh on the root of the BVH
-  public getRootAABBMesh (): THREE.LineMesh {
+  public getRootAABBMesh (): THREE.LineSegments {
     const buf = new Float32Array(24)
     const [minx, miny, minz, maxx, maxy, maxz] = this.aabbBuffer.slice(0, 6)
 
@@ -550,7 +604,29 @@ export default class BVH {
     buf[i++] = maxx; buf[i++] = maxy; buf[i++] = minz
 
     attr.needsUpdate = true
-    mesh.geometry.needsUpdate = true
+  }
+
+  // Create a triangle highlighter to highlight the outline of triangles on the mesh represented by this BVH
+  public getTriangleHighlighter (): THREE.LineLoop {
+    const buffer = new Float32Array(9)
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(buffer, 3, false))
+    const mat = new THREE.LineBasicMaterial({color: 'blue', depthTest: false})
+    return new THREE.LineLoop(geo, mat)
+  }
+
+  // Update the triangle highlighter to the triangle represented by triangleIdx
+  public updateTriangleHighlighter (triangleIdx: number, mesh: THREE.LineLoop): void {
+    const attr = mesh.geometry.getAttribute('position')
+    if(!attr) return
+
+    const buffer = attr.array
+    const [v0, v1, v2] = this.tmp
+    this.tri.getTriVertex(triangleIdx, 0, v0)
+    this.tri.getTriVertex(triangleIdx, 1, v1)
+    this.tri.getTriVertex(triangleIdx, 2, v2)
+    buffer.set(v0, 0); buffer.set(v1, 3); buffer.set(v2, 6)
+    attr.needsUpdate = true
   }
 
   // Debug code for testing assignment and other properties
