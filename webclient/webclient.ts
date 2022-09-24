@@ -594,8 +594,10 @@ class WorldObject {
     compressed_voxels: Array<number>;
 
     bvh: BVH
-    bvh_mesh?: THREE.LineMesh
-    bound?: THREE.LineMesh
+    // Debug Stuff - REMOVE!
+    //bvh_mesh?: THREE.LineSegments
+    bound?: THREE.LineSegments
+    tri?: THREE.LineLoop
 
     mesh_state: number;
     mesh: THREE.Mesh;
@@ -1504,29 +1506,31 @@ function startDownloadingResource(download_queue_item) {
 
                                     // For now, build the BVH in the main thread while testing performance
                                     if(triangles != null) {
+                                        const obj = world_ob_or_avatar
                                         const start_time = performance.now() * .001;
-                                        world_ob_or_avatar.bvh = new BVH(triangles);
+                                        obj.bvh = new BVH(triangles);
                                         const build_time = performance.now() * .001;
-                                        console.log('Construction Time:', world_ob_or_avatar.model_url, build_time - start_time);
+                                        console.log('Construction Time:', obj.model_url, build_time - start_time);
                                         console.log('Triangle Count:', triangles.tri_count);
-                                        world_ob_or_avatar.bvh_mesh = world_ob_or_avatar.bvh.getBVHMesh();
-                                        world_ob_or_avatar.bvh_mesh.position.copy(mesh.position);
-                                        world_ob_or_avatar.bvh_mesh.rotation.copy(mesh.rotation);
-                                        world_ob_or_avatar.bvh_mesh.scale.copy(mesh.scale);
 
-                                        const mesh_build_time = performance.now() * .001;
-                                        console.log('BVH Mesh Build', mesh_build_time - build_time);
-                                        scene.add(world_ob_or_avatar.bvh_mesh);
+                                        obj.bound = obj.bvh.getRootAABBMesh();
+                                        obj.bound.position.copy(mesh.position);
+                                        obj.bound.rotation.copy(mesh.rotation);
+                                        obj.bound.scale.copy(mesh.scale);
+                                        scene.add(obj.bound);
 
-                                        world_ob_or_avatar.bound = world_ob_or_avatar.bvh.getRootAABBMesh();
-                                        world_ob_or_avatar.bound.position.copy(mesh.position);
-                                        world_ob_or_avatar.bound.rotation.copy(mesh.rotation);
-                                        world_ob_or_avatar.bound.scale.copy(mesh.scale);
-                                        scene.add(world_ob_or_avatar.bound);
+                                        // Add the triangle highlighter
+                                        obj.tri = obj.bvh.getTriangleHighlighter()
+                                        obj.tri.position.copy(mesh.position);
+                                        obj.tri.rotation.copy(mesh.rotation);
+                                        obj.tri.scale.copy(mesh.scale);
+                                        obj.tri.frustumCulled = false
+                                        scene.add(obj.tri);
 
                                         // Add this World Object to the collision_meshes container for testing
-                                        collision_meshes.push(world_ob_or_avatar)
+                                        collision_meshes.push(obj)
                                     }
+
                                     world_ob_or_avatar.mesh = mesh;
                                     world_ob_or_avatar.mesh_state = MESH_LOADED;
                                 }
@@ -1871,8 +1875,8 @@ const caster = (() => {
     const Of = new Float32Array(3) // TODO: Build custom query that takes Vector3
     const df = new Float32Array(3)
 
-    // Test a BVH with the world ray using the inverse world matrix for the BVH.
-    function testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, invWorldMat: THREE.Matrix4, bvh: BVH): [boolean, number] {
+    // Transform a ray from world space into the local space of the BVH and test for intersection
+    function testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, invWorldMat: THREE.Matrix4, bvh: BVH): [boolean, number[]] {
         O.copy(origin); d.copy(dir)
         O.applyMatrix4(invWorldMat); d.transformDirection(invWorldMat)
         Of[0] = O.x; Of[1] = O.y; Of[2] = O.z
@@ -1895,22 +1899,28 @@ const CONSTANT_QUERY = true
 function onDocumentMouseDown(ev: MouseEvent) {
     is_mouse_down = true;
 
-    if(!caster.initialised()) {
-        caster.init()
-    }
+    // Initialise the caster on the first mouse down event
+    if(!caster.initialised()) caster.init()
 
+    // Visualise the ray in world space
     const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true)
     const mat = new THREE.Matrix4()
 
     for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
         const obj = collision_meshes[i]
-        mat.copy(obj.bvh_mesh.matrixWorld)
+        mat.copy(obj.mesh.matrixWorld)
         mat.invert()
 
         const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
-        if(test) console.log('hit:', obj.model_url)
-        if(idx !== -1) {
-            obj.bvh.updateAABBMesh(obj.bound, idx)
+        if(test) console.log('hit:', obj.model_url, idx)
+        if(idx[0] !== -1) {
+            obj.bvh.updateAABBMesh(obj.bound, idx[0])
+            if(idx[1] !== -1) {
+                obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
+                obj.tri.visible = true
+            } else {
+                obj.tri.visible = false
+            }
         }
     }
 }
@@ -1925,17 +1935,28 @@ function onDocumentMouseMove(e) {
     //console.log(e.movementX);
 
     if(caster.initialised() && CONSTANT_QUERY) {
-        const [origin, dir] = caster.getPickRay(e.offsetX, e.offsetY)
-        const mat = new THREE.Matrix4()
+        const ray = caster.getPickRay(e.offsetX, e.offsetY)
+        if(ray != null) {
+            const [origin, dir] = ray
+            const mat = new THREE.Matrix4()
 
-        for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
-            const obj = collision_meshes[i]
-            mat.copy(obj.bvh_mesh.matrixWorld)
-            mat.invert()
+            for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
+                const obj = collision_meshes[i]
+                mat.copy(obj.mesh.matrixWorld)
+                mat.invert()
 
-            const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
-            if(idx !== -1) {
-                obj.bvh.updateAABBMesh(obj.bound, idx)
+                const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
+                if(test) {
+                    if(idx[0] !== -1) {
+                        obj.bvh.updateAABBMesh(obj.bound, idx[0])
+                    }
+                    if(idx[1] !== -1) {
+                        obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
+                        obj.tri.visible = true
+                    } else {
+                        obj.tri.visible = false
+                    }
+                }
             }
         }
     }
