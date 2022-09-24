@@ -274,6 +274,8 @@ export default class BVH {
   private readonly maxNodes: number
   private nodeCount: number // Number of used nodes
 
+  private readonly maxNodeSize = 2 // The max node size before splitting (we allow quads)
+
   private heuristic_fnc: heuristicFunction
 
   // Temporaries used in functions to avoid creating new arrays on each call
@@ -291,7 +293,7 @@ export default class BVH {
     this.dataBuffer = new Uint32Array(this.maxNodes * 2)
 
     // Set the default heuristic for split cost calculation
-    this.heuristic_fnc = this.computeLongestSplit
+    this.heuristic_fnc = this.computeMean
 
     // Set the root node with the all the triangles...
     // Set offset = 0 and count = tri.tri_count for node 0
@@ -308,11 +310,6 @@ export default class BVH {
     //print3('origin', origin, 'dir', dir)
     const query = testRayAABB(origin, dir, this.aabbBuffer)
     return query[0]
-  }
-
-  // Returns intersection and distance along ray TODO
-  private intersectRayRoot (origin: THREE.Vector3, dir: THREE.Vector3, P: THREE.Vector3): number {
-    return 0
   }
 
   // Returns the index of the BVH node, and triangle of intersection with the ray
@@ -345,22 +342,6 @@ export default class BVH {
       }
     }
 
-    /*
-    let triIdx = -1
-    if(idx !== -1) {
-      const offset = this.dataBuffer[2*idx], count = this.dataBuffer[2*idx+1]
-      let t_min = Number.MAX_VALUE
-      for(let i = 0; i < count; ++i) {
-        const tri = this.index[offset+i]
-        console.log('testing:', tri)
-        const t = this.tri.intersectTriangle(origin, dir, tri)
-        if(t != null && t < t_min) {
-          t_min = t
-          triIdx = tri
-        }
-      }
-    }
-    */
     return [idx, tri_idx]
   }
 
@@ -440,7 +421,7 @@ export default class BVH {
     // Compute extents of aabb
     t0[0] = (buf[max] - buf[min]); t0[1] = (buf[max+1] - buf[min+1]); t0[2] = buf[max+2] - buf[min+2]
     let longest = Math.max(...t0)
-    // Split on longest axis and compute centre point as split point
+    // Split on longest axis and compute centre as split point
     for(let i = 0; i !== 3; ++i) if(longest === t0[i]) return [buf[min+i] + t0[i]/2., i]
     return null
   }
@@ -472,7 +453,7 @@ export default class BVH {
     const data = this.dataBuffer
     const curr_off = 2 * nodeIdx
     const offset = data[curr_off], count = data[curr_off+1]
-    if(count < 2) return
+    if(count <= this.maxNodeSize) return // Don't split further, node is already small enough
 
     const [splitPoint, axis] = this.heuristic_fnc(nodeIdx)
     const cut = this.partition(offset, count, splitPoint, axis)

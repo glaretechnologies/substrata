@@ -594,6 +594,7 @@ class WorldObject {
     compressed_voxels: Array<number>;
 
     bvh: BVH
+    invWorld: THREE.Matrix4 // We should only calculate the inverse when the world matrix actually changes
     // Debug Stuff - REMOVE!
     //bvh_mesh?: THREE.LineSegments
     bound?: THREE.LineSegments
@@ -1527,6 +1528,13 @@ function startDownloadingResource(download_queue_item) {
                                         obj.tri.frustumCulled = false
                                         scene.add(obj.tri);
 
+                                        // TODO: This is reliant upon static objects, otherwise we need to track
+                                        // updates
+                                        obj.invWorld = new THREE.Matrix4()
+                                        mesh.updateMatrixWorld(true)
+                                        obj.invWorld.copy(mesh.matrixWorld)
+                                        obj.invWorld.invert()
+
                                         // Add this World Object to the collision_meshes container for testing
                                         collision_meshes.push(obj)
                                     }
@@ -1915,12 +1923,15 @@ function onDocumentMouseDown(ev: MouseEvent) {
         if(test) console.log('hit:', obj.model_url, idx)
         if(idx[0] !== -1) {
             obj.bvh.updateAABBMesh(obj.bound, idx[0])
+            obj.bound.visible = true
             if(idx[1] !== -1) {
                 obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
                 obj.tri.visible = true
             } else {
                 obj.tri.visible = false
             }
+        } else {
+            obj.bound.visible = false
         }
     }
 }
@@ -1938,17 +1949,14 @@ function onDocumentMouseMove(e) {
         const ray = caster.getPickRay(e.offsetX, e.offsetY)
         if(ray != null) {
             const [origin, dir] = ray
-            const mat = new THREE.Matrix4()
 
             for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
                 const obj = collision_meshes[i]
-                mat.copy(obj.mesh.matrixWorld)
-                mat.invert()
-
-                const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
+                const [test, idx] = caster.testRayBVH(origin, dir, obj.invWorld, obj.bvh)
                 if(test) {
                     if(idx[0] !== -1) {
                         obj.bvh.updateAABBMesh(obj.bound, idx[0])
+                        obj.bound.visible = true
                     }
                     if(idx[1] !== -1) {
                         obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
@@ -1956,6 +1964,9 @@ function onDocumentMouseMove(e) {
                     } else {
                         obj.tri.visible = false
                     }
+                } else {
+                    obj.bound.visible = false
+                    obj.tri.visible = false
                 }
             }
         }
