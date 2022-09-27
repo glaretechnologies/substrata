@@ -2,6 +2,13 @@
 Miscellaneous maths functions that are missing from Three.js or the definition of which I prefer over the one in Three.
 */
 
+import { EPSILON } from './defs.js'
+
+// Compare two floating point numbers for equality
+export function eq (a: number, b: number, epsilon=EPSILON): boolean {
+  return Math.abs(b - a) <= epsilon
+}
+
 export function lerpN (A: number, B: number, u: number): number {
   return (1.0 - u) * A + u * B
 }
