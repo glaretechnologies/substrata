@@ -12,9 +12,8 @@ import * as bufferin from './bufferin.js';
 import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
-import BVH from './physics/bvh.js';
-import { lerpN } from './maths/functions.js';
-import {or} from "three/examples/jsm/nodes/shadernode/ShaderNodeBaseElements";
+import BVH, { Triangles } from './physics/bvh.js';
+import Caster from './physics/caster.js';
 
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
@@ -23,6 +22,11 @@ import {or} from "three/examples/jsm/nodes/shadernode/ShaderNodeBaseElements";
 var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
+// PHYSICS-RELATED
+const DEBUG_PHYSICS = true
+var collision_meshes = new Map<string, WorldObject>() // Collision Meshes are mapped by map URL
+var loaded_meshes = new Array<WorldObject>() // How do we unload meshes?
+// END PHYSICS-RELATED
 
 const STATE_INITIAL = 0;
 const STATE_READ_HELLO_RESPONSE = 1;
@@ -808,10 +812,6 @@ var world_objects = new Map<bigint, WorldObject>();
 var avatars = new Map<bigint, Avatar>();
 var client_avatar_uid: bigint = null;
 
-// This is a temporary array - will be moved to a uniform grid of quadtrees later
-var collision_meshes = new Array<WorldObject>()
-globalThis.collision_meshes = collision_meshes
-
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
     //console.log("onmessage()");
@@ -994,6 +994,10 @@ ws.onmessage = function (event) {
                 //avatars.set(avatar.uid, avatar);
 
                 if (avatar.uid != client_avatar_uid) {// && avatar.mesh_state != MESH_LOADED) {
+
+                    // Load some spheres to represent the avatar.
+
+
 
                     console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
                     let ob_lod_level = 0;
@@ -1506,37 +1510,8 @@ function startDownloadingResource(download_queue_item) {
                                     let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
                                     // For now, build the BVH in the main thread while testing performance
-                                    if(triangles != null) {
-                                        const obj = world_ob_or_avatar
-                                        const start_time = performance.now() * .001;
-                                        obj.bvh = new BVH(triangles);
-                                        const build_time = performance.now() * .001;
-                                        console.log('Construction Time:', obj.model_url, build_time - start_time);
-                                        console.log('Triangle Count:', triangles.tri_count);
-
-                                        obj.bound = obj.bvh.getRootAABBMesh();
-                                        obj.bound.position.copy(mesh.position);
-                                        obj.bound.rotation.copy(mesh.rotation);
-                                        obj.bound.scale.copy(mesh.scale);
-                                        scene.add(obj.bound);
-
-                                        // Add the triangle highlighter
-                                        obj.tri = obj.bvh.getTriangleHighlighter()
-                                        obj.tri.position.copy(mesh.position);
-                                        obj.tri.rotation.copy(mesh.rotation);
-                                        obj.tri.scale.copy(mesh.scale);
-                                        obj.tri.frustumCulled = false
-                                        scene.add(obj.tri);
-
-                                        // TODO: This is reliant upon static objects, otherwise we need to track
-                                        // updates
-                                        obj.invWorld = new THREE.Matrix4()
-                                        mesh.updateMatrixWorld(true)
-                                        obj.invWorld.copy(mesh.matrixWorld)
-                                        obj.invWorld.invert()
-
-                                        // Add this World Object to the collision_meshes container for testing
-                                        collision_meshes.push(obj)
+                                    if(DEBUG_PHYSICS && triangles != null) {
+                                        processTriangles(world_ob, triangles, mesh)
                                     }
 
                                     world_ob_or_avatar.mesh = mesh;
@@ -1579,6 +1554,41 @@ function startDownloadingResource(download_queue_item) {
     }
 }
 
+// Build the BVH for a new (unregistered
+function processTriangles (world_ob_or_avatar: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
+    const obj = world_ob_or_avatar
+    const start_time = performance.now() * .001;
+
+    const model_loaded = collision_meshes.has(obj.model_url)
+    obj.bvh = model_loaded ? collision_meshes[obj.model_url] : new BVH(triangles);
+    const build_time = performance.now() * .001;
+    console.log('Construction Time:', obj.model_url, build_time - start_time);
+    console.log('Triangle Count:', triangles.tri_count);
+
+    obj.bound = obj.bvh.getRootAABBMesh();
+    obj.bound.position.copy(mesh.position);
+    obj.bound.rotation.copy(mesh.rotation);
+    obj.bound.scale.copy(mesh.scale);
+    scene.add(obj.bound);
+
+    // Add the triangle highlighter
+    obj.tri = obj.bvh.getTriangleHighlighter()
+    obj.tri.position.copy(mesh.position);
+    obj.tri.rotation.copy(mesh.rotation);
+    obj.tri.scale.copy(mesh.scale);
+    obj.tri.frustumCulled = false
+    scene.add(obj.tri);
+
+    // TODO: This is reliant upon static objects, otherwise we need to track updates
+    obj.invWorld = new THREE.Matrix4()
+    mesh.updateMatrixWorld(true)
+    obj.invWorld.copy(mesh.matrixWorld)
+    obj.invWorld.invert()
+
+    // Hash on model URL for now...
+    if(!model_loaded) collision_meshes[obj.model_url] = obj
+    loaded_meshes.push(obj)
+}
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
 function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_aabb_longest_len, ob_lod_level, mats, pos, scale, world_axis, angle) {
@@ -1824,114 +1834,42 @@ function camRightVec() {
     return new THREE.Vector3(Math.sin(heading), -Math.cos(heading), 0);
 }
 
-const caster = (() => {
-    let debugRayMesh: THREE.LineSegments | undefined
-    const dims = new THREE.Vector2()
-    const theta = DEFAULT_FOV * Math.PI / 360
-    const htan = Math.tan(theta)
-    const top = DEFAULT_NEAR * htan; const bottom = -top
-    const rayPosBuf = new Float32Array(6)
-    const origin = new THREE.Vector3()
-    const U = new THREE.Vector3()
-
-    const initialised = (): boolean => debugRayMesh != null
-
-    function init () {
-        const geo = new THREE.BufferGeometry()
-        geo.setAttribute('position', new THREE.BufferAttribute(rayPosBuf, 3, false))
-        debugRayMesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 'red'}))
-        scene.add(debugRayMesh)
-        debugRayMesh.frustumCulled = false
-    }
-
-    // Calculate a pick ray based on the current camera view at screen coordinates [x, y]
-    // pass setRay === true to draw the ray as a line segment in world space
-    function getPickRay (x: number, y: number, setRay=false): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
-        renderer.getSize(dims)
-        if(x < 0 || x > dims.x || y < 0 || y > dims.y) return null
-
-        const invH = 1. / dims.y
-        const AR = dims.x * invH
-        const r = x / dims.x, u = (dims.y - y) * invH
-        const right = AR * top; const left = -right
-
-        const R = camRightVec()
-        const D = camForwardsVec()
-        U.crossVectors(D, R)
-        R.multiplyScalar(lerpN(left, right, r))
-        U.multiplyScalar(lerpN(top, bottom, u))
-
-        const dir = R.add(U).add(D.multiplyScalar(DEFAULT_NEAR))
-        dir.normalize()
-
-        camera.getWorldPosition(origin)
-
-        if(setRay) {
-            rayPosBuf.set([origin.x, origin.y, origin.z, origin.x+10*dir.x, origin.y+10*dir.y, origin.z+10*dir.z])
-            debugRayMesh.geometry.getAttribute('position').needsUpdate = true
-        }
-
-        return [
-            camera.getWorldPosition(new THREE.Vector3()),
-            dir
-        ]
-    }
-
-    // These are temporaries that we don't want to recreate
-    const O = new THREE.Vector3()
-    const d = new THREE.Vector3()
-    const Of = new Float32Array(3) // TODO: Build custom query that takes Vector3
-    const df = new Float32Array(3)
-
-    // Transform a ray from world space into the local space of the BVH and test for intersection
-    function testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, invWorldMat: THREE.Matrix4, bvh: BVH): [boolean, number[]] {
-        O.copy(origin); d.copy(dir)
-        O.applyMatrix4(invWorldMat); d.transformDirection(invWorldMat)
-        Of[0] = O.x; Of[1] = O.y; Of[2] = O.z
-        df[0] = d.x; df[1] = d.y; df[2] = d.z
-
-        return [bvh.testRayRoot(Of, df), bvh.testRayLeaf(Of, df)]
-    }
-
-    return {
-        initialised,
-        init,
-        getPickRay,
-        testRayBVH
-    }
-})()
-
-// Set this to true or false to highlight the leaf AABB node intersected by the mouse
-const CONSTANT_QUERY = true
+// Setup the ray caster if we're debugging the physics implementation
+const caster = DEBUG_PHYSICS ? new Caster(renderer, {
+    debugRay: false,
+    near: DEFAULT_NEAR,
+    far: DEFAULT_FAR,
+    fov: DEFAULT_FOV,
+    camera: camera,
+    camRightFnc: camRightVec,
+    camDirFnc: camForwardsVec
+}) : null
 
 function onDocumentMouseDown(ev: MouseEvent) {
     is_mouse_down = true;
 
-    // Initialise the caster on the first mouse down event
-    if(!caster.initialised()) caster.init()
+    if(DEBUG_PHYSICS) {
+        // Visualise the ray in world space
+        const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true)
 
-    // Visualise the ray in world space
-    const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true)
-    const mat = new THREE.Matrix4()
+        for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
+            const obj = loaded_meshes[i]
+            const mat = obj.invWorld
 
-    for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
-        const obj = collision_meshes[i]
-        mat.copy(obj.mesh.matrixWorld)
-        mat.invert()
-
-        const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
-        if(test) console.log('hit:', obj.model_url, idx)
-        if(idx[0] !== -1) {
-            obj.bvh.updateAABBMesh(obj.bound, idx[0])
-            obj.bound.visible = true
-            if(idx[1] !== -1) {
-                obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
-                obj.tri.visible = true
+            const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
+            if(test) console.log('hit:', obj.model_url, idx)
+            if(idx[0] !== -1) {
+                obj.bvh.updateAABBMesh(obj.bound, idx[0])
+                obj.bound.visible = true
+                if(idx[1] !== -1) {
+                    obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
+                    obj.tri.visible = true
+                } else {
+                    obj.tri.visible = false
+                }
             } else {
-                obj.tri.visible = false
+                obj.bound.visible = false
             }
-        } else {
-            obj.bound.visible = false
         }
     }
 }
@@ -1945,13 +1883,13 @@ function onDocumentMouseMove(e) {
     //console.log("onDocumentMouseMove()");
     //console.log(e.movementX);
 
-    if(caster.initialised() && CONSTANT_QUERY) {
+    if(DEBUG_PHYSICS && caster) {
         const ray = caster.getPickRay(e.offsetX, e.offsetY)
         if(ray != null) {
             const [origin, dir] = ray
 
-            for(let i = 0, end = collision_meshes.length; i !== end; ++i) {
-                const obj = collision_meshes[i]
+            for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
+                const obj = loaded_meshes[i]
                 const [test, idx] = caster.testRayBVH(origin, dir, obj.invWorld, obj.bvh)
                 if(test) {
                     if(idx[0] !== -1) {
