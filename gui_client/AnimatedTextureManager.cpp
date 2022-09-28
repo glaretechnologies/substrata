@@ -124,7 +124,7 @@ public:
 			ResourceRef resource = resource_manager->getExistingResourceForURL(resource_URL);
 			if(resource.nonNull())
 			{
-				const std::string path = resource->getLocalPath();
+				const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
 				//conPrint("path: " + path);
 				try
 				{

@@ -86,28 +86,35 @@ bool ResourceManager::isValidURL(const std::string& URL)
 
 
 // Compute default local path for URL.
-const std::string ResourceManager::computeDefaultLocalPathForURL(const std::string& URL)
+const std::string ResourceManager::computeDefaultRawLocalPathForURL(const std::string& URL)
 {
-	const std::string path = base_resource_dir + "/" + escapeString(URL);
+	const std::string raw_path = escapeString(URL);
+
+	const std::string abs_path = this->base_resource_dir + "/" + raw_path;
 #ifdef WIN32
-	if(path.size() >= MAX_PATH) // path length seems to include null terminator, e.g. paths of length 260 fail as well.
+	if(abs_path.size() >= MAX_PATH) // path length seems to include null terminator, e.g. paths of length 260 fail as well.
 	{
 		// Path is too long for windows.  Use a hash of the URL instead
-		const uint64 hash = XXH64(URL.data(), URL.size(), /*seed=*/1);
-
-		return base_resource_dir + "/" + toHexString(hash) + "." + ::getExtension(path);
+		return computeRawLocalPathFromURLHash(URL, ::getExtension(raw_path));
 	}
 #endif
 
-	return path;
+	return raw_path;
 }
 
 
-const std::string ResourceManager::computeLocalPathFromURLHash(const std::string& URL, const std::string& extension)
+// Computes a path that doesn't contain the filename, just uses a hash of the filename.
+const std::string ResourceManager::computeRawLocalPathFromURLHash(const std::string& URL, const std::string& extension)
 {
 	const uint64 hash = XXH64(URL.data(), URL.size(), /*seed=*/1);
 
-	return base_resource_dir + "/" + toHexString(hash) + "." + extension;// ::getExtension(URL);
+	return toHexString(hash) + "." + extension;
+}
+
+
+const std::string ResourceManager::getLocalAbsPathForResource(const Resource& resource)
+{
+	return resource.getLocalAbsPath(base_resource_dir);
 }
 
 
@@ -119,11 +126,13 @@ ResourceRef ResourceManager::getOrCreateResourceForURL(const std::string& URL) /
 	if(res == resource_for_url.end())
 	{
 		// Insert it
-		const std::string local_path = computeDefaultLocalPathForURL(URL);
+		const std::string raw_local_path = computeDefaultRawLocalPathForURL(URL);
+		const std::string abs_path = this->base_resource_dir + "/" + raw_local_path;
+
 		ResourceRef resource = new Resource(
 			URL, 
-			local_path,
-			FileUtils::fileExists(local_path) ? Resource::State_Present : Resource::State_NotPresent,
+			raw_local_path,
+			FileUtils::fileExists(abs_path) ? Resource::State_Present : Resource::State_NotPresent,
 			UserID::invalidUserID()
 		);
 		resource_for_url[URL] = resource;
@@ -228,7 +237,7 @@ const std::string ResourceManager::pathForURL(const std::string& URL)
 
 	ResourceRef resource = this->getOrCreateResourceForURL(URL);
 
-	return resource->getLocalPath();
+	return resource->getLocalAbsPath(this->base_resource_dir);
 
 	//if(!isValidURL(URL))
 	//	throw glare::Exception("Invalid URL '" + URL + "'");
@@ -311,7 +320,7 @@ void ResourceManager::loadFromDisk(const std::string& path)
 		{
 			// Deserialise resource
 			ResourceRef resource = new Resource();
-			readFromStream(stream, *resource);
+			readFromStream(stream, *resource); // NOTE: for old resource versions (< 4), will convert absolute local paths to relative local paths.
 
 			// conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
@@ -324,7 +333,7 @@ void ResourceManager::loadFromDisk(const std::string& path)
 			// From version 2, we save the resource state with the resources, so we don't have to recompute it when loading the resources.
 			if(version == 1)
 			{
-				if(FileUtils::fileExists(resource->getLocalPath()))
+				if(FileUtils::fileExists(resource->getLocalAbsPath(this->base_resource_dir)))
 				{
 					resource->setState(Resource::State_Present);
 					num_resources_present++;
@@ -383,7 +392,7 @@ void ResourceManager::saveToDisk(const std::string& path)
 				for(auto i=resource_for_url.begin(); i != resource_for_url.end(); ++i)
 				{
 					stream.writeUInt32(RESOURCE_CHUNK);
-					writeToStream(*i->second, stream);
+					i->second->writeToStream(stream);
 				}
 			}
 

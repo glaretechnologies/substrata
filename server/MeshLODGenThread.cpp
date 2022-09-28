@@ -317,7 +317,7 @@ void MeshLODGenThread::doRun()
 									ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(mat->colour_texture_url);
 									if(base_resource.nonNull())
 									{
-										const std::string tex_path = base_resource->getLocalPath();
+										const std::string tex_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 
 										if(hasExtension(tex_path, "mp4"))
 										{

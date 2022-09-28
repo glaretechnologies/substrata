@@ -52,7 +52,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				ResourceRef resource = res->second;
 				if(resource->getState() == Resource::State_Present)
 				{
-					local_path = resource->getLocalPath();
+					local_path = world_state.resource_manager->getLocalAbsPathForResource(*resource);
 				}
 			}
 		} // End lock scope
@@ -213,6 +213,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 
 void listResources(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
+#if 0
 	try
 	{
 		std::vector<std::string> URL_and_filenames;
@@ -242,6 +243,7 @@ void listResources(ServerAllWorldsState& world_state, const web::RequestInfo& re
 	{
 		web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Error while returning resource.");
 	}
+#endif
 }
 
 

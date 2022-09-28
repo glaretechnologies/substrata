@@ -135,21 +135,21 @@ void NetDownloadResourcesThread::doRun()
 
 							// Add an extension based on the mime type.
 							if(!extension.empty())
-								if(!hasExtension(resource->getLocalPath(), extension))
+								if(!hasExtension(resource->getRawLocalPath(), extension))
 								{
-									resource->setLocalPath(resource->getLocalPath() + "." + extension);
+									resource->setRawLocalPath(resource->getRawLocalPath() + "." + extension);
 
 									// Avoid path being too long for Windows now that we have appended the extension.
-									if(resource->getLocalPath().size() >= 260)
-										resource->setLocalPath(resource_manager->computeLocalPathFromURLHash(resource->URL, extension));
+									if(resource_manager->getLocalAbsPathForResource(*resource).size() >= 260)
+										resource->setRawLocalPath(resource_manager->computeRawLocalPathFromURLHash(resource->URL, extension)); // Computes a path that doesn't contain the filename, just uses a hash of the filename.
 
-									if(VERBOSE) conPrint("Added extension to local path, new local path: " + resource->getLocalPath());
+									if(VERBOSE) conPrint("Added extension to local path, new local path: " + resource_manager->getLocalAbsPathForResource(*resource));
 								}
 
 							
 
 							// Save to disk
-							const std::string path = resource->getLocalPath();
+							const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
 							try
 							{
 								FileUtils::writeEntireFile(path, (const char*)data.data(), data.size());

@@ -7,21 +7,24 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include <Exception.h>
+#include <ConPrint.h>
+#include <FileUtils.h>
 
 
-static const uint32 RESOURCE_SERIALISATION_VERSION = 3;
+static const uint32 RESOURCE_SERIALISATION_VERSION = 4;
 /*
 Version history:
 3: Serialising state
+4: local_path is now path from base_resources_dir, instead of absolute path
 */
 
 
-static void writeToStreamCommon(const Resource& resource, OutStream& stream)
+void Resource::writeToStreamCommon(OutStream& stream)
 {
-	stream.writeStringLengthFirst(resource.URL); 
-	stream.writeStringLengthFirst(resource.getLocalPath());
-	writeToStream(resource.owner_id, stream);
-	stream.writeUInt32((uint32)resource.getState());
+	stream.writeStringLengthFirst(URL); 
+	stream.writeStringLengthFirst(local_path);
+	::writeToStream(owner_id, stream);
+	stream.writeUInt32((uint32)getState());
 }
 
 
@@ -29,19 +32,30 @@ static void readFromStreamCommon(InStream& stream, uint32 version, Resource& res
 {
 	resource.URL = stream.readStringLengthFirst(20000);
 	if(version >= 2)
-		resource.setLocalPath(stream.readStringLengthFirst(20000));
+		resource.setRawLocalPath(stream.readStringLengthFirst(20000));
+
+	if(version < 4) // Prior to version 4, local path was an absolute path.
+	{
+		// Remove the base resources dir path prefix
+		const std::string new_local_path = FileUtils::getFilename(resource.getRawLocalPath());
+
+		// conPrint("Rewriting resource raw local path from '" + resource.getRawLocalPath() + "' to '" + new_local_path + "'");
+
+		resource.setRawLocalPath(new_local_path);
+	}
+
 	resource.owner_id = readUserIDFromStream(stream);
 	if(version >= 3)
 		resource.setState((Resource::State)stream.readUInt32());
 }
 
 
-void writeToStream(const Resource& resource, OutStream& stream)
+void Resource::writeToStream(OutStream& stream)
 {
 	// Write version
 	stream.writeUInt32(RESOURCE_SERIALISATION_VERSION);
 
-	writeToStreamCommon(resource, stream);
+	writeToStreamCommon(stream);
 }
 
 

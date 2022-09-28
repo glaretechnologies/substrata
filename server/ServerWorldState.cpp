@@ -203,17 +203,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev
 
 					//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
 
-					// TEMP HACK: Rewrite resource local path for testing server state on dev machine.
-					/*if(enable_dev_mode)
-					{
-						if(!resource->URL.empty())
-						{
-							resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
-							if(FileUtils::fileExists(resource->getLocalPath()))
-								resource->setState(Resource::State_Present);
-						}
-					}*/
-
 					resource->database_key = database_key;
 					this->resource_manager->addResource(resource);
 				}
@@ -406,17 +395,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev
 				readFromStream(stream, *resource);
 
 				//conPrint("Loaded resource:\n  URL: '" + resource->URL + "'\n  local_path: '" + resource->getLocalPath() + "'\n  owner_id: " + resource->owner_id.toString());
-
-				// TEMP HACK: Rewrite resource local path for testing server state on dev machine.
-				/*if(enable_dev_mode)
-				{
-					if(!resource->URL.empty())
-					{
-						resource->setLocalPath(this->resource_manager->computeDefaultLocalPathForURL(resource->URL));
-						if(FileUtils::fileExists(resource->getLocalPath()))
-							resource->setState(Resource::State_Present);
-					}
-				}*/
 
 				this->resource_manager->addResource(resource);
 			}
@@ -963,7 +941,7 @@ void ServerAllWorldsState::serialiseToDisk()
 				Resource* resource = i->ptr();
 				temp_buf.clear();
 				temp_buf.writeUInt32(RESOURCE_CHUNK);
-				writeToStream(*resource, temp_buf);
+				resource->writeToStream(temp_buf);
 
 				if(!resource->database_key.valid())
 					resource->database_key = database.allocUnusedKey(); // Get a new key
