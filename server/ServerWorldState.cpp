@@ -759,10 +759,12 @@ void ServerAllWorldsState::saveSanitisedDatabase()
 				User* user = it->second.ptr();
 				user->name = "User " + toString(i); // Replace name and email address with something generic.
 				user->email_address = "user_" + toString(i) + "@email.com";
-				user->hashed_password = std::string(32, 'a');
-				user->password_hash_salt = "";
+				user->hashed_password.clear();
+				user->password_hash_salt.clear();
 				user->controlled_eth_address = "";
 				user->password_resets.clear();
+
+				user->setNewPasswordAndSalt("aaaaaaaa"); // Set to (the hash of) a known password, so we can log in as e.g. user 0 for testing.
 
 				db_dirty_users.insert(user); // Mark as dirty
 
