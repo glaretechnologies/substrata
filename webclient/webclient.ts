@@ -1379,7 +1379,7 @@ function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, sc
 
     let three_mats = []
 
-    if(DEBUG_MATERIAL) {
+    if(!DEBUG_MATERIAL) {
         for (let i = 0; i < mats.length; ++i) {
             let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
             //csm.setupMaterial(three_mat); // TEMP
