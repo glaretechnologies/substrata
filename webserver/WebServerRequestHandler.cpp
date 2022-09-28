@@ -449,8 +449,8 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(::hasPrefix(request.path, "/files/"))
 		{
-			// Only serve files that are in the precomputed set of filenames: public_file_filenames
-			// This is to avoid directory traversal issues, where "../" or absolute paths are used to traverse out of the public_files_dir.
+			// Only serve files that are in the precomputed filename map.
+			// One reason for this is to avoid directory traversal issues, where "../" or absolute paths are used to traverse out of the public_files_dir.
 			const std::string filename = ::eatPrefix(request.path, "/files/");
 
 			Reference<WebDataStoreFile> store_file;
