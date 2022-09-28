@@ -419,8 +419,6 @@ export function loadBatchedMesh(data): [THREE.InterleavedBuffer, Triangles] {
 	let interleaved_buffer = new THREE.InterleavedBuffer(expanded, /*vert stride in elems=*/expanded_vert_size_B / 4);
 
 	// Set the 3.js geometry vertex attributes
-	let position_offset = -1;
-
 	expanded_attr_offset_B = 0;
 	let added_normals = false;
 	for (let i = 0; i < vert_attributes.length; ++i) {
@@ -432,7 +430,6 @@ export function loadBatchedMesh(data): [THREE.InterleavedBuffer, Triangles] {
 
 		if (attr.type == VertAttribute_Position) {
 			name = 'position';
-			position_offset = i
 		}
 
 		else if (attr.type == VertAttribute_Normal) {
@@ -459,12 +456,7 @@ export function loadBatchedMesh(data): [THREE.InterleavedBuffer, Triangles] {
 		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
 
-	let triangles = null;
-	if(position_offset === -1) {
-		console.warn('Failed to build triangle list for BVH construction');
-	} else {
-		triangles = new Triangles(expanded, index_data, 0, expanded_vert_size_B / 4);
-	}
+	let triangles = new Triangles(expanded, index_data, 0, expanded_vert_size_B / 4);
 
 	if (!added_normals)
 		geometry.computeVertexNormals();
