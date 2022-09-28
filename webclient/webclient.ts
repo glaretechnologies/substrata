@@ -23,9 +23,9 @@ var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
 // PHYSICS-RELATED
-const DEBUG_PHYSICS = true
-var collision_meshes = new Map<string, WorldObject>() // Collision Meshes are mapped by map URL
-var loaded_meshes = new Array<WorldObject>() // How do we unload meshes?
+const DEBUG_PHYSICS = false;
+var collision_meshes = new Map<string, WorldObject>(); // Collision Meshes are mapped by map URL
+var loaded_meshes = new Array<WorldObject>(); // How do we unload meshes?
 // END PHYSICS-RELATED
 
 const STATE_INITIAL = 0;
@@ -512,7 +512,7 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
 
         //console.log("parcel.verts[i]: ", parcel.verts[i]);
     }
-        
+
     parcel.zbounds = readVec2dFromStream(buffer_in);
 
     {
@@ -924,10 +924,10 @@ ws.onmessage = function (event) {
                 }
             }
             else if (msg_type == AvatarIsHere) {
-            
+
                 let avatar = new Avatar();
                 avatar.readFromStream(buffer);
-                
+
                 avatars.set(avatar.uid, avatar);
 
                 console.log("Avatar " + avatar.name + " is here");
@@ -1428,7 +1428,7 @@ function startDownloadingResource(download_queue_item) {
         const loader = new THREE.TextureLoader();
 
         loader.load("resource/" + download_queue_item.URL,
-            
+
             function (texture) { // onLoad callback
                 num_resources_downloading--;
 
@@ -1554,7 +1554,7 @@ function startDownloadingResource(download_queue_item) {
     }
 }
 
-// Build the BVH for a new (unregistered
+// Build the BVH for a new (unregistered) mesh
 function processTriangles (world_ob_or_avatar: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
     const obj = world_ob_or_avatar
     const start_time = performance.now() * .001;
@@ -1923,14 +1923,14 @@ function onDocumentMouseMove(e) {
 function onKeyDown(e) {
     //console.log("onKeyDown()");
     //console.log("e.code: " + e.code);
-    
+
     keys_down.add(e.code);
 }
 
 function onKeyUp(e) {
     //console.log("onKeyUp()");
     //console.log("e.code: " + e.code);
-    
+
     keys_down.delete(e.code);
 }
 
@@ -2071,7 +2071,7 @@ function animate() {
         dirLight.shadow.camera.near = cam_dot_sun - 100;
         dirLight.shadow.camera.far = cam_dot_sun + 100;
         dirLight.shadow.camera.updateProjectionMatrix();
-        
+
         //if (camera_helper)
         //    camera_helper.update();
 
