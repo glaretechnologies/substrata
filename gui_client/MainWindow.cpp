@@ -845,15 +845,19 @@ void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox
 	if(isValidImageTextureURL(texture_url))
 	{
 		const std::string lod_tex_url = world_mat.getLODTextureURLForLevel(texture_url, ob_lod_level, tex_has_alpha);
-		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
-		if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already into the texture server
-			!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
+		ResourceRef resource = resource_manager->getExistingResourceForURL(lod_tex_url);
+		if(resource.nonNull() && (resource->getState() == Resource::State_Present)) // If the texture is present on disk:
 		{
-			const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
-			if(just_added)
-				load_item_queue.enqueueItem(pos, aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB));
+			const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
+
+			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded already into the texture server
+				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
+			{
+				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				if(just_added)
+					load_item_queue.enqueueItem(pos, aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB));
+			}
 		}
 	}
 }
@@ -873,15 +877,19 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	if(isValidLightMapURL(ob.lightmap_url))
 	{
 		const std::string lod_tex_url = WorldObject::getLODLightmapURL(ob.lightmap_url, ob_lod_level);
-		const std::string tex_path = resource_manager->pathForURL(lod_tex_url);
 
-		if(resource_manager->isFileForURLPresent(lod_tex_url) && // If the texture is present on disk,
-			!this->texture_server->isTextureLoadedForPath(tex_path) && // and if not loaded already
-			!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
+		ResourceRef resource = resource_manager->getExistingResourceForURL(lod_tex_url);
+		if(resource.nonNull() && (resource->getState() == Resource::State_Present)) // If the texture is present on disk:
 		{
-			const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
-			if(just_added)
-				load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
+			const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
+
+			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded already
+				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
+			{
+				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				if(just_added)
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
+			}
 		}
 	}
 }
@@ -4546,7 +4554,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						// Get the local path, we will check the file type of the local path when determining what to do with the file, as the local path will have an extension given by the mime type
 						// in the net download case.
-						const std::string local_path = resource->getLocalPath();
+						const std::string local_path = resource_manager->getLocalAbsPathForResource(*resource);
 
 						bool use_SRGB = true;
 						Vec3d pos(0, 0, 0);

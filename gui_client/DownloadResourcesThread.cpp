@@ -208,7 +208,7 @@ void DownloadResourcesThread::doRun()
 
 								try
 								{
-									const std::string path = resource->getLocalPath();
+									const std::string path = resource_manager->getLocalAbsPathForResource(*resource);
 									{
 										FileOutStream file(path, std::ios::binary | std::ios::trunc); // Remove any existing data in the file
 

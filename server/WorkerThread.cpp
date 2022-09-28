@@ -328,7 +328,7 @@ void WorkerThread::handleResourceDownloadConnection()
 						}
 						else
 						{
-							const std::string local_path = resource->getLocalPath();
+							const std::string local_path = server->world_state->resource_manager->getLocalAbsPathForResource(*resource);
 
 							// conPrint("\tlocal path: '" + local_path + "'");
 

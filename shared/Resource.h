@@ -42,14 +42,18 @@ public:
 		//State_ResourceDownloadFailed
 	};
 
-	Resource(const std::string& URL_, const std::string& local_path_, State s, const UserID& owner_id_) : URL(URL_), local_path(local_path_), state(s), owner_id(owner_id_)/*, num_buffer_readers(0)*/ {}
+	Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_) : URL(URL_), local_path(raw_local_path_), state(s), owner_id(owner_id_)/*, num_buffer_readers(0)*/ {}
 	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/ {}
 	
-	const std::string getLocalPath() const { return local_path; }
-	void setLocalPath(const std::string& p) { local_path = p; }
+	const std::string getLocalAbsPath(const std::string& base_resource_dir) const { return base_resource_dir + "/" + local_path; }
+	const std::string getRawLocalPath() const { return local_path; } // Relative path on local disk from base_resources_dir.
+	void setRawLocalPath(const std::string& p) { local_path = p; }
 
 	State getState() const { return state; }
 	void setState(State s) { state = s; }
+
+	void writeToStream(OutStream& stream);
+	
 	
 	std::string URL;
 	UserID owner_id;
@@ -61,6 +65,7 @@ public:
 
 	DatabaseKey database_key;
 private:
+	void writeToStreamCommon(OutStream& stream);
 
 	//Mutex buffer_mutex; // protects buffer.  Lock should be held by threads other than the DownloadResourcesThread when reading from buffer,
 	// and will be held by DownloadResourcesThread when writing to buffer.
@@ -69,13 +74,12 @@ private:
 	//std::set<Reference<ResourceDownloadListener>> listeners;
 
 	State state; // May be protected by mutex soon.
-	std::string local_path; // path on local disk.
+	std::string local_path; // Relative path on local disk from base_resources_dir.
 };
 
 typedef Reference<Resource> ResourceRef;
 
 
-void writeToStream(const Resource& resource, OutStream& stream);
 uint32 readFromStream(InStream& stream, Resource& resource); // Returns serialisation version
 
 //void writeToNetworkStream(const Resource& resource, OutStream& stream); // write without version

@@ -54,12 +54,16 @@ public:
 
 	void setResourceAsLocallyPresentForURL(const std::string& URL); // Threadsafe
 
+	// Get local, absolute path for the URL.
 	// NOTE: currently has the side-effect of adding a resource to the resource map if it was not already present.
 	const std::string pathForURL(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
-	const std::string computeDefaultLocalPathForURL(const std::string& URL); // Compute default local path for URL.
+	const std::string computeDefaultRawLocalPathForURL(const std::string& URL); // Compute default local path for URL.
 
-	const std::string computeLocalPathFromURLHash(const std::string& URL, const std::string& extension);
+	// Computes a path that doesn't contain the filename, just uses a hash of the filename.
+	static const std::string computeRawLocalPathFromURLHash(const std::string& URL, const std::string& extension);
+
+	const std::string getLocalAbsPathForResource(const Resource& resource);
 
 	bool isFileForURLPresent(const std::string& URL); // Throws glare::Exception if URL is invalid.
 
