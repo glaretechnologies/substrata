@@ -27,6 +27,7 @@ NetDownloadResourcesThread::NetDownloadResourcesThread(ThreadSafeQueue<Reference
 	num_net_resources_downloading(num_net_resources_downloading_)
 {
 	client = new HTTPClient();
+	client->additional_headers.push_back("User-Agent: Substrata client");
 }
 
 
