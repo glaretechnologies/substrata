@@ -585,7 +585,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			web_data_store->public_files_dir = "N:\\new_cyberspace\\trunk\\webserver_public_files";
+			web_data_store->public_files_dir = "N:\\substrata\\trunk\\webserver_public_files";
 			web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 		}
 		default_webclient_dir = server_state_dir + "/webclient";
