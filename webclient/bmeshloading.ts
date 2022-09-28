@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 import * as fzstd from './fzstd.js';
 import * as THREE from './build/three.module.js';
 import * as bufferin from './bufferin.js';
+import { Triangles } from './physics/bvh.js';
 
 
 class Vec3f {
@@ -145,7 +146,7 @@ function batchedMeshUnpackNormal(packed_normal) // packed_normal is uint32
 
 
 // data is an ArrayBuffer
-export function loadBatchedMesh(data) {
+export function loadBatchedMesh(data): [THREE.InterleavedBuffer, Triangles] {
 
 	let buff = new bufferin.BufferIn(data);
 
@@ -426,8 +427,11 @@ export function loadBatchedMesh(data) {
 		let expanded_attr_offset_uint32s = expanded_attr_offset_B / 4;
 		
 		let name = null;
-		if (attr.type == VertAttribute_Position)
+
+		if (attr.type == VertAttribute_Position) {
 			name = 'position';
+		}
+
 		else if (attr.type == VertAttribute_Normal) {
 			name = 'normal';
 			added_normals = true;
@@ -452,8 +456,10 @@ export function loadBatchedMesh(data) {
 		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
 
+	let triangles = new Triangles(expanded, index_data, 0, expanded_vert_size_B / 4);
+
 	if (!added_normals)
 		geometry.computeVertexNormals();
 
-	return geometry;
+	return [geometry, triangles];
 }

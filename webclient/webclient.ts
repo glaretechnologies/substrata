@@ -12,6 +12,9 @@ import * as bufferin from './bufferin.js';
 import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
+import BVH, { Triangles } from './physics/bvh.js';
+import Caster from './physics/caster.js';
+
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
 
@@ -19,6 +22,12 @@ import * as downloadqueue from './downloadqueue.js';
 var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
+// PHYSICS-RELATED
+const DEBUG_PHYSICS = false;
+const DEBUG_MATERIAL = false;
+var collision_meshes = new Map<string, WorldObject>(); // Collision Meshes are mapped by map URL
+var loaded_meshes = new Array<WorldObject>(); // How do we unload meshes?
+// END PHYSICS-RELATED
 
 const STATE_INITIAL = 0;
 const STATE_READ_HELLO_RESPONSE = 1;
@@ -504,7 +513,7 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
 
         //console.log("parcel.verts[i]: ", parcel.verts[i]);
     }
-        
+
     parcel.zbounds = readVec2dFromStream(buffer_in);
 
     {
@@ -589,7 +598,12 @@ class WorldObject {
 
     compressed_voxels: Array<number>;
 
-
+    bvh: BVH
+    invWorld: THREE.Matrix4 // We should only calculate the inverse when the world matrix actually changes
+    // Debug Stuff - REMOVE!
+    //bvh_mesh?: THREE.LineSegments
+    bound?: THREE.LineSegments
+    tri?: THREE.LineLoop
 
     mesh_state: number;
     mesh: THREE.Mesh;
@@ -799,7 +813,6 @@ var world_objects = new Map<bigint, WorldObject>();
 var avatars = new Map<bigint, Avatar>();
 var client_avatar_uid: bigint = null;
 
-
 //Log the messages that are returned from the server
 ws.onmessage = function (event) {
     //console.log("onmessage()");
@@ -912,10 +925,10 @@ ws.onmessage = function (event) {
                 }
             }
             else if (msg_type == AvatarIsHere) {
-            
+
                 let avatar = new Avatar();
                 avatar.readFromStream(buffer);
-                
+
                 avatars.set(avatar.uid, avatar);
 
                 console.log("Avatar " + avatar.name + " is here");
@@ -982,6 +995,10 @@ ws.onmessage = function (event) {
                 //avatars.set(avatar.uid, avatar);
 
                 if (avatar.uid != client_avatar_uid) {// && avatar.mesh_state != MESH_LOADED) {
+
+                    // Load some spheres to represent the avatar.
+
+
 
                     console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
                     let ob_lod_level = 0;
@@ -1361,12 +1378,23 @@ function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, sc
     let use_vert_colours = (geometry.getAttribute('color') !== undefined);
 
     let three_mats = []
-    for (let i = 0; i < mats.length; ++i) {
-        let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
-        //csm.setupMaterial(three_mat); // TEMP
-        setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
-        three_mats.push(three_mat);
+
+    if(DEBUG_MATERIAL) {
+        for (let i = 0; i < mats.length; ++i) {
+            let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
+            //csm.setupMaterial(three_mat); // TEMP
+            setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
+            three_mats.push(three_mat);
+        }
+    } else {
+        for (let i = 0; i < mats.length; ++i) {
+            const mat = new THREE.MeshLambertMaterial({color: 'white'})
+            mat.wireframe = true
+            mat.flatShading = true
+            three_mats.push(mat)
+        }
     }
+
 
     const mesh = new THREE.Mesh(geometry, three_mats);
     mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
@@ -1399,7 +1427,7 @@ function startDownloadingResource(download_queue_item) {
         const loader = new THREE.TextureLoader();
 
         loader.load("resource/" + download_queue_item.URL,
-            
+
             function (texture) { // onLoad callback
                 num_resources_downloading--;
 
@@ -1454,7 +1482,7 @@ function startDownloadingResource(download_queue_item) {
 
                     //console.log("Downloaded the file: '" + model_url + "'!");
                     try {
-                        let geometry = loadBatchedMesh(array_buffer);
+                        let [geometry, triangles] = loadBatchedMesh(array_buffer);
 
                         //console.log("Inserting " + model_url + " into url_to_geom_map");
                         url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
@@ -1480,6 +1508,11 @@ function startDownloadingResource(download_queue_item) {
 
                                     let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
+                                    // For now, build the BVH in the main thread while testing performance
+                                    if(DEBUG_PHYSICS && triangles != null) {
+                                        processTriangles(world_ob, triangles, mesh)
+                                    }
+
                                     world_ob_or_avatar.mesh = mesh;
                                     world_ob_or_avatar.mesh_state = MESH_LOADED;
                                 }
@@ -1487,6 +1520,7 @@ function startDownloadingResource(download_queue_item) {
 
                                     let avatar = world_ob_or_avatar;
                                     if (avatar.uid != client_avatar_uid) {
+                                        console.log('Avatar:', avatar)
                                         let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
                                             /*angle=*/0, /*ob_aabb_longest_len=*/1.0, /*ob_lod_level=*/0);
 
@@ -1519,6 +1553,41 @@ function startDownloadingResource(download_queue_item) {
     }
 }
 
+// Build the BVH for a new (unregistered) mesh
+function processTriangles (world_ob_or_avatar: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
+    const obj = world_ob_or_avatar
+    const start_time = performance.now() * .001;
+
+    const model_loaded = collision_meshes.has(obj.model_url)
+    obj.bvh = model_loaded ? collision_meshes[obj.model_url] : new BVH(triangles);
+    const build_time = performance.now() * .001;
+    console.log('Construction Time:', obj.model_url, build_time - start_time);
+    console.log('Triangle Count:', triangles.tri_count);
+
+    obj.bound = obj.bvh.getRootAABBMesh();
+    obj.bound.position.copy(mesh.position);
+    obj.bound.rotation.copy(mesh.rotation);
+    obj.bound.scale.copy(mesh.scale);
+    scene.add(obj.bound);
+
+    // Add the triangle highlighter
+    obj.tri = obj.bvh.getTriangleHighlighter()
+    obj.tri.position.copy(mesh.position);
+    obj.tri.rotation.copy(mesh.rotation);
+    obj.tri.scale.copy(mesh.scale);
+    obj.tri.frustumCulled = false
+    scene.add(obj.tri);
+
+    // TODO: This is reliant upon static objects, otherwise we need to track updates
+    obj.invWorld = new THREE.Matrix4()
+    mesh.updateMatrixWorld(true)
+    obj.invWorld.copy(mesh.matrixWorld)
+    obj.invWorld.invert()
+
+    // Hash on model URL for now...
+    if(!model_loaded) collision_meshes[obj.model_url] = obj
+    loaded_meshes.push(obj)
+}
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
 function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_aabb_longest_len, ob_lod_level, mats, pos, scale, world_axis, angle) {
@@ -1587,7 +1656,11 @@ client_avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
 THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, /*near=*/0.1, /*far=*/1000);
+const DEFAULT_FOV = 75
+const DEFAULT_AR = window.innerWidth / window.innerHeight
+const DEFAULT_NEAR = 0.1
+const DEFAULT_FAR = 1000.0
+const camera = new THREE.PerspectiveCamera(DEFAULT_FOV, DEFAULT_AR, DEFAULT_NEAR, DEFAULT_FAR);
 
 let renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
@@ -1760,9 +1833,44 @@ function camRightVec() {
     return new THREE.Vector3(Math.sin(heading), -Math.cos(heading), 0);
 }
 
-function onDocumentMouseDown() {
-    //console.log("onDocumentMouseDown()");
+// Setup the ray caster if we're debugging the physics implementation
+const caster = DEBUG_PHYSICS ? new Caster(renderer, {
+    debugRay: false,
+    near: DEFAULT_NEAR,
+    far: DEFAULT_FAR,
+    fov: DEFAULT_FOV,
+    camera: camera,
+    camRightFnc: camRightVec,
+    camDirFnc: camForwardsVec
+}) : null
+
+function onDocumentMouseDown(ev: MouseEvent) {
     is_mouse_down = true;
+
+    if(DEBUG_PHYSICS) {
+        // Visualise the ray in world space
+        const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true);
+
+        for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
+            const obj = loaded_meshes[i];
+            const mat = obj.invWorld;
+
+            const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh);
+            if(test) console.log('hit:', obj.model_url, idx);
+            if(idx[0] !== -1) {
+                obj.bvh.updateAABBMesh(obj.bound, idx[0]);
+                obj.bound.visible = true;
+                if(idx[1] !== -1) {
+                    obj.bvh.updateTriangleHighlighter(idx[1], obj.tri);
+                    obj.tri.visible = true;
+                } else {
+                    obj.tri.visible = false;
+                }
+            } else {
+                obj.bound.visible = false;
+            }
+        }
+    }
 }
 
 function onDocumentMouseUp() {
@@ -1773,6 +1881,33 @@ function onDocumentMouseUp() {
 function onDocumentMouseMove(e) {
     //console.log("onDocumentMouseMove()");
     //console.log(e.movementX);
+
+    if(DEBUG_PHYSICS && caster) {
+        const ray = caster.getPickRay(e.offsetX, e.offsetY);
+        if(ray != null) {
+            const [origin, dir] = ray;
+
+            for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
+                const obj = loaded_meshes[i];
+                const [test, idx] = caster.testRayBVH(origin, dir, obj.invWorld, obj.bvh);
+                if(test) {
+                    if(idx[0] !== -1) {
+                        obj.bvh.updateAABBMesh(obj.bound, idx[0]);
+                        obj.bound.visible = true;
+                    }
+                    if(idx[1] !== -1) {
+                        obj.bvh.updateTriangleHighlighter(idx[1], obj.tri);
+                        obj.tri.visible = true;
+                    } else {
+                        obj.tri.visible = false;
+                    }
+                } else {
+                    obj.bound.visible = false;
+                    obj.tri.visible = false;
+                }
+            }
+        }
+    }
 
     if(is_mouse_down){
         let rot_factor = 0.003;
@@ -1787,14 +1922,14 @@ function onDocumentMouseMove(e) {
 function onKeyDown(e) {
     //console.log("onKeyDown()");
     //console.log("e.code: " + e.code);
-    
+
     keys_down.add(e.code);
 }
 
 function onKeyUp(e) {
     //console.log("onKeyUp()");
     //console.log("e.code: " + e.code);
-    
+
     keys_down.delete(e.code);
 }
 
@@ -1935,7 +2070,7 @@ function animate() {
         dirLight.shadow.camera.near = cam_dot_sun - 100;
         dirLight.shadow.camera.far = cam_dot_sun + 100;
         dirLight.shadow.camera.updateProjectionMatrix();
-        
+
         //if (camera_helper)
         //    camera_helper.update();
 
