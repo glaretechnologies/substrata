@@ -24,6 +24,7 @@ ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer
 
 // PHYSICS-RELATED
 const DEBUG_PHYSICS = false;
+const DEBUG_MATERIAL = false;
 var collision_meshes = new Map<string, WorldObject>(); // Collision Meshes are mapped by map URL
 var loaded_meshes = new Array<WorldObject>(); // How do we unload meshes?
 // END PHYSICS-RELATED
@@ -1376,8 +1377,6 @@ function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, sc
 
     let use_vert_colours = (geometry.getAttribute('color') !== undefined);
 
-    const DEBUG_MATERIAL = true
-
     let three_mats = []
 
     if(DEBUG_MATERIAL) {
@@ -1850,25 +1849,25 @@ function onDocumentMouseDown(ev: MouseEvent) {
 
     if(DEBUG_PHYSICS) {
         // Visualise the ray in world space
-        const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true)
+        const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true);
 
         for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
-            const obj = loaded_meshes[i]
-            const mat = obj.invWorld
+            const obj = loaded_meshes[i];
+            const mat = obj.invWorld;
 
-            const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh)
-            if(test) console.log('hit:', obj.model_url, idx)
+            const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh);
+            if(test) console.log('hit:', obj.model_url, idx);
             if(idx[0] !== -1) {
-                obj.bvh.updateAABBMesh(obj.bound, idx[0])
-                obj.bound.visible = true
+                obj.bvh.updateAABBMesh(obj.bound, idx[0]);
+                obj.bound.visible = true;
                 if(idx[1] !== -1) {
-                    obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
-                    obj.tri.visible = true
+                    obj.bvh.updateTriangleHighlighter(idx[1], obj.tri);
+                    obj.tri.visible = true;
                 } else {
-                    obj.tri.visible = false
+                    obj.tri.visible = false;
                 }
             } else {
-                obj.bound.visible = false
+                obj.bound.visible = false;
             }
         }
     }
@@ -1884,27 +1883,27 @@ function onDocumentMouseMove(e) {
     //console.log(e.movementX);
 
     if(DEBUG_PHYSICS && caster) {
-        const ray = caster.getPickRay(e.offsetX, e.offsetY)
+        const ray = caster.getPickRay(e.offsetX, e.offsetY);
         if(ray != null) {
-            const [origin, dir] = ray
+            const [origin, dir] = ray;
 
             for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
-                const obj = loaded_meshes[i]
-                const [test, idx] = caster.testRayBVH(origin, dir, obj.invWorld, obj.bvh)
+                const obj = loaded_meshes[i];
+                const [test, idx] = caster.testRayBVH(origin, dir, obj.invWorld, obj.bvh);
                 if(test) {
                     if(idx[0] !== -1) {
-                        obj.bvh.updateAABBMesh(obj.bound, idx[0])
-                        obj.bound.visible = true
+                        obj.bvh.updateAABBMesh(obj.bound, idx[0]);
+                        obj.bound.visible = true;
                     }
                     if(idx[1] !== -1) {
-                        obj.bvh.updateTriangleHighlighter(idx[1], obj.tri)
-                        obj.tri.visible = true
+                        obj.bvh.updateTriangleHighlighter(idx[1], obj.tri);
+                        obj.tri.visible = true;
                     } else {
-                        obj.tri.visible = false
+                        obj.tri.visible = false;
                     }
                 } else {
-                    obj.bound.visible = false
-                    obj.tri.visible = false
+                    obj.bound.visible = false;
+                    obj.tri.visible = false;
                 }
             }
         }
