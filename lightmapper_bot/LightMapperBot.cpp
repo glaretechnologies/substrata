@@ -33,6 +33,7 @@ Copyright Glare Technologies Limited 2020 -
 #include <BufferOutStream.h>
 #include <IndigoXMLDoc.h>
 #include <XMLParseUtils.h>
+#include <ArgumentParser.h>
 #include <networking/URL.h>
 #define USE_INDIGO_SDK 1
 // Indigo SDK headers:
@@ -1357,14 +1358,23 @@ int main(int argc, char* argv[])
 		TLSSocket::initTLS();
 
 
+		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
+		syntax["-h"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // Specify hostname to connect to
+
+		std::vector<std::string> args;
+		for(int i = 0; i < argc; ++i)
+			args.push_back(argv[i]);
+		ArgumentParser parsed_args(args, syntax);
+
 		const LightMapperBotConfig config = parseLightMapperBotConfig(PlatformUtils::getAppDataDirectory("Cyberspace") + "/lightmapper_bot_config.xml");
 
 		ThreadSafeQueue<Reference<ThreadMessage> > msg_queue;
 
 		Reference<WorldState> world_state = new WorldState();
 
-		//const std::string server_hostname = "localhost";
-		const std::string server_hostname = "substrata.info";
+		std::string server_hostname = "substrata.info";
+		if(parsed_args.isArgPresent("-h"))
+			server_hostname = parsed_args.getArgStringValue("-h");
 		const int server_port = 7600;
 
 
