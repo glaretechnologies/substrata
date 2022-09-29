@@ -983,8 +983,9 @@ static const float MAX_AUDIO_DIST = 60;
 // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
+	WorldObject::GetDependencyOptions options;
 	std::set<DependencyURL> dependency_URLs;
-	ob->getDependencyURLSet(ob_lod_level, dependency_URLs);
+	ob->getDependencyURLSet(ob_lod_level, options, dependency_URLs);
 	for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 	{
 		const DependencyURL& url_info = *it;
@@ -4502,8 +4503,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								//if(ob->using_placeholder_model)
 								{
+									WorldObject::GetDependencyOptions options;
 									std::set<DependencyURL> URL_set;
-									ob->getDependencyURLSet(ob_lod_level, URL_set);
+									ob->getDependencyURLSet(ob_lod_level, options, URL_set);
 									need_resource = need_resource || (URL_set.count(DependencyURL(m->URL)) != 0);
 								}
 							}
@@ -6283,8 +6285,9 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+	WorldObject::GetDependencyOptions options;
 	std::set<DependencyURL> paths;
-	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, paths);
+	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
 	{
 		const std::string path = it->URL;
@@ -6802,8 +6805,9 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 	BitUtils::setOrZeroBit(new_world_object->materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha); // Set COLOUR_TEX_HAS_ALPHA_FLAG flag
 
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+	WorldObject::GetDependencyOptions options;
 	std::set<DependencyURL> paths;
-	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, paths);
+	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
 	{
 		const std::string path = it->URL;
@@ -7786,8 +7790,9 @@ void MainWindow::objectEditedSlot()
 
 		// Copy all dependencies into resource directory if they are not there already.
 		// URLs will actually be paths from editing for now.
+		WorldObject::GetDependencyOptions options;
 		std::vector<DependencyURL> URLs;
-		this->selected_ob->appendDependencyURLs(/*ob_lod_level=*/0, URLs);
+		this->selected_ob->appendDependencyURLs(/*ob_lod_level=*/0, options, URLs);
 
 		try
 		{
