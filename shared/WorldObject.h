@@ -116,9 +116,15 @@ public:
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	std::string getLODModelURL(const Vec3d& campos) const; // Using lod level clamped to max_model_lod_level
 
-	void appendDependencyURLs(int ob_lod_level, std::vector<DependencyURL>& URLs_out);
+	// Sometimes we are not interested in all dependencies, such as lightmaps.  So make returning those optional.
+	struct GetDependencyOptions
+	{
+		GetDependencyOptions() : include_lightmaps(true) {}
+		bool include_lightmaps;
+	};
+	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out);
 	void appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out);
-	void getDependencyURLSet(int ob_lod_level, std::set<DependencyURL>& URLS_out);
+	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out);
 	void getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out);
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 

@@ -159,8 +159,10 @@ public:
 	// For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void startDownloadingResourcesForObject(WorldObject* ob)
 	{
+		WorldObject::GetDependencyOptions options;
+		options.include_lightmaps = false;
 		std::set<DependencyURL> dependency_URLs;
-		ob->getDependencyURLSet(/*lod level=*/0, dependency_URLs);
+		ob->getDependencyURLSet(/*lod level=*/0, options, dependency_URLs);
 		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
 			const std::string& url = it->URL;
@@ -172,8 +174,10 @@ public:
 
 	bool allResourcesPresentForOb(WorldObject* ob)
 	{
+		WorldObject::GetDependencyOptions options;
+		options.include_lightmaps = false;
 		std::set<DependencyURL> dependency_URLs;
-		ob->getDependencyURLSet(/*lod level=*/0, dependency_URLs);
+		ob->getDependencyURLSet(/*lod level=*/0, options, dependency_URLs);
 		for(auto it = dependency_URLs.begin(); it != dependency_URLs.end(); ++it)
 		{
 			const std::string& url = it->URL;
@@ -435,8 +439,9 @@ public:
 
 				if(ob->materials.size() >= 1)
 				{
-					// Use colour to multiple emission.
 					const WorldMaterialRef world_mat = ob->materials[0];
+
+					// Spotlight light colour is in colour_rgb instead of emission_rgb for historical reasons.
 					indigo_mat->emission = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(Indigo::Vec3d(world_mat->colour_rgb.r, world_mat->colour_rgb.g, world_mat->colour_rgb.b), /*gamma=*/2.2));
 				}
 			}
@@ -835,10 +840,18 @@ public:
 
 
 					//==================== Create the ground object =========================
+
+					// Position ground quad roughly under the object being lightmapped.
+					const Vec3d use_pos(Maths::roundToMultipleFloating(ob_to_lightmap->pos.x, 1.), Maths::roundToMultipleFloating(ob_to_lightmap->pos.y, 1.), 0.f);
+
 					Indigo::SceneNodeModelRef model = new Indigo::SceneNodeModel();
 					model->setName("Ground Object");
 					model->setGeometry(mesh_node);
-					model->keyframes.push_back(Indigo::KeyFrame());
+					model->keyframes = Indigo::Vector<Indigo::KeyFrame>(1, Indigo::KeyFrame(
+						0.0,
+						toIndigoVec3d(use_pos),
+						Indigo::AxisAngle::identity()
+					));
 					model->rotation = new Indigo::MatrixRotation();
 					model->setMaterials(Indigo::Vector<Indigo::SceneNodeMaterialRef>(1, mat));
 
@@ -1193,7 +1206,7 @@ public:
 			if(false)
 			{
 				// FOR TESTING: lightmap a specific object.
-				auto res = world_state.objects.find(UID(151688));
+				auto res = world_state.objects.find(UID(1308));
 				if(res != world_state.objects.end())
 				{
 					WorldObjectRef ob = res.getValue();
