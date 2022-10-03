@@ -433,6 +433,8 @@ public:
 			Indigo::DiffuseMaterialRef indigo_mat = new Indigo::DiffuseMaterial(albedo_param);
 			indigo_mat->name = toIndigoString("emitting mat");
 
+			indigo_mat->direct_illum = false; // Since direct illumination from spotlights is handled in the OpenGL engine, don't bake it to lightmaps.
+
 			if(luminous_flux > 0)
 			{
 				indigo_mat->base_emission = new Indigo::ConstantWavelengthDependentParam(new Indigo::BlackBodySpectrum(5000, 1.0));//  new Indigo::UniformSpectrum(1.0e10); // TEMP: use D65 or something instead.
@@ -477,11 +479,22 @@ public:
 		{
 			// Make Indigo materials from loaded parcel mats
 			Indigo::Vector<Indigo::SceneNodeMaterialRef> indigo_mat_nodes;
+			Indigo::Vector<Indigo::EmissionScaleRef> emission_scales(ob->materials.size());
+			
 			for(size_t i=0; i<ob->materials.size(); ++i)
 			{
 				const WorldMaterialRef ob_mat = ob->materials[i];
 
 				Indigo::SceneNodeMaterialRef indigo_mat_node = IndigoConversion::convertMaterialToIndigoMat(*ob_mat, *resource_manager);
+
+				if(ob_mat->emission_lum_flux_or_lum > 0)
+				{
+					emission_scales[i] = new Indigo::EmissionScale(Indigo::EmissionScale::LUMINANCE, ob_mat->emission_lum_flux_or_lum, indigo_mat_node);
+				}
+				else
+				{
+					emission_scales[i] = new Indigo::EmissionScale(Indigo::EmissionScale::NONE, 0.0, indigo_mat_node);
+				}
 
 				//Reference<Indigo::WavelengthDependentParam> albedo_param;
 				//if(!parcel_mat->colour_texture_url.empty())
@@ -523,6 +536,7 @@ public:
 				Indigo::AxisAngle::identity()
 			));
 			model_node->rotation = new Indigo::MatrixRotation(obToWorldMatrix(ob).getUpperLeftMatrix().e);
+			model_node->setEmissionScales(emission_scales);
 			return model_node;
 		}
 	}
@@ -936,7 +950,7 @@ public:
 				const double halt_time = do_high_qual_bake ? 300.0 : 10;
 				conPrint("Using halt time of " + toString(halt_time) + " s");
 
-				const double halt_spp = do_high_qual_bake ? (1 << 16)/*2048*/ : 256;
+				const double halt_spp = do_high_qual_bake ? (1 << 12)/*2048*/ : 256;
 
 				conPrint("Using halt samples/px of " + toString(halt_spp));
 
@@ -1202,15 +1216,19 @@ public:
 			conPrint("Doing initial scan over all objects...");				
 			std::set<WorldObjectRef> obs_to_lightmap;
 
-			
-			if(false)
+			const bool TEST_LIGHTMAP_OBJECT = false;
+			if(TEST_LIGHTMAP_OBJECT)
 			{
 				// FOR TESTING: lightmap a specific object.
-				auto res = world_state.objects.find(UID(1308));
+				auto res = world_state.objects.find(UID(170342));
 				if(res != world_state.objects.end())
 				{
 					WorldObjectRef ob = res.getValue();
 					obs_to_lightmap.insert(ob);
+				}
+				else
+				{
+					assert(0);
 				}
 			}
 			else
@@ -1253,6 +1271,7 @@ public:
 			while(1)
 			{
 				//conPrint("Checking dirty set...");
+				if(!TEST_LIGHTMAP_OBJECT)
 				{
 					Lock lock(world_state.mutex);
 
