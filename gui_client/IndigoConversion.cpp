@@ -24,7 +24,10 @@ Copyright Glare Technologies Limited 2022 -
 
 inline static Indigo::Vec3d toIndigoVec3d(const Colour3f& c)
 {
-	return Indigo::Vec3d(c.r, c.g, c.b);
+	if(c.isFinite())
+		return Indigo::Vec3d(c.r, c.g, c.b);
+	else
+		return Indigo::Vec3d(0.0);
 }
 
 
@@ -89,14 +92,70 @@ static Indigo::WavelengthDependentParamRef getAlbedoParam(const WorldMaterial& m
 }
 
 
+static Indigo::WavelengthDependentParamRef getEmissionParam(const WorldMaterial& mat, ResourceManager& resource_manager)
+{
+	if(mat.emission_texture_url.empty())
+	{
+		return Indigo::WavelengthDependentParamRef();
+	}
+	else
+	{
+		const std::string path = resource_manager.pathForURL(mat.emission_texture_url);
+
+		// Image formats that are supported by Indigo.  NOTE: no ktx!
+		const bool is_allowed_file_type =
+			hasExtension(path, "jpg") || hasExtension(path, "jpeg") ||
+			hasExtension(path, "png") ||
+			hasExtension(path, "tif") || hasExtension(path, "tiff") ||
+			hasExtension(path, "exr") ||
+			hasExtension(path, "gif");
+
+		if(is_allowed_file_type)
+		{
+			Indigo::Texture tex(toIndigoString(path));
+			tex.tex_coord_generation = new Indigo::UVTexCoordGenerator(
+				Indigo::Matrix2(mat.tex_matrix.e),
+				Indigo::Vec2d(0.0)
+			);
+			return new Indigo::TextureWavelengthDependentParam(tex);
+		}
+		else
+		{
+			return Indigo::WavelengthDependentParamRef();
+		}
+	}
+}
+
+
+static void setEmissionParams(const WorldMaterial& mat, const Indigo::SceneNodeMaterialRef mat_node, ResourceManager& resource_manager)
+{
+	if(mat.emission_lum_flux_or_lum > 0)
+	{
+		mat_node->material->base_emission = new Indigo::ConstantWavelengthDependentParam(new Indigo::RGBSpectrum(toIndigoVec3d(mat.emission_rgb), 2.2));
+
+		mat_node->material->emission = getEmissionParam(mat, resource_manager);
+	}
+}
+
+
 Indigo::SceneNodeMaterialRef IndigoConversion::convertMaterialToIndigoMat(const WorldMaterial& mat, ResourceManager& resource_manager)
 {
+	// Handle hologram materials as null materials with emission.  We don't want them to be specular materials.
+	if((mat.flags & mat.HOLOGRAM_FLAG) != 0)
+	{
+		Indigo::SceneNodeMaterialRef mat_node = new Indigo::SceneNodeMaterial("hologram mat", new Indigo::NullMaterial());
+		mat_node->material->backface_emit = true;
+		setEmissionParams(mat, mat_node, resource_manager);
+		return mat_node;
+	}
+
 	if(mat.opacity.val == 1.0)
 	{
+		Indigo::SceneNodeMaterialRef mat_node;
 		if(mat.roughness.val == 1.0)
 		{
 			// Export as diffuse
-			return new Indigo::SceneNodeMaterial("diffuse mat", new Indigo::DiffuseMaterial(
+			mat_node = new Indigo::SceneNodeMaterial("diffuse mat", new Indigo::DiffuseMaterial(
 				getAlbedoParam(mat, resource_manager)
 			));
 		}
@@ -105,7 +164,7 @@ Indigo::SceneNodeMaterialRef IndigoConversion::convertMaterialToIndigoMat(const 
 			// Export as phong
 			if(mat.metallic_fraction.val == 0.0)
 			{
-				return new Indigo::SceneNodeMaterial("phong mat", new Indigo::PhongMaterial(
+				mat_node = new Indigo::SceneNodeMaterial("phong mat", new Indigo::PhongMaterial(
 					getAlbedoParam(mat, resource_manager), // albedo
 					NULL, // spec refl
 					new Indigo::ConstantWavelengthIndependentParam(mat.roughness.val), // roughness
@@ -116,7 +175,7 @@ Indigo::SceneNodeMaterialRef IndigoConversion::convertMaterialToIndigoMat(const 
 			}
 			else if(mat.metallic_fraction.val == 1.0)
 			{
-				return new Indigo::SceneNodeMaterial("metallic mat", new Indigo::PhongMaterial(
+				mat_node = new Indigo::SceneNodeMaterial("metallic mat", new Indigo::PhongMaterial(
 					NULL, // albedo
 					getAlbedoParam(mat, resource_manager), // spec refl
 					new Indigo::ConstantWavelengthIndependentParam(mat.roughness.val), // roughness
@@ -146,7 +205,7 @@ Indigo::SceneNodeMaterialRef IndigoConversion::convertMaterialToIndigoMat(const 
 					"" // nk data
 				));
 
-				return new Indigo::SceneNodeMaterial("partially metallic mat", new Indigo::BlendMaterial(
+				mat_node = new Indigo::SceneNodeMaterial("partially metallic mat", new Indigo::BlendMaterial(
 					non_metallic,
 					metallic,
 					new Indigo::ConstantDisplacementParam(mat.metallic_fraction.val),
@@ -154,6 +213,10 @@ Indigo::SceneNodeMaterialRef IndigoConversion::convertMaterialToIndigoMat(const 
 				));
 			}
 		}
+
+		setEmissionParams(mat, mat_node, resource_manager);
+
+		return mat_node;
 	}
 	else
 	{
