@@ -14,6 +14,9 @@ import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
 import BVH, { Triangles } from './physics/bvh.js';
 import Caster from './physics/caster.js';
+import PhysicsWorld from './physics/world.js';
+import { createAABB, transformAABB } from './maths/geometry.js';
+import { eq3, fromVector3 } from './maths/vec3.js';
 
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
@@ -23,10 +26,9 @@ var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
 // PHYSICS-RELATED
-const DEBUG_PHYSICS = false;
-const DEBUG_MATERIAL = false;
-var collision_meshes = new Map<string, WorldObject>(); // Collision Meshes are mapped by map URL
-var loaded_meshes = new Array<WorldObject>(); // How do we unload meshes?
+const DEBUG_PHYSICS = true;
+const DEBUG_MATERIAL = DEBUG_PHYSICS && true;
+const physics_world = new PhysicsWorld()
 // END PHYSICS-RELATED
 
 const STATE_INITIAL = 0;
@@ -564,7 +566,7 @@ function readParcelFromNetworkStreamGivenID(buffer_in) {
 }
 
 
-class WorldObject {
+export class WorldObject {
     uid: bigint;
     object_type: number;
     model_url: string;
@@ -599,11 +601,10 @@ class WorldObject {
     compressed_voxels: Array<number>;
 
     bvh: BVH
-    invWorld: THREE.Matrix4 // We should only calculate the inverse when the world matrix actually changes
-    // Debug Stuff - REMOVE!
-    //bvh_mesh?: THREE.LineSegments
-    bound?: THREE.LineSegments
-    tri?: THREE.LineLoop
+    inv_world: THREE.Matrix4 // We should only calculate the inverse when the world matrix actually changes
+    // TODO: Check if we can combine aabb_ws_min/aabb_ws_max
+    world_aabb: Float32Array // This is the root bvh AABB node converted to an AABB in world space (will be larger if rotated)
+
 
     mesh_state: number;
     mesh: THREE.Mesh;
@@ -1388,8 +1389,8 @@ function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, sc
         }
     } else {
         for (let i = 0; i < mats.length; ++i) {
-            const mat = new THREE.MeshLambertMaterial({color: 'white'})
-            mat.wireframe = true
+            const mat = new THREE.MeshLambertMaterial({ color: 'white' })
+            // mat.wireframe = false
             mat.flatShading = true
             three_mats.push(mat)
         }
@@ -1508,9 +1509,9 @@ function startDownloadingResource(download_queue_item) {
 
                                     let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
-                                    // For now, build the BVH in the main thread while testing performance
                                     if(DEBUG_PHYSICS && triangles != null) {
-                                        processTriangles(world_ob, triangles, mesh)
+                                        // For now, build the BVH in the main thread while testing performance
+                                        registerPhysicsObject(world_ob, triangles, mesh)
                                     }
 
                                     world_ob_or_avatar.mesh = mesh;
@@ -1554,39 +1555,25 @@ function startDownloadingResource(download_queue_item) {
 }
 
 // Build the BVH for a new (unregistered) mesh
-function processTriangles (world_ob_or_avatar: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
-    const obj = world_ob_or_avatar
-    const start_time = performance.now() * .001;
+function registerPhysicsObject (obj: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
+    const model_loaded = physics_world.hasModelBVH(obj.model_url);
+    if(!model_loaded) {
+       physics_world.addModelBVH(obj.model_url, triangles);
+       console.log('creating new bvh:', obj.model_url);
+    }
 
-    const model_loaded = collision_meshes.has(obj.model_url)
-    obj.bvh = model_loaded ? collision_meshes[obj.model_url] : new BVH(triangles);
-    const build_time = performance.now() * .001;
-    console.log('Construction Time:', obj.model_url, build_time - start_time);
-    console.log('Triangle Count:', triangles.tri_count);
+    // Move this to a web worker, initialise the BVH and trigger this code on callback
+    obj.bvh = physics_world.getModelBVH(obj.model_url)
 
-    obj.bound = obj.bvh.getRootAABBMesh();
-    obj.bound.position.copy(mesh.position);
-    obj.bound.rotation.copy(mesh.rotation);
-    obj.bound.scale.copy(mesh.scale);
-    scene.add(obj.bound);
+    // TODO: Split into two sets of objects, static and dynamic - for now, only static
+    obj.inv_world = new THREE.Matrix4();
+    mesh.updateMatrixWorld(true);
+    obj.inv_world.copy(mesh.matrixWorld);
+    obj.inv_world.invert();
 
-    // Add the triangle highlighter
-    obj.tri = obj.bvh.getTriangleHighlighter()
-    obj.tri.position.copy(mesh.position);
-    obj.tri.rotation.copy(mesh.rotation);
-    obj.tri.scale.copy(mesh.scale);
-    obj.tri.frustumCulled = false
-    scene.add(obj.tri);
-
-    // TODO: This is reliant upon static objects, otherwise we need to track updates
-    obj.invWorld = new THREE.Matrix4()
-    mesh.updateMatrixWorld(true)
-    obj.invWorld.copy(mesh.matrixWorld)
-    obj.invWorld.invert()
-
-    // Hash on model URL for now...
-    if(!model_loaded) collision_meshes[obj.model_url] = obj
-    loaded_meshes.push(obj)
+    obj.world_aabb = createAABB(obj.aabb_ws_min, obj.aabb_ws_max);
+    obj.mesh = mesh
+    physics_world.addWorldObject(obj, true);
 }
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
@@ -1661,6 +1648,11 @@ const DEFAULT_AR = window.innerWidth / window.innerHeight
 const DEFAULT_NEAR = 0.1
 const DEFAULT_FAR = 1000.0
 const camera = new THREE.PerspectiveCamera(DEFAULT_FOV, DEFAULT_AR, DEFAULT_NEAR, DEFAULT_FAR);
+
+if(DEBUG_PHYSICS) {
+    physics_world.scene = scene
+}
+
 
 let renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
@@ -1844,33 +1836,10 @@ const caster = DEBUG_PHYSICS ? new Caster(renderer, {
     camDirFnc: camForwardsVec
 }) : null
 
+if(DEBUG_PHYSICS && caster) physics_world.caster = caster;
+
 function onDocumentMouseDown(ev: MouseEvent) {
     is_mouse_down = true;
-
-    if(DEBUG_PHYSICS) {
-        // Visualise the ray in world space
-        const [origin, dir] = caster.getPickRay(ev.offsetX, ev.offsetY, true);
-
-        for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
-            const obj = loaded_meshes[i];
-            const mat = obj.invWorld;
-
-            const [test, idx] = caster.testRayBVH(origin, dir, mat, obj.bvh);
-            if(test) console.log('hit:', obj.model_url, idx);
-            if(idx[0] !== -1) {
-                obj.bvh.updateAABBMesh(obj.bound, idx[0]);
-                obj.bound.visible = true;
-                if(idx[1] !== -1) {
-                    obj.bvh.updateTriangleHighlighter(idx[1], obj.tri);
-                    obj.tri.visible = true;
-                } else {
-                    obj.tri.visible = false;
-                }
-            } else {
-                obj.bound.visible = false;
-            }
-        }
-    }
 }
 
 function onDocumentMouseUp() {
@@ -1886,26 +1855,11 @@ function onDocumentMouseMove(e) {
         const ray = caster.getPickRay(e.offsetX, e.offsetY);
         if(ray != null) {
             const [origin, dir] = ray;
-
-            for(let i = 0, end = loaded_meshes.length; i !== end; ++i) {
-                const obj = loaded_meshes[i];
-                const [test, idx] = caster.testRayBVH(origin, dir, obj.invWorld, obj.bvh);
-                if(test) {
-                    if(idx[0] !== -1) {
-                        obj.bvh.updateAABBMesh(obj.bound, idx[0]);
-                        obj.bound.visible = true;
-                    }
-                    if(idx[1] !== -1) {
-                        obj.bvh.updateTriangleHighlighter(idx[1], obj.tri);
-                        obj.tri.visible = true;
-                    } else {
-                        obj.tri.visible = false;
-                    }
-                } else {
-                    obj.bound.visible = false;
-                    obj.tri.visible = false;
-                }
-            }
+            physics_world.traceRay(origin, dir);
+            const sphere = new Float32Array([origin.x, origin.y, origin.z, .1]);
+            physics_world.traceSphere(sphere, fromVector3(dir))
+            // const result = physics_world.traceSphereWorld(sphere, fromVector3(dir))
+            // console.log('result:', result)
         }
     }
 

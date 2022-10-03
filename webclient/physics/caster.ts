@@ -73,6 +73,8 @@ export default class Caster {
   // Calculate a pick ray based on the current camera view at screen coordinates [x, y]
   // pass setRay === true to draw the ray as a line segment in world space
   public getPickRay (x: number, y: number, setRay=false): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
+    if(!this.conf.camera) return null;
+    
     this.rndr.getSize(this.dims);
     if(x < 0 || x > this.dims.x || y < 0 || y > this.dims.y) return null;
 

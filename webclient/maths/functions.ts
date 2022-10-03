@@ -25,6 +25,18 @@ export function absA (A: Float32Array | number[], len=3): Float32Array | number[
   return A;
 }
 
+// Generate a sequence of numbers from offset to count in an Uint32Array
+export function range (count: number, offset=0): Uint32Array {
+  const r = new Uint32Array(count);
+  if(offset === 0) {
+    for(let i = 0; i !== count; ++i) r[i] = i;
+  } else {
+    for(let i = 0; i !== count; ++i) r[i] = i + offset;
+  }
+
+  return r;
+}
+
 export function print3 (...args: (Float32Array | string)[]): void {
   let out = '';
   for(let i = 0; i !== args.length; ++i) {

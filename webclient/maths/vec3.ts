@@ -3,6 +3,40 @@ These are maths routines related to 3D vectors; mostly for operating directly on
 */
 
 import { EPSILON } from './defs.js';
+import { Vector3, Matrix4 } from '../build/three.module.js';
+
+export function fromVector3 (vec: Vector3): Float32Array {
+  return new Float32Array([vec.x, vec.y, vec.z]);
+}
+
+// Transform the input as a point (homogeneous) using the 4x4 matrix (copied from Three.js applyMatrix4)
+export function applyMatrix4(mat: Matrix4, v: Float32Array, output?: Float32Array): Float32Array {
+  const x = v[0], y = v[1], z = v[2];
+  const e = mat.elements;
+
+  const w = 1.0 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+
+  output = output == null ? v : output;
+  output[0] = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w;
+  output[1] = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w;
+  output[2] = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
+
+  return output;
+}
+
+// Transform the input as a vector using the 4x4 matrix (copied from Three.js transformDirection)
+export function transformDirection(mat: Matrix4, v: Float32Array, output?: Float32Array): Float32Array {
+  const x = v[0], y = v[1], z = v[2];
+  const e = mat.elements;
+
+  output = output == null ? v : output;
+
+  output[0] = e[0] * x + e[4] * y + e[8] * z;
+  output[1] = e[1] * x + e[5] * y + e[9] * z;
+  output[2] = e[2] * x + e[6] * y + e[10] * z;
+
+  return output;
+}
 
 // Compare current against compare array and store the minimum in current
 export function min3 (curr: Float32Array, coff: number, cmp: Float32Array, cmpoff=0): Float32Array {
@@ -41,11 +75,12 @@ export function add3V (
 }
 
 // Add 3-component vectors
-export function add3 (lhs: Float32Array, rhs: Float32Array, out: Float32Array): Float32Array {
-  out[0] = lhs[0] + rhs[0];
-  out[1] = lhs[1] + rhs[1];
-  out[2] = lhs[2] + rhs[2];
-  return out;
+export function add3 (lhs: Float32Array, rhs: Float32Array, output?: Float32Array): Float32Array {
+  output = output ?? lhs;
+  output[0] = lhs[0] + rhs[0];
+  output[1] = lhs[1] + rhs[1];
+  output[2] = lhs[2] + rhs[2];
+  return output;
 }
 
 // Subtract 3-component arrays in place
@@ -61,11 +96,12 @@ export function sub3V (
 }
 
 // Subtract 3-component vectors
-export function sub3 (lhs: Float32Array, rhs: Float32Array, out: Float32Array): Float32Array {
-  out[0] = lhs[0] - rhs[0];
-  out[1] = lhs[1] - rhs[1];
-  out[2] = lhs[2] - rhs[2];
-  return out;
+export function sub3 (lhs: Float32Array, rhs: Float32Array, output?: Float32Array): Float32Array {
+  output = output ?? lhs;
+  output[0] = lhs[0] - rhs[0];
+  output[1] = lhs[1] - rhs[1];
+  output[2] = lhs[2] - rhs[2];
+  return output;
 }
 
 // Multiply 3-component by scalar in place
@@ -81,11 +117,12 @@ export function mulScalar3V(
 }
 
 // Multiply 3-component vectors by scalar
-export function mulScalar3 (lhs: Float32Array, s: number, out: Float32Array): Float32Array {
-  out[0] = lhs[0] * s;
-  out[1] = lhs[1] * s;
-  out[2] = lhs[2] * s;
-  return out;
+export function mulScalar3 (lhs: Float32Array, s: number, output?: Float32Array): Float32Array {
+  output = output ?? lhs;
+  output[0] = lhs[0] * s;
+  output[1] = lhs[1] * s;
+  output[2] = lhs[2] * s;
+  return output;
 }
 
 // Compute 3-component cross product
@@ -99,4 +136,20 @@ export function cross3 (u: Float32Array, v: Float32Array, out: Float32Array): Fl
 // Compute 3-component dot product
 export function dot3 (u: Float32Array, v: Float32Array): number {
   return u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+}
+
+export function sqLen3 (u: Float32Array): number {
+  return dot3(u, u);
+}
+
+export function len3 (u: Float32Array): number {
+  return Math.sqrt(dot3(u, u));
+}
+
+// Normalise a 3-component vector
+export function normalise3 (u: Float32Array, output?: Float32Array): Float32Array {
+  output = output ?? u;
+  const recipLen = 1.0 / Math.sqrt(dot3(u,u));
+  output[0] = recipLen * u[0]; output[1] = recipLen * u[1]; output[2] = recipLen * u[2];
+  return output;
 }

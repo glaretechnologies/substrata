@@ -1,57 +1,11 @@
 import * as THREE from '../build/three.module.js';
-import {eq, print3} from '../maths/functions.js';
+import { eq, print3, range } from '../maths/functions.js';
 import { EPSILON } from '../maths/defs.js';
-import {cross3, dot3, max3, min3, sub3} from '../maths/vec3.js';
+import { cross3, dot3, max3, min3, sub3 } from '../maths/vec3.js';
+import { testRayAABB } from '../maths/geometry.js';
+import { SphereTraceResult } from './types.js';
 
 export type IndexType = Uint32Array | Uint16Array | Uint8Array
-
-// Test AABBs for intersection in place
-export function testAABB (lhs: Float32Array, loff: number, rhs: Float32Array, roff: number): boolean {
-  if (lhs[loff+3] < rhs[roff] || lhs[loff] > rhs[roff+3]) return false;
-  if (lhs[loff+4] < rhs[roff+1] || lhs[loff+1] > rhs[roff+4]) return false;
-  return !(lhs[loff+5] < rhs[roff+2] || lhs[loff+2] > rhs[roff+5]);
-}
-
-// Test Ray against AABB
-export function testRayAABB (OP: Float32Array, d: Float32Array, aabb: Float32Array, off=0): [boolean, number] | null {
-  let t_min = 0;
-  let t_max = Number.MAX_VALUE;
-  const min = aabb.slice(off, off+3);
-  const max = aabb.slice(off+3, off+6);
-
-  //print3('min', min, 'max', max)
-
-  for (let i = 0; i < 3; ++i) {
-    if(Math.abs(d[i]) < EPSILON) {
-      if (OP[i] < min[i] || OP[i] > max[i]) return [false, Number.POSITIVE_INFINITY];
-    } else {
-      const invD = 1. / d[i];
-      let t0 = (min[i] - OP[i]) * invD;
-      let t1 = (max[i] - OP[i]) * invD;
-      if (t0 > t1) {
-        const tmp = t0; t0 = t1; t1 = tmp;
-      }
-      t_min = Math.max(t_min, t0);
-      t_max = Math.min(t_max, t1);
-
-      if(t_min > t_max) return [false, Number.POSITIVE_INFINITY];
-    }
-  }
-
-  return [true, t_min];
-}
-
-// Generate a sequence of numbers from offset to count in an Uint32Array
-function range (count: number, offset=0): Uint32Array {
-  const r = new Uint32Array(count);
-  if(offset === 0) {
-    for(let i = 0; i !== count; ++i) r[i] = i;
-  } else {
-    for(let i = 0; i !== count; ++i) r[i] = i + offset;
-  }
-
-  return r;
-}
 
 /*
 The triangles structure is built directly from the interleaved mesh buffer and associated index buffer.  The data is
@@ -240,6 +194,25 @@ export default class BVH {
     }
 
     return [idx, tri_idx];
+  }
+
+  /*
+  // This is intended to be as similar as possible to the Glare-Core BVH::traceSphere routine
+  public traceSphere (sphere: Float32Array, translation: Float32Array, dir: Float32Array, len: number, results: SphereTraceResult) {
+    // 1) Build AABB covering path of sphere (from sphere origin to sphere origin + dir * len)
+    // 2) Traverse tree DFS
+    // 3) If intersects node, test against tris for node
+
+    const t_min = Number.MAX_VALUE;
+    const stack = [];
+    while (stack.length > 0) {
+      const curr = stack.pop();
+    }
+  }
+  */
+
+  public get rootAABB (): Float32Array {
+    return this.aabbBuffer.slice(0, 6);
   }
 
   // Compute the AABB for the input node and store the result in the AABB buffer
