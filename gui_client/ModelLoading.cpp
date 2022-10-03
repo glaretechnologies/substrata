@@ -29,6 +29,7 @@ Code By Nicholas Chapman.
 #include "../utils/HashMapInsertOnly2.h"
 #include "../utils/Sort.h"
 #include "../utils/IncludeHalf.h"
+#include "../utils/BitUtils.h"
 #include "../opengl/GLMeshBuilding.h"
 #include "../opengl/IncludeOpenGL.h"
 #include "../indigo/UVUnwrapper.h"
@@ -65,9 +66,9 @@ void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMater
 
 	opengl_mat.roughness = mat.roughness.val;
 	opengl_mat.metallic_roughness_tex_path = mat.roughness.texture_url;
-	opengl_mat.transparent = mat.opacity.val < 1.0f;
+	opengl_mat.transparent = (mat.opacity.val < 1.0f) || BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG); // Hologram is done with transparent material shader.
 
-	opengl_mat.hologram = (mat.flags & WorldMaterial::HOLOGRAM_FLAG) != 0;
+	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
@@ -122,11 +123,11 @@ void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int 
 		opengl_mat.lightmap_path.clear();
 
 	opengl_mat.roughness = mat.roughness.val;
-	opengl_mat.transparent = mat.opacity.val < 1.0f;
+	opengl_mat.transparent = (mat.opacity.val < 1.0f) || BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG); // Hologram is done with transparent material shader.
 
 	opengl_mat.metallic_frac = mat.metallic_fraction.val;
 
-	opengl_mat.hologram = (mat.flags & WorldMaterial::HOLOGRAM_FLAG) != 0;
+	opengl_mat.hologram = BitUtils::isBitSet(mat.flags, WorldMaterial::HOLOGRAM_FLAG);
 
 	opengl_mat.fresnel_scale = 0.3f;
 

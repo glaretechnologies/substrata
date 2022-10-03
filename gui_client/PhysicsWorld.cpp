@@ -229,19 +229,85 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 
 	Ray ray(origin, dir, 0.f, max_t);
 
-	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	// For large max_t values, the ray path will have a very large bounding box, and the hashed grid will most likely be slower, and in fact take infinite time for infinite max_t.
+	// So only use the hashed grid for smaller max_t values.
+	if(max_t < 100.f)
 	{
-		const PhysicsObject* object = it->ptr();
-
-		RayTraceResult ob_results;
-		object->traceRay(ray, ob_results);
-		if(ob_results.hit_object && ob_results.hitdist_ws < closest_dist)
+		// Test against large objects
+		for(auto it = large_objects.begin(); it != large_objects.end(); ++it)
 		{
-			results_out = ob_results;
-			results_out.hit_object = object;
-			closest_dist = ob_results.hitdist_ws;
+			const PhysicsObject* object = *it;
 
-			ray.max_t = ob_results.hitdist_ws; // Now that we have hit something, we only need to consider closer hits.
+			RayTraceResult ob_results;
+			object->traceRay(ray, ob_results);
+			if(ob_results.hit_object && ob_results.hitdist_ws < closest_dist)
+			{
+				results_out = ob_results;
+				results_out.hit_object = object;
+				closest_dist = ob_results.hitdist_ws;
+
+				ray.max_t = ob_results.hitdist_ws; // Now that we have hit something, we only need to consider closer hits.
+			}
+		}
+
+		// Test against objects in hashed grid
+
+		// Compute AABB of ray path (Using ray.max_t that may have been set from an intersection with large objects above)
+		js::AABBox ray_path_AABB(origin, origin);
+		ray_path_AABB.enlargeToHoldPoint(ray.pointf(ray.max_t));
+
+		const Vec4i min_bucket_i = ob_grid.bucketIndicesForPoint(ray_path_AABB.min_);
+		const Vec4i max_bucket_i = ob_grid.bucketIndicesForPoint(ray_path_AABB.max_);
+
+		//Timer timer; 
+		//int num_buckets_tested = 0;
+		//int num_obs_tested = 0;
+
+		for(int x = min_bucket_i[0]; x <= max_bucket_i[0]; ++x)
+		for(int y = min_bucket_i[1]; y <= max_bucket_i[1]; ++y)
+		for(int z = min_bucket_i[2]; z <= max_bucket_i[2]; ++z)
+		{
+			const auto& bucket = ob_grid.getBucketForIndices(x, y, z);
+
+			for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
+			{
+				//num_obs_tested++;
+
+				const PhysicsObject* object = *it;
+
+				RayTraceResult ob_results;
+				object->traceRay(ray, ob_results);
+				if(ob_results.hit_object && ob_results.hitdist_ws < closest_dist)
+				{
+					results_out = ob_results;
+					results_out.hit_object = object;
+					closest_dist = ob_results.hitdist_ws;
+
+					ray.max_t = ob_results.hitdist_ws; // Now that we have hit something, we only need to consider closer hits.
+					// NOTE: Could recompute bucket bounds now that max_t is smaller.
+				}
+			}
+			//num_buckets_tested++;
+		}
+
+		//conPrint("traceRay(): Testing against " + toString(num_buckets_tested) + " buckets, " + toString(num_obs_tested) + " obs tested, took " + timer.elapsedStringNSigFigs(4));
+	}
+	else
+	{
+		for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+		{
+			const PhysicsObject* object = it->ptr();
+
+			RayTraceResult ob_results;
+			object->traceRay(ray, ob_results);
+			if(ob_results.hit_object && ob_results.hitdist_ws < closest_dist)
+			{
+				results_out = ob_results;
+				results_out.hit_object = object;
+				closest_dist = ob_results.hitdist_ws;
+
+				ray.max_t = ob_results.hitdist_ws; // Now that we have hit something, we only need to consider closer hits.
+			}
 		}
 	}
 }
@@ -250,16 +316,52 @@ void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, 
 bool PhysicsWorld::doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const
 {
 	const Ray ray(origin, dir, 0.f, max_t);
+	
+	// Compute AABB of ray path
+	js::AABBox ray_path_AABB(origin, origin);
+	ray_path_AABB.enlargeToHoldPoint(ray.pointf(max_t));
 
-	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	// Test against large objects
+	for(auto it = large_objects.begin(); it != large_objects.end(); ++it)
 	{
-		const PhysicsObject* object = it->ptr();
-
+		const PhysicsObject* object = *it;
 		RayTraceResult ob_results;
 		object->traceRay(ray, ob_results);
 		if(ob_results.hit_object)
 			return true;
 	}
+
+
+	// Test against objects in hashed grid
+	const Vec4i min_bucket_i = ob_grid.bucketIndicesForPoint(ray_path_AABB.min_);
+	const Vec4i max_bucket_i = ob_grid.bucketIndicesForPoint(ray_path_AABB.max_);
+
+	//Timer timer; 
+	//int num_buckets_tested = 0;
+	//int num_obs_tested = 0;
+
+	for(int x = min_bucket_i[0]; x <= max_bucket_i[0]; ++x)
+	for(int y = min_bucket_i[1]; y <= max_bucket_i[1]; ++y)
+	for(int z = min_bucket_i[2]; z <= max_bucket_i[2]; ++z)
+	{
+		const auto& bucket = ob_grid.getBucketForIndices(x, y, z);
+
+		for(auto it = bucket.objects.begin(); it != bucket.objects.end(); ++it)
+		{
+			//num_obs_tested++;
+
+			const PhysicsObject* object = *it;
+			RayTraceResult ob_results;
+			object->traceRay(ray, ob_results);
+			if(ob_results.hit_object)
+				return true;
+		}
+
+		//num_buckets_tested++;
+	}
+
+	//conPrint("doesRayHitAnything(): Testing against " + toString(num_buckets_tested) + " buckets, " + toString(num_obs_tested) + " obs tested, took " + timer.elapsedStringNSigFigs(4));
+
 	return false;
 }
 
