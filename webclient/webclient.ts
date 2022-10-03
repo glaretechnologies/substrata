@@ -26,7 +26,7 @@ var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
 // PHYSICS-RELATED
-const DEBUG_PHYSICS = true;
+const DEBUG_PHYSICS = false;
 const DEBUG_MATERIAL = DEBUG_PHYSICS && true;
 const physics_world = new PhysicsWorld()
 // END PHYSICS-RELATED
