@@ -15,14 +15,20 @@ Copyright Glare Technologies Limited 2016 -
 
 
 PhysicsObject::PhysicsObject(bool collidable_)
-:	userdata(NULL), userdata_type(0), collidable(collidable_), uniform_dist(NULL), total_surface_area(0)
+:	userdata(NULL), userdata_type(0), collidable(collidable_), uniform_dist(NULL), total_surface_area(0), pos(0.f)//, rot(Quatf::identity()), scale(1.f)
 {
+	dynamic = false;
+	is_sphere = false;
+	is_cube = false;
 }
 
 
 PhysicsObject::PhysicsObject(bool collidable_, const Reference<RayMesh>& geometry_, const Matrix4f& ob_to_world_, void* userdata_, int userdata_type_)
-:	ob_to_world(ob_to_world_), geometry(geometry_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_), uniform_dist(NULL), total_surface_area(0)
+:	ob_to_world(ob_to_world_), geometry(geometry_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_), uniform_dist(NULL), total_surface_area(0) // , transform_updated_from_physics(false)
 {
+	dynamic = false;
+	is_sphere = false;
+	is_cube = false;
 }
 
 

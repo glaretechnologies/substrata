@@ -7,10 +7,15 @@ Copyright Glare Technologies Limited 2016 -
 
 
 #include "../maths/Vec4f.h"
+#include "../maths/Quat.h"
 #include "../maths/vec3.h"
 #include "../maths/Matrix4f.h"
 #include "utils/Vector.h"
 #include "simpleraytracer/raymesh.h"
+
+#include <Jolt/Jolt.h>
+#include <Jolt\Physics\Body\BodyID.h>
+
 namespace js { class BoundingSphere; }
 class RayTraceResult;
 class SphereTraceResult;
@@ -88,6 +93,17 @@ public:
 
 	DiscreteDistribution* uniform_dist; // Used for sampling a point on the object surface uniformly wrt. surface area. Built by buildUniformSampler()
 	float total_surface_area; // Built when uniform_dist is built.
+
+	Vec4f pos;
+	Quatf rot; // Set in PhysicsWorld::think() from Jolt data
+	Vec3f scale;
+	//bool transform_updated_from_physics;
+
+	JPH::BodyID jolt_body_id;
+
+	bool dynamic;
+	bool is_sphere;
+	bool is_cube;
 private:
 	
 };

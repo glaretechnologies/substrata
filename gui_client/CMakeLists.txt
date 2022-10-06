@@ -475,6 +475,11 @@ add_definitions(-DEIGEN_MPL2_ONLY)
 #===================================== End Resonance Audio =====================================
 
 
+#============== Jolt physics ==============
+include_directories(C:/programming/JoltPhysics/trunk)
+
+
+
 SET(rc_stuff "../icons/substrata.rc")
 
 SOURCE_GROUP(gui_client FILES ${gui_client})
@@ -637,6 +642,9 @@ if(WIN32)
 		ole32
 		winmm 
 		dsound
+		
+		# Jolt physics
+		C:/programming/JoltPhysics/trunk/Build/VS2022_CL/Debug/Jolt.lib
 	)
 	
 	# Chromium embedded framework

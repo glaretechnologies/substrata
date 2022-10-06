@@ -967,6 +967,9 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false); // Make non-collidable, so avatar doesn't get stuck in large placeholder objects.
 	physics_ob->geometry = this->unit_cube_raymesh;
 	physics_ob->ob_to_world = cube_gl_ob->ob_to_world_matrix;
+	physics_ob->pos = ob->pos.toVec4fPoint();
+	physics_ob->rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+	physics_ob->scale = ob->scale;
 
 	ob->physics_object = physics_ob;
 	physics_ob->userdata = ob;
@@ -1346,6 +1349,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->ob_to_world = ob_to_world_matrix;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+				physics_ob->scale = ob->scale;
 
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
@@ -1395,6 +1401,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->ob_to_world = ob_to_world_matrix;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+				physics_ob->scale = ob->scale;
 
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
@@ -1449,6 +1458,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->ob_to_world = ob_to_world_matrix;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+				physics_ob->scale = ob->scale;
 
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->image_cube_opengl_mesh;
@@ -1533,6 +1545,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						ob->physics_object->ob_to_world = ob_to_world_matrix;
 						ob->physics_object->userdata = ob;
 						ob->physics_object->userdata_type = 0;
+						ob->physics_object->pos = ob->pos.toVec4fPoint();
+						ob->physics_object->rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+						ob->physics_object->scale = ob->scale;
 
 						ob->loaded_model_lod_level = ob_model_lod_level;
 
@@ -1540,7 +1555,30 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
 
+						if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
+						{
+							ob->physics_object->is_sphere = true;
+							ob->physics_object->dynamic = true;
+						}
+						if(ob->model_url == "Cube_obj_11907297875084081315.bmesh" && ob->scale == Vec3f(1.f))
+						{
+							ob->physics_object->is_cube = true;
+							ob->physics_object->dynamic = true;
+						}
+
+						// TEMP HACK:
+						//if(ob->uid == UID(1079))
+						//{
+						//	//physics_world->setObjectAsJoltSphere(ob->physics_object);
+						//	ob->physics_object->dynamic = true;
+						//}
+						/*if(ob->uid == UID(1323))
+						{
+							physics_world->setObjectAsJoltCube(ob->physics_object);
+						}*/
+
 						physics_world->addObject(ob->physics_object);
+
 
 						ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
@@ -1911,6 +1949,11 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 
 					physics_ob->userdata = instance.ptr();
 					physics_ob->userdata_type = 0;
+
+					physics_ob->pos = ob->pos.toVec4fPoint();
+					physics_ob->rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+					physics_ob->scale = ob->scale;
+
 					physics_world->addObject(physics_ob);
 				}
 
@@ -2311,7 +2354,8 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, Matrix
 		const Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
 //		assert(Matrix4f::isInverse(world_to_ob, ob_to_world));
 
-		physics_world->setNewObToWorldMatrix(*ob->physics_object, ob_to_world, world_to_ob);
+		//physics_world->setNewObToWorldMatrix(*ob->physics_object, ob_to_world, world_to_ob);
+		physics_world->setNewObToWorldTransform(*ob->physics_object, translation, Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle), Vec3f(use_scale[0], use_scale[1], use_scale[2]));
 	}
 
 
@@ -2818,7 +2862,9 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		this->physics_world->setNewObToWorldMatrix(*this->selected_ob->physics_object, new_to_world);
+		//this->physics_world->setNewObToWorldMatrix(*this->selected_ob->physics_object, new_to_world);
+		// NOTE: using pos for translation here.
+		physics_world->setNewObToWorldTransform(*selected_ob->physics_object, desired_new_ob_pos, Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle), selected_ob->scale);
 
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*selected_ob);
@@ -3689,6 +3735,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											ob->physics_object->ob_to_world = ob_to_world_matrix;
 											ob->physics_object->userdata = ob;
 											ob->physics_object->userdata_type = 0;
+											ob->physics_object->pos = ob->pos.toVec4fPoint();
+											ob->physics_object->rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+											ob->physics_object->scale = ob->scale;
 
 
 											ob->loaded_model_lod_level = loaded_model_lod_level;//message->model_lod_level;
@@ -3700,6 +3749,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 											assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
 											ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
+
+											if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
+											{
+												ob->physics_object->is_sphere = true;
+												ob->physics_object->dynamic = true;
+											}
+											if(ob->model_url == "Cube_obj_11907297875084081315.bmesh" && ob->scale == Vec3f(1.f))
+											{
+												ob->physics_object->is_cube = true;
+												ob->physics_object->dynamic = true;
+											}
 
 											physics_world->addObject(ob->physics_object);
 
@@ -3865,6 +3925,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							physics_ob->userdata = voxel_ob.ptr();
 							physics_ob->userdata_type = 0;
+							physics_ob->pos = voxel_ob->pos.toVec4fPoint();
+							physics_ob->rot = Quatf::fromAxisAndAngle(voxel_ob->axis, voxel_ob->angle);
+							physics_ob->scale = voxel_ob->scale;
 
 							// Add this object to the GL engine and physics engine.
 							if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
@@ -4699,7 +4762,41 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(physics_world.nonNull())
 	{
+
+		physics_world->think(dt);
+
+		{
+			Lock lock(physics_world->activated_obs_mutex);
+			for(auto it = physics_world->activated_obs.begin(); it != physics_world->activated_obs.end(); ++it)
+			{
+				PhysicsObject* physics_ob = *it;
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0)
+				{
+					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+
+					if(this->selected_ob != ob) // Don't update selected object with physics engine state
+					{
+						// Update OpenGL object
+						if(ob->opengl_engine_ob.nonNull())
+						{
+							ob->opengl_engine_ob->ob_to_world_matrix = ob->physics_object->ob_to_world;
+							ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+						}
+
+						// Update world object
+						Vec4f unit_axis;
+						float angle;
+						ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
+
+						const Vec3d pos = Vec3d(ob->physics_object->ob_to_world.getColumn(3));
+						ob->setTransformAndHistory(pos, Vec3f(unit_axis), angle);
+					}
+				}
+			}
+		}
+
 		PERFORMANCEAPI_INSTRUMENT("player physics");
+
 
 		// Process player physics
 		const Vec4f last_campos = campos;
@@ -5377,7 +5474,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// Update in physics engine
 						if(ob->physics_object.nonNull())
 						{
-							physics_world->setNewObToWorldMatrix(*ob->physics_object, interpolated_to_world_mat);
+							//physics_world->setNewObToWorldMatrix(*ob->physics_object, interpolated_to_world_mat);
+							physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale);
 						}
 
 						proximity_loader.objectTransformChanged(ob);
@@ -5523,7 +5621,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(ob->physics_object.nonNull())
 					{
 						// Update in physics engine
-						physics_world->setNewObToWorldMatrix(*ob->physics_object, ob->opengl_engine_ob->ob_to_world_matrix);
+						//physics_world->setNewObToWorldMatrix(*ob->physics_object, ob->opengl_engine_ob->ob_to_world_matrix);
+						physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale);
 					}
 
 					if(ob->audio_source.nonNull())
@@ -7591,7 +7690,9 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					// Update physics object transform
 					if(in_world_ob->physics_object.nonNull())
 					{
-						this->physics_world->setNewObToWorldMatrix(*in_world_ob->physics_object, obToWorldMatrix(*in_world_ob));
+						//this->physics_world->setNewObToWorldMatrix(*in_world_ob->physics_object, obToWorldMatrix(*in_world_ob));
+						physics_world->setNewObToWorldTransform(*in_world_ob->physics_object, in_world_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(in_world_ob->axis.toVec4fVector()), in_world_ob->angle), 
+							in_world_ob->scale);
 					}
 
 					if(in_world_ob->audio_source.nonNull())
@@ -7991,7 +8092,9 @@ void MainWindow::objectEditedSlot()
 
 				// Update physics object transform
 				selected_ob->physics_object->collidable = selected_ob->isCollidable();
-				this->physics_world->setNewObToWorldMatrix(*selected_ob->physics_object, new_ob_to_world_matrix);
+				//this->physics_world->setNewObToWorldMatrix(*selected_ob->physics_object, new_ob_to_world_matrix);
+				physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+					selected_ob->scale);
 
 				// Update in Indigo view
 				ui->indigoView->objectTransformChanged(*selected_ob);
@@ -9635,7 +9738,10 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		this->physics_world->setNewObToWorldMatrix(*ob->physics_object, new_ob_to_world);
+		//this->physics_world->setNewObToWorldMatrix(*ob->physics_object, new_ob_to_world);
+		physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), new_q, ob->scale);
+
+
 
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*ob);
@@ -10228,6 +10334,9 @@ void MainWindow::updateGroundPlane()
 				Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
 				phy_ob->geometry = ground_quad_raymesh;
 				phy_ob->ob_to_world = gl_ob->ob_to_world_matrix;
+				phy_ob->pos = Vec4f(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0, 1);
+				phy_ob->rot = Quatf::identity();
+				phy_ob->scale = Vec3f(1.f);
 
 				physics_world->addObject(phy_ob);
 

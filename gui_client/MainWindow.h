@@ -78,7 +78,7 @@ struct DownloadingResourceInfo
 };
 
 
-class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput, public GLUITextRendererCallback
+class MainWindow : public QMainWindow, public ObLoadingCallbacks, public PrintOutput, public GLUITextRendererCallback // , public PhysicsWorldBodyActivationCallbacks
 {
 	Q_OBJECT
 public:
@@ -297,6 +297,11 @@ public:
 
 	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
 
+
+	// PhysicsWorldBodyActivationCallbacks interface:
+	//virtual void onBodyActivated(PhysicsObject& ob) override;
+	//virtual void onBodyDeactivated(PhysicsObject& ob) override;
+
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
 	std::string base_dir_path;
@@ -358,6 +363,7 @@ public:
 	std::set<WorldObjectRef> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
 	std::set<WorldObjectRef> web_view_obs;
 	std::set<WorldObjectRef> obs_with_scripts; // Objects with non-null script_evaluator
+	//std::set<WorldObjectRef> physics_activated_obs;
 
 	//std::ofstream logfile;
 
