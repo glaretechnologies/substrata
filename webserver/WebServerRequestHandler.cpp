@@ -73,7 +73,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		std::string hostname;
 		for(size_t i=0; i<request.headers.size(); ++i)
 			if(StringUtils::equalCaseInsensitive(request.headers[i].key, "host"))
-				hostname = request.headers[i].value.to_string();
+				hostname = toString(request.headers[i].value);
 		if(hostname != "localhost")
 		{
 			const std::string response = 

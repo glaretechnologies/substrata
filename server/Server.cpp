@@ -325,7 +325,7 @@ static ServerCredentials parseServerCredentials(const std::string& server_state_
 		parser.parseWhiteSpace();
 		parser.parseLine(value);
 
-		creds.creds[key.to_string()] = ::stripHeadAndTailWhitespace(value.to_string());
+		creds.creds[toString(key)] = ::stripHeadAndTailWhitespace(toString(value));
 	}
 
 	return creds;

@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2021 -
 #include "UInt256.h"
 
 
+#include <cassert>
+
+
 // Without 0x prefix.
 const std::string UInt256::toHexString() const
 {
