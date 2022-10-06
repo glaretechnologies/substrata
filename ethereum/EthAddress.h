@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <StringUtils.h>
 #include <vector>
 #include <cstring>
+#include <cassert>
 
 
 struct EthAddress

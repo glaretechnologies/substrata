@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 
 #include <StringUtils.h>
 #include <algorithm>
+#include <cassert>
 
 
 URLWhitelist::URLWhitelist()

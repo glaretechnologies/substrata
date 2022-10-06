@@ -24,7 +24,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	string_view protocol;
 	parser.parseAlphaToken(protocol);
 	if(protocol != "sub")
-		throw glare::Exception("Unhandled protocol scheme '" + protocol + "'.");
+		throw glare::Exception("Unhandled protocol scheme '" + toString(protocol) + "'.");
 	if(!parser.parseString("://"))
 		throw glare::Exception("Expected '://' after protocol scheme.");
 
@@ -119,7 +119,7 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 				res.parsed_z = true;
 			}
 			else
-				throw glare::Exception("Unknown URL arg '" + URL_arg_name.to_string() + "'");
+				throw glare::Exception("Unknown URL arg '" + toString(URL_arg_name) + "'");
 		}
 
 		conPrint("x: " + toString(x) + ", y: " + toString(y) + ", z: " + toString(z));
