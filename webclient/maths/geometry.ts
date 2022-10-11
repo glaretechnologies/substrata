@@ -64,7 +64,7 @@ export function testAABB (lhs: Float32Array, rhs: Float32Array): boolean {
 }
 
 // Test AABBs for intersection in place
-export function testAABBV (lhs: Float32Array, loff: number, rhs: Float32Array, roff: number): boolean {
+export function testAABBV (lhs: Float32Array, loff: number, rhs: Float32Array, roff=0): boolean {
   if (lhs[loff+3] < rhs[roff] || lhs[loff] > rhs[roff+3]) return false;
   if (lhs[loff+4] < rhs[roff+1] || lhs[loff+1] > rhs[roff+4]) return false;
   return !(lhs[loff+5] < rhs[roff+2] || lhs[loff+2] > rhs[roff+5]);

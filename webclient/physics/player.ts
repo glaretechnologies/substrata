@@ -109,15 +109,16 @@ export class PlayerPhysics {
 
   public get lastPosition (): Float32Array { return this.lastPos_; }
 
-  // Note: Removed UpdateEvents return as it wasn't used in Substrata
   // Code ported from Substrata PlayerPhysics::update
-  public update (dt: number, camPosOut: Float32Array): void {
+  public update (dt: number, camPosOut: Float32Array): boolean { // Returns if the player jumped or not
+    let jumped = false;
     dt = Math.min(dt, 0.1);
 
     if(this.jumpTimeRemaining_ > 0) {
       if(this.onGround_) {
         this.onGround_ = false;
         console.log('jumping.');
+        jumped = true;
         addScaled3(this.velocity_, UP_VECTOR, JUMP_SPEED);
         this.timeSinceOnGround_ = 1;
       }
@@ -184,10 +185,12 @@ export class PlayerPhysics {
         closestResult.data[DIST] = 1e9;
         let hitSomething = false;
 
-        for(let s = 0; s !== 3; ++s) { // for each sphere in the body
+        for(let s = 0; s !== 3; ++s) { // for each sphere in the body TODO Restore to 3
           const spherePos = new Float32Array(camPos);
-          spherePos[2] -= EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s);
-          const playersphere = new Float32Array([...camPos, SPHERE_RAD]);
+          // spherePos[2] -= EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s);
+          spherePos[2] += SPHERE_RAD * (5 - 2 * s);
+
+          const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
           const result = this.world_.traceSphereWorld(playersphere, dpos);
           if(result.hit) {
             const dist = result.data[DIST];
@@ -209,7 +212,7 @@ export class PlayerPhysics {
         */
 
         if(hitSomething) {
-          console.log('hit:', closestResult.data[DIST]);
+          //console.log('hit:', closestResult.data[DIST]);
 
           const usefraction = closestResult.data[DIST] / len3(dpos);
           if(usefraction < 0 || usefraction > 1) console.warn('Failed assert usefraction'); // TODO: REMOVE
@@ -217,20 +220,21 @@ export class PlayerPhysics {
           addScaled3(camPos, dpos, usefraction); // camPos += dpos * usefraction
           mulScalar3(dpos, 1.0 - usefraction); // dpos *= 1.0 - usefraction
 
-          const foot_z = camPos[2] - EYE_HEIGHT;
+          const foot_z = camPos[2];
           const hitpos_height_above_foot = closestResult.data[POS_Z] - foot_z;
           print3('foot_z', foot_z, 'hitpos', hitpos_height_above_foot, 'pnt:', closestResult.data.slice(0, 3));
 
           if(!closestResult.pointInTri && hitpos_height_above_foot > 3e-3 && hitpos_height_above_foot < .25) {
             const jump_up_amount = hitpos_height_above_foot + .01;
-            const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] - EYE_HEIGHT + SPHERE_RAD * 5]);
+            //const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] - EYE_HEIGHT + SPHERE_RAD * 5]);
+            const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] + SPHERE_RAD * 5]);
             //print3('spherePos', spherePos);
             const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
             const result = this.world_.traceSphereWorld(playersphere, new Float32Array([0, 0, jump_up_amount]));
 
             //console.log('result:', result);
-            if(!result.hit) {
-              console.log('!result.hit');
+            if(result.hit == null) {
+              console.log('result.hit == null');
               camPos[2] += jump_up_amount;
               this.camPosZDelta_ = Math.min(0.3, this.camPosZDelta_ + jump_up_amount);
               closestResult.data.set(UP_VECTOR, NOR_X); // Set the closestResult.hit_normal to [0, 0, 1]
@@ -257,7 +261,8 @@ export class PlayerPhysics {
         const set = this.springSphereSet;
         for(let s = 0; s !== 3; ++s) {
           const spherepos = new Float32Array(camPos);
-          spherepos[2] -= EYE_HEIGHT - 1.5 + s * 0.6;
+          //spherepos[2] -= EYE_HEIGHT - 1.5 + s * 0.6;
+          spherepos[2] += 1.5 + s * 0.6;
           const bigsphere = new Float32Array([...spherepos, REPEL_RADIUS]);
           set[s].sphere.set(bigsphere);
           this.world_.getCollPoints(bigsphere, set[s].collisionPoints);
@@ -290,9 +295,13 @@ export class PlayerPhysics {
     camPosOut.set(camPos);
     camPosOut[2] -= this.camPosZDelta_;
 
+    //console.log('Z Delta:', this.camPosZDelta_);
+
     this.lastPos_.set(camPosOut);
 
     this.moveImpulse_.fill(0);
+
+    return jumped;
   }
 
   public doCamMovement(dt: number) {
@@ -338,12 +347,18 @@ export class PlayerPhysics {
 
     // TODO: TURNING & JUMPING HERE
     const cP = this.camera_.position;
+
+    // TODO: Fix this - taken from MainWindow::loadModelForAvatar
+    // avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
+
+    //const pos = new Float32Array([cP.x, cP.y, cP.z]);
     const pos = new Float32Array([cP.x, cP.y, cP.z - EYE_HEIGHT]);
     this.update(dt, pos);
 
     // TODO: Remove, this code is temporary
     // if(pos[2] < 1.6) pos[2] = 1.6; // Stop falling through the ground
 
+    //this.camera_.position.set(pos[0], pos[1], pos[2]);
     this.camera_.position.set(pos[0], pos[1], pos[2] + EYE_HEIGHT);
     this.world_.ground.updateGroundPlane(pos);
   }

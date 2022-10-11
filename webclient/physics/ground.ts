@@ -4,8 +4,8 @@ Adds a virtual ground plane to the physics world
 
 /*
 1) Find player position.
-2) Move ground plane to intersect player position
-3) Don't need to store a ref to visual object, only need a BVH for intersection queries.  Use a
+2) Move ground plane to coincide with player position
+3) Don't need to store a ref to visual object, only need a BVH for intersection queries.
 */
 
 import * as THREE from '../build/three.module.js';
@@ -18,12 +18,7 @@ export class Ground {
 
   private readonly invWorld_: THREE.Matrix4;
 
-  private readonly collisionPlane: THREE.Group;
-
   public constructor () {
-    // This is a group at the origin into which we add our world space ground patches.
-    this.collisionPlane = new THREE.Group();
-
     const geo = generatePatch(1, 1);
     const buf = new THREE.BufferGeometry();
     buf.setAttribute('position', new THREE.BufferAttribute(geo[0], 3, false));
@@ -49,6 +44,6 @@ export class Ground {
     //console.log('moving ground plane:', camPos);
     this.mesh.position.set(camPos[0], camPos[1], .001);
     this.invWorld.copy(this.mesh_.matrixWorld);
-    this.invWorld.invert();
+    this.invWorld.invert(); // TODO: Optimise
   }
 }

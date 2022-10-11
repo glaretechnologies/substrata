@@ -237,8 +237,9 @@ export default class PhysicsWorld {
     clearSphereTraceResult(query);
     const dist = this.traceSphereGround(sphere, dir, transLength, spherePathAABB, query);
     if(dist !== -1 && closest > dist) {
+      console.log('ground:', sphere[2], sphere[3]);
       result.data.set(query.data);
-      result.hit = (this.ground_ as unknown) as WorldObject; // HACK
+      result.hit = (this.ground_ as unknown) as WorldObject; // HACK - same relevant interface
       result.pointInTri = query.pointInTri;
     }
 
@@ -276,7 +277,6 @@ export default class PhysicsWorld {
 
   public getCollPoints (sphere: Float32Array, collisionPoints: Float32Array[]): void {
     collisionPoints.splice(0, collisionPoints.length);
-    //console.log('pts:', collisionPoints.length);
     const radius = sphere[3];
     const sphereAABB = new Float32Array([
       sphere[0] - radius, sphere[1] - radius, sphere[2] - radius,

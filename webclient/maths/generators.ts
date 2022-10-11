@@ -1,7 +1,5 @@
-import { Triangles } from '../physics/bvh.js';
-
 // Generate a tessellated patch in [-1, -1] x [1, 1] of cols x rows quads
-export function generatePatch (cols: number, rows: number): [Float32Array, Uint32Array | Uint16Array, Triangles] {
+export function generatePatch (cols: number, rows: number): [Float32Array, Uint32Array | Uint16Array] {
   const W = (cols + 1), H = (rows + 1);
   const vcount = W * H, icount = cols * rows * 2;
   const vbuf = new Float32Array(vcount * 3);
@@ -30,6 +28,5 @@ export function generatePatch (cols: number, rows: number): [Float32Array, Uint3
       ibuf[ii+5] = ibuf[ii] + 1;
     }
   }
-  const tri = new Triangles(vbuf, ibuf, 0, 3);
-  return [vbuf, ibuf, tri];
+  return [vbuf, ibuf];
 }

@@ -561,8 +561,8 @@ export default class BVH {
         const left = 6 * offset, right = 6 * (offset+1);
 
         // Inverted tests
-        const left_hit = testAABBV(aabb, left, sphere_aabb_os, 0);
-        const right_hit = testAABBV(aabb, right, sphere_aabb_os, 0);
+        const left_hit = testAABBV(aabb, left, sphere_aabb_os);
+        const right_hit = testAABBV(aabb, right, sphere_aabb_os);
 
         // console.log('o:', offset, 'c:', data[2*curr+1], left_hit, right_hit);
 
@@ -741,8 +741,8 @@ export default class BVH {
         const left = 6 * offset, right = 6 * (offset+1);
 
         // Inverted tests
-        const left_hit = testAABBV(aabb, left, sphere_aabb_os, 0);
-        const right_hit = testAABBV(aabb, right, sphere_aabb_os, 0);
+        const left_hit = testAABBV(aabb, left, sphere_aabb_os);
+        const right_hit = testAABBV(aabb, right, sphere_aabb_os);
 
         if(left_hit) {
           if(right_hit) {
