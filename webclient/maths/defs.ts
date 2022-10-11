@@ -1,4 +1,4 @@
-export const EPSILON = .000001;
+export const EPSILON = 1e-6;
 export const PI = Math.PI;
 export const TWO_PI = 2.0 * Math.PI;
 export const RECIP_PI = 1.0 / Math.PI;

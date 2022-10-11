@@ -12,12 +12,14 @@ import BVH, { Triangles } from './bvh.js';
 import * as THREE from '../build/three.module.js';
 import type { WorldObject } from '../webclient.js';
 import Caster from './caster.js';
-import { sqDistSphereAABB, transformAABB } from '../maths/geometry.js';
+import {spherePathToAABB, sqDistSphereAABB, testAABB, transformAABB} from '../maths/geometry.js';
 import { createAABBMesh } from './debug.js';
 import { add3, len3, max3, min3, mulScalar3 } from '../maths/vec3.js';
 import { EPSILON } from '../maths/defs.js';
 import { print3 } from '../maths/functions.js';
-import { SphereTraceResult } from "./types";
+import {clearSphereTraceResult, DIST, makeRay, makeSphereTraceResult, SphereTraceResult} from './types.js';
+import { PlayerPhysics } from './player.js';
+import { Ground } from './ground.js';
 
 enum DebugType {
   AABB_MESH, // A single AABB, originally set to the BVH root AABB
@@ -37,9 +39,13 @@ export default class PhysicsWorld {
   private readonly worldObjects_: Array<WorldObject>;
   private scene_: THREE.Scene | undefined;
   private caster_: Caster | undefined;
+  private readonly player_: PlayerPhysics | undefined;
 
   private debugMeshes: DebugMesh[];
   private readonly tempMeshes: THREE.Group; // TODO: Remove before check-in
+
+  // Ground Mesh
+  private readonly ground_: Ground;
 
   public constructor (scene?: THREE.Scene, caster?: Caster) {
     this.scene_ = scene;
@@ -49,21 +55,46 @@ export default class PhysicsWorld {
     this.debugMeshes = [];
     this.tempMeshes = new THREE.Group();
 
+    // TODO: Temporary - remove before checkin
+    this.player_ = new PlayerPhysics(this);
+
     const sphere = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshStandardMaterial({color:'blue'}));
     sphere.visible = false;
     this.tempMeshes.add(sphere);
+
+    this.ground_ = new Ground();
+    this.tempMeshes.add(this.ground.mesh);
+
+    /*
+    const geometry = this.ground.generateGeometry();
+
+    const bufGeo = new THREE.BufferGeometry();
+    bufGeo.setAttribute('position', new THREE.BufferAttribute(geometry[0], 3, false));
+    bufGeo.setIndex(new THREE.BufferAttribute(geometry[1], 1, false));
+    const vis = new THREE.Mesh(bufGeo, new THREE.MeshBasicMaterial({color: 'red', opacity: 0.5, transparent: true }));
+    vis.position.set(0, 0, .001);
+    vis.scale.set(10, 10, 1);
+    this.tempMeshes.add(vis);
+    console.log('vis:', vis);
+    */
   }
 
   // Getters/Setters
+  public get scene (): THREE.Scene { return this.scene_; }
   public set scene (scene: THREE.Scene) {
     if(this.scene_ !== scene) scene.add(this.tempMeshes);
     this.scene_ = scene;
   }
-  public get scene (): THREE.Scene { return this.scene_; }
 
-  public set caster (caster: Caster) { this.caster_ = caster; }
+
   public get caster (): Caster { return this.caster_; }
+  public set caster (caster: Caster) {
+    this.caster_ = caster;
+    if(this.player_) this.player_.camera = caster.camera;
+  }
 
+  public get player (): PlayerPhysics { return this.player_; }
+  public get ground (): Ground { return this.ground_; }
   public get worldObjects (): Array<WorldObject> { return this.worldObjects_; }
 
   // Check if BVH is loaded for model URL
@@ -170,107 +201,127 @@ export default class PhysicsWorld {
     new Float32Array(3),
   ];
 
-  // Uses a ray casting method for speeding up intersection queries by computing the squared distance between an
-  // advancing ray position to reduce the number of tests
-  public traceSphere (sphere: Float32Array, dir: Float32Array, len=1000): [number, number] {
-    const [P, d] = this.tmp;
-    P[3] = sphere[3];
-
-    const DEBUG = false;
-
-    let t = 0;
-    let idx = -1;
-    let iterations = 0;
-
-    while (t < len) {
-      let ii = -1;
-      let dist = Number.POSITIVE_INFINITY;
-      mulScalar3(dir, t, d);
-      add3(sphere, d, P);
-
-      for(let i = 0; i < this.worldObjects_.length; ++i) {
-        const obj = this.worldObjects_[i];
-        const bound = obj.world_aabb;
-
-        const sqD = sqDistSphereAABB(P, bound);
-        if(sqD < dist) {
-          dist = sqD;
-          ii = i;
-        }
-      }
-
-      if (dist <= EPSILON * t) {
-        idx = ii;
-        break;
-      } else {
-        t += Math.sqrt(dist);
-        iterations += 1;
-      }
-    }
-
-    if(idx !== -1) {
-      if(DEBUG) {
-        console.log(this.worldObjects_[idx].model_url, 'ray:', t, 'iter:', iterations);
-        print3('point', P);
-      }
-
-      mulScalar3(dir, t, d);
-      add3(sphere, d, P);
-
-      // Set the debug sphere to the position of intersection
-      this.tempMeshes.children[0].scale.set(sphere[3], sphere[3], sphere[3]);
-      this.tempMeshes.children[0].position.set(P[0], P[1], P[2]);
-      this.tempMeshes.children[0].visible = true;
-    } else {
-      this.tempMeshes.children[0].visible = false;
-      if(DEBUG) console.log('iterations:', iterations);
-    }
-
-    return [Number.POSITIVE_INFINITY, -1];
-  }
-
   // This function replicates the traceSphere function in the physics world in the Substrata C++ client.
-  /*
   public traceSphereWorld (sphere: Float32Array, translation: Float32Array): SphereTraceResult {
-    const result = {
-      data: new Float32Array(7), // [ pos.x, pos.y, pos.z, nor.x, nor.y, nor.z, dist ]
-      hit: undefined,
-      pointInTri: undefined
-    };
+    const spheres = new Float32Array(12);
+    this.player_.getCollisionSpheres(sphere, spheres);
 
-    // For now, just iterate over the objects
-    const [P, d] = this.tmp;
-    P[3] = sphere[3];
-    const t = 0;
+    const result = makeSphereTraceResult();
+    const query = makeSphereTraceResult();
 
-    // We don't use the concept of large objects yet...
-    const MAX_LEN = len3(translation);
-    const dir = mulScalar3(translation, MAX_LEN, new Float32Array(3));
+    const transLength = len3(translation);
+    if(transLength < 1.0e-10) {
+      // This check was done in PhysicsObject::traceSphere
+      console.log('zero length dir vector:', transLength);
+      return result;
+    }
 
-    console.log('MAX_LENGTH:', MAX_LEN, 'dir:', dir, 'translation:', translation);
+    // Normalise the vector into a copy
+    const dir = mulScalar3(translation, 1./transLength, new Float32Array(3));
+    const spherePathAABB = spherePathToAABB(sphere, translation);
 
-    const query = {
-      data: new Float32Array(7),
-      hit: undefined,
-      pointInTri: undefined
-    };
-
-    const sphereAABB = new Float32Array([
-      sphere[0], sphere[1], sphere[2],
-      sphere[0], sphere[1], sphere[2]
-    ]);
-
-    const target = add3(sphere, translation, new Float32Array(3));
-
-    min3(sphereAABB, 0, target);
-    max3(sphereAABB, 3, target);
+    let closest = Number.POSITIVE_INFINITY;
 
     for (let i = 0; i < this.worldObjects_.length; ++i) {
       const obj = this.worldObjects_[i];
-      obj.bvh.traceSphere(sphere, translation, dir, MAX_LEN, query);
+      clearSphereTraceResult(query);
+      const dist = this.traceSphereObject(obj, sphere, dir, transLength, spherePathAABB, query);
+      if(dist !== -1 && closest > dist) {
+        closest = dist;
+        result.data.set(query.data);
+        result.hit = obj;
+        result.pointInTri = query.pointInTri;
+      }
     }
 
+    clearSphereTraceResult(query);
+    const dist = this.traceSphereGround(sphere, dir, transLength, spherePathAABB, query);
+    if(dist !== -1 && closest > dist) {
+      result.data.set(query.data);
+      result.hit = (this.ground_ as unknown) as WorldObject; // HACK
+      result.pointInTri = query.pointInTri;
+    }
+
+    /*
+    if(result.data[DIST] !== -1) {
+      console.log('hit:', result.data[DIST]);
+    }
+    */
     return result;
   }
-  */
+
+  // A port of PhysicsObject::traceSphere
+  public traceSphereObject (
+    obj: WorldObject,
+    sphere: Float32Array,
+    dir: Float32Array,              // Normalised unit vector in direction of translation
+    maxDist: number,                // Translation Length
+    spherePathAABB: Float32Array,
+    results: SphereTraceResult
+  ): number {
+    // If the world_aabb of this object does not intersect the spherePathAABB, return
+    if(!testAABB(obj.world_aabb, spherePathAABB)) {
+      //console.log('traceSphereObject no root intersection');
+      results.data[DIST] = -1;
+      return Number.POSITIVE_INFINITY;
+    }
+
+    const ray = makeRay();
+    ray.origin.set(sphere.slice(0, 3));
+    ray.dir.set(dir);
+    ray.minmax[1] = maxDist;
+
+    return obj.bvh.traceSphere(ray, obj.inv_world, obj.mesh.matrixWorld, sphere[3], results);
+  }
+
+  public getCollPoints (sphere: Float32Array, collisionPoints: Float32Array[]): void {
+    collisionPoints.splice(0, collisionPoints.length);
+    //console.log('pts:', collisionPoints.length);
+    const radius = sphere[3];
+    const sphereAABB = new Float32Array([
+      sphere[0] - radius, sphere[1] - radius, sphere[2] - radius,
+      sphere[0] + radius, sphere[1] + radius, sphere[2] + radius
+    ]);
+
+    // No Top-level Acceleration Structure yet
+    for(let i = 0; i !== this.worldObjects_.length; ++i) {
+      const obj = this.worldObjects[i];
+      this.getCollPointsObject(obj, sphere, sphereAABB, collisionPoints);
+    }
+
+    this.getCollPointsGround(sphere, sphereAABB, collisionPoints);
+  }
+
+  public traceSphereGround (
+    sphere: Float32Array,
+    dir: Float32Array,
+    maxDist: number,
+    spherePathAABB: Float32Array,
+    results: SphereTraceResult
+  ) : number {
+    // Ensure that the ground plane is positioned beneath the player before calling.
+    const ray = makeRay();
+    ray.origin.set(sphere.slice(0, 3));
+    ray.dir.set(dir);
+    ray.minmax[1] = maxDist;
+    //console.log('ground:', sphere, dir, maxDist);
+    return this.ground.bvh.traceSphere(ray, this.ground.invWorld, this.ground.matrixWorld, sphere[3], results);
+  }
+
+
+  public getCollPointsObject (
+    obj: WorldObject,
+    sphere: Float32Array,
+    sphereAABBWs: Float32Array,
+    collisionPoints: Float32Array[]
+  ): void {
+    if(!testAABB(obj.world_aabb, sphereAABBWs)) return;
+
+    obj.bvh.appendCollPoints(sphere, sphere[3], obj.mesh.matrixWorld, obj.inv_world, collisionPoints);
+  }
+
+  // An alternate interface for the constantly moving ground plane
+  public getCollPointsGround (sphere: Float32Array, sphereAABBWs: Float32Array, collisionPoints: Float32Array[]) {
+    this.ground.bvh.appendCollPoints(sphere, sphere[3], this.ground.matrixWorld, this.ground.invWorld, collisionPoints);
+  }
 }

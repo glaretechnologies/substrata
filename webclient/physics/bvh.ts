@@ -1,9 +1,22 @@
 import * as THREE from '../build/three.module.js';
 import { eq, print3, range } from '../maths/functions.js';
 import { EPSILON } from '../maths/defs.js';
-import { cross3, dot3, max3, min3, sub3 } from '../maths/vec3.js';
-import { testRayAABB } from '../maths/geometry.js';
-import { SphereTraceResult } from './types.js';
+import {
+  add3,
+  applyMatrix4,
+  cross3,
+  dot3, len3,
+  max3,
+  min3,
+  mulScalar3,
+  normalise3, sqDist3, sqLen3,
+  sub3,
+  transformDirection
+} from '../maths/vec3.js';
+import {testAABB, testAABBV, testRayAABB, transformAABB, unionAABB} from '../maths/geometry.js';
+import { makeRay, NOR_X, Ray, SphereTraceResult } from './types.js';
+import { closestPointOnTriangle, pointInTri, Triangle } from '../maths/triangle.js';
+import { closestPointOnPlane, Plane } from '../maths/plane.js';
 
 export type IndexType = Uint32Array | Uint16Array | Uint8Array
 
@@ -40,7 +53,7 @@ export class Triangles {
 
   // Get the Vertex id (vertex) for the triangle id (tri) in the 3-component output
   public getTriVertex (tri: number, vertex: number, output: Float32Array): Float32Array {
-    const voff = this.vert_stride * this.index[ 3 * tri + vertex] + this.pos_offset;
+    const voff = this.vert_stride * this.index[3 * tri + vertex] + this.pos_offset;
     output[0] = this.vertices[voff]; output[1] = this.vertices[voff+1]; output[2] = this.vertices[voff+2];
     return output;
   }
@@ -70,19 +83,19 @@ export class Triangles {
     this.getTriVertex(triIndex, 1, v1);
     this.getTriVertex(triIndex, 2, v2);
 
-    sub3(v1, v0, e0);
-    sub3(v2, v0, e1);
-    cross3(dir, e1, h);
+    sub3(v1, v0, e0);           // e0 = v1 - v0
+    sub3(v2, v0, e1);           // e1 = v2 - v0
+    cross3(dir, e1, h);         // h = dir x e1
 
     const a = dot3(e0, h);
     if (eq(a, 0, EPSILON)) return null;
 
     const f = 1.0 / a;
-    sub3(origin, v0, s);
+    sub3(origin, v0, s);        // s = origin - v0
     const u = f * dot3(s, h);
     if (u < 0 || u > 1) return null;
 
-    cross3(s, e0, q);
+    cross3(s, e0, q);           // q = s x e0
     const v = f * dot3(dir, q);
     if (v < 0 || u + v > 1) return null;
 
@@ -195,21 +208,6 @@ export default class BVH {
 
     return [idx, tri_idx];
   }
-
-  /*
-  // This is intended to be as similar as possible to the Glare-Core BVH::traceSphere routine
-  public traceSphere (sphere: Float32Array, translation: Float32Array, dir: Float32Array, len: number, results: SphereTraceResult) {
-    // 1) Build AABB covering path of sphere (from sphere origin to sphere origin + dir * len)
-    // 2) Traverse tree DFS
-    // 3) If intersects node, test against tris for node
-
-    const t_min = Number.MAX_VALUE;
-    const stack = [];
-    while (stack.length > 0) {
-      const curr = stack.pop();
-    }
-  }
-  */
 
   public get rootAABB (): Float32Array {
     return this.aabbBuffer.slice(0, 6);
@@ -511,4 +509,313 @@ export default class BVH {
     const output = new Set(ids);
     console.log('output', output);
   }
+
+  // See glare-core BVH::traceSphere
+  public traceSphere (
+    ray: Ray,
+    toObject: THREE.Matrix4,
+    toWorld: THREE.Matrix4,
+    radius: number,
+    result: SphereTraceResult
+  ): number {
+    const localRay = makeRay(ray);
+    //localRay.origin.set(ray.origin);
+    //localRay.dir.set(ray.dir);
+    //localRay.minmax.set(ray.minmax);
+
+    const start_ws = new Float32Array([
+      ray.origin[0] - radius, ray.origin[1] - radius, ray.origin[2] - radius,
+      ray.origin[0] + radius, ray.origin[1] + radius, ray.origin[2] + radius
+    ]);
+
+    const tx = ray.origin[0] + ray.dir[0] * ray.minmax[1];
+    const ty = ray.origin[1] + ray.dir[1] * ray.minmax[1];
+    const tz = ray.origin[2] + ray.dir[2] * ray.minmax[1];
+
+    const end_ws = new Float32Array([
+      tx - radius, ty - radius, tz - radius,
+      tx + radius, ty + radius, tz + radius
+    ]);
+
+    const start_os = transformAABB(toObject, start_ws, new Float32Array(6));
+    const end_os = transformAABB(toObject, end_ws, new Float32Array(6));
+
+    const sphere_aabb_os = unionAABB(start_os, end_os);
+
+    const stack = new Uint32Array(64);
+    let top = 0;
+    stack[top] = 0;
+
+    const data = this.dataBuffer;
+    const aabb = this.aabbBuffer;
+    let breakInner = false;
+
+
+    while(top >= 0) {
+      breakInner = false;
+      let curr = stack[top--];
+      let count = data[2*curr+1];
+
+      while (count === 0 && !breakInner) { // While on an interior node
+        const offset = data[2*curr];
+        const left = 6 * offset, right = 6 * (offset+1);
+
+        // Inverted tests
+        const left_hit = testAABBV(aabb, left, sphere_aabb_os, 0);
+        const right_hit = testAABBV(aabb, right, sphere_aabb_os, 0);
+
+        // console.log('o:', offset, 'c:', data[2*curr+1], left_hit, right_hit);
+
+        if(left_hit) {
+          if(right_hit) {
+            top++;
+            stack[top] = offset; // push the left node onto the stack
+            curr = offset+1; // set curr to the right node
+            count = data[2*curr+1]; // update the count
+          } else {
+            curr = offset; // set current to the left
+            count = data[2*curr+1];
+          }
+        } else {
+          if(right_hit) {
+            curr = offset+1;
+            count = data[2*curr+1];
+          } else {
+            breakInner = true;
+          }
+        }
+      }
+
+      if(!breakInner) { // This is a leaf with triangles associated
+        const offset = data[2*curr], count = data[2*curr+1];
+        for(let i = 0; i !== count; ++i) {
+          const tri = this.index[offset+i];
+          //console.log('testing tri:', tri);
+          this.intersectSphereTri(localRay, toWorld, radius, tri, result);
+        }
+      }
+    }
+
+    return localRay.minmax[1] < ray.minmax[1] ? localRay.minmax[1] : -1.0;
+  }
+
+  private intersectSphereTri(
+    ray: Ray,
+    toWorld: THREE.Matrix4,
+    radius: number,
+    triIndex: number,
+    result: SphereTraceResult
+  ): void {
+    // Optimise later...
+    const sourcePoint_ws = new Float32Array(ray.origin);
+    const unitdir_ws = new Float32Array(ray.dir);
+
+    // TODO: Optimise this
+    const v0 = new Float32Array(3), v1 = new Float32Array(3), v2 = new Float32Array(3);
+    const e0 = new Float32Array(3), e1 = new Float32Array(3);
+
+    this.tri.getTriVertex(triIndex, 0, v0); // Read triangle vertices into vectors
+    this.tri.getTriVertex(triIndex, 1, v1);
+    this.tri.getTriVertex(triIndex, 2, v2);
+    sub3(v1, v0, e0);                 // e0 = v1 - v0
+    sub3(v2, v0, e1);                 // e1 = v2 - v0
+
+    applyMatrix4(toWorld, v0);        // Stores result in v0 so v0 now in world space
+    transformDirection(toWorld, e0);  // Reason for doing this in world space and not object space?
+    transformDirection(toWorld, e1);
+
+    const normal = new Float32Array(3);
+    cross3(e0, e1, normal);           // normal = e0 x e1
+    normalise3(normal);
+
+    const tri: Triangle = { v0, e0, e1, normal };
+    const plane: Plane = { normal, D: dot3(v0, normal) };
+
+    // Signed distance
+    let pDist = dot3(sourcePoint_ws, plane.normal) - plane.D;
+    const useNormal = new Float32Array(normal);
+    if(pDist < 0) {
+      //console.log('flipping normal:', useNormal);
+      mulScalar3(useNormal, -1); // useNormal *= -1
+      pDist *= -1;
+    }
+
+    const approach_rate = -dot3(useNormal, unitdir_ws);
+    if(approach_rate <= 0) {
+      //console.log('leaving');
+      return;
+    }
+
+    const trans_len_needed = (pDist - radius) / approach_rate;
+    //console.log('trans_len_needed:', trans_len_needed);
+
+    if(ray.minmax[1] < trans_len_needed) {
+      //console.log('too far', ray.minmax[1]);
+      return;
+    }
+
+    const planeIntersectionP = new Float32Array(3);
+    if(trans_len_needed <= 0) {
+      closestPointOnPlane(plane, sourcePoint_ws, planeIntersectionP);
+    } else {
+      const tmp0 = new Float32Array(3);
+      const tmp1 = new Float32Array(3);
+
+      mulScalar3(useNormal, radius, tmp0);            // tmp0 = useNormal * radius
+      mulScalar3(unitdir_ws, trans_len_needed, tmp1); // tmp1 = unitdir_ws * trans_len_needed
+      sub3(tmp1, tmp0);                               // tmp1 -= tmp0
+      add3(sourcePoint_ws, tmp1, planeIntersectionP); // planeIntersectionP = sourcePoint + (tmp1 - tmp0)
+      //print3('planeIntersectionP', planeIntersectionP);
+    }
+
+    const triIntersectionPoint = new Float32Array(planeIntersectionP);
+    const point_in_tri = pointInTri(tri, triIntersectionPoint);
+    let dist;
+    //console.log('point_in_tri:', point_in_tri);
+    if(point_in_tri) {
+      dist = Math.max(0, trans_len_needed);
+    } else {
+      const tmp = new Float32Array(3);
+      closestPointOnTriangle(tri, triIntersectionPoint, tmp);
+      triIntersectionPoint.set(tmp);
+      dist = traceRayAgainstSphere(triIntersectionPoint, ray.dir, ray.origin, radius);
+    }
+
+    //console.log('dist:', dist);
+
+    if(dist >= 0 && dist < ray.minmax[1]) {
+      ray.minmax[1] = dist;
+      result.data.set(triIntersectionPoint);
+      result.pointInTri = point_in_tri;
+      result.data[6] = dist;
+      //console.log('setting output');
+
+      if(point_in_tri) result.data.set(useNormal, NOR_X);
+      else {
+        const tmp = new Float32Array(3);
+        mulScalar3(unitdir_ws, dist, tmp); // tmp = unitdir_ws * dist
+        add3(tmp, sourcePoint_ws); // tmp += sourcePoint_ws
+        sub3(tmp, triIntersectionPoint); // tmp -= triIntersectionPoint
+        normalise3(tmp);
+        result.data.set(tmp, NOR_X);
+        //console.log('tri result:', result);
+      }
+    }
+  }
+
+  // BVH::DistType BVH::traceSphere(const Ray& ray_ws_, const Matrix4f& to_object, const Matrix4f& to_world,
+  // float radius_ws, Vec4f& hit_pos_ws_out, Vec4f& hit_normal_ws_out, bool& point_in_tri_out) const
+
+  // void BVH::appendCollPoints(const Vec4f& sphere_pos_ws, float radius_ws, const Matrix4f& to_object,
+  // const Matrix4f& to_world, std::vector<Vec4f>& points_ws_in_out) const
+
+  public appendCollPoints (
+    spherePosWs: Float32Array,
+    radius: number,
+    toObject: THREE.Matrix4,
+    toWorld: THREE.Matrix4,
+    points: Array<Float32Array> // TODO: make resizable buffer of Float32Array
+  ) : void {
+    const sqRad = radius*radius;
+    const sphere_aabb_ws = new Float32Array([
+      spherePosWs[0] - radius, spherePosWs[1] - radius, spherePosWs[2] - radius,
+      spherePosWs[0] + radius, spherePosWs[1] + radius, spherePosWs[2] + radius,
+    ]);
+    const sphere_aabb_os = transformAABB(toObject, sphere_aabb_ws, new Float32Array(6));
+
+    const stack = new Uint32Array(64);
+    let top = 0;
+    stack[top] = 0;
+
+    const data = this.dataBuffer;
+    const aabb = this.aabbBuffer;
+    let breakInner = false;
+
+    while(top >= 0) {
+      breakInner = false;
+      let curr = stack[top--];
+      let count = data[2*curr+1];
+
+      while (count === 0 && !breakInner) { // While on an interior node
+        const offset = data[2*curr];
+        const left = 6 * offset, right = 6 * (offset+1);
+
+        // Inverted tests
+        const left_hit = testAABBV(aabb, left, sphere_aabb_os, 0);
+        const right_hit = testAABBV(aabb, right, sphere_aabb_os, 0);
+
+        if(left_hit) {
+          if(right_hit) {
+            top++;
+            stack[top] = offset; // push the left node onto the stack
+            curr = offset+1; // set curr to the right node
+            count = data[2*curr+1]; // update the count
+          } else {
+            curr = offset; // set current to the left
+            count = data[2*curr+1]; // update The count
+          }
+        } else {
+          if(right_hit) {
+            curr = offset+1; // set curr to the right node
+            count = data[2*curr+1]; // update the count
+          } else {
+            breakInner = true;
+          }
+        }
+      }
+
+      if(!breakInner) {
+        const offset = data[2*curr], count = data[2*curr+1];
+        for(let i = 0; i !== count; ++i) {
+          const trii = this.index[offset+i];
+          const v0 = new Float32Array(3), v1 = new Float32Array(3), v2 = new Float32Array(3);
+          const e0 = new Float32Array(3), e1 = new Float32Array(3);
+
+          this.tri.getTriVertex(trii, 0, v0);
+          this.tri.getTriVertex(trii, 1, v1);
+          this.tri.getTriVertex(trii, 2, v2);
+          sub3(v1, v0, e0); // e0 = v1 - v0
+          sub3(v2, v0, e1); // e1 = v2 - v0
+
+          applyMatrix4(toWorld, v0);        // Stores result in v0 so v0 now in world space
+          transformDirection(toWorld, e0);
+          transformDirection(toWorld, e1);
+
+          const normal = new Float32Array(3);
+          cross3(e0, e1, normal); // normal = e0 x e1
+          normalise3(normal);
+
+          const tri: Triangle = { v0, e0, e1, normal };
+          const plane: Plane = { normal, D: dot3(v0, normal) };
+
+          const dist = dot3(spherePosWs, plane.normal) - plane.D;
+          if(Math.abs(dist) > radius) continue;
+
+          let planeP = closestPointOnPlane(plane, spherePosWs, new Float32Array(3));
+          if(!pointInTri(tri, planeP)) {
+            planeP = closestPointOnTriangle(tri, planeP, new Float32Array(3));
+          }
+
+          if(sqDist3(planeP, spherePosWs) <= sqRad) {
+            points.push(planeP);
+          }
+        }
+      }
+    }
+  }
+}
+
+const disp = new Float32Array(3);
+const sDir = new Float32Array(3);
+
+export function traceRayAgainstSphere (origin: Float32Array, dir: Float32Array, sphere: Float32Array, radius: number): number {
+  sub3(sphere, origin, disp); // disp = sphere - origin
+  const sqR = radius*radius;
+  if(sqLen3(disp) < sqR) return 0;
+
+  const disp_dot_dir = dot3(disp, dir);
+  mulScalar3(dir, disp_dot_dir, sDir);
+  const discrim = sqR - sqDist3(disp, sDir);
+  if(discrim < 0) return -1;
+  return disp_dot_dir - Math.sqrt(discrim);
 }
