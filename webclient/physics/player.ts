@@ -19,7 +19,7 @@ import {
 export const SPHERE_RAD = 0.3;
 const REPEL_RADIUS = SPHERE_RAD + 0.005;
 export const EYE_HEIGHT = 1.67;
-export const GRAVITY = new Float32Array([0, 0, -0.981]);
+export const GRAVITY = new Float32Array([0, 0, -9.81]);
 export const UP_VECTOR = new Float32Array([0, 0, 1]);
 export const ZERO = new Float32Array(3);
 
@@ -27,6 +27,8 @@ const RUN_FACTOR = 5;
 const MOVE_SPEED = 3;
 const JUMP_SPEED = 4.5;
 const MAX_AIR_SPEED = 8;
+
+const JUMP_PERIOD = 0.1; // Allow a jump command to be executed even if the player is not quite on the ground yet.
 
 export interface SpringSphereSet {
   collisionPoints: Float32Array[] // For now, an array of points, move to contiguous, dynamic array
@@ -294,7 +296,12 @@ export class PlayerPhysics {
       addScaled3(this.moveImpulse_, rgt, move_speed);
     }
 
-    // TODO: TURNING & JUMPING HERE
+    if (keys_down.has('Space')) {
+      this.jumpTimeRemaining_ = JUMP_PERIOD
+    }
+
+    // TODO: TURNING HERE
+
     const cP = this.camera_.position;
 
     const pos = new Float32Array([cP.x, cP.y, cP.z]);
