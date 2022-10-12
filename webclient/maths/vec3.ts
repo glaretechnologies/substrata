@@ -177,3 +177,6 @@ export function removeComponentInDir(comp: Float32Array, dir: Float32Array, outp
   mulScalar3(tmp, dot3(dir, comp));
   return sub3(dir, tmp, output != null ? output : dir);
 }
+
+// Return string representation of 3-component vector, for debugging
+export function vec3ToString(v: Float32Array): string { return "(" + v[0].toString() + ", " + v[1].toString() + ", " + v[2].toString() + ")"; }

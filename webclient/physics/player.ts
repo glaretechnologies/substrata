@@ -12,7 +12,8 @@ import {
   mulScalar3,
   removeComponentInDir,
   sqLen3,
-  sub3
+  sub3,
+  vec3ToString
 } from '../maths/vec3.js';
 
 export const SPHERE_RAD = 0.3;
