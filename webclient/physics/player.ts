@@ -14,14 +14,11 @@ import {
   sqLen3,
   sub3
 } from '../maths/vec3.js';
-import { print3 } from '../maths/functions.js';
-import { WorldObject } from '../webclient.js';
 
 export const SPHERE_RAD = 0.3;
 const REPEL_RADIUS = SPHERE_RAD + 0.005;
 export const EYE_HEIGHT = 1.67;
 export const GRAVITY = new Float32Array([0, 0, -0.981]);
-//export const GRAVITY = new Float32Array(3);
 export const UP_VECTOR = new Float32Array([0, 0, 1]);
 export const ZERO = new Float32Array(3);
 
@@ -47,6 +44,7 @@ export class PlayerPhysics {
   private camera_: THREE.PerspectiveCamera | undefined;
 
   private world_: PhysicsWorld | undefined;
+  private visGroup_: THREE.Group | undefined;
 
   private readonly velocity_: Float32Array;
   private readonly moveImpulse_: Float32Array;
@@ -117,7 +115,6 @@ export class PlayerPhysics {
     if(this.jumpTimeRemaining_ > 0) {
       if(this.onGround_) {
         this.onGround_ = false;
-        console.log('jumping.');
         jumped = true;
         addScaled3(this.velocity_, UP_VECTOR, JUMP_SPEED);
         this.timeSinceOnGround_ = 1;
@@ -127,11 +124,9 @@ export class PlayerPhysics {
     this.jumpTimeRemaining_ -= dt;
 
     if(!this.flyMode_) {
-      //console.log('onGround:', this.onGround_);
       if(this.onGround_) {
         const parallel_impulse = new Float32Array(this.moveImpulse_);
         removeComponentInDir(this.lastGroundNormal_, parallel_impulse);
-        // console.log('lastGroundNormal:', this.lastGroundNormal_);
         this.velocity_.set(parallel_impulse);
       }
 
@@ -173,11 +168,8 @@ export class PlayerPhysics {
     mulScalar3(dpos, dt); // dpos *= dt
     const camPos = new Float32Array(camPosOut);
 
-    //print3('camPosOut', camPosOut, this.camPosZDelta_);
-
     camPos[2] += this.camPosZDelta_;
     this.camPosZDelta_ = Math.max(0, this.camPosZDelta_ - 20 * dt * this.camPosZDelta_);
-
 
     for(let i = 0; i !== 5; ++i) {
       if(!eq3(dpos, ZERO)) {
@@ -185,17 +177,15 @@ export class PlayerPhysics {
         closestResult.data[DIST] = 1e9;
         let hitSomething = false;
 
-        for(let s = 0; s !== 3; ++s) { // for each sphere in the body TODO Restore to 3
+        for(let s = 0; s !== 3; ++s) {
           const spherePos = new Float32Array(camPos);
-          // spherePos[2] -= EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s);
-          spherePos[2] += SPHERE_RAD * (5 - 2 * s);
+          spherePos[2] -= EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s);
 
           const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
           const result = this.world_.traceSphereWorld(playersphere, dpos);
           if(result.hit) {
             const dist = result.data[DIST];
             if(dist !== -1 && dist < closestResult.data[DIST]) {
-              console.log('sphere:', s, spherePos[2], camPos[2]);
               hitSomething = true;
               closestResult.data.set(result.data);
               closestResult.pointInTri = result.pointInTri;
@@ -203,17 +193,7 @@ export class PlayerPhysics {
           }
         }
 
-        /* Virtual Ground Plane
-        if(!hitSomething && camPos[2] < EYE_HEIGHT) {
-          closestResult.data.set([camPos[0], camPos[1], camPosOut[2] - EYE_HEIGHT, 0, 0, 1, camPosOut[2] - EYE_HEIGHT]);
-          closestResult.pointInTri = false;
-          hitSomething = true;
-        }
-        */
-
         if(hitSomething) {
-          //console.log('hit:', closestResult.data[DIST]);
-
           const usefraction = closestResult.data[DIST] / len3(dpos);
           if(usefraction < 0 || usefraction > 1) console.warn('Failed assert usefraction'); // TODO: REMOVE
 
@@ -222,19 +202,14 @@ export class PlayerPhysics {
 
           const foot_z = camPos[2];
           const hitpos_height_above_foot = closestResult.data[POS_Z] - foot_z;
-          print3('foot_z', foot_z, 'hitpos', hitpos_height_above_foot, 'pnt:', closestResult.data.slice(0, 3));
 
           if(!closestResult.pointInTri && hitpos_height_above_foot > 3e-3 && hitpos_height_above_foot < .25) {
             const jump_up_amount = hitpos_height_above_foot + .01;
-            //const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] - EYE_HEIGHT + SPHERE_RAD * 5]);
-            const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] + SPHERE_RAD * 5]);
-            //print3('spherePos', spherePos);
+            const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] - EYE_HEIGHT + SPHERE_RAD * 5]);
             const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
             const result = this.world_.traceSphereWorld(playersphere, new Float32Array([0, 0, jump_up_amount]));
 
-            //console.log('result:', result);
             if(result.hit == null) {
-              console.log('result.hit == null');
               camPos[2] += jump_up_amount;
               this.camPosZDelta_ = Math.min(0.3, this.camPosZDelta_ + jump_up_amount);
               closestResult.data.set(UP_VECTOR, NOR_X); // Set the closestResult.hit_normal to [0, 0, 1]
@@ -254,34 +229,19 @@ export class PlayerPhysics {
           }
         } else { // Did not hit anything
           add3(camPos, dpos); // camPos += dpos
-          //print3('dpos', dpos);
           dpos.fill(0); // dpos = [0, 0, 0]
         }
 
         const set = this.springSphereSet;
         for(let s = 0; s !== 3; ++s) {
           const spherepos = new Float32Array(camPos);
-          //spherepos[2] -= EYE_HEIGHT - 1.5 + s * 0.6;
-          spherepos[2] += 1.5 + s * 0.6;
+          spherepos[2] -= EYE_HEIGHT - 1.5 + s * 0.6;
           const bigsphere = new Float32Array([...spherepos, REPEL_RADIUS]);
           set[s].sphere.set(bigsphere);
           this.world_.getCollPoints(bigsphere, set[s].collisionPoints);
         }
 
-
-        if(set[0].collisionPoints.length > 0 || set[1].collisionPoints.length > 0 || set[2].collisionPoints.length > 0) {
-          console.log('start');
-          for(let j = 0; j !== 3; ++j) {
-            if(set[j].collisionPoints.length > 0) print3('sphere', set[j].sphere, 'point', set[j].collisionPoints[0]);
-          }
-          console.log('end\n');
-        }
-
-
-        //print3('camPos', camPos);
         let displacement = this.doSpringRelaxation(set, false, true);
-        if(!eq3(displacement, ZERO)) print3('disp', displacement);
-
         if(!eq3(displacement, ZERO) && displacement[2]/len3(displacement) > .5) this.onGround_ = true;
 
         displacement = this.doSpringRelaxation(set, this.onGround_ && eq3(this.moveImpulse_, ZERO), false);
@@ -295,12 +255,8 @@ export class PlayerPhysics {
     camPosOut.set(camPos);
     camPosOut[2] -= this.camPosZDelta_;
 
-    //console.log('Z Delta:', this.camPosZDelta_);
-
     this.lastPos_.set(camPosOut);
-
     this.moveImpulse_.fill(0);
-
     return jumped;
   }
 
@@ -317,51 +273,52 @@ export class PlayerPhysics {
 
     let fwd: Float32Array, rgt: Float32Array;
 
-    // TODO: Remove - temporary hack to zero velocity when controls released
-    let pressed = false;
-
     if(keys_down.has('KeyW') || keys_down.has('ArrowUp')) {
       fwd = fromVector3(this.camForwardsVec_());
       addScaled3(this.moveImpulse_, fwd, move_speed);
-      pressed = true;
     }
     if(keys_down.has('KeyS') || keys_down.has('ArrowDown')) {
       fwd = fwd ?? fromVector3(this.camForwardsVec_());
       addScaled3(this.moveImpulse_, fwd, -move_speed);
-      pressed = true;
     }
     if(keys_down.has('KeyA') || keys_down.has('ArrowLeft')) { // TODO: Move the arrow keys later
       rgt = fromVector3(this.camRightVec_());
       addScaled3(this.moveImpulse_, rgt, -move_speed);
-      pressed = true;
     }
     if(keys_down.has('KeyD') || keys_down.has('ArrowRight')) {
       rgt = rgt ?? fromVector3(this.camRightVec_());
       addScaled3(this.moveImpulse_, rgt, move_speed);
-      pressed = true;
-    }
-
-    if(!pressed && !this.flyMode_) {
-      // this.velocity_.fill(0); // HACK HACK HACK
     }
 
     // TODO: TURNING & JUMPING HERE
     const cP = this.camera_.position;
 
-    // TODO: Fix this - taken from MainWindow::loadModelForAvatar
-    // avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
+    const pos = new Float32Array([cP.x, cP.y, cP.z]);
 
-    //const pos = new Float32Array([cP.x, cP.y, cP.z]);
-    const pos = new Float32Array([cP.x, cP.y, cP.z - EYE_HEIGHT]);
     this.update(dt, pos);
 
-    // TODO: Remove, this code is temporary
-    // if(pos[2] < 1.6) pos[2] = 1.6; // Stop falling through the ground
+    this.camera_.position.set(pos[0], pos[1], pos[2]);
 
-    //this.camera_.position.set(pos[0], pos[1], pos[2]);
-    this.camera_.position.set(pos[0], pos[1], pos[2] + EYE_HEIGHT);
     this.world_.ground.updateGroundPlane(pos);
+    if(this.visGroup_) this.visGroup_.position.set(pos[0] + 1, pos[1], pos[2]);
   }
+
+  // Optimise later
+  /*
+  private armRotation = 0;
+  private prevPos = new Float32Array(3);
+  private delta = new Float32Array(3);
+
+  private updateThirdPersonCam (pos: Float32Array): void {
+    const delta = sub3(pos, this.prevPos, this.delta);
+
+    const dir = normalise3(delta);
+    const eyePos = sub3(pos, dir, new Float32Array(3));
+
+    // Set the camera a distance of 2 units horizontally and 1 unit vertically from the 'player head' sphere.
+    const eyeP = new THREE.Vector3(...eyePos);
+  }
+  */
 
   // Returns displacement
   public doSpringRelaxation (sphereSet: SpringSphereSet[], constrainToVertical: boolean, fastMode: boolean): Float32Array {
@@ -373,11 +330,8 @@ export class PlayerPhysics {
 
     const EPSILON_SQ = 1e-8;
 
-    let iters = 0;
     const max_iters = fastMode ? 1 : 100;
     for(let i = 0; i !== max_iters; ++i) {
-      iters += 1;
-
       force.fill(0);
       let numforces = 0;
       for(let s = 0; s !== sphereSet.length; ++s) {
@@ -390,7 +344,7 @@ export class PlayerPhysics {
           const springLen = len3(springvec);
           mulScalar3(springvec, 1./springLen); // normalise springvec
           if(springLen < ss.sphere[3]) { // Check against sphere radius
-            mulScalar3(springvec, ss.sphere[3] - springLen);  // springvec = springvec * (radius - springlen)
+            addScaled3(force, springvec, ss.sphere[3] - springLen); // force += springvec * (radius - springlen)
             numforces += 1;
           }
         }
@@ -421,7 +375,26 @@ export class PlayerPhysics {
       add3(pos, delta, spheres.subarray(4*i, 4*i+3));
       spheres[4*i+3] = SPHERE_RAD;
     }
-
-    // console.log('spheres', spheres);
   }
+
+  /*
+  // Add the player spheres to the passed group
+  public addAvatarBounds (group: THREE.Group): void {
+    if(this.visGroup_) return;
+
+    this.visGroup_ = new THREE.Group();
+
+    const geo = new THREE.SphereGeometry(); // Scale in mesh
+    const mat = new THREE.MeshStandardMaterial({color: 'purple', transparent: true, opacity: 0.5 });
+    for(let s = 0; s !== 3; ++s) {
+      const z = EYE_HEIGHT - SPHERE_RAD * (5 - 2 * s);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, 0, z);
+      mesh.scale.set(SPHERE_RAD, SPHERE_RAD, SPHERE_RAD);
+      this.visGroup_.add(mesh);
+    }
+
+    group.add(this.visGroup_);
+  }
+  */
 }

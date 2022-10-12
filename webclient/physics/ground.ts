@@ -16,7 +16,7 @@ export class Ground {
   private readonly bvh_: BVH;
   private readonly mesh_: THREE.Mesh;
 
-  private readonly invWorld_: THREE.Matrix4;
+  private readonly worldToObject_: THREE.Matrix4;
 
   public constructor () {
     const geo = generatePatch(1, 1);
@@ -30,20 +30,19 @@ export class Ground {
     const triangles = new Triangles(geo[0], geo[1], 0, 3); // Stride = 3 (multiples of 4 bytes) = 12 bytes per vertex
     this.bvh_ = new BVH(triangles);
 
-    this.invWorld_ = new THREE.Matrix4();
+    this.worldToObject_ = new THREE.Matrix4();
   }
 
   // In order to visualise the ground collision plane
   public get mesh (): THREE.Mesh { return this.mesh_; }
   public get bvh (): BVH { return this.bvh_; }
-  public get invWorld (): THREE.Matrix4 { return this.invWorld_; }
-  public get matrixWorld (): THREE.Matrix4 { return this.mesh_.matrixWorld; }
+  public get worldToObject (): THREE.Matrix4 { return this.worldToObject_; }
+  public get objectToWorld (): THREE.Matrix4 { return this.mesh_.matrixWorld; }
 
   // Implemented method in MainWindow::UpdateGroundPlane
   public updateGroundPlane (camPos: Float32Array): void {
-    //console.log('moving ground plane:', camPos);
     this.mesh.position.set(camPos[0], camPos[1], .001);
-    this.invWorld.copy(this.mesh_.matrixWorld);
-    this.invWorld.invert(); // TODO: Optimise
+    this.worldToObject.copy(this.mesh_.matrixWorld); // Copy the objectToWorld matrix of the THREE.js mesh and invert
+    this.worldToObject.invert(); // TODO: Optimise
   }
 }

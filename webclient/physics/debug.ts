@@ -35,3 +35,30 @@ export function createAABBMesh (aabb: Float32Array): THREE.LineSegments {
 
   return new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 'red'}));
 }
+
+// A small object used for rendering collision response vectors and other segments
+export interface SegmentBatch {
+  mesh: THREE.LineSegments
+  max: number
+  buffer: Float32Array
+  geo: THREE.BufferGeometry
+}
+
+// Used for visualising the normals/collision responses
+export function createSegmentsMesh (max: number): SegmentBatch {
+  const buffer = new Float32Array(3 * max);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(buffer, 3, false));
+
+  return {
+    mesh: new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 'orange'})),
+    max,
+    buffer,
+    geo
+  };
+}
+
+// Update a precreated
+export function setSegment (startP: Float32Array, endP: Float32Array, batch: SegmentBatch) {
+
+}

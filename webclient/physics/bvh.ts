@@ -519,9 +519,6 @@ export default class BVH {
     result: SphereTraceResult
   ): number {
     const localRay = makeRay(ray);
-    //localRay.origin.set(ray.origin);
-    //localRay.dir.set(ray.dir);
-    //localRay.minmax.set(ray.minmax);
 
     const start_ws = new Float32Array([
       ray.origin[0] - radius, ray.origin[1] - radius, ray.origin[2] - radius,
@@ -698,7 +695,6 @@ export default class BVH {
         sub3(tmp, triIntersectionPoint); // tmp -= triIntersectionPoint
         normalise3(tmp);
         result.data.set(tmp, NOR_X);
-        //console.log('tri result:', result);
       }
     }
   }

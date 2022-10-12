@@ -603,8 +603,8 @@ export class WorldObject {
     compressed_voxels: Array<number>;
 
     bvh: BVH
-    inv_world: THREE.Matrix4 // We should only calculate the inverse when the world matrix actually changes
-    // TODO: Check if we can combine aabb_ws_min/aabb_ws_max
+    get objectToWorld (): THREE.Matrix4 { return this.mesh.matrixWorld; }
+    worldToObject: THREE.Matrix4 // TODO: We should only calculate the inverse when the world matrix actually changes
     world_aabb: Float32Array // This is the root bvh AABB node converted to an AABB in world space (will be larger if rotated)
 
 
@@ -1568,10 +1568,10 @@ function registerPhysicsObject (obj: WorldObject, triangles: Triangles, mesh: TH
     obj.bvh = physics_world.getModelBVH(obj.model_url)
 
     // TODO: Split into two sets of objects, static and dynamic - for now, only static
-    obj.inv_world = new THREE.Matrix4();
+    obj.worldToObject = new THREE.Matrix4();
     mesh.updateMatrixWorld(true);
-    obj.inv_world.copy(mesh.matrixWorld);
-    obj.inv_world.invert();
+    obj.worldToObject.copy(mesh.matrixWorld);
+    obj.worldToObject.invert();
 
     obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
     obj.mesh = mesh

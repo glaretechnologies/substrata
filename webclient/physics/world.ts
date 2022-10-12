@@ -57,6 +57,7 @@ export default class PhysicsWorld {
 
     // TODO: Temporary - remove before checkin
     this.player_ = new PlayerPhysics(this);
+    //this.player_.addAvatarBounds(this.tempMeshes);
 
     const sphere = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshStandardMaterial({color:'blue'}));
     sphere.visible = false;
@@ -64,19 +65,6 @@ export default class PhysicsWorld {
 
     this.ground_ = new Ground();
     this.tempMeshes.add(this.ground.mesh);
-
-    /*
-    const geometry = this.ground.generateGeometry();
-
-    const bufGeo = new THREE.BufferGeometry();
-    bufGeo.setAttribute('position', new THREE.BufferAttribute(geometry[0], 3, false));
-    bufGeo.setIndex(new THREE.BufferAttribute(geometry[1], 1, false));
-    const vis = new THREE.Mesh(bufGeo, new THREE.MeshBasicMaterial({color: 'red', opacity: 0.5, transparent: true }));
-    vis.position.set(0, 0, .001);
-    vis.scale.set(10, 10, 1);
-    this.tempMeshes.add(vis);
-    console.log('vis:', vis);
-    */
   }
 
   // Getters/Setters
@@ -122,7 +110,7 @@ export default class PhysicsWorld {
       case DebugType.TRI_MESH: mesh = obj.bvh.getTriangleHighlighter(); break;
       case DebugType.ROT_MESH: {
         const aabb = obj.bvh.rootAABB;
-        const transformed = transformAABB(obj.mesh.matrixWorld, aabb, new Float32Array(6));
+        const transformed = transformAABB(obj.objectToWorld, aabb, new Float32Array(6));
         mesh = createAABBMesh(transformed);
         break;
       }
@@ -157,7 +145,7 @@ export default class PhysicsWorld {
       this.addDebugMesh(idx, DebugType.AABB_MESH, obj);
       this.addDebugMesh(idx, DebugType.TRI_MESH, obj);
       this.addDebugMesh(idx, DebugType.ROT_MESH, obj);
-      // this.addDebugMesh(idx, DebugType.BVH_MESH, obj);
+      //this.addDebugMesh(idx, DebugType.BVH_MESH, obj);
     }
 
     return idx;
@@ -178,7 +166,7 @@ export default class PhysicsWorld {
 
     for(let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
       const obj = this.worldObjects_[i];
-      const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.inv_world, obj.bvh);
+      const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.worldToObject, obj.bvh);
       if(test) {
         // See if we have any debug meshes associated to this mesh
         const set = this.debugMeshes.filter(e => e.idx === i);
@@ -196,11 +184,6 @@ export default class PhysicsWorld {
     }
   }
 
-  private tmp = [
-    new Float32Array(4),
-    new Float32Array(3),
-  ];
-
   // This function replicates the traceSphere function in the physics world in the Substrata C++ client.
   public traceSphereWorld (sphere: Float32Array, translation: Float32Array): SphereTraceResult {
     const spheres = new Float32Array(12);
@@ -211,7 +194,7 @@ export default class PhysicsWorld {
 
     const transLength = len3(translation);
     if(transLength < 1.0e-10) {
-      // This check was done in PhysicsObject::traceSphere
+      // This check was done in PhysicsObject::traceSphere, moved it here as there is no need to repeat it
       console.log('zero length dir vector:', transLength);
       return result;
     }
@@ -237,17 +220,11 @@ export default class PhysicsWorld {
     clearSphereTraceResult(query);
     const dist = this.traceSphereGround(sphere, dir, transLength, spherePathAABB, query);
     if(dist !== -1 && closest > dist) {
-      console.log('ground:', sphere[2], sphere[3]);
       result.data.set(query.data);
       result.hit = (this.ground_ as unknown) as WorldObject; // HACK - same relevant interface
       result.pointInTri = query.pointInTri;
     }
 
-    /*
-    if(result.data[DIST] !== -1) {
-      console.log('hit:', result.data[DIST]);
-    }
-    */
     return result;
   }
 
@@ -262,7 +239,6 @@ export default class PhysicsWorld {
   ): number {
     // If the world_aabb of this object does not intersect the spherePathAABB, return
     if(!testAABB(obj.world_aabb, spherePathAABB)) {
-      //console.log('traceSphereObject no root intersection');
       results.data[DIST] = -1;
       return Number.POSITIVE_INFINITY;
     }
@@ -272,7 +248,7 @@ export default class PhysicsWorld {
     ray.dir.set(dir);
     ray.minmax[1] = maxDist;
 
-    return obj.bvh.traceSphere(ray, obj.inv_world, obj.mesh.matrixWorld, sphere[3], results);
+    return obj.bvh.traceSphere(ray, obj.worldToObject, obj.objectToWorld, sphere[3], results);
   }
 
   public getCollPoints (sphere: Float32Array, collisionPoints: Float32Array[]): void {
@@ -304,8 +280,14 @@ export default class PhysicsWorld {
     ray.origin.set(sphere.slice(0, 3));
     ray.dir.set(dir);
     ray.minmax[1] = maxDist;
-    //console.log('ground:', sphere, dir, maxDist);
-    return this.ground.bvh.traceSphere(ray, this.ground.invWorld, this.ground.matrixWorld, sphere[3], results);
+
+    return this.ground.bvh.traceSphere(
+      /*ray=*/ray,
+      /*toObject=*/this.ground.worldToObject,
+      /*toWorld=*/this.ground.objectToWorld,
+      /*radius=*/sphere[3],
+      /*results=*/results
+    );
   }
 
 
@@ -317,11 +299,23 @@ export default class PhysicsWorld {
   ): void {
     if(!testAABB(obj.world_aabb, sphereAABBWs)) return;
 
-    obj.bvh.appendCollPoints(sphere, sphere[3], obj.mesh.matrixWorld, obj.inv_world, collisionPoints);
+    obj.bvh.appendCollPoints(
+      /*spherePosWs=*/sphere,
+      /*radius=*/sphere[3],
+      /*toObject=*/obj.worldToObject,
+      /*toWorld=*/obj.objectToWorld,
+      /*points=*/collisionPoints
+    );
   }
 
   // An alternate interface for the constantly moving ground plane
   public getCollPointsGround (sphere: Float32Array, sphereAABBWs: Float32Array, collisionPoints: Float32Array[]) {
-    this.ground.bvh.appendCollPoints(sphere, sphere[3], this.ground.matrixWorld, this.ground.invWorld, collisionPoints);
+    this.ground.bvh.appendCollPoints(
+      /*spherePosWs=*/sphere,
+      /*radius=*/sphere[3],
+      /*toObject=*/this.ground.worldToObject,
+      /*toWorld=*/this.ground.objectToWorld,
+      /*points=*/collisionPoints
+    );
   }
 }
