@@ -9,17 +9,17 @@ export function fromVector3 (vec: Vector3): Float32Array {
   return new Float32Array([vec.x, vec.y, vec.z]);
 }
 
-// Transform the input as a point (homogeneous) using the 4x4 matrix (copied from Three.js applyMatrix4)
+// Transform the input as a point using the 4x4 matrix (copied from Three.js applyMatrix4)
 export function applyMatrix4(mat: Matrix4, v: Float32Array, output?: Float32Array): Float32Array {
   const x = v[0], y = v[1], z = v[2];
   const e = mat.elements;
 
-  const w = 1.0 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+  // const w = 1.0 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
 
   output = output == null ? v : output;
-  output[0] = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w;
-  output[1] = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w;
-  output[2] = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
+  output[0] = (e[0] * x + e[4] * y + e[8] * z + e[12]);
+  output[1] = (e[1] * x + e[5] * y + e[9] * z + e[13]);
+  output[2] = (e[2] * x + e[6] * y + e[10] * z + e[14]);
 
   return output;
 }
@@ -83,6 +83,15 @@ export function add3 (lhs: Float32Array, rhs: Float32Array, output?: Float32Arra
   return output;
 }
 
+// Add the scaled rhs to the lhs and optionally output to new vector
+export function addScaled3 (lhs: Float32Array, rhs: Float32Array, scalar: number, output?: Float32Array): Float32Array {
+  output = output ?? lhs;
+  output[0] = lhs[0] + rhs[0] * scalar;
+  output[1] = lhs[1] + rhs[1] * scalar;
+  output[2] = lhs[2] + rhs[2] * scalar;
+  return output;
+}
+
 // Subtract 3-component arrays in place
 export function sub3V (
   lhs: Float32Array, loff: number,
@@ -138,10 +147,18 @@ export function dot3 (u: Float32Array, v: Float32Array): number {
   return u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
 }
 
+// Calculate the squared distance of two 3-component vectors
+export function sqDist3(u: Float32Array, v: Float32Array): number {
+  const x = u[0] - v[0], y = u[1] - v[1], z = u[2] - v[2];
+  return x * x + y * y + z * z;
+}
+
+// Squared length of the vector
 export function sqLen3 (u: Float32Array): number {
   return dot3(u, u);
 }
 
+// Length of the input vector
 export function len3 (u: Float32Array): number {
   return Math.sqrt(dot3(u, u));
 }
@@ -152,4 +169,11 @@ export function normalise3 (u: Float32Array, output?: Float32Array): Float32Arra
   const recipLen = 1.0 / Math.sqrt(dot3(u,u));
   output[0] = recipLen * u[0]; output[1] = recipLen * u[1]; output[2] = recipLen * u[2];
   return output;
+}
+
+// Remove the input component vector from the input direction vector and return the result
+export function removeComponentInDir(comp: Float32Array, dir: Float32Array, output?: Float32Array): Float32Array {
+  const tmp = new Float32Array(comp);
+  mulScalar3(tmp, dot3(dir, comp));
+  return sub3(dir, tmp, output != null ? output : dir);
 }

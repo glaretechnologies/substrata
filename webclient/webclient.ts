@@ -15,8 +15,10 @@ import * as downloadqueue from './downloadqueue.js';
 import BVH, { Triangles } from './physics/bvh.js';
 import Caster from './physics/caster.js';
 import PhysicsWorld from './physics/world.js';
-import { createAABB, transformAABB } from './maths/geometry.js';
-import { eq3, fromVector3 } from './maths/vec3.js';
+import { makeAABB, transformAABB } from './maths/geometry.js';
+import { eq3, fromVector3, mulScalar3 } from './maths/vec3.js';
+import { SPHERE_RAD } from './physics/player.js';
+import { print3 } from './maths/functions.js';
 
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
@@ -26,8 +28,8 @@ var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
 // PHYSICS-RELATED
-const DEBUG_PHYSICS = false;
-const DEBUG_MATERIAL = DEBUG_PHYSICS && true;
+const DEBUG_PHYSICS = true;
+const DEBUG_MATERIAL = DEBUG_PHYSICS && false;
 const physics_world = new PhysicsWorld()
 // END PHYSICS-RELATED
 
@@ -601,8 +603,8 @@ export class WorldObject {
     compressed_voxels: Array<number>;
 
     bvh: BVH
-    inv_world: THREE.Matrix4 // We should only calculate the inverse when the world matrix actually changes
-    // TODO: Check if we can combine aabb_ws_min/aabb_ws_max
+    get objectToWorld (): THREE.Matrix4 { return this.mesh.matrixWorld; }
+    worldToObject: THREE.Matrix4 // TODO: We should only calculate the inverse when the world matrix actually changes
     world_aabb: Float32Array // This is the root bvh AABB node converted to an AABB in world space (will be larger if rotated)
 
 
@@ -1390,7 +1392,7 @@ function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, sc
     } else {
         for (let i = 0; i < mats.length; ++i) {
             const mat = new THREE.MeshLambertMaterial({ color: 'white' })
-            // mat.wireframe = false
+            mat.wireframe = true
             mat.flatShading = true
             three_mats.push(mat)
         }
@@ -1566,12 +1568,12 @@ function registerPhysicsObject (obj: WorldObject, triangles: Triangles, mesh: TH
     obj.bvh = physics_world.getModelBVH(obj.model_url)
 
     // TODO: Split into two sets of objects, static and dynamic - for now, only static
-    obj.inv_world = new THREE.Matrix4();
+    obj.worldToObject = new THREE.Matrix4();
     mesh.updateMatrixWorld(true);
-    obj.inv_world.copy(mesh.matrixWorld);
-    obj.inv_world.invert();
+    obj.worldToObject.copy(mesh.matrixWorld);
+    obj.worldToObject.invert();
 
-    obj.world_aabb = createAABB(obj.aabb_ws_min, obj.aabb_ws_max);
+    obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
     obj.mesh = mesh
     physics_world.addWorldObject(obj, true);
 }
@@ -1815,13 +1817,13 @@ let download_queue = new downloadqueue.DownloadQueue();
 let is_mouse_down = false;
 let heading = Math.PI / 2;
 let pitch = Math.PI / 2;
-let keys_down = new Set();
+let keys_down = new Set<string>();
 
-function camForwardsVec() {
+function camForwardsVec(): THREE.Vector3 {
     return new THREE.Vector3(Math.cos(heading) * Math.sin(pitch), Math.sin(heading) * Math.sin(pitch), Math.cos(pitch));
 }
 
-function camRightVec() {
+function camRightVec(): THREE.Vector3 {
     return new THREE.Vector3(Math.sin(heading), -Math.cos(heading), 0);
 }
 
@@ -1831,12 +1833,19 @@ const caster = DEBUG_PHYSICS ? new Caster(renderer, {
     near: DEFAULT_NEAR,
     far: DEFAULT_FAR,
     fov: DEFAULT_FOV,
-    camera: camera,
+    camera,
     camRightFnc: camRightVec,
     camDirFnc: camForwardsVec
 }) : null
 
-if(DEBUG_PHYSICS && caster) physics_world.caster = caster;
+if(DEBUG_PHYSICS && caster) {
+    // For the moment, I'm routing the camera to the player physics class here.
+    physics_world.caster = caster;
+    // TODO: Clean up this later
+    physics_world.player.camForwardsVec = camForwardsVec
+    physics_world.player.camRightVec = camRightVec
+    physics_world.player.keyState = keys_down
+}
 
 function onDocumentMouseDown(ev: MouseEvent) {
     is_mouse_down = true;
@@ -1856,10 +1865,16 @@ function onDocumentMouseMove(e) {
         if(ray != null) {
             const [origin, dir] = ray;
             physics_world.traceRay(origin, dir);
-            const sphere = new Float32Array([origin.x, origin.y, origin.z, .1]);
-            physics_world.traceSphere(sphere, fromVector3(dir))
-            // const result = physics_world.traceSphereWorld(sphere, fromVector3(dir))
-            // console.log('result:', result)
+            /*
+            const sphere = new Float32Array([origin.x, origin.y, origin.z, SPHERE_RAD]);
+            const d = fromVector3(dir)
+            physics_world.traceSphereMarch(sphere, d)
+
+            mulScalar3(d, 5.)
+            const result = physics_world.traceSphereWorld(sphere, d)
+            console.log('result:', result)
+            print3('pos', result.data.slice(0, 3), 'nor', result.data.slice(3, 6), 'dist', result.data[6])
+            */
         }
     }
 
@@ -1903,9 +1918,11 @@ window.addEventListener('mousemove', onDocumentMouseMove, false);
 renderer_canvas_elem.addEventListener('keydown', onKeyDown, false);
 renderer_canvas_elem.addEventListener('keyup', onKeyUp, false);
 
-
-
 function doCamMovement(dt){
+    if(DEBUG_PHYSICS) {
+        physics_world.player.doCamMovement(dt)
+        return
+    }
 
     let move_speed = 3.0;
     let turn_speed = 1.0;

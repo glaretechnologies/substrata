@@ -2,14 +2,15 @@
 
 import { EPSILON } from './defs.js';
 import * as THREE from '../build/three.module.js';
+import { max3, min3 } from './vec3.js';
 
 // Create a sphere in a 4 component Float32Array
-export function createSphere (pos: THREE.Vector3, radius: number): Float32Array {
+export function makeSphere (pos: THREE.Vector3, radius: number): Float32Array {
   return new Float32Array([pos.x, pos.y, pos.z, radius]);
 }
 
 // Create an AABB in a Float32Array [ minx, miny, minz, maxx, maxy, maxz ]
-export function createAABB (min: THREE.Vector3, max: THREE.Vector3): Float32Array {
+export function makeAABB (min: THREE.Vector3, max: THREE.Vector3): Float32Array {
   return new Float32Array([min.x, min.y, min.z, max.x, max.y, max.z]);
 }
 
@@ -37,8 +38,34 @@ export function transformAABB (mat: THREE.Matrix4, aabb: Float32Array, output: F
   return output;
 }
 
+// Form the union between two AABBs
+export function unionAABB (lhs: Float32Array, rhs: Float32Array, output?: Float32Array): Float32Array {
+  output = output != null ? output : new Float32Array(6);
+  output.set(lhs);
+  min3(output, 0, rhs, 0);
+  max3(output, 3, rhs, 3);
+  return output;
+}
+
+// Build an AABB from a sphere and a vector representing the path of the sphere
+export function spherePathToAABB (sphere: Float32Array, translation: Float32Array): Float32Array {
+  const [cx, cy, cz, r] = sphere;
+  const tx = cx + translation[0], ty = cy + translation[1], tz = cz + translation[2];
+  return new Float32Array([
+    Math.min(cx, tx) - r, Math.min(cy, ty) - r, Math.min(cz, tz) - r,
+    Math.max(cx, tx) + r, Math.max(cy, ty) + r, Math.max(cz, tz) + r
+  ]);
+}
+
+// Test Two AABBs for intersection
+export function testAABB (lhs: Float32Array, rhs: Float32Array): boolean {
+  if (lhs[3] < rhs[0] || lhs[0] > rhs[3]) return false;
+  if (lhs[4] < rhs[1] || lhs[1] > rhs[4]) return false;
+  return !(lhs[5] < rhs[2] || lhs[2] > rhs[5]);
+}
+
 // Test AABBs for intersection in place
-export function testAABB (lhs: Float32Array, loff: number, rhs: Float32Array, roff: number): boolean {
+export function testAABBV (lhs: Float32Array, loff: number, rhs: Float32Array, roff=0): boolean {
   if (lhs[loff+3] < rhs[roff] || lhs[loff] > rhs[roff+3]) return false;
   if (lhs[loff+4] < rhs[roff+1] || lhs[loff+1] > rhs[roff+4]) return false;
   return !(lhs[loff+5] < rhs[roff+2] || lhs[loff+2] > rhs[roff+5]);
