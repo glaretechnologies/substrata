@@ -133,18 +133,7 @@ SET(ethereum_files
 )
 
 
-set(webclient_files
-../webclient/bmeshloading.ts
-../webclient/bufferin.ts
-../webclient/bufferout.ts
-../webclient/client.html
-../webclient/CMakeLists.txt
-../webclient/downloadqueue.ts
-../webclient/fzstd.js
-../webclient/tsconfig.json
-../webclient/voxelloading.ts
-../webclient/webclient.ts
-)
+include(../webclient/CMakeLists.txt)
 
 
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver/)
@@ -177,7 +166,6 @@ SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
 SOURCE_GROUP(ethereum FILES ${ethereum_files})
-SOURCE_GROUP(webclient FILES ${webclient_files})
 
 
 # From secp256k1-master\configure.ac:
