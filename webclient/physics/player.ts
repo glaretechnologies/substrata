@@ -180,7 +180,7 @@ export class PlayerPhysics {
 
         for(let s = 0; s !== 3; ++s) {
           const spherePos = new Float32Array(camPos);
-          spherePos[2] -= EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s);
+          spherePos[2] = spherePos[2] - EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s);
 
           const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
           const result = this.world_.traceSphereWorld(playersphere, dpos);
@@ -201,12 +201,13 @@ export class PlayerPhysics {
           addScaled3(camPos, dpos, usefraction); // camPos += dpos * usefraction
           mulScalar3(dpos, 1.0 - usefraction); // dpos *= 1.0 - usefraction
 
-          const foot_z = camPos[2];
+          //---------------------------------- Do stair climbing ----------------------------------
+          const foot_z = camPos[2] - EYE_HEIGHT;
           const hitpos_height_above_foot = closestResult.data[POS_Z] - foot_z;
 
           if(!closestResult.pointInTri && hitpos_height_above_foot > 3e-3 && hitpos_height_above_foot < .25) {
             const jump_up_amount = hitpos_height_above_foot + .01;
-            const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] - EYE_HEIGHT + SPHERE_RAD * 5]);
+            const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] - EYE_HEIGHT + SPHERE_RAD * 5]); // Upper sphere centre
             const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
             const result = this.world_.traceSphereWorld(playersphere, new Float32Array([0, 0, jump_up_amount]));
 
@@ -216,6 +217,7 @@ export class PlayerPhysics {
               closestResult.data.set(UP_VECTOR, NOR_X); // Set the closestResult.hit_normal to [0, 0, 1]
             }
           }
+          //---------------------------------- End stair climbing ----------------------------------
 
           const was_just_falling = this.velocity_[0] === 0 && this.velocity_[1] === 0;
           const hit_normal = closestResult.data.slice(NOR_X, NOR_X+3);
@@ -236,7 +238,7 @@ export class PlayerPhysics {
         const set = this.springSphereSet;
         for(let s = 0; s !== 3; ++s) {
           const spherepos = new Float32Array(camPos);
-          spherepos[2] -= EYE_HEIGHT - 1.5 + s * 0.6;
+          spherepos[2] = spherepos[2] - EYE_HEIGHT + 1.5 - s * 0.6;
           const bigsphere = new Float32Array([...spherepos, REPEL_RADIUS]);
           set[s].sphere.set(bigsphere);
           this.world_.getCollPoints(bigsphere, set[s].collisionPoints);
