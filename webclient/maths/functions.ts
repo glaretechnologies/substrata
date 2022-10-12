@@ -37,10 +37,12 @@ export function range (count: number, offset=0): Uint32Array {
   return r;
 }
 
-export function print3 (...args: (Float32Array | string)[]): void {
+// Easier print function that outputs numbers to 3 decimal points.
+export function print3 (...args: (Float32Array | string | number)[]): void {
   let out = '';
   for(let i = 0; i !== args.length; ++i) {
     if(typeof args[i] === 'string') out += `${args[i]}: `;
+    else if(typeof args[i] === 'number') out += `${Number(args[i]).toFixed(3)},`;
     else {
       out += `[${Number(args[i][0]).toFixed(3)}, `;
       out += `${Number(args[i][1]).toFixed(3)}, `;
