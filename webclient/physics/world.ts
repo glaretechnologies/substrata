@@ -12,11 +12,9 @@ import BVH, { Triangles } from './bvh.js';
 import * as THREE from '../build/three.module.js';
 import type { WorldObject } from '../webclient.js';
 import Caster from './caster.js';
-import {spherePathToAABB, sqDistSphereAABB, testAABB, transformAABB} from '../maths/geometry.js';
+import {spherePathToAABB, testAABB, transformAABB} from '../maths/geometry.js';
 import { createAABBMesh } from './debug.js';
-import { add3, len3, max3, min3, mulScalar3 } from '../maths/vec3.js';
-import { EPSILON } from '../maths/defs.js';
-import { print3 } from '../maths/functions.js';
+import { len3, mulScalar3 } from '../maths/vec3.js';
 import {clearSphereTraceResult, DIST, makeRay, makeSphereTraceResult, SphereTraceResult} from './types.js';
 import { PlayerPhysics } from './player.js';
 import { Ground } from './ground.js';
@@ -37,9 +35,9 @@ interface DebugMesh {
 export default class PhysicsWorld {
   private readonly bvhIndex_: Map<string, BVH>;
   private readonly worldObjects_: Array<WorldObject>;
-  private scene_: THREE.Scene | undefined;
-  private caster_: Caster | undefined;
   private readonly player_: PlayerPhysics | undefined;
+  private caster_: Caster | undefined;
+  private scene_: THREE.Scene | undefined;
 
   private debugMeshes: DebugMesh[];
   private readonly tempMeshes: THREE.Group; // TODO: Remove before check-in
@@ -57,7 +55,7 @@ export default class PhysicsWorld {
 
     // TODO: Temporary - remove before checkin
     this.player_ = new PlayerPhysics(this);
-    //this.player_.addAvatarBounds(this.tempMeshes);
+    this.player_.addAvatarBounds(this.tempMeshes);
 
     const sphere = new THREE.Mesh(new THREE.SphereGeometry(), new THREE.MeshStandardMaterial({color:'blue'}));
     sphere.visible = false;
@@ -74,12 +72,8 @@ export default class PhysicsWorld {
     this.scene_ = scene;
   }
 
-
   public get caster (): Caster { return this.caster_; }
-  public set caster (caster: Caster) {
-    this.caster_ = caster;
-    if(this.player_) this.player_.camera = caster.camera;
-  }
+  public set caster (caster: Caster) { this.caster_ = caster; }
 
   public get player (): PlayerPhysics { return this.player_; }
   public get ground (): Ground { return this.ground_; }
@@ -195,7 +189,7 @@ export default class PhysicsWorld {
     const transLength = len3(translation);
     if(transLength < 1.0e-10) {
       // This check was done in PhysicsObject::traceSphere, moved it here as there is no need to repeat it
-      console.log('zero length dir vector:', transLength);
+      console.error('zero length dir vector:', transLength);
       return result;
     }
 
@@ -208,7 +202,10 @@ export default class PhysicsWorld {
     for (let i = 0; i < this.worldObjects_.length; ++i) {
       const obj = this.worldObjects_[i];
       clearSphereTraceResult(query);
-      const dist = this.traceSphereObject(obj, sphere, dir, transLength, spherePathAABB, query);
+
+      const dist = this.traceSphereObject(/*worldObj=*/obj, sphere, dir, /*maxDist=*/transLength, spherePathAABB,
+        query);
+
       if(dist !== -1 && closest > dist) {
         closest = dist;
         result.data.set(query.data);
@@ -230,7 +227,7 @@ export default class PhysicsWorld {
 
   // A port of PhysicsObject::traceSphere
   public traceSphereObject (
-    obj: WorldObject,
+    worldObject: WorldObject,
     sphere: Float32Array,
     dir: Float32Array,              // Normalised unit vector in direction of translation
     maxDist: number,                // Translation Length
@@ -238,7 +235,7 @@ export default class PhysicsWorld {
     results: SphereTraceResult
   ): number {
     // If the world_aabb of this object does not intersect the spherePathAABB, return
-    if(!testAABB(obj.world_aabb, spherePathAABB)) {
+    if(!testAABB(worldObject.world_aabb, spherePathAABB)) {
       results.data[DIST] = -1;
       return Number.POSITIVE_INFINITY;
     }
@@ -248,7 +245,8 @@ export default class PhysicsWorld {
     ray.dir.set(dir);
     ray.minmax[1] = maxDist;
 
-    return obj.bvh.traceSphere(ray, obj.worldToObject, obj.objectToWorld, sphere[3], results);
+    return worldObject.bvh.traceSphere(/*ray=*/ray, /*toObject=*/worldObject.worldToObject,
+      /*toWorld=*/worldObject.objectToWorld, /*radius=*/sphere[3], /*results=*/results);
   }
 
   public getCollPoints (sphere: Float32Array, collisionPoints: Float32Array[]): void {
@@ -281,15 +279,9 @@ export default class PhysicsWorld {
     ray.dir.set(dir);
     ray.minmax[1] = maxDist;
 
-    return this.ground.bvh.traceSphere(
-      /*ray=*/ray,
-      /*toObject=*/this.ground.worldToObject,
-      /*toWorld=*/this.ground.objectToWorld,
-      /*radius=*/sphere[3],
-      /*results=*/results
-    );
+    return this.ground.bvh.traceSphere(/*ray=*/ray, /*toObject=*/this.ground.worldToObject,
+      /*toWorld=*/this.ground.objectToWorld, /*radius=*/sphere[3], /*results=*/results);
   }
-
 
   public getCollPointsObject (
     obj: WorldObject,
@@ -299,23 +291,13 @@ export default class PhysicsWorld {
   ): void {
     if(!testAABB(obj.world_aabb, sphereAABBWs)) return;
 
-    obj.bvh.appendCollPoints(
-      /*spherePosWs=*/sphere,
-      /*radius=*/sphere[3],
-      /*toObject=*/obj.worldToObject,
-      /*toWorld=*/obj.objectToWorld,
-      /*points=*/collisionPoints
-    );
+    obj.bvh.appendCollPoints(/*spherePosWs=*/sphere, /*radius=*/sphere[3], /*toObject=*/obj.worldToObject,
+      /*toWorld=*/obj.objectToWorld, /*points=*/collisionPoints);
   }
 
   // An alternate interface for the constantly moving ground plane
   public getCollPointsGround (sphere: Float32Array, sphereAABBWs: Float32Array, collisionPoints: Float32Array[]) {
-    this.ground.bvh.appendCollPoints(
-      /*spherePosWs=*/sphere,
-      /*radius=*/sphere[3],
-      /*toObject=*/this.ground.worldToObject,
-      /*toWorld=*/this.ground.objectToWorld,
-      /*points=*/collisionPoints
-    );
+    this.ground.bvh.appendCollPoints(/*spherePosWs=*/sphere, /*radius=*/sphere[3],
+      /*toObject=*/this.ground.worldToObject, /*toWorld=*/this.ground.objectToWorld, /*points=*/collisionPoints);
   }
 }

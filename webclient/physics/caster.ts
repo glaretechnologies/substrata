@@ -4,108 +4,61 @@ Ray casting functions optimised to use the physics/collision detection geometry
 
 import * as THREE from '../build/three.module.js';
 import { lerpN } from '../maths/functions.js';
-import { DEG_TO_RAD } from '../maths/defs.js';
 import BVH from './bvh.js';
-
-// We can remove a lot of this configuration
-export interface CasterConf {
-  debugRay: boolean // on mouse press, draw ray in world space
-  near: number // near plane
-  far: number // far plane
-  fov: number // the field of view
-  camera?: THREE.PerspectiveCamera // the camera
-  camRightFnc: () => THREE.Vector3
-  camDirFnc: () => THREE.Vector3
-}
+import CameraController from "../cameraController";
+import { add3, addScaled3, cross3, mulScalar3, normalise3 } from '../maths/vec3.js';
+import { DEG_TO_RAD } from '../maths/defs.js';
 
 const BOTTOM = 0;
 const TOP = 1;
 
 export default class Caster {
   private readonly rndr: THREE.WebGLRenderer;
-  private conf: CasterConf;
+  private readonly controller: CameraController;
+
   private readonly dims = new THREE.Vector2();
-  private theta: number;
-  private htan: number;
+  private readonly theta: number;
+  private readonly htan: number;
+
   private readonly frustum = new Float32Array(2);
-  private readonly origin = new THREE.Vector3();
-  private readonly U = new THREE.Vector3();
-  private debugRayMesh: THREE.LineSegments | undefined;
+  private U = new Float32Array(3);
 
-  public constructor (renderer: THREE.WebGLRenderer, conf?: CasterConf) {
+  public constructor (renderer: THREE.WebGLRenderer, controller: CameraController) {
     this.rndr = renderer;
-    // A lot of this config can be moved to a project-specific camera class
-    this.config = conf ?? {
-      debugRay: false,
-      near: 0.1,
-      far: 1000.0,
-      fov: 75,
-      camRightFnc: () => THREE.Vector3,
-      camDirFnc: () => THREE.Vector3
-    };
-  }
+    this.controller = controller;
 
-  public set camera (cam: THREE.PerspectiveCamera) { this.conf.camera = cam; }
-  public get camera (): THREE.PerspectiveCamera { return this.conf.camera; }
-
-  public get config (): CasterConf { return this.conf; }
-  public set config (conf: CasterConf) {
-    if(conf.fov !== this.conf?.fov) {
-      this.theta = 0.5 * conf.fov * DEG_TO_RAD;
-      this.htan = Math.tan(this.theta);
-      this.frustum[TOP] = conf.near * this.htan;
-      this.frustum[BOTTOM] = -this.frustum[TOP];
-    }
-    this.conf = { ...this.conf, ...conf };
-  }
-
-  public createDebugRayMesh (): THREE.LineSegments {
-    if(this.debugRayMesh) return this.debugRayMesh;
-
-    const geo = new THREE.BufferGeometry();
-    const buf = new Float32Array(6);
-    geo.setAttribute('position', new THREE.BufferAttribute(buf, 3, false));
-    this.debugRayMesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({color: 'red'}));
-    this.debugRayMesh.frustumCulled = false;
-    return this.debugRayMesh;
+    this.theta = .5 * controller.camSettings.fov * DEG_TO_RAD;
+    this.htan = Math.tan(this.theta);
+    this.frustum[TOP] = controller.camSettings.near * this.htan;
+    this.frustum[BOTTOM] = - this.frustum[TOP];
   }
 
   // Calculate a pick ray based on the current camera view at screen coordinates [x, y]
-  // pass setRay === true to draw the ray as a line segment in world space
-  public getPickRay (x: number, y: number, setRay=false): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
-    if(!this.conf.camera) return null;
-    
+  public getPickRay (x: number, y: number): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
+    const dPR = this.rndr.getPixelRatio();
     this.rndr.getSize(this.dims);
     if(x < 0 || x > this.dims.x || y < 0 || y > this.dims.y) return null;
 
     const invH = 1. / this.dims.y;
     const AR = this.dims.x * invH;
-    const r = x / this.dims.x, u = (this.dims.y - y) * invH;
+    const r = dPR * x / this.dims.x, u = (this.dims.y - dPR * y) * invH;
     const right = AR * this.frustum[TOP]; const left = -right;
 
-    const R = this.conf.camRightFnc();
-    const D = this.conf.camDirFnc();
-    this.U.crossVectors(D, R);
-    R.multiplyScalar(lerpN(left, right, r));
-    this.U.multiplyScalar(lerpN(this.frustum[TOP], this.frustum[BOTTOM], u));
+    const U = this.U;
 
-    const dir = R.add(this.U).add(D.multiplyScalar(this.conf.near));
-    dir.normalize();
+    const R = new Float32Array(this.controller.camRightVec);
+    const D = new Float32Array(this.controller.camForwardsVec);
 
-    this.conf.camera.getWorldPosition(this.origin);
+    cross3(D, R, U); // U = D x R
+    mulScalar3(R, lerpN(left, right, r)); // R *= lerp(left, right)
+    mulScalar3(U, lerpN(this.frustum[TOP], this.frustum[BOTTOM], u)); // U *= lerp(top, bottom)
 
-    if(this.conf.debugRay && setRay) {
-      const buf = this.debugRayMesh.geometry.getAttribute('position');
-      buf.set([
-        this.origin.x, this.origin.y, this.origin.z,
-        this.origin.x+10*dir.x, this.origin.y+10*dir.y, this.origin.z+10*dir.z
-      ]);
-      this.debugRayMesh.geometry.getAttribute('position').needsUpdate = true;
-    }
+    const dir = addScaled3(add3(R, U), D, this.controller.camSettings.near); // R = r + u + d * nearPlane
+    normalise3(dir);
 
     return [
-      this.conf.camera.getWorldPosition(new THREE.Vector3()),
-      dir
+      this.controller.positionV3,
+      new THREE.Vector3(...dir)
     ];
   }
 
@@ -117,10 +70,10 @@ export default class Caster {
   ];
 
   // Transform a ray from world space into the local space of the BVH and test for intersection
-  public testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, invWorldMat: THREE.Matrix4, bvh: BVH): [boolean, number[]] {
+  public testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, worldToObject: THREE.Matrix4, bvh: BVH): [boolean, number[]] {
     const [O, d, Of, df] = this.tmp;
     O.copy(origin); d.copy(dir);
-    O.applyMatrix4(invWorldMat); d.transformDirection(invWorldMat);
+    O.applyMatrix4(worldToObject); d.transformDirection(worldToObject);
     Of[0] = O.x; Of[1] = O.y; Of[2] = O.z;
     df[0] = d.x; df[1] = d.y; df[2] = d.z;
 

@@ -3,18 +3,8 @@
 import * as THREE from '../build/three.module.js';
 import PhysicsWorld from './world.js';
 import { DIST, makeSphereTraceResult, NOR_X, POS_Z } from './types.js';
-import {
-  add3,
-  addScaled3,
-  eq3,
-  fromVector3,
-  len3,
-  mulScalar3,
-  removeComponentInDir,
-  sqLen3,
-  sub3,
-  vec3ToString
-} from '../maths/vec3.js';
+import { add3, addScaled3, eq3, len3, mulScalar3, removeComponentInDir, sqLen3, sub3 } from '../maths/vec3.js';
+import CameraController, { CameraMode } from '../cameraController.js';
 
 export const SPHERE_RAD = 0.3;
 const REPEL_RADIUS = SPHERE_RAD + 0.005;
@@ -44,15 +34,17 @@ export function makeSpringSphereSet (): SpringSphereSet {
 
 export class PlayerPhysics {
   private keyState_: Set<string> | undefined;
-  private camera_: THREE.PerspectiveCamera | undefined;
+  private cameraController: CameraController | undefined;
 
-  private world_: PhysicsWorld | undefined;
+  private world_: PhysicsWorld;
   private visGroup_: THREE.Group | undefined;
 
   private readonly velocity_: Float32Array;
   private readonly moveImpulse_: Float32Array;
   private readonly lastGroundNormal_: Float32Array;
   private readonly lastPos_: Float32Array;
+
+  private lastChange: number;
 
   private jumpTimeRemaining_: number;
   private onGround_: boolean;
@@ -66,9 +58,6 @@ export class PlayerPhysics {
   // This is to allow the physical avatar position to step up discontinuously, whereas the camera position will
   // smoothly increase to match the physical avatar position.
   private camPosZDelta_: number;
-
-  private camForwardsVec_: () => THREE.Vector3 | undefined;
-  private camRightVec_: () => THREE.Vector3 | undefined;
 
   public constructor (world: PhysicsWorld) {
     this.world_ = world;
@@ -85,6 +74,8 @@ export class PlayerPhysics {
 
     this.camPosZDelta_ = 0;
 
+    this.lastChange = 0; // A timer for debouncing the camera mode
+
     // Used for one each of the body spheres
     this.springSphereSet = [
       makeSpringSphereSet(),
@@ -93,13 +84,9 @@ export class PlayerPhysics {
     ];
   }
 
-  // TODO: This is a temporary interface (REMOVE ME BEFORE CHECKIN)
-  public set camForwardsVec (cb: () => THREE.Vector3) { this.camForwardsVec_ = cb; }
-  public set camRightVec (cb: () => THREE.Vector3) { this.camRightVec_ = cb; }
-
-  public get camera (): THREE.PerspectiveCamera { return this.camera_; }
-  public set camera (cam: THREE.PerspectiveCamera) {
-    this.camera_ = cam;
+  public get camera (): CameraController { return this.cameraController; }
+  public set camera (controller: CameraController) {
+    this.cameraController = controller;
   }
 
   public get flyMode (): boolean { return this.flyMode_; }
@@ -260,7 +247,6 @@ export class PlayerPhysics {
     camPosOut.set(camPos);
     camPosOut[2] -= this.camPosZDelta_;
 
-    this.lastPos_.set(camPosOut);
     this.moveImpulse_.fill(0);
     return jumped;
   }
@@ -279,56 +265,43 @@ export class PlayerPhysics {
     let fwd: Float32Array, rgt: Float32Array;
 
     if(keys_down.has('KeyW') || keys_down.has('ArrowUp')) {
-      fwd = fromVector3(this.camForwardsVec_());
+      fwd = this.cameraController.camForwardsVec;
       addScaled3(this.moveImpulse_, fwd, move_speed);
     }
     if(keys_down.has('KeyS') || keys_down.has('ArrowDown')) {
-      fwd = fwd ?? fromVector3(this.camForwardsVec_());
+      fwd = fwd ?? this.cameraController.camForwardsVec;
       addScaled3(this.moveImpulse_, fwd, -move_speed);
     }
     if(keys_down.has('KeyA') || keys_down.has('ArrowLeft')) {
       // TODO: Move the arrow keys later - left-handed so makes it easier to test
-      rgt = fromVector3(this.camRightVec_());
+      rgt = this.cameraController.camRightVec;
       addScaled3(this.moveImpulse_, rgt, -move_speed);
     }
     if(keys_down.has('KeyD') || keys_down.has('ArrowRight')) {
-      rgt = rgt ?? fromVector3(this.camRightVec_());
+      rgt = rgt ?? this.cameraController.camRightVec;
       addScaled3(this.moveImpulse_, rgt, move_speed);
     }
 
     if (keys_down.has('Space')) {
-      this.jumpTimeRemaining_ = JUMP_PERIOD
+      this.jumpTimeRemaining_ = JUMP_PERIOD;
     }
 
-    // TODO: TURNING HERE
+    // Toggle 3rd person view here for now
+    if (keys_down.has('KeyV') && performance.now() - this.lastChange > 100) {
+      this.lastChange = performance.now();
+      this.camera.cameraMode = this.camera.cameraMode === CameraMode.FIRST_PERSON ? CameraMode.THIRD_PERSON : CameraMode.FIRST_PERSON;
+      this.visGroup_.visible = this.camera.cameraMode === CameraMode.THIRD_PERSON;
+    }
 
-    const cP = this.camera_.position;
+    // TODO: RESTORE TURNING
 
-    const pos = new Float32Array([cP.x, cP.y, cP.z]);
-
+    const [pos] = this.tmp;
+    pos.set(this.cameraController.position);
     this.update(dt, pos);
-
-    this.camera_.position.set(pos[0], pos[1], pos[2]);
-
+    this.cameraController.position = pos;
     this.world_.ground.updateGroundPlane(pos);
-    if(this.visGroup_) this.visGroup_.position.set(pos[0] + 1, pos[1], pos[2]);
+    if(this.visGroup_) this.visGroup_.position.set(pos[0], pos[1], pos[2] - EYE_HEIGHT);
   }
-
-  /*
-  private armRotation = 0;
-  private prevPos = new Float32Array(3);
-  private delta = new Float32Array(3);
-
-  private updateThirdPersonCam (pos: Float32Array): void {
-    const delta = sub3(pos, this.prevPos, this.delta);
-
-    const dir = normalise3(delta);
-    const eyePos = sub3(pos, dir, new Float32Array(3));
-
-    // Set the camera a distance of 2 units horizontally and 1 unit vertically from the 'player head' sphere.
-    const eyeP = new THREE.Vector3(...eyePos);
-  }
-  */
 
   // Returns displacement
   public doSpringRelaxation (sphereSet: SpringSphereSet[], constrainToVertical: boolean, fastMode: boolean): Float32Array {
@@ -371,10 +344,6 @@ export class PlayerPhysics {
     return displacement;
   }
 
-  private tmp = [
-    new Float32Array(3)
-  ];
-
   // Packs 3 bounding spheres into the spheres array of [ s0x, s0y, s0z, s0radius, s1x, s1y, etc. ]
   public getCollisionSpheres(pos: Float32Array, spheres: Float32Array) {
     const [delta] = this.tmp;
@@ -387,7 +356,6 @@ export class PlayerPhysics {
     }
   }
 
-  /*
   // Add the player spheres to the passed group
   public addAvatarBounds (group: THREE.Group): void {
     if(this.visGroup_) return;
@@ -395,7 +363,13 @@ export class PlayerPhysics {
     this.visGroup_ = new THREE.Group();
 
     const geo = new THREE.SphereGeometry(); // Scale in mesh
-    const mat = new THREE.MeshStandardMaterial({color: 'purple', transparent: true, opacity: 0.5 });
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(.972, .960, .915),
+      transparent: true,
+      opacity: 0.4,
+      metalness: 0.8,
+      roughness: .1,
+    });
     for(let s = 0; s !== 3; ++s) {
       const z = EYE_HEIGHT - SPHERE_RAD * (5 - 2 * s);
       const mesh = new THREE.Mesh(geo, mat);
@@ -406,5 +380,8 @@ export class PlayerPhysics {
 
     group.add(this.visGroup_);
   }
-  */
+
+  private tmp = [
+    new Float32Array(3)
+  ];
 }

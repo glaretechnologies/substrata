@@ -9,6 +9,11 @@ export function eq (a: number, b: number, epsilon=EPSILON): boolean {
   return Math.abs(b - a) <= epsilon;
 }
 
+// Clamp
+export function clamp (value: number, min: number, max: number): number {
+  return value < min ? min : value > max ? max : value;
+}
+
 export function lerpN (A: number, B: number, u: number): number {
   return (1.0 - u) * A + u * B;
 }
