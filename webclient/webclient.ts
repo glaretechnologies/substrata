@@ -13,12 +13,9 @@ import * as bufferout from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
 import BVH, { Triangles } from './physics/bvh.js';
-import Caster from './physics/caster.js';
 import PhysicsWorld from './physics/world.js';
-import { makeAABB, transformAABB } from './maths/geometry.js';
-import { eq3, fromVector3, mulScalar3 } from './maths/vec3.js';
-import { SPHERE_RAD } from './physics/player.js';
-import { print3 } from './maths/functions.js';
+import { makeAABB } from './maths/geometry.js';
+import CameraController from './cameraController.js';
 
 //import { CSM } from './examples/jsm/csm/CSM.js';
 //import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
@@ -27,11 +24,7 @@ import { print3 } from './maths/functions.js';
 var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
 ws.binaryType = "arraybuffer"; // Change binary type from "blob" to "arraybuffer"
 
-// PHYSICS-RELATED
-const DEBUG_PHYSICS = true;
-const DEBUG_MATERIAL = DEBUG_PHYSICS && false;
 const physics_world = new PhysicsWorld()
-// END PHYSICS-RELATED
 
 const STATE_INITIAL = 0;
 const STATE_READ_HELLO_RESPONSE = 1;
@@ -605,8 +598,7 @@ export class WorldObject {
     bvh: BVH
     get objectToWorld (): THREE.Matrix4 { return this.mesh.matrixWorld; }
     worldToObject: THREE.Matrix4 // TODO: We should only calculate the inverse when the world matrix actually changes
-    world_aabb: Float32Array // This is the root bvh AABB node converted to an AABB in world space (will be larger if rotated)
-
+    world_aabb: Float32Array // Root AABB node created from aabb_ws_min & aabb_ws_max
 
     mesh_state: number;
     mesh: THREE.Mesh;
@@ -775,12 +767,21 @@ function sendQueryObjectsMessage() {
     const CELL_WIDTH = 200.0;
     const load_distance = MAX_OB_LOAD_DISTANCE_FROM_CAM;
 
+    /*
     let begin_x = Math.floor((camera.position.x - load_distance) / CELL_WIDTH);
     let begin_y = Math.floor((camera.position.y - load_distance) / CELL_WIDTH);
     let begin_z = Math.floor((camera.position.z - load_distance) / CELL_WIDTH);
     let end_x   = Math.floor((camera.position.x + load_distance) / CELL_WIDTH);
     let end_y   = Math.floor((camera.position.y + load_distance) / CELL_WIDTH);
     let end_z = Math.floor((camera.position.z + load_distance) / CELL_WIDTH);
+    */
+    const P = camController.position
+    let begin_x = Math.floor((P[0] - load_distance) / CELL_WIDTH);
+    let begin_y = Math.floor((P[1] - load_distance) / CELL_WIDTH);
+    let begin_z = Math.floor((P[2] - load_distance) / CELL_WIDTH);
+    let end_x   = Math.floor((P[0] + load_distance) / CELL_WIDTH);
+    let end_y   = Math.floor((P[1] + load_distance) / CELL_WIDTH);
+    let end_z   = Math.floor((P[2] + load_distance) / CELL_WIDTH);
 
     // console.log("begin_x: " + begin_x);
     // console.log("begin_y: " + begin_y);
@@ -890,7 +891,8 @@ ws.onmessage = function (event) {
                 let world_ob: WorldObject = readWorldObjectFromNetworkStreamGivenUID(buffer);
                 world_ob.uid = object_uid;
 
-                let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
+                // let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
+                let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camController.positionV3);
                 if (dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM) {
                     addWorldObjectGraphics(world_ob);
                 }
@@ -1314,8 +1316,8 @@ function addWorldObjectGraphics(world_ob) {
 
         //console.log("==================addWorldObjectGraphics (ob uid: " + world_ob.uid + ")=========================")
 
-        let ob_lod_level = getLODLevel(world_ob, camera.position);
-        let model_lod_level = getModelLODLevel(world_ob, camera.position);
+        let ob_lod_level = getLODLevel(world_ob, camController.positionV3);// camera.position);
+        let model_lod_level = getModelLODLevel(world_ob, camController.positionV3); // camera.position);
         let aabb_longest_len = AABBLongestLength(world_ob);
         //console.log("model_lod_level: " + model_lod_level);
 
@@ -1352,10 +1354,7 @@ function addWorldObjectGraphics(world_ob) {
                 mesh.castShadow = true;
                 mesh.receiveShadow = true;
 
-                if (DEBUG_PHYSICS && triangles != null) {
-                    // For now, build the BVH in the main thread while testing performance
-                    registerPhysicsObject(world_ob, triangles, mesh)
-                }
+                registerPhysicsObject(world_ob, triangles, mesh)
             }
         }
         else if(world_ob.model_url !== "") {
@@ -1389,22 +1388,12 @@ function makeMeshAndAddToScene(geometry: THREE.BufferGeometry, mats, pos, scale,
 
     let three_mats = []
 
-    if(!DEBUG_MATERIAL) {
-        for (let i = 0; i < mats.length; ++i) {
-            let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
-            //csm.setupMaterial(three_mat); // TEMP
-            setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
-            three_mats.push(three_mat);
-        }
-    } else {
-        for (let i = 0; i < mats.length; ++i) {
-            const mat = new THREE.MeshLambertMaterial({ color: 'white' })
-            mat.wireframe = true
-            mat.flatShading = true
-            three_mats.push(mat)
-        }
+    for (let i = 0; i < mats.length; ++i) {
+        let three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
+        //csm.setupMaterial(three_mat); // TEMP
+        setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
+        three_mats.push(three_mat);
     }
-
 
     const mesh = new THREE.Mesh(geometry, three_mats);
     mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
@@ -1513,15 +1502,12 @@ function startDownloadingResource(download_queue_item) {
                                     let world_ob = world_ob_or_avatar;
                                     //console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
 
-                                    let use_ob_lod_level = getLODLevel(world_ob, camera.position); // Used for determining which texture LOD level to load
+                                    let use_ob_lod_level = getLODLevel(world_ob, camController.positionV3); // camera.position); // Used for determining which texture LOD level to load
                                     let ob_aabb_longest_len = AABBLongestLength(world_ob);
 
                                     let mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
-                                    if(DEBUG_PHYSICS && triangles != null) {
-                                        // For now, build the BVH in the main thread while testing performance
-                                        registerPhysicsObject(world_ob, triangles, mesh)
-                                    }
+                                    registerPhysicsObject(world_ob, triangles, mesh)
 
                                     world_ob_or_avatar.mesh = mesh;
                                     world_ob_or_avatar.mesh_state = MESH_LOADED;
@@ -1656,16 +1642,15 @@ client_avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
 THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
 
 const scene = new THREE.Scene();
+
+
+/*
 const DEFAULT_FOV = 75
 const DEFAULT_AR = window.innerWidth / window.innerHeight
 const DEFAULT_NEAR = 0.1
 const DEFAULT_FAR = 1000.0
 const camera = new THREE.PerspectiveCamera(DEFAULT_FOV, DEFAULT_AR, DEFAULT_NEAR, DEFAULT_FAR);
-
-if(DEBUG_PHYSICS) {
-    physics_world.scene = scene
-}
-
+*/
 
 let renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
@@ -1678,13 +1663,16 @@ renderer.toneMappingExposure = 0.5;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+const camController = new CameraController(renderer)
+
+camController.position = new Float32Array([initial_pos_x, initial_pos_y, initial_pos_z])
 
 
+/*
 camera.position.set(initial_pos_x, initial_pos_y, initial_pos_z);
 camera.up = new THREE.Vector3(0, 0, 1);
-
 camera.lookAt(camera.position.clone().add(new THREE.Vector3(0, 1, 0)));
-
+*/
 
 const hemiLight = new THREE.HemisphereLight();
 hemiLight.color = new THREE.Color(0.4, 0.4, 0.45); // sky colour
@@ -1823,12 +1811,19 @@ let placeholder_texture = new THREE.TextureLoader().load("./obstacle.png");
 
 let download_queue = new downloadqueue.DownloadQueue();
 
-
-
 let is_mouse_down = false;
+let keys_down = new Set<string>();
+
+physics_world.scene = scene
+// Fix up ownership here
+physics_world.player.camera = camController
+physics_world.caster = camController.caster
+physics_world.player.keyState = keys_down
+
+
+/*
 let heading = Math.PI / 2;
 let pitch = Math.PI / 2;
-let keys_down = new Set<string>();
 
 function camForwardsVec(): THREE.Vector3 {
     return new THREE.Vector3(Math.cos(heading) * Math.sin(pitch), Math.sin(heading) * Math.sin(pitch), Math.cos(pitch));
@@ -1852,18 +1847,17 @@ const caster = DEBUG_PHYSICS ? new Caster(renderer, {
 if(DEBUG_PHYSICS && caster) {
     // For the moment, I'm routing the camera to the player physics class here.
     physics_world.caster = caster;
-    // TODO: Clean up this later
     physics_world.player.camForwardsVec = camForwardsVec
     physics_world.player.camRightVec = camRightVec
     physics_world.player.keyState = keys_down
 }
+*/
 
-function onDocumentMouseDown(ev: MouseEvent) {
+function onDocumentMouseDown() {
     is_mouse_down = true;
 }
 
 function onDocumentMouseUp() {
-    //console.log("onDocumentMouseUp()");
     is_mouse_down = false;
 }
 
@@ -1871,32 +1865,22 @@ function onDocumentMouseMove(e) {
     //console.log("onDocumentMouseMove()");
     //console.log(e.movementX);
 
-    if(DEBUG_PHYSICS && caster) {
-        const ray = caster.getPickRay(e.offsetX, e.offsetY);
-        if(ray != null) {
-            const [origin, dir] = ray;
-            physics_world.traceRay(origin, dir);
-            /*
-            const sphere = new Float32Array([origin.x, origin.y, origin.z, SPHERE_RAD]);
-            const d = fromVector3(dir)
-            physics_world.traceSphereMarch(sphere, d)
-
-            mulScalar3(d, 5.)
-            const result = physics_world.traceSphereWorld(sphere, d)
-            console.log('result:', result)
-            print3('pos', result.data.slice(0, 3), 'nor', result.data.slice(3, 6), 'dist', result.data[6])
-            */
-        }
+    const ray = camController.caster.getPickRay(e.offsetX, e.offsetY);
+    if(ray != null) {
+        const [O, d] = ray
+        physics_world.traceRay(O, d)
     }
+
 
     if(is_mouse_down){
-        let rot_factor = 0.003;
-
-        heading += -e.movementX * rot_factor;
-        pitch = Math.max(1.0e-3, Math.min(pitch + e.movementY * rot_factor, Math.PI - 1.0e-3));
+        // let rot_factor = 0.003;
+        // heading += -e.movementX * rot_factor;
+        // pitch = Math.max(1.0e-3, Math.min(pitch + e.movementY * rot_factor, Math.PI - 1.0e-3));
+        camController.mouseLook(e.movementX, e.movementY)
     }
 
-    camera.lookAt(camera.position.clone().add(camForwardsVec()));
+    //camera.lookAt(camera.position.clone().add(camForwardsVec()));
+    //camController.updateView()
 }
 
 function onKeyDown(e) {
@@ -1918,10 +1902,13 @@ function onKeyUp(e) {
 window.addEventListener('resize', onWindowResize, false);
 
 function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    // Enable for High DPI mode
+    // renderer.setPixelRatio(window.devicePixelRatio)
 }
+
+// Note: If you don't call this and the window is never resized, it will never be called
+onWindowResize();
 
 renderer_canvas_elem.addEventListener('mousedown', onDocumentMouseDown, false);
 window.addEventListener('mouseup', onDocumentMouseUp, false);
@@ -1930,59 +1917,15 @@ renderer_canvas_elem.addEventListener('keydown', onKeyDown, false);
 renderer_canvas_elem.addEventListener('keyup', onKeyUp, false);
 
 function doCamMovement(dt){
-    if(DEBUG_PHYSICS) {
-        physics_world.player.doCamMovement(dt)
-        return
-    }
+    physics_world.player.doCamMovement(dt)
 
-    let move_speed = 3.0;
-    let turn_speed = 1.0;
+    client_avatar.pos.x = camController.position[0]
+    client_avatar.pos.y = camController.position[1]
+    client_avatar.pos.z = camController.position[2]
 
-    if(keys_down.has('ShiftLeft')){
-        move_speed *= 5;
-        turn_speed *= 5;
-    }
-
-    if(keys_down.has('KeyW') || keys_down.has('ArrowUp')){
-        camera.position.addScaledVector(camForwardsVec(), dt * move_speed);
-    }
-    if(keys_down.has('KeyS') || keys_down.has('ArrowDown')){
-        camera.position.addScaledVector(camForwardsVec(), -dt * move_speed);
-    }
-    if(keys_down.has('KeyA')){
-        camera.position.addScaledVector(camRightVec(), -dt * move_speed);
-    }
-    if(keys_down.has('KeyD')){
-        camera.position.addScaledVector(camRightVec(), dt * move_speed);
-    }
-    if(keys_down.has('Space')){
-        camera.position.addScaledVector(new THREE.Vector3(0,0,1), dt * move_speed);
-    }
-    if(keys_down.has('KeyC')){
-        camera.position.addScaledVector(new THREE.Vector3(0,0,1), -dt * move_speed);
-    }
-
-
-    if(keys_down.has('ArrowLeft')){
-        heading += dt * turn_speed;
-
-        camera.lookAt(camera.position.clone().add(camForwardsVec()));
-    }
-
-    if(keys_down.has('ArrowRight')){
-        heading -= dt * turn_speed;
-
-        camera.lookAt(camera.position.clone().add(camForwardsVec()));
-    }
-
-    client_avatar.pos.x = camera.position.x;
-    client_avatar.pos.y = camera.position.y;
-    client_avatar.pos.z = camera.position.z;
-
-    // rotation = (roll, pitch, heading)
-    client_avatar.rotation.x = 0;
-    client_avatar.rotation.y = pitch;
-    client_avatar.rotation.z = heading;
+    client_avatar.rotation.x = 0
+    client_avatar.rotation.y = camController.pitch
+    client_avatar.rotation.z = camController.heading
 }
 
 function curTimeS() {
@@ -2008,7 +1951,7 @@ function animate() {
         if (cur_time - last_queue_sort_time > 0.5)
         {
             //let sort_start_time = curTimeS();
-            download_queue.sortQueue(camera.position);
+            download_queue.sortQueue(camController.positionV3); // camera.position);
             //let sort_duration = curTimeS() - sort_start_time;
             //console.log("Sorting download queue took " + (sort_duration * 1.0e3) + " ms (num obs in queue: " + download_queue.items.length + ")");
 
@@ -2037,9 +1980,9 @@ function animate() {
         let sun_up = new THREE.Vector3();
         sun_up.crossVectors(sundir, sun_right);
 
-        let cam_dot_sun_right = sun_right.dot(camera.position);
-        let cam_dot_sun_up = sun_up.dot(camera.position);
-        let cam_dot_sun = -sundir.dot(camera.position);
+        let cam_dot_sun_right = sun_right.dot(camController.positionV3); //camera.position);
+        let cam_dot_sun_up = sun_up.dot(camController.positionV3); //camera.position);
+        let cam_dot_sun = -sundir.dot(camController.positionV3); //camera.position);
 
         //console.log("cam_dot_sun_up: " + cam_dot_sun_up);
         //console.log("cam_dot_sun_right: " + cam_dot_sun_right);
@@ -2063,14 +2006,15 @@ function animate() {
     }
 
 
-    renderer.render(scene, camera);
+    renderer.render(scene, camController.camera);
 
     // Update URL with current camera position
     if(cur_time > last_update_URL_time + 0.1) {
         let url_path = "/webclient?";
         if (world != "") // Append world if != empty string.
             url_path += "world=" + encodeURIComponent(world) + "&";
-        url_path += "x=" + camera.position.x.toFixed(1) + "&y=" + camera.position.y.toFixed(1) + "&z=" + camera.position.z.toFixed(1);
+        const P = camController.position
+        url_path += "x=" + P[0].toFixed(1) + "&y=" + P[1].toFixed(1) + "&z=" + P[2].toFixed(1);
         window.history.replaceState("object or string", "Title", url_path);
         last_update_URL_time = cur_time;
     }
