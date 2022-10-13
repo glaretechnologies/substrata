@@ -1332,9 +1332,8 @@ function addWorldObjectGraphics(world_ob) {
                     mats_transparent.push(world_ob.mats[i].opacity.val < 1.0);
                 }
                 
-                let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level, mats_transparent); // type THREE.BufferGeometry
-                let geometry = values[0];
-                let subsample_factor = values[1];
+                let [geometry, triangles, subsample_factor]: [THREE.BufferGeometry, Triangles, number] = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level, mats_transparent);
+
                 geometry.computeVertexNormals();
 
                 const mesh = new THREE.Mesh(geometry, three_mats);
@@ -1351,6 +1350,11 @@ function addWorldObjectGraphics(world_ob) {
 
                 mesh.castShadow = true;
                 mesh.receiveShadow = true;
+
+                if (DEBUG_PHYSICS && triangles != null) {
+                    // For now, build the BVH in the main thread while testing performance
+                    registerPhysicsObject(world_ob, triangles, mesh)
+                }
             }
         }
         else if(world_ob.model_url !== "") {
@@ -1378,7 +1382,7 @@ function addWorldObjectGraphics(world_ob) {
 
 // Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
 // Returns mesh (THREE.Mesh)
-function makeMeshAndAddToScene(geometry/*: THREE.BufferGeometry*/, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level): THREE.Mesh {
+function makeMeshAndAddToScene(geometry: THREE.BufferGeometry, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level): THREE.Mesh {
 
     let use_vert_colours = (geometry.getAttribute('color') !== undefined);
 
@@ -1487,7 +1491,7 @@ function startDownloadingResource(download_queue_item) {
 
                     //console.log("Downloaded the file: '" + model_url + "'!");
                     try {
-                        let [geometry, triangles] = loadBatchedMesh(array_buffer);
+                        let [geometry, triangles]: [THREE.BufferGeometry, Triangles] = loadBatchedMesh(array_buffer);
 
                         //console.log("Inserting " + model_url + " into url_to_geom_map");
                         url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
