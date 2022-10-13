@@ -61,7 +61,7 @@ export class BufferIn {
 		return this.read_index >= this.array_buffer.byteLength;
 	}
 
-	readData(len) {
+	readData(len): ArrayBuffer {
 		var res = this.array_buffer.slice(this.read_index, this.read_index + len);
 		this.read_index += len;
 		return res;
