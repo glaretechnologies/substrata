@@ -5,7 +5,7 @@ Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
 // from https://gist.github.com/joni/3760795
-function fromUTF8Array(data) { // array of bytes
+function fromUTF8Array(data: Int8Array): string { // array of bytes
 	var str = '',
 		i;
 
@@ -39,25 +39,25 @@ export class BufferIn {
 	data_view : DataView;
 	read_index : number;
 	
-	constructor(array_buffer_) {
+	constructor(array_buffer_ : ArrayBuffer) {
 		this.array_buffer = array_buffer_;
 		this.data_view = new DataView(array_buffer_);
 		this.read_index = 0;
 	}
 
-	getReadIndex() {
+	getReadIndex(): number {
 		return this.read_index;
 	}
 
-	setReadIndex(index) {
+	setReadIndex(index: number) {
 		this.read_index = index;
 	}
 
-	length() {
+	length(): number {
 		return this.array_buffer.byteLength;
 	}
 
-	endOfStream() {
+	endOfStream(): boolean {
 		return this.read_index >= this.array_buffer.byteLength;
 	}
 
@@ -67,13 +67,13 @@ export class BufferIn {
 		return res;
 	}
 
-	readInt32() {
+	readInt32(): number {
 		var x = this.data_view.getInt32(/*byte offset=*/this.read_index, /*little endian=*/true);
 		this.read_index += 4;
 		return x;
 	}
 
-	readUInt32() {
+	readUInt32(): number {
 		var x = this.data_view.getUint32(/*byte offset=*/this.read_index, /*little endian=*/true);
 		this.read_index += 4;
 		return x;
@@ -95,26 +95,26 @@ export class BufferIn {
 	//	return combined;
 	//}
 
-	readUInt64() {
+	readUInt64(): bigint {
 		var x = this.data_view.getBigUint64(/*byte offset=*/this.read_index, /*little endian=*/true);
 		//var x = this.getUint64(this.data_view, /*byte offset=*/this.read_index, /*little endian=*/true)
 		this.read_index += 8;
 		return x;
 	}
 
-	readFloat() {
+	readFloat(): number {
 		var x = this.data_view.getFloat32(/*byte offset=*/this.read_index, /*little endian=*/true);
 		this.read_index += 4;
 		return x;
 	}
 
-	readDouble() {
+	readDouble(): number {
 		var x = this.data_view.getFloat64(/*byte offset=*/this.read_index, /*little endian=*/true);
 		this.read_index += 8;
 		return x;
 	}
 
-	readStringLengthFirst() {
+	readStringLengthFirst(): string {
 		let len = this.readUInt32(); // Read length in bytes
 
 		let utf8_array = new Int8Array(this.array_buffer, /*byteoffset=*/this.read_index, /*length=*/len);
