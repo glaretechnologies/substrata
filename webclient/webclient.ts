@@ -199,7 +199,7 @@ function readUIDFromStream(buffer_in: bufferin.BufferIn): bigint {
 }
 
 
-function writeUID(buffer_out, uid) {
+function writeUID(buffer_out: bufferout.BufferOut, uid: bigint) {
     buffer_out.writeUInt64(uid);
 }
 
@@ -855,6 +855,7 @@ ws.onmessage = function (event) {
         else if (protocol_state == STATE_READ_PROTOCOL_RESPONSE) {
             // Read client_avatar_uid
             client_avatar_uid = readUIDFromStream(buffer);
+            client_avatar.uid = client_avatar_uid;
 
             //console.log("Read client_avatar_uid from server: " + client_avatar_uid);
             protocol_state = STATE_READ_CLIENT_AVATAR_UID;
@@ -884,7 +885,7 @@ ws.onmessage = function (event) {
             else if (msg_type == ObjectInitialSend) {
                 // console.log("received ObjectInitialSend...");
 
-                let object_uid = readUIDFromStream(buffer);
+                let object_uid: bigint = readUIDFromStream(buffer);
 
                 let world_ob: WorldObject = readWorldObjectFromNetworkStreamGivenUID(buffer);
                 world_ob.uid = object_uid;
@@ -1585,7 +1586,7 @@ function registerPhysicsObject(obj: WorldObject, triangles: Triangles, mesh: THR
 
     obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
     obj.mesh = mesh
-    physics_world.addWorldObject(obj, /*debug=*/true);
+    physics_world.addWorldObject(obj, /*debug=*/false);
 }
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
