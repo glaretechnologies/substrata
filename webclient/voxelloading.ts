@@ -9,7 +9,7 @@ import * as THREE from './build/three.module.js';
 import { Triangles } from './physics/bvh.js';
 
 
-function decompressVoxels(compressed_voxels): Array<number> {
+function decompressVoxels(compressed_voxels: ArrayBuffer): Int32Array {
 	let decompressed_voxels_uint8 = fzstd.decompress(new Uint8Array(compressed_voxels));
 
 	// A voxel is
@@ -18,17 +18,34 @@ function decompressVoxels(compressed_voxels): Array<number> {
 
 	let voxel_data = new Int32Array(decompressed_voxels_uint8.buffer, decompressed_voxels_uint8.byteOffset, decompressed_voxels_uint8.byteLength / 4);
 
-	let voxels_out: Array<number> = []
+
+	// Do a pass over the data to get the total number of voxels, so that we can allocate voxels_out all at once.
+	let total_num_voxels = 0;
+	let read_i = 0;
+	let num_mats = voxel_data[read_i++];
+	if (num_mats > 2000)
+		throw "Too many voxel materials";
+	for (let m = 0; m < num_mats; ++m)
+	{
+		let count = voxel_data[read_i++]; // Number of voxels with this material.
+		if (count < 0 || count > 64000000)
+			throw "Voxel count is too large: " + count.toString();
+
+		read_i += 3 * count; // Skip over voxel data.
+		total_num_voxels += count;
+	}
+
+	let voxels_out: Int32Array = new Int32Array(total_num_voxels * 4); // Store 4 ints per voxel (see above)
 
 	let cur_x: number = 0;
 	let cur_y: number = 0;
 	let cur_z: number = 0;
 
-	let read_i = 0;
-	let num_mats = voxel_data[read_i++];
-	if(num_mats > 2000)
-		throw "Too many voxel materials";
+	// Reset stream read index to beginning.
+	read_i = 0;
+	num_mats = voxel_data[read_i++];
 
+	let write_i = 0;
 	for(let m=0; m<num_mats; ++m)
 	{
 		let count = voxel_data[read_i++];
@@ -44,10 +61,10 @@ function decompressVoxels(compressed_voxels): Array<number> {
 			let v_y = cur_y + rel_y;
 			let v_z = cur_z + rel_z;
 
-			voxels_out.push(v_x);
-			voxels_out.push(v_y);
-			voxels_out.push(v_z);
-			voxels_out.push(m);
+			voxels_out[write_i++] = v_x;
+			voxels_out[write_i++] = v_y;
+			voxels_out[write_i++] = v_z;
+			voxels_out[write_i++] = m;
 
 			//console.log("Added voxel at " + v_x + ", " + v_y + ", " + v_z + " with mat " + m);
 
@@ -63,7 +80,7 @@ function decompressVoxels(compressed_voxels): Array<number> {
 
 // Does greedy meshing.  Adapted from VoxelMeshBuilding::doMakeIndigoMeshForVoxelGroupWith3dArray()
 // returns a THREE.BufferGeometry() object
-function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number, mats_transparent_: Array<boolean>): [THREE.BufferGeometry, Triangles]
+function doMakeMeshForVoxels(voxels: Int32Array, subsample_factor: number, mats_transparent_: Array<boolean>): [THREE.BufferGeometry, Triangles]
 {
 	let num_voxels = voxels.length / 4;
 
@@ -552,12 +569,10 @@ function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number, ma
 }
 
 
-// compressed_voxels is an ArrayBuffer
-// subsample_factor is an integer >= 1
 // returns [THREE.BufferGeometry(), Triangles, subsample_factor]
-export function makeMeshForVoxelGroup(compressed_voxels, model_lod_level, mats_transparent: Array<boolean>): [THREE.BufferGeometry, Triangles, number] {
+export function makeMeshForVoxelGroup(compressed_voxels: ArrayBuffer, model_lod_level: number, mats_transparent: Array<boolean>): [THREE.BufferGeometry, Triangles, number] {
 
-	let voxels: Array<number> = decompressVoxels(compressed_voxels);
+	let voxels: Int32Array = decompressVoxels(compressed_voxels);
 	// voxels is an Int32Array array of voxel data, with each voxel laid out as (pos_x, pos_y, pos_z, mat_index)
 
 	let num_voxels = voxels.length / 4;
