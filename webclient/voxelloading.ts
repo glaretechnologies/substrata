@@ -62,7 +62,7 @@ function decompressVoxels(compressed_voxels): Array<number> {
 
 // Does greedy meshing.  Adapted from VoxelMeshBuilding::doMakeIndigoMeshForVoxelGroupWith3dArray()
 // returns a THREE.BufferGeometry() object
-function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number): THREE.BufferGeometry
+function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number, mats_transparent_: Array<boolean>): THREE.BufferGeometry
 {
 	let num_voxels = voxels.length / 4;
 
@@ -120,6 +120,12 @@ function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number): T
 	// console.log(span_y)
 	// console.log("span_z:")
 	// console.log(span_z)
+
+
+	// Build a local array of mat-transparent booleans, one for each material.  If no such entry in mats_transparent_ for a given index, assume opaque.
+	let mat_transparent = new Int32Array(256);
+	for (let i = 0; i < 256; ++i)
+		mat_transparent[i] = ((i < mats_transparent_.length) && mats_transparent_[i]) ? 1 : 0;
 
 	// Make a 3d-array, which will hold 1 material index per voxel.
 	let voxel_grid = new Uint8Array(span_x * span_y * span_z);
@@ -206,7 +212,7 @@ function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number): T
 
 				let this_face_needed_mat = no_voxel_mat;
 				let vox_mat_index = voxel_grid[vox_indices[2] * (span_x * span_y) + vox_indices[1] * span_x + vox_indices[0]];
-				if(vox_mat_index != no_voxel_mat) // If there is a voxel here with mat_i
+				if(vox_mat_index != no_voxel_mat) // If there is a voxel here
 				{
 					adjacent_vox_indices[dim_a] = x;
 					adjacent_vox_indices[dim_b] = y;
@@ -214,7 +220,9 @@ function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number): T
 					if (dim_coord > 0) // If adjacent vox indices are in array bounds: (if dim_coord - 1 >= 0)
 					{
 						let adjacent_vox_mat_index = voxel_grid[adjacent_vox_indices[2] * (span_x * span_y) + adjacent_vox_indices[1] * span_x + adjacent_vox_indices[0]];
-						if (adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+
+						if ((adjacent_vox_mat_index == no_voxel_mat) || // If adjacent voxel is empty, or
+							((mat_transparent[adjacent_vox_mat_index] != 0) && (adjacent_vox_mat_index != vox_mat_index))) // the adjacent voxel is transparent, and the adjacent voxel has a different material.
 							this_face_needed_mat = vox_mat_index;
 					}
 					else {
@@ -373,7 +381,9 @@ function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number): T
 					if (dim_coord < dim_size - 1) // If adjacent vox indices are in array bounds: (if dim_coord + 1 < dim_size)
 					{
 						let adjacent_vox_mat_index = voxel_grid[adjacent_vox_indices[2] * (span_x * span_y) + adjacent_vox_indices[1] * span_x + adjacent_vox_indices[0]];
-						if (adjacent_vox_mat_index != vox_mat_index) // If there is no adjacent voxel, or the adjacent voxel has a different material:
+
+						if ((adjacent_vox_mat_index == no_voxel_mat) ||
+							((mat_transparent[adjacent_vox_mat_index] != 0) && (adjacent_vox_mat_index != vox_mat_index)))
 							this_face_needed_mat = vox_mat_index;
 					}
 					else {
@@ -529,7 +539,7 @@ function doMakeMeshForVoxels(voxels: Array<number>, subsample_factor: number): T
 // compressed_voxels is an ArrayBuffer 
 // subsample_factor is an integer >= 1
 // returns [THREE.BufferGeometry(), subsample_factor]
-export function makeMeshForVoxelGroup(compressed_voxels, model_lod_level) {
+export function makeMeshForVoxelGroup(compressed_voxels, model_lod_level, mats_transparent: Array<boolean>) {
 
 	let voxels: Array<number> = decompressVoxels(compressed_voxels);
 	// voxels is an Int32Array array of voxel data, with each voxel laid out as (pos_x, pos_y, pos_z, mat_index)
@@ -549,6 +559,6 @@ export function makeMeshForVoxelGroup(compressed_voxels, model_lod_level) {
 	//console.log("makeMeshForVoxelGroup");
 	//console.log("num_voxels: " + num_voxels);
 
-	let mesh = doMakeMeshForVoxels(voxels, subsample_factor);
+	let mesh = doMakeMeshForVoxels(voxels, subsample_factor, mats_transparent);
 	return [mesh, subsample_factor];
 }
