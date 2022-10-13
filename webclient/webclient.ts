@@ -1323,17 +1323,19 @@ function addWorldObjectGraphics(world_ob) {
 
             if (true) {
 
-                let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level); // type THREE.BufferGeometry
-                let geometry = values[0];
-                let subsample_factor = values[1];
-                geometry.computeVertexNormals();
-
                 let three_mats = []
+                let mats_transparent: Array<boolean> = []
                 for (let i = 0; i < world_ob.mats.length; ++i) {
                     let three_mat = new THREE.MeshStandardMaterial();
                     setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
                     three_mats.push(three_mat);
+                    mats_transparent.push(world_ob.mats[i].opacity.val < 1.0);
                 }
+                
+                let values = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level, mats_transparent); // type THREE.BufferGeometry
+                let geometry = values[0];
+                let subsample_factor = values[1];
+                geometry.computeVertexNormals();
 
                 const mesh = new THREE.Mesh(geometry, three_mats);
                 mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
@@ -1575,7 +1577,7 @@ function registerPhysicsObject (obj: WorldObject, triangles: Triangles, mesh: TH
 
     obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
     obj.mesh = mesh
-    physics_world.addWorldObject(obj, true);
+    physics_world.addWorldObject(obj, /*debug=*/true);
 }
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
