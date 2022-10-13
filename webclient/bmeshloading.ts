@@ -146,7 +146,7 @@ function batchedMeshUnpackNormal(packed_normal) // packed_normal is uint32
 
 
 // data is an ArrayBuffer
-export function loadBatchedMesh(data): [THREE.InterleavedBuffer, Triangles] {
+export function loadBatchedMesh(data): [THREE.BufferGeometry, Triangles] {
 
 	let buff = new bufferin.BufferIn(data);
 
