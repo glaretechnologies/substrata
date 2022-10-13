@@ -600,7 +600,7 @@ export class WorldObject {
 
     max_model_lod_level: number;
 
-    compressed_voxels: Array<number>;
+    compressed_voxels: ArrayBuffer;
 
     bvh: BVH
     get objectToWorld (): THREE.Matrix4 { return this.mesh.matrixWorld; }
@@ -1563,15 +1563,19 @@ function startDownloadingResource(download_queue_item) {
 }
 
 // Build the BVH for a new (unregistered) mesh
-function registerPhysicsObject (obj: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
-    const model_loaded = physics_world.hasModelBVH(obj.model_url);
+function registerPhysicsObject(obj: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
+
+    let is_voxel_ob = obj.compressed_voxels && (obj.compressed_voxels.byteLength > 0);
+    let bvh_key = is_voxel_ob ? ("voxel ob, UID " + obj.uid.toString()) : obj.model_url;
+
+    const model_loaded = physics_world.hasModelBVH(bvh_key);
     if(!model_loaded) {
-       physics_world.addModelBVH(obj.model_url, triangles);
-       console.log('creating new bvh:', obj.model_url);
+        physics_world.addModelBVH(bvh_key, triangles);
+        console.log('creating new bvh:', bvh_key);
     }
 
     // Move this to a web worker, initialise the BVH and trigger this code on callback
-    obj.bvh = physics_world.getModelBVH(obj.model_url)
+    obj.bvh = physics_world.getModelBVH(bvh_key)
 
     // TODO: Split into two sets of objects, static and dynamic - for now, only static
     obj.worldToObject = new THREE.Matrix4();
