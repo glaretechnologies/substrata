@@ -163,38 +163,38 @@ ws.onopen = function () {
 };
 
 
-function readInt32(buffer_in) {
+function readInt32(buffer_in: bufferin.BufferIn) {
     let x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 4;
     return x;
 }
 
-function readUInt32(buffer_in) {
+function readUInt32(buffer_in: bufferin.BufferIn) {
     let x = buffer_in.data_view.getUint32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 4;
     return x;
 }
 
-function readUInt64(buffer_in): bigint {
+function readUInt64(buffer_in: bufferin.BufferIn): bigint {
     let x = buffer_in.data_view.getBigUint64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 8;
     return x;
 }
 
-function readFloat(buffer_in) {
+function readFloat(buffer_in: bufferin.BufferIn) {
     let x = buffer_in.data_view.getFloat32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 4;
     return x;
 }
 
-function readDouble(buffer_in) {
+function readDouble(buffer_in: bufferin.BufferIn) {
     let x = buffer_in.data_view.getFloat64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
     buffer_in.read_index += 8;
     return x;
 }
 
 
-function readUIDFromStream(buffer_in): bigint {
+function readUIDFromStream(buffer_in: bufferin.BufferIn): bigint {
     return readUInt64(buffer_in);
 }
 
@@ -225,7 +225,7 @@ class Vec3f {
         this.z = z_;
     }
 
-    writeToStream(buffer_out) {
+    writeToStream(buffer_out: bufferout.BufferOut) {
         buffer_out.writeFloat(this.x);
         buffer_out.writeFloat(this.y);
         buffer_out.writeFloat(this.z);
@@ -245,7 +245,7 @@ class Matrix2f {
         this.w = w_;
     }
 
-    writeToStream(buffer_out) {
+    writeToStream(buffer_out: bufferout.BufferOut) {
         buffer_out.writeFloat(this.x);
         buffer_out.writeFloat(this.y);
         buffer_out.writeFloat(this.z);
@@ -264,7 +264,7 @@ class Colour3f {
         this.b = z_;
     }
 
-    writeToStream(buffer_out) {
+    writeToStream(buffer_out: bufferout.BufferOut) {
         buffer_out.writeFloat(this.r);
         buffer_out.writeFloat(this.g);
         buffer_out.writeFloat(this.b);
@@ -282,41 +282,41 @@ class Vec3d {
         this.z = z_;
     }
 
-    writeToStream(buffer_out) {
+    writeToStream(buffer_out: bufferout.BufferOut) {
         buffer_out.writeDouble(this.x);
         buffer_out.writeDouble(this.y);
         buffer_out.writeDouble(this.z);
     }
 }
 
-function readVec2dFromStream(buffer_in) {
+function readVec2dFromStream(buffer_in: bufferin.BufferIn) {
     let x = readDouble(buffer_in);
     let y = readDouble(buffer_in);
     return new Vec2d(x, y);
 }
 
-function readVec3fFromStream(buffer_in) {
+function readVec3fFromStream(buffer_in: bufferin.BufferIn) {
     let x = readFloat(buffer_in);
     let y = readFloat(buffer_in);
     let z = readFloat(buffer_in);
     return new Vec3f(x, y, z);
 }
 
-function readVec3dFromStream(buffer_in) {
+function readVec3dFromStream(buffer_in: bufferin.BufferIn) {
     let x = readDouble(buffer_in);
     let y = readDouble(buffer_in);
     let z = readDouble(buffer_in);
     return new Vec3d(x, y, z);
 }
 
-function readColour3fFromStream(buffer_in) {
+function readColour3fFromStream(buffer_in: bufferin.BufferIn) {
     let x = readFloat(buffer_in);
     let y = readFloat(buffer_in);
     let z = readFloat(buffer_in);
     return new Colour3f(x, y, z);
 }
 
-function readMatrix2fFromStream(buffer_in) {
+function readMatrix2fFromStream(buffer_in: bufferin.BufferIn) {
     let x = readFloat(buffer_in);
     let y = readFloat(buffer_in);
     let z = readFloat(buffer_in);
@@ -324,7 +324,7 @@ function readMatrix2fFromStream(buffer_in) {
     return new Matrix2f(x, y, z, w);
 }
 
-function readStringFromStream(buffer_in) {
+function readStringFromStream(buffer_in: bufferin.BufferIn) {
     let len = readUInt32(buffer_in); // Read length in bytes
 
     let utf8_array = new Int8Array(buffer_in.array_buffer, /*byteoffset=*/buffer_in.read_index, /*length=*/len);
@@ -334,17 +334,17 @@ function readStringFromStream(buffer_in) {
     return fromUTF8Array(utf8_array);
 }
 
-function readParcelIDFromStream(buffer_in) {
+function readParcelIDFromStream(buffer_in: bufferin.BufferIn) {
     return readUInt32(buffer_in);
 }
 
-function readUserIDFromStream(buffer_in) {
+function readUserIDFromStream(buffer_in: bufferin.BufferIn) {
     return readUInt32(buffer_in);
 }
 
 const TIMESTAMP_SERIALISATION_VERSION = 1;
 
-function readTimeStampFromStream(buffer_in): bigint {
+function readTimeStampFromStream(buffer_in: bufferin.BufferIn): bigint {
     let version = readUInt32(buffer_in);
     if (version != TIMESTAMP_SERIALISATION_VERSION)
         throw "Unhandled version " + toString(version) + ", expected " + toString(TIMESTAMP_SERIALISATION_VERSION) + ".";
@@ -365,7 +365,7 @@ class AvatarSettings {
         this.pre_ob_to_world_matrix = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
     }
 
-    writeToStream(stream) {
+    writeToStream(stream: bufferout.BufferOut) {
         stream.writeStringLengthFirst(this.model_url);
 
         // Write materials
@@ -378,7 +378,7 @@ class AvatarSettings {
     }
 
 
-    readFromStream(stream) {
+    readFromStream(stream: bufferin.BufferIn) {
         this.model_url = stream.readStringLengthFirst();
 
         // Read materials
@@ -419,7 +419,7 @@ class Avatar {
         this.mesh_state = MESH_NOT_LOADED;
     }
 
-    writeToStream(stream) {
+    writeToStream(stream: bufferout.BufferOut) {
         stream.writeUInt64(this.uid);
         stream.writeStringLengthFirst(this.name);
         this.pos.writeToStream(stream);
@@ -427,12 +427,12 @@ class Avatar {
         this.avatar_settings.writeToStream(stream);
     }
 
-    readFromStream(stream) {
+    readFromStream(stream: bufferin.BufferIn) {
         this.uid = stream.readUInt64();
         this.readFromStreamGivenUID(stream);
     }
 
-    readFromStreamGivenUID(stream) {
+    readFromStreamGivenUID(stream: bufferin.BufferIn) {
         this.name = stream.readStringLengthFirst();
         this.pos = readVec3dFromStream(stream);
         this.rotation = readVec3fFromStream(stream);
@@ -461,7 +461,7 @@ class Parcel {
 }
 
 
-function readParcelFromNetworkStreamGivenID(buffer_in) {
+function readParcelFromNetworkStreamGivenID(buffer_in: bufferin.BufferIn) {
     let parcel = new Parcel();
 
     parcel.owner_id = readUserIDFromStream(buffer_in);
@@ -640,7 +640,7 @@ class WorldMaterial {
         return (this.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
     }
 
-    writeToStream(stream) {
+    writeToStream(stream: bufferout.BufferOut) {
         stream.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
 
         this.colour_rgb.writeToStream(stream);
@@ -670,19 +670,19 @@ class ScalarVal {
         this.texture_url = texture_url_;
     }
 
-    writeToStream(stream) {
+    writeToStream(stream: bufferout.BufferOut) {
         stream.writeFloat(this.val);
         stream.writeStringLengthFirst(this.texture_url);
     }
 }
 
-function readScalarValFromStream(buffer_in) {
+function readScalarValFromStream(buffer_in: bufferin.BufferIn) {
     let val = readFloat(buffer_in);
     let texture_url = readStringFromStream(buffer_in);
     return new ScalarVal(val, texture_url);
 }
 
-function readWorldMaterialFromStream(buffer_in) {
+function readWorldMaterialFromStream(buffer_in: bufferin.BufferIn) {
     let mat = new WorldMaterial();
 
     let version = readUInt32(buffer_in);
@@ -709,7 +709,7 @@ function readWorldMaterialFromStream(buffer_in) {
 }
 
 
-function readWorldObjectFromNetworkStreamGivenUID(buffer_in) {
+function readWorldObjectFromNetworkStreamGivenUID(buffer_in: bufferin.BufferIn) {
     let ob = new WorldObject();
 
     ob.object_type = readUInt32(buffer_in);

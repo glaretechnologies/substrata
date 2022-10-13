@@ -14,14 +14,14 @@ class Vec3f {
 	x: number;
 	y: number;
 	z: number;
-	constructor(x_, y_, z_) {
+	constructor(x_: number, y_: number, z_: number) {
 		this.x = x_;
 		this.y = y_;
 		this.z = z_;
 	}
 }
 
-function readVec3fFromStream(buffer_in) {
+function readVec3fFromStream(buffer_in: bufferin.BufferIn): Vec3f {
 	var x = buffer_in.readFloat();
 	var y = buffer_in.readFloat();
 	var z = buffer_in.readFloat();
@@ -75,7 +75,7 @@ function vertAttributeTypeNumComponents(t)
 }
 
 
-function vertAttributeSize(attr)
+function vertAttributeSize(attr: VertAttribute): number
 {
 	if (attr.component_type == ComponentType_PackedNormal) // Special case, has 3 components packed into 4 bytes.
 		return 4;
@@ -84,7 +84,7 @@ function vertAttributeSize(attr)
 }
 
 
-function vertexSize(vert_attributes) // in bytes
+function vertexSize(vert_attributes: Array<VertAttribute>): number // in bytes
 {
 	let sum = 0;
 	for (let i = 0; i < vert_attributes.length; ++i)
@@ -114,7 +114,7 @@ class VertAttribute {
 }
 
 
-function convertToSigned(x) // x is uint32
+function convertToSigned(x: number): number // x is uint32
 {
 	// Treat the rightmost 10 bits of x as a signed number, sign extend
 	if ((x & 512) != 0) {
@@ -131,7 +131,7 @@ function convertToSigned(x) // x is uint32
 }
 
 
-function batchedMeshUnpackNormal(packed_normal) // packed_normal is uint32
+function batchedMeshUnpackNormal(packed_normal: number): Vec3f // packed_normal is uint32
 {
 	const x_bits = (packed_normal >> 0) & 1023;
 	const y_bits = (packed_normal >> 10) & 1023;
@@ -145,8 +145,7 @@ function batchedMeshUnpackNormal(packed_normal) // packed_normal is uint32
 }
 
 
-// data is an ArrayBuffer
-export function loadBatchedMesh(data): [THREE.BufferGeometry, Triangles] {
+export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Triangles] {
 
 	let buff = new bufferin.BufferIn(data);
 
@@ -189,7 +188,7 @@ export function loadBatchedMesh(data): [THREE.BufferGeometry, Triangles] {
 		throw "Too many vert attributes.";
 
 	let cur_offset = 0;
-	let vert_attributes = []
+	let vert_attributes: Array<VertAttribute> = []
 	for (let i = 0; i < num_vert_attributes; ++i) {
 		let attr = new VertAttribute();
 

@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2021 -
 
 
 // from https://gist.github.com/joni/3760795
-function toUTF8Array(str) {
+function toUTF8Array(str: string): Array<number> {
     var utf8 = [];
     for (var i = 0; i < str.length; i++) {
         var charcode = str.charCodeAt(i);
@@ -50,7 +50,7 @@ export class BufferOut {
         this.size = 0;
     }
 
-    checkForResize(newsize) {
+    checkForResize(newsize: number) {
         if (newsize > this.data.byteLength) {
             //console.log("BufferOut: resizing data to size " + this.data.byteLength * 2 + " B")
             // Resize data
@@ -68,42 +68,42 @@ export class BufferOut {
         }
     }
 
-    writeInt32(x) {
+    writeInt32(x: number) {
         this.checkForResize(/*newsize=*/this.size + 4);
 
         this.data_view.setInt32(/*byte offset=*/this.size, x, /*little endian=*/true);
         this.size += 4;
     }
 
-    writeUInt32(x) {
+    writeUInt32(x: number) {
         this.checkForResize(/*newsize=*/this.size + 4);
 
         this.data_view.setUint32(/*byte offset=*/this.size, x, /*little endian=*/true);
         this.size += 4;
     }
 
-    writeUInt64(x) {
+    writeUInt64(x: bigint) {
         this.checkForResize(/*newsize=*/this.size + 8);
 
         this.data_view.setBigUint64(/*byte offset=*/this.size, BigInt(x), /*little endian=*/true);
         this.size += 8;
     }
 
-    writeFloat(x) {
+    writeFloat(x: number) {
         this.checkForResize(/*newsize=*/this.size + 4);
 
         this.data_view.setFloat32(/*byte offset=*/this.size, x, /*little endian=*/true);
         this.size += 4;
     }
 
-    writeDouble(x) {
+    writeDouble(x: number) {
         this.checkForResize(/*newsize=*/this.size + 8);
 
         this.data_view.setFloat64(/*byte offset=*/this.size, x, /*little endian=*/true);
         this.size += 8;
     }
 
-    writeStringLengthFirst(str) {
+    writeStringLengthFirst(str: string) {
         let utf8_array = toUTF8Array(str)
 
         this.writeUInt32(utf8_array.length);
@@ -122,7 +122,7 @@ export class BufferOut {
         this.data_view.setUint32(/*byte offset=*/4, /*value=*/this.size, /*little endian=*/true);
     }
 
-    writeToWebSocket(web_socket) {
+    writeToWebSocket(web_socket: WebSocket) {
         // console.log("writeToWebSocket(): this.size:" + this.size)
 
         let trimmed = this.data.slice(0, this.size);
