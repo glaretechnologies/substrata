@@ -4,21 +4,27 @@ webclient.ts
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
-//import { GLTFLoader } from './examples/jsm/loaders/GLTFLoader.js';
+
 import * as THREE from './build/three.module.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
 import * as voxelloading from './voxelloading.js';
-import * as bufferin from './bufferin.js';
-import * as bufferout from './bufferout.js';
+import { BufferIn, readInt32, readUInt32, readUInt64, readFloat, readDouble, readStringFromStream } from './bufferin.js';
+import { BufferOut } from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
 import BVH, { Triangles } from './physics/bvh.js';
 import PhysicsWorld from './physics/world.js';
 import { makeAABB } from './maths/geometry.js';
 import CameraController from './cameraController.js';
-
-//import { CSM } from './examples/jsm/csm/CSM.js';
-//import { CSMHelper } from './examples/jsm/csm/CSMHelper.js';
+import { WorldMaterial, ScalarVal, readWorldMaterialFromStream } from './worldmaterial.js';
+import {
+    Vec2d, Vec3f, Vec3d, readVec2dFromStream, readVec3fFromStream, readVec3dFromStream, Colour3f, Matrix2f, readColour3fFromStream, readMatrix2fFromStream,
+    readUserIDFromStream, readTimeStampFromStream, readUIDFromStream, readParcelIDFromStream, writeUID
+} from './types.js';
+import { Avatar } from './avatar.js';
+import { toUTF8Array } from './utils.js';
+import { Parcel, readParcelFromNetworkStreamGivenID } from './parcel.js';
+import { WorldObject, readWorldObjectFromNetworkStreamGivenUID, MESH_LOADED, MESH_LOADING, MESH_NOT_LOADED } from './worldobject.js';
 
 
 var ws = new WebSocket("wss://" + window.location.host, "substrata-protocol");
@@ -57,77 +63,11 @@ const LoggedInMessageID = 8003;
 
 const TimeSyncMessage = 9000;
 
-const WorldObject_ObjectType_VoxelGroup = 2;
-
-const WORLD_MATERIAL_SERIALISATION_VERSION = 7;
 
 
-const MESH_NOT_LOADED = 0;
-const MESH_LOADING = 1;
-const MESH_LOADED = 2;
 
 function toString(x) {
     return x.toString();
-}
-
-// from https://gist.github.com/joni/3760795
-function toUTF8Array(str) {
-    var utf8 = [];
-    for (var i = 0; i < str.length; i++) {
-        var charcode = str.charCodeAt(i);
-        if (charcode < 0x80) utf8.push(charcode);
-        else if (charcode < 0x800) {
-            utf8.push(0xc0 | (charcode >> 6),
-                0x80 | (charcode & 0x3f));
-        }
-        else if (charcode < 0xd800 || charcode >= 0xe000) {
-            utf8.push(0xe0 | (charcode >> 12),
-                0x80 | ((charcode >> 6) & 0x3f),
-                0x80 | (charcode & 0x3f));
-        }
-        // surrogate pair
-        else {
-            i++;
-            // UTF-16 encodes 0x10000-0x10FFFF by
-            // subtracting 0x10000 and splitting the
-            // 20 bits of 0x0-0xFFFFF into two halves
-            charcode = 0x10000 + (((charcode & 0x3ff) << 10)
-                | (str.charCodeAt(i) & 0x3ff))
-            utf8.push(0xf0 | (charcode >> 18),
-                0x80 | ((charcode >> 12) & 0x3f),
-                0x80 | ((charcode >> 6) & 0x3f),
-                0x80 | (charcode & 0x3f));
-        }
-    }
-    return utf8;
-}
-
-
-function fromUTF8Array(data) { // array of bytes
-    var str = '',
-        i;
-
-    for (i = 0; i < data.length; i++) {
-        var value = data[i];
-
-        if (value < 0x80) {
-            str += String.fromCharCode(value);
-        } else if (value > 0xBF && value < 0xE0) {
-            str += String.fromCharCode((value & 0x1F) << 6 | data[i + 1] & 0x3F);
-            i += 1;
-        } else if (value > 0xDF && value < 0xF0) {
-            str += String.fromCharCode((value & 0x0F) << 12 | (data[i + 1] & 0x3F) << 6 | data[i + 2] & 0x3F);
-            i += 2;
-        } else {
-            // surrogate pair
-            var charCode = ((value & 0x07) << 18 | (data[i + 1] & 0x3F) << 12 | (data[i + 2] & 0x3F) << 6 | data[i + 3] & 0x3F) - 0x010000;
-
-            str += String.fromCharCode(charCode >> 10 | 0xD800, charCode & 0x03FF | 0xDC00);
-            i += 3;
-        }
-    }
-
-    return str;
 }
 
 
@@ -155,621 +95,6 @@ ws.onopen = function () {
     sendQueryObjectsMessage();
 };
 
-
-function readInt32(buffer_in: bufferin.BufferIn) {
-    let x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
-    buffer_in.read_index += 4;
-    return x;
-}
-
-function readUInt32(buffer_in: bufferin.BufferIn) {
-    let x = buffer_in.data_view.getUint32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
-    buffer_in.read_index += 4;
-    return x;
-}
-
-function readUInt64(buffer_in: bufferin.BufferIn): bigint {
-    let x = buffer_in.data_view.getBigUint64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
-    buffer_in.read_index += 8;
-    return x;
-}
-
-function readFloat(buffer_in: bufferin.BufferIn) {
-    let x = buffer_in.data_view.getFloat32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
-    buffer_in.read_index += 4;
-    return x;
-}
-
-function readDouble(buffer_in: bufferin.BufferIn) {
-    let x = buffer_in.data_view.getFloat64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
-    buffer_in.read_index += 8;
-    return x;
-}
-
-
-function readUIDFromStream(buffer_in: bufferin.BufferIn): bigint {
-    return readUInt64(buffer_in);
-}
-
-
-function writeUID(buffer_out: bufferout.BufferOut, uid: bigint) {
-    buffer_out.writeUInt64(uid);
-}
-
-
-class Vec2d {
-    x: number;
-    y: number;
-
-    constructor(x_, y_) {
-        this.x = x_;
-        this.y = y_;
-    }
-}
-
-class Vec3f {
-    x: number;
-    y: number;
-    z: number;
-
-    constructor(x_, y_, z_) {
-        this.x = x_;
-        this.y = y_;
-        this.z = z_;
-    }
-
-    writeToStream(buffer_out: bufferout.BufferOut) {
-        buffer_out.writeFloat(this.x);
-        buffer_out.writeFloat(this.y);
-        buffer_out.writeFloat(this.z);
-    }
-}
-
-class Matrix2f {
-    x: number;
-    y: number;
-    z: number;
-    w: number;
-
-    constructor(x_, y_, z_, w_) {
-        this.x = x_;
-        this.y = y_;
-        this.z = z_;
-        this.w = w_;
-    }
-
-    writeToStream(buffer_out: bufferout.BufferOut) {
-        buffer_out.writeFloat(this.x);
-        buffer_out.writeFloat(this.y);
-        buffer_out.writeFloat(this.z);
-        buffer_out.writeFloat(this.w);
-    }
-}
-
-class Colour3f {
-    r: number;
-    g: number;
-    b: number;
-
-    constructor(x_, y_, z_) {
-        this.r = x_;
-        this.g = y_;
-        this.b = z_;
-    }
-
-    writeToStream(buffer_out: bufferout.BufferOut) {
-        buffer_out.writeFloat(this.r);
-        buffer_out.writeFloat(this.g);
-        buffer_out.writeFloat(this.b);
-    }
-}
-
-class Vec3d {
-    x: number;
-    y: number;
-    z: number;
-
-    constructor(x_, y_, z_) {
-        this.x = x_;
-        this.y = y_;
-        this.z = z_;
-    }
-
-    writeToStream(buffer_out: bufferout.BufferOut) {
-        buffer_out.writeDouble(this.x);
-        buffer_out.writeDouble(this.y);
-        buffer_out.writeDouble(this.z);
-    }
-}
-
-function readVec2dFromStream(buffer_in: bufferin.BufferIn) {
-    let x = readDouble(buffer_in);
-    let y = readDouble(buffer_in);
-    return new Vec2d(x, y);
-}
-
-function readVec3fFromStream(buffer_in: bufferin.BufferIn) {
-    let x = readFloat(buffer_in);
-    let y = readFloat(buffer_in);
-    let z = readFloat(buffer_in);
-    return new Vec3f(x, y, z);
-}
-
-function readVec3dFromStream(buffer_in: bufferin.BufferIn) {
-    let x = readDouble(buffer_in);
-    let y = readDouble(buffer_in);
-    let z = readDouble(buffer_in);
-    return new Vec3d(x, y, z);
-}
-
-function readColour3fFromStream(buffer_in: bufferin.BufferIn) {
-    let x = readFloat(buffer_in);
-    let y = readFloat(buffer_in);
-    let z = readFloat(buffer_in);
-    return new Colour3f(x, y, z);
-}
-
-function readMatrix2fFromStream(buffer_in: bufferin.BufferIn) {
-    let x = readFloat(buffer_in);
-    let y = readFloat(buffer_in);
-    let z = readFloat(buffer_in);
-    let w = readFloat(buffer_in);
-    return new Matrix2f(x, y, z, w);
-}
-
-function readStringFromStream(buffer_in: bufferin.BufferIn) {
-    let len = readUInt32(buffer_in); // Read length in bytes
-
-    let utf8_array = new Int8Array(buffer_in.array_buffer, /*byteoffset=*/buffer_in.read_index, /*length=*/len);
-
-    buffer_in.read_index += len;
-
-    return fromUTF8Array(utf8_array);
-}
-
-function readParcelIDFromStream(buffer_in: bufferin.BufferIn) {
-    return readUInt32(buffer_in);
-}
-
-function readUserIDFromStream(buffer_in: bufferin.BufferIn) {
-    return readUInt32(buffer_in);
-}
-
-const TIMESTAMP_SERIALISATION_VERSION = 1;
-
-function readTimeStampFromStream(buffer_in: bufferin.BufferIn): bigint {
-    let version = readUInt32(buffer_in);
-    if (version != TIMESTAMP_SERIALISATION_VERSION)
-        throw "Unhandled version " + toString(version) + ", expected " + toString(TIMESTAMP_SERIALISATION_VERSION) + ".";
-
-    return readUInt64(buffer_in);
-}
-
-
-
-class AvatarSettings {
-    model_url: string;
-    materials: Array<WorldMaterial>;
-    pre_ob_to_world_matrix: Array<number>;
-
-    constructor() {
-        this.model_url = "";
-        this.materials = [];
-        this.pre_ob_to_world_matrix = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
-    }
-
-    writeToStream(stream: bufferout.BufferOut) {
-        stream.writeStringLengthFirst(this.model_url);
-
-        // Write materials
-        stream.writeUInt32(this.materials.length)
-        for (let i = 0; i < this.materials.length; ++i)
-            this.materials[i].writeToStream(stream)
-
-        for (let i = 0; i < 16; ++i)
-            stream.writeFloat(this.pre_ob_to_world_matrix[i])
-    }
-
-
-    readFromStream(stream: bufferin.BufferIn) {
-        this.model_url = stream.readStringLengthFirst();
-
-        // Read materials
-        let num_mats = stream.readUInt32();
-        if (num_mats > 10000)
-            throw "Too many mats: " + num_mats
-        this.materials = [];
-        for (let i = 0; i < num_mats; ++i) {
-            let mat = readWorldMaterialFromStream(stream);
-            this.materials.push(mat);
-        }
-
-        for (let i = 0; i < 16; ++i)
-            this.pre_ob_to_world_matrix[i] = stream.readFloat();
-    }
-}
-
-class Avatar {
-    uid: bigint;
-    name: string;
-    pos: Vec3d;
-    rotation: Vec3f;
-    avatar_settings: AvatarSettings;
-
-    anim_state: number;
-
-
-    mesh_state: number;
-    mesh: THREE.Mesh;
-
-    constructor() {
-        //this.uid = BigInt(0); // uint64   // TEMP
-        this.name = "";
-        this.pos = new Vec3d(0, 0, 0);
-        this.rotation = new Vec3f(0, 0, 0);
-        this.avatar_settings = new AvatarSettings();
-
-        this.mesh_state = MESH_NOT_LOADED;
-    }
-
-    writeToStream(stream: bufferout.BufferOut) {
-        stream.writeUInt64(this.uid);
-        stream.writeStringLengthFirst(this.name);
-        this.pos.writeToStream(stream);
-        this.rotation.writeToStream(stream);
-        this.avatar_settings.writeToStream(stream);
-    }
-
-    readFromStream(stream: bufferin.BufferIn) {
-        this.uid = stream.readUInt64();
-        this.readFromStreamGivenUID(stream);
-    }
-
-    readFromStreamGivenUID(stream: bufferin.BufferIn) {
-        this.name = stream.readStringLengthFirst();
-        this.pos = readVec3dFromStream(stream);
-        this.rotation = readVec3fFromStream(stream);
-        this.avatar_settings.readFromStream(stream);
-    }
-}
-
-
-class Parcel {
-    parcel_id: number;
-    owner_id: number;
-    created_time: bigint;
-    description: string;
-    admin_ids: Array<Number>;
-    writer_ids: Array<Number>;
-    child_parcel_ids: Array<Number>;
-    all_writeable: boolean;
-    verts: Array<Vec2d>;
-    zbounds: Vec2d;
-    flags: number;
-    parcel_auction_ids: Array<Number>;
-    spawn_point: Vec3d;
-    owner_name: string;
-    admin_names: Array<string>;
-    writer_names: Array<string>;
-}
-
-
-function readParcelFromNetworkStreamGivenID(buffer_in: bufferin.BufferIn) {
-    let parcel = new Parcel();
-
-    parcel.owner_id = readUserIDFromStream(buffer_in);
-    parcel.created_time = readTimeStampFromStream(buffer_in);
-    parcel.description = readStringFromStream(buffer_in);
-
-    //console.log("parcel: ", parcel)
-    //console.log("parcel.description: ", parcel.description)
-
-    // Read admin_ids
-    {
-        let num = readUInt32(buffer_in);
-        if (num > 100000)
-            throw "Too many admin_ids: " + toString(num);
-        parcel.admin_ids = [];
-        for (let i = 0; i < num; ++i)
-            parcel.admin_ids.push(readUserIDFromStream(buffer_in));
-
-        //console.log("parcel.admin_ids: ", parcel.admin_ids)
-    }
-
-    // Read writer_ids
-    {
-        let num = readUInt32(buffer_in);
-        if (num > 100000)
-            throw "Too many writer_ids: " + toString(num);
-        parcel.writer_ids = [];
-        for (let i = 0; i < num; ++i)
-            parcel.writer_ids.push(readUserIDFromStream(buffer_in));
-    }
-
-    // Read child_parcel_ids
-    {
-        let num = readUInt32(buffer_in);
-        if (num > 100000)
-            throw "Too many child_parcel_ids: " + toString(num);
-        parcel.child_parcel_ids = [];
-        for (let i = 0; i < num; ++i)
-            parcel.child_parcel_ids.push(readUserIDFromStream(buffer_in));
-    }
-
-    // Read all_writeable
-    {
-        let val = readUInt32(buffer_in);
-        if (val != 0 && val != 1)
-            throw "Invalid boolean value";
-        parcel.all_writeable = val != 0;
-    }
-
-    parcel.verts = []
-    for (let i = 0; i < 4; ++i) {
-        parcel.verts.push(readVec2dFromStream(buffer_in));
-
-        //console.log("parcel.verts[i]: ", parcel.verts[i]);
-    }
-
-    parcel.zbounds = readVec2dFromStream(buffer_in);
-
-    {
-        // Read parcel_auction_ids
-        let num = readUInt32(buffer_in);
-        if (num > 100000)
-            throw "Too many parcel_auction_ids: " + toString(num);
-        parcel.parcel_auction_ids = []
-        for (let i = 0; i < num; ++i)
-            parcel.parcel_auction_ids.push(readUInt32(buffer_in));
-    }
-
-    // Read flags
-    parcel.flags = readUInt32(buffer_in)
-
-    // Read spawn_point
-    parcel.spawn_point = readVec3dFromStream(buffer_in);
-
-    //console.log("parcel.parcel_auction_ids: ", parcel.parcel_auction_ids)
-
-    parcel.owner_name = readStringFromStream(buffer_in);
-
-    //console.log("parcel.owner_name: ", parcel.owner_name)
-
-    // Read admin_names
-    {
-        let num = readUInt32(buffer_in);
-        if (num > 100000)
-            throw "Too many admin_names: " + toString(num);
-        parcel.admin_names = []
-        for (let i = 0; i < num; ++i)
-            parcel.admin_names.push(readStringFromStream(buffer_in));
-    }
-
-    // Read writer_names
-    {
-        let num = readUInt32(buffer_in);
-        if (num > 100000)
-            throw "Too many writer_names: " + toString(num);
-        parcel.writer_names = []
-        for (let i = 0; i < num; ++i)
-            parcel.writer_names.push(readStringFromStream(buffer_in));
-    }
-
-    //console.log("parcel: ", parcel)
-
-    return parcel;
-}
-
-
-export class WorldObject {
-    uid: bigint;
-    object_type: number;
-    model_url: string;
-    mats: Array<WorldMaterial>;
-    lightmap_url: string;
-
-    script: string;
-    content: string;
-    target_url: string;
-
-    audio_source_url: string;
-    audio_volume: number;
-
-    pos: Vec3d;
-    axis: Vec3f;
-    angle: number;
-
-    scale: Vec3f;
-
-    created_time: bigint;
-    creator_id: number;
-
-    flags: number;
-
-    creator_name: string;
-
-    aabb_ws_min: Vec3f;
-    aabb_ws_max: Vec3f;
-
-    max_model_lod_level: number;
-
-    compressed_voxels: ArrayBuffer;
-
-    bvh: BVH
-    get objectToWorld (): THREE.Matrix4 { return this.mesh.matrixWorld; }
-    worldToObject: THREE.Matrix4 // TODO: We should only calculate the inverse when the world matrix actually changes
-    world_aabb: Float32Array // Root AABB node created from aabb_ws_min & aabb_ws_max
-
-    mesh_state: number;
-    mesh: THREE.Mesh;
-
-    constructor() {
-        this.mesh_state = MESH_NOT_LOADED;
-    }
-}
-
-const COLOUR_TEX_HAS_ALPHA_FLAG = 1;
-const MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
-
-class WorldMaterial {
-
-    colour_texture_url: string;
-    emission_texture_url: string;
-    colour_rgb: Colour3f;
-    emission_rgb: Colour3f;
-    roughness: ScalarVal;
-    metallic_fraction: ScalarVal;
-    opacity: ScalarVal;
-    tex_matrix: Matrix2f;
-    emission_lum_flux: number;
-    flags: number;
-
-    colourTexHasAlpha() {
-        return (this.flags & COLOUR_TEX_HAS_ALPHA_FLAG) != 0;
-    }
-
-    minLODLevel() {
-        return (this.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
-    }
-
-    writeToStream(stream: bufferout.BufferOut) {
-        stream.writeUInt32(WORLD_MATERIAL_SERIALISATION_VERSION);
-
-        this.colour_rgb.writeToStream(stream);
-        stream.writeStringLengthFirst(this.colour_texture_url);
-
-        this.emission_rgb.writeToStream(stream);
-        stream.writeStringLengthFirst(this.emission_texture_url);
-
-        this.roughness.writeToStream(stream);
-        this.metallic_fraction.writeToStream(stream);
-        this.opacity.writeToStream(stream);
-
-        this.tex_matrix.writeToStream(stream);
-
-        stream.writeFloat(this.emission_lum_flux);
-
-        stream.writeUInt32(this.flags);
-    }
-
-    setDefaults() {
-        this.colour_texture_url = "";
-        this.emission_texture_url = "";
-        this.colour_rgb = new Colour3f(0.5, 0.5, 0.5);
-        this.emission_rgb = new Colour3f(0, 0, 0);
-        this.roughness = new ScalarVal(0.5, "");
-        this.metallic_fraction = new ScalarVal(0.0, "");
-        this.opacity = new ScalarVal(1.0, "");
-        this.tex_matrix = new Matrix2f(1, 0, 0, 1);
-        this.emission_lum_flux = 0;
-        this.flags = 0;
-	}
-}
-
-class ScalarVal {
-    val: number;
-    texture_url: string;
-
-    constructor(val_, texture_url_) {
-        this.val = val_;
-        this.texture_url = texture_url_;
-    }
-
-    writeToStream(stream: bufferout.BufferOut) {
-        stream.writeFloat(this.val);
-        stream.writeStringLengthFirst(this.texture_url);
-    }
-}
-
-function readScalarValFromStream(buffer_in: bufferin.BufferIn) {
-    let val = readFloat(buffer_in);
-    let texture_url = readStringFromStream(buffer_in);
-    return new ScalarVal(val, texture_url);
-}
-
-function readWorldMaterialFromStream(buffer_in: bufferin.BufferIn) {
-    let mat = new WorldMaterial();
-
-    let version = readUInt32(buffer_in);
-    if (version > WORLD_MATERIAL_SERIALISATION_VERSION)
-        throw "Unsupported version " + toString(version) + ", expected " + toString(WORLD_MATERIAL_SERIALISATION_VERSION) + ".";
-
-    mat.colour_rgb = readColour3fFromStream(buffer_in);
-    mat.colour_texture_url = readStringFromStream(buffer_in);
-
-    mat.emission_rgb = readColour3fFromStream(buffer_in);
-    mat.emission_texture_url = readStringFromStream(buffer_in);
-
-    mat.roughness = readScalarValFromStream(buffer_in);
-    mat.metallic_fraction = readScalarValFromStream(buffer_in);
-    mat.opacity = readScalarValFromStream(buffer_in);
-
-    mat.tex_matrix = readMatrix2fFromStream(buffer_in);
-
-    mat.emission_lum_flux = readFloat(buffer_in);
-
-    mat.flags = readUInt32(buffer_in);
-
-    return mat;
-}
-
-
-function readWorldObjectFromNetworkStreamGivenUID(buffer_in: bufferin.BufferIn) {
-    let ob = new WorldObject();
-
-    ob.object_type = readUInt32(buffer_in);
-    ob.model_url = readStringFromStream(buffer_in);
-    // Read mats
-    {
-        let num = readUInt32(buffer_in);
-        if (num > 10000)
-            throw "Too many mats: " + toString(num);
-        ob.mats = []
-        for (let i = 0; i < num; ++i)
-            ob.mats.push(readWorldMaterialFromStream(buffer_in));
-    }
-
-    ob.lightmap_url = readStringFromStream(buffer_in);
-
-    ob.script = readStringFromStream(buffer_in);
-    ob.content = readStringFromStream(buffer_in);
-    ob.target_url = readStringFromStream(buffer_in);
-
-    ob.audio_source_url = readStringFromStream(buffer_in);
-    ob.audio_volume = readFloat(buffer_in);
-
-    ob.pos = readVec3dFromStream(buffer_in);
-    ob.axis = readVec3fFromStream(buffer_in);
-    ob.angle = readFloat(buffer_in);
-
-    ob.scale = readVec3fFromStream(buffer_in);
-
-    ob.created_time = readTimeStampFromStream(buffer_in);
-    ob.creator_id = readUserIDFromStream(buffer_in);
-
-    ob.flags = readUInt32(buffer_in);
-
-    ob.creator_name = readStringFromStream(buffer_in);
-
-    ob.aabb_ws_min = readVec3fFromStream(buffer_in);
-    ob.aabb_ws_max = readVec3fFromStream(buffer_in);
-
-    ob.max_model_lod_level = readInt32(buffer_in);
-
-    if (ob.object_type == WorldObject_ObjectType_VoxelGroup)
-    {
-        // Read compressed voxel data
-        let voxel_data_size = readUInt32(buffer_in);
-        if (voxel_data_size > 1000000)
-            throw "Invalid voxel_data_size (too large): " + toString(voxel_data_size);
-
-        if(voxel_data_size > 0) {
-            ob.compressed_voxels = buffer_in.readData(voxel_data_size); // Read voxel data
-        }
-    }
-
-    return ob;
-}
 
 
 const MAX_OB_LOAD_DISTANCE_FROM_CAM = 200;
@@ -803,7 +128,7 @@ function sendQueryObjectsMessage() {
     // console.log("end_y: " + end_y);
     // console.log("end_z: " + end_z);
 
-    let buffer_out = new bufferout.BufferOut();
+    let buffer_out = new BufferOut();
     buffer_out.writeUInt32(QueryObjects);
     buffer_out.writeUInt32(0); // message length - to be updated.
 
@@ -836,7 +161,7 @@ ws.onmessage = function (event) {
     //console.log("From Server:" + event.data + ", event.data.byteLength: " + event.data.byteLength);
 
     let z = 0;
-    let buffer = new bufferin.BufferIn(event.data);
+    let buffer = new BufferIn(event.data);
     while (!buffer.endOfStream()) {
 
         //console.log("Reading, buffer.read_index: " + buffer.read_index);
@@ -1017,7 +342,7 @@ ws.onmessage = function (event) {
                 console.log("Logged in as " + logged_in_username);
 
                 // Send create avatar message now that we have our avatar settings.
-                let av_buf = new bufferout.BufferOut();
+                let av_buf = new BufferOut();
                 av_buf.writeUInt32(CreateAvatar);
                 av_buf.writeUInt32(0); // will be updated with length
                 client_avatar.writeToStream(av_buf);
@@ -1068,7 +393,7 @@ function onChatSubmitted(event) {
     console.log("msg: " + msg)
 
 
-    let buffer_out = new bufferout.BufferOut();
+    let buffer_out = new BufferOut();
     buffer_out.writeUInt32(ChatMessageID);
     buffer_out.writeUInt32(0); // will be updated with length
     buffer_out.writeStringLengthFirst(msg); // message
@@ -2061,7 +1386,7 @@ function animate() {
     if ((client_avatar_uid !== null) &&  cur_time > last_avatar_update_send_time + 0.1) {
         let anim_state = 0;
 
-        let buffer_out = new bufferout.BufferOut();
+        let buffer_out = new BufferOut();
         buffer_out.writeUInt32(AvatarTransformUpdate);
         buffer_out.writeUInt32(0); // will be updated with length
         writeUID(buffer_out, client_avatar_uid);

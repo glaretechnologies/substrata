@@ -4,33 +4,8 @@ bufferin.ts
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
-// from https://gist.github.com/joni/3760795
-function fromUTF8Array(data: Int8Array): string { // array of bytes
-	var str = '',
-		i;
 
-	for (i = 0; i < data.length; i++) {
-		var value = data[i];
-
-		if (value < 0x80) {
-			str += String.fromCharCode(value);
-		} else if (value > 0xBF && value < 0xE0) {
-			str += String.fromCharCode((value & 0x1F) << 6 | data[i + 1] & 0x3F);
-			i += 1;
-		} else if (value > 0xDF && value < 0xF0) {
-			str += String.fromCharCode((value & 0x0F) << 12 | (data[i + 1] & 0x3F) << 6 | data[i + 2] & 0x3F);
-			i += 2;
-		} else {
-			// surrogate pair
-			var charCode = ((value & 0x07) << 18 | (data[i + 1] & 0x3F) << 12 | (data[i + 2] & 0x3F) << 6 | data[i + 3] & 0x3F) - 0x010000;
-
-			str += String.fromCharCode(charCode >> 10 | 0xD800, charCode & 0x03FF | 0xDC00);
-			i += 3;
-		}
-	}
-
-	return str;
-}
+import { fromUTF8Array } from './utils.js'
 
 
 export class BufferIn {
@@ -123,4 +98,48 @@ export class BufferIn {
 
 		return fromUTF8Array(utf8_array);
 	}
+}
+
+
+
+
+export function readInt32(buffer_in: BufferIn) {
+	let x = buffer_in.data_view.getInt32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+	buffer_in.read_index += 4;
+	return x;
+}
+
+export function readUInt32(buffer_in: BufferIn) {
+	let x = buffer_in.data_view.getUint32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+	buffer_in.read_index += 4;
+	return x;
+}
+
+export function readUInt64(buffer_in: BufferIn): bigint {
+	let x = buffer_in.data_view.getBigUint64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+	buffer_in.read_index += 8;
+	return x;
+}
+
+export function readFloat(buffer_in: BufferIn) {
+	let x = buffer_in.data_view.getFloat32(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+	buffer_in.read_index += 4;
+	return x;
+}
+
+export function readDouble(buffer_in: BufferIn) {
+	let x = buffer_in.data_view.getFloat64(/*byte offset=*/buffer_in.read_index, /*little endian=*/true);
+	buffer_in.read_index += 8;
+	return x;
+}
+
+
+export function readStringFromStream(buffer_in: BufferIn) {
+	let len = readUInt32(buffer_in); // Read length in bytes
+
+	let utf8_array = new Int8Array(buffer_in.array_buffer, /*byteoffset=*/buffer_in.read_index, /*length=*/len);
+
+	buffer_in.read_index += len;
+
+	return fromUTF8Array(utf8_array);
 }

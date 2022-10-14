@@ -2,7 +2,7 @@
 Common API types used in Physics
 */
 
-import { WorldObject } from '../webclient.js';
+import { WorldObject } from '../worldobject.js';
 
 export const POS_X = 0;
 export const POS_Y = 1;
