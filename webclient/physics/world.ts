@@ -10,7 +10,7 @@ general queries.
 
 import BVH, { Triangles } from './bvh.js';
 import * as THREE from '../build/three.module.js';
-import type { WorldObject } from '../webclient.js';
+import type { WorldObject } from '../worldobject.js';
 import Caster from './caster.js';
 import {spherePathToAABB, testAABB, transformAABB} from '../maths/geometry.js';
 import { createAABBMesh } from './debug.js';

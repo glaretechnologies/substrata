@@ -1,6 +1,7 @@
 # webclient
 
 set(webclient_root_files
+../webclient/cameraController.ts
 ../webclient/bmeshloading.ts
 ../webclient/bufferin.ts
 ../webclient/bufferout.ts
@@ -11,6 +12,12 @@ set(webclient_root_files
 ../webclient/tsconfig.json
 ../webclient/voxelloading.ts
 ../webclient/webclient.ts
+../webclient/avatar.ts
+../webclient/worldmaterial.ts
+../webclient/types.ts
+../webclient/parcel.ts
+../webclient/worldobject.ts
+../webclient/utils.ts
 )
 
 set(webclient_maths_files
