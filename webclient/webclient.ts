@@ -651,6 +651,19 @@ class WorldMaterial {
 
         stream.writeUInt32(this.flags);
     }
+
+    setDefaults() {
+        this.colour_texture_url = "";
+        this.emission_texture_url = "";
+        this.colour_rgb = new Colour3f(0.5, 0.5, 0.5);
+        this.emission_rgb = new Colour3f(0, 0, 0);
+        this.roughness = new ScalarVal(0.5, "");
+        this.metallic_fraction = new ScalarVal(0.0, "");
+        this.opacity = new ScalarVal(1.0, "");
+        this.tex_matrix = new Matrix2f(1, 0, 0, 1);
+        this.emission_lum_flux = 0;
+        this.flags = 0;
+	}
 }
 
 class ScalarVal {
@@ -922,12 +935,7 @@ ws.onmessage = function (event) {
                 updateOnlineUsersList();
 
                 if (avatar.uid != client_avatar_uid) {
-                    console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
-                    let ob_lod_level = 0;
-                    let world_axis = new Vec3f(0, 0, 1);
-                    let angle = 0;
-                    let ob_aabb_longest_len = 2;
-                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                    loadModelForAvatar(avatar);
                 }
             }
             else if (msg_type == AvatarIsHere) {
@@ -944,12 +952,7 @@ ws.onmessage = function (event) {
                 updateOnlineUsersList();
 
                 if (avatar.uid != client_avatar_uid) {
-                    console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
-                    let ob_lod_level = 0;
-                    let world_axis = new Vec3f(0, 0, 1);
-                    let angle = 0;
-                    let ob_aabb_longest_len = 2;
-                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                    loadModelForAvatar(avatar);
                 }
             }
             else if (msg_type == AvatarDestroyed) {
@@ -1002,16 +1005,7 @@ ws.onmessage = function (event) {
 
                 if (avatar.uid != client_avatar_uid) {// && avatar.mesh_state != MESH_LOADED) {
 
-                    // Load some spheres to represent the avatar.
-
-
-
-                    console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
-                    let ob_lod_level = 0;
-                    let world_axis = new Vec3f(0, 0, 1);
-                    let angle = 0;
-                    let ob_aabb_longest_len = 2;
-                    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+                    loadModelForAvatar(avatar);
                 }
             }
             else if (msg_type == LoggedInMessageID) {
@@ -1101,6 +1095,49 @@ document.getElementById('chatform').addEventListener('submit', onChatSubmitted);
 //    }
 //});
 
+
+
+function loadModelForAvatar(avatar: Avatar) {
+
+    let default_model_url = "xbot_glb_3242545562312850498.bmesh"
+
+    if (avatar.avatar_settings.model_url.length == 0) {
+
+        avatar.avatar_settings.model_url = default_model_url;
+        avatar.avatar_settings.materials = Array(2);
+
+        avatar.avatar_settings.materials[0] = new WorldMaterial();
+        avatar.avatar_settings.materials[0].setDefaults();
+        avatar.avatar_settings.materials[0].colour_rgb = new Colour3f(0.5, 0.6, 0.7);
+        avatar.avatar_settings.materials[0].metallic_fraction = new ScalarVal(0.5, "")
+        avatar.avatar_settings.materials[0].roughness = new ScalarVal(0.3, "")
+
+        avatar.avatar_settings.materials[1] = new WorldMaterial();
+        avatar.avatar_settings.materials[1].setDefaults();
+        avatar.avatar_settings.materials[1].colour_rgb = new Colour3f(0.8, 0.8, 0.8);
+        avatar.avatar_settings.materials[1].roughness = new ScalarVal(0.0, "")
+
+        const EYE_HEIGHT = 1.67;
+
+        let to_z_up = new THREE.Matrix4();
+        to_z_up.set(
+            1, 0, 0, 0,
+            0, 0, -1, 0,
+            0, 1, 0, 0,
+            0, 0, 0, 1
+        );
+        let trans = new THREE.Matrix4().makeTranslation(0, 0, -EYE_HEIGHT);
+        let product = new THREE.Matrix4().multiplyMatrices(trans, to_z_up);
+        avatar.avatar_settings.pre_ob_to_world_matrix = product.toArray(); // returns in column-major format, which we want.
+	}
+    console.log("Loading avatar model: " + avatar.avatar_settings.model_url);
+    let ob_lod_level = 0;
+    let world_axis = new Vec3f(0, 0, 1);
+    let angle = 0;
+    let ob_aabb_longest_len = 2;
+
+    loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+}
 
 
 function updateOnlineUsersList() {
