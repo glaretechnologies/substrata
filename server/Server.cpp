@@ -459,6 +459,18 @@ int main(int argc, char *argv[])
 		server.world_state->resource_manager = new ResourceManager(server_resource_dir);
 
 
+		// Copy default avatar model into resource dir
+		{
+			//const std::string mesh_URL = "xbot_glb_10972822012543217816.glb";
+			const std::string mesh_URL = "xbot_glb_3242545562312850498.bmesh";
+
+			if(!server.world_state->resource_manager->isFileForURLPresent(mesh_URL))
+			{
+				server.world_state->resource_manager->copyLocalFileToResourceDir(server_state_dir + "/dist_resources/xbot_glb_3242545562312850498.bmesh", mesh_URL);
+			}
+		}
+
+
 		// Reads database at the path given by arg 0, writes a sanitised and compacted database at arg 0 path, with "_sanitised" appended to filename.
 		if(parsed_args.isArgPresent("--save_sanitised_database"))
 		{
