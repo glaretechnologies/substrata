@@ -19,8 +19,20 @@ Version history:
 */
 
 
+Resource::Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_)
+:	URL(URL_), 
+	local_path(raw_local_path_), 
+	state(s), 
+	owner_id(owner_id_)/*, num_buffer_readers(0)*/
+{
+	assert(!FileUtils::isPathAbsolute(local_path));
+}
+
+
 void Resource::writeToStreamCommon(OutStream& stream)
 {
+	assert(!FileUtils::isPathAbsolute(local_path));
+
 	stream.writeStringLengthFirst(URL); 
 	stream.writeStringLengthFirst(local_path);
 	::writeToStream(owner_id, stream);
