@@ -29,6 +29,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <dll/IndigoStringUtils.h>
+#include <FileUtils.h>
 
 
 MeshLODGenThread::MeshLODGenThread(ServerAllWorldsState* world_state_)
@@ -50,8 +51,8 @@ static bool textureHasAlphaChannel(Reference<Map2D>& map)
 
 struct LODMeshToGen
 {
-	std::string model_path;
-	std::string LOD_model_path;
+	std::string model_abs_path;
+	std::string LOD_model_abs_path;
 	std::string lod_URL;
 	int lod_level;
 	UserID owner_id;
@@ -60,8 +61,8 @@ struct LODMeshToGen
 
 struct LODTextureToGen
 {
-	std::string tex_path;
-	std::string LOD_tex_path;
+	std::string tex_abs_path;
+	std::string LOD_tex_abs_path;
 	std::string lod_URL;
 	int lod_level;
 	UserID owner_id;
@@ -175,9 +176,9 @@ void MeshLODGenThread::doRun()
 							{
 								if(true)
 								{
-									const std::string model_path = world_state->resource_manager->pathForURL(ob->model_url);
+									const std::string model_abs_path = world_state->resource_manager->pathForURL(ob->model_url);
 
-									BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_path);
+									BatchedMeshRef batched_mesh = LODGeneration::loadModel(model_abs_path);
 
 									const int new_max_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 									if(new_max_lod_level != ob->max_model_lod_level)
@@ -189,7 +190,7 @@ void MeshLODGenThread::doRun()
 									{
 										for(int lvl = 1; lvl <= 2; ++lvl)
 										{
-											const std::string lod_path = WorldObject::getLODModelURLForLevel(model_path, lvl);
+											const std::string lod_abs_path = WorldObject::getLODModelURLForLevel(model_abs_path, lvl);
 											const std::string lod_URL  = WorldObject::getLODModelURLForLevel(ob->model_url, lvl);
 
 											if(lod_URLs_considered.count(lod_URL) == 0)
@@ -201,8 +202,8 @@ void MeshLODGenThread::doRun()
 													// Generate the model
 													LODMeshToGen mesh_to_gen;
 													mesh_to_gen.lod_level = lvl;
-													mesh_to_gen.model_path = model_path;
-													mesh_to_gen.LOD_model_path = lod_path;
+													mesh_to_gen.model_abs_path = model_abs_path;
+													mesh_to_gen.LOD_model_abs_path = lod_abs_path;
 													mesh_to_gen.lod_URL = lod_URL;
 													mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
 													meshes_to_gen.push_back(mesh_to_gen);
@@ -213,7 +214,7 @@ void MeshLODGenThread::doRun()
 													{
 														try
 														{
-															BatchedMeshRef lod1_mesh = LODGeneration::loadModel(lod_path);
+															BatchedMeshRef lod1_mesh = LODGeneration::loadModel(lod_abs_path);
 															if((batched_mesh->numVerts() > 1024) && // If this is a med/large mesh
 																((float)lod1_mesh->numVerts() > (batched_mesh->numVerts() / 4.f))) // If we acheived less than a 4x reduction in the number of vertices, try again with sloppy simplification
 															{
@@ -222,8 +223,8 @@ void MeshLODGenThread::doRun()
 																// Generate the model
 																LODMeshToGen mesh_to_gen;
 																mesh_to_gen.lod_level = lvl;
-																mesh_to_gen.model_path = model_path;
-																mesh_to_gen.LOD_model_path = lod_path;
+																mesh_to_gen.model_abs_path = model_abs_path;
+																mesh_to_gen.LOD_model_abs_path = lod_abs_path;
 																mesh_to_gen.lod_URL = lod_URL;
 																mesh_to_gen.owner_id = world_state->resource_manager->getExistingResourceForURL(ob->model_url)->owner_id;
 																meshes_to_gen.push_back(mesh_to_gen);
@@ -317,9 +318,9 @@ void MeshLODGenThread::doRun()
 									ResourceRef base_resource = world_state->resource_manager->getExistingResourceForURL(mat->colour_texture_url);
 									if(base_resource.nonNull())
 									{
-										const std::string tex_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
+										const std::string tex_abs_path = world_state->resource_manager->getLocalAbsPathForResource(*base_resource);
 
-										if(hasExtension(tex_path, "mp4"))
+										if(hasExtension(tex_abs_path, "mp4"))
 										{
 											// Don't generate LOD for mp4 currently.
 										}
@@ -330,21 +331,21 @@ void MeshLODGenThread::doRun()
 											try
 											{
 												// Compute has_alpha and is_high_res for the texture if we haven't already.
-												auto res = tex_info.find(tex_path);
+												auto res = tex_info.find(tex_abs_path);
 												if(res == tex_info.end())
 												{
-													Reference<Map2D> map = ImageDecoding::decodeImage(".", tex_path); // Load texture from disk and decode it.
+													Reference<Map2D> map = ImageDecoding::decodeImage(".", tex_abs_path); // Load texture from disk and decode it.
 													const bool is_hi_res = map->getMapWidth() > 1024 || map->getMapHeight() > 1024;
 													const bool has_alpha = textureHasAlphaChannel(map);
 
-													tex_info[tex_path].has_alpha = has_alpha;
-													tex_info[tex_path].is_hi_res = is_hi_res;
+													tex_info[tex_abs_path].has_alpha = has_alpha;
+													tex_info[tex_abs_path].is_hi_res = is_hi_res;
 												}
 
 												// If the texture is very high res, set minimum texture lod level to -1.  Lod level 0 will be the texture resized to 1024x1024 or below.
 
-												const bool is_high_res = tex_info[tex_path].is_hi_res;
-												const bool has_alpha   = tex_info[tex_path].has_alpha;
+												const bool is_high_res = tex_info[tex_abs_path].is_hi_res;
+												const bool has_alpha   = tex_info[tex_abs_path].has_alpha;
 
 												// conPrint("tex " + tex_path + " is_hi_res: " + boolToString(is_high_res));
 
@@ -354,7 +355,7 @@ void MeshLODGenThread::doRun()
 												made_change = made_change || (mat->flags != old_flags);
 
 												if(mat->flags != old_flags)
-													conPrint("Updated mat flags: (for mat with tex " + tex_path + "): is_hi_res: " + boolToString(is_high_res));
+													conPrint("Updated mat flags: (for mat with tex " + tex_abs_path + "): is_hi_res: " + boolToString(is_high_res));
 
 												const int start_lod_level = mat->minLODLevel() + 1;
 												for(int lvl = start_lod_level; lvl <= 2; ++lvl)
@@ -363,7 +364,7 @@ void MeshLODGenThread::doRun()
 											
 													if(lod_URL != mat->colour_texture_url) // We don't do LOD for some texture types.
 													{
-														const std::string lod_path = world_state->resource_manager->pathForURL(lod_URL);
+														const std::string lod_abs_path = world_state->resource_manager->pathForURL(lod_URL);
 
 														if(lod_URLs_considered.count(lod_URL) == 0)
 														{
@@ -374,8 +375,8 @@ void MeshLODGenThread::doRun()
 																// Generate the texture
 																LODTextureToGen tex_to_gen;
 																tex_to_gen.lod_level = lvl;
-																tex_to_gen.tex_path = tex_path;
-																tex_to_gen.LOD_tex_path = lod_path;
+																tex_to_gen.tex_abs_path = tex_abs_path;
+																tex_to_gen.LOD_tex_abs_path = lod_abs_path;
 																tex_to_gen.lod_URL = lod_URL;
 																tex_to_gen.owner_id = base_resource->owner_id;
 																textures_to_gen.push_back(tex_to_gen);
@@ -415,15 +416,17 @@ void MeshLODGenThread::doRun()
 				{
 					conPrint("MeshLODGenThread: Generating LOD mesh with URL " + mesh_to_gen.lod_URL);
 
-					LODGeneration::generateLODModel(mesh_to_gen.model_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_path);
+					LODGeneration::generateLODModel(mesh_to_gen.model_abs_path, mesh_to_gen.lod_level, mesh_to_gen.LOD_model_abs_path);
 
 					// Now that we have generated the LOD model, add it to resources.
 					{ // lock scope
 						Lock lock(world_state->mutex);
 
+						const std::string raw_path = FileUtils::getFilename(mesh_to_gen.LOD_model_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
+
 						ResourceRef resource = new Resource(
 							mesh_to_gen.lod_URL, // URL
-							mesh_to_gen.LOD_model_path, // local path
+							raw_path, // raw local path
 							Resource::State_Present, // state
 							mesh_to_gen.owner_id
 						);
@@ -454,15 +457,17 @@ void MeshLODGenThread::doRun()
 				{
 					conPrint("MeshLODGenThread: Generating LOD texture with URL " + tex_to_gen.lod_URL);
 
-					LODGeneration::generateLODTexture(tex_to_gen.tex_path, tex_to_gen.lod_level, tex_to_gen.LOD_tex_path, task_manager);
+					LODGeneration::generateLODTexture(tex_to_gen.tex_abs_path, tex_to_gen.lod_level, tex_to_gen.LOD_tex_abs_path, task_manager);
 
 					// Now that we have generated the LOD model, add it to resources.
 					{ // lock scope
 						Lock lock(world_state->mutex);
 
+						const std::string raw_path = FileUtils::getFilename(tex_to_gen.LOD_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
+
 						ResourceRef resource = new Resource(
 							tex_to_gen.lod_URL, // URL
-							tex_to_gen.LOD_tex_path, // local path
+							raw_path, // raw local path
 							Resource::State_Present, // state
 							tex_to_gen.owner_id
 						);

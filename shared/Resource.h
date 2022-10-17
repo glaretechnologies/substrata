@@ -42,7 +42,7 @@ public:
 		//State_ResourceDownloadFailed
 	};
 
-	Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_) : URL(URL_), local_path(raw_local_path_), state(s), owner_id(owner_id_)/*, num_buffer_readers(0)*/ {}
+	Resource(const std::string& URL_, const std::string& raw_local_path_, State s, const UserID& owner_id_);
 	Resource() : state(State_NotPresent)/*, num_buffer_readers(0)*/ {}
 	
 	const std::string getLocalAbsPath(const std::string& base_resource_dir) const { return base_resource_dir + "/" + local_path; }
