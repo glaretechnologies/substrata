@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <PlatformUtils.h>
 #include <MemMappedFile.h>
 #include <FileUtils.h>
+#include <RuntimeCheck.h>
 
 
 namespace ResourceHandlers
@@ -172,9 +173,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 						reply_info.socket->writeData(response.c_str(), response.size());
 
 						// Sanity check range.start and range_size.  Should be valid by here.
-						assert((range.start >= 0) && (range.start <= (int64)file.fileSize()) && (range.start + range_size <= (int64)file.fileSize()));
-						if(!(range.start >= 0) && (range.start <= (int64)file.fileSize()) && (range.start + range_size <= (int64)file.fileSize()))
-							throw glare::Exception("internal error computing ranges");
+						runtimeCheck((range.start >= 0) && (range.start <= (int64)file.fileSize()) && (range.start + range_size <= (int64)file.fileSize()));
 
 						reply_info.socket->writeData((const uint8*)file.fileData() + range.start, range_size);
 				
