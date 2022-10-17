@@ -600,7 +600,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 }
 
 
-bool WebServerRequestHandler::handleWebSocketConnection(const web::RequestInfo& request_info, Reference<SocketInterface>& socket)
+void WebServerRequestHandler::handleWebSocketConnection(const web::RequestInfo& request_info, Reference<SocketInterface>& socket)
 {
 	// Wrap socket in a websocket
 	WebSocketRef websocket = new WebSocket(socket);
@@ -619,6 +619,4 @@ bool WebServerRequestHandler::handleWebSocketConnection(const web::RequestInfo& 
 		// Will get this when thread creation fails.
 		conPrint("ListenerThread failed to launch worker thread: " + e.what());
 	}
-
-	return true; // We do want to handle this connection completely.
 }

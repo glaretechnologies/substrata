@@ -23,7 +23,7 @@ public:
 
 	virtual void handleRequest(const web::RequestInfo& request_info, web::ReplyInfo& reply_info) override;
 
-	virtual bool handleWebSocketConnection(const web::RequestInfo& request_info, Reference<SocketInterface>& socket) override;
+	virtual void handleWebSocketConnection(const web::RequestInfo& request_info, Reference<SocketInterface>& socket) override;
 
 	WebDataStore* data_store;
 	Server* server;
