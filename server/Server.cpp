@@ -55,6 +55,7 @@ Copyright Glare Technologies Limited 2021 -
 #endif
 #include "../ethereum/RLP.h"//TEMP for testing
 #include "../ethereum/Signing.h"//TEMP for testing
+#include <WebSocketTests.h>//TEMP for testing
 //#include <graphics/FormatDecoderGLTF.h>//TEMP for testing
 
 
@@ -359,6 +360,7 @@ int main(int argc, char *argv[])
 		//---------------------- Parse and process comment line arguments -------------------------
 		std::map<std::string, std::vector<ArgumentParser::ArgumentType> > syntax;
 		syntax["--enable_dev_mode"] = std::vector<ArgumentParser::ArgumentType>();
+		syntax["--test"] = std::vector<ArgumentParser::ArgumentType>();
 		syntax["--save_sanitised_database"] = std::vector<ArgumentParser::ArgumentType>(1, ArgumentParser::ArgumentType_string); // One string arg
 
 		std::vector<std::string> args;
@@ -375,6 +377,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			WebSocketTests::test();
 			//SafeBrowsingCheckerThread::test(server.world_state.ptr());
 			//GIFDecoder::test();
 			//PNGDecoder::test();
@@ -382,7 +385,7 @@ int main(int argc, char *argv[])
 			//glare::BestFitAllocator::test();
 			//Parser::doUnitTests();
 			//FormatDecoderGLTF::test();
-			DatabaseTests::test();
+			//DatabaseTests::test();
 			//StringUtils::test();
 			//SHA256::test();
 			//RLP::test();
