@@ -262,6 +262,8 @@ ${UTILS_DIR}/HashMapIterators.h
 ${UTILS_DIR}/HashMapInsertOnly2.cpp
 ${UTILS_DIR}/HashMapInsertOnly2.h
 ${UTILS_DIR}/HashMapInsertOnly2Iterators.h
+${UTILS_DIR}/RuntimeCheck.cpp
+${UTILS_DIR}/RuntimeCheck.h
 )
 
 
