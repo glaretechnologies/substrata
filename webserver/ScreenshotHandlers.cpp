@@ -58,11 +58,8 @@ void handleScreenshotRequest(ServerAllWorldsState& world_state, WebDataStore& da
 		try
 		{
 			MemMappedFile file(local_path); // Load screenshot file
-			std::string content_type;
-			if(::hasExtension(local_path, "jpg"))
-				content_type = "image/jpeg";
-			else
-				content_type = "bleh";
+			
+			const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path);
 
 			// Send it to client
 			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14); // cache max age = 2 weeks
@@ -109,11 +106,8 @@ void handleMapTileRequest(ServerAllWorldsState& world_state, WebDataStore& datas
 		try
 		{
 			MemMappedFile file(local_path); // Load screenshot file
-			std::string content_type;
-			if(::hasExtension(local_path, "jpg"))
-				content_type = "image/jpeg";
-			else
-				content_type = "bleh";
+			
+			const std::string content_type = web::ResponseUtils::getContentTypeForPath(local_path);
 
 			// Send it to client
 			web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type, 3600*24*14); // cache max age = 2 weeks
