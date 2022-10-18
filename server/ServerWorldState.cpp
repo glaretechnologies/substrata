@@ -91,7 +91,7 @@ static const uint32 MAP_TILE_INFO_VERSION = 1;
 static const uint32 ETH_INFO_CHUNK_VERSION = 1;
 
 
-void ServerAllWorldsState::readFromDisk(const std::string& path, bool enable_dev_mode)
+void ServerAllWorldsState::readFromDisk(const std::string& path)
 {
 	conPrint("Reading world state from '" + path + "'...");
 

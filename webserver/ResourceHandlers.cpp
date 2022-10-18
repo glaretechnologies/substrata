@@ -159,7 +159,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 						if(use_range_end > (int64)file.fileSize())
 							throw glare::Exception("invalid range");
 
-						conPrint("\thandleResourceRequest: serving data range (start: " + toString(range.start) + ", range_size: " + toString(range_size) + ")");
+						//conPrint("\thandleResourceRequest: serving data range (start: " + toString(range.start) + ", range_size: " + toString(range_size) + ")");
 				
 						const std::string response = 
 							"HTTP/1.1 206 Partial Content\r\n"
@@ -182,7 +182,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 				}
 				else
 				{
-					conPrint("handleResourceRequest: serving data for '" + resource_URL + "' (len: " + toString(file.fileSize()) + " B)");
+					//conPrint("handleResourceRequest: serving data for '" + resource_URL + "' (len: " + toString(file.fileSize()) + " B)");
 
 					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*max age(s)=*/100000000);
 
