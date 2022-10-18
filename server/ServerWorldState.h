@@ -107,7 +107,7 @@ public:
 	ServerAllWorldsState();
 	~ServerAllWorldsState();
 
-	void readFromDisk(const std::string& path, bool enable_dev_mode);
+	void readFromDisk(const std::string& path);
 	void createNewDatabase(const std::string& path);
 	void serialiseToDisk() REQUIRES(mutex); // Write any changed data (objects in dirty set) to disk.  Mutex should be held already.
 	void denormaliseData(); // Build/update cached/denormalised fields like creator_name.  Mutex should be locked already.
@@ -205,7 +205,7 @@ public:
 
 	ServerCredentials server_credentials;
 
-	::Mutex mutex;
+	mutable ::Mutex mutex;
 private:
 	GLARE_DISABLE_COPY(ServerAllWorldsState);
 

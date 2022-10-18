@@ -483,7 +483,7 @@ int main(int argc, char *argv[])
 			// Copy database from src database path to sanitised path.
 			FileUtils::copyFile(/*src=*/src_db_path, /*dest=*/sanitised_db_path);
 
-			server.world_state->readFromDisk(sanitised_db_path, dev_mode);
+			server.world_state->readFromDisk(sanitised_db_path);
 
 			server.world_state->saveSanitisedDatabase();
 
@@ -506,7 +506,7 @@ int main(int argc, char *argv[])
 		const std::string server_state_path = server_state_dir + "/server_state.bin";
 
 		if(FileUtils::fileExists(server_state_path))
-			server.world_state->readFromDisk(server_state_path, dev_mode);
+			server.world_state->readFromDisk(server_state_path);
 		else
 			server.world_state->createNewDatabase(server_state_path);
 
@@ -601,7 +601,7 @@ int main(int argc, char *argv[])
 		else
 		{
 			web_data_store->public_files_dir = "N:\\substrata\\trunk\\webserver_public_files";
-			web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
+			//web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
 		}
 		default_webclient_dir = server_state_dir + "/webclient";
 
@@ -611,7 +611,7 @@ int main(int argc, char *argv[])
 #else
 		web_data_store->public_files_dir			= "/var/www/cyberspace/public_html";
 		default_webclient_dir						= "/var/www/cyberspace/webclient";
-		web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
+		//web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
 #endif
 		// Use webclient_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
 		if(!server_config.webclient_dir.empty())
