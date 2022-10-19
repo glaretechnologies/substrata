@@ -561,7 +561,8 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleRegenerateParcelScreenshots error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleRegenerateParcelScreenshots error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -604,7 +605,8 @@ void handleEditParcelDescriptionPost(ServerAllWorldsState& world_state, const we
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleEditParcelDescriptionPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleEditParcelDescriptionPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -679,7 +681,8 @@ void handleAddParcelWriterPost(ServerAllWorldsState& world_state, const web::Req
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleEditParcelDescriptionPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleAddParcelWriterPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -726,7 +729,8 @@ void handleRemoveParcelWriterPost(ServerAllWorldsState& world_state, const web::
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleEditParcelDescriptionPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleRemoveParcelWriterPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
