@@ -43,6 +43,9 @@ struct Secp256k1Context
 // Adapted from https://ethereum.stackexchange.com/questions/75903/ecrecover-in-c
 EthAddress ecrecover(const std::string& sig, const std::string& msg) // hex-encoded sig, plain text msg
 {
+	if(sig.size() < 2)
+		throw glare::Exception("Invalid sig size");
+
 	std::string _sig = hex_to_string(sig.substr(2)); // strip 0x
 
 	if(_sig.size() != 65)
@@ -56,6 +59,10 @@ EthAddress ecrecover(const std::string& sig, const std::string& msg) // hex-enco
 
 	Secp256k1Context context;
 	context.ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+
+	// secp256k1_ecdsa_recoverable_signature_parse_compact asserts v lies in this range, so check this to avoid triggering the assert.
+	if(!(v >= 0 && v <= 3))
+		throw glare::Exception("Invalid v");
 
 	secp256k1_ecdsa_recoverable_signature rawSig;
 	if(!secp256k1_ecdsa_recoverable_signature_parse_compact(context.ctx, &rawSig, (const unsigned char*)_sig.data(), v))
@@ -195,7 +202,7 @@ void Signing::test()
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint(e.what());
+		failTest(e.what());
 	}
 
 	// Test that a different message does not result in the same address
@@ -209,7 +216,33 @@ void Signing::test()
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint(e.what());
+		failTest(e.what());
+	}
+
+
+	// Test with an empty sig.
+	try
+	{
+		const std::string signature = "";
+		const std::string msg = "Xlease sign this message to confirm you own the Ethereum account.\n(Unique string: 2674eb985d1b31dea52958114387ef19)";
+		ecrecover(signature, msg);
+		failTest("Expected exception");
+	}
+	catch(glare::Exception&)
+	{}
+
+	// Test with an empty msg.
+	try
+	{
+		const std::string signature = "0x9889f19bdb00e55b060359d8701337e6f3c7003f3fb5fffbfac1c2dfb65755f61baa1ed12b96366aff3d292809341a42a8ab5c86226f5c6298c0e6389272634a1c";
+		const std::string msg = "";
+		const EthAddress address = ecrecover(signature, msg);
+		conPrint(address.toHexStringWith0xPrefix());
+		testAssert(address.toHexStringWith0xPrefix() != "0x8a76e943f2298af27a98327de94f519c27816e55");
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
 	}
 }
 
