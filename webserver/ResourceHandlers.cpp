@@ -189,7 +189,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 					// conPrint("\thandleResourceRequest: sent data. (len: " + toString(file.fileSize()) + ")");
 				}
 			}
-			catch(glare::Exception& e)
+			catch(glare::Exception&)
 			{
 				// conPrint("Error while handling resource request: " + e.what());
 				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "resource not found.");
