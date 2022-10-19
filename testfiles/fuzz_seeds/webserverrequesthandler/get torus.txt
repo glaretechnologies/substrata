@@ -1,0 +1,1 @@
+GET /resource/Torus_obj_5690494170031588244_lod1.bmesh

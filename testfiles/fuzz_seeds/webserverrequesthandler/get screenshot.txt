@@ -1,0 +1,1 @@
+GET /screenshot/1

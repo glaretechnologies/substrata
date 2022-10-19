@@ -1,0 +1,1 @@
+GET /buy_parcel_with_coinbase/10

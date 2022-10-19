@@ -1,0 +1,1 @@
+GET /files/logo_small.png

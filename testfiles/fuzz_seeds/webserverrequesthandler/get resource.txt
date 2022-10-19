@@ -1,0 +1,1 @@
+GET /resource/scene_gltf_16437360199304547385.bmesh

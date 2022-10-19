@@ -1,0 +1,1 @@
+GET /pdt_landing?tx=345435&HACK_RESPONSE=SUCCESS
