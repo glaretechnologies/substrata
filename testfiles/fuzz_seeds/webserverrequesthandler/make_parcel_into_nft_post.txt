@@ -1,0 +1,1 @@
+POST /make_parcel_into_nft_post!parcel_id=10

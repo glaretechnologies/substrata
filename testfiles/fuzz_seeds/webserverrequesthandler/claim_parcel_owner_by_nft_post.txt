@@ -1,0 +1,1 @@
+POST /claim_parcel_owner_by_nft_post!parcel_id=10

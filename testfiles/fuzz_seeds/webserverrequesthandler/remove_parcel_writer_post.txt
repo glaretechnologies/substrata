@@ -1,0 +1,1 @@
+POST /remove_parcel_writer_post!parcel_id=10&writer_id=0
