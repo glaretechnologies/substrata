@@ -783,7 +783,8 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 					auction->screenshot_ids.push_back(shot->id);
 				}
 
-				conPrint("Created screenshots for auction");
+				if(!request.fuzzing)
+					conPrint("Created screenshots for auction");
 				
 				parcel->parcel_auction_ids.push_back(auction->id);
 
@@ -797,7 +798,8 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("createParcelAuctionPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1080,7 +1082,8 @@ void handleSetTransactionStateToNewPost(ServerAllWorldsState& world_state, const
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSetTransactionStateToNewPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleSetTransactionStateToNewPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1157,7 +1160,8 @@ void handleSetTransactionHashPost(ServerAllWorldsState& world_state, const web::
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSetTransactionStateToNewPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleSetTransactionHashPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1195,7 +1199,8 @@ void handleSetTransactionNoncePost(ServerAllWorldsState& world_state, const web:
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSetTransactionStateToNewPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleSetTransactionNoncePost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1237,7 +1242,8 @@ void handleDeleteTransactionPost(ServerAllWorldsState& world_state, const web::R
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleDeleteTransactionPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleDeleteTransactionPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1302,7 +1308,8 @@ void handleRegenerateParcelAuctionScreenshots(ServerAllWorldsState& world_state,
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleRegenerateParcelAuctionScreenshots error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleRegenerateParcelAuctionScreenshots error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1365,7 +1372,8 @@ void handleRegenerateParcelScreenshots(ServerAllWorldsState& world_state, const 
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleRegenerateParcelScreenshots error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleRegenerateParcelScreenshots error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1476,7 +1484,8 @@ void handleRegenerateMultipleParcelScreenshots(ServerAllWorldsState& world_state
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleRegenerateParcelScreenshots error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleRegenerateMultipleParcelScreenshots error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1514,7 +1523,8 @@ void handleTerminateParcelAuction(ServerAllWorldsState& world_state, const web::
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleTerminateParcelAuction error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1554,7 +1564,8 @@ void handleRegenMapTilesPost(ServerAllWorldsState& world_state, const web::Reque
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleRegenMapTilesPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleRegenMapTilesPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1603,7 +1614,8 @@ void handleRecreateMapTilesPost(ServerAllWorldsState& world_state, const web::Re
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleRecreateMapTilesPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleRecreateMapTilesPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1634,7 +1646,8 @@ void handleSetMinNextNoncePost(ServerAllWorldsState& world_state, const web::Req
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleSetMinNextNoncePost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1665,7 +1678,8 @@ void handleSetServerAdminMessagePost(ServerAllWorldsState& world_state, const we
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleSetServerAdminMessagePost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -1695,7 +1709,8 @@ void handleSetReadOnlyModePost(ServerAllWorldsState& world_state, const web::Req
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		if(!request.fuzzing)
+			conPrint("handleSetReadOnlyModePost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

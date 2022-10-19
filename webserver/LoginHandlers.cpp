@@ -244,7 +244,8 @@ void handleLoginPost(ServerAllWorldsState& world_state, const web::RequestInfo& 
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleLoginPost error: " + e.what());
+		if(!request_info.fuzzing)
+			conPrint("handleLoginPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -397,7 +398,8 @@ void handleSignUpPost(ServerAllWorldsState& world_state, const web::RequestInfo&
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSignUpPost error: " + e.what());
+		if(!request_info.fuzzing)
+			conPrint("handleSignUpPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -514,7 +516,8 @@ void handleResetPasswordPost(ServerAllWorldsState& world_state, const web::Reque
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSignUpPost error: " + e.what());
+		if(!request_info.fuzzing)
+			conPrint("handleResetPasswordPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -586,7 +589,8 @@ void renderResetPasswordFromEmailPage(ServerAllWorldsState& world_state, const w
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSignUpPost error: " + e.what());
+		if(!request_info.fuzzing)
+			conPrint("renderResetPasswordFromEmailPage error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -636,18 +640,21 @@ void handleSetNewPasswordPost(ServerAllWorldsState& world_state, const web::Requ
 
 		if(password_reset)
 		{
-			conPrint("handleSetNewPasswordPost(): User succesfully reset password.");
+			if(!request_info.fuzzing)
+				conPrint("handleSetNewPasswordPost(): User succesfully reset password.");
 			web::ResponseUtils::writeRedirectTo(reply_info, "/login?msg=" + web::Escaping::URLEscape("New password set"));
 		}
 		else
 		{
-			conPrint("handleSetNewPasswordPost(): User failed to reset password.");
+			if(!request_info.fuzzing)
+				conPrint("handleSetNewPasswordPost(): User failed to reset password.");
 			web::ResponseUtils::writeRedirectTo(reply_info, "/login?msg=" + web::Escaping::URLEscape("Failed to set new password"));
 		}
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSignUpPost error: " + e.what());
+		if(!request_info.fuzzing)
+			conPrint("handleSetNewPasswordPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }
@@ -740,20 +747,23 @@ void handleChangePasswordPost(ServerAllWorldsState& world_state, const web::Requ
 
 		if(password_changed)
 		{
-			conPrint("handleSetNewPasswordPost(): User succesfully changed password.");
+			if(!request_info.fuzzing)
+				conPrint("handleChangePasswordPost(): User succesfully changed password.");
 			setUserWebMessageForLoggedInUser(world_state, request_info, "New password set.");
 			web::ResponseUtils::writeRedirectTo(reply_info, "/account");
 		}
 		else
 		{
-			conPrint("handleSetNewPasswordPost(): User failed to changed password.");
+			if(!request_info.fuzzing)
+				conPrint("handleChangePasswordPost(): User failed to changed password.");
 			setUserWebMessageForLoggedInUser(world_state, request_info, "Failed to set new password.  Please check you entered current password correctly.");
 			web::ResponseUtils::writeRedirectTo(reply_info, "/change_password");
 		}
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleSignUpPost error: " + e.what());
+		if(!request_info.fuzzing)
+			conPrint("handleChangePasswordPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

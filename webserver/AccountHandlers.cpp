@@ -293,7 +293,8 @@ void handleEthSignMessagePost(ServerAllWorldsState& world_state, const web::Requ
 		 }
 		 catch(glare::Exception& e)
 		 {
-			 conPrint("Excep while calling ecrecover(): " + e.what());
+			 if(!request_info.fuzzing)
+				conPrint("Excep while calling ecrecover(): " + e.what());
 			 web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "{\"msg\":\"Sorry, we could not confirm you control the Ethereum address.\"}");
 		 }
 	 }

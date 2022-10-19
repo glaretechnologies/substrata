@@ -177,12 +177,12 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 
 						reply_info.socket->writeData((const uint8*)file.fileData() + range.start, range_size);
 				
-						conPrint("\thandleResourceRequest: sent data range. (len: " + toString(range_size) + ")");
+						// conPrint("\thandleResourceRequest: sent data range. (len: " + toString(range_size) + ")");
 					}
 				}
 				else
 				{
-					//conPrint("handleResourceRequest: serving data for '" + resource_URL + "' (len: " + toString(file.fileSize()) + " B)");
+					// conPrint("handleResourceRequest: serving data for '" + resource_URL + "' (len: " + toString(file.fileSize()) + " B)");
 
 					web::ResponseUtils::writeHTTPOKHeaderAndDataWithCacheMaxAge(reply_info, file.fileData(), file.fileSize(), content_type.c_str(), /*max age(s)=*/100000000);
 
@@ -191,7 +191,7 @@ void handleResourceRequest(ServerAllWorldsState& world_state, const web::Request
 			}
 			catch(glare::Exception& e)
 			{
-				conPrint("Error while handling resource request: " + e.what());
+				// conPrint("Error while handling resource request: " + e.what());
 				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "resource not found.");
 				return;
 			}
