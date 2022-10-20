@@ -331,6 +331,9 @@ void readFromStream(InStream& stream, AvatarSettings& settings)
 	// Read materials
 	{
 		const uint32 num_mats = stream.readUInt32();
+		const uint32 MAX_NUM_MATS = 1024;
+		if(num_mats > MAX_NUM_MATS)
+			throw glare::Exception("Too many materials: " + toString(num_mats));
 		settings.materials.resize(num_mats);
 		for(size_t i=0; i<settings.materials.size(); ++i)
 		{
