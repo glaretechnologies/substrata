@@ -118,8 +118,10 @@ export class PlayerPhysics {
 	}
 
 	public processMoveUp (factor: number, runPressed: boolean): void {
-		const speed = runPressed ? MOVE_SPEED * RUN_FACTOR * factor : MOVE_SPEED * factor;
-		addScaled3(this.moveImpulse_, UP_VECTOR, speed);
+		if(this.flyMode_) {
+			const speed = runPressed ? MOVE_SPEED * RUN_FACTOR * factor : MOVE_SPEED * factor;
+			addScaled3(this.moveImpulse_, UP_VECTOR, speed);
+		}
 	}
 
 	public processJump (): void {
