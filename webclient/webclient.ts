@@ -1215,6 +1215,7 @@ function onKeyPress() {
 	const player = physics_world.player;
 	if(keys_down.has('KeyV')) player.cameraMode = (player.cameraMode + 1) % 2;
 	if(keys_down.has('KeyF')) player.flyMode = !player.flyMode;
+	if(keys_down.has('Space')) player.processJump();
 }
 
 function onWheel(ev: WheelEvent) {
@@ -1241,7 +1242,7 @@ renderer_canvas_elem.addEventListener('keyup', onKeyUp, false);
 renderer_canvas_elem.addEventListener('keypress', onKeyPress, false);
 window.addEventListener('wheel', onWheel, false);
 
-function doCamMovement(dt){
+function doCamMovement(dt) {
 	const run_pressed = keys_down.has('ShiftLeft') || keys_down.has('ShiftRight');
 
 	if(keys_down.has('KeyW') || keys_down.has('ArrowUp')) {
@@ -1261,7 +1262,11 @@ function doCamMovement(dt){
 	}
 
 	if (keys_down.has('Space')) {
-		physics_world.player.processJump();
+		physics_world.player.processMoveUp(+1, run_pressed);
+	}
+
+	if (keys_down.has('KeyC') && !(keys_down.has('ControlLeft') || keys_down.has('ControlRight'))) {
+		physics_world.player.processMoveUp(-1., run_pressed);
 	}
 
 	physics_world.player.processCameraMovement(dt);
