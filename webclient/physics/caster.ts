@@ -12,7 +12,7 @@ import * as THREE from '../build/three.module.js';
 import { lerpN } from '../maths/functions.js';
 import BVH from './bvh.js';
 import CameraController from '../cameraController';
-import { add3, addScaled3, cross3, mulScalar3, normalise3 } from '../maths/vec3.js';
+import { add3, addScaled3, applyMatrix4, cross3, mulScalar3, normalise3, transformDirection } from '../maths/vec3.js';
 import { DEG_TO_RAD } from '../maths/defs.js';
 
 const BOTTOM = 0;
@@ -40,7 +40,7 @@ export default class Caster {
 	}
 
 	// Calculate a pick ray based on the current camera view at screen coordinates [x, y]
-	public getPickRay (x: number, y: number): [THREE.Vector3, THREE.Vector3] | null { // [ Origin, Dir ]
+	public getPickRay (x: number, y: number): [Float32Array, Float32Array] | null {
 		const dPR = this.rndr.getPixelRatio();
 		this.rndr.getSize(this.dims);
 		if(x < 0 || x > this.dims.x || y < 0 || y > this.dims.y) return null;
@@ -63,26 +63,22 @@ export default class Caster {
 		normalise3(dir);
 
 		return [
-			this.controller.positionV3,
-			new THREE.Vector3(...dir)
+			this.controller.position,
+			dir
 		];
 	}
 
 	private tmp = [
-		new THREE.Vector3(),
-		new THREE.Vector3(),
 		new Float32Array(3),
 		new Float32Array(3)
 	];
 
 	// Transform a ray from world space into the local space of the BVH and test for intersection
-	public testRayBVH (origin: THREE.Vector3, dir: THREE.Vector3, worldToObject: THREE.Matrix4, bvh: BVH): [boolean, number[]] {
-		const [O, d, Of, df] = this.tmp;
-		O.copy(origin); d.copy(dir);
-		O.applyMatrix4(worldToObject); d.transformDirection(worldToObject);
-		Of[0] = O.x; Of[1] = O.y; Of[2] = O.z;
-		df[0] = d.x; df[1] = d.y; df[2] = d.z;
-
-		return [bvh.testRayRoot(Of, df), bvh.testRayLeaf(Of, df)];
+	public testRayBVH (origin: Float32Array, dir: Float32Array, worldToObject: THREE.Matrix4, bvh: BVH): [boolean, number[]] {
+		const [O, d] = this.tmp;
+		O.set(origin); d.set(dir);
+		applyMatrix4(worldToObject, O); transformDirection(worldToObject, d);
+		return [bvh.testRayRoot(O, d), bvh.testRayLeaf(O, d)];
 	}
+
 }

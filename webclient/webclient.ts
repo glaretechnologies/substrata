@@ -8,7 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 import * as THREE from './build/three.module.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
 import * as voxelloading from './voxelloading.js';
-import { BufferIn, readUInt32, readDouble, readStringFromStream } from './bufferin.js';
+import { BufferIn, readDouble, readStringFromStream, readUInt32 } from './bufferin.js';
 import { BufferOut } from './bufferout.js';
 import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
@@ -16,16 +16,28 @@ import { Triangles } from './physics/bvh.js';
 import PhysicsWorld from './physics/world.js';
 import { makeAABB } from './maths/geometry.js';
 import CameraController from './cameraController.js';
-import { WorldMaterial, ScalarVal } from './worldmaterial.js';
+import { ScalarVal, WorldMaterial } from './worldmaterial.js';
 import {
-	Vec3f, Vec3d, readVec3fFromStream, readVec3dFromStream, Colour3f, readUserIDFromStream, readUIDFromStream,
-	readParcelIDFromStream, writeUID
+	Colour3f,
+	readParcelIDFromStream,
+	readUIDFromStream,
+	readUserIDFromStream,
+	readVec3dFromStream,
+	readVec3fFromStream,
+	Vec3d,
+	Vec3f,
+	writeUID
 } from './types.js';
 import { Avatar } from './avatar.js';
 import { toUTF8Array } from './utils.js';
 import { Parcel, readParcelFromNetworkStreamGivenID } from './parcel.js';
-import { WorldObject, readWorldObjectFromNetworkStreamGivenUID, MESH_LOADED, MESH_LOADING,
-	MESH_NOT_LOADED } from './worldobject.js';
+import {
+	MESH_LOADED,
+	MESH_LOADING,
+	MESH_NOT_LOADED,
+	readWorldObjectFromNetworkStreamGivenUID,
+	WorldObject
+} from './worldobject.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
@@ -1168,43 +1180,8 @@ let is_mouse_down = false;
 const keys_down = new Set<string>();
 
 physics_world.scene = scene;
-// TODO: Fix up ownership here
-physics_world.player.camera = cam_controller;
+physics_world.player.controller = cam_controller;
 physics_world.caster = cam_controller.caster;
-physics_world.player.keyState = keys_down;
-
-
-/*
-let heading = Math.PI / 2;
-let pitch = Math.PI / 2;
-
-function camForwardsVec(): THREE.Vector3 {
-    return new THREE.Vector3(Math.cos(heading) * Math.sin(pitch), Math.sin(heading) * Math.sin(pitch), Math.cos(pitch));
-}
-
-function camRightVec(): THREE.Vector3 {
-    return new THREE.Vector3(Math.sin(heading), -Math.cos(heading), 0);
-}
-
-// Setup the ray caster if we're debugging the physics implementation
-const caster = DEBUG_PHYSICS ? new Caster(renderer, {
-    debugRay: false,
-    near: DEFAULT_NEAR,
-    far: DEFAULT_FAR,
-    fov: DEFAULT_FOV,
-    camera,
-    camRightFnc: camRightVec,
-    camDirFnc: camForwardsVec
-}) : null
-
-if(DEBUG_PHYSICS && caster) {
-    // For the moment, I'm routing the camera to the player physics class here.
-    physics_world.caster = caster;
-    physics_world.player.camForwardsVec = camForwardsVec
-    physics_world.player.camRightVec = camRightVec
-    physics_world.player.keyState = keys_down
-}
-*/
 
 function onDocumentMouseDown() {
 	is_mouse_down = true;
@@ -1214,42 +1191,34 @@ function onDocumentMouseUp() {
 	is_mouse_down = false;
 }
 
-function onDocumentMouseMove(e) {
-	//console.log("onDocumentMouseMove()");
-	//console.log(e.movementX);
-
-	const ray = cam_controller.caster.getPickRay(e.offsetX, e.offsetY);
+function onDocumentMouseMove(ev: MouseEvent) {
+	const ray = cam_controller.caster.getPickRay(ev.offsetX, ev.offsetY);
 	if(ray != null) {
 		const [O, d] = ray;
-		physics_world.traceRay(O, d);
+		physics_world.debugRay(O, d);
 	}
-
 
 	if(is_mouse_down){
-		// let rot_factor = 0.003;
-		// heading += -e.movementX * rot_factor;
-		// pitch = Math.max(1.0e-3, Math.min(pitch + e.movementY * rot_factor, Math.PI - 1.0e-3));
-		cam_controller.mouseLook(e.movementX, e.movementY);
+		cam_controller.mouseLook(ev.movementX, ev.movementY);
 	}
-
-	//camera.lookAt(camera.position.clone().add(camForwardsVec()));
-	//camController.updateView()
 }
 
-function onKeyDown(e) {
-	//console.log("onKeyDown()");
-	//console.log("e.code: " + e.code);
-
-	keys_down.add(e.code);
+function onKeyDown(ev: KeyboardEvent) {
+	keys_down.add(ev.code);
 }
 
-function onKeyUp(e) {
-	//console.log("onKeyUp()");
-	//console.log("e.code: " + e.code);
-
-	keys_down.delete(e.code);
+function onKeyUp(ev: KeyboardEvent) {
+	keys_down.delete(ev.code);
 }
 
+function onKeyPress() {
+	const player = physics_world.player;
+	if(keys_down.has('KeyV')) player.cameraMode = (player.cameraMode + 1) % 2;
+}
+
+function onWheel(ev: WheelEvent) {
+	cam_controller.handleScroll(ev.deltaY);
+}
 
 // See https://stackoverflow.com/a/20434960
 window.addEventListener('resize', onWindowResize, false);
@@ -1268,9 +1237,33 @@ window.addEventListener('mouseup', onDocumentMouseUp, false);
 window.addEventListener('mousemove', onDocumentMouseMove, false);
 renderer_canvas_elem.addEventListener('keydown', onKeyDown, false);
 renderer_canvas_elem.addEventListener('keyup', onKeyUp, false);
+renderer_canvas_elem.addEventListener('keypress', onKeyPress, false);
+window.addEventListener('wheel', onWheel, false);
 
 function doCamMovement(dt){
-	physics_world.player.doCamMovement(dt);
+	const run_pressed = keys_down.has('ShiftLeft') || keys_down.has('ShiftRight');
+
+	if(keys_down.has('KeyW') || keys_down.has('ArrowUp')) {
+		physics_world.player.processMoveForwards(1, run_pressed);
+	}
+
+	if(keys_down.has('KeyS') || keys_down.has('ArrowDown')) {
+		physics_world.player.processMoveForwards(-1, run_pressed);
+	}
+
+	if(keys_down.has('KeyA') || keys_down.has('ArrowLeft')) {
+		physics_world.player.processMoveRight(-1, run_pressed);
+	}
+
+	if(keys_down.has('KeyD') || keys_down.has('ArrowRight')) {
+		physics_world.player.processMoveRight(+1, run_pressed);
+	}
+
+	if (keys_down.has('Space')) {
+		physics_world.player.processJump();
+	}
+
+	physics_world.player.processCameraMovement(dt);
 
 	client_avatar.pos.x = cam_controller.position[0];
 	client_avatar.pos.y = cam_controller.position[1];
@@ -1323,8 +1316,6 @@ function animate() {
 		}
 	}
 
-
-
 	// Update shadow map 'camera' so that the shadow map volume is positioned around the camera.
 	{
 		const sun_right = new THREE.Vector3();
@@ -1366,7 +1357,7 @@ function animate() {
 		let url_path = '/webclient?';
 		if (world != '') // Append world if != empty string.
 			url_path += 'world=' + encodeURIComponent(world) + '&';
-		const P = cam_controller.position;
+		const P = cam_controller.firstPersonPos;
 		url_path += 'x=' + P[0].toFixed(1) + '&y=' + P[1].toFixed(1) + '&z=' + P[2].toFixed(1);
 		window.history.replaceState('object or string', 'Title', url_path);
 		last_update_URL_time = cur_time;
@@ -1421,10 +1412,10 @@ function animate() {
 				const pre_ob_to_world_matrix = new THREE.Matrix4();
 
 				/*
-				0	4	8	12
-				1	5	9	13
-				2	6	10	14
-				3	7	11	15
+				0	 4	 8  12
+				1	 5	 9  13
+				2	 6	10  14
+				3	 7	11  15
 				*/
 				const m = avatar.avatar_settings.pre_ob_to_world_matrix; // pre_ob_to_world_matrix is in column-major order, set() takes row-major order, so transpose.
 				pre_ob_to_world_matrix.set(
