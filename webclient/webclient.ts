@@ -1214,10 +1214,11 @@ function onKeyUp(ev: KeyboardEvent) {
 function onKeyPress() {
 	const player = physics_world.player;
 	if(keys_down.has('KeyV')) player.cameraMode = (player.cameraMode + 1) % 2;
+	if(keys_down.has('KeyF')) player.flyMode = !player.flyMode;
 }
 
 function onWheel(ev: WheelEvent) {
-	cam_controller.handleScroll(ev.deltaY);
+	cam_controller.handleScroll(-ev.deltaY);
 }
 
 // See https://stackoverflow.com/a/20434960
@@ -1265,9 +1266,9 @@ function doCamMovement(dt){
 
 	physics_world.player.processCameraMovement(dt);
 
-	client_avatar.pos.x = cam_controller.position[0];
-	client_avatar.pos.y = cam_controller.position[1];
-	client_avatar.pos.z = cam_controller.position[2];
+	client_avatar.pos.x = cam_controller.firstPersonPos[0];
+	client_avatar.pos.y = cam_controller.firstPersonPos[1];
+	client_avatar.pos.z = cam_controller.firstPersonPos[2];
 
 	client_avatar.rotation.x = 0;
 	client_avatar.rotation.y = cam_controller.pitch;
