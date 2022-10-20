@@ -9,7 +9,17 @@ Copyright Glare Technologies Limited 2022 -
 import * as THREE from '../build/three.module.js';
 import PhysicsWorld from './world.js';
 import { DIST, makeSphereTraceResult, NOR_X, POS_Z } from './types.js';
-import { add3, addScaled3, eq3, len3, mulScalar3, removeComponentInDir, sqLen3, sub3 } from '../maths/vec3.js';
+import {
+	add3,
+	addScaled3,
+	eq3,
+	len3,
+	mulScalar3,
+	normalise3,
+	removeComponentInDir,
+	sqLen3,
+	sub3
+} from '../maths/vec3.js';
 import CameraController, { CameraMode } from '../cameraController.js';
 
 export const SPHERE_RAD = 0.3;
@@ -39,7 +49,6 @@ export function makeSpringSphereSet (): SpringSphereSet {
 }
 
 export class PlayerPhysics {
-	private keyState_: Set<string> | undefined;
 	private cameraController: CameraController | undefined;
 
 	private world_: PhysicsWorld;
@@ -90,16 +99,32 @@ export class PlayerPhysics {
 		];
 	}
 
-	public get camera (): CameraController { return this.cameraController; }
-	public set camera (controller: CameraController) {
+	public get controller (): CameraController { return this.cameraController; }
+	public set controller (controller: CameraController) {
 		this.cameraController = controller;
 	}
 
 	public get flyMode (): boolean { return this.flyMode_; }
 	public set flyMode (value: boolean) { this.flyMode_ = value; }
 
-	public get keyState (): Set<string> { return this.keyState_; }
-	public set keyState (set: Set<string>) { this.keyState_ = set; }
+	public processMoveForwards (factor: number, runPressed: boolean): void {
+		const speed = runPressed ? MOVE_SPEED * RUN_FACTOR * factor : MOVE_SPEED * factor;
+		addScaled3(this.moveImpulse_, this.cameraController.camForwardsVec, speed);
+	}
+
+	public processMoveRight (factor: number, runPressed: boolean): void {
+		const speed = runPressed ? MOVE_SPEED * RUN_FACTOR * factor : MOVE_SPEED * factor;
+		addScaled3(this.moveImpulse_, this.cameraController.camRightVec, speed);
+	}
+
+	public processMoveUp (factor: number, runPressed: boolean): void {
+		const speed = runPressed ? MOVE_SPEED * RUN_FACTOR * factor : MOVE_SPEED * factor;
+		addScaled3(this.moveImpulse_, UP_VECTOR, speed);
+	}
+
+	public processJump (): void {
+		this.jumpTimeRemaining_ = JUMP_PERIOD;
+	}
 
 	public get lastPosition (): Float32Array { return this.lastPos_; }
 
@@ -176,8 +201,8 @@ export class PlayerPhysics {
 				for(let s = 0; s !== 3; ++s) {
 					const spherePos = new Float32Array(camPos);
 					spherePos[2] = spherePos[2] - EYE_HEIGHT + SPHERE_RAD * (5 - 2 * s);
-
-					const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
+					const playersphere = new Float32Array(4);
+					playersphere.set(spherePos); playersphere[3] = SPHERE_RAD;
 					const result = this.world_.traceSphereWorld(playersphere, dpos);
 					if(result.hit) {
 						const dist = result.data[DIST];
@@ -203,7 +228,8 @@ export class PlayerPhysics {
 					if(!closestResult.pointInTri && hitpos_height_above_foot > 3e-3 && hitpos_height_above_foot < .25) {
 						const jump_up_amount = hitpos_height_above_foot + .01;
 						const spherePos = new Float32Array([camPos[0], camPos[1], camPos[2] - EYE_HEIGHT + SPHERE_RAD * 5]); // Upper sphere centre
-						const playersphere = new Float32Array([...spherePos, SPHERE_RAD]);
+						const playersphere = new Float32Array(4);
+						playersphere.set(spherePos); playersphere[3] = SPHERE_RAD;
 						const result = this.world_.traceSphereWorld(playersphere, new Float32Array([0, 0, jump_up_amount]));
 
 						if(result.hit == null) {
@@ -234,7 +260,8 @@ export class PlayerPhysics {
 				for(let s = 0; s !== 3; ++s) {
 					const spherepos = new Float32Array(camPos);
 					spherepos[2] = spherepos[2] - EYE_HEIGHT + 1.5 - s * 0.6;
-					const bigsphere = new Float32Array([...spherepos, REPEL_RADIUS]);
+					const bigsphere = new Float32Array(4);
+					bigsphere.set(spherepos); bigsphere[3] = REPEL_RADIUS;
 					set[s].sphere.set(bigsphere);
 					this.world_.getCollPoints(bigsphere, set[s].collisionPoints);
 				}
@@ -257,54 +284,36 @@ export class PlayerPhysics {
 		return jumped;
 	}
 
-	public doCamMovement(dt: number) {
-		const keys_down = this.keyState_;
+	public get cameraMode (): CameraMode { return this.cameraController.cameraMode ?? CameraMode.FIRST_PERSON;}
+	public set cameraMode (mode: CameraMode) {
+		this.controller.cameraMode = mode;
+		this.visGroup_.visible = mode === CameraMode.THIRD_PERSON;
+	}
 
-		let move_speed = 3.0;
-		let turn_speed = 1.0;
-
-		if(keys_down.has('ShiftLeft') || keys_down.has('ShiftRight')) { // south-paws
-			move_speed *= 5;
-			turn_speed *= 5;
-		}
-
-		let fwd: Float32Array, rgt: Float32Array;
-
-		if(keys_down.has('KeyW') || keys_down.has('ArrowUp')) {
-			fwd = this.cameraController.camForwardsVec;
-			addScaled3(this.moveImpulse_, fwd, move_speed);
-		}
-		if(keys_down.has('KeyS') || keys_down.has('ArrowDown')) {
-			fwd = fwd ?? this.cameraController.camForwardsVec;
-			addScaled3(this.moveImpulse_, fwd, -move_speed);
-		}
-		if(keys_down.has('KeyA') || keys_down.has('ArrowLeft')) {
-			// TODO: Move the arrow keys later - left-handed so makes it easier to test
-			rgt = this.cameraController.camRightVec;
-			addScaled3(this.moveImpulse_, rgt, -move_speed);
-		}
-		if(keys_down.has('KeyD') || keys_down.has('ArrowRight')) {
-			rgt = rgt ?? this.cameraController.camRightVec;
-			addScaled3(this.moveImpulse_, rgt, move_speed);
-		}
-
-		if (keys_down.has('Space')) {
-			this.jumpTimeRemaining_ = JUMP_PERIOD;
-		}
-
-		// Toggle 3rd person view here for now
-		if (keys_down.has('KeyV') && performance.now() - this.lastChange > 100) {
-			this.lastChange = performance.now();
-			this.camera.cameraMode = this.camera.cameraMode === CameraMode.FIRST_PERSON ? CameraMode.THIRD_PERSON : CameraMode.FIRST_PERSON;
-			this.visGroup_.visible = this.camera.cameraMode === CameraMode.THIRD_PERSON;
-		}
-
-		// TODO: RESTORE TURNING
-
+	public processCameraMovement(dt: number) {
 		const [pos] = this.tmp;
-		pos.set(this.cameraController.position);
+		const controller = this.cameraController;
+
+		pos.set(controller.firstPersonPos);
 		this.update(dt, pos);
-		this.cameraController.position = pos;
+		controller.position = pos;
+
+		if(controller.isThirdPerson) {
+			const target = controller.firstPersonPos;
+			const back = mulScalar3(controller.camForwardsVec, -controller.camDistance, new Float32Array(3));
+			addScaled3(back, UP_VECTOR, 0.2);
+			const d = normalise3(back, new Float32Array(3));
+
+			const query = this.world_.traceRay(target, d);
+			if(query !== -1 && query < controller.camDistance) {
+				addScaled3(target, d, query-.001, back);
+			} else {
+				add3(back, target);
+			}
+
+			controller.thirdPersonPos = back;
+		}
+
 		this.world_.ground.updateGroundPlane(pos);
 		if(this.visGroup_) this.visGroup_.position.set(pos[0], pos[1], pos[2] - EYE_HEIGHT);
 	}
@@ -377,12 +386,15 @@ export class PlayerPhysics {
 			roughness: .1,
 		});
 		for(let s = 0; s !== 3; ++s) {
-			const z = EYE_HEIGHT - SPHERE_RAD * (5 - 2 * s);
+			const z = 1.5 - s * 0.6;
 			const mesh = new THREE.Mesh(geo, mat);
 			mesh.position.set(0, 0, z);
 			mesh.scale.set(SPHERE_RAD, SPHERE_RAD, SPHERE_RAD);
 			this.visGroup_.add(mesh);
 		}
+
+		// We start in first person mode
+		this.visGroup_.visible = false;
 
 		group.add(this.visGroup_);
 	}

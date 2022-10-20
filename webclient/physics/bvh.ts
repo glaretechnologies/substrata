@@ -185,7 +185,7 @@ export default class BVH {
 	}
 
 	// Returns the index of the BVH node, and triangle of intersection with the ray
-	public testRayLeaf (origin: Float32Array, dir: Float32Array): [number, number] { // [nodeIdx, triIdx]
+	public testRayLeaf (origin: Float32Array, dir: Float32Array): [number, number, number] { // [nodeIdx, triIdx, dist]
 		let t_min = Number.MAX_VALUE;
 		let idx = -1;
 		let tri_idx = -1;
@@ -212,7 +212,7 @@ export default class BVH {
 			}
 		}
 
-		return [idx, tri_idx];
+		return [idx, tri_idx, t_min];
 	}
 
 	public get rootAABB (): Float32Array {

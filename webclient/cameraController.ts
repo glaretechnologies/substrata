@@ -11,15 +11,13 @@ A class to wrap the camera functions and handle 1st and 3rd person views.  It al
 import * as THREE from './build/three.module.js';
 import Caster from './physics/caster.js';
 import { clamp } from './maths/functions.js';
-import { add3, len3, removeComponentInDir } from './maths/vec3.js';
-import { UP_VECTOR } from './physics/player.js';
+import { add3 } from './maths/vec3.js';
 
 export const DEFAULT_FOV = 75;
 export const DEFAULT_NEAR = 0.1;
 export const DEFAULT_FAR = 1000.0;
 const ROT_FACTOR = 3e-3;
-const CAM_ARM_LENGTH = 2.; // 2 units away from player
-const CAM_ARM_HEIGHT = .5; // 0.5 units above the player
+const DEFAULT_CAM_DIST = 3.0;
 
 const HEADING = 1;
 const PITCH = 2;
@@ -50,6 +48,8 @@ export default class CameraController {
 
 	private readonly camPos3rdPerson: Float32Array;
 	private readonly camDelta: Float32Array;
+
+	private camDistance_ = DEFAULT_CAM_DIST;
 
 	public readonly camSettings = {
 		near: DEFAULT_NEAR,
@@ -105,32 +105,44 @@ export default class CameraController {
 
 	public get caster (): Caster { return this.caster_; }
 
-	public get cameraMode (): CameraMode { return this.mode_; }
-	public set cameraMode (mode: CameraMode) {
-		this.mode_ = mode;
-		console.log(mode === CameraMode.FIRST_PERSON ? 'First Person Mode' : 'Third Person Mode');
+	public handleScroll(delta: number): void {
+		const dist = this.camDistance_;
+		this.camDistance_ = clamp(dist - (dist * delta * 2e-3), 0.5, 20.0);
 	}
+
+	public get camDistance (): number { return this.camDistance_; }
+	public set camDistance (dist: number) { this.camDistance_ = clamp(dist, 0.5, 20.0); }
+
+	public get isFirstPerson (): boolean { return this.mode_ === CameraMode.FIRST_PERSON; }
+	public get isThirdPerson (): boolean { return this.mode_ === CameraMode.THIRD_PERSON; }
+
+	public get cameraMode (): CameraMode { return this.mode_; }
+	public set cameraMode (mode: CameraMode) { this.mode_ = mode; }
 
 	public get positionV3(): THREE.Vector3 {
 		return this.mode_ === CameraMode.FIRST_PERSON ? this.camera.position : this.positionV3_;
 	}
 
-	public get position (): Float32Array { return this.position_; }
+	// These functions replicate the interface in substrata
+	public get firstPersonPos (): Float32Array { return this.position_; }
+	public get thirdPersonPos (): Float32Array { return this.camPos3rdPerson; }
+	public set thirdPersonPos (pos: Float32Array) {
+		this.camPos3rdPerson.set(pos);
+		if(this.isThirdPerson) {
+			this.camera.position.set(...pos);
+		}
+	}
+
+	public get position (): Float32Array {
+		return this.mode_ === CameraMode.FIRST_PERSON ? this.position_ : this.camPos3rdPerson;
+	}
+
 	public set position (pos: Float32Array) {
 		this.position_.set(pos);
 		this.positionV3_.set(...pos);
-
-		if(this.mode_ === CameraMode.FIRST_PERSON) {
+		this.camera.position.set(...pos);
+		if(this.isFirstPerson) {
 			this.camera.position.set(...pos);
-		} else {
-			this.camDelta.set(this.camForwardsVec);
-			removeComponentInDir(UP_VECTOR, this.camDelta);
-			const scale = CAM_ARM_LENGTH / len3(this.camDelta);
-			this.camPos3rdPerson[0] = this.position_[0] - scale * this.camDelta[0];
-			this.camPos3rdPerson[1] = this.position_[1] - scale * this.camDelta[1];
-			this.camPos3rdPerson[2] = this.position_[2] - scale * this.camDelta[2] + CAM_ARM_HEIGHT;
-			this.camera.position.set(...this.camPos3rdPerson);
-			this.camera.lookAt(...pos);
 		}
 	}
 

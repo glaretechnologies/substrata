@@ -4,23 +4,13 @@ world.ts
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
-/*
-A representation of the world.  We might need to add a top-level acceleration structure to speed up sphere tracing and
-general queries.
-
-1) To start, we are going to do a linear scan of all the loaded meshes with the sphere tracing query.
-2) Each object requires a BVH or at a minimum, a bounding AABB associated with the mesh.
-3) TODO: Sort out building the BVH on a voxel mesh
-4) Sphere vs AABB intersection distance and query
-*/
-
 import BVH, { Triangles } from './bvh.js';
 import * as THREE from '../build/three.module.js';
 import type { WorldObject } from '../worldobject.js';
 import Caster from './caster.js';
 import { spherePathToAABB, testAABB, transformAABB } from '../maths/geometry.js';
 import { createAABBMesh } from './debug.js';
-import { len3, mulScalar3 } from '../maths/vec3.js';
+import { applyMatrix4, len3, mulScalar3, transformDirection } from '../maths/vec3.js';
 import { clearSphereTraceResult, DIST, makeRay, makeSphereTraceResult, SphereTraceResult } from './types.js';
 import { PlayerPhysics } from './player.js';
 import { Ground } from './ground.js';
@@ -46,7 +36,7 @@ export default class PhysicsWorld {
 	private scene_: THREE.Scene | undefined;
 
 	private debugMeshes: DebugMesh[];
-	private readonly tempMeshes: THREE.Group; // TODO: Remove before check-in
+	private readonly tempMeshes: THREE.Group;
 
 	// Ground Mesh
 	private readonly ground_: Ground;
@@ -59,7 +49,6 @@ export default class PhysicsWorld {
 		this.debugMeshes = [];
 		this.tempMeshes = new THREE.Group();
 
-		// TODO: Temporary - remove before checkin
 		this.player_ = new PlayerPhysics(this);
 		this.player_.addAvatarBounds(this.tempMeshes);
 
@@ -85,7 +74,6 @@ export default class PhysicsWorld {
 	public get ground (): Ground { return this.ground_; }
 	public get worldObjects (): Array<WorldObject> { return this.worldObjects_; }
 
-	// Check if BVH is loaded for model URL
 	public hasModelBVH (key: string): boolean {
 		return key in this.bvhIndex_;
 	}
@@ -161,7 +149,28 @@ export default class PhysicsWorld {
 		return null;
 	}
 
-	public traceRay (origin: THREE.Vector3, dir: THREE.Vector3): void {
+	// Find object of intersection
+	public traceRay (origin: Float32Array, dir: Float32Array): number {
+		let t = Number.POSITIVE_INFINITY;
+		let hit = false;
+		const O = new Float32Array(3), d = new Float32Array(3);
+		for (let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
+			const obj = this.worldObjects_[i];
+			O.set(origin);
+			d.set(dir);
+			applyMatrix4(obj.worldToObject, O);
+			transformDirection(obj.worldToObject, d);
+			const test = obj.bvh.testRayLeaf(O, d);
+			if (test[1] !== -1 && t > test[2]) {
+				t = test[2];
+				hit = true;
+			}
+		}
+
+		return hit ? t : -1;
+	}
+
+	public debugRay (origin: Float32Array, dir: Float32Array): void {
 		if(!this.caster_) return;
 
 		for(let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
@@ -170,7 +179,6 @@ export default class PhysicsWorld {
 			if(test) {
 				// See if we have any debug meshes associated to this mesh
 				const set = this.debugMeshes.filter(e => e.idx === i);
-
 				if(idx[0] !== -1) { // If we get a hit on an AABB (and potentially a triangle in idx[1])
 					for(let i = 0; i !== set.length; ++i) {
 						if(set[i].type === DebugType.AABB_MESH) {
