@@ -24,8 +24,8 @@ Copyright Glare Technologies Limited 2016 -
 #include "../gui_client/AnimatedTextureManager.h"
 #include "../gui_client/MeshManager.h"
 #include <graphics/ImageMap.h>
-#endif
 #include "../gui_client/PhysicsObject.h"
+#endif // GUI_CLIENT
 #include "../shared/ResourceManager.h"
 #include <zstd.h>
 
@@ -670,6 +670,9 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 	//if(v >= 2)
 	{
 		const size_t num_mats = stream.readUInt32();
+		const uint32 MAX_NUM_MATS = 1024;
+		if(num_mats > MAX_NUM_MATS)
+			throw glare::Exception("Too many materials: " + toString(num_mats));
 		ob.materials.resize(num_mats);
 		for(size_t i=0; i<ob.materials.size(); ++i)
 		{
