@@ -34,19 +34,27 @@ Copyright Glare Technologies Limited 2018 -
 #include <Parser.h>
 #include <FileUtils.h>
 #include <MemMappedFile.h>
+#include <FileOutStream.h>
+#include <networking/RecordingSocket.h>
 #include <openssl/err.h>
 
 
 static const bool VERBOSE = false;
 static const int MAX_STRING_LEN = 10000;
+static const bool CAPTURE_TRACES = false; // If true, records a trace of data read from the socket, for fuzz seeding.
 
 
 WorkerThread::WorkerThread(const Reference<SocketInterface>& socket_, Server* server_)
 :	socket(socket_),
 	server(server_),
-	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder)
+	scratch_packet(SocketBufferOutStream::DontUseNetworkByteOrder),
+	fuzzing(false),
+	write_trace(false)
 {
 	//if(VERBOSE) print("event_fd.efd: " + toString(event_fd.efd));
+
+	if(CAPTURE_TRACES)
+		socket = new RecordingSocket(socket);
 }
 
 
@@ -74,15 +82,15 @@ void WorkerThread::sendGetFileMessageIfNeeded(const std::string& resource_URL)
 
 	// See if we have this file on the server already
 	{
-		const std::string path = server->world_state->resource_manager->pathForURL(resource_URL);
-		if(FileUtils::fileExists(path))
+		const ResourceRef resource = server->world_state->resource_manager->getExistingResourceForURL(resource_URL);
+		if(resource.nonNull() && (resource->getState() == Resource::State_Present))
 		{
 			// Check hash?
-			conPrint("resource file with URL '" + resource_URL + "' already present on disk.");
+			conPrintIfNotFuzzing("resource file with URL '" + resource_URL + "' already present on disk.");
 		}
 		else
 		{
-			conPrint("resource file with URL '" + resource_URL + "' not present on disk, sending get file message to client.");
+			conPrintIfNotFuzzing("resource file with URL '" + resource_URL + "' not present on disk, sending get file message to client.");
 
 			// We need the file from the client.
 			// Send the client a 'get file' message
@@ -126,14 +134,14 @@ static void enqueuePacketToBroadcast(const SocketBufferOutStream& packet_buffer,
 
 void WorkerThread::handleResourceUploadConnection()
 {
-	conPrint("handleResourceUploadConnection()");
+	conPrintIfNotFuzzing("handleResourceUploadConnection()");
 
 	try
 	{
 		const std::string username = socket->readStringLengthFirst(MAX_STRING_LEN);
 		const std::string password = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-		conPrint("\tusername: '" + username + "'");
+		conPrintIfNotFuzzing("\tusername: '" + username + "'");
 
 		UserID client_user_id = UserID::invalidUserID();
 		std::string client_user_name;
@@ -154,7 +162,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 		if(!client_user_id.valid())
 		{
-			conPrint("\tLogin failed.");
+			conPrintIfNotFuzzing("\tLogin failed.");
 			socket->writeUInt32(Protocol::LogInFailure); // Note that this is not a framed message.
 			socket->writeStringLengthFirst("Login failed.");
 
@@ -175,7 +183,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 		const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-		conPrint("\tURL: '" + URL + "'");
+		conPrintIfNotFuzzing("\tURL: '" + URL + "'");
 
 		/*if(!ResourceManager::isValidURL(URL))
 		{
@@ -217,7 +225,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 
 		const uint64 file_len = socket->readUInt64();
-		conPrint("\tfile_len: " + toString(file_len) + " B");
+		conPrintIfNotFuzzing("\tfile_len: " + toString(file_len) + " B");
 		if(file_len == 0)
 		{
 			socket->writeUInt32(Protocol::InvalidFileSize); // Note that this is not a framed message.
@@ -236,19 +244,34 @@ void WorkerThread::handleResourceUploadConnection()
 		// Otherwise upload is allowed:
 		socket->writeUInt32(Protocol::UploadAllowed);
 
-		std::vector<uint8> buf(file_len);
-		socket->readData(buf.data(), file_len);
-
-		conPrint("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
-
 		// Save to disk
 		const std::string local_path = server->world_state->resource_manager->pathForURL(URL);
 
-		conPrint("\tWriting to disk at '" + local_path + "'...");
+		conPrintIfNotFuzzing("\tStreaming to disk at '" + local_path + "'...");
 
-		FileUtils::writeEntireFile(local_path, (const char*)buf.data(), buf.size());
+		{
+			FileOutStream file(local_path, std::ios::binary | std::ios::trunc); // Remove any existing data in the file
 
-		conPrint("\tWritten to disk.");
+			uint64 offset = 0;
+			const uint64 MAX_CHUNK_SIZE = 1ull << 14;
+			js::Vector<uint8, 16> temp_buf(MAX_CHUNK_SIZE);
+			while(offset < file_len)
+			{
+				const uint64 chunk_size = myMin(file_len - offset, MAX_CHUNK_SIZE);
+				assert(offset + chunk_size <= file_len);
+				socket->readData(temp_buf.data(), chunk_size);
+
+				if(!fuzzing) // Don't write to disk while fuzzing.
+					file.writeData(temp_buf.data(), chunk_size);
+
+				offset += chunk_size;
+			}
+
+			file.close(); // Manually call close, to check for any errors via failbit.
+		} // End scope for FileOutStream
+
+
+		conPrintIfNotFuzzing("\tReceived file with URL '" + URL + "' from client. (" + toString(file_len) + " B)");
 
 		resource->owner_id = client_user_id;
 		resource->setState(Resource::State_Present);
@@ -280,7 +303,7 @@ void WorkerThread::handleResourceUploadConnection()
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("glare::Exception: " + e.what());
+		conPrintIfNotFuzzing("glare::Exception: " + e.what());
 	}
 	catch(std::bad_alloc&)
 	{
@@ -291,7 +314,7 @@ void WorkerThread::handleResourceUploadConnection()
 
 void WorkerThread::handleResourceDownloadConnection()
 {
-	conPrint("handleResourceDownloadConnection()");
+	conPrintIfNotFuzzing("handleResourceDownloadConnection()");
 
 	try
 	{
@@ -303,13 +326,13 @@ void WorkerThread::handleResourceDownloadConnection()
 			{
 				const uint64 num_resources = socket->readUInt64();
 				
-				conPrint("Handling GetFiles:\tnum resources requested: " + toString(num_resources));
+				conPrintIfNotFuzzing("Handling GetFiles:\tnum resources requested: " + toString(num_resources));
 
 				for(size_t i=0; i<num_resources; ++i)
 				{
 					const std::string URL = socket->readStringLengthFirst(MAX_STRING_LEN);
 
-					conPrint("\tRequested URL: '" + URL + "'");
+					conPrintIfNotFuzzing("\tRequested URL: '" + URL + "'");
 
 					if(!ResourceManager::isValidURL(URL))
 					{
@@ -323,7 +346,7 @@ void WorkerThread::handleResourceDownloadConnection()
 						const ResourceRef resource = server->world_state->resource_manager->getExistingResourceForURL(URL);
 						if(resource.isNull() || (resource->getState() != Resource::State_Present))
 						{
-							conPrint("\tRequested URL was not present on disk.");
+							conPrintIfNotFuzzing("\tRequested URL was not present on disk.");
 							socket->writeUInt32(1); // write error msg to client
 						}
 						else
@@ -341,11 +364,11 @@ void WorkerThread::handleResourceDownloadConnection()
 								socket->writeUInt64(file.fileSize()); // Write file size
 								socket->writeData(file.fileData(), file.fileSize()); // Write file data
 
-								conPrint("\tSent file '" + local_path + "' to client. (" + toString(file.fileSize()) + " B)");
+								conPrintIfNotFuzzing("\tSent file '" + local_path + "' to client. (" + toString(file.fileSize()) + " B)");
 							}
 							catch(glare::Exception& e)
 							{
-								conPrint("\tException while trying to load file for URL: " + e.what());
+								conPrintIfNotFuzzing("\tException while trying to load file for URL: " + e.what());
 
 								socket->writeUInt32(1); // write error msg to client
 							}
@@ -361,7 +384,7 @@ void WorkerThread::handleResourceDownloadConnection()
 			}
 			else
 			{
-				conPrint("handleResourceDownloadConnection(): Unhandled msg type: " + toString(msg_type));
+				conPrintIfNotFuzzing("handleResourceDownloadConnection(): Unhandled msg type: " + toString(msg_type));
 				return;
 			}
 		}
@@ -375,7 +398,7 @@ void WorkerThread::handleResourceDownloadConnection()
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("glare::Exception: " + e.what());
+		conPrintIfNotFuzzing("glare::Exception: " + e.what());
 	}
 	catch(std::bad_alloc&)
 	{
@@ -386,7 +409,7 @@ void WorkerThread::handleResourceDownloadConnection()
 
 void WorkerThread::handleScreenshotBotConnection()
 {
-	conPrint("handleScreenshotBotConnection()");
+	conPrintIfNotFuzzing("handleScreenshotBotConnection()");
 
 	const std::string password = socket->readStringLengthFirst(10000);
 	if(password != server->world_state->getCredential("screenshot_bot_password"))
@@ -476,7 +499,8 @@ void WorkerThread::handleScreenshotBotConnection()
 					const std::string screenshot_path = server->screenshot_dir + "/" + screenshot_filename;
 
 					// Save screenshot to path
-					FileUtils::writeEntireFile(screenshot_path, data);
+					if(!fuzzing) // Don't write to disk while fuzzing
+						FileUtils::writeEntireFile(screenshot_path, data);
 
 					conPrint("Saved to disk at " + screenshot_path);
 
@@ -499,7 +523,8 @@ void WorkerThread::handleScreenshotBotConnection()
 				socket->writeUInt32(Protocol::KeepAlive); // Send a keepalive message just to check the socket is still connected.
 
 				// There is no current screenshot request, sleep for a while
-				PlatformUtils::Sleep(10000);
+				if(!fuzzing)
+					PlatformUtils::Sleep(10000);
 			}
 		}
 	}
@@ -516,7 +541,7 @@ void WorkerThread::handleScreenshotBotConnection()
 
 void WorkerThread::handleEthBotConnection()
 {
-	conPrint("handleEthBotConnection()");
+	conPrintIfNotFuzzing("handleEthBotConnection()");
 
 	try
 	{
@@ -623,13 +648,14 @@ void WorkerThread::handleEthBotConnection()
 				socket->writeUInt32(Protocol::KeepAlive); // Send a keepalive message just to check the socket is still connected.
 
 				// There is no current transaction to process, sleep for a while
-				PlatformUtils::Sleep(10000);
+				if(!fuzzing)
+					PlatformUtils::Sleep(10000);
 			}
 		}
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("handleEthBotConnection: glare::Exception: " + e.what());
+		conPrintIfNotFuzzing("handleEthBotConnection: glare::Exception: " + e.what());
 	}
 	catch(std::exception& e)
 	{
@@ -690,6 +716,11 @@ void WorkerThread::doRun()
 {
 	PlatformUtils::setCurrentThreadNameIfTestsEnabled("WorkerThread");
 
+
+	if(CAPTURE_TRACES)
+		socket.downcastToPtr<RecordingSocket>()->clearRecordBuf();
+
+
 	ServerAllWorldsState* world_state = server->world_state.getPointer();
 
 	UID client_avatar_uid(0);
@@ -704,7 +735,6 @@ void WorkerThread::doRun()
 	{
 		// Read hello bytes
 		const uint32 hello = socket->readUInt32();
-		printVar(hello);
 		if(hello != Protocol::CyberspaceHello)
 			throw glare::Exception("Received invalid hello message (" + toString(hello) + ") from client.");
 		
@@ -713,7 +743,7 @@ void WorkerThread::doRun()
 
 		// Read protocol version
 		const uint32 client_protocol_version = socket->readUInt32();
-		printVar(client_protocol_version);
+		conPrintIfNotFuzzing("client protocol version: " + toString(client_protocol_version));
 		if(client_protocol_version < 35) // We can't handle protocol versions < 35 (before version 35 with 'Added emission_rgb and emission_texture_url to WorldMaterial')
 		{
 			socket->writeUInt32(Protocol::ClientProtocolTooOld);
@@ -751,9 +781,12 @@ void WorkerThread::doRun()
 		}
 		else if(connection_type == Protocol::ConnectionTypeUpdates)
 		{
+			if(CAPTURE_TRACES)
+				this->write_trace = true;
+
 			// Read name of world to connect to
 			const std::string world_name = socket->readStringLengthFirst(1000);
-			conPrint("Client connecting to world '" + world_name + "'...");
+			conPrintIfNotFuzzing("Client connecting to world '" + world_name + "'...");
 			
 
 			{
@@ -957,10 +990,10 @@ void WorkerThread::doRun()
 					{
 					case Protocol::CyberspaceGoodbye:
 						{
-							conPrint("WorkerThread: received CyberspaceGoodbye, starting graceful shutdown..");
+							conPrintIfNotFuzzing("WorkerThread: received CyberspaceGoodbye, starting graceful shutdown..");
 							socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the client.
 							socket->waitForGracefulDisconnect(); // Wait for a FIN packet from the client. (indicated by recv() returning 0).  We can then close the socket without going into a wait state.
-							conPrint("WorkerThread: waitForGracefulDisconnect done.");
+							conPrintIfNotFuzzing("WorkerThread: waitForGracefulDisconnect done.");
 							keep_looping = false;
 							break;
 						}
@@ -1035,7 +1068,7 @@ void WorkerThread::doRun()
 					}
 					case Protocol::AvatarFullUpdate:
 						{
-							conPrint("Protocol::AvatarFullUpdate");
+							conPrintIfNotFuzzing("Protocol::AvatarFullUpdate");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 							Avatar temp_avatar;
@@ -1068,7 +1101,7 @@ void WorkerThread::doRun()
 												client_user->avatar_settings = avatar->avatar_settings;
 												world_state->addUserAsDBDirty(client_user);
 
-												conPrint("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
+												conPrintIfNotFuzzing("Updated user avatar settings.  model_url: " + client_user->avatar_settings.model_url);
 											}
 										}
 									}
@@ -1090,7 +1123,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::CreateAvatar:
 						{
-							conPrint("received Protocol::CreateAvatar");
+							conPrintIfNotFuzzing("received Protocol::CreateAvatar");
 							// Note: name will come from user account
 							// will use the client_avatar_uid that we assigned to the client
 						
@@ -1117,7 +1150,7 @@ void WorkerThread::doRun()
 									avatar->other_dirty = true;
 									cur_world_state->avatars.insert(std::make_pair(use_avatar_uid, avatar));
 
-									conPrint("created new avatar");
+									conPrintIfNotFuzzing("created new avatar");
 								}
 							}
 
@@ -1130,13 +1163,13 @@ void WorkerThread::doRun()
 							for(auto it = URLs.begin(); it != URLs.end(); ++it)
 								sendGetFileMessageIfNeeded(it->URL);
 
-							conPrint("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
+							conPrintIfNotFuzzing("New Avatar creation: username: '" + temp_avatar.name + "', model_url: '" + temp_avatar.avatar_settings.model_url + "'");
 
 							break;
 						}
 					case Protocol::AvatarDestroyed:
 						{
-							conPrint("AvatarDestroyed");
+							conPrintIfNotFuzzing("AvatarDestroyed");
 							const UID avatar_uid = readUIDFromStream(msg_buffer);
 
 							// Mark avatar as dead
@@ -1357,18 +1390,18 @@ void WorkerThread::doRun()
 						}
 					case Protocol::CreateObject: // Client wants to create an object
 						{
-							conPrint("CreateObject");
+							conPrintIfNotFuzzing("CreateObject");
 
 							WorldObjectRef new_ob = new WorldObject();
 							new_ob->uid = readUIDFromStream(msg_buffer); // Read dummy UID
 							readFromNetworkStreamGivenUID(msg_buffer, *new_ob);
 
-							conPrint("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
+							conPrintIfNotFuzzing("model_url: '" + new_ob->model_url + "', pos: " + new_ob->pos.toString());
 
 							// If client is not logged in, refuse object creation.
 							if(!client_user_id.valid())
 							{
-								conPrint("Creation denied, user was not logged in.");
+								conPrintIfNotFuzzing("Creation denied, user was not logged in.");
 								MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
 								scratch_packet.writeStringLengthFirst("You must be logged in to create an object.");
 								MessageUtils::updatePacketLengthField(scratch_packet);
@@ -1409,7 +1442,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::DestroyObject: // Client wants to destroy an object.
 						{
-							conPrint("DestroyObject");
+							conPrintIfNotFuzzing("DestroyObject");
 							const UID object_uid = readUIDFromStream(msg_buffer);
 
 							// If client is not logged in, refuse object modification.
@@ -1455,7 +1488,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::GetAllObjects: // Client wants to get all objects in world
 					{
-						conPrint("GetAllObjects");
+						conPrintIfNotFuzzing("GetAllObjects");
 
 						SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder); // Will contain several messages
 
@@ -1545,7 +1578,7 @@ void WorkerThread::doRun()
 
 						if(!packet.buf.empty())
 						{
-							conPrint("QueryObjects: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ") ...");
+							conPrintIfNotFuzzing("QueryObjects: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ") ...");
 
 							socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
 							socket->flush();
@@ -1564,7 +1597,7 @@ void WorkerThread::doRun()
 
 						const js::AABBox aabb(Vec4f(lower_x, lower_y, lower_z, 1.f), Vec4f(upper_x, upper_y, upper_z, 1.f));
 					
-						conPrint("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
+						conPrintIfNotFuzzing("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
 
 						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
 						int num_obs_written = 0;
@@ -1592,7 +1625,7 @@ void WorkerThread::doRun()
 
 						if(!packet.buf.empty())
 						{
-							conPrint("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+							conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
 
 							socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
 							socket->flush();
@@ -1602,7 +1635,8 @@ void WorkerThread::doRun()
 					}
 					case Protocol::QueryParcels:
 						{
-							conPrint("QueryParcels");
+							conPrintIfNotFuzzing("QueryParcels");
+
 							// Send all current parcel data to client
 							MessageUtils::initPacket(scratch_packet, Protocol::ParcelList);
 							{
@@ -1618,7 +1652,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::ParcelFullUpdate: // Client wants to update a parcel
 						{
-							conPrint("ParcelFullUpdate");
+							conPrintIfNotFuzzing("ParcelFullUpdate");
 							const ParcelID parcel_id = readParcelIDFromStream(msg_buffer);
 
 							Parcel temp_parcel;
@@ -1672,7 +1706,7 @@ void WorkerThread::doRun()
 							//const std::string name = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 							const std::string msg = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
-							conPrint("Received chat message: '" + msg + "'");
+							conPrintIfNotFuzzing("Received chat message: '" + msg + "'");
 
 							if(!client_user_id.valid())
 							{
@@ -1727,12 +1761,12 @@ void WorkerThread::doRun()
 						}
 					case Protocol::LogInMessage: // Client wants to log in.
 						{
-							conPrint("LogInMessage");
+							conPrintIfNotFuzzing("LogInMessage");
 
 							const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 							const std::string password = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
-							conPrint("username: '" + username + "'");
+							conPrintIfNotFuzzing("username: '" + username + "'");
 						
 							bool logged_in = false;
 							{
@@ -1742,7 +1776,7 @@ void WorkerThread::doRun()
 								{
 									User* user = res->second.getPointer();
 									const bool password_valid = user->isPasswordValid(password);
-									conPrint("password_valid: " + boolToString(password_valid));
+									conPrintIfNotFuzzing("password_valid: " + boolToString(password_valid));
 									if(password_valid)
 									{
 										// Password is valid, log user in.
@@ -1755,7 +1789,7 @@ void WorkerThread::doRun()
 								}
 							}
 
-							conPrint("logged_in: " + boolToString(logged_in));
+							conPrintIfNotFuzzing("logged_in: " + boolToString(logged_in));
 							if(logged_in)
 							{
 								if(username == "lightmapperbot")
@@ -1786,7 +1820,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::LogOutMessage: // Client wants to log out.
 						{
-							conPrint("LogOutMessage");
+							conPrintIfNotFuzzing("LogOutMessage");
 
 							client_user_id = UserID::invalidUserID(); // Mark the client as not logged in.
 							client_user_name = "";
@@ -1801,7 +1835,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::SignUpMessage:
 						{
-							conPrint("SignUpMessage");
+							conPrintIfNotFuzzing("SignUpMessage");
 
 							const std::string username = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 							const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
@@ -1809,8 +1843,7 @@ void WorkerThread::doRun()
 
 							try
 							{
-
-								conPrint("username: '" + username + "', email: '" + email + "'");
+								conPrintIfNotFuzzing("username: '" + username + "', email: '" + email + "'");
 
 								bool signed_up = false;
 
@@ -1858,10 +1891,10 @@ void WorkerThread::doRun()
 									}
 								}
 
-								conPrint("signed_up: " + boolToString(signed_up));
+								conPrintIfNotFuzzing("signed_up: " + boolToString(signed_up));
 								if(signed_up)
 								{
-									conPrint("Sign up successful");
+									conPrintIfNotFuzzing("Sign up successful");
 									// Send signed-up message to client
 									MessageUtils::initPacket(scratch_packet, Protocol::SignedUpMessageID);
 									writeToStream(client_user_id, scratch_packet);
@@ -1873,7 +1906,7 @@ void WorkerThread::doRun()
 								}
 								else
 								{
-									conPrint("Sign up failed.");
+									conPrintIfNotFuzzing("Sign up failed.");
 
 									// signup failed.  Send error message back to client
 									MessageUtils::initPacket(scratch_packet, Protocol::ErrorMessageID);
@@ -1901,7 +1934,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::RequestPasswordReset:
 						{
-							conPrint("RequestPasswordReset");
+							conPrintIfNotFuzzing("RequestPasswordReset");
 
 							const std::string email    = msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 
@@ -1934,7 +1967,7 @@ void WorkerThread::doRun()
 						}
 					case Protocol::ChangePasswordWithResetToken:
 						{
-							conPrint("ChangePasswordWithResetToken");
+							conPrintIfNotFuzzing("ChangePasswordWithResetToken");
 						
 							const std::string email			= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
 							const std::string reset_token	= msg_buffer.readStringLengthFirst(MAX_STRING_LEN);
@@ -1987,6 +2020,10 @@ void WorkerThread::doRun()
 				}
 			} // End write to / read from socket loop
 		} // End if(connection_type == Protocol::ConnectionTypeUpdates)
+		else
+		{
+			throw glare::Exception("Unknown connection_type: " + toString(connection_type));
+		}
 	}
 	catch(MySocketExcep& e)
 	{
@@ -1997,12 +2034,16 @@ void WorkerThread::doRun()
 	}
 	catch(glare::Exception& e)
 	{
-		conPrint("glare::Exception: " + e.what());
+		conPrintIfNotFuzzing("glare::Exception: " + e.what());
 	}
 	catch(std::bad_alloc&)
 	{
 		conPrint("WorkerThread: Caught std::bad_alloc.");
 	}
+
+
+	if(write_trace)
+		socket.downcastToPtr<RecordingSocket>()->writeRecordBufToDisk("traces/worker_thread_trace_" + ::toString(Clock::getTimeSinceInit()) + ".bin");
 
 	
 	// Mark avatar corresponding to client as dead.  Note that we want to do this after catching any exceptions, so avatar is removed on broken connections etc.
@@ -2056,4 +2097,11 @@ void WorkerThread::enqueueDataToSend(const SocketBufferOutStream& packet) // thr
 	}
 
 	event_fd.notify();
+}
+
+
+void WorkerThread::conPrintIfNotFuzzing(const std::string& msg)
+{
+	if(!fuzzing)
+		conPrint(msg);
 }
