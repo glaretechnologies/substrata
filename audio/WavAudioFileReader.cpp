@@ -9,7 +9,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../utils/StringUtils.h"
 #include "../utils/FileInStream.h"
 #include "../utils/BufferViewInStream.h"
-#include "../utils/Check.h"
+#include "../utils/RuntimeCheck.h"
 
 
 static inline int32 signExtend24BitValue(int32 x)
@@ -123,7 +123,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 				{
 					if(wav_num_channels == 1)
 					{
-						doRuntimeCheck(file.canReadNBytes(num_samples * 3));
+						runtimeCheck(file.canReadNBytes(num_samples * 3));
 						const uint8* src = (const uint8*)file.currentReadPtr();
 						for(uint32 i=0; i<num_samples; ++i)
 						{
@@ -138,7 +138,7 @@ glare::SoundFileRef glare::WavAudioFileReader::readAudioFileFromBuffer(const uin
 					else if(wav_num_channels == 2)
 					{
 						// Mix down to mono
-						doRuntimeCheck(file.canReadNBytes(num_samples * 3));
+						runtimeCheck(file.canReadNBytes(num_samples * 3));
 						const uint8* src = (const uint8*)file.currentReadPtr();
 						for(uint32 i=0; i<num_samples / wav_num_channels; ++i)
 						{
