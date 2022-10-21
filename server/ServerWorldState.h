@@ -144,7 +144,9 @@ public:
 	void addEverythingToDirtySets();
 
 	bool isInReadOnlyMode();
-	
+
+	void clearAndReset(); // Just for fuzzing
+
 	Reference<ResourceManager> resource_manager;
 
 	std::map<UserID, Reference<User>> user_id_to_users GUARDED_BY(mutex);  // User id to user
