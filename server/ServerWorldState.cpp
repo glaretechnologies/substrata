@@ -646,6 +646,14 @@ bool ServerAllWorldsState::isInReadOnlyMode()
 }
 
 
+void ServerAllWorldsState::clearAndReset() // Just for fuzzing
+{
+	Lock lock(mutex);
+	next_object_uid = UID(0);
+	next_avatar_uid = UID(0);
+}
+
+
 void ServerAllWorldsState::denormaliseData()
 {
 	Lock lock(mutex);
