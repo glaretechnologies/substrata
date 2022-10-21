@@ -64,8 +64,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/RequestHandler.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/UnsafeString.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/webserver/UnsafeString.h
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThreadTests.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WorkerThreadTests.h
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThreadTests.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/webserver/WebWorkerThreadTests.h
 #${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StaticAssetManager.cpp
 #${GLARE_CORE_TRUNK_DIR_ENV}/webserver/StaticAssetManager.h
 )
