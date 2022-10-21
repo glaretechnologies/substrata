@@ -1222,6 +1222,11 @@ function onWheel(ev: WheelEvent) {
 	cam_controller.handleScroll(-ev.deltaY);
 }
 
+function onFocusOut(ev: FocusEvent) {
+	// Clear keys-down set, to prevent the issue where we miss the keyup event since the canvas does not have focus, and so the key acts as if it's stuck down.
+	keys_down.clear();
+}
+
 // See https://stackoverflow.com/a/20434960
 window.addEventListener('resize', onWindowResize, false);
 
@@ -1240,6 +1245,7 @@ window.addEventListener('mousemove', onDocumentMouseMove, false);
 renderer_canvas_elem.addEventListener('keydown', onKeyDown, false);
 renderer_canvas_elem.addEventListener('keyup', onKeyUp, false);
 renderer_canvas_elem.addEventListener('keypress', onKeyPress, false);
+renderer_canvas_elem.addEventListener('focusout', onFocusOut, false);
 window.addEventListener('wheel', onWheel, false);
 
 function doCamMovement(dt) {
