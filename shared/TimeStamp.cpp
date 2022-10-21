@@ -116,7 +116,7 @@ const std::string TimeStamp::RFC822FormatedString() const // http://www.faqs.org
 	{
 		return Clock::RFC822FormatedString(t);
 	}
-	catch(glare::Exception& e)
+	catch(glare::Exception& )
 	{
 		return "[String formatting failed]";
 	}
