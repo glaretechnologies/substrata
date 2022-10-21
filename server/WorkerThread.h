@@ -16,9 +16,6 @@ Copyright Glare Technologies Limited 2018 -
 #include <Vector.h>
 #include <BufferInStream.h>
 #include <string>
-class WorkUnit;
-class PrintOutput;
-class ThreadMessageSink;
 class Server;
 
 
@@ -49,6 +46,7 @@ private:
 	void handleResourceDownloadConnection();
 	void handleScreenshotBotConnection();
 	void handleEthBotConnection();
+	void conPrintIfNotFuzzing(const std::string& msg);
 
 	Reference<SocketInterface> socket;
 	Server* server;
@@ -61,4 +59,8 @@ private:
 	SocketBufferOutStream scratch_packet;
 
 	BufferInStream msg_buffer;
+public:
+	bool fuzzing; // Are we currently doing fuzz-testing?
+private:
+	bool write_trace; // Should we write a record of network traffic to disk for fuzz seeding?
 };
