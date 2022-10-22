@@ -218,7 +218,6 @@ export class PlayerPhysics {
 
 				if(hitSomething) {
 					const usefraction = closestResult.data[DIST] / len3(dpos);
-					if(usefraction < 0 || usefraction > 1) console.warn('Failed assert usefraction'); // TODO: REMOVE
 
 					addScaled3(camPos, dpos, usefraction); // camPos += dpos * usefraction
 					mulScalar3(dpos, 1.0 - usefraction); // dpos *= 1.0 - usefraction
@@ -299,6 +298,8 @@ export class PlayerPhysics {
 		pos.set(controller.firstPersonPos);
 		this.update(dt, pos);
 		controller.position = pos;
+		this.world_.ground.updateGroundPlane(pos);
+		if(this.visGroup_) this.visGroup_.position.set(pos[0], pos[1], pos[2] - EYE_HEIGHT);
 
 		if(controller.isThirdPerson) {
 			const target = controller.firstPersonPos;
@@ -316,8 +317,6 @@ export class PlayerPhysics {
 			controller.thirdPersonPos = back;
 		}
 
-		this.world_.ground.updateGroundPlane(pos);
-		if(this.visGroup_) this.visGroup_.position.set(pos[0], pos[1], pos[2] - EYE_HEIGHT);
 	}
 
 	// Returns displacement

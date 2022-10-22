@@ -167,6 +167,16 @@ export default class PhysicsWorld {
 			}
 		}
 
+		// Test ground
+		O.set(origin); d.set(dir);
+		applyMatrix4(this.ground.worldToObject, O);
+		transformDirection(this.ground.worldToObject, d);
+		const test = this.ground.bvh.testRayLeaf(O, d);
+		if (test[1] !== -1 && t > test[2]) {
+			t = test[2];
+			hit = true;
+		}
+
 		return hit ? t : -1;
 	}
 
