@@ -171,7 +171,12 @@ export default class CameraController {
 	public get pitch (): number { return this.rotation_[PITCH]; }
 	public set pitch (value: number) { this.rotation_[PITCH] = value; }
 	public get heading (): number { return this.rotation_[HEADING]; }
-	public set heading (value: number) { this.rotation_[HEADING] = value; }
+	public set heading (value: number) {
+		this.rotation_[HEADING] = value;
+		const pos = new Float32Array(this.position);
+		add3(pos, this.camForwardsVec);
+		this.camera.lookAt(...pos);
+	}
 
 	public mouseLook (moveX: number, moveY: number): void {
 		this.rotation_[HEADING] += -moveX * ROT_FACTOR;
