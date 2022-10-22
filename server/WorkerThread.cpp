@@ -1065,7 +1065,7 @@ void WorkerThread::doRun()
 								enqueuePacketToBroadcast(scratch_packet, server);
 							}
 							break;
-					}
+						}
 					case Protocol::AvatarFullUpdate:
 						{
 							conPrintIfNotFuzzing("Protocol::AvatarFullUpdate");
@@ -1487,152 +1487,152 @@ void WorkerThread::doRun()
 							break;
 						}
 					case Protocol::GetAllObjects: // Client wants to get all objects in world
-					{
-						conPrintIfNotFuzzing("GetAllObjects");
-
-						SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder); // Will contain several messages
-
 						{
-							Lock lock(world_state->mutex);
-							for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+							conPrintIfNotFuzzing("GetAllObjects");
+
+							SocketBufferOutStream temp_buf(SocketBufferOutStream::DontUseNetworkByteOrder); // Will contain several messages
+
 							{
-								const WorldObject* ob = it->second.getPointer();
+								Lock lock(world_state->mutex);
+								for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+								{
+									const WorldObject* ob = it->second.getPointer();
 
-								// Build ObjectInitialSend message
-								MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-								ob->writeToNetworkStream(scratch_packet);
-								MessageUtils::updatePacketLengthField(scratch_packet);
+									// Build ObjectInitialSend message
+									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
+									ob->writeToNetworkStream(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
 
-								temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+									temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+								}
 							}
+
+							MessageUtils::initPacket(scratch_packet, Protocol::AllObjectsSent); // Terminate the buffer with an AllObjectsSent message.
+							MessageUtils::updatePacketLengthField(scratch_packet);
+							temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
+
+							socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
+							socket->flush();
+
+							break;
 						}
-
-						MessageUtils::initPacket(scratch_packet, Protocol::AllObjectsSent); // Terminate the buffer with an AllObjectsSent message.
-						MessageUtils::updatePacketLengthField(scratch_packet);
-						temp_buf.writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
-
-						socket->writeData(temp_buf.buf.data(), temp_buf.buf.size());
-						socket->flush();
-
-						break;
-					}
 					case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
-					{
-						const uint32 num_cells = msg_buffer.readUInt32();
-						if(num_cells > 100000)
-							throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
-
-						//conPrint("QueryObjects, num_cells=" + toString(num_cells));
-					
-						// Read cell coords from network and make AABBs for cells
-						js::Vector<js::AABBox, 16> cell_aabbs(num_cells);
-						for(uint32 i=0; i<num_cells; ++i)
 						{
-							const int x = msg_buffer.readInt32();
-							const int y = msg_buffer.readInt32();
-							const int z = msg_buffer.readInt32();
+							const uint32 num_cells = msg_buffer.readUInt32();
+							if(num_cells > 100000)
+								throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
 
-							//if(i < 10)
-							//	conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
-
-							const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
-
-							cell_aabbs[i] = js::AABBox(
-								Vec4f(0,0,0,1) + Vec4f((float)x,     (float)y,     (float)z,     0)*CELL_WIDTH,
-								Vec4f(0,0,0,1) + Vec4f((float)(x+1), (float)(y+1), (float)(z+1), 0)*CELL_WIDTH
-							);
-						}
-
-
-						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-						int num_obs_written = 0;
-
-						{ // Lock scope
-							Lock lock(world_state->mutex);
-							for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+							//conPrint("QueryObjects, num_cells=" + toString(num_cells));
+					
+							// Read cell coords from network and make AABBs for cells
+							js::Vector<js::AABBox, 16> cell_aabbs(num_cells);
+							for(uint32 i=0; i<num_cells; ++i)
 							{
-								const WorldObject* ob = it->second.ptr();
+								const int x = msg_buffer.readInt32();
+								const int y = msg_buffer.readInt32();
+								const int z = msg_buffer.readInt32();
 
-								// See if the object is in any of the cell AABBs
-								bool in_cell = false;
-								for(uint32 i=0; i<num_cells; ++i)
-									if(cell_aabbs[i].contains(ob->pos.toVec4fPoint()))
+								//if(i < 10)
+								//	conPrint("cell " + toString(i) + " coords: " + toString(x) + ", " + toString(y) + ", " + toString(z));
+
+								const float CELL_WIDTH = 200.f; // NOTE: has to be the same value as in gui_client/ProximityLoader.cpp.
+
+								cell_aabbs[i] = js::AABBox(
+									Vec4f(0,0,0,1) + Vec4f((float)x,     (float)y,     (float)z,     0)*CELL_WIDTH,
+									Vec4f(0,0,0,1) + Vec4f((float)(x+1), (float)(y+1), (float)(z+1), 0)*CELL_WIDTH
+								);
+							}
+
+
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							int num_obs_written = 0;
+
+							{ // Lock scope
+								Lock lock(world_state->mutex);
+								for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+								{
+									const WorldObject* ob = it->second.ptr();
+
+									// See if the object is in any of the cell AABBs
+									bool in_cell = false;
+									for(uint32 i=0; i<num_cells; ++i)
+										if(cell_aabbs[i].contains(ob->pos.toVec4fPoint()))
+										{
+											in_cell = true;
+											break;
+										}
+
+									if(in_cell)
 									{
-										in_cell = true;
-										break;
+										// Send ObjectInitialSend packet
+										MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
+										ob->writeToNetworkStream(scratch_packet);
+										MessageUtils::updatePacketLengthField(scratch_packet);
+
+										packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
+
+										num_obs_written++;
 									}
-
-								if(in_cell)
-								{
-									// Send ObjectInitialSend packet
-									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-									ob->writeToNetworkStream(scratch_packet);
-									MessageUtils::updatePacketLengthField(scratch_packet);
-
-									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); 
-
-									num_obs_written++;
 								}
-							}
-						} // End lock scope
+							} // End lock scope
 
-						if(!packet.buf.empty())
-						{
-							conPrintIfNotFuzzing("QueryObjects: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ") ...");
-
-							socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-							socket->flush();
-						}
-						
-						break;
-					}
-					case Protocol::QueryObjectsInAABB: // Client wants to query objects in a particular AABB
-					{
-						const float lower_x = msg_buffer.readFloat();
-						const float lower_y = msg_buffer.readFloat();
-						const float lower_z = msg_buffer.readFloat();
-						const float upper_x = msg_buffer.readFloat();
-						const float upper_y = msg_buffer.readFloat();
-						const float upper_z = msg_buffer.readFloat();
-
-						const js::AABBox aabb(Vec4f(lower_x, lower_y, lower_z, 1.f), Vec4f(upper_x, upper_y, upper_z, 1.f));
-					
-						conPrintIfNotFuzzing("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
-
-						SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-						int num_obs_written = 0;
-
-						{ // Lock scope
-							Lock lock(world_state->mutex);
-							for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+							if(!packet.buf.empty())
 							{
-								const WorldObject* ob = it->second.ptr();
+								conPrintIfNotFuzzing("QueryObjects: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ") ...");
 
-								// See if the object is in any of the cell AABBs
-								if(aabb.contains(ob->pos.toVec4fPoint()))
-								{
-									// Create ObjectInitialSend packet
-									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-									ob->writeToNetworkStream(scratch_packet);
-									MessageUtils::updatePacketLengthField(scratch_packet);
-
-									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append to packet
-
-									num_obs_written++;
-								}
+								socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+								socket->flush();
 							}
-						} // End lock scope
-
-						if(!packet.buf.empty())
-						{
-							conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
-
-							socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-							socket->flush();
+						
+							break;
 						}
+					case Protocol::QueryObjectsInAABB: // Client wants to query objects in a particular AABB
+						{
+							const float lower_x = msg_buffer.readFloat();
+							const float lower_y = msg_buffer.readFloat();
+							const float lower_z = msg_buffer.readFloat();
+							const float upper_x = msg_buffer.readFloat();
+							const float upper_y = msg_buffer.readFloat();
+							const float upper_z = msg_buffer.readFloat();
 
-						break;
-					}
+							const js::AABBox aabb(Vec4f(lower_x, lower_y, lower_z, 1.f), Vec4f(upper_x, upper_y, upper_z, 1.f));
+					
+							conPrintIfNotFuzzing("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
+
+							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
+							int num_obs_written = 0;
+
+							{ // Lock scope
+								Lock lock(world_state->mutex);
+								for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
+								{
+									const WorldObject* ob = it->second.ptr();
+
+									// See if the object is in any of the cell AABBs
+									if(aabb.contains(ob->pos.toVec4fPoint()))
+									{
+										// Create ObjectInitialSend packet
+										MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
+										ob->writeToNetworkStream(scratch_packet);
+										MessageUtils::updatePacketLengthField(scratch_packet);
+
+										packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append to packet
+
+										num_obs_written++;
+									}
+								}
+							} // End lock scope
+
+							if(!packet.buf.empty())
+							{
+								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+
+								socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
+								socket->flush();
+							}
+
+							break;
+						}
 					case Protocol::QueryParcels:
 						{
 							conPrintIfNotFuzzing("QueryParcels");
