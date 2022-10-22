@@ -1259,11 +1259,11 @@ function doCamMovement(dt) {
 		physics_world.player.processMoveForwards(-1, run_pressed);
 	}
 
-	if(keys_down.has('KeyA') || keys_down.has('ArrowLeft')) {
+	if(keys_down.has('KeyA')) {
 		physics_world.player.processMoveRight(-1, run_pressed);
 	}
 
-	if(keys_down.has('KeyD') || keys_down.has('ArrowRight')) {
+	if(keys_down.has('KeyD')) {
 		physics_world.player.processMoveRight(+1, run_pressed);
 	}
 
@@ -1273,6 +1273,16 @@ function doCamMovement(dt) {
 
 	if (keys_down.has('KeyC') && !(keys_down.has('ControlLeft') || keys_down.has('ControlRight'))) {
 		physics_world.player.processMoveUp(-1., run_pressed);
+	}
+
+	if(keys_down.has('ArrowLeft')) {
+		const turn_speed = run_pressed ? 5.0 : 1.0;
+		cam_controller.heading = cam_controller.heading + (dt * turn_speed);
+	}
+
+	if(keys_down.has('ArrowRight')) {
+		const turn_speed = run_pressed ? 5.0 : 1.0;
+		cam_controller.heading = cam_controller.heading - (dt * turn_speed);
 	}
 
 	physics_world.player.processCameraMovement(dt);

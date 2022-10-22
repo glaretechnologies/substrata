@@ -16,8 +16,12 @@ import { add3 } from './maths/vec3.js';
 export const DEFAULT_FOV = 75;
 export const DEFAULT_NEAR = 0.1;
 export const DEFAULT_FAR = 1000.0;
+export const MAX_CAM_DIST = 20.0;
 const ROT_FACTOR = 3e-3;
 const DEFAULT_CAM_DIST = 3.0;
+
+// const SPEED_BASE = (1. + Math.sqrt(5)) * .5;
+// const CAP = 1e-4;
 
 const HEADING = 1;
 const PITCH = 2;
@@ -36,6 +40,7 @@ export function getAR (): number {
 // holds references to ray casters, the renderer, the frustum, etc.
 export default class CameraController {
 	public readonly camera: THREE.PerspectiveCamera;
+
 	private readonly rndr_: THREE.WebGLRenderer;
 	private readonly caster_: Caster;
 
@@ -48,6 +53,13 @@ export default class CameraController {
 
 	private readonly camPos3rdPerson: Float32Array;
 	private readonly camDelta: Float32Array;
+
+	/*
+	public invertSidewaysMovement: boolean;
+	public invertMouse: boolean;
+	private mouseSensitivityScale_: number;
+	private moveSpeedScale_: number;
+	*/
 
 	private camDistance_ = DEFAULT_CAM_DIST;
 
@@ -81,6 +93,13 @@ export default class CameraController {
 		// For 3rd person camera
 		this.camPos3rdPerson = new Float32Array([0, -1, 1]);
 		this.camDelta = new Float32Array(3);
+
+		/*
+		this.moveSpeedScale_ = 1;
+		this.mouseSensitivityScale_ = 1;
+		this.invertSidewaysMovement = false;
+		this.invertMouse = false;
+ 	  */
 	}
 
 	private onResize = () => {
@@ -107,11 +126,11 @@ export default class CameraController {
 
 	public handleScroll(delta: number): void {
 		const dist = this.camDistance_;
-		this.camDistance_ = clamp(dist - (dist * delta * 2e-3), 0.5, 20.0);
+		this.camDistance_ = clamp(dist - (dist * delta * 2e-3), 0.5, MAX_CAM_DIST);
 	}
 
 	public get camDistance (): number { return this.camDistance_; }
-	public set camDistance (dist: number) { this.camDistance_ = clamp(dist, 0.5, 20.0); }
+	public set camDistance (dist: number) { this.camDistance_ = clamp(dist, 0.5, MAX_CAM_DIST); }
 
 	public get isFirstPerson (): boolean { return this.mode_ === CameraMode.FIRST_PERSON; }
 	public get isThirdPerson (): boolean { return this.mode_ === CameraMode.THIRD_PERSON; }
@@ -154,7 +173,6 @@ export default class CameraController {
 	public get heading (): number { return this.rotation_[HEADING]; }
 	public set heading (value: number) { this.rotation_[HEADING] = value; }
 
-	// Not sure how this should work in 3rd person view just yet...
 	public mouseLook (moveX: number, moveY: number): void {
 		this.rotation_[HEADING] += -moveX * ROT_FACTOR;
 		this.rotation_[PITCH] = clamp(this.rotation_[PITCH] + moveY * ROT_FACTOR, 1e-3, Math.PI - 1e-3);
@@ -166,4 +184,47 @@ export default class CameraController {
 		this.camera.lookAt(...add3(this.position, this.camForwardsVec, this.tmp));
 		this.camera.updateMatrix();
 	}
+
+	/*
+  public get mouseSensitivityScale (): number { return this.mouseSensitivityScale_; }
+	public set mouseSensitivityScale (value: number) { this.mouseSensitivityScale_ = Math.pow(SPEED_BASE, value); }
+
+	public get moveSpeedScale (): number { return this.moveSpeedScale_; }
+	public set moveSpeedScale (value: number) { this.moveSpeedScale_ = value; }
+
+	public getUpForForwards (dir: Float32Array): Float32Array {
+		const up = new Float32Array(UP_VECTOR);
+		if(Math.abs(dot3(dir, up))) {
+			return up;
+		}	else {
+			removeComponentInDir(up, dir);
+			return normalise3(up);
+		}
+	}
+
+	public update (posDelta: Float32Array, rotDelta: Float32Array) {
+		// These two values are used in CameraController::update() and not updated anywhere that I can tell
+		const baseMoveSpeed = .035;
+		const baseRotateSpeed = .005;
+
+		const rotSpeed = baseRotateSpeed * this.mouseSensitivityScale_;
+		const moveSpeed = baseMoveSpeed * this.moveSpeedScale_;
+		const sideDirFactor = this.invertSidewaysMovement ? -1. : 1;
+
+		if(!eq(rotDelta[0], 0.) || !eq(rotDelta[1], 0.)) {
+			this.rotation_[0] += rotDelta[1] * -rotSpeed;
+			this.rotation_[1] += rotDelta[0] * -rotSpeed * (this.invertMouse ? -1 : 1);
+			this.rotation_[1] = Math.max(CAP, Math.min(PI - CAP, this.rotation_[1]));
+		}
+
+		const forwards = new Float32Array([
+			Math.sin(this.rotation_[1]) * Math.cos(this.rotation_[0]),
+			Math.sin(this.rotation_[1]) * Math.sin(this.rotation_[0]),
+			Math.cos(this.rotation_[1])
+		]);
+
+		const up = this.getUpForForwards(forwards);
+		const right = cross3(forwards, up, new Float32Array(3);
+	}
+	*/
 }

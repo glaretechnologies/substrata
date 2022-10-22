@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 import * as THREE from '../build/three.module.js';
 import BVH, { Triangles } from './bvh.js';
 import { generatePatch } from '../maths/generators.js';
+import { MAX_CAM_DIST } from '../cameraController.js';
 
 /*
 Adds a virtual ground plane to the physics world
@@ -24,7 +25,8 @@ export class Ground {
 		buf.setIndex(new THREE.BufferAttribute(geo[1], 1, false));
 		this.mesh_ = new THREE.Mesh(buf, new THREE.MeshBasicMaterial({ color: 'red', transparent: true, opacity: 0.5 }));
 		this.mesh_.position.set(0, 0, 0);
-		this.mesh_.scale.set(10, 10, 10);
+		// Needs to be large enough for the 3rd person camera ray test
+		this.mesh_.scale.set(MAX_CAM_DIST+1, MAX_CAM_DIST+1, MAX_CAM_DIST+1);
 
 		const triangles = new Triangles(geo[0], geo[1], 0, 3); // Stride = 3 (multiples of 4 bytes) = 12 bytes per vertex
 		this.bvh_ = new BVH(triangles);
