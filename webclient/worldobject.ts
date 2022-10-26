@@ -14,6 +14,7 @@ import {
 	readUserIDFromStream, readTimeStampFromStream, readUIDFromStream, readParcelIDFromStream, writeUID
 } from './types.js';
 import BVH, { Triangles } from './physics/bvh.js';
+import { removeDotAndExtension } from './utils.js';
 
 
 export const MESH_NOT_LOADED = 0;
@@ -66,9 +67,69 @@ export class WorldObject {
 	mesh_state: number;
 	mesh: THREE.Mesh;
 
+
+	current_lod_level: number; // LOD level as a function of distance from camera etc.. Kept up to date.
+	in_proximity: boolean; // Used by proximity loader
+
 	constructor() {
 		this.mesh_state = MESH_NOT_LOADED;
+
+		this.current_lod_level = 0;
+		this.in_proximity = false;
 	}
+
+	AABBLongestLength(): number {
+		return Math.max(
+			this.aabb_ws_max.x - this.aabb_ws_min.x,
+			this.aabb_ws_max.y - this.aabb_ws_min.y,
+			this.aabb_ws_max.z - this.aabb_ws_min.z
+		);
+	}
+
+	getLODLevel(campos: THREE.Vector3): number {
+
+		const dist = new THREE.Vector3(this.pos.x, this.pos.y, this.pos.z).distanceTo(campos);
+		let proj_len = this.AABBLongestLength() / dist;
+
+		// For voxel objects, push out the transition distances a bit.
+		if (this.object_type == WorldObject_ObjectType_VoxelGroup)
+			proj_len *= 2;
+
+		if (proj_len > 0.6)
+			return -1;
+		else if (proj_len > 0.16)
+			return 0;
+		else if (proj_len > 0.03)
+			return 1;
+		else
+			return 2;
+	}
+
+	getLODLevelForCamToObDist2(cam_to_ob_d2: number): number {
+
+		let proj_len = this.AABBLongestLength() / Math.sqrt(cam_to_ob_d2);
+
+		// For voxel objects, push out the transition distances a bit.
+		if (this.object_type == WorldObject_ObjectType_VoxelGroup)
+			proj_len *= 2;
+
+		if (proj_len > 0.6)
+			return -1;
+		else if (proj_len > 0.16)
+			return 0;
+		else if (proj_len > 0.03)
+			return 1;
+		else
+			return 2;
+	}
+
+	getModelLODLevel(campos: THREE.Vector3): number { // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
+		if (this.max_model_lod_level == 0)
+			return 0;
+
+		return Math.max(0, this.getLODLevel(campos));
+	}
+	
 }
 
 
@@ -126,4 +187,19 @@ export function readWorldObjectFromNetworkStreamGivenUID(buffer_in: BufferIn) {
 	}
 
 	return ob;
+}
+
+
+export function getLODModelURLForLevel(base_model_url: string, level: number): string {
+	if (level <= 0)
+		return base_model_url;
+	else {
+		if (base_model_url.startsWith('http:') || base_model_url.startsWith('https:'))
+			return base_model_url;
+
+		if (level == 1)
+			return removeDotAndExtension(base_model_url) + '_lod1.bmesh'; // LOD models are always saved in BatchedMesh (bmesh) format.
+		else
+			return removeDotAndExtension(base_model_url) + '_lod2.bmesh';
+	}
 }

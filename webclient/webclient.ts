@@ -36,8 +36,10 @@ import {
 	MESH_LOADING,
 	MESH_NOT_LOADED,
 	readWorldObjectFromNetworkStreamGivenUID,
-	WorldObject
+	WorldObject,
+	getLODModelURLForLevel
 } from './worldobject.js';
+import { Triangle } from './maths/triangle.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
@@ -235,8 +237,9 @@ ws.onmessage = function (event: MessageEvent) {
 
 				// let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
 				const dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(cam_controller.positionV3);
-				if (dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM) {
-					addWorldObjectGraphics(world_ob);
+				world_ob.in_proximity = dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM;
+				if (world_ob.in_proximity) {
+					loadModelForObject(world_ob);
 				}
 
 				world_objects.set(object_uid, world_ob);
@@ -480,109 +483,17 @@ function updateOnlineUsersList() {
 	//}
 }
 
-// https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
-function filenameExtension(filename: string): string {
-	return filename.split('.').pop();
-}
-
-function hasExtension(filename: string, ext: string): boolean {
-	return filenameExtension(filename).toLowerCase() === ext.toLowerCase();
-}
-
-function AABBLongestLength(world_ob: WorldObject): number {
-	return Math.max(
-		world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x,
-		world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y,
-		world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z
-	);
-}
 
 function toThreeVector3(v: Vec3f | Vec3d): THREE.Vector3 {
 	return new THREE.Vector3(v.x, v.y, v.z);
 }
 
-function getLODLevel(world_ob: WorldObject, campos: THREE.Vector3): number {
 
-	const dist = new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z).distanceTo(campos);
-	const proj_len = AABBLongestLength(world_ob) / dist;
-
-	if (proj_len > 0.6)
-		return -1;
-	else if (proj_len > 0.16)
-		return 0;
-	else if (proj_len > 0.03)
-		return 1;
-	else
-		return 2;
+class GeomInfo {
+	geometry: THREE.BufferGeometry;
+	triangles: Triangles;
 }
-
-
-
-function getModelLODLevel(world_ob: WorldObject, campos: THREE.Vector3): number { // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
-	if (world_ob.max_model_lod_level == 0)
-		return 0;
-
-	return Math.max(0, getLODLevel(world_ob, campos));
-}
-
-
-// https://stackoverflow.com/questions/4250364/how-to-trim-a-file-extension-from-a-string-in-javascript
-function removeDotAndExtension(filename: string): string {
-	return filename.split('.').slice(0, -1).join('.');
-}
-
-function hasPrefix(s: string, prefix: string): boolean {
-	return s.startsWith(prefix);
-}
-
-function getLODModelURLForLevel(base_model_url: string, level: number): string
-{
-	if (level <= 0)
-		return base_model_url;
-	else {
-		if (base_model_url.startsWith('http:') || base_model_url.startsWith('https:'))
-			return base_model_url;
-
-		if (level == 1)
-			return removeDotAndExtension(base_model_url) + '_lod1.bmesh'; // LOD models are always saved in BatchedMesh (bmesh) format.
-		else
-			return removeDotAndExtension(base_model_url) + '_lod2.bmesh';
-	}
-}
-
-
-//function worldMaterialMinLODLevel(world_mat) {
-//    const MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
-//    return (world_mat.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
-//}
-
-function getLODTextureURLForLevel(world_mat: WorldMaterial, base_texture_url: string, level: number, has_alpha: boolean): string {
-	const min_lod_level = world_mat.minLODLevel();
-
-	if (level <= min_lod_level)
-		return base_texture_url;
-	else {
-		// Don't do LOD on mp4 (video) textures (for now).
-		// Also don't do LOD with http URLs
-		if (hasExtension(base_texture_url, 'mp4') || hasPrefix(base_texture_url, 'http:') || hasPrefix(base_texture_url, 'https:'))
-			return base_texture_url;
-
-		// Gifs LOD textures are always gifs.
-		// Other image formats get converted to jpg if they don't have alpha, and png if they do.
-		const is_gif = hasExtension(base_texture_url, 'gif');
-
-		if (level == 0)
-			return removeDotAndExtension(base_texture_url) + '_lod0.' + (is_gif ? 'gif' : (has_alpha ? 'png' : 'jpg'));
-		else if (level == 1)
-			return removeDotAndExtension(base_texture_url) + '_lod1.' + (is_gif ? 'gif' : (has_alpha ? 'png' : 'jpg'));
-		else
-			return removeDotAndExtension(base_texture_url) + '_lod2.' + (is_gif ? 'gif' : (has_alpha ? 'png' : 'jpg'));
-	}
-}
-
-
-
-const url_to_geom_map = new Map<string, THREE.BufferGeometry>(); // Map from model_url to 3.js geometry object.
+const url_to_geom_map = new Map<string, GeomInfo>(); // Map from model_url to 3.js geometry object and triangle list
 
 const loading_model_URL_set = new Set<string>(); // set of URLS
 
@@ -597,6 +508,8 @@ const loading_model_URL_to_world_ob_map = new Map<string, Array<any>>(); // Map 
 const loading_texture_URL_to_materials_map = new Map<string, Array<THREE.Material>>(); // Map from a URL of a loading texture to a list of materials using that texture.
 
 
+// Sets fields of a three.js material from a Substrata WorldMaterial.
+// If the world material has a texture, will start downloading it, by enqueuing an item onto the download queue, if the texture is not already downloaded or downloading.
 // three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
 function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial, ob_pos: Vec3d, ob_aabb_longest_len: number, ob_lod_level: number) {
 	three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
@@ -622,7 +535,7 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		//console.log("world_mat.flags: " + world_mat.flags);
 		//console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
 		const color_tex_has_alpha = world_mat.colourTexHasAlpha();
-		const lod_texture_URL = getLODTextureURLForLevel(world_mat, world_mat.colour_texture_url, ob_lod_level, color_tex_has_alpha);
+		const lod_texture_URL = world_mat.getLODTextureURLForLevel(world_mat.colour_texture_url, ob_lod_level, color_tex_has_alpha);
 
 		if (color_tex_has_alpha)
 			three_mat.alphaTest = 0.5;
@@ -676,19 +589,29 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 }
 
 
-function addWorldObjectGraphics(world_ob: WorldObject) {
+// Starts the process of adding a 3d model to the three.js scene.
+// If the 3d model resource is not already loading/downloaded, then it will enqueue the resource URL to be downloaded/loaded onto the download queue,
+// and the actual model will be loaded into the three.js scene later.
+function loadModelForObject(world_ob: WorldObject) {
 
 	if (true) {
 
+		// Check object is in proximity.  Otherwise we might load objects outside of proximity, for example large objects transitioning from LOD level 1 to LOD level 2 or vice-versa.
+		if(!world_ob.in_proximity)
+			return;
+
 		//console.log("==================addWorldObjectGraphics (ob uid: " + world_ob.uid + ")=========================")
 
-		const ob_lod_level = getLODLevel(world_ob, cam_controller.positionV3);// camera.position);
-		const model_lod_level = getModelLODLevel(world_ob, cam_controller.positionV3); // camera.position);
-		const aabb_longest_len = AABBLongestLength(world_ob);
+		const ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3);
+		const model_lod_level = world_ob.getModelLODLevel(cam_controller.positionV3);
+		const aabb_longest_len = world_ob.AABBLongestLength();
 		//console.log("model_lod_level: " + model_lod_level);
 
 		if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
 			// This is a voxel object
+
+			// Remove any existing mesh and physics object
+			removeAndDeleteGLAndPhysicsObjectsForOb(world_ob);
 
 			if (true) {
 
@@ -719,6 +642,9 @@ function addWorldObjectGraphics(world_ob: WorldObject) {
 
 				mesh.castShadow = true;
 				mesh.receiveShadow = true;
+
+				world_ob.mesh = mesh;
+				world_ob.mesh_state = MESH_LOADED;
 
 				registerPhysicsObject(world_ob, triangles, mesh);
 			}
@@ -845,12 +771,15 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 				const array_buffer = request.response;
 				if (array_buffer) {
 
-					//console.log("Downloaded the file: '" + model_url + "'!");
+					// console.log("Downloaded file: '" + model_url + "'!");
 					try {
 						const [geometry, triangles]: [THREE.BufferGeometry, Triangles] = loadBatchedMesh(array_buffer);
 
 						//console.log("Inserting " + model_url + " into url_to_geom_map");
-						url_to_geom_map.set(model_url, geometry); // Add to url_to_geom_map
+						const geom_info = new GeomInfo();
+						geom_info.geometry = geometry;
+						geom_info.triangles = triangles;
+						url_to_geom_map.set(model_url, geom_info); // Add to url_to_geom_map
 
 						// Assign to any waiting world obs or avatars
 						const waiting_obs = loading_model_URL_to_world_ob_map.get(download_queue_item.URL);
@@ -866,10 +795,13 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 								if (world_ob_or_avatar instanceof WorldObject) {
 
 									const world_ob = world_ob_or_avatar;
-									//console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
 
-									const use_ob_lod_level = getLODLevel(world_ob, cam_controller.positionV3); // camera.position); // Used for determining which texture LOD level to load
-									const ob_aabb_longest_len = AABBLongestLength(world_ob);
+									removeAndDeleteGLAndPhysicsObjectsForOb(world_ob); // Remove any existing mesh and physics object
+
+									// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
+
+									const use_ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
+									const ob_aabb_longest_len = world_ob.AABBLongestLength();
 
 									const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
@@ -947,13 +879,24 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 
 	world_ob_or_avatar.mesh_state = MESH_LOADING;
 
-	const geom = url_to_geom_map.get(model_url);
-	if (geom) {
+	const geom_info: GeomInfo = url_to_geom_map.get(model_url); // See if we have already loaded this mesh.
+	if (geom_info) {
 		//console.log("Found already loaded geom for " + model_url);
 
-		const mesh: THREE.Mesh = makeMeshAndAddToScene(geom, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
+		if (world_ob_or_avatar instanceof WorldObject) {
+			const world_ob = world_ob_or_avatar;
+			removeAndDeleteGLAndPhysicsObjectsForOb(world_ob); // Remove any existing mesh and physics object
+		}
 
-		//console.log("Loaded mesh '" + model_url + "'.");
+		// console.log("Loaded mesh '" + model_url + "'.");
+
+		const mesh: THREE.Mesh = makeMeshAndAddToScene(geom_info.geometry, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
+
+		if (world_ob_or_avatar instanceof WorldObject) {
+			const world_ob = world_ob_or_avatar;
+			registerPhysicsObject(world_ob, geom_info.triangles, mesh);
+		}
+
 		world_ob_or_avatar.mesh = mesh;
 		world_ob_or_avatar.mesh_state = MESH_LOADED;
 		return;
@@ -1451,6 +1394,78 @@ function animate() {
 
 				avatar.mesh.matrix.copy(mat);
 				avatar.mesh.matrixAutoUpdate = false;
+			}
+		}
+	}
+
+	checkForLODChanges();
+}
+
+function removeAndDeleteGLAndPhysicsObjectsForOb(world_ob: WorldObject) {
+	// Remove from three.js scene
+	if (world_ob.mesh) {
+		scene.remove(world_ob.mesh);
+		world_ob.mesh = null;
+	}
+
+	// Remove from physics world
+	if (world_ob.bvh) {
+		physics_world.delWorldObject(world_ob);
+		world_ob.bvh = null;
+	}
+}
+
+
+function unloadObject(world_ob: WorldObject) {
+
+	removeAndDeleteGLAndPhysicsObjectsForOb(world_ob);
+
+	world_ob.mesh_state = MESH_NOT_LOADED;
+}
+
+
+function checkForLODChanges()
+{
+	const cam_pos: THREE.Vector3 = cam_controller.positionV3;
+	const cam_pos_x = cam_pos.x;
+	const cam_pos_y = cam_pos.y;
+	const cam_pos_z = cam_pos.z;
+
+	// Currently do this with a loop over all objects, so try and make this code fast and with minimal garbage generated.
+	for (const ob of world_objects.values()) {
+
+		const centroid_x = (ob.aabb_ws_min.x + ob.aabb_ws_max.x) * 0.5;
+		const centroid_y = (ob.aabb_ws_min.y + ob.aabb_ws_max.y) * 0.5;
+		const centroid_z = (ob.aabb_ws_min.z + ob.aabb_ws_max.z) * 0.5;
+
+		const cam_to_ob_d2 =
+			(centroid_x - cam_pos_x) * (centroid_x - cam_pos_x) +
+			(centroid_y - cam_pos_y) * (centroid_y - cam_pos_y) +
+			(centroid_z - cam_pos_z) * (centroid_z - cam_pos_z);
+
+
+		if (cam_to_ob_d2 > MAX_OB_LOAD_DISTANCE_FROM_CAM * MAX_OB_LOAD_DISTANCE_FROM_CAM) {
+			if (ob.in_proximity) { // If an object was in proximity to the camera, and moved out of load distance:
+
+				unloadObject(ob);
+				ob.in_proximity = false;
+			}
+		}
+		else {
+			// Object is within load distance:
+
+			const lod_level = ob.getLODLevelForCamToObDist2(cam_to_ob_d2);
+
+			if (lod_level != ob.current_lod_level) {
+				loadModelForObject(ob);
+				ob.current_lod_level = lod_level;
+				// console.log("Changing LOD level for object " + ob.uid.toString() + " to " + toString(lod_level));
+			}
+
+			if (!ob.in_proximity) { // If an object was out of load distance, and moved within load distance:
+				ob.in_proximity = true;
+				loadModelForObject(ob);
+				ob.current_lod_level = lod_level;
 			}
 		}
 	}
