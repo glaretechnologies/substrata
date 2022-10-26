@@ -66,3 +66,25 @@ export function fromUTF8Array(data) { // array of bytes
 
 	return str;
 }
+
+
+export function hasExtension(filename: string, ext: string): boolean {
+	return filenameExtension(filename).toLowerCase() === ext.toLowerCase();
+}
+
+
+export function hasPrefix(s: string, prefix: string): boolean {
+	return s.startsWith(prefix);
+}
+
+
+// https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
+export function filenameExtension(filename: string): string {
+	return filename.split('.').pop();
+}
+
+
+// https://stackoverflow.com/questions/4250364/how-to-trim-a-file-extension-from-a-string-in-javascript
+export function removeDotAndExtension(filename: string): string {
+	return filename.split('.').slice(0, -1).join('.');
+}

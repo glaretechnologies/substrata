@@ -8,6 +8,7 @@ Copyright Glare Technologies Limited 2022 -
 import { Colour3f, Matrix2f, readColour3fFromStream, readMatrix2fFromStream } from './types.js';
 import { BufferIn, readUInt32, readFloat, readStringFromStream } from './bufferin.js';
 import { BufferOut } from './bufferout.js';
+import { hasExtension, hasPrefix, filenameExtension, removeDotAndExtension } from './utils.js';
 
 const COLOUR_TEX_HAS_ALPHA_FLAG = 1;
 const MIN_LOD_LEVEL_IS_NEGATIVE_1 = 2;
@@ -66,6 +67,30 @@ export class WorldMaterial {
 		this.tex_matrix = new Matrix2f(1, 0, 0, 1);
 		this.emission_lum_flux = 0;
 		this.flags = 0;
+	}
+
+	getLODTextureURLForLevel(base_texture_url: string, level: number, has_alpha: boolean): string {
+		const min_lod_level = this.minLODLevel();
+
+		if (level <= min_lod_level)
+			return base_texture_url;
+		else {
+			// Don't do LOD on mp4 (video) textures (for now).
+			// Also don't do LOD with http URLs
+			if (hasExtension(base_texture_url, 'mp4') || hasPrefix(base_texture_url, 'http:') || hasPrefix(base_texture_url, 'https:'))
+				return base_texture_url;
+
+			// Gifs LOD textures are always gifs.
+			// Other image formats get converted to jpg if they don't have alpha, and png if they do.
+			const is_gif = hasExtension(base_texture_url, 'gif');
+
+			if (level == 0)
+				return removeDotAndExtension(base_texture_url) + '_lod0.' + (is_gif ? 'gif' : (has_alpha ? 'png' : 'jpg'));
+			else if (level == 1)
+				return removeDotAndExtension(base_texture_url) + '_lod1.' + (is_gif ? 'gif' : (has_alpha ? 'png' : 'jpg'));
+			else
+				return removeDotAndExtension(base_texture_url) + '_lod2.' + (is_gif ? 'gif' : (has_alpha ? 'png' : 'jpg'));
+		}
 	}
 }
 
