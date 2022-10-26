@@ -156,14 +156,16 @@ export default class PhysicsWorld {
 		const O = new Float32Array(3), d = new Float32Array(3);
 		for (let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
 			const obj = this.worldObjects_[i];
-			O.set(origin);
-			d.set(dir);
-			applyMatrix4(obj.worldToObject, O);
-			transformDirection(obj.worldToObject, d);
-			const test = obj.bvh.testRayLeaf(O, d);
-			if (test[1] !== -1 && t > test[2]) {
-				t = test[2];
-				hit = true;
+			if (obj) {
+				O.set(origin);
+				d.set(dir);
+				applyMatrix4(obj.worldToObject, O);
+				transformDirection(obj.worldToObject, d);
+				const test = obj.bvh.testRayLeaf(O, d);
+				if (test[1] !== -1 && t > test[2]) {
+					t = test[2];
+					hit = true;
+				}
 			}
 		}
 
@@ -185,16 +187,18 @@ export default class PhysicsWorld {
 
 		for(let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
 			const obj = this.worldObjects_[i];
-			const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.worldToObject, obj.bvh);
-			if(test) {
-				// See if we have any debug meshes associated to this mesh
-				const set = this.debugMeshes.filter(e => e.idx === i);
-				if(idx[0] !== -1) { // If we get a hit on an AABB (and potentially a triangle in idx[1])
-					for(let i = 0; i !== set.length; ++i) {
-						if(set[i].type === DebugType.AABB_MESH) {
-							obj.bvh.updateAABBMesh(set[i].mesh, idx[0]);
-						} else if(set[i].type === DebugType.TRI_MESH && idx[1] !== -1) {
-							obj.bvh.updateTriangleHighlighter(idx[1], set[i].mesh);
+			if(obj) {
+				const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.worldToObject, obj.bvh);
+				if(test) {
+					// See if we have any debug meshes associated to this mesh
+					const set = this.debugMeshes.filter(e => e.idx === i);
+					if(idx[0] !== -1) { // If we get a hit on an AABB (and potentially a triangle in idx[1])
+						for(let i = 0; i !== set.length; ++i) {
+							if(set[i].type === DebugType.AABB_MESH) {
+								obj.bvh.updateAABBMesh(set[i].mesh, idx[0]);
+							} else if(set[i].type === DebugType.TRI_MESH && idx[1] !== -1) {
+								obj.bvh.updateTriangleHighlighter(idx[1], set[i].mesh);
+							}
 						}
 					}
 				}
@@ -225,16 +229,18 @@ export default class PhysicsWorld {
 
 		for (let i = 0; i < this.worldObjects_.length; ++i) {
 			const obj = this.worldObjects_[i];
-			clearSphereTraceResult(query);
+			if (obj) {
+				clearSphereTraceResult(query);
 
-			const dist = this.traceSphereObject(/*worldObj=*/obj, sphere, dir, /*maxDist=*/transLength, spherePathAABB,
-				query);
+				const dist = this.traceSphereObject(/*worldObj=*/obj, sphere, dir, /*maxDist=*/transLength, spherePathAABB,
+					query);
 
-			if(dist !== -1 && closest > dist) {
-				closest = dist;
-				result.data.set(query.data);
-				result.hit = obj;
-				result.pointInTri = query.pointInTri;
+				if(dist !== -1 && closest > dist) {
+					closest = dist;
+					result.data.set(query.data);
+					result.hit = obj;
+					result.pointInTri = query.pointInTri;
+				}
 			}
 		}
 
@@ -284,7 +290,8 @@ export default class PhysicsWorld {
 		// No Top-level Acceleration Structure yet
 		for(let i = 0; i !== this.worldObjects_.length; ++i) {
 			const obj = this.worldObjects[i];
-			this.getCollPointsObject(obj, sphere, sphereAABB, collisionPoints);
+			if(obj)
+				this.getCollPointsObject(obj, sphere, sphereAABB, collisionPoints);
 		}
 
 		this.getCollPointsGround(sphere, sphereAABB, collisionPoints);
