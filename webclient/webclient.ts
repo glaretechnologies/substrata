@@ -78,12 +78,12 @@ const TimeSyncMessage = 9000;
 
 
 
-function toString(x) {
+function toString(x: any) {
 	return x.toString();
 }
 
 
-function writeStringToWebSocket(ws, str)
+function writeStringToWebSocket(ws: WebSocket, str: string)
 {
 	const utf8_array = toUTF8Array(str);
 
@@ -160,7 +160,7 @@ const avatars = new Map<bigint, Avatar>();
 let client_avatar_uid: bigint = null;
 
 //Log the messages that are returned from the server
-ws.onmessage = function (event) {
+ws.onmessage = function (event: MessageEvent) {
 	//console.log("onmessage()");
 	//console.log("From Server:" + event.data + ", event.data.byteLength: " + event.data.byteLength);
 
@@ -172,7 +172,7 @@ ws.onmessage = function (event) {
 
 		if (protocol_state == STATE_INITIAL) {
 			// Read hello_response
-			const hello_response = readUInt32(buffer);
+			const hello_response: number = readUInt32(buffer);
 			if (hello_response != CyberspaceHello)
 				throw 'hello_response was invalid: ' + hello_response.toString();
 
@@ -181,7 +181,7 @@ ws.onmessage = function (event) {
 		}
 		else if (protocol_state == STATE_READ_HELLO_RESPONSE) {
 			// Read protocol_response
-			const protocol_response = readUInt32(buffer);
+			const protocol_response: number = readUInt32(buffer);
 			if (protocol_response == ClientProtocolOK) { }
 			else if (protocol_response == ClientProtocolTooOld) {
 				throw 'client protocol version is too old';
@@ -370,17 +370,17 @@ ws.onmessage = function (event) {
 };
 
 // Fired when a connection with a WebSocket is closed,
-ws.onclose = function (event) {
+ws.onclose = function (event: CloseEvent) {
 	console.log('WebSocket onclose()', event);
 };
 
 // Fired when a connection with a WebSocket has been closed because of an error,
-ws.onerror = function (event) {
+ws.onerror = function (event: Event) {
 	console.error('WebSocket error observed:', event);
 };
 
 
-function appendChatMessage(msg) {
+function appendChatMessage(msg: string) {
 	const node = document.createElement('div');
 	node.textContent = msg;
 	document.getElementById('chatmessages').appendChild(node);
@@ -389,7 +389,7 @@ function appendChatMessage(msg) {
 }
 
 
-function onChatSubmitted(event) {
+function onChatSubmitted(event: Event) {
 	console.log('Chat submitted');
 
 	//let msg = event.target.elements.chat_message.value;
@@ -481,15 +481,15 @@ function updateOnlineUsersList() {
 }
 
 // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
-function filenameExtension(filename) {
+function filenameExtension(filename: string): string {
 	return filename.split('.').pop();
 }
 
-function hasExtension(filename, ext) {
+function hasExtension(filename: string, ext: string): boolean {
 	return filenameExtension(filename).toLowerCase() === ext.toLowerCase();
 }
 
-function AABBLongestLength(world_ob) {
+function AABBLongestLength(world_ob: WorldObject): number {
 	return Math.max(
 		world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x,
 		world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y,
@@ -497,11 +497,11 @@ function AABBLongestLength(world_ob) {
 	);
 }
 
-function toThreeVector3(v) {
+function toThreeVector3(v: Vec3f | Vec3d): THREE.Vector3 {
 	return new THREE.Vector3(v.x, v.y, v.z);
 }
 
-function getLODLevel(world_ob, campos) {
+function getLODLevel(world_ob: WorldObject, campos: THREE.Vector3): number {
 
 	const dist = new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z).distanceTo(campos);
 	const proj_len = AABBLongestLength(world_ob) / dist;
@@ -518,7 +518,7 @@ function getLODLevel(world_ob, campos) {
 
 
 
-function getModelLODLevel(world_ob, campos) { // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
+function getModelLODLevel(world_ob: WorldObject, campos: THREE.Vector3): number { // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	if (world_ob.max_model_lod_level == 0)
 		return 0;
 
@@ -527,15 +527,15 @@ function getModelLODLevel(world_ob, campos) { // getLODLevel() clamped to max_mo
 
 
 // https://stackoverflow.com/questions/4250364/how-to-trim-a-file-extension-from-a-string-in-javascript
-function removeDotAndExtension(filename) {
+function removeDotAndExtension(filename: string): string {
 	return filename.split('.').slice(0, -1).join('.');
 }
 
-function hasPrefix(s, prefix) {
+function hasPrefix(s: string, prefix: string): boolean {
 	return s.startsWith(prefix);
 }
 
-function getLODModelURLForLevel(base_model_url, level)
+function getLODModelURLForLevel(base_model_url: string, level: number): string
 {
 	if (level <= 0)
 		return base_model_url;
@@ -556,7 +556,7 @@ function getLODModelURLForLevel(base_model_url, level)
 //    return (world_mat.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
 //}
 
-function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha) {
+function getLODTextureURLForLevel(world_mat: WorldMaterial, base_texture_url: string, level: number, has_alpha: boolean): string {
 	const min_lod_level = world_mat.minLODLevel();
 
 	if (level <= min_lod_level)
@@ -582,23 +582,23 @@ function getLODTextureURLForLevel(world_mat, base_texture_url, level, has_alpha)
 
 
 
-const url_to_geom_map = new Map(); // Map from model_url to 3.js geometry object.
+const url_to_geom_map = new Map<string, THREE.BufferGeometry>(); // Map from model_url to 3.js geometry object.
 
-const loading_model_URL_set = new Set(); // set of URLS
-
-
-const url_to_texture_map = new Map(); // Map from texture url to 3.js Texture object
-
-const loading_texture_URL_set = new Set(); // Set of URL for textures that are being loaded.
+const loading_model_URL_set = new Set<string>(); // set of URLS
 
 
-const loading_model_URL_to_world_ob_map = new Map(); // Map from a URL of a loading model to a list of WorldObjects using that model.
+const url_to_texture_map = new Map<string, THREE.Texture>(); // Map from texture url to 3.js Texture object
 
-const loading_texture_URL_to_materials_map = new Map(); // Map from a URL of a loading texture to a list of materials using that texture.
+const loading_texture_URL_set = new Set<string>(); // Set of URL for textures that are being loaded.
+
+
+const loading_model_URL_to_world_ob_map = new Map<string, Array<any>>(); // Map from a URL of a loading model to a list of WorldObject or Avatar using that model.
+
+const loading_texture_URL_to_materials_map = new Map<string, Array<THREE.Material>>(); // Map from a URL of a loading texture to a list of materials using that texture.
 
 
 // three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
-function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, ob_lod_level) {
+function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial, ob_pos: Vec3d, ob_aabb_longest_len: number, ob_lod_level: number) {
 	three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
 	three_mat.metalness = world_mat.metallic_fraction.val;
 	three_mat.roughness = world_mat.roughness.val;
@@ -676,7 +676,7 @@ function setThreeJSMaterial(three_mat, world_mat, ob_pos, ob_aabb_longest_len, o
 }
 
 
-function addWorldObjectGraphics(world_ob) {
+function addWorldObjectGraphics(world_ob: WorldObject) {
 
 	if (true) {
 
@@ -748,7 +748,7 @@ function addWorldObjectGraphics(world_ob) {
 
 // Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
 // Returns mesh (THREE.Mesh)
-function makeMeshAndAddToScene(geometry: THREE.BufferGeometry, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level): THREE.Mesh {
+function makeMeshAndAddToScene(geometry: THREE.BufferGeometry, mats: Array<WorldMaterial>, pos: Vec3d, scale: Vec3f, world_axis: Vec3f, angle: number, ob_aabb_longest_len: number, ob_lod_level: number): THREE.Mesh {
 
 	const use_vert_colours = (geometry.getAttribute('color') !== undefined);
 
@@ -783,7 +783,7 @@ function makeMeshAndAddToScene(geometry: THREE.BufferGeometry, mats, pos, scale,
 let num_resources_downloading = 0; // Total number of resources (models + textures) currently being downloaded.
 
 
-function startDownloadingResource(download_queue_item) {
+function startDownloadingResource(download_queue_item: downloadqueue.DownloadQueueItem) {
 
 	num_resources_downloading++;
 
@@ -941,7 +941,7 @@ function registerPhysicsObject(obj: WorldObject, triangles: Triangles, mesh: THR
 }
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
-function loadModelAndAddToScene(world_ob_or_avatar, model_url, ob_aabb_longest_len, ob_lod_level, mats, pos, scale, world_axis, angle) {
+function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_aabb_longest_len: number, ob_lod_level: number, mats: Array<WorldMaterial>, pos: Vec3d, scale: Vec3f, world_axis: Vec3f, angle: number) {
 
 	//console.log("loadModelAndAddToScene(), model_url: " + model_url);
 
@@ -1248,7 +1248,7 @@ renderer_canvas_elem.addEventListener('keypress', onKeyPress, false);
 renderer_canvas_elem.addEventListener('focusout', onFocusOut, false);
 window.addEventListener('wheel', onWheel, false);
 
-function doCamMovement(dt) {
+function doCamMovement(dt: number) {
 	const run_pressed = keys_down.has('ShiftLeft') || keys_down.has('ShiftRight');
 
 	if(keys_down.has('KeyW') || keys_down.has('ArrowUp')) {
@@ -1296,7 +1296,7 @@ function doCamMovement(dt) {
 	client_avatar.rotation.z = cam_controller.heading;
 }
 
-function curTimeS() {
+function curTimeS(): number {
 	return window.performance.now() * 1.0e-3;
 }
 
