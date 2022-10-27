@@ -59,10 +59,11 @@ export class WorldObject {
 
 	compressed_voxels: ArrayBuffer;
 
-	bvh: BVH
+	bvh: BVH;
 	get objectToWorld(): THREE.Matrix4 { return this.mesh.matrixWorld; }
 	worldToObject: THREE.Matrix4 // TODO: We should only calculate the inverse when the world matrix actually changes
 	world_aabb: Float32Array // Root AABB node created from aabb_ws_min & aabb_ws_max
+	world_id: number // An index into the physics world object list
 
 	mesh_state: number;
 	mesh: THREE.Mesh;
@@ -217,4 +218,10 @@ export function getLODModelURLForLevel(base_model_url: string, level: number): s
 		else
 			return removeDotAndExtension(base_model_url) + '_lod2.bmesh';
 	}
+}
+
+// Helper function to generate BVH key
+export function getBVHKey(obj: WorldObject): string {
+	const is_voxel_ob = obj.compressed_voxels && (obj.compressed_voxels.byteLength > 0);
+	return is_voxel_ob ? ('voxel ob, UID ' + obj.uid.toString()) : obj.model_url;
 }

@@ -455,7 +455,8 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
 
-	let triangles = new Triangles(expanded, index_data, 0, expanded_vert_size_B / 4);
+	// creates a copy of the position data and index so that we can transmit it to the worker (this copy cannot be avoided)
+	const triangles = Triangles.extractTriangles(expanded, index_data, expanded_vert_size_B / 4)
 
 	if (!added_normals)
 		geometry.computeVertexNormals();

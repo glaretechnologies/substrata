@@ -316,7 +316,6 @@ export class PlayerPhysics {
 
 			controller.thirdPersonPos = back;
 		}
-
 	}
 
 	// Returns displacement

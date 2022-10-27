@@ -4,16 +4,17 @@ world.ts
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
-import BVH, { Triangles } from './bvh.js';
+import BVH, { createIndex, getIndexType, IntIndex, Triangles } from './bvh.js';
 import * as THREE from '../build/three.module.js';
 import type { WorldObject } from '../worldobject.js';
 import Caster from './caster.js';
-import { spherePathToAABB, testAABB, transformAABB } from '../maths/geometry.js';
+import { makeAABB, spherePathToAABB, testAABB, transformAABB } from '../maths/geometry.js';
 import { createAABBMesh } from './debug.js';
 import { applyMatrix4, len3, mulScalar3, transformDirection } from '../maths/vec3.js';
 import { clearSphereTraceResult, DIST, makeRay, makeSphereTraceResult, SphereTraceResult } from './types.js';
 import { PlayerPhysics } from './player.js';
 import { Ground } from './ground.js';
+import { getBVHKey } from '../worldobject.js';
 
 enum DebugType {
   AABB_MESH, // A single AABB, originally set to the BVH root AABB
@@ -28,9 +29,34 @@ interface DebugMesh {
   type: DebugType
 }
 
+function extractWorkerResponse (result: WorkerResult, oldTriangles: Triangles): BVH {
+	//const triangles = createTriangles(result);
+	const vertices = new Float32Array(result.vertexBuf);
+	const triIndex = createIndex(result.indexType as IntIndex, result.indexBuf);
+
+	oldTriangles.transfer(vertices, triIndex);
+	return new BVH(oldTriangles, {
+		index: new Uint32Array(result.bvhIndexBuf),
+		nodeCount: result.nodeCount,
+		aabbBuffer: new Float32Array(result.aabbBuffer),
+		dataBuffer: new Uint32Array(result.dataBuffer)
+	});
+}
+
+interface BVHRef {
+	bvh: BVH,
+	refCount: number;
+}
+
+interface BVHJob {
+	triangles: Triangles,
+	worldObjectIds: Array<number>
+}
+
 export default class PhysicsWorld {
-	private readonly bvhIndex_: Map<string, BVH>;
+	private readonly bvhIndex_: Map<string, BVHRef>;
 	private readonly worldObjects_: Array<WorldObject>;
+	private readonly freeList_: Array<number>;
 	private readonly player_: PlayerPhysics | undefined;
 	private caster_: Caster | undefined;
 	private scene_: THREE.Scene | undefined;
@@ -41,10 +67,15 @@ export default class PhysicsWorld {
 	// Ground Mesh
 	private readonly ground_: Ground;
 
+	// The BVH creation worker
+	private readonly worker: Worker;
+	private readonly jobList: Record<string, BVHJob>;
+
 	public constructor (scene?: THREE.Scene, caster?: Caster) {
 		this.scene_ = scene;
-		this.bvhIndex_ = new Map<string, BVH>();
+		this.bvhIndex_ = new Map<string, BVHRef>();
 		this.worldObjects_ = new Array<WorldObject>();
+		this.freeList_ = new Array<number>();
 		this.caster_ = caster;
 		this.debugMeshes = [];
 		this.tempMeshes = new THREE.Group();
@@ -58,7 +89,36 @@ export default class PhysicsWorld {
 
 		this.ground_ = new Ground();
 		this.tempMeshes.add(this.ground.mesh);
+
+		this.jobList = {};
+		this.worker = new Worker('/webclient/physics/worker.js');
+		this.worker.onmessage = ev => this.processWorkerResponse(ev);
 	}
+
+	// Process the Worker Response
+	private processWorkerResponse(ev: MessageEvent<WorkerResult>): void {
+		const job = this.jobList[ev.data.key];
+
+		const bvh = extractWorkerResponse(ev.data as WorkerResult, job.triangles);
+
+		let refCount = 0;
+		for(let i = 0; i !== job.worldObjectIds.length; ++i) {
+			const obj = this.worldObjects_[job.worldObjectIds[i]];
+			// Only assign the bvh if the key matches (otherwise it has been unloaded and replaced with a different object)
+			if(obj && getBVHKey(obj) === ev.data.key) {
+				obj.bvh = bvh;
+				refCount++;
+			}
+		}
+
+		this.bvhIndex_[ev.data.key] = {
+			bvh,
+			refCount
+		};
+
+		delete this.jobList[ev.data.key];
+	}
+
 
 	// Getters/Setters
 	public get scene (): THREE.Scene { return this.scene_; }
@@ -74,19 +134,23 @@ export default class PhysicsWorld {
 	public get ground (): Ground { return this.ground_; }
 	public get worldObjects (): Array<WorldObject> { return this.worldObjects_; }
 
+	// Returns true if the bvh is already registered or if it is in the jobList to be loaded
 	public hasModelBVH (key: string): boolean {
-		return key in this.bvhIndex_;
+		return key in this.bvhIndex_ || key in this.jobList;
 	}
 
 	public getModelBVH (key: string): BVH | undefined {
-		return this.bvhIndex_[key];
+		return this.bvhIndex_[key]?.bvh;
 	}
 
-	public addModelBVH (key: string, triangles: Triangles): BVH {
-		if(key in this.bvhIndex_) return this.bvhIndex_[key];
-		const bvh = new BVH(triangles);
-		this.bvhIndex_[key] = bvh;
-		return bvh;
+	// Updates the refCount for the bvhKey, returns true if 0
+	private updateRefCount (key: string, delta: number): boolean {
+		if(key in this.bvhIndex_) {
+			this.bvhIndex_[key].refCount += delta;
+			return this.bvhIndex_[key].refCount === 0;
+		}
+		// If not in index, return false as nothing needs to happen
+		return false;
 	}
 
 	// Add one of several debug meshes
@@ -120,8 +184,16 @@ export default class PhysicsWorld {
 		this.debugMeshes.push(debugMesh);
 	}
 
-	public addWorldObject (obj: WorldObject, debug=false): number {
-		let idx = this.worldObjects_.findIndex(e => e === null);
+	// This function registers the model and potentially initiates a request for the BVH - if the BVH is already in the
+	// jobList, the additional request is queued and completed on receiving the built BVH
+	public registerWorldObject (bvhKey: string, obj: WorldObject, triangles?: Triangles): number {
+		const haveModel = this.hasModelBVH(bvhKey);
+		if (!haveModel && triangles === null) {
+			console.error('Cannot construct BVH for:', bvhKey);
+			return -1;
+		}
+
+		let idx = this.freeList_.length === 0 ? -1 : this.freeList_.shift();
 		if (idx === -1) {
 			idx = this.worldObjects_.length;
 			this.worldObjects_.push(obj);
@@ -129,23 +201,67 @@ export default class PhysicsWorld {
 			this.worldObjects_[idx] = obj;
 		}
 
-		if(debug) {
-			this.addDebugMesh(idx, DebugType.AABB_MESH, obj);
-			this.addDebugMesh(idx, DebugType.TRI_MESH, obj);
-			this.addDebugMesh(idx, DebugType.ROT_MESH, obj);
-			//this.addDebugMesh(idx, DebugType.BVH_MESH, obj);
+		// Variables that are generally useful in other parts of the code stored on the object
+		// We could move this inside the world class if necessary.
+		obj.world_id = idx;
+		obj.worldToObject = new THREE.Matrix4();
+		obj.mesh.updateMatrixWorld(true);
+		obj.worldToObject.copy(obj.mesh.matrixWorld);
+		obj.worldToObject.invert();
+		obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
+
+		const bvh = this.getModelBVH(bvhKey);
+		if (bvh == null) {
+			if (!haveModel) { // The model isn't in the job queue, so build it - triangles must exist
+				const indexType = getIndexType(triangles.index);
+				const indexBuf = triangles.index.buffer;
+				const vertexBuf = triangles.vertices.buffer;
+
+				this.jobList[bvhKey] = {
+					triangles,
+					worldObjectIds: [idx]
+				};
+
+				this.worker.postMessage({
+					id: idx,
+					key: bvhKey,
+					indexCount: triangles.index.length,
+					vertexCount: triangles.vertices.length,
+					stride: triangles.vert_stride,
+					indexType: indexType,
+					indexBuf,
+					vertexBuf,
+				}, [
+					// Transfer memory contained in the Triangles structure to the worker
+					indexBuf,
+					vertexBuf,
+				]);
+			} else {
+				this.jobList[bvhKey]?.worldObjectIds.push(idx);
+			}
+		} else {
+			obj.bvh = bvh;
+			this.updateRefCount(bvhKey, 1);
 		}
 
 		return idx;
 	}
 
+	// Note: Requires removal of object from jobList, use id for fast delete
 	public delWorldObject (objOrId: WorldObject | number): WorldObject | null {
 		const idx = typeof objOrId === 'number' ? objOrId : this.worldObjects_.indexOf(objOrId);
 		if (idx !== -1) {
 			const obj = this.worldObjects_[idx];
 			this.worldObjects_[idx] = null;
+			this.freeList_.push(idx);
+			// If updateRefCount returns refCount === 0
+			const bvhKey = getBVHKey(obj);
+			if(this.updateRefCount(bvhKey, -1)) {
+				delete this.bvhIndex_[bvhKey];
+			}
 			return obj;
 		}
+
 		return null;
 	}
 
@@ -156,7 +272,7 @@ export default class PhysicsWorld {
 		const O = new Float32Array(3), d = new Float32Array(3);
 		for (let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
 			const obj = this.worldObjects_[i];
-			if (obj) {
+			if(obj && obj.bvh) {
 				O.set(origin);
 				d.set(dir);
 				applyMatrix4(obj.worldToObject, O);
@@ -187,7 +303,7 @@ export default class PhysicsWorld {
 
 		for(let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
 			const obj = this.worldObjects_[i];
-			if(obj) {
+			if(obj && obj.bvh) {
 				const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.worldToObject, obj.bvh);
 				if(test) {
 					// See if we have any debug meshes associated to this mesh
@@ -229,7 +345,7 @@ export default class PhysicsWorld {
 
 		for (let i = 0; i < this.worldObjects_.length; ++i) {
 			const obj = this.worldObjects_[i];
-			if (obj) {
+			if (obj && obj.bvh) {
 				clearSphereTraceResult(query);
 
 				const dist = this.traceSphereObject(/*worldObj=*/obj, sphere, dir, /*maxDist=*/transLength, spherePathAABB,
@@ -265,7 +381,7 @@ export default class PhysicsWorld {
 		results: SphereTraceResult
 	): number {
 		// If the world_aabb of this object does not intersect the spherePathAABB, return
-		if(!testAABB(worldObject.world_aabb, spherePathAABB)) {
+		if(worldObject.bvh == null || !testAABB(worldObject.world_aabb, spherePathAABB)) {
 			results.data[DIST] = -1;
 			return Number.POSITIVE_INFINITY;
 		}
@@ -290,7 +406,7 @@ export default class PhysicsWorld {
 		// No Top-level Acceleration Structure yet
 		for(let i = 0; i !== this.worldObjects_.length; ++i) {
 			const obj = this.worldObjects[i];
-			if(obj)
+			if(obj && obj.bvh)
 				this.getCollPointsObject(obj, sphere, sphereAABB, collisionPoints);
 		}
 
