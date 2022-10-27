@@ -14,7 +14,7 @@ import {
 	readUserIDFromStream, readTimeStampFromStream, readUIDFromStream, readParcelIDFromStream, writeUID
 } from './types.js';
 import BVH, { Triangles } from './physics/bvh.js';
-import { removeDotAndExtension } from './utils.js';
+import { removeDotAndExtension, hasSuffix } from './utils.js';
 
 
 export const MESH_NOT_LOADED = 0;
@@ -66,7 +66,10 @@ export class WorldObject {
 
 	mesh_state: number;
 	mesh: THREE.Mesh;
-
+	loaded_mesh_URL: string; // The URL of the loaded mesh.  This can be different from model_url as it may have a LOD suffix.
+	loaded_model_lod_level: number; // If we have loaded a model for this object, this is the LOD level of the model.
+	// This may differ from current_lod_level, for example if the new LOD level model needs to be downloaded from the server, then loaded_lod_level will be the previous level.
+	loaded_lod_level: number; // Level for textures etc..  Actually this is more like what lod level we have requested textures at.  TODO: clarify and improve.
 
 	current_lod_level: number; // LOD level as a function of distance from camera etc.. Kept up to date.
 	in_proximity: boolean; // Used by proximity loader
@@ -76,6 +79,8 @@ export class WorldObject {
 
 		this.current_lod_level = 0;
 		this.in_proximity = false;
+		this.loaded_model_lod_level = -10;
+		this.loaded_lod_level = -10;
 	}
 
 	AABBLongestLength(): number {
@@ -129,7 +134,17 @@ export class WorldObject {
 
 		return Math.max(0, this.getLODLevel(campos));
 	}
-	
+
+	static getLODLevelForURL(URL: string): number { // Identifies _lod1 etc. suffix.
+		const base: string = removeDotAndExtension(URL);
+
+		if (hasSuffix(base, "_lod1"))
+			return 1;
+		else if (hasSuffix(base, "_lod2"))
+			return 2;
+		else
+			return 0;
+	}
 }
 
 

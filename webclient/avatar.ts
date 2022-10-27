@@ -67,6 +67,7 @@ export class Avatar {
 
 	mesh_state: number;
 	mesh: THREE.Mesh;
+	loaded_mesh_URL: string; // The URL of the loaded mesh.  This can be different from model_url as it may have a LOD suffix.
 
 	constructor() {
 		//this.uid = BigInt(0); // uint64   // TEMP
