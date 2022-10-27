@@ -78,6 +78,11 @@ export function hasPrefix(s: string, prefix: string): boolean {
 }
 
 
+export function hasSuffix(s: string, suffix: string): boolean {
+	return s.endsWith(suffix);
+}
+
+
 // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript
 export function filenameExtension(filename: string): string {
 	return filename.split('.').pop();

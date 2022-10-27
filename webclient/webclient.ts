@@ -238,6 +238,7 @@ ws.onmessage = function (event: MessageEvent) {
 				// let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
 				const dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(cam_controller.positionV3);
 				world_ob.in_proximity = dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM;
+				world_ob.current_lod_level = world_ob.getLODLevel(cam_controller.positionV3);
 				if (world_ob.in_proximity) {
 					loadModelForObject(world_ob);
 				}
@@ -464,11 +465,12 @@ function loadModelForAvatar(avatar: Avatar) {
 	}
 	console.log('Loading avatar model: ' + avatar.avatar_settings.model_url);
 	const ob_lod_level = 0;
+	const model_lod_level = 0;
 	const world_axis = new Vec3f(0, 0, 1);
 	const angle = 0;
 	const ob_aabb_longest_len = 2;
 
-	loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
+	loadModelAndAddToScene(avatar, avatar.avatar_settings.model_url, ob_aabb_longest_len, ob_lod_level, model_lod_level, avatar.avatar_settings.materials, avatar.pos, new Vec3f(1, 1, 1), world_axis, angle);
 }
 
 
@@ -492,10 +494,11 @@ function toThreeVector3(v: Vec3f | Vec3d): THREE.Vector3 {
 class GeomInfo {
 	geometry: THREE.BufferGeometry;
 	triangles: Triangles;
+	use_count: number = 0; /// Number of world objects and avatars using this geometry.
 }
 const url_to_geom_map = new Map<string, GeomInfo>(); // Map from model_url to 3.js geometry object and triangle list
 
-const loading_model_URL_set = new Set<string>(); // set of URLS
+const loading_model_URL_set = new Set<string>(); // set of URLS of models that we are currently loading/downloading.
 
 
 const url_to_texture_map = new Map<string, THREE.Texture>(); // Map from texture url to 3.js Texture object
@@ -503,7 +506,7 @@ const url_to_texture_map = new Map<string, THREE.Texture>(); // Map from texture
 const loading_texture_URL_set = new Set<string>(); // Set of URL for textures that are being loaded.
 
 
-const loading_model_URL_to_world_ob_map = new Map<string, Array<any>>(); // Map from a URL of a loading model to a list of WorldObject or Avatar using that model.
+const loading_model_URL_to_world_ob_map = new Map<string, Set<any>>(); // Map from a URL of a loading model to a set of WorldObjects or Avatars using that model.
 
 const loading_texture_URL_to_materials_map = new Map<string, Array<THREE.Material>>(); // Map from a URL of a loading texture to a list of materials using that texture.
 
@@ -540,7 +543,7 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		if (color_tex_has_alpha)
 			three_mat.alphaTest = 0.5;
 
-		//console.log("lod_texture_URL: " + lod_texture_URL);
+		//console.log("setThreeJSMaterial(): lod_texture_URL: " + lod_texture_URL);
 
 		let texture = null;
 		if (url_to_texture_map.has(lod_texture_URL)) {
@@ -607,6 +610,10 @@ function loadModelForObject(world_ob: WorldObject) {
 		const aabb_longest_len = world_ob.AABBLongestLength();
 		//console.log("model_lod_level: " + model_lod_level);
 
+		// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
+		if (world_ob.mesh && (world_ob.loaded_model_lod_level == model_lod_level) && (world_ob.loaded_lod_level == ob_lod_level))
+			return;
+
 		if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
 			// This is a voxel object
 
@@ -643,6 +650,8 @@ function loadModelForObject(world_ob: WorldObject) {
 				mesh.castShadow = true;
 				mesh.receiveShadow = true;
 
+				world_ob.loaded_lod_level = ob_lod_level;
+				world_ob.loaded_model_lod_level = model_lod_level;
 				world_ob.mesh = mesh;
 				world_ob.mesh_state = MESH_LOADED;
 
@@ -653,7 +662,7 @@ function loadModelForObject(world_ob: WorldObject) {
 
 			const url = getLODModelURLForLevel(world_ob.model_url, model_lod_level);
 
-			loadModelAndAddToScene(world_ob, url, aabb_longest_len, ob_lod_level, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle);
+			loadModelAndAddToScene(world_ob, url, aabb_longest_len, ob_lod_level, model_lod_level, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle);
 		}
 	}
 	else {
@@ -781,6 +790,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						geom_info.triangles = triangles;
 						url_to_geom_map.set(model_url, geom_info); // Add to url_to_geom_map
 
+						const loaded_model_lod_level = WorldObject.getLODLevelForURL(model_url);
+
 						// Assign to any waiting world obs or avatars
 						const waiting_obs = loading_model_URL_to_world_ob_map.get(download_queue_item.URL);
 						if (!waiting_obs) {
@@ -789,12 +800,13 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						}
 						else {
 
-							for (let z = 0; z < waiting_obs.length; ++z) {
-								const world_ob_or_avatar = waiting_obs[z];
+							for (const world_ob_or_avatar of waiting_obs) {
 
 								if (world_ob_or_avatar instanceof WorldObject) {
 
 									const world_ob = world_ob_or_avatar;
+
+									geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
 									removeAndDeleteGLAndPhysicsObjectsForOb(world_ob); // Remove any existing mesh and physics object
 
@@ -807,8 +819,12 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 									registerPhysicsObject(world_ob, triangles, mesh);
 
-									world_ob_or_avatar.mesh = mesh;
-									world_ob_or_avatar.mesh_state = MESH_LOADED;
+									
+									world_ob.loaded_lod_level = use_ob_lod_level;
+									world_ob.loaded_model_lod_level = loaded_model_lod_level;
+									world_ob.loaded_mesh_URL = download_queue_item.URL;
+									world_ob.mesh = mesh;
+									world_ob.mesh_state = MESH_LOADED;
 								}
 								else if (world_ob_or_avatar instanceof Avatar) {
 
@@ -818,7 +834,10 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 										const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
 											/*angle=*/0, /*ob_aabb_longest_len=*/1.0, /*ob_lod_level=*/0);
 
+										geom_info.use_count++;
+
 										//console.log("Loaded mesh '" + model_url + "'.");
+										avatar.loaded_mesh_URL = download_queue_item.URL;
 										avatar.mesh = mesh;
 										avatar.mesh_state = MESH_LOADED;
 									}
@@ -826,6 +845,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 							}
 
 							loading_model_URL_to_world_ob_map.delete(download_queue_item.URL); // Now that this model has been downloaded, remove from map
+
+							loading_model_URL_set.delete(download_queue_item.URL); // Remove from set of loading model URLs, so it can be downloaded/loaded again later.
 						}
 					}
 					catch (error) { // There was an exception loading/parsing the geometry
@@ -873,15 +894,18 @@ function registerPhysicsObject(obj: WorldObject, triangles: Triangles, mesh: THR
 }
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
-function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_aabb_longest_len: number, ob_lod_level: number, mats: Array<WorldMaterial>, pos: Vec3d, scale: Vec3f, world_axis: Vec3f, angle: number) {
+function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_aabb_longest_len: number, ob_lod_level: number, model_lod_level: number, mats: Array<WorldMaterial>, pos: Vec3d, scale: Vec3f, world_axis: Vec3f, angle: number) {
 
-	//console.log("loadModelAndAddToScene(), model_url: " + model_url);
+	//console.log("loadModelAndAddToScene(), model_url: " + model_url + ", ob_lod_level: " + ob_lod_level + ", model_lod_level: " + model_lod_level);
 
 	world_ob_or_avatar.mesh_state = MESH_LOADING;
 
 	const geom_info: GeomInfo = url_to_geom_map.get(model_url); // See if we have already loaded this mesh.
 	if (geom_info) {
 		//console.log("Found already loaded geom for " + model_url);
+
+
+		geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
 		if (world_ob_or_avatar instanceof WorldObject) {
 			const world_ob = world_ob_or_avatar;
@@ -896,7 +920,13 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 			const world_ob = world_ob_or_avatar;
 			registerPhysicsObject(world_ob, geom_info.triangles, mesh);
 		}
-
+		
+		if (world_ob_or_avatar instanceof WorldObject) {
+			const world_ob = world_ob_or_avatar;
+			world_ob.loaded_lod_level = ob_lod_level;
+			world_ob.loaded_model_lod_level = model_lod_level;
+		}
+		world_ob_or_avatar.loaded_mesh_URL = model_url;
 		world_ob_or_avatar.mesh = mesh;
 		world_ob_or_avatar.mesh_state = MESH_LOADED;
 		return;
@@ -917,9 +947,9 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 
 		// Add this world ob or avatar to the list of objects waiting for the model
 		if (!loading_model_URL_to_world_ob_map.has(model_url)) // Initialise with empty list if needed
-			loading_model_URL_to_world_ob_map.set(model_url, []);
+			loading_model_URL_to_world_ob_map.set(model_url, new Set());
 
-		loading_model_URL_to_world_ob_map.get(model_url).push(world_ob_or_avatar);
+		loading_model_URL_to_world_ob_map.get(model_url).add(world_ob_or_avatar);
 	}
 }
 
@@ -1401,11 +1431,27 @@ function animate() {
 	checkForLODChanges();
 }
 
+
 function removeAndDeleteGLAndPhysicsObjectsForOb(world_ob: WorldObject) {
 	// Remove from three.js scene
 	if (world_ob.mesh) {
 		scene.remove(world_ob.mesh);
 		world_ob.mesh = null;
+
+		const geom_info: GeomInfo = url_to_geom_map.get(world_ob.loaded_mesh_URL);
+		if (geom_info) {
+			console.assert(geom_info.use_count >= 1);
+			geom_info.use_count--;
+			// console.log("removeAndDeleteGLAndPhysicsObjectsForOb(): URL: '" + world_ob.loaded_mesh_URL + "': new geom_info.use_count: " + geom_info.use_count.toString());
+			if (geom_info.use_count == 0) {
+				url_to_geom_map.delete(world_ob.loaded_mesh_URL);
+				// console.log("removed '" + world_ob.loaded_mesh_URL + "' from url_to_geom_map as use_count reached zero.");
+			}
+		}
+
+		world_ob.loaded_mesh_URL = null;
+		world_ob.loaded_lod_level = -10;
+		world_ob.loaded_model_lod_level = -10;
 	}
 
 	// Remove from physics world
