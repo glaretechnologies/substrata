@@ -37,9 +37,9 @@ import {
 	MESH_NOT_LOADED,
 	readWorldObjectFromNetworkStreamGivenUID,
 	WorldObject,
-	getLODModelURLForLevel
+	getLODModelURLForLevel,
+	getBVHKey
 } from './worldobject.js';
-import { Triangle } from './maths/triangle.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
@@ -494,7 +494,7 @@ function toThreeVector3(v: Vec3f | Vec3d): THREE.Vector3 {
 class GeomInfo {
 	geometry: THREE.BufferGeometry;
 	triangles: Triangles;
-	use_count: number = 0; /// Number of world objects and avatars using this geometry.
+	use_count = 0; /// Number of world objects and avatars using this geometry.
 }
 const url_to_geom_map = new Map<string, GeomInfo>(); // Map from model_url to 3.js geometry object and triangle list
 
@@ -870,27 +870,10 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 // Build the BVH for a new (unregistered) mesh
 function registerPhysicsObject(obj: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
-
-	const is_voxel_ob = obj.compressed_voxels && (obj.compressed_voxels.byteLength > 0);
-	const bvh_key = is_voxel_ob ? ('voxel ob, UID ' + obj.uid.toString()) : obj.model_url;
-
-	const model_loaded = physics_world.hasModelBVH(bvh_key);
-	if(!model_loaded) {
-		physics_world.addModelBVH(bvh_key, triangles);
-	}
-
-	// Move this to a web worker, initialise the BVH and trigger this code on callback
-	obj.bvh = physics_world.getModelBVH(bvh_key);
-
-	// TODO: Split into two sets of objects, static and dynamic - for now, only static
-	obj.worldToObject = new THREE.Matrix4();
-	mesh.updateMatrixWorld(true);
-	obj.worldToObject.copy(mesh.matrixWorld);
-	obj.worldToObject.invert();
-
-	obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
+	const bvh_key = getBVHKey(obj);
 	obj.mesh = mesh;
-	physics_world.addWorldObject(obj, /*debug=*/false);
+	// Some variables are stored on the worldObject by registerWorldObject
+	physics_world.registerWorldObject(bvh_key, obj, triangles);
 }
 
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
@@ -1165,12 +1148,13 @@ function onDocumentMouseUp() {
 }
 
 function onDocumentMouseMove(ev: MouseEvent) {
+	/*
 	const ray = cam_controller.caster.getPickRay(ev.offsetX, ev.offsetY);
 	if(ray != null) {
 		const [O, d] = ray;
 		physics_world.debugRay(O, d);
 	}
-
+	*/
 	if(is_mouse_down){
 		cam_controller.mouseLook(ev.movementX, ev.movementY);
 	}
@@ -1456,7 +1440,7 @@ function removeAndDeleteGLAndPhysicsObjectsForOb(world_ob: WorldObject) {
 
 	// Remove from physics world
 	if (world_ob.bvh) {
-		physics_world.delWorldObject(world_ob);
+		physics_world.delWorldObject(world_ob.world_id); // Use id (= index of element in worldObject list)
 		world_ob.bvh = null;
 	}
 }

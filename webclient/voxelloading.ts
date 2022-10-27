@@ -6,7 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 
 import * as fzstd from './fzstd.js'; // from 'https://cdn.skypack.dev/fzstd?min';
 import * as THREE from './build/three.module.js';
-import { Triangles } from './physics/bvh.js';
+import {copyIndex, Triangles} from './physics/bvh.js';
 
 
 function decompressVoxels(compressed_voxels: ArrayBuffer): Int32Array {
@@ -557,11 +557,10 @@ function doMakeMeshForVoxels(voxels: Int32Array, subsample_factor: number, mats_
 	geometry.setAttribute('position', new THREE.BufferAttribute(vert_float32_array, /*item size=*/3));
 	geometry.setIndex(new THREE.BufferAttribute(combined_vert_indices, /*item size=*/1));
 
-
+	// We copy the buffers because they are transferred to the worker
 	let triangles = new Triangles(
-		vert_float32_array, // vertices
-		combined_vert_indices, // index
-		0, // offset
+		new Float32Array(vert_float32_array), // vertices
+		copyIndex(combined_vert_indices), // index
 		3 // stride: vertices are tightly packed
 	);
 

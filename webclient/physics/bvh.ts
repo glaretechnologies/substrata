@@ -15,7 +15,9 @@ import {
 	max3,
 	min3,
 	mulScalar3,
-	normalise3, sqDist3, sqLen3,
+	normalise3,
+	sqDist3,
+	sqLen3,
 	sub3,
 	transformDirection
 } from '../maths/vec3.js';
@@ -26,21 +28,64 @@ import { closestPointOnPlane, Plane } from '../maths/plane.js';
 
 export type IndexType = Uint32Array | Uint16Array | Uint8Array
 
+export enum IntIndex {
+	UINT8 = 0,
+	UINT16 = 1,
+	UINT32 = 2
+}
+
+// Returns 0 = Uint8Array, 1 = Uint16Array, 2 = Uint32Array
+export function getIndexType (index: IndexType): IntIndex {
+	if(index instanceof Uint8Array) return IntIndex.UINT8;
+	else if(index instanceof Uint16Array) return IntIndex.UINT16;
+	else if(index instanceof Uint32Array) return IntIndex.UINT32;
+}
+
+// Creates an index buffer based on the input indexType (getIndexType) used for transferring memory between main / worker threads
+export function createIndex (indexType: IntIndex, buf: ArrayBuffer): IndexType | null {
+	if(indexType === IntIndex.UINT8) return new Uint8Array(buf);
+	else if(indexType === IntIndex.UINT16) return new Uint16Array(buf);
+	else if(indexType === IntIndex.UINT32) return	new Uint32Array(buf);
+}
+
+// Copies an input IndexType
+export function copyIndex (index: IndexType): IndexType | null {
+	if(index instanceof Uint8Array) return new Uint8Array(index);
+	else if(index instanceof Uint16Array) return new Uint16Array(index);
+	else if(index instanceof Uint32Array) return new Uint32Array(index);
+	return null;
+}
+
 /*
 The triangles structure is built directly from the interleaved mesh buffer and associated index buffer.  The data is
 therefore directly derived from the rendering data.
 */
 export class Triangles {
 	public vertices: Float32Array;
-	public centroids: Float32Array;
+	public centroids?: Float32Array;
 	public index: IndexType;
-	public readonly pos_offset: number;
+	//public readonly pos_offset: number; // pos is always == 0
 	public readonly tri_count: number;
 	public readonly vert_num: number;
 	public readonly vert_stride: number;
 
+	// Builds an optimised Triangles structure from an interleaved buffer to reduce data transmission from main thread to
+	// worker thread
+	public static extractTriangles (vertices: Float32Array, index: IndexType, stride: number): Triangles {
+		const vertexCount = Math.floor(vertices.length / stride);
+		const vbuffer = new Float32Array(3 * vertexCount);
+		for(let i = 0; i !== vertexCount; ++i) {
+			vbuffer[3*i] = vertices[stride*i];
+			vbuffer[3*i+1] = vertices[stride*i+1];
+			vbuffer[3*i+2] = vertices[stride*i+2];
+		}
+
+		// Create a copy of the Index Buffer because we transfer it to a worker
+		return new Triangles(vbuffer, copyIndex(index), 3);
+	}
+
 	// Initialised with the existing interleaved buffer so that we don't need to copy any data
-	public constructor (vertices: Float32Array, index: IndexType, offset: number, stride: number) {
+	public constructor (vertices: Float32Array, index: IndexType, stride: number) {
 		this.vertices = vertices;
 		this.tri_count = Math.floor(index.length / 3);
 		if(index.length % 3 !== 0) {
@@ -53,13 +98,24 @@ export class Triangles {
 		}
 
 		this.index = index;
-		this.pos_offset = offset; // The offset of the position attribute in the interleaved buffer
+		//this.pos_offset = offset; // The offset of the position attribute in the interleaved buffer (always == 0)
 		this.vert_stride = stride; // The stride for the vertex
+	}
+
+	// Set the internal values of the triangle structure to the buffers (used for transferring control to worker thread)
+	public transfer (vertices: Float32Array, index: IndexType) {
+		this.vertices = vertices;
+		this.index = index;
+	}
+
+	// An optimisation, we do not need the centroids after building the BVH so reclaim the memory
+	public clearCentroids (): void {
+		this.centroids = undefined;
 	}
 
 	// Get the Vertex id (vertex) for the triangle id (tri) in the 3-component output
 	public getTriVertex (tri: number, vertex: number, output: Float32Array): Float32Array {
-		const voff = this.vert_stride * this.index[3 * tri + vertex] + this.pos_offset;
+		const voff = this.vert_stride * this.index[3 * tri + vertex];
 		output[0] = this.vertices[voff]; output[1] = this.vertices[voff+1]; output[2] = this.vertices[voff+2];
 		return output;
 	}
@@ -114,9 +170,9 @@ export class Triangles {
 		if(!this.centroids) this.centroids = new Float32Array(this.tri_count * 3);
 
 		for(let tri = 0, idx = 0; tri < this.tri_count; ++tri, idx += 3) {
-			const A = this.vert_stride * this.index[idx] + this.pos_offset;
-			const B = this.vert_stride * this.index[idx+1] + this.pos_offset;
-			const C = this.vert_stride * this.index[idx+2] + this.pos_offset;
+			const A = this.vert_stride * this.index[idx];
+			const B = this.vert_stride * this.index[idx+1];
+			const C = this.vert_stride * this.index[idx+2];
 
 			for(let i = 0; i < 3; ++i) {
 				this.centroids[idx+i] = (this.vertices[A+i] + this.vertices[B+i] + this.vertices[C+i])/3;
@@ -126,6 +182,15 @@ export class Triangles {
 }
 
 export type heuristicFunction = (nodeIdx: number) => [number, number]
+
+// This structure is used to set the internal data of the BVH class with buffers computed
+// in the worker.
+export interface BVHData {
+	index: Uint32Array;
+	nodeCount: number;
+	aabbBuffer: Float32Array
+	dataBuffer: Uint32Array
+}
 
 /*
 The BVH nodes are directly stored in two arrays
@@ -146,8 +211,6 @@ export default class BVH {
 
 	private readonly maxNodeSize = 2; // The max node size before splitting (we allow quads)
 
-	private heuristic_fnc: heuristicFunction;
-
 	// Temporaries used in functions to avoid creating new arrays on each call
 	private readonly tmp = [
 		new Float32Array(3),
@@ -155,33 +218,45 @@ export default class BVH {
 		new Float32Array(3)
 	];
 
-	public constructor (tri: Triangles) {
+	public constructor (tri: Triangles, copy?: BVHData) { // Use BVHData when copying from worker
 		this.tri = tri;
-		this.index = range(tri.tri_count);
-		this.maxNodes = 2 * tri.tri_count - 1; // TODO: Trim after building
-		this.aabbBuffer = new Float32Array(this.maxNodes * 6);
-		this.dataBuffer = new Uint32Array(this.maxNodes * 2);
+		if(copy != null) { // Transfer of internal structures from worker
+			this.index = copy.index;
+			this.maxNodes = copy.nodeCount;
+			this.nodeCount = copy.nodeCount;
+			this.aabbBuffer = copy.aabbBuffer;
+			this.dataBuffer = copy.dataBuffer;
+		} else { // Build BVH from scratch
+			this.index = range(tri.tri_count);
+			this.maxNodes = 2 * tri.tri_count - 1; // TODO: Trim after building
+			this.aabbBuffer = new Float32Array(this.maxNodes * 6);
+			this.dataBuffer = new Uint32Array(this.maxNodes * 2);
+			if(!tri.centroids) tri.buildCentroids();
 
-		if(!tri.centroids) tri.buildCentroids();
+			// Set the root node with the all the triangles...
+			// Set offset = 0 and count = tri.tri_count for node 0
+			this.dataBuffer[0] = 0; this.dataBuffer[1] = tri.tri_count;
+			this.nodeCount = 1;
 
-		// Set the default heuristic for split cost calculation
-		this.heuristic_fnc = this.computeMean;
+			// Compute bound of node 0 and recursively split node 0
+			this.computeAABB(0);
+			this.split(0);
+		}
+	}
 
-		// Set the root node with the all the triangles...
-		// Set offset = 0 and count = tri.tri_count for node 0
-		this.dataBuffer[0] = 0; this.dataBuffer[1] = tri.tri_count;
-		this.nodeCount = 1;
-
-		// Compute bound of node 0 and recursively split node 0
-		this.computeAABB(0);
-		this.split(0);
+	// Return the internal data for transmission to the worker
+	public get bvhData(): BVHData {
+		return {
+			index: this.index,
+			nodeCount: this.nodeCount,
+			aabbBuffer: new Float32Array(this.aabbBuffer.slice(0, 6*this.nodeCount)),
+			dataBuffer: new Uint32Array(this.dataBuffer.slice(0, 2*this.nodeCount))
+		};
 	}
 
 	// Boolean Result
 	public testRayRoot (origin: Float32Array, dir: Float32Array): boolean {
-		//print3('origin', origin, 'dir', dir)
-		const query = testRayAABB(origin, dir, this.aabbBuffer);
-		return query[0];
+		return testRayAABB(origin, dir, this.aabbBuffer)[0];
 	}
 
 	// Returns the index of the BVH node, and triangle of intersection with the ray
@@ -281,12 +356,6 @@ export default class BVH {
 		return null;
 	}
 
-	// Try the SAH.  Probably too slow, and we should prefer building speed over query speed as we will do few queries
-	// per frame
-	private computeSAH (idx: number): [number, number] | null {
-		return null;
-	}
-
 	// Compute split of parent AABB on longest axis
 	private computeLongestSplit (idx: number): [number, number] | null {
 		const [t0] = this.tmp;
@@ -318,9 +387,11 @@ export default class BVH {
 		return left;
 	}
 
+	/*
 	public set heuristic (fnc: (nodeIdx: number) => [number, number]) {
 		this.heuristic_fnc = fnc;
 	}
+	*/
 
 	// Split an input node (if possible) based on selected heuristic
 	private split (nodeIdx: number) {
@@ -329,7 +400,7 @@ export default class BVH {
 		const offset = data[curr_off], count = data[curr_off+1];
 		if(count <= this.maxNodeSize) return; // Don't split further, node is already small enough
 
-		const [splitPoint, axis] = this.heuristic_fnc(nodeIdx);
+		const [splitPoint, axis] = this.computeMean(nodeIdx); // this.heuristic_fnc(nodeIdx);
 		const cut = this.partition(offset, count, splitPoint, axis);
 
 		// We have left in data[offset, cut] and right in data[cut, offset+count]

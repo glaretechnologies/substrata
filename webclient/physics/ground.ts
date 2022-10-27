@@ -28,7 +28,7 @@ export class Ground {
 		// Needs to be large enough for the 3rd person camera ray test
 		this.mesh_.scale.set(MAX_CAM_DIST+1, MAX_CAM_DIST+1, MAX_CAM_DIST+1);
 
-		const triangles = new Triangles(geo[0], geo[1], 0, 3); // Stride = 3 (multiples of 4 bytes) = 12 bytes per vertex
+		const triangles = new Triangles(geo[0], geo[1], 3); // Stride = 3 (multiples of 4 bytes) = 12 bytes per vertex
 		this.bvh_ = new BVH(triangles);
 
 		this.worldToObject_ = new THREE.Matrix4();
