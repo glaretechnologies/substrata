@@ -40,6 +40,7 @@ import {
 	getLODModelURLForLevel,
 	getBVHKey
 } from './worldobject.js';
+import { ProximityLoader } from './proximityloader.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
@@ -70,6 +71,7 @@ const ChatMessageID = 2000;
 
 const QueryObjects = 3020; // Client wants to query objects in certain grid cells
 const ObjectInitialSend = 3021;
+const QueryObjectsInAABB = 3022;
 const ParcelCreated = 3100;
 
 const LogInMessage = 8000;
@@ -106,54 +108,30 @@ ws.onopen = function () {
 
 	writeStringToWebSocket(ws, world); // World to connect to
 
-	sendQueryObjectsMessage();
+	const aabb = proximity_loader.setCameraPosForNewConnection(cam_controller.positionV3)
+	// console.log("Initial query AABB: " + aabb.toString());
+
+	// Send QueryObjectsInAABB for initial volume around camera to server
+	{
+		const buffer_out = new BufferOut();
+		buffer_out.writeUInt32(QueryObjectsInAABB);
+		buffer_out.writeUInt32(0); // message length - to be updated.
+
+		buffer_out.writeFloat(aabb[0]);
+		buffer_out.writeFloat(aabb[1]);
+		buffer_out.writeFloat(aabb[2]);
+		buffer_out.writeFloat(aabb[3]);
+		buffer_out.writeFloat(aabb[4]);
+		buffer_out.writeFloat(aabb[5]);
+
+		buffer_out.updateMessageLengthField();
+		buffer_out.writeToWebSocket(ws);
+	}
 };
 
 
 
 const MAX_OB_LOAD_DISTANCE_FROM_CAM = 200;
-
-
-function sendQueryObjectsMessage() {
-
-	const CELL_WIDTH = 200.0;
-	const load_distance = MAX_OB_LOAD_DISTANCE_FROM_CAM;
-
-	const P = cam_controller.position;
-	const begin_x = Math.floor((P[0] - load_distance) / CELL_WIDTH);
-	const begin_y = Math.floor((P[1] - load_distance) / CELL_WIDTH);
-	const begin_z = Math.floor((P[2] - load_distance) / CELL_WIDTH);
-	const end_x   = Math.floor((P[0] + load_distance) / CELL_WIDTH);
-	const end_y   = Math.floor((P[1] + load_distance) / CELL_WIDTH);
-	const end_z   = Math.floor((P[2] + load_distance) / CELL_WIDTH);
-
-	// console.log("begin_x: " + begin_x);
-	// console.log("begin_y: " + begin_y);
-	// console.log("begin_z: " + begin_z);
-	// console.log("end_x: " + end_x);
-	// console.log("end_y: " + end_y);
-	// console.log("end_z: " + end_z);
-
-	const buffer_out = new BufferOut();
-	buffer_out.writeUInt32(QueryObjects);
-	buffer_out.writeUInt32(0); // message length - to be updated.
-
-	const coords = [];
-	for (let x = begin_x; x <= end_x; ++x)
-		for (let y = begin_y; y <= end_y; ++y)
-			for (let z = begin_z; z <= end_z; ++z) {
-				coords.push(x);
-				coords.push(y);
-				coords.push(z);
-			}
-
-	buffer_out.writeUInt32(coords.length / 3); // Num cells to query
-	for (let i = 0; i < coords.length; ++i)
-		buffer_out.writeInt32(coords[i]);
-
-	buffer_out.updateMessageLengthField();
-	buffer_out.writeToWebSocket(ws);
-}
 
 
 const parcels = new Map<number, Parcel>();
@@ -235,16 +213,23 @@ ws.onmessage = function (event: MessageEvent) {
 				const world_ob: WorldObject = readWorldObjectFromNetworkStreamGivenUID(buffer);
 				world_ob.uid = object_uid;
 
-				// let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
-				const dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(cam_controller.positionV3);
-				world_ob.in_proximity = dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM;
-				world_ob.current_lod_level = world_ob.getLODLevel(cam_controller.positionV3);
-				if (world_ob.in_proximity) {
-					loadModelForObject(world_ob);
-				}
+				// When a client moves and a new cell comes into proximity, a QueryObjects message is sent to the server.
+				// The server replies with ObjectInitialSend messages.
+				// This means that the client may already have the object inserted, when moving back into a cell previously in proximity.
+				// We want to make sure not to add the object twice or load it into the graphics engine twice.
+				if (!world_objects.has(object_uid)) {
 
-				world_objects.set(object_uid, world_ob);
-				//console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
+					// let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
+					const dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(cam_controller.positionV3);
+					world_ob.in_proximity = dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM;
+					world_ob.current_lod_level = world_ob.getLODLevel(cam_controller.positionV3);
+					if (world_ob.in_proximity) {
+						loadModelForObject(world_ob);
+					}
+
+					world_objects.set(object_uid, world_ob);
+					//console.log("Read ObjectInitialSend msg, object_uid: " + object_uid);
+				}
 			}
 			else if (msg_type == ChatMessageID) {
 				const name = readStringFromStream(buffer);
@@ -948,6 +933,28 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 }
 
 
+// Called by ProximityLoader.
+function newCellInProximity(cell_x: number, cell_y: number, cell_z: number) {
+
+	// console.log("newCellInProximity(): " + cell_x + ", " + cell_y + ", " + cell_z);
+
+	// NOTE: bit of a race condition here, potential to lose messages if we move the camera far while the websocket is still connecting.  TODO: put messages in a queue or something.
+	if (ws && ws.readyState == WebSocket.OPEN) {
+
+		const buffer_out = new BufferOut();
+		buffer_out.writeUInt32(QueryObjects);
+		buffer_out.writeUInt32(0); // message length - to be updated.
+
+		buffer_out.writeUInt32(1); // Num cells to query
+		buffer_out.writeInt32(cell_x);
+		buffer_out.writeInt32(cell_y);
+		buffer_out.writeInt32(cell_z);
+
+		buffer_out.updateMessageLengthField();
+		buffer_out.writeToWebSocket(ws);
+	}
+}
+
 
 // Parse initial camera location from URL
 let initial_pos_x = 1;
@@ -999,6 +1006,8 @@ const cam_controller = new CameraController(renderer);
 
 cam_controller.position = new Float32Array([initial_pos_x, initial_pos_y, initial_pos_z]);
 
+
+const proximity_loader = new ProximityLoader(MAX_OB_LOAD_DISTANCE_FROM_CAM, /*callback_function=*/newCellInProximity);
 
 /*
 camera.position.set(initial_pos_x, initial_pos_y, initial_pos_z);
@@ -1281,6 +1290,7 @@ function animate() {
 
 	doCamMovement(dt);
 
+	proximity_loader.updateCamPos(cam_controller.positionV3);
 
 	{
 		// Sort download queue (by distance from camera)
