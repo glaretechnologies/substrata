@@ -17,10 +17,11 @@ URLWhitelist::URLWhitelist()
 
 void URLWhitelist::loadDefaultWhitelist()
 {
-	// Should have no protocol scheme, should have a at least a slash for a path (important!), not just a raw domain
+	// Should have no protocol scheme, should have at least a slash for a path (important!), not just a raw domain
 	const char* prefix_list[] = {
 		// Video streaming
 		"www.youtube.com/",
+		"youtu.be/", // shortened version of youtube.com
 		"vimeo.com/",
 		"www.twitch.tv/",
 		"twitch.tv/", // Redirects to www.twitch.tv, but some people are using this directly.
