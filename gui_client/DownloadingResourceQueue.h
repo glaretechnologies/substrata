@@ -42,7 +42,10 @@ struct DownloadQueueItem
 /*=====================================================================
 DownloadingResourceQueue
 ------------------------
+Queue of resource URLs to download, together with the position of the object using the resource,
+which is used for sorting the items based on distance from the camera.
 
+DownloadResourcesThreads will dequeue items from this queue.
 =====================================================================*/
 class DownloadingResourceQueue
 {
