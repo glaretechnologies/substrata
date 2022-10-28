@@ -611,14 +611,18 @@ function loadModelForObject(world_ob: WorldObject) {
 		//console.log("model_lod_level: " + model_lod_level);
 
 		// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
-		if (world_ob.mesh && (world_ob.loaded_model_lod_level == model_lod_level) && (world_ob.loaded_lod_level == ob_lod_level))
+		if (world_ob.mesh && (world_ob.loaded_model_lod_level == model_lod_level) && (world_ob.loaded_lod_level == ob_lod_level)) {
+			// console.log("loadModelForObject(): Currently loaded lod levels are correct, returning...");
 			return;
+		}
+			
 
 		if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
 			// This is a voxel object
 
 			// Remove any existing mesh and physics object
-			removeAndDeleteGLAndPhysicsObjectsForOb(world_ob);
+			removeAndDeleteGLObjectForOb(world_ob);
+			removeAndDeletePhysicsObjectForOb(world_ob);
 
 			if (true) {
 
@@ -808,7 +812,10 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 									geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
-									removeAndDeleteGLAndPhysicsObjectsForOb(world_ob); // Remove any existing mesh and physics object
+									const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
+									if (model_changing)
+										removeAndDeletePhysicsObjectForOb(world_ob);
+									removeAndDeleteGLObjectForOb(world_ob);
 
 									// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
 
@@ -817,9 +824,9 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 									const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
-									registerPhysicsObject(world_ob, triangles, mesh);
+									if (model_changing)
+										registerPhysicsObject(world_ob, triangles, mesh);
 
-									
 									world_ob.loaded_lod_level = use_ob_lod_level;
 									world_ob.loaded_model_lod_level = loaded_model_lod_level;
 									world_ob.loaded_mesh_URL = download_queue_item.URL;
@@ -887,12 +894,15 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 	if (geom_info) {
 		//console.log("Found already loaded geom for " + model_url);
 
+		const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL; // When we transition from LOD level -1 to 0 and vice-versa, model_url will not change.  Detect this to avoid unnecessary BVH rebuilds.
 
 		geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
 		if (world_ob_or_avatar instanceof WorldObject) {
 			const world_ob = world_ob_or_avatar;
-			removeAndDeleteGLAndPhysicsObjectsForOb(world_ob); // Remove any existing mesh and physics object
+			removeAndDeleteGLObjectForOb(world_ob);
+			if (model_changing)
+				removeAndDeletePhysicsObjectForOb(world_ob);
 		}
 
 		// console.log("Loaded mesh '" + model_url + "'.");
@@ -901,7 +911,8 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 
 		if (world_ob_or_avatar instanceof WorldObject) {
 			const world_ob = world_ob_or_avatar;
-			registerPhysicsObject(world_ob, geom_info.triangles, mesh);
+			if (model_changing)
+				registerPhysicsObject(world_ob, geom_info.triangles, mesh);
 		}
 		
 		if (world_ob_or_avatar instanceof WorldObject) {
@@ -1416,7 +1427,7 @@ function animate() {
 }
 
 
-function removeAndDeleteGLAndPhysicsObjectsForOb(world_ob: WorldObject) {
+function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
 	// Remove from three.js scene
 	if (world_ob.mesh) {
 		scene.remove(world_ob.mesh);
@@ -1437,7 +1448,10 @@ function removeAndDeleteGLAndPhysicsObjectsForOb(world_ob: WorldObject) {
 		world_ob.loaded_lod_level = -10;
 		world_ob.loaded_model_lod_level = -10;
 	}
+}
 
+
+function removeAndDeletePhysicsObjectForOb(world_ob: WorldObject) {
 	// Remove from physics world
 	if (world_ob.bvh) {
 		physics_world.delWorldObject(world_ob.world_id); // Use id (= index of element in worldObject list)
@@ -1448,7 +1462,8 @@ function removeAndDeleteGLAndPhysicsObjectsForOb(world_ob: WorldObject) {
 
 function unloadObject(world_ob: WorldObject) {
 
-	removeAndDeleteGLAndPhysicsObjectsForOb(world_ob);
+	removeAndDeleteGLObjectForOb(world_ob);
+	removeAndDeletePhysicsObjectForOb(world_ob);
 
 	world_ob.mesh_state = MESH_NOT_LOADED;
 }
@@ -1487,9 +1502,9 @@ function checkForLODChanges()
 			const lod_level = ob.getLODLevelForCamToObDist2(cam_to_ob_d2);
 
 			if (lod_level != ob.current_lod_level) {
+				// console.log("Changing LOD level for object with UID " + ob.uid.toString() + " from " + ob.current_lod_level + " to " + toString(lod_level));
 				loadModelForObject(ob);
 				ob.current_lod_level = lod_level;
-				// console.log("Changing LOD level for object " + ob.uid.toString() + " to " + toString(lod_level));
 			}
 
 			if (!ob.in_proximity) { // If an object was out of load distance, and moved within load distance:
