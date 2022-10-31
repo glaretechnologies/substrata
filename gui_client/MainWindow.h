@@ -253,10 +253,10 @@ private:
 	bool clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 public:
-	bool checkAddTextureToProcessedSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool checkAddModelToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool checkAddAudioToProcessedSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool checkAddScriptToProcessedSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddTextureToProcessingSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddModelToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddAudioToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
 
 	void startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB);
@@ -475,17 +475,17 @@ private:
 
 	// Textures being loaded or already loaded.
 	// We have this set so that we don't process the same texture from multiple LoadTextureTasks running in parallel.
-	std::unordered_set<std::string> textures_processed;
+	std::unordered_set<std::string> textures_processing;
 
 	// Models being loaded or already loaded.
 	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
-	std::unordered_set<std::string> models_processed;
+	std::unordered_set<std::string> models_processing;
 
 	// Audio files being loaded or already loaded.
 	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
-	std::unordered_set<std::string> audio_processed;
+	std::unordered_set<std::string> audio_processing;
 
-	std::unordered_set<std::string> script_content_processed;
+	std::unordered_set<std::string> script_content_processing;
 
 
 	QTimer* update_ob_editor_transform_timer;
