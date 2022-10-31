@@ -829,7 +829,7 @@ void AnimatedTexObData::processGIFAnimatedTex(MainWindow* main_window, OpenGLEng
 					OpenGLTextureRef tex = is_refl_tex ? mat.albedo_texture : mat.emission_texture;
 
 					if(tex.nonNull() && tex->xRes() == texdata->W && tex->yRes() == texdata->H)
-						TextureLoading::loadIntoExistingOpenGLTexture(tex, *texdata, animtexdata.cur_frame_i, opengl_engine);
+						TextureLoading::loadIntoExistingOpenGLTexture(tex, *texdata, animtexdata.cur_frame_i);
 					//else
 					//	conPrint("AnimatedTexObData::process(): tex data W or H wrong.");
 
