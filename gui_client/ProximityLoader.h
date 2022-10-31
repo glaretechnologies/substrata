@@ -8,7 +8,6 @@ Copyright Glare Technologies Limited 2021 -
 
 #include "PhysicsWorld.h"
 #include "HashedObGrid.h"
-#include "../opengl/OpenGLEngine.h"
 #include "../shared/WorldObject.h"
 #include <string>
 #include <unordered_set>
