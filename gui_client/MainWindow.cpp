@@ -779,30 +779,30 @@ void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& p
 }
 
 
-bool MainWindow::checkAddTextureToProcessedSet(const std::string& path)
+bool MainWindow::checkAddTextureToProcessingSet(const std::string& path)
 {
-	auto res = textures_processed.insert(path);
+	auto res = textures_processing.insert(path);
 	return res.second; // Was texture inserted? (will be false if already present in set)
 }
 
 
-bool MainWindow::checkAddModelToProcessedSet(const std::string& url)
+bool MainWindow::checkAddModelToProcessingSet(const std::string& url)
 {
-	auto res = models_processed.insert(url);
+	auto res = models_processing.insert(url);
 	return res.second; // Was model inserted? (will be false if already present in set)
 }
 
 
-bool MainWindow::checkAddAudioToProcessedSet(const std::string& url)
+bool MainWindow::checkAddAudioToProcessingSet(const std::string& url)
 {
-	auto res = audio_processed.insert(url);
+	auto res = audio_processing.insert(url);
 	return res.second; // Was audio inserted? (will be false if already present in set)
 }
 
 
-bool MainWindow::checkAddScriptToProcessedSet(const std::string& script_content) // returns true if was not in processed set (and hence this call added it), false if it was.
+bool MainWindow::checkAddScriptToProcessingSet(const std::string& script_content) // returns true if was not in processed set (and hence this call added it), false if it was.
 {
-	auto res = script_content_processed.insert(script_content);
+	auto res = script_content_processing.insert(script_content);
 	return res.second; // Was inserted? (will be false if already present in set)
 }
 
@@ -853,7 +853,7 @@ void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox
 			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded already into the texture server
 				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
 			{
-				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
 					load_item_queue.enqueueItem(pos, aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB));
 			}
@@ -885,7 +885,7 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded already
 				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
 			{
-				const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
 					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
 			}
@@ -1362,7 +1362,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 				if(opengl_ob->materials[0].albedo_texture.isNull())
 				{
-					const bool just_added = checkAddTextureToProcessedSet(tex_key);
+					const bool just_added = checkAddTextureToProcessingSet(tex_key);
 					if(just_added) // not being loaded already:
 					{
 						Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
@@ -1558,7 +1558,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				{
 					if(resource_manager->isFileForURLPresent(lod_model_url))
 					{
-						const bool just_added = this->checkAddModelToProcessedSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
+						const bool just_added = this->checkAddModelToProcessingSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
 						if(just_added)
 						{
 							// Do the model loading in a different thread
@@ -1736,7 +1736,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 		{
 			if(resource_manager->isFileForURLPresent(lod_model_url))
 			{
-				const bool just_added = this->checkAddModelToProcessedSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
+				const bool just_added = this->checkAddModelToProcessingSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
 				if(just_added)
 				{
 					// Do the model loading in a different thread
@@ -1819,7 +1819,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 
 	if(!ob->script.empty() && ob->script_evaluator.isNull())
 	{
-		const bool just_inserted = checkAddScriptToProcessedSet(ob->script); // Mark script as being processed so another LoadScriptTask doesn't try and process it also.
+		const bool just_inserted = checkAddScriptToProcessingSet(ob->script); // Mark script as being processed so another LoadScriptTask doesn't try and process it also.
 		if(just_inserted)
 		{
 			Reference<LoadScriptTask> task = new LoadScriptTask();
@@ -2066,7 +2066,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 					}
 					else // else loading a non-streaming source, such as a WAV file.
 					{
-						const bool just_inserted = checkAddAudioToProcessedSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
+						const bool just_inserted = checkAddAudioToProcessingSet(ob->audio_source_url); // Mark audio as being processed so another LoadAudioTask doesn't try and process it also.
 						if(just_inserted)
 						{
 							// conPrint("Launching LoadAudioTask");
@@ -3632,9 +3632,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					//logMessage("Finished loading mesh '" + cur_loading_lod_model_url + "'.");
 
 
-					// Now that this model is loaded, removed from models_processed set.
+					// Now that this model is loaded, removed from models_processing set.
 					// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
-					models_processed.erase(cur_loading_lod_model_url);
+					models_processing.erase(cur_loading_lod_model_url);
 
 
 					// Add meshes to mesh manager
@@ -3983,9 +3983,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					num_textures_loaded++;
 
-					// Now that this texture is loaded, removed from textures_processed set.
+					// Now that this texture is loaded, removed from textures_processing set.
 					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-					textures_processed.erase(message->tex_key);
+					textures_processing.erase(message->tex_key);
 
 					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 
@@ -4115,9 +4115,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 				}
 
-				// Now that this audio is loaded, removed from audio_processed set.
+				// Now that this audio is loaded, removed from audio_processing set.
 				// If the audio is unloaded, then this will allow it to be reprocessed and reloaded.
-				audio_processed.erase(loaded_msg->audio_source_url);
+				audio_processing.erase(loaded_msg->audio_source_url);
 			}
 			else if(dynamic_cast<ScriptLoadedThreadMessage*>(msg.getPointer()))
 			{
@@ -4140,18 +4140,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 				}
 
-				// Now that this script is loaded, removed from script_content_processed set.
+				// Now that this script is loaded, removed from script_content_processing set.
 				// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
-				script_content_processed.erase(loaded_msg->script);
+				script_content_processing.erase(loaded_msg->script);
 			}
 			else if(dynamic_cast<HypercardTexMadeMessage*>(msg.getPointer()))
 			{
 				HypercardTexMadeMessage* loaded_msg = static_cast<HypercardTexMadeMessage*>(msg.ptr());
 
 				const std::string tex_key = "hypercard_" + loaded_msg->hypercard_content;
-				// Now that this texture is loaded, removed from textures_processed set.
+				// Now that this texture is loaded, removed from textures_processing set.
 				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-				textures_processed.erase(tex_key);
+				textures_processing.erase(tex_key);
 
 				// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 
@@ -4584,7 +4584,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							if(!this->texture_server->isTextureLoadedForPath(tex_path)) // If not loaded
 							{
-								const bool just_added = checkAddTextureToProcessedSet(tex_path); // If not being loaded already:
+								const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 								if(just_added)
 									load_item_queue.enqueueItem(pos, size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_SRGB)); 
 							}
@@ -7938,7 +7938,7 @@ void MainWindow::objectEditedSlot()
 
 						if(opengl_ob->materials[0].albedo_texture.isNull())
 						{
-							const bool just_added = checkAddTextureToProcessedSet(tex_key);
+							const bool just_added = checkAddTextureToProcessingSet(tex_key);
 							if(just_added) // not being loaded already:
 							{
 								Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
@@ -8398,11 +8398,11 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 	this->ui->indigoView->shutdown();
 
-	// Clear textures_processed set.
-	textures_processed.clear();
-	models_processed.clear();
-	audio_processed.clear();
-	script_content_processed.clear();
+	// Clear textures_processing set etc.
+	textures_processing.clear();
+	models_processing.clear();
+	audio_processing.clear();
+	script_content_processing.clear();
 
 	texture_server->clear();
 
