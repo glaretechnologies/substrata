@@ -245,7 +245,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 
 
 	proximity_loader.callbacks = this;
-	proximity_loader.opengl_engine = ui->glWidget->opengl_engine.ptr();
 
 	ui->glWidget->setBaseDir(base_dir_path, /*print output=*/this, settings);
 	ui->objectEditor->base_dir_path = base_dir_path;
@@ -8485,8 +8484,6 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 
 	if(physics_world.isNull())
 		physics_world = new PhysicsWorld();
-
-	proximity_loader.physics_world = physics_world.ptr();
 
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
