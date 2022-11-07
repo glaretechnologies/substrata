@@ -47,7 +47,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../webserver/AccountHandlers.h"
 #include "../webserver/WebDataStore.h"
 #include "../ethereum/Infura.h"
-#include <WorkerThreadTests.h>//TEMP for testing
+#include <WebWorkerThreadTests.h>//TEMP for testing
 #include <WebListenerThread.h>
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include "../webserver/CoinbasePollerThread.h"
@@ -56,6 +56,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../ethereum/RLP.h"//TEMP for testing
 #include "../ethereum/Signing.h"//TEMP for testing
 #include <WebSocketTests.h>//TEMP for testing
+#include "WorldCreation.h"
 //#include <graphics/FormatDecoderGLTF.h>//TEMP for testing
 
 
@@ -377,7 +378,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
-			WebSocketTests::test();
+			//WebSocketTests::test();
 			//SafeBrowsingCheckerThread::test(server.world_state.ptr());
 			//GIFDecoder::test();
 			//PNGDecoder::test();
@@ -398,7 +399,7 @@ int main(int argc, char *argv[])
 			//Keccak256::test();
 			//Infura::test();
 			//AccountHandlers::test();
-			//web::WorkerThreadTests::test();
+			web::WebWorkerThreadTests::test();
 			////SHA256::test();
 			////CryptoRNG::test();
 			//StringUtils::test();
@@ -509,6 +510,9 @@ int main(int argc, char *argv[])
 			server.world_state->readFromDisk(server_state_path);
 		else
 			server.world_state->createNewDatabase(server_state_path);
+
+
+		WorldCreation::removeHypercardMaterials(*server.world_state);
 
 
 		updateMapTiles(*server.world_state);
