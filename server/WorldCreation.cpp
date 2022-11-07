@@ -295,6 +295,41 @@ static void updateToUseImageCubeMeshes(ServerAllWorldsState& all_worlds_state)
 #endif
 
 
+// Clear materials for hypercard objects, there was a bug with the material editor that was creating materials for them, when they are not needed.
+// Remove because they may create spurious dependencies.
+void WorldCreation::removeHypercardMaterials(ServerAllWorldsState& all_worlds_state)
+{
+	Timer timer;
+
+	size_t num_updated = 0;
+	{
+		Lock lock(all_worlds_state.mutex);
+
+		for(auto world_it = all_worlds_state.world_states.begin(); world_it != all_worlds_state.world_states.end(); ++world_it)
+		{
+			Reference<ServerWorldState> world_state = world_it->second;
+
+			for(auto i = world_state->objects.begin(); i != world_state->objects.end(); ++i)
+			{
+				WorldObject* ob = i->second.ptr();
+
+				if((ob->object_type == WorldObject::ObjectType_Hypercard) && !ob->materials.empty())
+				{
+					ob->materials.clear();
+					world_state->addWorldObjectAsDBDirty(ob);
+					num_updated++;
+				}
+			}
+		}
+	}
+
+	if(num_updated > 0)
+		all_worlds_state.markAsChanged();
+
+	conPrint("removeHypercardMaterials(): Updated " + toString(num_updated) + " objects.  Elapsed: " + timer.elapsedStringNSigFigs(3));
+}
+
+
 void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_state)
 {
 	// Add 'town square' parcels
