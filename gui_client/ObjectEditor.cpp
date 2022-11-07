@@ -210,7 +210,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 		this->audioGroupBox->show();
 	}
 
-	if(ob.object_type == WorldObject::ObjectType_VoxelGroup || ob.object_type == WorldObject::ObjectType_Spotlight || ob.object_type == WorldObject::ObjectType_Generic || ob.object_type == WorldObject::ObjectType_WebView)
+	if(ob.object_type != WorldObject::ObjectType_Hypercard)
 	{
 		this->matEditor->setFromMaterial(*selected_mat);
 
@@ -318,19 +318,22 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 
 	ob_out.setCollidable(this->collidableCheckBox->isChecked());
 
-	if(selected_mat_index >= (int)cloned_materials.size())
+	if(ob_out.object_type != WorldObject::ObjectType_Hypercard) // Don't store materials for hypercards. (doesn't use them, and matEditor may have old/invalid data)
 	{
-		cloned_materials.resize(selected_mat_index + 1);
+		if(selected_mat_index >= (int)cloned_materials.size())
+		{
+			cloned_materials.resize(selected_mat_index + 1);
+			for(size_t i=0; i<cloned_materials.size(); ++i)
+				if(cloned_materials[i].isNull())
+					cloned_materials[i] = new WorldMaterial();
+		}
+
+		this->matEditor->toMaterial(*cloned_materials[selected_mat_index]);
+
+		ob_out.materials.resize(cloned_materials.size());
 		for(size_t i=0; i<cloned_materials.size(); ++i)
-			if(cloned_materials[i].isNull())
-				cloned_materials[i] = new WorldMaterial();
+			ob_out.materials[i] = cloned_materials[i]->clone();
 	}
-
-	this->matEditor->toMaterial(*cloned_materials[selected_mat_index]);
-
-	ob_out.materials.resize(cloned_materials.size());
-	for(size_t i=0; i<cloned_materials.size(); ++i)
-		ob_out.materials[i] = cloned_materials[i]->clone();
 
 	if(ob_out.object_type == WorldObject::ObjectType_Spotlight) // NOTE: is ob_out.object_type set?
 	{
