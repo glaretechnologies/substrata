@@ -1,0 +1,2 @@
+call emcc stb_dxt.c dxt_compress.c -o stb_dxt.js -O3 -sENVIRONMENT=web,worker -sEXPORTED_FUNCTIONS="_stb_compress_dxt_block,_compress_dxt1,_compress_dxt5,_build_mipmaps,_malloc,_free" -sEXPORTED_RUNTIME_METHODS=ccall,cwrap -sALLOW_MEMORY_GROWTH=1
+call copy stb_dxt.wasm ..

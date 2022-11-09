@@ -119,7 +119,6 @@ export default class PhysicsWorld {
 		delete this.jobList[ev.data.key];
 	}
 
-
 	// Getters/Setters
 	public get scene (): THREE.Scene { return this.scene_; }
 	public set scene (scene: THREE.Scene) {
@@ -186,7 +185,7 @@ export default class PhysicsWorld {
 
 	// This function registers the model and potentially initiates a request for the BVH - if the BVH is already in the
 	// jobList, the additional request is queued and completed on receiving the built BVH
-	public registerWorldObject (bvhKey: string, obj: WorldObject, triangles?: Triangles): number {
+	public registerWorldObject (bvhKey: string, obj: WorldObject, triangles?: Triangles, collidable=true): number {
 		const haveModel = this.hasModelBVH(bvhKey);
 		if (!haveModel && triangles === null) {
 			console.error('Cannot construct BVH for:', bvhKey);
@@ -209,6 +208,7 @@ export default class PhysicsWorld {
 		obj.worldToObject.copy(obj.mesh.matrixWorld);
 		obj.worldToObject.invert();
 		obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
+		obj.collidable = collidable;
 
 		const bvh = this.getModelBVH(bvhKey);
 		if (bvh == null) {
@@ -298,12 +298,34 @@ export default class PhysicsWorld {
 		return hit ? t : -1;
 	}
 
+	public pickWorldObject (origin: Float32Array, dir: Float32Array): WorldObject | null {
+		let t = Number.POSITIVE_INFINITY;
+		let hit: WorldObject | undefined;
+
+		const O = new Float32Array(3), d = new Float32Array(3);
+		for (let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
+			const obj = this.worldObjects_[i];
+			if(obj && obj.bvh) {
+				O.set(origin);
+				d.set(dir);
+				applyMatrix4(obj.worldToObject, O);
+				transformDirection(obj.worldToObject, d);
+				const test = obj.bvh.testRayLeaf(O, d);
+				if (test[1] !== -1 && t > test[2]) {
+					t = test[2];
+					hit = obj;
+				}
+			}
+		}
+		return hit;
+	}
+
 	public debugRay (origin: Float32Array, dir: Float32Array): void {
 		if(!this.caster_) return;
 
 		for(let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
 			const obj = this.worldObjects_[i];
-			if(obj && obj.bvh) {
+			if(obj && obj.bvh) { // Should collidable work on the picking rays?
 				const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.worldToObject, obj.bvh);
 				if(test) {
 					// See if we have any debug meshes associated to this mesh
@@ -345,7 +367,7 @@ export default class PhysicsWorld {
 
 		for (let i = 0; i < this.worldObjects_.length; ++i) {
 			const obj = this.worldObjects_[i];
-			if (obj && obj.bvh) {
+			if (obj && obj.bvh && obj.collidable) {
 				clearSphereTraceResult(query);
 
 				const dist = this.traceSphereObject(/*worldObj=*/obj, sphere, dir, /*maxDist=*/transLength, spherePathAABB,
@@ -406,7 +428,7 @@ export default class PhysicsWorld {
 		// No Top-level Acceleration Structure yet
 		for(let i = 0; i !== this.worldObjects_.length; ++i) {
 			const obj = this.worldObjects[i];
-			if(obj && obj.bvh)
+			if(obj && obj.bvh && obj.collidable)
 				this.getCollPointsObject(obj, sphere, sphereAABB, collisionPoints);
 		}
 
@@ -448,3 +470,61 @@ export default class PhysicsWorld {
 			/*toObject=*/this.ground.worldToObject, /*toWorld=*/this.ground.objectToWorld, /*points=*/collisionPoints);
 	}
 }
+
+/*
+// Testing Texture Compression & Workers
+this.textureLoader_ = new TextureLoader(Math.max(1, Math.floor((navigator.hardwareConcurrency ?? 4) / 2)));
+
+// Setup a quad that displays a compressed texture
+const mat = new THREE.MeshBasicMaterial({ map: null, side: THREE.DoubleSide });
+const quad = new THREE.Mesh(new THREE.PlaneGeometry(), mat);
+quad.position.set(0, 0, 4);
+quad.rotation.set(-Math.PI/2, 0, 0);
+quad.scale.set(8, 8, 8);
+this.tempMeshes.add(quad);
+
+this.textureLoader_.load('/webclient/testB.jpg',
+  (tex: THREE.CompressedTexture) => {
+    mat.map = tex;
+    mat.needsUpdate = true;
+  }
+);
+*/
+
+/*
+this.textureLoader_.readPixels('/webclient/testB.jpg').then(task => {
+  this.textureLoader_.compressTexture(task, (task: CompressionTask) => {
+    const format = task.channels === 3 ? THREE.RGB_S3TC_DXT1_Format : THREE.RGBA_S3TC_DXT5_Format;
+    const tex = new THREE.CompressedTexture(task.mipmaps, task.width, task.height, format);
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.flipY = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    mat.map = tex;
+    mat.needsUpdate = true;
+  });
+});
+*/
+
+/*
+setTimeout(() => {
+  this.textureLoader_.readPixels('/webclient/testB.jpg').then(task => {
+    console.log('task:', task);
+
+    this.textureLoader_.compressTexture(task, (task: CompressionTask) => {
+      const format = task.channels === 3 ? THREE.RGB_S3TC_DXT1_Format : THREE.RGBA_S3TC_DXT5_Format;
+      const tex = new THREE.CompressedTexture(task.mipmaps, task.width, task.height, format);
+      tex.wrapS = THREE.ClampToEdgeWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.flipY = true;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
+      mat.map = tex;
+      mat.needsUpdate = true;
+    });
+  });
+}, 5000);
+*/

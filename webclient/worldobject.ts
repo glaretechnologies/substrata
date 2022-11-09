@@ -64,6 +64,7 @@ export class WorldObject {
 	worldToObject: THREE.Matrix4 // TODO: We should only calculate the inverse when the world matrix actually changes
 	world_aabb: Float32Array // Root AABB node created from aabb_ws_min & aabb_ws_max
 	world_id: number // An index into the physics world object list
+	collidable: boolean // Does this object participate in player physics collisions
 
 	mesh_state: number;
 	mesh: THREE.Mesh;
