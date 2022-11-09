@@ -14,7 +14,6 @@ import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
 import { Triangles } from './physics/bvh.js';
 import PhysicsWorld from './physics/world.js';
-import { makeAABB } from './maths/geometry.js';
 import CameraController from './cameraController.js';
 import { ScalarVal, WorldMaterial } from './worldmaterial.js';
 import {
@@ -41,11 +40,13 @@ import {
 	getBVHKey
 } from './worldobject.js';
 import { ProximityLoader } from './proximityloader.js';
+import TextureLoader from './graphics/textureLoader.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
 
 const physics_world = new PhysicsWorld();
+const textureLoader = new TextureLoader(Math.max(1, Math.floor((navigator.hardwareConcurrency ?? 4) / 2)));
 
 const STATE_INITIAL = 0;
 const STATE_READ_HELLO_RESPONSE = 1;
@@ -108,7 +109,7 @@ ws.onopen = function () {
 
 	writeStringToWebSocket(ws, world); // World to connect to
 
-	const aabb = proximity_loader.setCameraPosForNewConnection(cam_controller.positionV3)
+	const aabb = proximity_loader.setCameraPosForNewConnection(cam_controller.positionV3);
 	// console.log("Initial query AABB: " + aabb.toString());
 
 	// Send QueryObjectsInAABB for initial volume around camera to server
@@ -533,8 +534,9 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		let texture = null;
 		if (url_to_texture_map.has(lod_texture_URL)) {
 
-			texture = new THREE.Texture();
-			texture.image = url_to_texture_map.get(lod_texture_URL).image; // This texture has already been loaded, use it
+			//texture = new THREE.Texture();
+			//texture.image = url_to_texture_map.get(lod_texture_URL).image; // This texture has already been loaded, use it
+			texture = url_to_texture_map.get(lod_texture_URL);
 		}
 		else { // Else texture has not been loaded:
 
@@ -713,6 +715,45 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 	if (download_queue_item.is_texture) {
 
+		textureLoader.load('resource/' + download_queue_item.URL,
+			function (texture) { // onLoad callback
+				num_resources_downloading--;
+
+				//console.log("Loaded texture '" + download_queue_item.URL + "'.");
+
+				// There should be 1 or more materials that use this texture.
+				const waiting_mats = loading_texture_URL_to_materials_map.get(download_queue_item.URL);
+				if (!waiting_mats) {
+					console.log('Error: waiting mats was null or false.');
+				}
+				else {
+					// Assign this texture to all materials waiting for it.
+					for (let z = 0; z < waiting_mats.length; ++z) {
+						const mat = waiting_mats[z];
+
+						//console.log("Assigning texture '" + download_queue_item.URL + "' to waiting material: " + mat);
+						//mat.map.image = texture.image; // Assign the texture image, but not the whole texture, because we want to keep the existing tex matrix etc..
+						//mat.map.needsUpdate = true; // Seems to be needed to get the texture to show.
+
+						if(mat.map) mat.map.dispose(); // Tex is created when material is added so dispose
+						texture.matrix = mat.map.matrix;
+						texture.matrixAutoUpdate = false;
+						mat.map = texture;
+						mat.map.needsUpdate = true;
+					}
+
+					loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
+				}
+
+				// Add to our loaded texture map
+				url_to_texture_map.set(download_queue_item.URL, texture);
+			},
+			function (err) { // onError callback
+				num_resources_downloading--;
+			}
+		);
+
+		/*
 		const loader = new THREE.TextureLoader();
 
 		loader.load('resource/' + download_queue_item.URL,
@@ -752,7 +793,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 				num_resources_downloading--;
 			}
 		);
-
+		*/
 	}
 	else { // Else it's a model to download:
 		const model_url = download_queue_item.URL;
@@ -982,15 +1023,18 @@ THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
 
 const scene = new THREE.Scene();
 
-
+// The outlineMaterial and Mesh used to highlight objects
 /*
-const DEFAULT_FOV = 75
-const DEFAULT_AR = window.innerWidth / window.innerHeight
-const DEFAULT_NEAR = 0.1
-const DEFAULT_FAR = 1000.0
-const camera = new THREE.PerspectiveCamera(DEFAULT_FOV, DEFAULT_AR, DEFAULT_NEAR, DEFAULT_FAR);
+const OUTLINE_SCALE = 1.02;
+const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0x0ff7fb, side: THREE.BackSide });
+const outlineMesh = new THREE.Mesh(new THREE.BoxGeometry(), outlineMaterial);
+outlineMesh.scale.set(OUTLINE_SCALE, OUTLINE_SCALE, OUTLINE_SCALE);
+outlineMesh.renderOrder = 0;
+outlineMesh.depthTest = false;
+outlineMesh.depthWrite = false;
+outlineMesh.visible = true;
+scene.add(outlineMesh);
 */
-
 const renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -1008,12 +1052,6 @@ cam_controller.position = new Float32Array([initial_pos_x, initial_pos_y, initia
 
 
 const proximity_loader = new ProximityLoader(MAX_OB_LOAD_DISTANCE_FROM_CAM, /*callback_function=*/newCellInProximity);
-
-/*
-camera.position.set(initial_pos_x, initial_pos_y, initial_pos_z);
-camera.up = new THREE.Vector3(0, 0, 1);
-camera.lookAt(camera.position.clone().add(new THREE.Vector3(0, 1, 0)));
-*/
 
 const hemiLight = new THREE.HemisphereLight();
 hemiLight.color = new THREE.Color(0.4, 0.4, 0.45); // sky colour
@@ -1167,14 +1205,38 @@ function onDocumentMouseUp() {
 	is_mouse_down = false;
 }
 
-function onDocumentMouseMove(ev: MouseEvent) {
-	/*
-	const ray = cam_controller.caster.getPickRay(ev.offsetX, ev.offsetY);
-	if(ray != null) {
-		const [O, d] = ray;
-		physics_world.debugRay(O, d);
+/*
+function highlightObject (obj: THREE.Mesh): void {
+	// Use visibility to determine if an object is highlighted or not
+	outlineMesh.visible = false;
+	outlineMesh.geometry = obj.geometry;
+	outlineMesh.position.copy(obj.position);
+	outlineMesh.scale.copy(obj.scale);
+	outlineMesh.scale.multiplyScalar(OUTLINE_SCALE);
+	outlineMesh.rotation.copy(obj.rotation);
+	console.log('outline:', outlineMesh);
+}
+
+function clearHighlight (): void {
+	if(outlineMesh.visible) {
+		outlineMesh.visible = false;
+		outlineMesh.geometry = null;
 	}
-	*/
+}
+*/
+
+function onDocumentMouseMove(ev: MouseEvent) {
+	const ray = cam_controller.caster.getPickRay(ev.offsetX, ev.offsetY);
+
+	if(ray != null) {
+		/*
+		const [O, d] = ray;
+		const object = physics_world.pickWorldObject(O, d);
+		if(object) highlightObject(object.mesh);
+		else clearHighlight();
+ 	  */
+	}
+
 	if(is_mouse_down){
 		cam_controller.mouseLook(ev.movementX, ev.movementY);
 	}
