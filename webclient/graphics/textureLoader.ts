@@ -28,15 +28,16 @@ export interface CompressionTask {
 	width: number;
 	height: number;
 	channels: number;
-	data: Uint8ClampedArray; // Input pixel data
-	compressedData?: Uint8Array; // Output compressed block
-	mipmaps?: CompressedImage[]
+	levels?: MipmapLevel[] // Used to reconstruct the compressed data at the caller
 
-	/*
-	dataBuffer: ArrayBuffer // Contains the input image (transferred in)
-	compressedData?: ArrayBuffer; // Contains the output compressed mipmaps (packed as per mipmapLevels)
-	mipmaps?: MipmapLevel[] // Used to reconstruct the compressed data at the caller
-  */
+	// Used for passing data internally
+	data?: Uint8ClampedArray; // Input pixel data - transfer in
+	compressedData?: Uint8Array; // Output buffer - transfer out (compressed)
+	mipmaps?: CompressedImage[]; // Return the interface expected by THREE.CompressedTexture
+
+	// Transfer Buffers (from/to worker)
+	dataBuffer?: ArrayBuffer // Contains the input image (transferred in)
+	compressedDataBuffer?: ArrayBuffer; // Contains the output compressed mipmaps (packed as per mipmapLevels)
 }
 
 export type loadCB = (tex: THREE.CompressedTexture) => void
@@ -102,13 +103,29 @@ export default class TextureLoader {
 		if(task.url in this.cbList_) {
 			const callbacks = this.cbList_[task.url];
 
-			if(task.mipmaps == null || task.mipmaps.length === 0) {
+			if(task.compressedDataBuffer == null || task.levels == null || task.levels.length === 0) {
 				const err = new Error('Compression Task Failed');
 				for(let i = 0; i !== callbacks.length; ++i) callbacks[i][1](err);
 			} else {
+				// Build the mipmap levels from the transferred compressedDataBuffer
+				const buffer = new Uint8Array(task.compressedDataBuffer);
+				const levels = task.levels;
+
+				const mipmaps = [];
+				for(let i = 0; i !== levels.length; ++i) {
+					mipmaps.push({
+						width: levels[i].width,
+						height: levels[i].height,
+						channels: levels[i].channels,
+						data: buffer.slice(levels[i].dataOffset, levels[i].dataOffset+levels[i].compressedDataSize)
+						// Should work, but doesn't?
+						//data: new Uint8Array(buffer, levels[i].dataOffset, levels[i].compressedDataSize)
+					});
+				}
+
 				const format = task.channels === 3 ? THREE.RGB_S3TC_DXT1_Format : THREE.RGBA_S3TC_DXT5_Format;
-				const tex = new THREE.CompressedTexture(task.mipmaps, task.width, task.height, format);
-				//tex.flipY = true; // This has no effect - try to do this in the canvas when copying...
+				const tex = new THREE.CompressedTexture(mipmaps, task.width, task.height, format);
+				//tex.flipY = true; // This has no effect - flip is performed on C side on level 0 prior to mipmapping
 				tex.wrapS = THREE.RepeatWrapping;
 				tex.wrapT = THREE.RepeatWrapping;
 				tex.minFilter = THREE.LinearMipmapLinearFilter;
@@ -126,23 +143,28 @@ export default class TextureLoader {
 	*/
 	public async readPixels (url: string): Promise<CompressionTask> {
 		const blob = await fetch(url).then((resp: Response) => resp.blob());
-
 		const img = await createImageBitmap(blob);
-		const width = img.width % 4 === 0 ? img.width : (Math.floor(img.width / 4) + 1) * 4;
-		const height = img.height % 4 === 0 ? img.height : (Math.floor(img.height / 4) + 1) * 4;
 
+		// We need to enforce the 4096 x 4096 limit for texture processing
+		const width = Math.min(Math.ceil(img.width / 4) * 4, 4096); // Pad the first level to multiples of 4
+		const height = Math.min(Math.ceil(img.height / 4) * 4, 4096);
+
+		// console.log('width, height:', width, height);
 		this.canvas_.width = width; this.canvas_.height = height;
 		this.ctx2D_.drawImage(img, 0, 0);
 		// This has the unfortunate side effect of always adding a 4th channel - should we remove it?
-		// TODO: Check whether or not reading from a canvas without an alpha channel results in a 3-channel texture?
+		// Current issues:
+		// 1) We decode the image by drawing it to the canvas, therefore we don't have access to the bit depth prior to decoding.
+		// 2) After decoding, the image is RGBA and there is no easy way to tell if it was an RGB input.
 		const imgData = this.ctx2D_.getImageData(0, 0, width, height);
 
 		return {
 			url: url,
 			width: width,
 			height: height,
-			channels: imgData.data.length / (width * height),
-			data: imgData.data
+			channels: imgData.data.length / (width * height), // Will always be 4 because canvas reads back RGBA
+			data: imgData.data,
+			dataBuffer: imgData.data.buffer
 		};
 	}
 
@@ -153,7 +175,9 @@ export default class TextureLoader {
 		this.workers_[worker].postMessage({
 			taskType: WorkerTaskType.MIPMAP_COMPRESS,
 			task
-		});
+		}, [
+			task.dataBuffer
+		]);
 	}
 }
 

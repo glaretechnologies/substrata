@@ -377,10 +377,14 @@ void build_mipmaps(uint8_t* out_buffer, uint8_t* src_buffer, int32_t levelsCount
         compressed_data_size = levels[CMP_SIZE], data_offset = levels[CMP_OFFSET];
     float levelOAlphaCoverage = 0.f;
 
-    assert(channels == 4 || channels == 3);
+    assert(level_W <= 4096 && level_H <= 4096); // Max texture size of 4096 x 4096
+    assert(channels == 4 || channels == 3); // 3 or 4 channels only
 
-    uint8_t* buffer_A = src_buffer + level_size; // Only guaranteed to be half of level size
-    uint8_t* buffer_B = buffer_A + level_size / 2;
+    uint8_t* buffer_A = src_buffer;
+    uint8_t* buffer_B = src_buffer + level_size;
+    const int32_t src_buffer_size = 4096 * 4096 * (4 + 2);
+    const uint8_t* end = src_buffer + src_buffer_size;
+
     uint8_t* curr_buffer = src_buffer;
     uint8_t* prev_buffer = src_buffer;
 
@@ -402,6 +406,7 @@ void build_mipmaps(uint8_t* out_buffer, uint8_t* src_buffer, int32_t levelsCount
         } else {
             prev_buffer = curr_buffer;
             curr_buffer = i % 2 == 0 ? buffer_B : buffer_A;
+            assert(curr_buffer + level_size <= end);
 
             float alpha_scale = 1.f;
             if(channels == 4) {

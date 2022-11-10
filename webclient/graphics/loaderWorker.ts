@@ -28,11 +28,16 @@ interface CompressionTask {
 	width: number;
 	height: number;
 	channels: number;
-	data: Uint8ClampedArray; // Input pixel data - transfer in
-	compressedData?: Uint8Array; // Output buffer - transfer out (compressed)
+	levels?: MipmapLevel[] // Used to reconstruct the compressed data at the caller
 
-	// Return the interface expected by THREE.CompressedTexture
-	mipmaps?: CompressedImage[]
+	// Used for passing data internally
+	data?: Uint8ClampedArray; // Input pixel data - transfer in
+	compressedData?: Uint8Array; // Output buffer - transfer out (compressed)
+	mipmaps?: CompressedImage[]; // Return the interface expected by THREE.CompressedTexture
+
+	// Transfer Buffers (from/to worker)
+	dataBuffer?: ArrayBuffer // Contains the input image (transferred in)
+	compressedDataBuffer?: ArrayBuffer; // Contains the output compressed mipmaps (packed as per mipmapLevels)
 }
 
 const STB_DXT_HIGHQUAL = 2;
@@ -105,6 +110,8 @@ function computeCompressedBufferSize(width: number, height: number, channels: nu
 	return totalBlocks * (channels === 3 ? 8 : 16);
 }
 
+
+/*
 // See glare-core::TextureLoading computeAlphaCoverage
 function computeAlphaCoverage (buf: Uint8ClampedArray, width: number, height: number): number {
 	const N = 4;
@@ -542,6 +549,7 @@ function wasmCompress(task: CompressionTask): CompressionTask {
 function wasmMipmaps(task: CompressionTask): CompressionTask {
 	return task;
 }
+*/
 
 interface WASMContext {
 	module: any
@@ -564,9 +572,6 @@ function compressDXTBlock (inBuf: Uint8ClampedArray, outBuf: Uint8Array, alpha: 
 	buf.set(inBuf);
 	context.stb_compress_dxt_block(buf.byteOffset + 64, buf.byteOffset, alpha, STB_DXT_HIGHQUAL);
 	outBuf.set(buf.slice(64, 64+outBuf.length));
-	//dataHeap.set(inBuf);
-	//stb_compress_dxt_block(dataHeap.byteOffset + 64, dataHeap.byteOffset, alpha, STB_DXT_HIGHEQUAL);
-	//outBuf.set(dataHeap.slice(64, 64+outBuf.length));
 }
 
 function initLevelBuffer(levelBuffer: Int32Array, levels: MipmapLevel[]) {
@@ -589,11 +594,12 @@ function initialiseWASM (module: any) {
 	const bufferByteCount = 64 + 16; // 64 bytes input, max 16 bytes output - we do not want to reallocate this buffer
 	const compressDXTBufferPtr = module._malloc(bufferByteCount);
 
-	// Input Block - Max Level 0 at 4096 x 4096 x 4 + x 2 + x 1 (each level half of the previous)
-	const inblockByteCount = 4096 * 4096 * (4 + 2 + 1);
+	// Input Block - Max Level 0 at 4096 x 4096 x (4 + 2) (each level half of the previous)
+	// For inblock we need level0 and level1 of the mipmaps (4096 x 4096 x (4 + 2)) = approx 96 Mb per worker
+	const inblockByteCount = 4096 * 4096 * (4 + 2);
 	const compressDXTinBufferPtr = module._malloc(inblockByteCount);
 
-	// Output Block (4 : 1)
+	// Output Block (4 : 1) - approx 24 Mb per worker
 	const outblockByteCount = Math.ceil(inblockByteCount / 4);
 	const compressDXToutBufferPtr = module._malloc(outblockByteCount);
 
@@ -657,6 +663,7 @@ if(typeof importScripts === 'function') {
 
 		self.onmessage = ev => {
 			switch(ev.data.taskType) {
+			/*
 			case WorkerTaskType.COMPRESS: {
 				let task = ev.data.task;
 				const start = performance.now() * .001;
@@ -666,6 +673,7 @@ if(typeof importScripts === 'function') {
 				self.postMessage(task);
 				break;
 			}
+			*/
 			case WorkerTaskType.MIPMAP_COMPRESS: {
 				const task = ev.data.task;
 				// Compress the input image only (no mipmapping)
@@ -680,23 +688,21 @@ if(typeof importScripts === 'function') {
 
 				context.build_mipmaps(outBuf.byteOffset, inBuf.byteOffset, levels.length, lvlBuf.byteOffset);
 
-				const mipmaps = [];
-				for(let i = 0; i !== levels.length; ++i) {
-					mipmaps.push({
-						width: levels[i].width,
-						height: levels[i].height,
-						channels: levels[i].channels,
-						data: outBuf.slice(levels[i].dataOffset, levels[i].dataOffset+levels[i].compressedDataSize)
-					});
-				}
-
 				const end = performance.now();
 				//console.log('TIME:', (end - start) * .001);
 
-				task.mipmaps = mipmaps;
-				// task.compressedData = outBuf.slice(0, compressedSize);
-				self.postMessage(task);
+				task.levels = levels;
+				task.data = undefined;
+				task.dataBuffer = undefined;
+				// We have to create a copy of the outBuf, otherwise we transfer ownership of that buffer...
+				const buffer = outBuf.slice(0, compressedSize);
+				task.compressedDataBuffer = buffer.buffer;
 
+				//task.mipmaps = mipmaps;
+				//task.compressedData = outBuf.slice(0, compressedSize);
+
+				// @ts-expect-error - incorrect interface
+				self.postMessage(task, [ task.compressedDataBuffer ]);
 				break;
 			}
 			}
