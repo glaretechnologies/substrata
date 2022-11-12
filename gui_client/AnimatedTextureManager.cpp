@@ -77,7 +77,7 @@ public:
 						// Copy dirty rect data into a packed buffer
 
 						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
-						opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
+						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4), /*bind_needed=*/true);
 					}
 				}
 			}
@@ -712,26 +712,9 @@ static const std::string makeDataURL(const std::string& html)
 
 
 void AnimatedTexObData::processGIFAnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-	OpenGLMaterial& mat, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
+	OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animtexdata, const std::string& tex_path, bool is_refl_tex)
 {
-	// Fetch the texdata for this texture if we haven't already
-	// Note that mat.tex_path may change due to LOD changes.
-	if(animtexdata.texdata.isNull() || (animtexdata.texdata_tex_path != tex_path))
-	{
-		//if(animtexdata.texdata_tex_path != mat.tex_path)
-		//	conPrint("AnimatedTexObData::process(): tex_path changed from '" + animtexdata.texdata_tex_path + "' to '" + mat.tex_path + "'.");
-
-		// Only replace the tex data if the new tex data is non-null.
-		// new tex data may take a while to load after LOD changes.
-		Reference<TextureData> new_tex_data = opengl_engine->texture_data_manager->getTextureData(tex_path);
-		if(new_tex_data.nonNull())
-		{
-			animtexdata.texdata = new_tex_data;
-			animtexdata.texdata_tex_path = tex_path;
-		}
-	}
-
-	TextureData* texdata = animtexdata.texdata.ptr();
+	TextureData* texdata = texture->texture_data.ptr();
 	if(texdata)
 	{
 		const int num_frames = (int)texdata->num_frames;
@@ -913,8 +896,6 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 			browser->mRenderHandler->opengl_engine = opengl_engine;
 
 			animtexdata.browser = browser;
-
-			animtexdata.texdata_tex_path = tex_path;
 		}
 	}
 #endif // CEF_SUPPORT
@@ -972,7 +953,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 				if(animation_data.mat_animtexdata[m].refl_col_animated_tex_data.isNull())
 					animation_data.mat_animtexdata[m].refl_col_animated_tex_data = new AnimatedTexData();
 
-				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
+				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, mat.albedo_texture, *animation_data.mat_animtexdata[m].refl_col_animated_tex_data, mat.tex_path, /*is refl tex=*/true);
 				stats.num_gif_textures_processed++;
 			}
 			else if(hasExtensionStringView(mat.tex_path, "mp4"))
@@ -993,7 +974,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 				if(animation_data.mat_animtexdata[m].emission_col_animated_tex_data.isNull())
 					animation_data.mat_animtexdata[m].emission_col_animated_tex_data = new AnimatedTexData();
 
-				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
+				processGIFAnimatedTex(main_window, opengl_engine, ob, anim_time, dt, mat, mat.emission_texture, *animation_data.mat_animtexdata[m].emission_col_animated_tex_data, mat.emission_tex_path, /*is refl tex=*/false);
 				stats.num_gif_textures_processed++;
 
 			}
@@ -1059,32 +1040,7 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 	}
 
 	// If the object is sufficiently far from the camera, clean up gif playback data.
-	if(!large_enough)
-	{
-		for(size_t m=0; m<this->mat_animtexdata.size(); ++m)
-		{
-			if(this->mat_animtexdata[m].refl_col_animated_tex_data.nonNull())
-			{
-				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].refl_col_animated_tex_data;
-				if(animtexdata.texdata.nonNull())
-				{
-					//conPrint("Unloading texture data: " + animtexdata.texdata_tex_path);
-					animtexdata.texdata = NULL;
-					animtexdata.texdata_tex_path.clear();
-				}
-			}
-			if(this->mat_animtexdata[m].emission_col_animated_tex_data.nonNull())
-			{
-				AnimatedTexData& animtexdata = *this->mat_animtexdata[m].emission_col_animated_tex_data;
-				if(animtexdata.texdata.nonNull())
-				{
-					//conPrint("Unloading texture data: " + animtexdata.texdata_tex_path);
-					animtexdata.texdata = NULL;
-					animtexdata.texdata_tex_path.clear();
-				}
-			}
-		}
-	}
+	// NOTE: nothing to do now tex_data for animated textures is stored in the texture?
 
 	return stats;
 }

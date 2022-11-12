@@ -111,6 +111,7 @@ public:
 
 	inline int getLODLevel(const Vec3d& campos) const;
 	inline int getLODLevel(const Vec4f& campos) const;
+	inline float getMaxDistForLODLevel(int level);
 	inline int getLODLevel(float cam_to_ob_d2) const;
 	int getModelLODLevel(const Vec3d& campos) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.
@@ -381,6 +382,35 @@ int WorldObject::getLODLevel(const Vec4f& campos) const
 		return 1;
 	else
 		return 2;
+}
+
+
+/*
+proj_len = aabb_ws.longestLength() / dist_to_cam
+
+lod level 2 if proj_len <= 0.03 
+
+= aabb_ws.longestLength() / dist_to_cam <= 0.03
+
+= aabb_ws.longestLength() <= 0.03 * dist_to_cam
+
+= aabb_ws.longestLength() / 0.03 <= dist_to_cam
+*/
+float WorldObject::getMaxDistForLODLevel(int level)
+{
+	float aabb_len = aabb_ws.longestLength();
+	if(object_type == ObjectType_VoxelGroup)
+		aabb_len *= 2;
+
+	const float eps_factor = 1.001f; // Make distance slightly larger to account for fastApproxRecipLength() usage in getLODLevel().
+	if(level == -1)
+		return aabb_len * (eps_factor / 0.6f);
+	else if(level == 0)
+		return aabb_len * (eps_factor  / 0.16f);
+	else if(level == 1)
+		return aabb_len * (eps_factor  / 0.03f);
+	else
+		return std::numeric_limits<float>::max();
 }
 
 

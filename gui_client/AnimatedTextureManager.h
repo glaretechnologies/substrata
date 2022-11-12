@@ -16,6 +16,7 @@ class AnimatedTexCEFBrowser;
 class OpenGLEngine;
 class OpenGLMaterial;
 class TextureData;
+class OpenGLTexture;
 
 
 // Each material can potentially have its own animation.  This is thus per-material data.
@@ -26,8 +27,6 @@ struct AnimatedTexData : public RefCounted
 
 	static double maxVidPlayDist() { return 20.0; }
 
-	Reference<TextureData> texdata;
-	std::string texdata_tex_path; // The path that texdata corresponds to.
 	int last_loaded_frame_i;
 	int cur_frame_i; // -1 = reached EOS
 
@@ -56,7 +55,7 @@ struct AnimatedTexObData : public RefCounted
 
 private:
 	void processGIFAnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
-		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
+		OpenGLMaterial& mat, Reference<OpenGLTexture>& texture, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);
 
 	void processMP4AnimatedTex(MainWindow* main_window, OpenGLEngine* opengl_engine, WorldObject* ob, double anim_time, double dt,
 		OpenGLMaterial& mat, AnimatedTexData& animation_data, const std::string& tex_path, bool is_refl_tex);

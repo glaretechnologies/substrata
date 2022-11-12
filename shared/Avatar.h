@@ -58,6 +58,7 @@ public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
 	int getLODLevel(const Vec3d& campos) const;
+	float getMaxDistForLODLevel(int level) const;
 
 	std::string getLODModelURLForLevel(const std::string& base_model_url, int level);
 	int getModelLODLevelForObLODLevel(int ob_lod_level) const; // getLODLevel() clamped to max_model_lod_level, also clamped to >= 0.

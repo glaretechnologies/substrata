@@ -142,6 +142,7 @@ Copyright Glare Technologies Limited 2020 -
 #else
 #include <signal.h>
 #endif
+#include <OpenGLEngineTests.h>
 
 
 // If we are building on Windows, and we are not in Release mode (e.g. BUILD_TESTS is enabled), then make sure the console window is shown.
@@ -839,7 +840,7 @@ static inline bool isValidLightMapURL(const std::string& URL)
 }
 
 
-void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
+void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, float max_dist_for_ob_lod_level, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
 {
 	if(isValidImageTextureURL(texture_url))
 	{
@@ -850,26 +851,25 @@ void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox
 		{
 			const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded already into the texture server
-				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
+			if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(pos, aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB));
+					load_item_queue.enqueueItem(aabb_ws.centroid(), aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level);
 			}
 		}
 	}
 }
 
 
-void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level)
+void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level)
 {
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 
 	// Start loading lightmap
@@ -882,19 +882,18 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 		{
 			const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
 
-			if(!this->texture_server->isTextureLoadedForPath(tex_path) && // If not loaded already
-				!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // and if texture is not uploaded to GPU already.
+			if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true));
+					load_item_queue.enqueueItem(ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/true), max_dist_for_ob_lod_level);
 			}
 		}
 	}
 }
 
 
-void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level)
+void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level, float max_dist_for_ob_lod_level)
 {
 	// approx AABB of avatar
 	const js::AABBox aabb_ws( 
@@ -905,9 +904,9 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_leve
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(av.pos, aabb_ws, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos, aabb_ws, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos, aabb_ws, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 }
 
@@ -1293,6 +1292,10 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 	const int ob_lod_level = ob->getLODLevel(campos);
 	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
+	
+	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
+	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->aabb_ws.centroid()));
+	const float max_dist_for_ob_model_lod_level = max_dist_for_ob_lod_level; // We don't want to clamp with max_model_lod_level.
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	if(ob->opengl_engine_ob.nonNull() && !ob->using_placeholder_model && (ob->loaded_model_lod_level == ob_model_lod_level) && (ob->loaded_lod_level == ob_lod_level))
@@ -1313,7 +1316,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		// Start downloading any resources we don't have that the object uses.
 		startDownloadingResourcesForObject(ob, ob_lod_level);
 
-		startLoadingTexturesForObject(*ob, ob_lod_level);
+		startLoadingTexturesForObject(*ob, ob_lod_level, max_dist_for_ob_lod_level);
 
 		ob->loaded_lod_level = ob_lod_level;
 
@@ -1366,10 +1369,11 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					if(just_added) // not being loaded already:
 					{
 						Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
+						task->tex_key = tex_key;
 						task->result_msg_queue = &this->msg_queue;
 						task->hypercard_content = ob->content;
 						task->opengl_engine = ui->glWidget->opengl_engine;
-						load_item_queue.enqueueItem(*ob, task);
+						load_item_queue.enqueueItem(*ob, task, /*max_dist_for_ob_lod_level=*/200.f);
 					}
 				}
 
@@ -1485,7 +1489,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				load_model_task->voxel_ob = ob;
 				load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-				load_item_queue.enqueueItem(*ob, load_model_task);
+				load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
 
 				load_placeholder = ob->getCompressedVoxels().size() != 0;
 			}
@@ -1571,7 +1575,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-							load_item_queue.enqueueItem(*ob, load_model_task);
+							load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
 					}
 				}
@@ -1623,6 +1627,10 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 	const int ob_lod_level = avatar->getLODLevel(cam_controller.getPosition());
 	const int ob_model_lod_level = ob_lod_level;
 
+	const float max_dist_for_ob_lod_level = avatar->getMaxDistForLODLevel(ob_lod_level);
+	const float max_dist_for_ob_model_lod_level = avatar->getMaxDistForLODLevel(ob_model_lod_level);
+
+
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
 	if(avatar->graphics.skinned_gl_ob.nonNull() && /*&& !ob->using_placeholder_model && */(avatar->graphics.loaded_lod_level == ob_lod_level))
 		return;
@@ -1663,7 +1671,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 		// Start downloading any resources we don't have that the object uses.
 		startDownloadingResourcesForAvatar(avatar, ob_lod_level);
 
-		startLoadingTexturesForAvatar(*avatar, ob_lod_level);
+		startLoadingTexturesForAvatar(*avatar, ob_lod_level, max_dist_for_ob_lod_level);
 
 		// Add any objects with gif or mp4 textures to the set of animated objects.
 		/*for(size_t i=0; i<avatar->materials.size(); ++i)
@@ -1749,7 +1757,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-					load_item_queue.enqueueItem(*avatar, load_model_task);
+					load_item_queue.enqueueItem(*avatar, load_model_task, max_dist_for_ob_model_lod_level);
 				}
 			}
 		}
@@ -1826,7 +1834,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 			task->base_dir_path = base_dir_path;
 			task->result_msg_queue = &msg_queue;
 			task->script_content = ob->script;
-			load_item_queue.enqueueItem(*ob, task);
+			load_item_queue.enqueueItem(*ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
 		}
 	}
 }
@@ -1954,10 +1962,24 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 			biome_manager->initTexturesAndModels(base_dir_path, *ui->glWidget->opengl_engine, *resource_manager);
 
 			//TEMP: start manually loading needed textures
+
+
 			{
 				const std::string URL = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
-				if(resource_manager->isFileForURLPresent(URL))
-					load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/resource_manager->pathForURL(URL), /*use_sRGB=*/true));
+
+				ResourceRef resource = resource_manager->getExistingResourceForURL(URL);
+				if(resource.nonNull() && (resource->getState() == Resource::State_Present)) // If the texture is present on disk:
+				{
+					const std::string tex_path = resource_manager->getLocalAbsPathForResource(*resource);
+
+					if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
+					{
+						const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
+						if(just_added)
+							//load_item_queue.enqueueItem(aabb_ws.centroid(), aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level);
+							load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/tex_path, /*use_sRGB=*/true), /*task max dist=*/std::numeric_limits<float>::infinity());
+					}
+				}
 				else
 				{
 					DownloadingResourceInfo info;
@@ -1967,6 +1989,24 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 
 					startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
 				}
+
+
+
+				//if(resource_manager->isFileForURLPresent(URL))
+				//{
+				//	const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
+				//	if(just_added)
+				//		load_item_queue.enqueueItem(*ob, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, /*path=*/resource_manager->pathForURL(URL), /*use_sRGB=*/true), /*task max dist=*/std::numeric_limits<float>::infinity());
+				//}
+				//else
+				//{
+				//	DownloadingResourceInfo info;
+				//	info.use_sRGB = true;
+				//	info.pos = ob->pos;
+				//	info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
+
+				//	startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
+				//}
 			}
 			//{
 			//	const std::string URL = "elm_leaf_new_png_17162787394814938526.png"; // Tree trunk texture
@@ -2077,7 +2117,7 @@ void MainWindow::loadAudioForObject(WorldObject* ob)
 							load_audio_task->audio_source_path = resource_manager->pathForURL(ob->audio_source_url);
 							load_audio_task->result_msg_queue = &this->msg_queue;
 
-							load_item_queue.enqueueItem(*ob, load_audio_task);
+							load_item_queue.enqueueItem(*ob, load_audio_task, /*task max dist=*/MAX_AUDIO_DIST);
 						}
 					}
 
@@ -3060,8 +3100,61 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		)
 	{
 		// Pop a task from the load item queue, and pass it to the model_and_texture_loader_task_manager.
-		glare::TaskRef task = load_item_queue.dequeueFront(); 
-		model_and_texture_loader_task_manager.addTask(task);
+		LoadItemQueueItem item = load_item_queue.dequeueFront(); 
+
+		// Discard task if it is now too far from the camera.  Do this so we don't load e.g. high detail models when we
+		// are no longer close to them.
+		const float dist_from_item = cam_controller.getPosition().toVec4fPoint().getDist(item.pos);
+		if(dist_from_item > item.task_max_dist)
+		{
+			if(dynamic_cast<const LoadTextureTask*>(item.task.ptr()))
+			{
+				const LoadTextureTask* task = static_cast<const LoadTextureTask*>(item.task.ptr());
+				assert(textures_processing.count(task->path) > 0);
+				textures_processing.erase(task->path);
+
+				//conPrint("Discarding texture load task '" + task->path + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
+			}
+			else if(dynamic_cast<const MakeHypercardTextureTask*>(item.task.ptr()))
+			{
+				const MakeHypercardTextureTask* task = static_cast<const MakeHypercardTextureTask*>(item.task.ptr());
+				assert(textures_processing.count(task->tex_key) > 0);
+				textures_processing.erase(task->tex_key);
+
+				//conPrint("Discarding MakeHypercardTextureTask '" + task->tex_key + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
+			}
+			else if(dynamic_cast<const LoadModelTask*>(item.task.ptr()))
+			{
+				const LoadModelTask* task = static_cast<const LoadModelTask*>(item.task.ptr());
+				if(!task->lod_model_url.empty()) // Will be empty for voxel models
+				{
+					assert(models_processing.count(task->lod_model_url) > 0);
+					models_processing.erase(task->lod_model_url);
+				}
+				
+				//conPrint("Discarding model load task '" + task->lod_model_url + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
+			}
+			else if(dynamic_cast<const LoadScriptTask*>(item.task.ptr()))
+			{
+				const LoadScriptTask* task = static_cast<const LoadScriptTask*>(item.task.ptr());
+				assert(script_content_processing.count(task->script_content) > 0);
+				script_content_processing.erase(task->script_content);
+				
+				//conPrint("Discarding LoadScriptTask as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
+			}
+			else if(dynamic_cast<const LoadAudioTask*>(item.task.ptr()))
+			{
+				const LoadAudioTask* task = static_cast<const LoadAudioTask*>(item.task.ptr());
+				assert(audio_processing.count(task->audio_source_url) > 0);
+				audio_processing.erase(task->audio_source_url);
+				
+				//conPrint("Discarding LoadAudioTask '" + task->audio_source_url + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
+			}
+		}
+		else
+		{
+			model_and_texture_loader_task_manager.addTask(item.task);
+		}
 	}
 
 
@@ -3597,11 +3690,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		Timer loading_timer;
 		//int max_items_to_process = 10;
 		//int num_items_processed = 0;
+		
+		// Also limit to a total number of bytes of data uploaded to OpenGL / the GPU per frame.
+		size_t total_bytes_uploaded = 0;
+		const size_t max_total_upload_bytes = 1024 * 1024;
 
 		int num_models_loaded = 0;
 		int num_textures_loaded = 0;
 		//while((cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && (loading_timer.elapsed() < MAX_LOADING_TIME))
-		while((cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && 
+		while((tex_loading_progress.loadingInProgress() || cur_loading_mesh_data.nonNull() || !model_loaded_messages_to_process.empty() || !texture_loaded_messages_to_process.empty()) && 
+			(total_bytes_uploaded < max_total_upload_bytes) && 
 			(loading_timer.elapsed() < MAX_LOADING_TIME) //&&
 			/*(num_items_processed < max_items_to_process)*/)
 		{
@@ -3616,7 +3714,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Upload a chunk of data to the GPU
 				try
 				{
-					ui->glWidget->opengl_engine->partialLoadOpenGLMeshDataIntoOpenGL(*ui->glWidget->opengl_engine->vert_buf_allocator, *cur_loading_mesh_data, mesh_data_loading_progress);
+					ui->glWidget->opengl_engine->partialLoadOpenGLMeshDataIntoOpenGL(*ui->glWidget->opengl_engine->vert_buf_allocator, *cur_loading_mesh_data, mesh_data_loading_progress,
+						total_bytes_uploaded, max_total_upload_bytes);
 				}
 				catch(glare::Exception& e)
 				{
@@ -3632,7 +3731,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					//logMessage("Finished loading mesh '" + cur_loading_lod_model_url + "'.");
 
 
-					// Now that this model is loaded, removed from models_processing set.
+					// Now that this model is loaded, remove from models_processing set.
 					// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
 					models_processing.erase(cur_loading_lod_model_url);
 
@@ -3816,7 +3915,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				Timer load_item_timer;
 
 				// Upload a chunk of data to the GPU
-				ui->glWidget->opengl_engine->partialLoadOpenGLMeshDataIntoOpenGL(*ui->glWidget->opengl_engine->vert_buf_allocator, *cur_loading_mesh_data, mesh_data_loading_progress);
+				ui->glWidget->opengl_engine->partialLoadOpenGLMeshDataIntoOpenGL(*ui->glWidget->opengl_engine->vert_buf_allocator, *cur_loading_mesh_data, mesh_data_loading_progress, 
+					total_bytes_uploaded, max_total_upload_bytes);
 
 				//logMessage("Loaded a chunk of voxel mesh: " + mesh_data_loading_progress.summaryString());
 
@@ -3896,6 +3996,36 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				//loading_times.push_back(doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 3) + " ms, loaded chunk of voxel mesh: " + mesh_data_loading_progress.summaryString());
 			}
+			// If we are still loading some texture data into OpenGL (uploading to GPU):
+			else if(tex_loading_progress.loadingInProgress())
+			{
+				Timer load_item_timer;
+
+				// Upload a chunk of data to the GPU
+				try
+				{
+					TextureLoading::partialLoadTextureIntoOpenGL(ui->glWidget->opengl_engine, tex_loading_progress, total_bytes_uploaded, max_total_upload_bytes);
+				}
+				catch(glare::Exception& e)
+				{
+					logMessage("Error while loading texture '" + tex_loading_progress.path + "' into OpenGL: " + e.what());
+					tex_loading_progress.tex_data = NULL;
+					tex_loading_progress.opengl_tex = NULL;
+				}
+
+				if(tex_loading_progress.done() || !tex_loading_progress.loadingInProgress())
+				{
+					tex_loading_progress.tex_data = NULL;
+					tex_loading_progress.opengl_tex = NULL;
+
+					// conPrint("Finished loading texture '" + tex_loading_progress.path + "' into OpenGL");
+					
+					// Now that this texture is loaded, remove from textures_processing set.
+					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
+					//assert(textures_processing.count(tex_loading_progress.path) >= 1);
+					textures_processing.erase(tex_loading_progress.path);
+				}
+			}
 			else // else if !loading_mesh_data:
 			{
 				// ui->glWidget->makeCurrent();
@@ -3934,7 +4064,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										this->cur_loading_voxel_subsample_factor = message->subsample_factor;
 										this->cur_loading_raymesh = message->raymesh;
 										this->cur_loading_voxel_ob_lod_level = message->voxel_ob_lod_level;
-										ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
+										ui->glWidget->opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
 										//logMessage("Initialised loading of voxel mesh: " + mesh_data_loading_progress.summaryString());
 									}
@@ -3954,7 +4084,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								this->cur_loading_mesh_data = message->gl_meshdata;
 								this->cur_loading_raymesh = message->raymesh;
 								this->cur_loading_lod_model_url = message->lod_model_url;
-								ui->glWidget->opengl_engine->initialiseLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
+								ui->glWidget->opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
 								//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
 							}
@@ -3975,34 +4105,26 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				if(!process_model_loaded_next && !texture_loaded_messages_to_process.empty())
 				{
-					Timer load_item_timer;
+					//Timer load_item_timer;
 
-					// Process any loaded textures
 					const Reference<TextureLoadedThreadMessage> message = texture_loaded_messages_to_process.front();
 					texture_loaded_messages_to_process.pop_front();
 
+					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
 					num_textures_loaded++;
 
-					// Now that this texture is loaded, removed from textures_processing set.
-					// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-					textures_processing.erase(message->tex_key);
-
-					// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
-
-					const bool use_mipmaps = message->tex_is_8_bit;
-
-					//Timer timer;
 					try
 					{
-						// ui->glWidget->makeCurrent();
-						ui->glWidget->opengl_engine->textureLoaded(message->tex_path, OpenGLTextureKey(message->tex_key), message->use_sRGB, use_mipmaps);
+						TextureLoading::initialiseTextureLoadingProgress(message->tex_path, ui->glWidget->opengl_engine, OpenGLTextureKey(message->tex_key), message->use_sRGB,
+							message->texture_data, this->tex_loading_progress);
 					}
-					catch(glare::Exception& e)
+					catch(glare::Exception&)
 					{
-						print("Error while loading texture: " + e.what());
+						this->tex_loading_progress.tex_data = NULL;
+						this->tex_loading_progress.opengl_tex = NULL;
 					}
-					//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
 
+					//conPrint("textureLoaded took                " + timer.elapsedStringNSigFigs(5));
 					//size_t tex_size_B = 0;
 					//{
 					//	Reference<OpenGLTexture> tex = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(message->tex_key), /*use srgb=*/true);
@@ -4143,28 +4265,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Now that this script is loaded, removed from script_content_processing set.
 				// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
 				script_content_processing.erase(loaded_msg->script);
-			}
-			else if(dynamic_cast<HypercardTexMadeMessage*>(msg.getPointer()))
-			{
-				HypercardTexMadeMessage* loaded_msg = static_cast<HypercardTexMadeMessage*>(msg.ptr());
-
-				const std::string tex_key = "hypercard_" + loaded_msg->hypercard_content;
-				// Now that this texture is loaded, removed from textures_processing set.
-				// If the texture is unloaded, then this will allow it to be reprocessed and reloaded.
-				textures_processing.erase(tex_key);
-
-				// conPrint("Handling texture loaded message " + message->tex_path + ", use_sRGB: " + toString(message->use_sRGB));
-
-				//Timer timer;
-				try
-				{
-					// ui->glWidget->makeCurrent();
-					ui->glWidget->opengl_engine->textureLoaded(/*path=*/tex_key, OpenGLTextureKey(tex_key), /*use_sRGB=*/true, /*use_mipmaps=*/true);
-				}
-				catch(glare::Exception& e)
-				{
-					print("Error while loading texture: " + e.what());
-				}
 			}
 			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
@@ -4582,11 +4682,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						
 							const std::string tex_path = local_path;
 
-							if(!this->texture_server->isTextureLoadedForPath(tex_path)) // If not loaded
+							if(!ui->glWidget->opengl_engine->isOpenGLTextureInsertedForKey(OpenGLTextureKey(texture_server->keyForPath(tex_path)))) // If texture is not uploaded to GPU already:
 							{
 								const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 								if(just_added)
-									load_item_queue.enqueueItem(pos, size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_SRGB)); 
+									load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_SRGB),
+										/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 							}
 						}
 						else if(FileTypes::hasAudioFileExtension(local_path))
@@ -4618,7 +4719,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								load_model_task->resource_manager = resource_manager;
 								load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-								load_item_queue.enqueueItem(pos, size_factor, load_model_task);
+								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, load_model_task, 
+									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
 							}
 							catch(glare::Exception& e)
 							{
@@ -7851,8 +7953,9 @@ void MainWindow::objectEditedSlot()
 		LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, task_manager);
 
 		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
-		
-		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level);
+		const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
+
+		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level, max_dist_for_ob_lod_level);
 
 		startDownloadingResourcesForObject(this->selected_ob.ptr(), ob_lod_level);
 
@@ -7942,10 +8045,11 @@ void MainWindow::objectEditedSlot()
 							if(just_added) // not being loaded already:
 							{
 								Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
+								task->tex_key = tex_key;
 								task->result_msg_queue = &this->msg_queue;
 								task->hypercard_content = selected_ob->content;
 								task->opengl_engine = ui->glWidget->opengl_engine;
-								load_item_queue.enqueueItem(*this->selected_ob, task);
+								load_item_queue.enqueueItem(*this->selected_ob, task, /*max task dist=*/200.f);
 							}
 						}
 
@@ -10117,7 +10221,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
 	gl_ob->materials[0].albedo_rgb = Colour3f(0.8f);
-	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("nametag_" + nametag), *map);
+	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map);
 	return gl_ob;
 }
 
@@ -10152,7 +10256,7 @@ OpenGLTextureRef MainWindow::makeToolTipTexture(const std::string& tooltip_text)
 		std::memcpy(map->getPixel(0, H - y - 1), line, 3*W);
 	}
 
-	return ui->glWidget->opengl_engine->getOrLoadOpenGLTexture(OpenGLTextureKey("tooltip_" + tooltip_text), *map,
+	return ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("tooltip_" + tooltip_text), *map,
 		OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Clamp, /*allow compression=*/false);
 }
 
@@ -10542,7 +10646,6 @@ int main(int argc, char *argv[])
 		QDir::setCurrent(QtUtils::toQString(cyberspace_base_dir_path));
 	
 		conPrint("cyberspace_base_dir_path: " + cyberspace_base_dir_path);
-
 
 		// Get a vector of the args.  Note that we will use app.arguments(), because it's the only way to get the args in Unicode in Qt.
 		const QStringList arg_list = app.arguments();

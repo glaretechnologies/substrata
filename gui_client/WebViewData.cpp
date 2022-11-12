@@ -88,7 +88,7 @@ public:
 						// Copy dirty rect data into a packed buffer
 
 						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
-						opengl_tex->loadRegionIntoExistingTexture(rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4));
+						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4), /*bind_needed=*/true);
 					}
 				}
 				else
@@ -785,7 +785,7 @@ static OpenGLTextureRef makeTextTexture(OpenGLEngine* opengl_engine, const std::
 	painter.drawText(QRect(button_left_x, button_top_y, /*width=*/button_W, /*height=*/button_H), Qt::AlignVCenter | Qt::AlignHCenter, "Load"); // y=0 at top
 
 	OpenGLTextureRef tex = new OpenGLTexture(W, H, opengl_engine, ArrayRef<uint8>(NULL, 0), OpenGLTexture::Format_SRGBA_Uint8, OpenGLTexture::Filtering_Bilinear);
-	tex->loadIntoExistingTexture(W, H, /*row stride B=*/qimage.bytesPerLine(), ArrayRef<uint8>(qimage.constBits(), qimage.sizeInBytes()));
+	tex->loadIntoExistingTexture(/*mipmap level=*/0, W, H, /*row stride B=*/qimage.bytesPerLine(), ArrayRef<uint8>(qimage.constBits(), qimage.sizeInBytes()), /*bind_needed=*/true);
 	return tex;
 }
 

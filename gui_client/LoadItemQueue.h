@@ -36,6 +36,7 @@ struct LoadItemQueueItem
 
 	Vec4f pos;
 	float size_factor;
+	float task_max_dist; // Max distance from camera before task should be discarded.
 	glare::TaskRef task;
 };
 
@@ -52,10 +53,10 @@ public:
 	LoadItemQueue();
 	~LoadItemQueue();
 
-	void enqueueItem(const WorldObject& ob, const glare::TaskRef& task);
-	void enqueueItem(const Avatar& ob, const glare::TaskRef& task);
-	void enqueueItem(const Vec3d& pos, const js::AABBox aabb_ws, const glare::TaskRef& task);
-	void enqueueItem(const Vec3d& pos, float size_factor, const glare::TaskRef& task);
+	void enqueueItem(const WorldObject& ob, const glare::TaskRef& task, float task_max_dist);
+	void enqueueItem(const Avatar& ob, const glare::TaskRef& task, float task_max_dist);
+	void enqueueItem(const Vec4f& pos, const js::AABBox aabb_ws, const glare::TaskRef& task, float task_max_dist);
+	void enqueueItem(const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist);
 
 	void clear();
 
@@ -65,7 +66,7 @@ public:
 
 	void sortQueue(const Vec3d& campos); // Sort queue (by item distance to camera)
 
-	glare::TaskRef dequeueFront();
+	LoadItemQueueItem dequeueFront();
 private:
 	// Valid items are at indices [begin_i, items.size())
 	size_t begin_i;

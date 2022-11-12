@@ -247,6 +247,8 @@ void GlWidget::initializeGL()
 	engine_settings.depth_fog = true;
 	//engine_settings.use_final_image_buffer = bloom;
 	engine_settings.msaa_samples = use_MSAA ? 4 : -1;
+	engine_settings.max_tex_mem_usage = 1536 * 1024 * 1024ull; // Should be large enough that we have some spare room for the LRU texture cache.
+
 	opengl_engine = new OpenGLEngine(engine_settings);
 
 
