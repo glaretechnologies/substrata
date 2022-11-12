@@ -381,6 +381,10 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessing.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessing.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessingTests.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessingTests.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/WGL.cpp 

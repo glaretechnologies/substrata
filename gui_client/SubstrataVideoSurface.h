@@ -41,8 +41,8 @@ public:
 			if(load_into_opengl_tex)
 			{
 				if(opengl_tex.nonNull())
-					opengl_tex->loadIntoExistingTexture(frame.width(), frame.height(), frame.bytesPerLine(),
-						ArrayRef<uint8>(bits, frame.height() * frame.bytesPerLine()));
+					opengl_tex->loadIntoExistingTexture(/*mipmap level=*/0, frame.width(), frame.height(), frame.bytesPerLine(),
+						ArrayRef<uint8>(bits, frame.height() * frame.bytesPerLine()), /*bind_needed=*/true);
 			}
 			else
 			{

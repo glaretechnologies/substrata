@@ -6,10 +6,11 @@ Copyright Glare Technologies Limited 2022 -
 #include "MakeHypercardTextureTask.h"
 
 
+#include "LoadTextureTask.h"
 #include "WinterShaderEvaluator.h"
 #include "../qt/QtUtils.h"
 #include <graphics/ImageMap.h>
-#include <opengl/TextureLoading.h>
+#include <opengl/TextureProcessing.h>
 #include <opengl/OpenGLEngine.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
@@ -51,14 +52,14 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 			std::memcpy(map->getPixel(0, y), line, 3*W);
 		}
 
-		Reference<TextureData> texture_data = TextureLoading::buildUInt8MapTextureData(map.ptr(), opengl_engine, &opengl_engine->getTaskManager());
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine, &opengl_engine->getTaskManager());
 
-		// Insert built texture data into texture manager
-		opengl_engine->texture_data_manager->insertBuiltTextureData("hypercard_" + hypercard_content, texture_data);
+		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
+		msg->tex_path = tex_key;
+		msg->tex_key = tex_key;
+		msg->use_sRGB = true;
+		msg->texture_data = texture_data;
 
-
-		Reference<HypercardTexMadeMessage> msg = new HypercardTexMadeMessage();
-		msg->hypercard_content = hypercard_content;
 		result_msg_queue->enqueue(msg);
 	}
 	catch(glare::Exception& e)

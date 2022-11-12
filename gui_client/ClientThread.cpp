@@ -542,6 +542,9 @@ void ClientThread::doRun()
 						if(!isFinite(ob->angle))
 							ob->angle = 0;
 
+						if(ob->aabb_ws.isEmpty() || !ob->aabb_ws.min_.isFinite() || !ob->aabb_ws.max_.isFinite())
+							ob->aabb_ws = js::AABBox(ob->pos.toVec4fPoint() - Vec4f(1,1,1,0), ob->pos.toVec4fPoint() + Vec4f(1,1,1,0)); // HACK FIX
+
 						ob->state = WorldObject::State_JustCreated;
 						ob->from_remote_other_dirty = true;
 						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);

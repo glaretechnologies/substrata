@@ -212,7 +212,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				OpenGLTexture::Wrapping_Repeat);
 
 			ArrayRef<uint8> tex_data_arrayref(frameinfo->frame_buffer, frameinfo->height * frameinfo->stride_B);
-			preview_gl_ob->materials[0].albedo_texture->loadIntoExistingTexture(frameinfo->width, frameinfo->height, frameinfo->stride_B, tex_data_arrayref);
+			preview_gl_ob->materials[0].albedo_texture->loadIntoExistingTexture(/*mipmap level=*/0, frameinfo->width, frameinfo->height, frameinfo->stride_B, tex_data_arrayref, /*bind_needed=*/true);
 
 			this->loaded_mesh_is_image_cube = true;
 

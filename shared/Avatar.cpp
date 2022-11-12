@@ -142,6 +142,12 @@ int Avatar::getLODLevel(const Vec3d& campos) const
 }
 
 
+float Avatar::getMaxDistForLODLevel(int level) const
+{
+	return std::numeric_limits<float>::max(); // TEMP
+}
+
+
 std::string Avatar::getLODModelURLForLevel(const std::string& base_model_url, int level)
 {
 	if(level == 0)

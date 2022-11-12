@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <graphics/GifDecoder.h>
 #include <graphics/imformatdecoder.h> // For ImFormatExcep
 #include <opengl/OpenGLEngine.h>
+#include <opengl/TextureProcessing.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <IncludeHalf.h>
@@ -41,55 +42,20 @@ void LoadTextureTask::run(size_t thread_index)
 		else
 			map = ImageDecoding::decodeImage(".", key);
 
-		// Process 8-bit textures (do DXT compression, mip-map computation etc..) in this thread.
-		bool is_8_bit = true;
-		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine, &opengl_engine->getTaskManager());
+
+		if(hasExtension(key, "gif") && texture_data->compressedSizeBytes() > 100000000)
 		{
-			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
-
-			Reference<TextureData> texture_data = TextureLoading::buildUInt8MapTextureData(imagemap, opengl_engine, &opengl_engine->getTaskManager());
-
-			// Give data to OpenGL engine
-			opengl_engine->texture_data_manager->insertBuiltTextureData(key, texture_data);
-		}
-		else if(dynamic_cast<const ImageMapSequenceUInt8*>(map.ptr()))
-		{
-			const ImageMapSequenceUInt8* imagemapseq = map.downcastToPtr<ImageMapSequenceUInt8>();
-
-			Reference<TextureData> texture_data = TextureLoading::buildUInt8MapSequenceTextureData(imagemapseq, opengl_engine, &opengl_engine->getTaskManager());
-
-			// Give data to OpenGL engine
-			opengl_engine->texture_data_manager->insertBuiltTextureData(key, texture_data);
-		}
-		else
-		{
-			is_8_bit = false;
-
-			// Convert 32-bit floating point images to half-precision floating point (16-bit) images.
-			if(map.isType<ImageMapFloat>())
-			{
-				const ImageMapFloat* const image_map_float = map.downcastToPtr<ImageMapFloat>();
-				Reference<ImageMap<half, HalfComponentValueTraits> > half_image = new ImageMap<half, HalfComponentValueTraits>(map->getMapWidth(), map->getMapHeight(), map->numChannels());
-				
-				const float* const src = image_map_float->getData();
-				      half*  const dst = half_image->getData();
-				const size_t data_size = image_map_float->numPixels() * map->numChannels();
-				for(size_t i=0; i<data_size; ++i)
-					dst[i] = half(src[i]);
-
-				map = half_image;
-			}
-
-
-			texture_server->insertTextureForRawName(map, key);
+			conPrint("Large gif texture data: " + toString(texture_data->compressedSizeBytes()) + " B, " + key);
 		}
 
-		// Send a message to MainWindow saying the texture has been loaded
+
+		// Send a message to MainWindow with the loaded texture data.
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
 		msg->tex_path = path;
 		msg->tex_key = key;
 		msg->use_sRGB = use_sRGB;
-		msg->tex_is_8_bit = is_8_bit;
+		msg->texture_data = texture_data;
 		result_msg_queue->enqueue(msg);
 	}
 	catch(TextureServerExcep& e)

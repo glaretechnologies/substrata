@@ -26,12 +26,12 @@ LoadItemQueue::~LoadItemQueue()
 {}
 
 
-void LoadItemQueue::enqueueItem(const WorldObject& ob, const glare::TaskRef& task)
+void LoadItemQueue::enqueueItem(const WorldObject& ob, const glare::TaskRef& task, float task_max_dist)
 {
-	enqueueItem(ob.pos, LoadItemQueueItem::sizeFactorForAABBWS(ob.aabb_ws), task);
+	enqueueItem(ob.aabb_ws.centroid(), LoadItemQueueItem::sizeFactorForAABBWS(ob.aabb_ws), task, task_max_dist);
 }
 
-void LoadItemQueue::enqueueItem(const Avatar& ob, const glare::TaskRef& task)
+void LoadItemQueue::enqueueItem(const Avatar& ob, const glare::TaskRef& task, float task_max_dist)
 {
 	// approx AABB of avatar
 	const js::AABBox aabb_ws( 
@@ -39,24 +39,25 @@ void LoadItemQueue::enqueueItem(const Avatar& ob, const glare::TaskRef& task)
 		ob.pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
 	);
 
-	enqueueItem(ob.pos, LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws), task);
+	enqueueItem(ob.pos.toVec4fPoint(), LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws), task, task_max_dist);
 }
 
 
-void LoadItemQueue::enqueueItem(const Vec3d& pos, const js::AABBox aabb_ws, const glare::TaskRef& task)
+void LoadItemQueue::enqueueItem(const Vec4f& pos, const js::AABBox aabb_ws, const glare::TaskRef& task, float task_max_dist)
 {
-	enqueueItem(pos, LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws), task);
+	enqueueItem(pos, LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws), task, task_max_dist);
 }
 
 
-void LoadItemQueue::enqueueItem(const Vec3d& pos, float size_factor, const glare::TaskRef& task)
+void LoadItemQueue::enqueueItem(const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist)
 {
 	assert(pos.isFinite());
 
 	LoadItemQueueItem item;
-	item.pos = pos.toVec4fPoint();
+	item.pos = pos;
 	item.size_factor = size_factor;
 	item.task = task;
+	item.task_max_dist = task_max_dist;
 
 	items.push_back(item);
 }
@@ -131,9 +132,9 @@ void LoadItemQueue::sortQueue(const Vec3d& campos_) // Sort queue
 }
 
 
-glare::TaskRef LoadItemQueue::dequeueFront()
+LoadItemQueueItem LoadItemQueue::dequeueFront()
 {
 	assert(begin_i < items.size());
 
-	return items[begin_i++].task;
+	return items[begin_i++];
 }

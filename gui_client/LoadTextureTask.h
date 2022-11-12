@@ -12,6 +12,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <string>
 class OpenGLEngine;
 class TextureServer;
+class TextureData;
 
 
 class TextureLoadedThreadMessage : public ThreadMessage
@@ -20,7 +21,7 @@ public:
 	std::string tex_path;
 	std::string tex_key;
 	bool use_sRGB;
-	bool tex_is_8_bit;
+	Reference<TextureData> texture_data;
 };
 
 
@@ -36,7 +37,6 @@ public:
 
 	virtual void run(size_t thread_index);
 
-private:
 	Reference<OpenGLEngine> opengl_engine;
 	TextureServer* texture_server;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
