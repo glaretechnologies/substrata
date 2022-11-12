@@ -152,7 +152,7 @@ message("SUBSTRATA_VERSION: ${SUBSTRATA_VERSION}")
 SET(INDIGO_LLVM_VERSION 6.0.0)
 SET(INDIGO_LIBRESSL_VERSION 3.5.2)
 
-SET(PERFORMANCEAPI_ENABLED 0) # Superluminal instrumentation support
+SET(PERFORMANCEAPI_ENABLED OFF CACHE BOOL "Enable Superluminal instrumentation support") # Superluminal instrumentation support
 MESSAGE("PERFORMANCEAPI_ENABLED (Superluminal instrumentation support): ${PERFORMANCEAPI_ENABLED}")
 
 # To use a Clang sanitizer, for example address sanitizer, set on command line like so:
