@@ -132,6 +132,8 @@ if(WIN32)
 	
 	if(PERFORMANCEAPI_ENABLED)
 		add_definitions(-DPERFORMANCEAPI_ENABLED=1) # Turn on or off superluminal profiler integration.
+	else()
+		add_definitions(-DPERFORMANCEAPI_ENABLED=0) # We need to set it to 0 explicitly to disable.
 	endif()
 	
 	# Consider some options.

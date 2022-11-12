@@ -264,6 +264,8 @@ ${UTILS_DIR}/HashMapInsertOnly2.h
 ${UTILS_DIR}/HashMapInsertOnly2Iterators.h
 ${UTILS_DIR}/RuntimeCheck.cpp
 ${UTILS_DIR}/RuntimeCheck.h
+${UTILS_DIR}/GeneralMemAllocator.cpp
+${UTILS_DIR}/GeneralMemAllocator.h
 )
 
 
