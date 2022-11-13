@@ -727,6 +727,7 @@ void WorkerThread::doRun()
 	UserID client_user_id = UserID::invalidUserID(); // Will be an invalid reference if client is not logged in, otherwise will refer to the user account the client is logged in to.
 	std::string client_user_name;
 	AvatarSettings client_user_avatar_settings;
+	uint32 client_user_flags = 0;
 
 	Reference<ServerWorldState> cur_world_state; // World the client is connected to.
 	bool logged_in_user_is_lightmapper_bot = false; // Just for updating the last_lightmapper_bot_contact_time.
@@ -822,6 +823,7 @@ void WorkerThread::doRun()
 					client_user_id = cookie_logged_in_user->id;
 					client_user_name = cookie_logged_in_user->name;
 					client_user_avatar_settings = cookie_logged_in_user->avatar_settings; // TODO: clone materials?
+					client_user_flags = cookie_logged_in_user->flags;
 				}
 			}
 
@@ -832,6 +834,7 @@ void WorkerThread::doRun()
 				writeToStream(client_user_id, scratch_packet);
 				scratch_packet.writeStringLengthFirst(client_user_name);
 				writeToStream(client_user_avatar_settings, scratch_packet);
+				scratch_packet.writeUInt32(client_user_flags);
 				MessageUtils::updatePacketLengthField(scratch_packet);
 
 				socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1783,6 +1786,7 @@ void WorkerThread::doRun()
 										client_user_id = user->id;
 										client_user_name = user->name;
 										client_user_avatar_settings = user->avatar_settings;
+										client_user_flags = user->flags;
 
 										logged_in = true;
 									}
@@ -1800,6 +1804,7 @@ void WorkerThread::doRun()
 								writeToStream(client_user_id, scratch_packet);
 								scratch_packet.writeStringLengthFirst(username);
 								writeToStream(client_user_avatar_settings, scratch_packet);
+								scratch_packet.writeUInt32(client_user_flags);
 								MessageUtils::updatePacketLengthField(scratch_packet);
 
 								socket->writeData(scratch_packet.buf.data(), scratch_packet.buf.size());
@@ -1824,6 +1829,7 @@ void WorkerThread::doRun()
 
 							client_user_id = UserID::invalidUserID(); // Mark the client as not logged in.
 							client_user_name = "";
+							client_user_flags = 0;
 
 							// Send logged-out message to client
 							MessageUtils::initPacket(scratch_packet, Protocol::LoggedOutMessageID);
@@ -1884,6 +1890,7 @@ void WorkerThread::doRun()
 												client_user_id = new_user->id; // Log user in as well.
 												client_user_name = new_user->name;
 												client_user_avatar_settings = new_user->avatar_settings;
+												client_user_flags = new_user->flags;
 
 												signed_up = true;
 											}

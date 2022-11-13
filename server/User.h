@@ -74,6 +74,10 @@ public:
 
 	AvatarSettings avatar_settings;
 
+	static const uint32 WORLD_GARDENER_FLAG       = 1; // Can this user add objects outside of parcels
+
+	uint32 flags;
+
 	DatabaseKey database_key;
 };
 

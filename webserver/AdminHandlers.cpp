@@ -102,7 +102,7 @@ void renderUsersPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		{
 			const User* user = it->second.ptr();
 			page_out += "<div>\n";
-			page_out += "id: " + user->id.toString() + ",       username: " + web::Escaping::HTMLEscape(user->name) + ",       email: " + web::Escaping::HTMLEscape(user->email_address) + ",      joined " + user->created_time.timeAgoDescription() +
+			page_out += "<a href=\"/admin_user/" + user->id.toString() + "\">id: " + user->id.toString() + "</a>,       username: " + web::Escaping::HTMLEscape(user->name) + ",       email: " + web::Escaping::HTMLEscape(user->email_address) + ",      joined " + user->created_time.timeAgoDescription() +
 				"  linked eth address: <span style=\"color: grey;\">" + user->controlled_eth_address + "</span>";
 			page_out += "</div>\n";
 		}
@@ -116,6 +116,69 @@ void renderUsersPage(ServerAllWorldsState& world_state, const web::RequestInfo& 
 		page_out += "</tr>\n";
 		}
 		page_out += "</table>";*/
+	} // End Lock scope
+
+	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
+}
+
+
+void renderAdminUserPage(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	// Parse user id from request path
+	Parser parser(request.path);
+	if(!parser.parseString("/admin_user/"))
+		throw glare::Exception("Failed to parse /admin_user/");
+
+	uint32 user_id;
+	if(!parser.parseUnsignedInt(user_id))
+		throw glare::Exception("Failed to parse user id");
+
+
+	std::string page_out = sharedAdminHeader(world_state, request);
+
+	{ // Lock scope
+		Lock lock(world_state.mutex);
+
+		page_out += "<h2>User " + toString(user_id) + "</h2>\n";
+
+		auto res = world_state.user_id_to_users.find(UserID(user_id));
+		if(res == world_state.user_id_to_users.end())
+		{
+			page_out += "No user with that id found.";
+		}
+		else
+		{
+			const User* user = res->second.ptr();
+
+			page_out += "<p>\n";
+			page_out += 
+				"created_time: " + user->created_time.RFC822FormatedString() + "(" + user->created_time.timeAgoDescription() + ")<br/>" +
+				"name: " + web::Escaping::HTMLEscape(user->name) + "<br/>" +
+				"email_address: " + web::Escaping::HTMLEscape(user->email_address) + "<br/>" +
+				"controlled_eth_address: " + web::Escaping::HTMLEscape(user->controlled_eth_address) + "<br/>" +
+				"avatar model_url: " + web::Escaping::HTMLEscape(user->avatar_settings.model_url) + "<br/>" +
+				"flags: " + toString(user->flags) + "<br/>";
+
+			for(size_t i=0; i<user->password_resets.size(); ++i)
+			{
+				page_out += "Password reset " + toString(i) + ": created_time: " + 
+					user->password_resets[i].created_time.timeAgoDescription() + "<br/>";
+			}
+
+			page_out += "</p>    \n";
+
+			page_out += "<form action=\"/admin_set_user_as_world_gardener_post\" method=\"post\">";
+			page_out += "<input type=\"hidden\" name=\"user_id\" value=\"" + toString(user_id) + "\">";
+			page_out += "<input type=\"number\" name=\"gardener\" value=\"" + toString(BitUtils::isBitSet(user->flags, User::WORLD_GARDENER_FLAG) ? 1 : 0) + "\">";
+			page_out += "<input type=\"submit\" value=\"Set as world gardener (1 / 0)\" onclick=\"return confirm('Are you sure you want set as world gardener?');\" >";
+			page_out += "</form>";
+		}
 	} // End Lock scope
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
@@ -669,7 +732,6 @@ void renderAdminOrderPage(ServerAllWorldsState& world_state, const web::RequestI
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
-
 
 
 void renderCreateParcelAuction(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
@@ -1713,6 +1775,47 @@ void handleSetReadOnlyModePost(ServerAllWorldsState& world_state, const web::Req
 			conPrint("handleSetReadOnlyModePost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
+}
+
+
+void handleSetUserAsWorldGardenerPost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int user_id = request.getPostIntField("user_id");
+		const int gardener = request.getPostIntField("gardener");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup user
+			const auto res = world_state.user_id_to_users.find(UserID(user_id));
+			if(res != world_state.user_id_to_users.end())
+			{
+				User* user = res->second.ptr();
+
+				BitUtils::setOrZeroBit(user->flags, User::WORLD_GARDENER_FLAG, gardener != 0);
+
+				world_state.addUserAsDBDirty(user);
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_user/" + toString(user_id));
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleSetUserAsWorldGardenerPost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+
 }
 
 

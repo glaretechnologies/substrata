@@ -207,7 +207,7 @@ private:
 	void evalObjectScript(WorldObject* ob, float use_global_time, Matrix4f& ob_to_world_out);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
-	bool haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
+	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
 	void addParcelObjects();
 	void removeParcelObjects();
 	void recolourParcelsForLoggedInState();
@@ -250,7 +250,7 @@ private:
 	// If the object was not in a parcel with write permissions at all, returns false.
 	// If the object can not be made to fit in the current parcel, returns false.
 	// new_ob_pos_out is set to new, clamped position.
-	bool clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
+	bool clampObjectPositionToParcelForNewTransform(const WorldObject& ob, GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 public:
 	bool checkAddTextureToProcessingSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
@@ -273,7 +273,7 @@ public:
 	virtual void unloadObject(WorldObjectRef ob);
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
 
-	void tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
+	void tryToMoveObject(const WorldObject& ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
@@ -374,6 +374,7 @@ public:
 
 	UserID logged_in_user_id;
 	std::string logged_in_user_name;
+	uint32 logged_in_user_flags;
 
 	bool shown_object_modification_error_msg;
 
