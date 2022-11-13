@@ -261,7 +261,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 				ArrayRef<uint8> tex_data_arrayref(video_surface->frame_copy);
 
 				const size_t stride_B = video_surface->frame_copy.size() / H;
-				preview_gl_ob->materials[0].albedo_texture->loadIntoExistingTexture(/*mipmap level=*/0, W, H, stride_B, tex_data_arrayref);
+				preview_gl_ob->materials[0].albedo_texture->loadIntoExistingTexture(/*mipmap level=*/0, W, H, stride_B, tex_data_arrayref, /*bind_needed=*/true);
 			}
 			else
 			{
