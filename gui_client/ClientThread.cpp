@@ -715,6 +715,12 @@ void ClientThread::doRun()
 						
 						readFromStream(msg_buffer, msg->avatar_settings);
 
+						uint32 logged_in_user_flags = 0;
+						if(msg_buffer.canReadNBytes(sizeof(uint32))) // Added sending flags after avatar settings
+							logged_in_user_flags = msg_buffer.readUInt32();
+
+						msg->user_flags = logged_in_user_flags;
+
 						out_msg_queue->enqueue(msg);
 
 						break;

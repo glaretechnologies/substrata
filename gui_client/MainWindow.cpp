@@ -54,6 +54,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../shared/ImageDecoding.h"
 #include "../shared/MessageUtils.h"
 #include "../shared/FileTypes.h"
+#include "../server/User.h"
 #include <QtCore/QProcess>
 #include <QtCore/QMimeData>
 #include <QtCore/QSettings>
@@ -177,6 +178,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	QMainWindow(parent),
 	connection_state(ServerConnectionState_NotConnected),
 	logged_in_user_id(UserID::invalidUserID()),
+	logged_in_user_flags(0),
 	shown_object_modification_error_msg(false),
 	need_help_info_dock_widget_position(false),
 	num_frames_since_fps_timer_reset(0),
@@ -2771,7 +2773,7 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 }
 
 
-void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos)
+void MainWindow::tryToMoveObject(const WorldObject& ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos)
 {
 	Lock lock(world_state->mutex);
 
@@ -2789,7 +2791,7 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 
 	// Check parcel permissions for this object
 	bool ob_pos_in_parcel;
-	const bool have_creation_perms = haveObjectWritePermissions(tentative_new_aabb_ws, ob_pos_in_parcel);
+	const bool have_creation_perms = haveObjectWritePermissions(*this->selected_ob, tentative_new_aabb_ws, ob_pos_in_parcel);
 	if(!have_creation_perms)
 	{
 		if(ob_pos_in_parcel)
@@ -2801,7 +2803,7 @@ void MainWindow::tryToMoveObject(/*const Matrix4f& tentative_new_to_world*/const
 	// Constrain the new position of the selected object so it stays inside the parcel it is currently in.
 	js::Vector<EdgeMarker, 16> edge_markers;
 	Vec3d new_ob_pos;
-	const bool new_transform_valid = clampObjectPositionToParcelForNewTransform(opengl_ob, 
+	const bool new_transform_valid = clampObjectPositionToParcelForNewTransform(*this->selected_ob, opengl_ob, 
 		this->selected_ob->pos, // old ob pos
 		tentative_new_to_world, // tentative new transfrom
 		edge_markers, // edge markers out.
@@ -4321,6 +4323,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					showErrorNotification(m->error_message);
 				}
 				this->connection_state = ServerConnectionState_NotConnected;
+
+				this->logged_in_user_id = UserID::invalidUserID();
+				this->logged_in_user_name = "";
+				this->logged_in_user_flags = 0;
+
+				user_details->setTextAsNotLoggedIn();
+
 				updateStatusBar();
 			}
 			else if(dynamic_cast<const AvatarIsHereMessage*>(msg.getPointer()))
@@ -4449,6 +4458,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				user_details->setTextAsLoggedIn(m->username);
 				this->logged_in_user_id = m->user_id;
 				this->logged_in_user_name = m->username;
+				this->logged_in_user_flags = m->user_flags;
 
 				conPrint("Logged in as user with id " + toString(this->logged_in_user_id.value()));
 
@@ -4473,6 +4483,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				user_details->setTextAsNotLoggedIn();
 				this->logged_in_user_id = UserID::invalidUserID();
 				this->logged_in_user_name = "";
+				this->logged_in_user_flags = 0;
 
 				recolourParcelsForLoggedInState();
 
@@ -4501,6 +4512,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				user_details->setTextAsLoggedIn(m->username);
 				this->logged_in_user_id = m->user_id;
 				this->logged_in_user_name = m->username;
+				this->logged_in_user_flags = 0;
 
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -5669,7 +5681,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
 			//tentative_new_to_world.setColumn(3, desired_new_ob_pos);
 			//tryToMoveObject(tentative_new_to_world);
-			tryToMoveObject(desired_new_ob_pos);
+			tryToMoveObject(*this->selected_ob, desired_new_ob_pos);
 		}
 	}
 
@@ -6123,6 +6135,13 @@ bool MainWindow::haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool
 		return true;
 	}
 
+	// World-gardeners can create objects anywhere.
+	if(BitUtils::isBitSet(logged_in_user_flags, User::WORLD_GARDENER_FLAG))
+	{
+		ob_pos_in_parcel_out = true; // Just treat as in parcel.
+		return true;
+	}
+
 	// See if the user is in a parcel that they have write permissions for.
 	// For now just do a linear scan over parcels
 	bool have_creation_perms = false;
@@ -6157,7 +6176,7 @@ bool MainWindow::haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool
 }
 
 
-bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out)
+bool MainWindow::haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out)
 {
 	ob_pos_in_parcel_out = false;
 
@@ -6169,6 +6188,14 @@ bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool&
 
 	// If this is the personal world of the user:
 	if(server_worldname != "" && server_worldname == this->logged_in_user_name)
+	{
+		ob_pos_in_parcel_out = true; // Just treat as in parcel.
+		return true;
+	}
+
+	// World-gardeners can move objects that they created anywhere.
+	if(BitUtils::isBitSet(logged_in_user_flags, User::WORLD_GARDENER_FLAG) &&
+		(ob.creator_id == this->logged_in_user_id))
 	{
 		ob_pos_in_parcel_out = true; // Just treat as in parcel.
 		return true;
@@ -6201,7 +6228,7 @@ bool MainWindow::haveObjectWritePermissions(const js::AABBox& new_aabb_ws, bool&
 // If the object was not in a parcel with write permissions at all, returns false.
 // If the object can not be made to fit in the current parcel, returns false.
 // new_ob_pos_out is set to new, clamped position.
-bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
+bool MainWindow::clampObjectPositionToParcelForNewTransform(const WorldObject& ob, GLObjectRef& opengl_ob, const Vec3d& old_ob_pos,
 	const Matrix4f& tentative_to_world_matrix,
 	js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out)
 {
@@ -6211,7 +6238,8 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(GLObjectRef& opengl_
 	Vec3d parcel_aabb_max;
 
 	// If god user, or if this is the personal world of the user:
-	if(isGodUser(this->logged_in_user_id) || (server_worldname != "" && server_worldname == this->logged_in_user_name))
+	if(isGodUser(this->logged_in_user_id) || (server_worldname != "" && server_worldname == this->logged_in_user_name) ||
+		(BitUtils::isBitSet(logged_in_user_flags, User::WORLD_GARDENER_FLAG) && (ob.creator_id == this->logged_in_user_id)))
 	{
 		const Vec4f newpos = tentative_to_world_matrix.getColumn(3);
 		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
@@ -7992,6 +8020,7 @@ void MainWindow::objectEditedSlot()
 			js::Vector<EdgeMarker, 16> edge_markers;
 			Vec3d new_ob_pos;
 			const bool valid = clampObjectPositionToParcelForNewTransform(
+				*this->selected_ob,
 				opengl_ob,
 				this->selected_ob->pos, 
 				new_ob_to_world_matrix,
@@ -8424,7 +8453,14 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 		}
 	}
 	this->client_thread = NULL; // Need to make sure client_thread is destroyed, since it hangs on to a bunch of references.
-	
+
+
+	this->logged_in_user_id = UserID::invalidUserID();
+	this->logged_in_user_name = "";
+	this->logged_in_user_flags = 0;
+
+	user_details->setTextAsNotLoggedIn();
+
 
 	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
 	if(world_state.nonNull())
@@ -9627,7 +9663,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 			//Matrix4f tentative_new_to_world = this->selected_ob->opengl_engine_ob->ob_to_world_matrix;
 			//tentative_new_to_world.setColumn(3, tentative_new_ob_p);
 			//tryToMoveObject(tentative_new_to_world);
-			tryToMoveObject(tentative_new_ob_p);
+			tryToMoveObject(*this->selected_ob, tentative_new_ob_p);
 
 			if(this->selected_ob_picked_up)
 			{

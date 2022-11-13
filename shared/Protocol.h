@@ -26,6 +26,7 @@ CyberspaceProtocolVersion
 33: Added spawn_point field to Parcel
 34: Added AABB to ObjectTransformUpdate
 35: Added emission_rgb and emission_texture_url to WorldMaterial
+	Added sending user flags in LoggedInMessage
 */
 namespace Protocol
 {

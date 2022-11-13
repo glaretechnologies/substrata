@@ -216,6 +216,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetMinNextNoncePost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_user_as_world_gardener_post")
+		{
+			AdminHandlers::handleSetUserAsWorldGardenerPost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);
@@ -338,6 +342,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		else if(request.path == "/admin_users")
 		{
 			AdminHandlers::renderUsersPage(*this->world_state, request, reply_info);
+		}
+		else if(::hasPrefix(request.path, "/admin_user/")) // user ID follows in URL
+		{
+			AdminHandlers::renderAdminUserPage(*this->world_state, request, reply_info);
 		}
 		else if(request.path == "/admin_parcels")
 		{

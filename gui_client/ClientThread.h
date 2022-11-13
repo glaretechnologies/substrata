@@ -143,10 +143,11 @@ public:
 class LoggedInMessage : public ThreadMessage
 {
 public:
-	LoggedInMessage(UserID user_id_, const std::string& username_) : user_id(user_id_), username(username_) {}
+	LoggedInMessage(UserID user_id_, const std::string& username_) : user_id(user_id_), username(username_), user_flags(0) {}
 	UserID user_id;
 	std::string username;
 	AvatarSettings avatar_settings;
+	uint32 user_flags;
 };
 
 

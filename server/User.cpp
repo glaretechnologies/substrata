@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 User::User()
+:	flags(0)
 {
 }
 
@@ -141,8 +142,9 @@ void User::setNewPasswordAndSalt(const std::string& new_password)
 }
 
 
-static const uint32 USER_SERIALISATION_VERSION = 4;
+static const uint32 USER_SERIALISATION_VERSION = 5;
 
+// Version 5: Added flags
 // Version 4: Added avatar_settings
 // Version 3: Added controlled_eth_address
 
@@ -170,6 +172,8 @@ void writeToStream(const User& user, OutStream& stream)
 		writeToStream(user.password_resets[i], stream);
 
 	writeToStream(user.avatar_settings, stream);
+
+	stream.writeUInt32(user.flags);
 }
 
 
@@ -207,7 +211,8 @@ void readFromStream(InStream& stream, User& user)
 	}
 
 	if(v >= 4)
-	{
 		readFromStream(stream, user.avatar_settings);
-	}
+
+	if(v >= 5)
+		user.flags = stream.readUInt32();
 }
