@@ -951,7 +951,7 @@ void WorkerThread::doRun()
 					data_to_send.clear();
 				}
 
-				if(temp_data_to_send.nonEmpty() && (connection_type == Protocol::ConnectionTypeUpdates))
+				if(temp_data_to_send.nonEmpty())
 				{
 					socket->writeData(temp_data_to_send.data(), temp_data_to_send.size());
 					socket->flush();
