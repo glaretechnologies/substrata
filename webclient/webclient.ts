@@ -536,12 +536,10 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 
 		//console.log("setThreeJSMaterial(): lod_texture_URL: " + lod_texture_URL);
 
-		let texture = null;
+		let new_texture = null;
 		if (url_to_texture_map.has(lod_texture_URL)) {
 
-			//texture = new THREE.Texture();
-			//texture.image = url_to_texture_map.get(lod_texture_URL).image; // This texture has already been loaded, use it
-			texture = url_to_texture_map.get(lod_texture_URL);
+			new_texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
 		}
 		else { // Else texture has not been loaded:
 
@@ -562,24 +560,33 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 				loading_texture_URL_set.add(lod_texture_URL); // Add to set of loading textures.
 			}
 
-			//texture = new THREE.TextureLoader().load("./obstacle.png"); // Use obstacle texture as a loading placeholder.
-			texture = new THREE.Texture();
-			texture.image = placeholder_texture.image;
+			if(three_mat.map && three_mat.map.image) { // If the current material already has a texture assigned (from a different LOD level)
+				// console.log("Using existing image as placeholder");
+				// Just keep existing texture along with its mipmaps etc.
+			}
+			else {
+				// console.log("Using placeholder_texture as placeholder");
+				new_texture = new THREE.Texture();
+				new_texture.image = placeholder_texture.image; // else use placeholder texture
+				new_texture.mipmaps = placeholder_texture.mipmaps;
+			}
 		}
 
-		texture.needsUpdate = true; // Seems to be needed to get the texture to show.
+		if(new_texture) {
+			new_texture.needsUpdate = true; // Seems to be needed to get the texture to show.
 
-		texture.wrapS = THREE.RepeatWrapping;
-		texture.wrapT = THREE.RepeatWrapping;
+			new_texture.wrapS = THREE.RepeatWrapping;
+			new_texture.wrapT = THREE.RepeatWrapping;
 
-		texture.matrixAutoUpdate = false;
-		texture.matrix.set(
-			world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
-			world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
-			0, 0, 1
-		);
+			new_texture.matrixAutoUpdate = false;
+			new_texture.matrix.set(
+				world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
+				world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
+				0, 0, 1
+			);
 
-		three_mat.map = texture;
+			three_mat.map = new_texture;
+		}
 	}
 }
 
@@ -608,6 +615,8 @@ function loadModelForObject(world_ob: WorldObject) {
 			return;
 		}
 			
+		
+		const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
 
 		if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
 			// This is a voxel object
@@ -621,7 +630,7 @@ function loadModelForObject(world_ob: WorldObject) {
 				const three_mats = [];
 				const mats_transparent: Array<boolean> = [];
 				for (let i = 0; i < world_ob.mats.length; ++i) {
-					const three_mat = new THREE.MeshStandardMaterial();
+					const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
 					setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
 					three_mats.push(three_mat);
 					mats_transparent.push(world_ob.mats[i].opacity.val < 1.0);
@@ -678,19 +687,29 @@ function loadModelForObject(world_ob: WorldObject) {
 
 
 // Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
+// Old materials are also passed in, which come from the model with a different LOD level.  may be null.
 // Returns mesh (THREE.Mesh)
-function makeMeshAndAddToScene(geometry: THREE.BufferGeometry, mats: Array<WorldMaterial>, pos: Vec3d, scale: Vec3f, world_axis: Vec3f, angle: number, ob_aabb_longest_len: number, ob_lod_level: number): THREE.Mesh {
+function makeMeshAndAddToScene(geometry: THREE.BufferGeometry, 
+	mats: Array<WorldMaterial>, 
+	old_mats: Array<WorldMaterial> | null, 
+	pos: Vec3d, scale: Vec3f, world_axis: Vec3f, angle: number, ob_aabb_longest_len: number, ob_lod_level: number): THREE.Mesh {
 
 	const use_vert_colours = (geometry.getAttribute('color') !== undefined);
 
-	const three_mats = [];
-
-	for (let i = 0; i < mats.length; ++i) {
-		const three_mat = new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours });
-		//csm.setupMaterial(three_mat); // TEMP
-		setThreeJSMaterial(three_mat, mats[i], pos, ob_aabb_longest_len, ob_lod_level);
-		three_mats.push(three_mat);
+	let three_mats = null;
+	if(old_mats) {
+		// Just update the old materials (allows using existing textures as placeholders)
+		console.assert(old_mats.length === mats.length);
+		three_mats = old_mats;
 	}
+	else {
+		three_mats = [];
+		for (let i = 0; i < mats.length; ++i)
+			three_mats.push(new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours }));
+	}
+
+	for (let i = 0; i < mats.length; ++i)
+		setThreeJSMaterial(three_mats[i], mats[i], pos, ob_aabb_longest_len, ob_lod_level);
 
 	const mesh = new THREE.Mesh(geometry, three_mats);
 	mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
@@ -843,6 +862,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 									geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
+									const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
+
 									const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
 									if (model_changing)
 										removeAndDeletePhysicsObjectForOb(world_ob);
@@ -853,7 +874,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 									const use_ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
 									const ob_aabb_longest_len = world_ob.AABBLongestLength();
 
-									const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
+									const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, old_mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
 									if (model_changing)
 										registerPhysicsObject(world_ob, triangles, mesh);
@@ -869,7 +890,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 									const avatar = world_ob_or_avatar;
 									if (avatar.uid != client_avatar_uid) {
 										console.log('Avatar:', avatar);
-										const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
+										const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, /*old mats=*/null, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
 											/*angle=*/0, /*ob_aabb_longest_len=*/1.0, /*ob_lod_level=*/0);
 
 										geom_info.use_count++;
@@ -929,6 +950,8 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 
 		geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
+		const old_mats = world_ob_or_avatar.mesh ? world_ob_or_avatar.mesh.material : null;
+
 		if (world_ob_or_avatar instanceof WorldObject) {
 			const world_ob = world_ob_or_avatar;
 			removeAndDeleteGLObjectForOb(world_ob);
@@ -938,7 +961,7 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 
 		// console.log("Loaded mesh '" + model_url + "'.");
 
-		const mesh: THREE.Mesh = makeMeshAndAddToScene(geom_info.geometry, mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
+		const mesh: THREE.Mesh = makeMeshAndAddToScene(geom_info.geometry, mats, old_mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
 
 		if (world_ob_or_avatar instanceof WorldObject) {
 			const world_ob = world_ob_or_avatar;
