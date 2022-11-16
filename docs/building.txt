@@ -107,3 +107,15 @@ ruby .\build_llvm.rb --vsversion 2015 --release 6.0.0 --config Release
 ruby .\build_llvm.rb --vsversion 2015 --release 6.0.0 --config Debug
 
 rename dir to llvm_6_0_0_install_vs2015_64
+
+
+
+Compiling webclient typescript (.ts) files:
+===========================================
+
+Install typescript SDK from e.g. https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.typescript-46rc
+(Installed tsc.js to C:\Program Files (x86)\Microsoft SDKs\TypeScript\4.6\tsc.js)
+Install node.js (don't need NPM tho)
+cd N:\substrata\trunk\webclient
+node "C:\Program Files (x86)\Microsoft SDKs\TypeScript\4.6\tsc.js" -w
+-w is to watch dir for changes.
