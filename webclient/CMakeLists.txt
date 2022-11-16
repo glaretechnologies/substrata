@@ -8,6 +8,7 @@ set(webclient_root_files
 ../webclient/client.html
 ../webclient/CMakeLists.txt
 ../webclient/downloadqueue.ts
+../webclient/proximityloader.ts
 ../webclient/fzstd.js
 ../webclient/tsconfig.json
 ../webclient/voxelloading.ts
@@ -40,9 +41,26 @@ set(webclient_physics_files
 ../webclient/physics/world.ts
 )
 
+set(webclient_graphics_files
+../webclient/graphics/loaderWorker.ts
+../webclient/graphics/stb_dxt.wasm
+../webclient/graphics/textureLoader.ts
+../webclient/graphics/wasm/dxt_compress.c
+../webclient/graphics/wasm/dxt_compress.h
+../webclient/graphics/wasm/stb_dxt.c
+../webclient/graphics/wasm/stb_dxt.h
+../webclient/graphics/wasm/stb_dxt.js
+)
+
 
 SOURCE_GROUP(webclient FILES ${webclient_root_files})
 SOURCE_GROUP(webclient/maths FILES ${webclient_maths_files})
 SOURCE_GROUP(webclient/physics FILES ${webclient_physics_files})
+SOURCE_GROUP(webclient/graphics FILES ${webclient_graphics_files})
 
-set(webclient_files ${webclient_root_files} ${webclient_maths_files} ${webclient_physics_files})
+set(webclient_files 
+${webclient_root_files} 
+${webclient_maths_files} 
+${webclient_physics_files}
+${webclient_graphics_files}
+)
