@@ -186,9 +186,10 @@ ws.onmessage = function (event: MessageEvent) {
 		}
 		else if (protocol_state == STATE_READ_CLIENT_AVATAR_UID) {
 
+			const msg_start_read_index = buffer.getReadIndex();
 			const msg_type = readUInt32(buffer);
 			const msg_len = readUInt32(buffer);
-			//console.log("Read msg_type: " + msg_type + ", len: " + msg_len);
+			// console.log("Read msg_type: " + msg_type + ", len: " + msg_len);
 
 			if (msg_type == TimeSyncMessage) {
 				const global_time = readDouble(buffer);
@@ -344,9 +345,13 @@ ws.onmessage = function (event: MessageEvent) {
 				av_buf.writeToWebSocket(ws);
 			}
 			else {
-				// Unhandled message type, skip over it.
-				//console.log("Unhandled message type " + msg_type);
-				buffer.read_index += msg_len - 8; // We have already read the type and len (uint32 * 2), skip over remaining data in msg.
+				// Unhandled message type, ignore it.
+				// console.log("Unhandled message type " + msg_type);
+			}
+
+			// Advance past any remaining, unread data in the message.
+			if(msg_start_read_index + msg_len > buffer.getReadIndex()) {
+				buffer.setReadIndex(msg_start_read_index + msg_len);
 			}
 		}
 		else
