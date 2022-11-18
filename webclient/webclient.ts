@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 
 
 import * as THREE from './build/three.module.js';
+import { KTX2Loader } from './examples/jsm/loaders/KTX2Loader.js';
 import { Sky } from './examples/jsm/objects/Sky.js';
 import * as voxelloading from './voxelloading.js';
 import { BufferIn, readDouble, readStringFromStream, readUInt32 } from './bufferin.js';
@@ -28,7 +29,7 @@ import {
 	writeUID
 } from './types.js';
 import { Avatar } from './avatar.js';
-import { toUTF8Array } from './utils.js';
+import { removeDotAndExtension, toUTF8Array } from './utils.js';
 import { Parcel, readParcelFromNetworkStreamGivenID } from './parcel.js';
 import {
 	MESH_LOADED,
@@ -40,13 +41,11 @@ import {
 	getBVHKey
 } from './worldobject.js';
 import { ProximityLoader } from './proximityloader.js';
-import TextureLoader from './graphics/textureLoader.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
 
 const physics_world = new PhysicsWorld();
-const textureLoader = new TextureLoader(Math.max(1, Math.floor((navigator.hardwareConcurrency ?? 4) / 2)));
 
 const STATE_INITIAL = 0;
 const STATE_READ_HELLO_RESPONSE = 1;
@@ -501,6 +500,8 @@ const loading_model_URL_to_world_ob_map = new Map<string, Set<any>>(); // Map fr
 
 const loading_texture_URL_to_materials_map = new Map<string, Array<THREE.Material>>(); // Map from a URL of a loading texture to a list of materials using that texture.
 
+const flip_y_matrix = new THREE.Matrix3();
+flip_y_matrix.set(1, 0, 0, 0, -1, 0, 0, 0, 1);
 
 // Sets fields of a three.js material from a Substrata WorldMaterial.
 // If the world material has a texture, will start downloading it, by enqueuing an item onto the download queue, if the texture is not already downloaded or downloading.
@@ -529,7 +530,10 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		//console.log("world_mat.flags: " + world_mat.flags);
 		//console.log("world_mat.colourTexHasAlpha: " + world_mat.colourTexHasAlpha());
 		const color_tex_has_alpha = world_mat.colourTexHasAlpha();
-		const lod_texture_URL = world_mat.getLODTextureURLForLevel(world_mat.colour_texture_url, ob_lod_level, color_tex_has_alpha);
+		let lod_texture_URL = world_mat.getLODTextureURLForLevel(world_mat.colour_texture_url, ob_lod_level, color_tex_has_alpha);
+
+		lod_texture_URL = removeDotAndExtension(lod_texture_URL) + '.ktx2';
+		console.log('new lod_texture_URL: ' + lod_texture_URL);
 
 		if (color_tex_has_alpha)
 			three_mat.alphaTest = 0.5;
@@ -579,12 +583,14 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 			new_texture.wrapT = THREE.RepeatWrapping;
 
 			new_texture.matrixAutoUpdate = false;
-			new_texture.matrix.set(
+			const mat = new THREE.Matrix3();
+			mat.set(
 				world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
 				world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
 				0, 0, 1
 			);
-
+			// Flip the texture to keep consistency between native and web (three.js flips automatically)
+			new_texture.matrix = mat.multiply(flip_y_matrix);
 			three_mat.map = new_texture;
 		}
 	}
@@ -739,7 +745,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 	if (download_queue_item.is_texture) {
 
-		textureLoader.load('resource/' + download_queue_item.URL,
+		
+		ktx_loader.load('resource/' + download_queue_item.URL,
 			function (texture) { // onLoad callback
 				num_resources_downloading--;
 
@@ -764,6 +771,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						texture.matrixAutoUpdate = false;
 						mat.map = texture;
 						mat.map.needsUpdate = true;
+						mat.needsUpdate = true;
 					}
 
 					loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
@@ -1066,6 +1074,12 @@ scene.add(outlineMesh);
 const renderer_canvas_elem = document.getElementById('rendercanvas');
 const renderer = new THREE.WebGLRenderer({ canvas: renderer_canvas_elem, antialias: true, logarithmicDepthBuffer: THREE.logDepthBuf });
 renderer.setSize(window.innerWidth, window.innerHeight);
+
+
+const ktx_loader = new KTX2Loader()
+	.setTranscoderPath( '/webclient/examples/js/libs/basis/' )
+	.detectSupport( renderer );
+
 
 // Use linear tone mapping with a scale less than 1, which seems to be needed to make the sky model look good.
 renderer.toneMapping = THREE.LinearToneMapping;
