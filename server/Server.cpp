@@ -57,6 +57,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../ethereum/Signing.h"//TEMP for testing
 #include <WebSocketTests.h>//TEMP for testing
 #include "WorldCreation.h"
+#include "../shared/LODGeneration.h"
 //#include <graphics/FormatDecoderGLTF.h>//TEMP for testing
 
 
@@ -340,6 +341,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	pugi::xml_node root_elem = doc.getRootElement();
 
 	ServerConfig config;
+	config.webserver_public_files_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
 	config.webclient_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
 	config.allow_light_mapper_bot_full_perms = XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
 	return config;
@@ -378,6 +380,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			LODGeneration::test();
 			//WebSocketTests::test();
 			//SafeBrowsingCheckerThread::test(server.world_state.ptr());
 			//GIFDecoder::test();
@@ -594,34 +597,26 @@ int main(int argc, char *argv[])
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
-		std::string default_webclient_dir;
-#if defined(_WIN32)
-		if(dev_mode)
-		{
-			//web_data_store->public_files_dir = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webserver_public_files";
-			//web_data_store->webclient_dir    = FileUtils::getDirectory(PlatformUtils::getFullPathToCurrentExecutable()) + "/webclient";
-			web_data_store->public_files_dir = server_state_dir + "/webserver_public_files";
-		}
-		else
-		{
-			web_data_store->public_files_dir = "N:\\substrata\\trunk\\webserver_public_files";
-			//web_data_store->letsencrypt_webroot = "C:\\programming\\cyberspace\\webdata\\letsencrypt_webroot";
-		}
-		default_webclient_dir = server_state_dir + "/webclient";
-
-#elif defined(OSX)
-		web_data_store->public_files_dir			= server_state_dir + "/webserver_public_files";
-		default_webclient_dir						= server_state_dir + "/webclient";
+		std::string default_webclient_dir, default_webserver_public_files_dir;
+#if defined(_WIN32) || defined(OSX)
+		default_webserver_public_files_dir	= server_state_dir + "/webserver_public_files";
+		default_webclient_dir				= server_state_dir + "/webclient";
 #else
-		web_data_store->public_files_dir			= "/var/www/cyberspace/public_html";
-		default_webclient_dir						= "/var/www/cyberspace/webclient";
+		default_webserver_public_files_dir	= "/var/www/cyberspace/public_html";
+		default_webclient_dir				= "/var/www/cyberspace/webclient";
 		//web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
 #endif
+		// Use webserver_public_files_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
+		if(!server_config.webserver_public_files_dir.empty())
+			web_data_store->public_files_dir = server_config.webserver_public_files_dir;
+		else
+			web_data_store->public_files_dir = default_webserver_public_files_dir;
+
 		// Use webclient_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
 		if(!server_config.webclient_dir.empty())
-			web_data_store->webclient_dir			= server_config.webclient_dir;
+			web_data_store->webclient_dir = server_config.webclient_dir;
 		else
-			web_data_store->webclient_dir			= default_webclient_dir;
+			web_data_store->webclient_dir = default_webclient_dir;
 
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
 		conPrint("webserver webclient_dir: " + web_data_store->webclient_dir);
@@ -726,8 +721,7 @@ int main(int argc, char *argv[])
 		//----------------------------------------------- End launch substrata protocol server -----------------------------------------------
 
 
-		if(!dev_mode)
-			thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
+		thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
 
 		//thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 

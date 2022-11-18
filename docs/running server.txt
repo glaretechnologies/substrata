@@ -21,28 +21,32 @@ If a file is present at server_state_dir + "/substrata_server_config.xml", then 
 
 <?xml version="1.0" encoding="utf-8"?>
 <config>
-	<webclient_dir>N:\substrata-web-client-git</webclient_dir>
+	<webserver_public_files_dir>Q:\substrata\trunk\webserver_public_files</webserver_public_files_dir>
+	<webclient_dir>Q:\substrata\trunk\webclient</webclient_dir>
 </config>
 
 If webclient_dir is present, then it overrides the default value of the webclient files dir specified below.
+Likewise for webserver_public_files_dir.
 
 
 Webserver public files dir
 --------------------------
 This directory holds files used by the website, such as CSS files, images, javascript files (map.js) etc.
+Default value:
 
-On Windows, in dev mode:		server_state_dir + "/webserver_public_files"
-On Mac:							server_state_dir + "/webserver_public_files"
-On Linux:						/var/www/cyberspace/public_html
+On Windows:		server_state_dir + "/webserver_public_files"
+On Mac:			server_state_dir + "/webserver_public_files"
+On Linux:		/var/www/cyberspace/public_html
 
 
 Webclient files dir
 -------------------
 This directory holds files used for the webclient, such as webclient.js, client.html etc.
+Default value:
 
-On Windows, in dev mode:		server_state_dir + "/webclient"
-On Mac:							server_state_dir + "/webclient"
-On Linux:						/var/www/cyberspace/webclient
+On Windows:		server_state_dir + "/webclient"
+On Mac:			server_state_dir + "/webclient"
+On Linux:		/var/www/cyberspace/webclient
 
 
 Updating public and webclient files while the server is running
