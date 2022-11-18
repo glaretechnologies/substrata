@@ -93,26 +93,6 @@ export default class PhysicsWorld {
 		this.jobList = {};
 		this.worker = new Worker('/webclient/physics/worker.js');
 		this.worker.onmessage = ev => this.processWorkerResponse(ev);
-
-		/*
-		// Test individual textures on a quad at [0, 0, 4]
-		const textureLoader = new TextureLoader(1);
-
-		// Setup a quad that displays a compressed texture
-		const mat = new THREE.MeshBasicMaterial({ map: null, side: THREE.DoubleSide });
-		const quad = new THREE.Mesh(new THREE.PlaneGeometry(), mat);
-		quad.position.set(0, 0, 4);
-		quad.rotation.set(Math.PI/2, 0, 0);
-		quad.scale.set(8, 8, 8);
-		this.tempMeshes.add(quad);
-
-		textureLoader.load('/webclient/testA.png',
-			(tex: THREE.CompressedTexture) => {
-				mat.map = tex;
-				mat.needsUpdate = true;
-			}
-		);
-	  */
 	}
 
 	// Process the Worker Response
@@ -547,4 +527,24 @@ setTimeout(() => {
     });
   });
 }, 5000);
+*/
+
+/*
+// Test individual textures on a quad at [0, 0, 4]
+const textureLoader = new TextureLoader(1);
+
+// Setup a quad that displays a compressed texture
+const mat = new THREE.MeshBasicMaterial({ map: null, side: THREE.DoubleSide });
+const quad = new THREE.Mesh(new THREE.PlaneGeometry(), mat);
+quad.position.set(0, 0, 4);
+quad.rotation.set(Math.PI/2, 0, 0);
+quad.scale.set(8, 8, 8);
+this.tempMeshes.add(quad);
+
+textureLoader.load('/webclient/testA.png',
+  (tex: THREE.CompressedTexture) => {
+    mat.map = tex;
+    mat.needsUpdate = true;
+  }
+);
 */
