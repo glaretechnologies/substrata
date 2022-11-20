@@ -10,7 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "WinterShaderEvaluator.h"
 #include "../qt/QtUtils.h"
 #include <graphics/ImageMap.h>
-#include <opengl/TextureProcessing.h>
+#include <graphics/TextureProcessing.h>
 #include <opengl/OpenGLEngine.h>
 #include <utils/ConPrint.h>
 #include <utils/PlatformUtils.h>
@@ -52,7 +52,8 @@ void MakeHypercardTextureTask::run(size_t thread_index)
 			std::memcpy(map->getPixel(0, y), line, 3*W);
 		}
 
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine, &opengl_engine->getTaskManager());
+		const bool allow_compression = opengl_engine->textureCompressionSupportedAndEnabled();
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), &opengl_engine->general_mem_allocator, &opengl_engine->getTaskManager(), allow_compression);
 
 		Reference<TextureLoadedThreadMessage> msg = new TextureLoadedThreadMessage();
 		msg->tex_path = tex_key;
