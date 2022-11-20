@@ -69,6 +69,11 @@ ${GRAPHICS_DIR}/TriBoxIntersection.cpp
 ${GRAPHICS_DIR}/TriBoxIntersection.h
 ${GRAPHICS_DIR}/Voronoi.cpp
 ${GRAPHICS_DIR}/Voronoi.h
+${GRAPHICS_DIR}/TextureProcessing.cpp
+${GRAPHICS_DIR}/TextureProcessing.h
+${GRAPHICS_DIR}/TextureProcessingTests.cpp
+${GRAPHICS_DIR}/TextureProcessingTests.h
+${GRAPHICS_DIR}/TextureData.h
 )
 
 set(MESHOPTIMIZER_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/meshoptimizer/src")
@@ -383,10 +388,6 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoading.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureLoadingTests.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessing.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessing.h
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessingTests.cpp 
-${GLARE_CORE_TRUNK_DIR_ENV}/opengl/TextureProcessingTests.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/UniformBufOb.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/WGL.cpp 

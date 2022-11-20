@@ -12,8 +12,8 @@ Copyright Glare Technologies Limited 2019 -
 #include <graphics/ImageMapSequence.h>
 #include <graphics/GifDecoder.h>
 #include <graphics/imformatdecoder.h> // For ImFormatExcep
+#include <graphics/TextureProcessing.h>
 #include <opengl/OpenGLEngine.h>
-#include <opengl/TextureProcessing.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <IncludeHalf.h>
@@ -42,7 +42,8 @@ void LoadTextureTask::run(size_t thread_index)
 		else
 			map = ImageDecoding::decodeImage(".", key);
 
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine, &opengl_engine->getTaskManager());
+		const bool allow_compression = opengl_engine->textureCompressionSupportedAndEnabled();
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), &opengl_engine->general_mem_allocator, &opengl_engine->getTaskManager(), allow_compression);
 
 		if(hasExtension(key, "gif") && texture_data->compressedSizeBytes() > 100000000)
 		{
