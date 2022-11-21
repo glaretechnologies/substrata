@@ -95,7 +95,16 @@ export class WorldObject {
 
 	getLODLevel(campos: THREE.Vector3): number {
 
-		const dist = new THREE.Vector3(this.pos.x, this.pos.y, this.pos.z).distanceTo(campos);
+		const centroid_x = (this.aabb_ws_min.x + this.aabb_ws_max.x) * 0.5;
+		const centroid_y = (this.aabb_ws_min.y + this.aabb_ws_max.y) * 0.5;
+		const centroid_z = (this.aabb_ws_min.z + this.aabb_ws_max.z) * 0.5;
+
+		const cam_to_ob_d2 =
+			(centroid_x - campos.x) * (centroid_x - campos.x) +
+			(centroid_y - campos.y) * (centroid_y - campos.y) +
+			(centroid_z - campos.z) * (centroid_z - campos.z);
+
+		const dist = Math.sqrt(cam_to_ob_d2);
 		let proj_len = this.AABBLongestLength() / dist;
 
 		// For voxel objects, push out the transition distances a bit.
