@@ -133,6 +133,58 @@ SET(ethereum_files
 )
 
 
+set(basisu_dir ../basis_universal)
+set(basisu_files
+${basisu_dir}/encoder/basisu_backend.cpp
+${basisu_dir}/encoder/basisu_backend.h
+${basisu_dir}/encoder/basisu_basis_file.cpp
+${basisu_dir}/encoder/basisu_basis_file.h
+${basisu_dir}/encoder/basisu_bc7enc.cpp
+${basisu_dir}/encoder/basisu_bc7enc.h
+${basisu_dir}/encoder/basisu_comp.cpp
+${basisu_dir}/encoder/basisu_comp.h
+${basisu_dir}/encoder/basisu_enc.cpp
+${basisu_dir}/encoder/basisu_enc.h
+${basisu_dir}/encoder/basisu_etc.cpp
+${basisu_dir}/encoder/basisu_etc.h
+${basisu_dir}/encoder/basisu_frontend.cpp
+${basisu_dir}/encoder/basisu_frontend.h
+${basisu_dir}/encoder/basisu_gpu_texture.cpp
+${basisu_dir}/encoder/basisu_gpu_texture.h
+${basisu_dir}/encoder/basisu_kernels_imp.h
+${basisu_dir}/encoder/basisu_kernels_sse.cpp
+${basisu_dir}/encoder/basisu_miniz.h
+${basisu_dir}/encoder/basisu_opencl.cpp
+${basisu_dir}/encoder/basisu_opencl.h
+${basisu_dir}/encoder/basisu_pvrtc1_4.cpp
+${basisu_dir}/encoder/basisu_pvrtc1_4.h
+${basisu_dir}/encoder/basisu_resampler.cpp
+${basisu_dir}/encoder/basisu_resampler.h
+${basisu_dir}/encoder/basisu_resampler_filters.h
+${basisu_dir}/encoder/basisu_resample_filters.cpp
+${basisu_dir}/encoder/basisu_ssim.cpp
+${basisu_dir}/encoder/basisu_ssim.h
+${basisu_dir}/encoder/basisu_uastc_enc.cpp
+${basisu_dir}/encoder/basisu_uastc_enc.h
+
+${basisu_dir}/transcoder/basisu_transcoder.cpp
+)
+
+include_directories(${basisu_dir})
+
+add_definitions(-DBASISU_SUPPORT_SSE=1)
+# Disable some basis universal stuff we don't use
+# add_definitions(-DBASISD_SUPPORT_UASTC=0) # This would be nice but it doesn't compile with it defined.
+# add_definitions(-DBASISD_SUPPORT_BC7_MODE5=0)
+# add_definitions(-DBASISD_SUPPORT_PVRTC1=0)
+# add_definitions(-DBASISD_SUPPORT_ETC2_EAC_A8=0)
+# add_definitions(-DBASISD_SUPPORT_UASTC=0)
+# add_definitions(-DBASISD_SUPPORT_ASTC=0)
+
+add_definitions(-DBASIS_NO_IMAGE_READERS=1)
+
+
+
 include(../webclient/CMakeLists.txt)
 
 
@@ -166,6 +218,7 @@ SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
 SOURCE_GROUP(secp256k1 FILES ${secp256k1_files})
 SOURCE_GROUP(ethereum FILES ${ethereum_files})
+SOURCE_GROUP(basis_universal FILES ${basisu_files})
 
 
 # From secp256k1-master\configure.ac:
@@ -214,6 +267,7 @@ ${ethereum_files}
 ${meshoptimizer}
 ${webclient_files}
 ${substrata_private_webserver}
+${basisu_files}
 )
 
 

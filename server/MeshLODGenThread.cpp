@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <KillThreadMessage.h>
 #include <Timer.h>
 #include <TaskManager.h>
+#include <GeneralMemAllocator.h>
 #include <graphics/MeshSimplification.h>
 #include <graphics/formatdecoderobj.h>
 #include <graphics/FormatDecoderSTL.h>
@@ -61,12 +62,24 @@ struct LODMeshToGen
 
 struct LODTextureToGen
 {
-	std::string tex_abs_path;
-	std::string LOD_tex_abs_path;
+	std::string tex_abs_path; // Absolute base texture path, to read texture from.
+	std::string LOD_tex_abs_path; // LOD texture path, to write LOD texture to.
 	std::string lod_URL;
 	int lod_level;
 	UserID owner_id;
 };
+
+
+struct KTXTextureToGen
+{
+	std::string source_tex_abs_path; // source texture abs path
+	std::string ktx_tex_abs_path; // abs path to write KTX texture to.
+	std::string ktx_URL;
+	int base_lod_level;
+	int lod_level;
+	UserID owner_id;
+};
+
 
 
 struct MeshLODGenThreadTexInfo
@@ -76,11 +89,20 @@ struct MeshLODGenThreadTexInfo
 };
 
 
+struct WorldObjectInfo
+{
+	ServerWorldState* world;
+	WorldObjectRef ob;
+};
+
+
 void MeshLODGenThread::doRun()
 {
 	PlatformUtils::setCurrentThreadName("MeshLODGenThread");
 
 	glare::TaskManager task_manager;
+
+	Reference<glare::GeneralMemAllocator> allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/1024ull * 1024ull * 1024ull);
 
 	//TEMP;
 	//textureHasAlphaChannel("C:\\Users\\nick\\AppData\\Roaming\\Substrata\\server_data\\server_resources\\Elementals__125_png_8837233801540030562.png");
@@ -92,7 +114,7 @@ void MeshLODGenThread::doRun()
 		while(1)
 		{
 			// Get vector of objects
-			std::vector<WorldObjectRef> obs;
+			std::vector<WorldObjectInfo> obs;
 
 			Timer timer;
 			{
@@ -102,7 +124,12 @@ void MeshLODGenThread::doRun()
 					ServerWorldState* world = world_it->second.ptr();
 
 					for(auto it = world->objects.begin(); it != world->objects.end(); ++it)
-						obs.push_back(it->second);
+					{
+						WorldObjectInfo info;
+						info.world = world;
+						info.ob = it->second;
+						obs.push_back(info);
+					}
 				}
 			} // end lock scope
 
@@ -116,16 +143,19 @@ void MeshLODGenThread::doRun()
 			// Note that we will do this without holding the world lock, since we are calling loadModel which is slow.
 			std::vector<LODMeshToGen> meshes_to_gen;
 			std::vector<LODTextureToGen> textures_to_gen;
+			std::vector<KTXTextureToGen> ktx_textures_to_gen;
 			std::unordered_set<std::string> lod_URLs_considered;
 			std::map<std::string, MeshLODGenThreadTexInfo> tex_info; // Cached info about textures
-			bool made_change = false;
 
 			conPrint("MeshLODGenThread: Iterating over objects...");
 			timer.reset();
 
 			for(size_t i=0; i<obs.size(); ++i)
 			{
-				WorldObject* ob = obs[i].ptr();
+				if(i % 1000 == 0)
+					conPrint("Processing ob " + toString(i) + " / " + toString(obs.size()));
+				ServerWorldState* world = obs[i].world;
+				WorldObject* ob = obs[i].ob.ptr();
 
 				try
 				{
@@ -160,7 +190,10 @@ void MeshLODGenThread::doRun()
 
 								const int new_max_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
 								if(new_max_lod_level != ob->max_model_lod_level)
-									made_change = true;
+								{
+									Lock lock(world_state->mutex);
+									world->addWorldObjectAsDBDirty(ob);
+								}
 								
 								ob->max_model_lod_level = new_max_lod_level;
 							}
@@ -182,7 +215,10 @@ void MeshLODGenThread::doRun()
 
 									const int new_max_lod_level = (batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 									if(new_max_lod_level != ob->max_model_lod_level)
-										made_change = true;
+									{
+										Lock lock(world_state->mutex);
+										world->addWorldObjectAsDBDirty(ob);
+									}
 
 									ob->max_model_lod_level = new_max_lod_level;
 
@@ -272,7 +308,7 @@ void MeshLODGenThread::doRun()
 								conPrint("New AABB: "+ new_aabb_ws.toString());
 
 								ob->aabb_ws = new_aabb_ws;
-								made_change = true;
+								world->addWorldObjectAsDBDirty(ob);
 							}
 						}
 
@@ -352,10 +388,14 @@ void MeshLODGenThread::doRun()
 												BitUtils::setOrZeroBit(mat->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, is_high_res);
 												BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG,   has_alpha);
 
-												made_change = made_change || (mat->flags != old_flags);
-
 												if(mat->flags != old_flags)
+												{
+													{
+														Lock lock(world_state->mutex);
+														world->addWorldObjectAsDBDirty(ob);
+													}
 													conPrint("Updated mat flags: (for mat with tex " + tex_abs_path + "): is_hi_res: " + boolToString(is_high_res));
+												}
 
 												const int start_lod_level = mat->minLODLevel() + 1;
 												for(int lvl = start_lod_level; lvl <= 2; ++lvl)
@@ -364,14 +404,14 @@ void MeshLODGenThread::doRun()
 											
 													if(lod_URL != mat->colour_texture_url) // We don't do LOD for some texture types.
 													{
-														const std::string lod_abs_path = world_state->resource_manager->pathForURL(lod_URL);
-
 														if(lod_URLs_considered.count(lod_URL) == 0)
 														{
 															lod_URLs_considered.insert(lod_URL);
 
 															if(!world_state->resource_manager->isFileForURLPresent(lod_URL))
 															{
+																const std::string lod_abs_path = world_state->resource_manager->pathForURL(lod_URL);
+
 																// Generate the texture
 																LODTextureToGen tex_to_gen;
 																tex_to_gen.lod_level = lvl;
@@ -381,6 +421,31 @@ void MeshLODGenThread::doRun()
 																tex_to_gen.owner_id = base_resource->owner_id;
 																textures_to_gen.push_back(tex_to_gen);
 															}
+														}
+													}
+												}
+
+												for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
+												{
+													const std::string lod_URL = mat->getLODTextureURLForLevel(mat->colour_texture_url, lvl, has_alpha);
+													const std::string ktx_lod_URL = ::eatExtension(lod_URL) + "ktx2";
+
+													if(lod_URLs_considered.count(ktx_lod_URL) == 0)
+													{
+														lod_URLs_considered.insert(ktx_lod_URL);
+
+														if(!world_state->resource_manager->isFileForURLPresent(ktx_lod_URL))
+														{
+															const std::string lod_abs_path = world_state->resource_manager->pathForURL(lod_URL);
+															const std::string ktx_abs_path = world_state->resource_manager->pathForURL(ktx_lod_URL);
+
+															// Generate the texture
+															KTXTextureToGen tex_to_gen;
+															tex_to_gen.source_tex_abs_path = lod_abs_path; // source texture abs path
+															tex_to_gen.ktx_tex_abs_path = ktx_abs_path; // abs path to write KTX texture to.
+															tex_to_gen.ktx_URL = ktx_lod_URL;
+															tex_to_gen.owner_id = base_resource->owner_id;
+															ktx_textures_to_gen.push_back(tex_to_gen);
 														}
 													}
 												}
@@ -434,7 +499,6 @@ void MeshLODGenThread::doRun()
 						world_state->addResourcesAsDBDirty(resource);
 						world_state->resource_manager->addResource(resource);
 						
-						made_change = true;
 					} // End lock scope
 				}
 				catch(glare::Exception& e)
@@ -443,7 +507,7 @@ void MeshLODGenThread::doRun()
 				}
 			}
 
-			conPrint("MeshLODGenThread: Done generating LOD meshes. (Elapsed: " + timer.elapsedStringNSigFigs(4));
+			conPrint("MeshLODGenThread: Done generating LOD meshes. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
 
 
 			// Generate each texture, without holding the world lock.
@@ -475,7 +539,6 @@ void MeshLODGenThread::doRun()
 						world_state->addResourcesAsDBDirty(resource);
 						world_state->resource_manager->addResource(resource);
 
-						made_change = true;
 					} // End lock scope
 				}
 				catch(glare::Exception& e)
@@ -486,9 +549,50 @@ void MeshLODGenThread::doRun()
 
 			conPrint("MeshLODGenThread: Done generating LOD textures. (Elapsed: " + timer.elapsedStringNSigFigs(4));
 
+			// Generate each KTX texture, without holding the world lock.
+			conPrint("MeshLODGenThread: Generating KTX textures...");
+			timer.reset();
 
-			if(made_change)
-				world_state->markAsChanged();
+			for(size_t i=0; i<ktx_textures_to_gen.size(); ++i)
+			{
+				const KTXTextureToGen& tex_to_gen = ktx_textures_to_gen[i];
+				try
+				{
+					conPrint("MeshLODGenThread: Generating KTX texture with URL " + tex_to_gen.ktx_URL);
+
+					LODGeneration::generateKTXTexture(tex_to_gen.source_tex_abs_path, 
+						tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.ktx_tex_abs_path, 
+						allocator, task_manager);
+
+					// Now that we have generated the LOD model, add it to resources.
+					{ // lock scope
+						Lock lock(world_state->mutex);
+
+						const std::string raw_path = FileUtils::getFilename(tex_to_gen.ktx_tex_abs_path); // NOTE: assuming we can get raw/relative path from abs path like this.
+
+						ResourceRef resource = new Resource(
+							tex_to_gen.ktx_URL, // URL
+							raw_path, // raw local path
+							Resource::State_Present, // state
+							tex_to_gen.owner_id
+						);
+
+						world_state->addResourcesAsDBDirty(resource);
+						world_state->resource_manager->addResource(resource);
+
+						//made_change = true;
+					} // End lock scope
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint("MeshLODGenThread: excep while generating KTX texture: " + e.what());
+				}
+			}
+
+			conPrint("MeshLODGenThread: Done generating KTX textures. (Elapsed: " + timer.elapsedStringNSigFigs(4) + ")");
+
+
+			world_state->markAsChanged();
 
 			// PlatformUtils::Sleep(30*1000 * 100);
 			return; // Just run once for now.
