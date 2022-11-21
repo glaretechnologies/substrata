@@ -41,9 +41,16 @@ import {
 	getBVHKey
 } from './worldobject.js';
 import { ProximityLoader } from './proximityloader.js';
+//import TextureLoader from './graphics/textureLoader.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
+
+
+const texture_loader = new THREE.TextureLoader();
+//const texture_loader = new TextureLoader(Math.max(1, Math.floor((navigator.hardwareConcurrency ?? 4) / 2)));
+const USE_KTX_TEXTURES = true;
+
 
 const physics_world = new PhysicsWorld();
 
@@ -503,6 +510,20 @@ const loading_texture_URL_to_materials_map = new Map<string, Array<THREE.Materia
 const flip_y_matrix = new THREE.Matrix3();
 flip_y_matrix.set(1, 0, 0, 0, -1, 0, 0, 0, 1);
 
+
+// Convert a non-linear sRGB colour to linear sRGB.
+// See http://chilliant.blogspot.com/2012/08/srgb-approximations-for-hlsl.html, expression for C_lin_3.
+function convertToLinearSRGB(c: THREE.Color)
+{
+	const r2 = c.r * c.r;
+	const g2 = c.g * c.g;
+	const b2 = c.b * c.b;
+	c.r = c.r * r2 * 0.305306011 + r2 * 0.682171111 + c.r * 0.012522878;
+	c.g = c.g * g2 * 0.305306011 + g2 * 0.682171111 + c.g * 0.012522878;
+	c.b = c.b * b2 * 0.305306011 + b2 * 0.682171111 + c.b * 0.012522878;
+}
+
+
 // Sets fields of a three.js material from a Substrata WorldMaterial.
 // If the world material has a texture, will start downloading it, by enqueuing an item onto the download queue, if the texture is not already downloaded or downloading.
 // three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
@@ -518,7 +539,7 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 
 	if (world_mat.opacity.val < 1.0) {
 		// Try and make this look vaguely like the native engine transparent shader, which has quite desaturated colours for transparent mats.
-		three_mat.color.convertGammaToLinear(2.2);
+		convertToLinearSRGB(three_mat.color);
 		three_mat.color.r = 0.6 + three_mat.color.r * 0.4;
 		three_mat.color.g = 0.6 + three_mat.color.g * 0.4;
 		three_mat.color.b = 0.6 + three_mat.color.b * 0.4;
@@ -532,8 +553,9 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		const color_tex_has_alpha = world_mat.colourTexHasAlpha();
 		let lod_texture_URL = world_mat.getLODTextureURLForLevel(world_mat.colour_texture_url, ob_lod_level, color_tex_has_alpha);
 
-		lod_texture_URL = removeDotAndExtension(lod_texture_URL) + '.ktx2';
-		console.log('new lod_texture_URL: ' + lod_texture_URL);
+		if (USE_KTX_TEXTURES)
+			lod_texture_URL = removeDotAndExtension(lod_texture_URL) + '.ktx2';
+		//console.log('new lod_texture_URL: ' + lod_texture_URL);
 
 		if (color_tex_has_alpha)
 			three_mat.alphaTest = 0.5;
@@ -541,9 +563,11 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		//console.log("setThreeJSMaterial(): lod_texture_URL: " + lod_texture_URL);
 
 		let new_texture = null;
+		let is_empty_tex = false;
 		if (url_to_texture_map.has(lod_texture_URL)) {
 
-			new_texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
+			const existing_texture: THREE.Texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
+			new_texture = existing_texture.clone(); // Clone so that changes to e.g. the tex matrix don't effect this texture applied to other objects.
 		}
 		else { // Else texture has not been loaded:
 
@@ -570,27 +594,31 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 			}
 			else {
 				// console.log("Using placeholder_texture as placeholder");
-				new_texture = new THREE.Texture();
-				new_texture.image = placeholder_texture.image; // else use placeholder texture
-				new_texture.mipmaps = placeholder_texture.mipmaps;
+				new_texture = new THREE.Texture(); // Create an empty texture so we can set the tex matrix for it below.
+				is_empty_tex = true;
+				//new_texture.image = placeholder_texture.image; // else use placeholder texture
+				//new_texture.mipmaps = placeholder_texture.mipmaps;
 			}
 		}
 
-		if(new_texture) {
-			new_texture.needsUpdate = true; // Seems to be needed to get the texture to show.
+		if (new_texture) {
+			if (!is_empty_tex)
+				new_texture.needsUpdate = true; // Seems to be needed to get the texture to show.
 
 			new_texture.wrapS = THREE.RepeatWrapping;
 			new_texture.wrapT = THREE.RepeatWrapping;
+			new_texture.flipY = false;
 
-			new_texture.matrixAutoUpdate = false;
-			const mat = new THREE.Matrix3();
-			mat.set(
+			new_texture.matrixAutoUpdate = false; // Set this to false if you are specifying the uv-transform matrix directly.
+			const tex_matrix = new THREE.Matrix3();
+			tex_matrix.set(
 				world_mat.tex_matrix.x, world_mat.tex_matrix.y, 0,
 				world_mat.tex_matrix.z, world_mat.tex_matrix.w, 0,
 				0, 0, 1
 			);
-			// Flip the texture to keep consistency between native and web (three.js flips automatically)
-			new_texture.matrix = mat.multiply(flip_y_matrix);
+
+			new_texture.matrix = tex_matrix.premultiply(flip_y_matrix); // Flip the texture to keep consistency between native and web.
+
 			three_mat.map = new_texture;
 		}
 	}
@@ -745,8 +773,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 	if (download_queue_item.is_texture) {
 
-		
-		ktx_loader.load('resource/' + download_queue_item.URL,
+		let use_loader = USE_KTX_TEXTURES ? ktx_loader : texture_loader;
+		use_loader.load('resource/' + download_queue_item.URL,
 			function (texture) { // onLoad callback
 				num_resources_downloading--;
 
@@ -766,10 +794,13 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						//mat.map.image = texture.image; // Assign the texture image, but not the whole texture, because we want to keep the existing tex matrix etc..
 						//mat.map.needsUpdate = true; // Seems to be needed to get the texture to show.
 
-						if(mat.map) mat.map.dispose(); // Tex is created when material is added so dispose
-						texture.matrix = mat.map.matrix;
+						if (mat.map) mat.map.dispose(); // Tex is created when material is added so dispose
+						if (mat.map) texture.matrix = mat.map.matrix.clone(); // Use old texture matrix
 						texture.matrixAutoUpdate = false;
 						mat.map = texture;
+						mat.map.wrapS = THREE.RepeatWrapping;
+						mat.map.wrapT = THREE.RepeatWrapping;
+						mat.map.flipY = false;
 						mat.map.needsUpdate = true;
 						mat.needsUpdate = true;
 					}
