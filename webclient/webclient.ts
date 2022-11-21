@@ -565,7 +565,7 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		let new_texture = null;
 		let is_empty_tex = false;
 		if (url_to_texture_map.has(lod_texture_URL)) {
-
+			// console.log("Using texture '" + lod_texture_URL + "' from url_to_texture_map");
 			const existing_texture: THREE.Texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
 			new_texture = existing_texture.clone(); // Clone so that changes to e.g. the tex matrix don't effect this texture applied to other objects.
 		}
@@ -589,11 +589,11 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 			}
 
 			if(three_mat.map && three_mat.map.image) { // If the current material already has a texture assigned (from a different LOD level)
-				// console.log("Using existing image as placeholder");
+				// console.log("Using existing image as placeholder for  '" + lod_texture_URL + "' ");
 				// Just keep existing texture along with its mipmaps etc.
 			}
 			else {
-				// console.log("Using placeholder_texture as placeholder");
+				// console.log("Making new empty texture for  '" + lod_texture_URL + "' ");
 				new_texture = new THREE.Texture(); // Create an empty texture so we can set the tex matrix for it below.
 				is_empty_tex = true;
 				//new_texture.image = placeholder_texture.image; // else use placeholder texture
@@ -794,10 +794,16 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						//mat.map.image = texture.image; // Assign the texture image, but not the whole texture, because we want to keep the existing tex matrix etc..
 						//mat.map.needsUpdate = true; // Seems to be needed to get the texture to show.
 
+						console.assert(mat.map);
+
 						if (mat.map) mat.map.dispose(); // Tex is created when material is added so dispose
-						if (mat.map) texture.matrix = mat.map.matrix.clone(); // Use old texture matrix
-						texture.matrixAutoUpdate = false;
-						mat.map = texture;
+
+						const cloned_texture = texture.clone(); // Clone so the same texture isn't applied to multiple objects (needs to have different tex matrices etc.)
+
+						if (mat.map) cloned_texture.matrix = mat.map.matrix.clone(); // Use old/existing texture matrix (set from object state)
+
+						cloned_texture.matrixAutoUpdate = false;
+						mat.map = cloned_texture;
 						mat.map.wrapS = THREE.RepeatWrapping;
 						mat.map.wrapT = THREE.RepeatWrapping;
 						mat.map.flipY = false;
