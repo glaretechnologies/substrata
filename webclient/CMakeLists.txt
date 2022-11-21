@@ -19,6 +19,7 @@ set(webclient_root_files
 ../webclient/parcel.ts
 ../webclient/worldobject.ts
 ../webclient/utils.ts
+../webclient/proximityloader.ts
 )
 
 set(webclient_maths_files
@@ -39,6 +40,7 @@ set(webclient_physics_files
 ../webclient/physics/player.ts
 ../webclient/physics/types.ts
 ../webclient/physics/world.ts
+../webclient/physics/worker.ts
 )
 
 set(webclient_graphics_files
