@@ -13,9 +13,11 @@ Copyright Glare Technologies Limited 2021 -
 #include <Lock.h>
 #include <StringUtils.h>
 #include <PlatformUtils.h>
+#include <RuntimeCheck.h>
 #include <KillThreadMessage.h>
 #include <Timer.h>
 #include <TaskManager.h>
+#include <GeneralMemAllocator.h>
 #include <graphics/MeshSimplification.h>
 #include <graphics/formatdecoderobj.h>
 #include <graphics/FormatDecoderSTL.h>
@@ -26,10 +28,15 @@ Copyright Glare Technologies Limited 2021 -
 #include <graphics/Map2D.h>
 #include <graphics/ImageMap.h>
 #include <graphics/ImageMapSequence.h>
+#include <graphics/TextureProcessing.h>
+#include <graphics/KTXDecoder.h>
 #include <dll/include/IndigoMesh.h>
 #include <dll/include/IndigoException.h>
 #include <dll/IndigoStringUtils.h>
-
+#include <dll/IndigoStringUtils.h>
+#if !GUI_CLIENT
+#include <encoder/basisu_comp.h>
+#endif
 
 namespace LODGeneration
 {
@@ -166,15 +173,14 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 			int new_w, new_h;
 			if(map->getMapWidth() > map->getMapHeight())
 			{
-				new_w = new_max_w_h;
+				new_w = myMin((int)map->getMapWidth(), new_max_w_h);
 				new_h = myMax(min_w_h, (int)((float)new_w * (float)map->getMapHeight() / (float)map->getMapWidth()));
 			}
 			else
 			{
-				new_h = new_max_w_h;
+				new_h = myMin((int)map->getMapHeight(), new_max_w_h);
 				new_w = myMax(min_w_h, (int)((float)new_h * (float)map->getMapWidth() / (float)map->getMapHeight()));
 			}
-
 
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
 
@@ -205,6 +211,112 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 		else
 			throw glare::Exception("Unhandled image type: " + base_tex_path);
 	}
+}
+
+
+void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx_tex_path, 
+	Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager)
+{
+#if GUI_CLIENT
+	throw glare::Exception("generateKTXTexture not supported.");
+#else
+
+	int new_max_w_h;
+	if(lod_level == base_lod_level)
+		new_max_w_h = 4096;
+	else
+		new_max_w_h = (lod_level == 0) ? 1024 : ((lod_level == 1) ? 256 : 64);
+
+	const int min_w_h = 1;
+
+	Reference<Map2D> map;
+	if(hasExtension(src_tex_path, "gif"))
+	{
+		throw glare::Exception("Not handling KTX encoding of GIFs yet");
+	}
+	else
+	{
+		map = ImageDecoding::decodeImage(".", src_tex_path); // Load texture from disk and decode it.
+
+		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
+		{
+			int new_w, new_h;
+			if(map->getMapWidth() > map->getMapHeight())
+			{
+				new_w = myMin((int)map->getMapWidth(), new_max_w_h);
+				new_h = myMax(min_w_h, (int)((float)new_w * (float)map->getMapHeight() / (float)map->getMapWidth()));
+			}
+			else
+			{
+				new_h = myMin((int)map->getMapHeight(), new_max_w_h);
+				new_w = myMax(min_w_h, (int)((float)new_h * (float)map->getMapWidth() / (float)map->getMapHeight()));
+			}
+
+
+			new_w = Maths::roundUpToMultipleOfPowerOf2(new_w, 4); // There seems to be a WebGL / 3.js limitation where the texture dimensions must be a multiple of 4.
+			new_h = Maths::roundUpToMultipleOfPowerOf2(new_h, 4);
+
+			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
+
+			Reference<Map2D> resized_map = imagemap->resizeMidQuality(new_w, new_h, task_manager);
+			runtimeCheck(resized_map.isType<ImageMapUInt8>());
+
+			writeBasisUniversalKTXFile(*resized_map.downcast<ImageMapUInt8>(), ktx_tex_path);
+		}
+		else
+			throw glare::Exception("Unhandled image type: " + src_tex_path);
+	}
+#endif
+}
+
+
+void writeBasisUniversalKTXFile(const ImageMapUInt8& imagemap, const std::string& path)
+{
+#if GUI_CLIENT
+	throw glare::Exception("writeBasisUniversalKTXFile not supported.");
+#else
+
+	basisu::basisu_encoder_init(); // Can be called multiple times harmlessly.
+
+	Timer timer;
+
+	basisu::image img(imagemap.getData(), (uint32)imagemap.getWidth(), (uint32)imagemap.getHeight(), (uint32)imagemap.getN());
+
+	basisu::basis_compressor_params params;
+
+	params.m_source_images.push_back(img);
+	params.m_perceptual = true;
+	
+	params.m_write_output_basis_files = true;
+	params.m_out_filename = path;
+	params.m_create_ktx2_file = true;
+
+	params.m_mip_gen = true; // Generate mipmaps for each source image
+	params.m_mip_srgb = true; // Convert image to linear before filtering, then back to sRGB
+
+	params.m_quality_level = 255;
+
+	// Need to be set if m_quality_level is not explicitly set.
+	//params.m_max_endpoint_clusters = 16128;
+	//params.m_max_selector_clusters = 16128;
+
+	basisu::job_pool jpool(PlatformUtils::getNumLogicalProcessors());
+	params.m_pJob_pool = &jpool;
+
+	basisu::basis_compressor basisCompressor;
+	basisu::enable_debug_printf(false);
+
+	const bool res = basisCompressor.init(params);
+	if(!res)
+		throw glare::Exception("Failed to create basisCompressor");
+
+	basisu::basis_compressor::error_code result = basisCompressor.process();
+
+	if(result != basisu::basis_compressor::cECSuccess)
+		throw glare::Exception("basisCompressor.process() failed.");
+
+	conPrint("Basisu compression and writing of KTX file took " + timer.elapsedStringNSigFigs(3));
+#endif
 }
 
 
@@ -295,8 +407,19 @@ void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& 
 void LODGeneration::test()
 {
 	glare::TaskManager task_manager;
+
+	Reference<glare::GeneralMemAllocator> allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/10000000);
+
 	{
-		generateLODTexture("C:\\Users\\nick\\Downloads\\front_lit.png", 1, "C:\\Users\\nick\\Downloads\\front_lit_lod1.png", task_manager);
+//		generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/italy_bolsena_flag_flowers_stairs_01.jpg",
+//			/*base lod level=*/0, /*lod level=*/0, "D:/files/basisu/italy_bolsena_flag_flowers_stairs_01.ktx2", allocator, task_manager);
+//
+//		generateKTXTexture("N:\\substrata\\trunk\\resources\\obstacle.png",
+//			/*base lod level=*/0, /*lod level=*/0, "N:\\substrata\\trunk\\resources\\obstacle.ktx2", allocator, task_manager);
+
+		generateKTXTexture("d:/art/Tokyo-M3RA0J.jpg", /*base lod level=*/0, /*lod level=*/0, "d:/files/basisu/Tokyo-M3RA0J.ktx2", allocator, task_manager);
+
+		//generateLODTexture("C:\\Users\\nick\\Downloads\\front_lit.png", 1, "C:\\Users\\nick\\Downloads\\front_lit_lod1.png", task_manager);
 	}
 	{
 		BatchedMeshRef original_mesh = loadModel(TestUtils::getTestReposDir() + "/testfiles/bmesh/voxcarROTATE_glb_9223594900774194301.bmesh");

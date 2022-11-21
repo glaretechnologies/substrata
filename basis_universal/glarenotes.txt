@@ -1,0 +1,8 @@
+Checked out from https://github.com/BinomialLLC/basis_universal.git master
+around 18th nov 2022.
+
+There are a few minor changes to the source, search for "NICK GLARE NEWCODE":
+
+* Added #ifndef WIN32_LEAN_AND_MEAN
+* Added BASIS_NO_IMAGE_READERS
+
