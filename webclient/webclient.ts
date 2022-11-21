@@ -791,12 +791,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						const mat = waiting_mats[z];
 
 						//console.log("Assigning texture '" + download_queue_item.URL + "' to waiting material: " + mat);
-						//mat.map.image = texture.image; // Assign the texture image, but not the whole texture, because we want to keep the existing tex matrix etc..
-						//mat.map.needsUpdate = true; // Seems to be needed to get the texture to show.
 
 						console.assert(mat.map);
-
-						if (mat.map) mat.map.dispose(); // Tex is created when material is added so dispose
 
 						const cloned_texture = texture.clone(); // Clone so the same texture isn't applied to multiple objects (needs to have different tex matrices etc.)
 
