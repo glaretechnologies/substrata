@@ -980,7 +980,7 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 static const float MAX_AUDIO_DIST = 60;
 
 
-// For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
+// For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it, if we are not already downloading it.
 void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level)
 {
 	WorldObject::GetDependencyOptions options;
@@ -8460,6 +8460,9 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	this->logged_in_user_flags = 0;
 
 	user_details->setTextAsNotLoggedIn();
+
+	ui->onlineUsersTextEdit->clear();
+	ui->chatMessagesTextEdit->clear();
 
 
 	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
