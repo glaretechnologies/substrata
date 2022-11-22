@@ -29,7 +29,7 @@ import {
 	writeUID
 } from './types.js';
 import { Avatar } from './avatar.js';
-import { removeDotAndExtension, toUTF8Array } from './utils.js';
+import { decRefCount, RefCountWrapper, removeDotAndExtension, toUTF8Array } from './utils.js';
 import { Parcel, readParcelFromNetworkStreamGivenID } from './parcel.js';
 import {
 	MESH_LOADED,
@@ -498,7 +498,8 @@ const url_to_geom_map = new Map<string, GeomInfo>(); // Map from model_url to 3.
 const loading_model_URL_set = new Set<string>(); // set of URLS of models that we are currently loading/downloading.
 
 
-const url_to_texture_map = new Map<string, THREE.Texture>(); // Map from texture url to 3.js Texture object
+//const url_to_texture_map = new Map<string, THREE.Texture>(); // Map from texture url to 3.js Texture object
+const url_to_texture_map = new Map<string, RefCountWrapper<THREE.Texture>>(); // Map from texture url to wrapped 3.js Texture object
 
 const loading_texture_URL_set = new Set<string>(); // Set of URL for textures that are being loaded.
 
@@ -566,7 +567,10 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		let is_empty_tex = false;
 		if (url_to_texture_map.has(lod_texture_URL)) {
 			// console.log("Using texture '" + lod_texture_URL + "' from url_to_texture_map");
-			const existing_texture: THREE.Texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
+			const entry = url_to_texture_map.get(lod_texture_URL);
+			entry.incRef();
+			const existing_texture: THREE.Texture = entry.ref; // This texture has already been loaded, use it
+			// const existing_texture: THREE.Texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
 			new_texture = existing_texture.clone(); // Clone so that changes to e.g. the tex matrix don't effect this texture applied to other objects.
 		}
 		else { // Else texture has not been loaded:
@@ -773,7 +777,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 	if (download_queue_item.is_texture) {
 
-		let use_loader = USE_KTX_TEXTURES ? ktx_loader : texture_loader;
+		const use_loader = USE_KTX_TEXTURES ? ktx_loader : texture_loader;
 		use_loader.load('resource/' + download_queue_item.URL,
 			function (texture) { // onLoad callback
 				num_resources_downloading--;
@@ -808,10 +812,11 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 					}
 
 					loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
+					loading_texture_URL_set.delete(download_queue_item.URL);
 				}
 
 				// Add to our loaded texture map
-				url_to_texture_map.set(download_queue_item.URL, texture);
+				url_to_texture_map.set(download_queue_item.URL, new RefCountWrapper(texture));
 			},
 			function (err) { // onError callback
 				num_resources_downloading--;
@@ -1574,6 +1579,26 @@ function animate() {
 }
 
 
+function removeAndDeleteMaterials (world_ob: WorldObject): void {
+	const materials = world_ob.mats;
+
+	for(let i = 0; i !== materials.length; ++i) {
+		const mat = materials[i];
+		// Get appropriate texture for LOD level
+		if(mat.colour_texture_url) {
+			const key = mat.getLODTextureURLForLevel(mat.colour_texture_url, world_ob.loaded_lod_level, mat.colourTexHasAlpha());
+			const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
+			decRefCount(url_to_texture_map, lodKey);
+		}
+		if(mat.emission_texture_url) {
+			// No alpha for emissive?
+			const key = mat.getLODTextureURLForLevel(mat.emission_texture_url, world_ob.loaded_lod_level, false);
+			const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
+			decRefCount(url_to_texture_map, lodKey);
+		}
+	}
+}
+
 function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
 	// Remove from three.js scene
 	if (world_ob.mesh) {
@@ -1585,6 +1610,7 @@ function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
 			console.assert(geom_info.use_count >= 1);
 			geom_info.use_count--;
 			// console.log("removeAndDeleteGLAndPhysicsObjectsForOb(): URL: '" + world_ob.loaded_mesh_URL + "': new geom_info.use_count: " + geom_info.use_count.toString());
+			removeAndDeleteMaterials(world_ob);
 			if (geom_info.use_count == 0) {
 				url_to_geom_map.delete(world_ob.loaded_mesh_URL);
 				// console.log("removed '" + world_ob.loaded_mesh_URL + "' from url_to_geom_map as use_count reached zero.");
