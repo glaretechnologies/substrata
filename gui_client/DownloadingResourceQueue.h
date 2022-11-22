@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <maths/Vec4.h>
 #include <maths/vec3.h>
 #include <vector>
+#include <unordered_set>
 
 
 struct DownloadQueueItem
@@ -53,7 +54,7 @@ public:
 	DownloadingResourceQueue();
 	~DownloadingResourceQueue();
 
-	void enqueueItem(const DownloadQueueItem& item);
+	void enqueueItem(const DownloadQueueItem& item); // Adds item to queue if it is not already in queue.
 
 	size_t size() const;
 
@@ -66,4 +67,5 @@ private:
 	Condition nonempty;
 	size_t begin_i									GUARDED_BY(mutex);
 	js::Vector<DownloadQueueItem, 16> items			GUARDED_BY(mutex);
+	std::unordered_set<std::string> item_URL_set	GUARDED_BY(mutex);
 };

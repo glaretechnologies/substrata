@@ -26,13 +26,20 @@ void DownloadingResourceQueue::enqueueItem(const DownloadQueueItem& item/*const 
 {
 	assert(item.pos.isFinite());
 
+	bool already_inserted;
 	{
 		Lock lock(mutex);
 
-		items.push_back(item);
+		already_inserted = item_URL_set.find(item.URL) != item_URL_set.end();
+		if(!already_inserted)
+		{
+			items.push_back(item);
+			item_URL_set.insert(item.URL);
+		}
 	}
 
-	nonempty.notify(); // Notify one or more suspended threads that there is an item in the queue.
+	if(!already_inserted)
+		nonempty.notify(); // Notify one or more suspended threads that there is an item in the queue.
 }
 
 
@@ -64,7 +71,7 @@ void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 	{
 		Lock lock(mutex);
 
-		//Timer timer;
+		Timer timer;
 
 		QueueItemDistComparator comparator;
 		comparator.campos = campos;
@@ -78,7 +85,7 @@ void DownloadingResourceQueue::sortQueue(const Vec3d& campos_) // Sort queue
 			conPrint("item " + toString(i) + ": " + items[i].URL + ", (" + doubleToStringNSigFigs(items[i].pos.getDist(campos), 3) + " m away)");
 		}*/
 
-		//conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4));
+		//conPrint("!!!!Sorting download queue (" + toString(items.size() - begin_i) + " items) took " + timer.elapsedStringNSigFigs(4) + " (begin_i: " + toString(begin_i) + ")");
 	}
 }
 
@@ -94,6 +101,7 @@ void DownloadingResourceQueue::dequeueItemsWithTimeOut(double wait_time_seconds,
 		for(size_t i=0; (i<max_num_items) && (begin_i < items.size()); ++i) // while we have removed <= max_num_items and there are still items in the queue:
 		{
 			items_out.push_back(items[begin_i]);
+			item_URL_set.erase(items[begin_i].URL);
 			begin_i++;
 		}
 		return;
@@ -104,6 +112,7 @@ void DownloadingResourceQueue::dequeueItemsWithTimeOut(double wait_time_seconds,
 	for(size_t i=0; (i<max_num_items) && (begin_i < items.size()); ++i) // while we have removed <= max_num_items and there are still items in the queue:
 	{
 		items_out.push_back(items[begin_i]);
+		item_URL_set.erase(items[begin_i].URL);
 		begin_i++;
 	}
 }
