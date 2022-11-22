@@ -93,3 +93,42 @@ export function filenameExtension(filename: string): string {
 export function removeDotAndExtension(filename: string): string {
 	return filename.split('.').slice(0, -1).join('.');
 }
+
+// Handles reference counting of a THREE disposable type
+export class RefCountWrapper <T> {
+	private readonly ref_: T | null;
+	private count_: number;
+	cb?: (ref: T) => void;
+
+	constructor (ref: T, dispose?: (ref: T) => void) {
+		this.ref_ = ref;
+		this.count_ = 1;
+		this.cb = dispose;
+	}
+
+	public get ref (): T | null { return this.count_ > 0 ? this.ref_ : null; }
+	public get count (): number { return this.count_; }
+
+	public incRef (): number {
+		this.count_ += 1;
+		return this.count_;
+	}
+
+	public decRef (): number {
+		this.count_ -= 1;
+		if(this.count_ === 0) {
+			// @ts-expect-error - incomplete type
+			this.cb != null ? this.cb(this.ref_) : this.ref_?.dispose();
+		}
+		return this.count_;
+	}
+}
+
+export function decRefCount<T> (table: Map<string, RefCountWrapper<T>>, key: string): boolean {
+	const entry = table.get(key);
+	if(entry && entry.decRef() === 0) {
+			table.delete(key);
+			return true; // Entry was removed
+	}
+	return false; // Entry still exists
+}
