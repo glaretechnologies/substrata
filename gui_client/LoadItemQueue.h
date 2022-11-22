@@ -21,7 +21,7 @@ struct LoadItemQueueItem
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	static float sizeFactorForAABBWS(const js::AABBox& aabb_ws)
+	static float sizeFactorForAABBWS(const js::AABBox& aabb_ws, float importance_factor)
 	{
 		// object projected angle    theta ~= aabb_ws.longestLength() / ob_dist
 		
@@ -31,7 +31,7 @@ struct LoadItemQueueItem
 
 		const float min_len = 1.f; // Objects smaller than 1 m are considered just as important as 1 m wide objects.
 
-		return 1.f / myMax(min_len, aabb_ws.longestLength());
+		return 1.f / (myMax(min_len, aabb_ws.longestLength()) * importance_factor);
 	}
 
 	Vec4f pos;
@@ -54,8 +54,8 @@ public:
 	~LoadItemQueue();
 
 	void enqueueItem(const WorldObject& ob, const glare::TaskRef& task, float task_max_dist);
-	void enqueueItem(const Avatar& ob, const glare::TaskRef& task, float task_max_dist);
-	void enqueueItem(const Vec4f& pos, const js::AABBox aabb_ws, const glare::TaskRef& task, float task_max_dist);
+	void enqueueItem(const Avatar& ob, const glare::TaskRef& task, float task_max_dist, bool our_avatar);
+	void enqueueItem(const Vec4f& pos, const js::AABBox aabb_ws, const glare::TaskRef& task, float task_max_dist, float importance_factor);
 	void enqueueItem(const Vec4f& pos, float size_factor, const glare::TaskRef& task, float task_max_dist);
 
 	void clear();

@@ -842,7 +842,7 @@ static inline bool isValidLightMapURL(const std::string& URL)
 }
 
 
-void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, float max_dist_for_ob_lod_level, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
+void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
 {
 	if(isValidImageTextureURL(texture_url))
 	{
@@ -857,7 +857,7 @@ void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(aabb_ws.centroid(), aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level);
+					load_item_queue.enqueueItem(aabb_ws.centroid(), aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level, importance_factor);
 			}
 		}
 	}
@@ -869,9 +869,9 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 
 	// Start loading lightmap
@@ -895,20 +895,23 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 }
 
 
-void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level, float max_dist_for_ob_lod_level)
+void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar)
 {
 	// approx AABB of avatar
 	const js::AABBox aabb_ws( 
-		av.pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, -2.f, 0),
+		av.pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, 2.f, 0),
 		av.pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
 	);
+
+	// Prioritise laoding our avatar first.
+	const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 }
 
@@ -1018,7 +1021,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 				DownloadingResourceInfo info;
 				info.use_sRGB = url_info.use_sRGB;
 				info.pos = ob->pos;
-				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws, /*importance_factor=*/1.f);
 
 				js::AABBox aabb_ws = ob->aabb_ws;
 				if(aabb_ws.isEmpty())
@@ -1031,7 +1034,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 }
 
 
-void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level)
+void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar)
 {
 	std::set<DependencyURL> dependency_URLs;
 	ob->getDependencyURLSet(ob_lod_level, dependency_URLs);
@@ -1056,14 +1059,16 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 			{
 				const js::AABBox aabb_ws( // approx AABB
-					ob->pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, -2.f, 0),
+					ob->pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, 2.f, 0),
 					ob->pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
 				);
+
+				const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
 				DownloadingResourceInfo info;
 				info.use_sRGB = url_info.use_sRGB;
 				info.pos = ob->pos;
-				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws, our_avatar_importance_factor);
 
 
 				startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
@@ -1626,6 +1631,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 // Also enqueue any downloads for missing resources such as textures.
 void MainWindow::loadModelForAvatar(Avatar* avatar)
 {
+	const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+
 	const int ob_lod_level = avatar->getLODLevel(cam_controller.getPosition());
 	const int ob_model_lod_level = ob_lod_level;
 
@@ -1671,9 +1678,9 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 	try
 	{
 		// Start downloading any resources we don't have that the object uses.
-		startDownloadingResourcesForAvatar(avatar, ob_lod_level);
+		startDownloadingResourcesForAvatar(avatar, ob_lod_level, our_avatar);
 
-		startLoadingTexturesForAvatar(*avatar, ob_lod_level, max_dist_for_ob_lod_level);
+		startLoadingTexturesForAvatar(*avatar, ob_lod_level, max_dist_for_ob_lod_level, our_avatar);
 
 		// Add any objects with gif or mp4 textures to the set of animated objects.
 		/*for(size_t i=0; i<avatar->materials.size(); ++i)
@@ -1727,7 +1734,6 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 				ui->glWidget->opengl_engine->addObject(avatar->graphics.skinned_gl_ob);
 
 				// If we just loaded the graphics for our own avatar, see if there is a gesture animation we should be playing, and if so, play it.
-				const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
 				if(our_avatar)
 				{
 					std::string gesture_name;
@@ -1759,7 +1765,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
-					load_item_queue.enqueueItem(*avatar, load_model_task, max_dist_for_ob_model_lod_level);
+					load_item_queue.enqueueItem(*avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
 				}
 			}
 		}
@@ -1987,7 +1993,7 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 					DownloadingResourceInfo info;
 					info.use_sRGB = true;
 					info.pos = ob->pos;
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws);
+					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws, /*importance factor=*/1.f);
 
 					startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
 				}
