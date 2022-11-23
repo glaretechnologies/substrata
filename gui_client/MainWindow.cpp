@@ -6085,6 +6085,9 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			// Convert texture paths on the object to URLs
 			avatar.convertLocalPathsToURLS(*this->resource_manager);
 
+			// Generate LOD textures for materials, if not already present on disk.
+			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *resource_manager, task_manager);
+
 			// Send AvatarFullUpdate message to server
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
 			writeToNetworkStream(avatar, scratch_packet);
@@ -6316,6 +6319,41 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(const WorldObject& o
 }
 
 
+// Set material COLOUR_TEX_HAS_ALPHA_FLAG and MIN_LOD_LEVEL_IS_NEGATIVE_1 as applicable
+void MainWindow::setMaterialFlagsForObject(WorldObject* ob)
+{
+	for(size_t z=0; z<ob->materials.size(); ++z)
+	{
+		WorldMaterial* mat = ob->materials[z].ptr();
+		if(mat)
+		{
+			if(!mat->colour_texture_url.empty())
+			{
+				if(FileUtils::fileExists(mat->colour_texture_url)) // If this was a local path:
+				{
+					try
+					{
+						const std::string local_tex_path = mat->colour_texture_url;
+						Map2DRef tex = texture_server->getTexForPath(base_dir_path, local_tex_path); // Get from texture server so it's cached.
+
+						const bool has_alpha = LODGeneration::textureHasAlphaChannel(local_tex_path, tex);
+						BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
+
+						// If the texture is very high res, set minimum texture lod level to -1.  Lod level 0 will be the texture resized to 1024x1024 or below.
+						const bool is_hi_res = tex->getMapWidth() > 1024 || tex->getMapHeight() > 1024;
+						BitUtils::setOrZeroBit(mat->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, is_hi_res);
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("Error while trying to load texture: " + e.what());
+					}
+				}
+			}
+		}
+	}
+}
+
+
 // Create a voxel or generic (mesh) object on server.
 // Convert mesh to bmesh if needed, Generate mesh LODs if needed.
 // Copy files to resource dir if not there already.
@@ -6383,10 +6421,13 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 
 	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
+	setMaterialFlagsForObject(new_world_object.ptr());
+
+
 	// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
 	WorldObject::GetDependencyOptions options;
 	std::set<DependencyURL> paths;
-	new_world_object->getDependencyURLSet(/*ob_lod_level=*/0, options, paths);
+	new_world_object->getDependencyURLSetBaseLevel(options, paths);
 	for(auto it = paths.begin(); it != paths.end(); ++it)
 	{
 		const std::string path = it->URL;
@@ -6400,6 +6441,10 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 
 	// Convert texture paths on the object to URLs
 	new_world_object->convertLocalPathsToURLS(*this->resource_manager);
+
+	// Generate LOD textures for materials, if not already present on disk.
+	// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
+	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, task_manager);
 
 	// Send CreateObject message to server
 	{
@@ -7880,11 +7925,13 @@ void MainWindow::objectEditedSlot()
 		time_since_object_edited.reset();
 		force_new_undo_edit = false;
 
+		setMaterialFlagsForObject(selected_ob.ptr());
+
 		// Copy all dependencies into resource directory if they are not there already.
 		// URLs will actually be paths from editing for now.
 		WorldObject::GetDependencyOptions options;
 		std::vector<DependencyURL> URLs;
-		this->selected_ob->appendDependencyURLs(/*ob_lod_level=*/0, options, URLs);
+		this->selected_ob->appendDependencyURLsBaseLevel(options, URLs);
 
 		try
 		{
@@ -7908,36 +7955,7 @@ void MainWindow::objectEditedSlot()
 			msgBox.exec();
 		}
 
-		// Set material COLOUR_TEX_HAS_ALPHA_FLAG as applicable
-		for(size_t z=0; z<selected_ob->materials.size(); ++z)
-		{
-			WorldMaterial* mat = selected_ob->materials[z].ptr();
-			if(mat)
-			{
-				if(!mat->colour_texture_url.empty())
-				{
-					if(FileUtils::fileExists(mat->colour_texture_url)) // If this was a local path:
-					{
-						try
-						{
-							const std::string local_tex_path = mat->colour_texture_url;
-							Map2DRef tex = texture_server->getTexForPath(base_dir_path, local_tex_path); // Get from texture server so it's cached.
-
-							const bool has_alpha = LODGeneration::textureHasAlphaChannel(local_tex_path, tex);
-							BitUtils::setOrZeroBit(mat->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
-
-							// If the texture is very high res, set minimum texture lod level to -1.  Lod level 0 will be the texture resized to 1024x1024 or below.
-							const bool is_hi_res = tex->getMapWidth() > 1024 || tex->getMapHeight() > 1024;
-							BitUtils::setOrZeroBit(mat->flags, WorldMaterial::MIN_LOD_LEVEL_IS_NEGATIVE_1, is_hi_res);
-						}
-						catch(glare::Exception& e)
-						{
-							conPrint("Error while trying to load texture: " + e.what());
-						}
-					}
-				}
-			}
-		}
+		
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 

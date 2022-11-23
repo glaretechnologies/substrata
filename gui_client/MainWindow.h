@@ -215,6 +215,7 @@ private:
 	void updateInstancedCopiesOfObject(WorldObject* ob);
 	void removeInstancesOfObject(WorldObject* ob);
 	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
+	void setMaterialFlagsForObject(WorldObject* ob);
 	
 	bool objectModificationAllowed(const WorldObject& ob);
 	bool objectModificationAllowedWithMsg(const WorldObject& ob, const std::string& action); // Also shows error notifications if modification is not allowed.

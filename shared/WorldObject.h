@@ -125,10 +125,12 @@ public:
 	};
 	void appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
 	void appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out) const;
-	void appendDependencyURLsBaseLevel(std::vector<DependencyURL>& URLs_out) const;
+	void appendDependencyURLsBaseLevel( const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const;
+
 	void getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
 	void getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out) const;
-	void getDependencyURLSetBaseLevel(std::set<DependencyURL>& URLS_out) const;
+	void getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const;
+
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
