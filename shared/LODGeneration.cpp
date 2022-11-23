@@ -439,9 +439,12 @@ void LODGeneration::test()
 	glare::TaskManager task_manager;
 
 	Reference<glare::GeneralMemAllocator> allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/10000000);
-
+	
+	
 	try
 	{
+		//------------------------------------------- Test LOD texture generation -------------------------------------------
+
 		// Test writing an 8 bit RGB LOD image.
 		{
 			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn2c08_lod.jpg";
@@ -494,6 +497,40 @@ void LODGeneration::test()
 			testAssert(lod_map_uint8->getHeight() == 32);
 			testAssert(lod_map_uint8->getN() == 4); // Should have alpha
 		}
+
+
+		//------------------------------------------- Test KTX texture generation -------------------------------------------
+		// Test writing an 8 bit RGB KTX image.
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn2c08_lod.ktx2";
+			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c08.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, allocator, task_manager);
+
+			testAssert(FileUtils::fileExists(lod_tex_path));
+			//Reference<Map2D> lod_map = ImageDecoding::decodeImage(".", lod_tex_path);
+			//testAssert(lod_map.isType<CompressedImage>());
+			//testAssert(lod_map->getMapWidth() == 32);
+			//testAssert(lod_map->getMapHeight() == 32);
+			//testAssert(lod_map->numChannels() == 3);
+		}
+
+		// Test with a 16-bit png base texture.   basn2c16 has 3x16 bits rgb color (see http://www.schaik.com/pngsuite/pngsuite_bas_png.html)
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn2c16_lod.ktx2";
+			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c16.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, allocator, task_manager);
+
+			testAssert(FileUtils::fileExists(lod_tex_path));
+		}
+
+		// Test converting an 8 bit RGBA image to KTX.   basn6a08 is 3x8 bits rgb color + 8 bit alpha-channel
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn6a08_lod.ktx2";
+			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn6a08.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, allocator, task_manager);
+
+			testAssert(FileUtils::fileExists(lod_tex_path));
+		}
+
+
+
 	}
 	catch(glare::Exception& e)
 	{
