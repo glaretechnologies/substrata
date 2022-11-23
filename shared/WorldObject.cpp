@@ -151,7 +151,7 @@ std::string WorldObject::getLODLightmapURL(const std::string& base_lightmap_url,
 }
 
 
-void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out)
+void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const
 {
 	if(!model_url.empty())
 	{
@@ -170,7 +170,7 @@ void WorldObject::appendDependencyURLs(int ob_lod_level, const GetDependencyOpti
 }
 
 
-void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out)
+void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>& URLs_out) const
 {
 	if(!model_url.empty())
 	{
@@ -194,7 +194,23 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>
 }
 
 
-void WorldObject::getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out)
+void WorldObject::appendDependencyURLsBaseLevel(std::vector<DependencyURL>& URLs_out) const
+{
+	if(!model_url.empty())
+		URLs_out.push_back(DependencyURL(model_url));
+
+	if(!lightmap_url.empty())
+		URLs_out.push_back(DependencyURL(lightmap_url));
+
+	for(size_t i=0; i<materials.size(); ++i)
+		materials[i]->appendDependencyURLsBaseLevel(URLs_out);
+
+	if(!audio_source_url.empty())
+		URLs_out.push_back(DependencyURL(audio_source_url));
+}
+
+
+void WorldObject::getDependencyURLSet(int ob_lod_level, const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const
 {
 	std::vector<DependencyURL> URLs;
 	this->appendDependencyURLs(ob_lod_level, options, URLs);
@@ -203,10 +219,19 @@ void WorldObject::getDependencyURLSet(int ob_lod_level, const GetDependencyOptio
 }
 
 
-void WorldObject::getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out)
+void WorldObject::getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& URLS_out) const
 {
 	std::vector<DependencyURL> URLs;
 	this->appendDependencyURLsForAllLODLevels(URLs);
+
+	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
+}
+
+
+void WorldObject::getDependencyURLSetBaseLevel(std::set<DependencyURL>& URLS_out) const
+{
+	std::vector<DependencyURL> URLs;
+	this->appendDependencyURLsBaseLevel(URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }

@@ -39,8 +39,9 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx_tex_path, 
 	Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager);
 
-// Generate LOD textures for materials, if not already present on disk.
-void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, glare::TaskManager& task_manager);
+// Generate LOD and KTX textures for materials, if not already present on disk.
+//void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, 
+//	Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager);
 
 void writeBasisUniversalKTXFile(const ImageMapUInt8& imagemap, const std::string& path);
 

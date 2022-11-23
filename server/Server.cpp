@@ -380,6 +380,7 @@ int main(int argc, char *argv[])
 		if(parsed_args.isArgPresent("--test") || parsed_args.getUnnamedArg() == "--test")
 		{
 #if BUILD_TESTS
+			//WorldMaterial::test();
 			LODGeneration::test();
 			//WebSocketTests::test();
 			//SafeBrowsingCheckerThread::test(server.world_state.ptr());
@@ -402,7 +403,7 @@ int main(int argc, char *argv[])
 			//Keccak256::test();
 			//Infura::test();
 			//AccountHandlers::test();
-			web::WebWorkerThreadTests::test();
+			//web::WebWorkerThreadTests::test();
 			////SHA256::test();
 			////CryptoRNG::test();
 			//StringUtils::test();
@@ -720,8 +721,7 @@ int main(int argc, char *argv[])
 		conPrint("Done.");
 		//----------------------------------------------- End launch substrata protocol server -----------------------------------------------
 
-
-		thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
+		server.mesh_lod_gen_thread_manager.addThread(new MeshLODGenThread(server.world_state.ptr()));
 
 		//thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 
@@ -1050,7 +1050,6 @@ int main(int argc, char *argv[])
 					save_state_timer.reset(); // Reset timer so we don't try again straight away.
 				}
 			}
-
 
 			loop_iter++;
 		} // End of main server loop

@@ -6055,21 +6055,6 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 				// Copy model to local resources dir.  UploadResourceThread will read from here.
 				this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
-
-				// Generate LOD models, to be uploaded to server also.
-				for(int lvl = 1; lvl <= 2; ++lvl)
-				{
-					const std::string lod_URL  = WorldObject::getLODModelURLForLevel(mesh_URL, lvl);
-
-					if(!resource_manager->isFileForURLPresent(lod_URL))
-					{
-						const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
-
-						LODGeneration::generateLODModel(d.loaded_mesh, lvl, local_lod_path);
-
-						resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
-					}
-				}
 			}
 
 			const Vec3d cam_angles = this->cam_controller.getAngles();
@@ -6099,9 +6084,6 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 			// Convert texture paths on the object to URLs
 			avatar.convertLocalPathsToURLS(*this->resource_manager);
-
-			// Generate LOD textures for materials, if not already present on disk.
-			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *resource_manager, task_manager);
 
 			// Send AvatarFullUpdate message to server
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
@@ -6380,24 +6362,6 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 		aabb_os = loaded_mesh->aabb_os;
 
 		new_world_object->max_model_lod_level = (loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-
-		// Generate LOD models, to be uploaded to server also.
-		if(new_world_object->max_model_lod_level == 2)
-		{
-			for(int lvl = 1; lvl <= 2; ++lvl)
-			{
-				const std::string lod_URL  = WorldObject::getLODModelURLForLevel(new_world_object->model_url, lvl);
-
-				if(!resource_manager->isFileForURLPresent(lod_URL))
-				{
-					const std::string local_lod_path = resource_manager->pathForURL(lod_URL); // Path where we will write the LOD model.  UploadResourceThread will read from here.
-
-					LODGeneration::generateLODModel(loaded_mesh, lvl, local_lod_path);
-
-					resource_manager->setResourceAsLocallyPresentForURL(lod_URL);
-				}
-			}
-		}
 	}
 	else
 	{
@@ -6436,9 +6400,6 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 
 	// Convert texture paths on the object to URLs
 	new_world_object->convertLocalPathsToURLS(*this->resource_manager);
-
-	// Generate LOD textures for materials, if not already present on disk.
-	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, task_manager);
 
 	// Send CreateObject message to server
 	{
@@ -6956,10 +6917,6 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 
 	// Convert texture paths on the object to URLs
 	new_world_object->convertLocalPathsToURLS(*this->resource_manager);
-
-	// Generate LOD textures for materials, if not already present on disk.
-	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, task_manager);
-
 
 	// Send CreateObject message to server
 	MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
@@ -7983,8 +7940,6 @@ void MainWindow::objectEditedSlot()
 		}
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
-
-		LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, task_manager);
 
 		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
 		const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);

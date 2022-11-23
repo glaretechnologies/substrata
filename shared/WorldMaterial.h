@@ -26,7 +26,10 @@ struct ScalarVal
 	ScalarVal() : val(0.0f) {}
 	explicit ScalarVal(const float v) : val(v) {}
 
-	void appendDependencyURLs(bool tex_use_sRGB, std::vector<DependencyURL>& paths_out);
+	void appendDependencyURLs(bool tex_use_sRGB, int material_min_lod_level, int lod_level, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLsAllLODLevels(bool tex_use_sRGB, int material_min_lod_level, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLsBaseLevel(bool tex_use_sRGB, std::vector<DependencyURL>& paths_out) const;
+
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 	bool operator == (const ScalarVal& b) const
@@ -62,7 +65,7 @@ public:
 	Colour3f emission_rgb;
 	std::string emission_texture_url;
 
-	ScalarVal roughness;
+	ScalarVal roughness; // Metallic-roughness texture URL will be stored in roughness.texture_url.
 	ScalarVal metallic_fraction;
 	ScalarVal opacity;
 
@@ -120,14 +123,15 @@ public:
 
 	std::string getLODTextureURLForLevel(const std::string& base_texture_url, int level, bool has_alpha) const;
 
-	void appendDependencyURLs(int lod_level, std::vector<DependencyURL>& paths_out);
+	void appendDependencyURLs(int lod_level, std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLsAllLODLevels(std::vector<DependencyURL>& paths_out) const;
+	void appendDependencyURLsBaseLevel(std::vector<DependencyURL>& paths_out) const;
 
-	void appendDependencyURLsAllLODLevels(std::vector<DependencyURL>& paths_out);
-	
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
 	static Reference<WorldMaterial> loadFromXMLOnDisk(const std::string& path);
 
+	static void test();
 private:
 };
 

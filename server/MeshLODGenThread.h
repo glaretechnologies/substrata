@@ -1,35 +1,33 @@
 /*=====================================================================
 MeshLODGenThread.h
 ------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
 
+#include "../shared/UID.h"
 #include <MessageableThread.h>
-#include <Platform.h>
-#include <MyThread.h>
-#include <EventFD.h>
-#include <ThreadManager.h>
-#include <SocketInterface.h>
-#include <set>
-#include <string>
-#include <vector>
-class PrintOutput;
-class ThreadMessageSink;
-class DataStore;
 class ServerAllWorldsState;
+
+
+class CheckGenResourcesForObject : public ThreadMessage
+{
+public:
+	UID ob_uid;
+};
 
 
 /*=====================================================================
 MeshLODGenThread
 ----------------
+Does generation of LOD meshes, also LOD textures and KTX textures.
 
+Lightmap LOD generation is done by LightMapperBot.
 =====================================================================*/
 class MeshLODGenThread : public MessageableThread
 {
 public:
-	// May throw glare::Exception from constructor if EventFD init fails.
 	MeshLODGenThread(ServerAllWorldsState* world_state);
 
 	virtual ~MeshLODGenThread();

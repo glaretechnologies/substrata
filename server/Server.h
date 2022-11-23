@@ -34,10 +34,14 @@ public:
 
 	double getCurrentGlobalTime() const;
 
+	void enqueueMsgForLodGenThread(ThreadMessageRef msg) { mesh_lod_gen_thread_manager.enqueueMessage(msg); }
+
 	Reference<ServerAllWorldsState> world_state;
 
 	// Connected client worker threads
 	ThreadManager worker_thread_manager;
+
+	ThreadManager mesh_lod_gen_thread_manager;
 
 	std::string screenshot_dir;
 
