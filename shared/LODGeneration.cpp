@@ -231,8 +231,7 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 }
 
 
-void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx_tex_path, 
-	Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager)
+void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int lod_level, const std::string& ktx_tex_path, glare::TaskManager& task_manager)
 {
 #if GUI_CLIENT
 	throw glare::Exception("generateKTXTexture not supported.");
@@ -438,9 +437,6 @@ void LODGeneration::test()
 
 	glare::TaskManager task_manager;
 
-	Reference<glare::GeneralMemAllocator> allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/10000000);
-	
-	
 	try
 	{
 		//------------------------------------------- Test LOD texture generation -------------------------------------------
@@ -503,7 +499,7 @@ void LODGeneration::test()
 		// Test writing an 8 bit RGB KTX image.
 		{
 			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn2c08_lod.ktx2";
-			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c08.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, allocator, task_manager);
+			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c08.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, task_manager);
 
 			testAssert(FileUtils::fileExists(lod_tex_path));
 			//Reference<Map2D> lod_map = ImageDecoding::decodeImage(".", lod_tex_path);
@@ -516,7 +512,7 @@ void LODGeneration::test()
 		// Test with a 16-bit png base texture.   basn2c16 has 3x16 bits rgb color (see http://www.schaik.com/pngsuite/pngsuite_bas_png.html)
 		{
 			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn2c16_lod.ktx2";
-			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c16.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, allocator, task_manager);
+			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c16.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, task_manager);
 
 			testAssert(FileUtils::fileExists(lod_tex_path));
 		}
@@ -524,7 +520,7 @@ void LODGeneration::test()
 		// Test converting an 8 bit RGBA image to KTX.   basn6a08 is 3x8 bits rgb color + 8 bit alpha-channel
 		{
 			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn6a08_lod.ktx2";
-			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn6a08.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, allocator, task_manager);
+			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn6a08.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, task_manager);
 
 			testAssert(FileUtils::fileExists(lod_tex_path));
 		}

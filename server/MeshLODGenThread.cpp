@@ -16,7 +16,6 @@ Copyright Glare Technologies Limited 2022 -
 #include <PlatformUtils.h>
 #include <Timer.h>
 #include <TaskManager.h>
-#include <GeneralMemAllocator.h>
 #include <FileUtils.h>
 #include <KillThreadMessage.h>
 #include <graphics/ImageMap.h>
@@ -75,13 +74,6 @@ struct MeshLODGenThreadTexInfo
 {
 	bool has_alpha;
 	bool is_hi_res;
-};
-
-
-struct WorldObjectInfo
-{
-	ServerWorldState* world;
-	WorldObjectRef ob;
 };
 
 
@@ -343,7 +335,7 @@ static void checkMaterialFlags(ServerAllWorldsState* world_state, ServerWorldSta
 
 
 // Make tasks for generating LOD level textures.
-static void checForLODTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
+static void checkForLODTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered, //std::map<std::string, MeshLODGenThreadTexInfo>& tex_info,
 	std::vector<LODTextureToGen>& textures_to_gen)
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
@@ -404,7 +396,7 @@ static void checForLODTexturesToGenerate(ServerAllWorldsState* world_state, Serv
 
 
 // Make tasks for generating KTX level textures.
-static void checForKTXTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered,
+static void checkForKTXTexturesToGenerate(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob, std::unordered_set<std::string>& lod_URLs_considered,
 	std::vector<KTXTextureToGen>& ktx_textures_to_gen)
 {
 	for(size_t z=0; z<ob->materials.size(); ++z)
@@ -466,8 +458,6 @@ void MeshLODGenThread::doRun()
 
 	glare::TaskManager task_manager("MeshLODGenThread task manager");
 
-	Reference<glare::GeneralMemAllocator> allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/1024ull * 1024ull * 1024ull);
-
 	// When this thread starts, we will do a full scan over all objects.
 	// After that we will wait for CheckGenResourcesForObject messages, which instruct this thread to just scan a single object.
 	bool do_initial_full_scan = true;
@@ -476,7 +466,7 @@ void MeshLODGenThread::doRun()
 	{
 		while(1)
 		{
-			UID ob_to_scan = UID::invalidUID();
+			UID ob_to_scan_UID = UID::invalidUID();
 			if(!do_initial_full_scan)
 			{
 				// Block until we have a message
@@ -486,9 +476,9 @@ void MeshLODGenThread::doRun()
 				if(dynamic_cast<CheckGenResourcesForObject*>(msg.ptr()))
 				{
 					const CheckGenResourcesForObject* check_gen_msg = static_cast<CheckGenResourcesForObject*>(msg.ptr());
-					ob_to_scan = check_gen_msg->ob_uid;
+					ob_to_scan_UID = check_gen_msg->ob_uid;
 
-					conPrint("MeshLODGenThread: Received message to scan object with UID " + ob_to_scan.toString());
+					conPrint("MeshLODGenThread: Received message to scan object with UID " + ob_to_scan_UID.toString());
 				}
 				else if(dynamic_cast<KillThreadMessage*>(msg.ptr()))
 				{
@@ -496,90 +486,74 @@ void MeshLODGenThread::doRun()
 				}
 			}
 
-			// Get vector of objects from world state.
-			std::vector<WorldObjectInfo> obs;
-
-			if(do_initial_full_scan)
-			{
-				Timer timer;
-				{
-					Lock lock(world_state->mutex);
-					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
-					{
-						ServerWorldState* world = world_it->second.ptr();
-
-						for(auto it = world->objects.begin(); it != world->objects.end(); ++it)
-						{
-							WorldObjectInfo info;
-							info.world = world;
-							info.ob = it->second;
-							obs.push_back(info);
-						}
-					}
-				} // end lock scope
-
-				conPrint("MeshLODGenThread: Getting vector of objects took " + timer.elapsedStringNSigFigs(4) + " (" + toString(obs.size()) + " objects)");
-				do_initial_full_scan = false;
-			}
-			else
-			{
-				// Look up object for UID
-				Lock lock(world_state->mutex);
-				for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
-				{
-					ServerWorldState* world = world_it->second.ptr();
-					if(world->objects.count(ob_to_scan) > 0)
-					{
-						WorldObjectInfo info;
-						info.world = world;
-						info.ob = world->objects.find(ob_to_scan)->second;
-						obs.push_back(info);
-					}
-				}
-			}
-
 			// Iterate over objects.
 			// Set object world space AABB.
 			// Set object max_lod_level if it is a generic model or a voxel model.
 			// Compute list of LOD meshes we need to generate.
-			//
-			// Note that we will do this without holding the world lock, since we are calling loadModel which is slow.
 			std::vector<LODMeshToGen> meshes_to_gen;
 			std::vector<LODTextureToGen> lod_textures_to_gen;
 			std::vector<KTXTextureToGen> ktx_textures_to_gen;
 			std::unordered_set<std::string> lod_URLs_considered;
 			std::map<std::string, MeshLODGenThreadTexInfo> tex_info; // Cached info about textures
 
-			conPrint("MeshLODGenThread: Iterating over " + toString(obs.size()) + " object(s)...");
+			conPrint("MeshLODGenThread: Iterating over world object(s)...");
 			Timer timer;
-
-			for(size_t i=0; i<obs.size(); ++i)
+			
 			{
-				if(i % 10000 == 0)
-					conPrint("Processing ob " + toString(i) + " / " + toString(obs.size()));
+				Lock lock(world_state->mutex);
 
-				ServerWorldState* world = obs[i].world;
-				WorldObject* ob = obs[i].ob.ptr();
-
-				try
+				if(do_initial_full_scan)
 				{
-					if(false)
-						checkWorldSpaceAABB(world_state, world, ob);
+					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
+					{
+						ServerWorldState* world = world_it->second.ptr();
+						for(auto it = world->objects.begin(); it != world->objects.end(); ++it)
+						{
+							WorldObject* ob = it->second.ptr();
+							try
+							{
+								if(false)
+									checkWorldSpaceAABB(world_state, world, ob);
 
-					if(false)
-						checkMaterialFlags(world_state, world, ob, tex_info);
+								if(false)
+									checkMaterialFlags(world_state, world, ob, tex_info);
 
-					checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
-
-					checForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
-
-					checForKTXTexturesToGenerate(world_state, world, ob, lod_URLs_considered, ktx_textures_to_gen);
+								checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
+								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
+								checkForKTXTexturesToGenerate(world_state, world, ob, lod_URLs_considered, ktx_textures_to_gen);
+							}
+							catch(glare::Exception& e)
+							{
+								conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
+							}
+						}
+					}
+					do_initial_full_scan = false;
 				}
-				catch(glare::Exception& e)
+				else
 				{
-					conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
+					// Look up object for UID
+					for(auto world_it = world_state->world_states.begin(); world_it != world_state->world_states.end(); ++world_it)
+					{
+						ServerWorldState* world = world_it->second.ptr();
+						auto res = world->objects.find(ob_to_scan_UID);
+						if(res != world->objects.end())
+						{
+							WorldObject* ob = res->second.ptr();
+							try
+							{
+								checkForLODMeshesToGenerate(world_state, world, ob, lod_URLs_considered, meshes_to_gen);
+								checkForLODTexturesToGenerate(world_state, world, ob, lod_URLs_considered, lod_textures_to_gen);
+								checkForKTXTexturesToGenerate(world_state, world, ob, lod_URLs_considered, ktx_textures_to_gen);
+							}
+							catch(glare::Exception& e)
+							{
+								conPrint("\tMeshLODGenThread: exception while processing object: " + e.what());
+							}
+						}
+					}
 				}
-			}
+			} // End lock scope
 
 			conPrint("MeshLODGenThread: Iterating over objects took " + timer.elapsedStringNSigFigs(4) + ", meshes_to_gen: " + toString(meshes_to_gen.size()) + ", lod_textures_to_gen: " + toString(lod_textures_to_gen.size()) + 
 				", ktx_textures_to_gen: " + toString(ktx_textures_to_gen.size()));
@@ -634,7 +608,7 @@ void MeshLODGenThread::doRun()
 				const LODTextureToGen& tex_to_gen = lod_textures_to_gen[i];
 				try
 				{
-					conPrint("MeshLODGenThread: Generating LOD texture with URL " + tex_to_gen.lod_URL);
+					conPrint("MeshLODGenThread:  (LOD tex " + toString(i) + " / " + toString(lod_textures_to_gen.size()) + "): Generating LOD texture with URL " + tex_to_gen.lod_URL);
 
 					LODGeneration::generateLODTexture(tex_to_gen.source_tex_abs_path, tex_to_gen.lod_level, tex_to_gen.LOD_tex_abs_path, task_manager);
 
@@ -673,11 +647,11 @@ void MeshLODGenThread::doRun()
 				const KTXTextureToGen& tex_to_gen = ktx_textures_to_gen[i];
 				try
 				{
-					conPrint("MeshLODGenThread: (" + toString(i) + " / " + toString(ktx_textures_to_gen.size()) + "): Generating KTX texture with URL " + tex_to_gen.ktx_URL);
+					conPrint("MeshLODGenThread: (ktx " + toString(i) + " / " + toString(ktx_textures_to_gen.size()) + "): Generating KTX texture with URL " + tex_to_gen.ktx_URL);
 
 					LODGeneration::generateKTXTexture(tex_to_gen.source_tex_abs_path, 
 						tex_to_gen.base_lod_level, tex_to_gen.lod_level, tex_to_gen.ktx_tex_abs_path, 
-						allocator, task_manager);
+						task_manager);
 
 					// Now that we have generated the LOD model, add it to resources.
 					{ // lock scope
@@ -695,7 +669,6 @@ void MeshLODGenThread::doRun()
 						world_state->addResourcesAsDBDirty(resource);
 						world_state->resource_manager->addResource(resource);
 
-						//made_change = true;
 					} // End lock scope
 				}
 				catch(glare::Exception& e)
