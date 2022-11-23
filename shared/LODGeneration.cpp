@@ -182,6 +182,8 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 			map = convertUInt16ToUInt8ImageMap(static_cast<const ImageMap<uint16, UInt16ComponentValueTraits>&>(*map));
 		}
 
+		if((map->getMapWidth() == 0) || (map->getMapHeight() == 0) || (map->numChannels() == 0))
+			throw glare::Exception("Invalid image dimensions (zero)");
 
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
 		{
@@ -259,6 +261,9 @@ void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int
 		{
 			map = convertUInt16ToUInt8ImageMap(static_cast<const ImageMap<uint16, UInt16ComponentValueTraits>&>(*map));
 		}
+
+		if((map->getMapWidth() == 0) || (map->getMapHeight() == 0) || (map->numChannels() == 0))
+			throw glare::Exception("Invalid image dimensions (zero)");
 
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
 		{
@@ -525,7 +530,13 @@ void LODGeneration::test()
 			testAssert(FileUtils::fileExists(lod_tex_path));
 		}
 
+		// Test with a very small (1x1) texture.
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/1x1.ktx2";
+			generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/1x1.png", /*base lod level=*/0, /*lod level=*/1, lod_tex_path, task_manager);
 
+			testAssert(FileUtils::fileExists(lod_tex_path));
+		}
 
 	}
 	catch(glare::Exception& e)
