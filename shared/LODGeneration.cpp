@@ -152,6 +152,16 @@ bool textureHasAlphaChannel(const std::string& tex_path, Map2DRef map)
 }
 
 
+// From TextureProcessing.cpp
+static Reference<ImageMapUInt8> convertUInt16ToUInt8ImageMap(const ImageMap<uint16, UInt16ComponentValueTraits>& map)
+{
+	Reference<ImageMapUInt8> new_map = new ImageMapUInt8(map.getWidth(), map.getHeight(), map.getN());
+	for(size_t i=0; i<map.getDataSize(); ++i)
+		new_map->getData()[i] = (uint8)(map.getData()[i] / 256);
+	return new_map;
+}
+
+
 void generateLODTexture(const std::string& base_tex_path, int lod_level, const std::string& LOD_tex_path, glare::TaskManager& task_manager)
 {
 	const int new_max_w_h = (lod_level == 0) ? 1024 : ((lod_level == 1) ? 256 : 64);
@@ -160,13 +170,18 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 	Reference<Map2D> map;
 	if(hasExtension(base_tex_path, "gif"))
 	{
-		//map = GIFDecoder::decodeImageSequence(base_tex_path);
-
 		GIFDecoder::resizeGIF(base_tex_path, LOD_tex_path, new_max_w_h);
 	}
 	else
 	{
 		map = ImageDecoding::decodeImage(".", base_tex_path); // Load texture from disk and decode it.
+
+		// If the map is a 16-bit image, convert to 8-bit first.
+		if(dynamic_cast<const ImageMap<uint16, UInt16ComponentValueTraits>*>(map.ptr()))
+		{
+			map = convertUInt16ToUInt8ImageMap(static_cast<const ImageMap<uint16, UInt16ComponentValueTraits>&>(*map));
+		}
+
 
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
 		{
@@ -209,7 +224,7 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 			}
 		}
 		else
-			throw glare::Exception("Unhandled image type: " + base_tex_path);
+			throw glare::Exception("Unhandled image type (not ImageMapUInt8): " + base_tex_path);
 	}
 }
 
@@ -255,6 +270,8 @@ void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int
 
 			new_w = Maths::roundUpToMultipleOfPowerOf2(new_w, 4); // There seems to be a WebGL / 3.js limitation where the texture dimensions must be a multiple of 4.
 			new_h = Maths::roundUpToMultipleOfPowerOf2(new_h, 4);
+
+			conPrint("\tMaking basis file with dimensions " + toString(new_w) + " * " + toString(new_h) + " for LOD level " + toString(lod_level));
 
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
 
@@ -345,7 +362,10 @@ bool texHasAlpha(const std::string& tex_path, std::map<std::string, bool>& tex_h
 }
 
 
-void generateLODTexturesForTexURL(const std::string& base_tex_URL, bool texture_has_alpha, WorldMaterial* mat, ResourceManager& resource_manager, glare::TaskManager& task_manager)
+#if 0 // Not used currently, LOD is done on server.
+
+void generateLODAndKTXTexturesForTexURL(const std::string& base_tex_URL, bool texture_has_alpha, WorldMaterial* mat, ResourceManager& resource_manager, 
+	Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager)
 {
 	const int start_lod_level = mat->minLODLevel() + 1;
 
@@ -371,23 +391,59 @@ void generateLODTexturesForTexURL(const std::string& base_tex_URL, bool texture_
 			}
 		}
 	}
+
+	if(false)
+	{
+		for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
+		{
+			const std::string lod_URL = mat->getLODTextureURLForLevel(base_tex_URL, lvl, texture_has_alpha); // Lod URL without ktx extension (jpg or PNG)
+			if(!hasExtension(lod_URL, "ktx2"))
+			{
+				const std::string ktx_lod_URL = ::eatExtension(lod_URL) + "ktx2";
+
+				if(!resource_manager.isFileForURLPresent(ktx_lod_URL)) // If the the KTX texture has not already been created:
+				{
+					const std::string local_base_path = resource_manager.pathForURL(base_tex_URL); // Path of the original source texture.
+					const std::string local_ktx_path  = resource_manager.pathForURL(ktx_lod_URL); // Path where we will write the LOD texture.
+
+					conPrint("Generating KTX texture '" + local_ktx_path + "'...");
+					try
+					{
+						LODGeneration::generateKTXTexture(/*src tex path=*/local_base_path, /*base lod level=*/mat->minLODLevel(), lvl, local_ktx_path, allocator, task_manager);
+
+						resource_manager.setResourceAsLocallyPresentForURL(lod_URL); // Mark as present
+					}
+					catch(glare::Exception& e)
+					{
+						conPrint("Warning: Error while generating KTX texture: " + e.what());
+					}
+				}
+			}
+		}
+	}
 }
+#endif
 
 
-// Generate LOD textures for materials, if not already present on disk.
-void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, glare::TaskManager& task_manager)
+// Generate LOD and KTX textures for materials, if not already present on disk.
+#if 0
+void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager)
 {
 	for(size_t z=0; z<materials.size(); ++z)
 	{
 		WorldMaterial* mat = materials[z].ptr();
 
 		if(!mat->colour_texture_url.empty())
-			generateLODTexturesForTexURL(mat->colour_texture_url, mat->colourTexHasAlpha(), mat, resource_manager, task_manager);
+			generateLODAndKTXTexturesForTexURL(mat->colour_texture_url, mat->colourTexHasAlpha(), mat, resource_manager, allocator, task_manager);
+
+		if(!mat->roughness.texture_url.empty())
+			generateLODAndKTXTexturesForTexURL(mat->roughness.texture_url, /*texture_has_alpha=*/false, mat, resource_manager, allocator, task_manager);
 
 		if(!mat->emission_texture_url.empty())
-			generateLODTexturesForTexURL(mat->emission_texture_url, /*texture_has_alpha=*/false, mat, resource_manager, task_manager);
+			generateLODAndKTXTexturesForTexURL(mat->emission_texture_url, /*texture_has_alpha=*/false, mat, resource_manager, allocator, task_manager);
 	}
 }
+#endif
 
 
 } // end namespace LODGeneration
@@ -406,9 +462,74 @@ void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& 
 
 void LODGeneration::test()
 {
+	conPrint("LODGeneration::test()");
+
 	glare::TaskManager task_manager;
 
 	Reference<glare::GeneralMemAllocator> allocator = new glare::GeneralMemAllocator(/*arena_size_B=*/10000000);
+
+	try
+	{
+		// Test writing an 8 bit RGB LOD image.
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn2c08_lod.jpg";
+			generateLODTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c08.png", /*lod level=*/1, lod_tex_path, task_manager);
+
+			Reference<Map2D> lod_map = ImageDecoding::decodeImage(".", lod_tex_path);
+			testAssert(lod_map.isType<ImageMapUInt8>());
+			ImageMapUInt8Ref lod_map_uint8 = lod_map.downcast<ImageMapUInt8>();
+			testAssert(lod_map_uint8->getWidth() == 32);
+			testAssert(lod_map_uint8->getHeight() == 32);
+			testAssert(lod_map_uint8->getN() == 3);
+		}
+
+		// Test with a 16-bit png base texture.   basn2c16 has 3x16 bits rgb color (see http://www.schaik.com/pngsuite/pngsuite_bas_png.html)
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn2c16_lod.jpg";
+			generateLODTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn2c16.png", /*lod level=*/1, lod_tex_path, task_manager);
+
+			Reference<Map2D> lod_map = ImageDecoding::decodeImage(".", lod_tex_path);
+			testAssert(lod_map.isType<ImageMapUInt8>());
+			ImageMapUInt8Ref lod_map_uint8 = lod_map.downcast<ImageMapUInt8>();
+			testAssert(lod_map_uint8->getWidth() == 32);
+			testAssert(lod_map_uint8->getHeight() == 32);
+			testAssert(lod_map_uint8->getN() == 3);
+		}
+
+		// Test converting an 8 bit RGBA image to both jpg and png.   basn6a08 is 3x8 bits rgb color + 8 bit alpha-channel
+
+		// Write to JPG
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn6a08_lod.jpg";
+			generateLODTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn6a08.png", /*lod level=*/1, lod_tex_path, task_manager);
+
+			Reference<Map2D> lod_map = ImageDecoding::decodeImage(".", lod_tex_path);
+			testAssert(lod_map.isType<ImageMapUInt8>());
+			ImageMapUInt8Ref lod_map_uint8 = lod_map.downcast<ImageMapUInt8>();
+			testAssert(lod_map_uint8->getWidth() == 32);
+			testAssert(lod_map_uint8->getHeight() == 32);
+			testAssert(lod_map_uint8->getN() == 3);
+		}
+		// Write to PNG
+		{
+			const std::string lod_tex_path = PlatformUtils::getTempDirPath() + "/basn6a08_lod.png";
+			generateLODTexture(TestUtils::getTestReposDir() + "/testfiles/pngs/PngSuite-2013jan13/basn6a08.png", /*lod level=*/1, lod_tex_path, task_manager);
+
+			Reference<Map2D> lod_map = ImageDecoding::decodeImage(".", lod_tex_path);
+			testAssert(lod_map.isType<ImageMapUInt8>());
+			ImageMapUInt8Ref lod_map_uint8 = lod_map.downcast<ImageMapUInt8>();
+			testAssert(lod_map_uint8->getWidth() == 32);
+			testAssert(lod_map_uint8->getHeight() == 32);
+			testAssert(lod_map_uint8->getN() == 4); // Should have alpha
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		failTest(e.what());
+	}
+
+
+
 
 	{
 //		generateKTXTexture(TestUtils::getTestReposDir() + "/testfiles/italy_bolsena_flag_flowers_stairs_01.jpg",
@@ -417,23 +538,25 @@ void LODGeneration::test()
 //		generateKTXTexture("N:\\substrata\\trunk\\resources\\obstacle.png",
 //			/*base lod level=*/0, /*lod level=*/0, "N:\\substrata\\trunk\\resources\\obstacle.ktx2", allocator, task_manager);
 
-		generateKTXTexture("d:/art/Tokyo-M3RA0J.jpg", /*base lod level=*/0, /*lod level=*/0, "d:/files/basisu/Tokyo-M3RA0J.ktx2", allocator, task_manager);
+	//	generateKTXTexture("d:/art/Tokyo-M3RA0J.jpg", /*base lod level=*/0, /*lod level=*/0, "d:/files/basisu/Tokyo-M3RA0J.ktx2", allocator, task_manager);
 
 		//generateLODTexture("C:\\Users\\nick\\Downloads\\front_lit.png", 1, "C:\\Users\\nick\\Downloads\\front_lit_lod1.png", task_manager);
 	}
-	{
-		BatchedMeshRef original_mesh = loadModel(TestUtils::getTestReposDir() + "/testfiles/bmesh/voxcarROTATE_glb_9223594900774194301.bmesh");
-		printVar(original_mesh->numVerts());
-		printVar(original_mesh->numIndices());
+	//{
+	//	BatchedMeshRef original_mesh = loadModel(TestUtils::getTestReposDir() + "/testfiles/bmesh/voxcarROTATE_glb_9223594900774194301.bmesh");
+	//	printVar(original_mesh->numVerts());
+	//	printVar(original_mesh->numIndices());
+	//
+	//	const std::string lod_model_path = "D:\\tempfiles\\car_lod1.bmesh"; // PlatformUtils::getTempDirPath() + "/lod.bmesh";
+	//	generateLODModel(original_mesh, /*lod level=*/1, lod_model_path);
+	//
+	//
+	//	BatchedMeshRef lod_mesh = loadModel(lod_model_path);
+	//	printVar(lod_mesh->numVerts());
+	//	printVar(lod_mesh->numIndices());
+	//}
 
-		const std::string lod_model_path = "D:\\tempfiles\\car_lod1.bmesh"; // PlatformUtils::getTempDirPath() + "/lod.bmesh";
-		generateLODModel(original_mesh, /*lod level=*/1, lod_model_path);
-
-
-		BatchedMeshRef lod_mesh = loadModel(lod_model_path);
-		printVar(lod_mesh->numVerts());
-		printVar(lod_mesh->numIndices());
-	}
+	conPrint("LODGeneration::test() done");
 }
 
 

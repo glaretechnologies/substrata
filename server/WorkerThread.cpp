@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "Server.h"
 #include "Screenshot.h"
 #include "SubEthTransaction.h"
+#include "MeshLODGenThread.h"
 #include "../webserver/LoginHandlers.h"
 #include "../shared/Protocol.h"
 #include "../shared/UID.h"
@@ -289,6 +290,40 @@ void WorkerThread::handleResourceUploadConnection()
 
 			enqueuePacketToBroadcast(scratch_packet, server);
 		}
+
+
+		// See if this is a resource that is used by an object.  If so, send a message to the MeshLodGenThread to generate LOD levels and KTX versions of it if applicable.
+		{
+			std::vector<UID> ob_uids; // UIDs of objects which use this resource
+			{
+				Lock lock(server->world_state->mutex);
+				for(auto world_it = server->world_state->world_states.begin(); world_it != server->world_state->world_states.end(); ++world_it)
+				{
+					ServerWorldState* world = world_it->second.ptr();
+
+					std::set<DependencyURL> URLs;
+					for(auto it = world->objects.begin(); it != world->objects.end(); ++it)
+					{
+						const WorldObject* ob = it->second.ptr();
+						URLs.clear();
+						ob->getDependencyURLSetForAllLODLevels(URLs);
+
+						if(URLs.count(DependencyURL(URL)) > 0) // If the object uses the resource with this URL:
+						{
+							ob_uids.push_back(ob->uid);
+						}
+					}
+				}
+			}
+
+			for(size_t i=0; i<ob_uids.size(); ++i)
+			{
+				CheckGenResourcesForObject* msg = new CheckGenResourcesForObject();
+				msg->ob_uid = ob_uids[i];
+				server->enqueueMsgForLodGenThread(msg);
+			}
+		}
+
 
 		// Connection will be closed by the client after the client has uploaded the file.  Wait for the connection to close.
 		socket->startGracefulShutdown(); // Tell sockets lib to send a FIN packet to the client.
@@ -1295,7 +1330,7 @@ void WorkerThread::doRun()
 
 											// Process resources
 											std::set<DependencyURL> URLs;
-											ob->getDependencyURLSetForAllLODLevels(URLs);
+											ob->getDependencyURLSetBaseLevel(URLs);
 											for(auto it = URLs.begin(); it != URLs.end(); ++it)
 												sendGetFileMessageIfNeeded(it->URL);
 										}
@@ -1422,7 +1457,7 @@ void WorkerThread::doRun()
 								new_ob->creator_name = client_user_name;
 
 								std::set<DependencyURL> URLs;
-								new_ob->getDependencyURLSetForAllLODLevels(URLs);
+								new_ob->getDependencyURLSetBaseLevel(URLs);
 								for(auto it = URLs.begin(); it != URLs.end(); ++it)
 									sendGetFileMessageIfNeeded(it->URL);
 
