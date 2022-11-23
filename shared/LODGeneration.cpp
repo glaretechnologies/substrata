@@ -197,6 +197,8 @@ void generateLODTexture(const std::string& base_tex_path, int lod_level, const s
 				new_w = myMax(min_w_h, (int)((float)new_h * (float)map->getMapWidth() / (float)map->getMapHeight()));
 			}
 
+			conPrint("\tMaking LOD texture with dimensions " + toString(new_w) + " * " + toString(new_h) + " for LOD level " + toString(lod_level));
+
 			const ImageMapUInt8* imagemap = map.downcastToPtr<ImageMapUInt8>();
 
 			Reference<Map2D> resized_map = imagemap->resizeMidQuality(new_w, new_h, task_manager);
@@ -252,6 +254,12 @@ void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int
 	else
 	{
 		map = ImageDecoding::decodeImage(".", src_tex_path); // Load texture from disk and decode it.
+
+		// If the map is a 16-bit image, convert to 8-bit first.
+		if(dynamic_cast<const ImageMap<uint16, UInt16ComponentValueTraits>*>(map.ptr()))
+		{
+			map = convertUInt16ToUInt8ImageMap(static_cast<const ImageMap<uint16, UInt16ComponentValueTraits>&>(*map));
+		}
 
 		if(dynamic_cast<const ImageMapUInt8*>(map.ptr()))
 		{
@@ -362,10 +370,7 @@ bool texHasAlpha(const std::string& tex_path, std::map<std::string, bool>& tex_h
 }
 
 
-#if 0 // Not used currently, LOD is done on server.
-
-void generateLODAndKTXTexturesForTexURL(const std::string& base_tex_URL, bool texture_has_alpha, WorldMaterial* mat, ResourceManager& resource_manager, 
-	Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager)
+void generateLODTexturesForTexURL(const std::string& base_tex_URL, bool texture_has_alpha, WorldMaterial* mat, ResourceManager& resource_manager, glare::TaskManager& task_manager)
 {
 	const int start_lod_level = mat->minLODLevel() + 1;
 
@@ -391,59 +396,26 @@ void generateLODAndKTXTexturesForTexURL(const std::string& base_tex_URL, bool te
 			}
 		}
 	}
-
-	if(false)
-	{
-		for(int lvl = mat->minLODLevel(); lvl <= 2; ++lvl)
-		{
-			const std::string lod_URL = mat->getLODTextureURLForLevel(base_tex_URL, lvl, texture_has_alpha); // Lod URL without ktx extension (jpg or PNG)
-			if(!hasExtension(lod_URL, "ktx2"))
-			{
-				const std::string ktx_lod_URL = ::eatExtension(lod_URL) + "ktx2";
-
-				if(!resource_manager.isFileForURLPresent(ktx_lod_URL)) // If the the KTX texture has not already been created:
-				{
-					const std::string local_base_path = resource_manager.pathForURL(base_tex_URL); // Path of the original source texture.
-					const std::string local_ktx_path  = resource_manager.pathForURL(ktx_lod_URL); // Path where we will write the LOD texture.
-
-					conPrint("Generating KTX texture '" + local_ktx_path + "'...");
-					try
-					{
-						LODGeneration::generateKTXTexture(/*src tex path=*/local_base_path, /*base lod level=*/mat->minLODLevel(), lvl, local_ktx_path, allocator, task_manager);
-
-						resource_manager.setResourceAsLocallyPresentForURL(lod_URL); // Mark as present
-					}
-					catch(glare::Exception& e)
-					{
-						conPrint("Warning: Error while generating KTX texture: " + e.what());
-					}
-				}
-			}
-		}
-	}
 }
-#endif
 
 
 // Generate LOD and KTX textures for materials, if not already present on disk.
-#if 0
-void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, Reference<glare::GeneralMemAllocator> allocator, glare::TaskManager& task_manager)
+void generateLODTexturesForMaterialsIfNotPresent(std::vector<WorldMaterialRef>& materials, ResourceManager& resource_manager, glare::TaskManager& task_manager)
 {
 	for(size_t z=0; z<materials.size(); ++z)
 	{
 		WorldMaterial* mat = materials[z].ptr();
 
 		if(!mat->colour_texture_url.empty())
-			generateLODAndKTXTexturesForTexURL(mat->colour_texture_url, mat->colourTexHasAlpha(), mat, resource_manager, allocator, task_manager);
+			generateLODTexturesForTexURL(mat->colour_texture_url, mat->colourTexHasAlpha(), mat, resource_manager, task_manager);
 
 		if(!mat->roughness.texture_url.empty())
-			generateLODAndKTXTexturesForTexURL(mat->roughness.texture_url, /*texture_has_alpha=*/false, mat, resource_manager, allocator, task_manager);
+			generateLODTexturesForTexURL(mat->roughness.texture_url, /*texture_has_alpha=*/false, mat, resource_manager, task_manager);
 
 		if(!mat->emission_texture_url.empty())
-			generateLODAndKTXTexturesForTexURL(mat->emission_texture_url, /*texture_has_alpha=*/false, mat, resource_manager, allocator, task_manager);
+			generateLODTexturesForTexURL(mat->emission_texture_url, /*texture_has_alpha=*/false, mat, resource_manager, task_manager);
 	}
 }
-#endif
 
 
 } // end namespace LODGeneration

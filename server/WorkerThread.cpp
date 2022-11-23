@@ -1330,7 +1330,8 @@ void WorkerThread::doRun()
 
 											// Process resources
 											std::set<DependencyURL> URLs;
-											ob->getDependencyURLSetBaseLevel(URLs);
+											WorldObject::GetDependencyOptions options;
+											ob->getDependencyURLSetBaseLevel(options, URLs);
 											for(auto it = URLs.begin(); it != URLs.end(); ++it)
 												sendGetFileMessageIfNeeded(it->URL);
 										}
@@ -1457,7 +1458,8 @@ void WorkerThread::doRun()
 								new_ob->creator_name = client_user_name;
 
 								std::set<DependencyURL> URLs;
-								new_ob->getDependencyURLSetBaseLevel(URLs);
+								WorldObject::GetDependencyOptions options;
+								new_ob->getDependencyURLSetBaseLevel(options, URLs);
 								for(auto it = URLs.begin(); it != URLs.end(); ++it)
 									sendGetFileMessageIfNeeded(it->URL);
 

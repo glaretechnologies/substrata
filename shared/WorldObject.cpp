@@ -194,12 +194,12 @@ void WorldObject::appendDependencyURLsForAllLODLevels(std::vector<DependencyURL>
 }
 
 
-void WorldObject::appendDependencyURLsBaseLevel(std::vector<DependencyURL>& URLs_out) const
+void WorldObject::appendDependencyURLsBaseLevel(const GetDependencyOptions& options, std::vector<DependencyURL>& URLs_out) const
 {
 	if(!model_url.empty())
 		URLs_out.push_back(DependencyURL(model_url));
 
-	if(!lightmap_url.empty())
+	if(options.include_lightmaps && !lightmap_url.empty())
 		URLs_out.push_back(DependencyURL(lightmap_url));
 
 	for(size_t i=0; i<materials.size(); ++i)
@@ -228,10 +228,10 @@ void WorldObject::getDependencyURLSetForAllLODLevels(std::set<DependencyURL>& UR
 }
 
 
-void WorldObject::getDependencyURLSetBaseLevel(std::set<DependencyURL>& URLS_out) const
+void WorldObject::getDependencyURLSetBaseLevel(const GetDependencyOptions& options, std::set<DependencyURL>& URLS_out) const
 {
 	std::vector<DependencyURL> URLs;
-	this->appendDependencyURLsBaseLevel(URLs);
+	this->appendDependencyURLsBaseLevel(options, URLs);
 
 	URLS_out = std::set<DependencyURL>(URLs.begin(), URLs.end());
 }
