@@ -7959,6 +7959,8 @@ void MainWindow::objectEditedSlot()
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
+		LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, task_manager);
+
 		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
 		const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
 
