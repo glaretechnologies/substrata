@@ -1593,11 +1593,7 @@ function removeAndDeleteMaterials (world_ob: WorldObject): void {
 		if ((mat.colour_texture_url.length > 0) && world_ob.mesh && world_ob.mesh.material[i].map) {
 			const key = mat.getLODTextureURLForLevel(mat.colour_texture_url, world_ob.loaded_lod_level, mat.colourTexHasAlpha());
 			const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
-			const was_removed = decRefCount(url_to_texture_map, lodKey);
-			if (was_removed) {
-				// console.log("Disposing of map " + lodKey);
-				world_ob.mesh.material[i].map.dispose();
-			}
+			decRefCount(url_to_texture_map, lodKey); // Calls dispose() on the texture if needed.
 		}
 
 		// TODO: dispose of emissive texture when we start using emissive textures.
@@ -1605,7 +1601,7 @@ function removeAndDeleteMaterials (world_ob: WorldObject): void {
 		//	// No alpha for emissive?
 		//	const key = mat.getLODTextureURLForLevel(mat.emission_texture_url, world_ob.loaded_lod_level, false);
 		//	const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
-		//	const was_removed = decRefCount(url_to_texture_map, lodKey);
+		//	decRefCount(url_to_texture_map, lodKey);
 		//}
 	}
 }
