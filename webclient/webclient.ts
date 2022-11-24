@@ -1616,9 +1616,6 @@ function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
 
 		removeAndDeleteMaterials(world_ob); // Remove materials before we remove the mesh, as removeAndDeleteMaterials() accesses world_ob.mesh.
 
-		scene.remove(world_ob.mesh);
-		world_ob.mesh = null;
-
 		const geom_info: GeomInfo = url_to_geom_map.get(world_ob.loaded_mesh_URL);
 		if (geom_info) {
 			console.assert(geom_info.use_count >= 1);
@@ -1626,9 +1623,13 @@ function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
 			// console.log("removeAndDeleteGLAndPhysicsObjectsForOb(): URL: '" + world_ob.loaded_mesh_URL + "': new geom_info.use_count: " + geom_info.use_count.toString());
 			if (geom_info.use_count == 0) {
 				url_to_geom_map.delete(world_ob.loaded_mesh_URL);
-				// console.log("removed '" + world_ob.loaded_mesh_URL + "' from url_to_geom_map as use_count reached zero.");
+				// console.log("Removed and disposed of '" + world_ob.loaded_mesh_URL + "' from url_to_geom_map as use_count reached zero.");
+				world_ob.mesh.geometry.dispose();
 			}
 		}
+
+		scene.remove(world_ob.mesh);
+		world_ob.mesh = null;
 
 		world_ob.loaded_mesh_URL = null;
 		world_ob.loaded_lod_level = -10;
