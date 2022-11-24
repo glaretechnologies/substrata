@@ -786,6 +786,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 				// There should be 1 or more materials that use this texture.
 				const waiting_mats = loading_texture_URL_to_materials_map.get(download_queue_item.URL);
+				let num_refs_added = 0;
 				if (!waiting_mats) {
 					console.log('Error: waiting mats was null or false.');
 				}
@@ -809,6 +810,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						mat.map.flipY = false;
 						mat.map.needsUpdate = true;
 						mat.needsUpdate = true;
+
+						num_refs_added++;
 					}
 
 					loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
@@ -816,7 +819,9 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 				}
 
 				// Add to our loaded texture map
-				url_to_texture_map.set(download_queue_item.URL, new RefCountWrapper(texture));
+				let ref_counted_tex = new RefCountWrapper(texture)
+				ref_counted_tex.setRefCount(num_refs_added);
+				url_to_texture_map.set(download_queue_item.URL, ref_counted_tex);
 			},
 			function (err) { // onError callback
 				num_resources_downloading--;
@@ -1585,23 +1590,32 @@ function removeAndDeleteMaterials (world_ob: WorldObject): void {
 	for(let i = 0; i !== materials.length; ++i) {
 		const mat = materials[i];
 		// Get appropriate texture for LOD level
-		if(mat.colour_texture_url) {
+		if ((mat.colour_texture_url.length > 0) && world_ob.mesh && world_ob.mesh.material[i].map) {
 			const key = mat.getLODTextureURLForLevel(mat.colour_texture_url, world_ob.loaded_lod_level, mat.colourTexHasAlpha());
 			const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
-			decRefCount(url_to_texture_map, lodKey);
+			const was_removed = decRefCount(url_to_texture_map, lodKey);
+			if (was_removed) {
+				// console.log("Disposing of map " + lodKey);
+				world_ob.mesh.material[i].map.dispose();
+			}
 		}
-		if(mat.emission_texture_url) {
-			// No alpha for emissive?
-			const key = mat.getLODTextureURLForLevel(mat.emission_texture_url, world_ob.loaded_lod_level, false);
-			const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
-			decRefCount(url_to_texture_map, lodKey);
-		}
+
+		// TODO: dispose of emissive texture when we start using emissive textures.
+		//if(mat.emission_texture_url) {
+		//	// No alpha for emissive?
+		//	const key = mat.getLODTextureURLForLevel(mat.emission_texture_url, world_ob.loaded_lod_level, false);
+		//	const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
+		//	const was_removed = decRefCount(url_to_texture_map, lodKey);
+		//}
 	}
 }
 
 function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
 	// Remove from three.js scene
 	if (world_ob.mesh) {
+
+		removeAndDeleteMaterials(world_ob); // Remove materials before we remove the mesh, as removeAndDeleteMaterials() accesses world_ob.mesh.
+
 		scene.remove(world_ob.mesh);
 		world_ob.mesh = null;
 
@@ -1610,7 +1624,6 @@ function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
 			console.assert(geom_info.use_count >= 1);
 			geom_info.use_count--;
 			// console.log("removeAndDeleteGLAndPhysicsObjectsForOb(): URL: '" + world_ob.loaded_mesh_URL + "': new geom_info.use_count: " + geom_info.use_count.toString());
-			removeAndDeleteMaterials(world_ob);
 			if (geom_info.use_count == 0) {
 				url_to_geom_map.delete(world_ob.loaded_mesh_URL);
 				// console.log("removed '" + world_ob.loaded_mesh_URL + "' from url_to_geom_map as use_count reached zero.");

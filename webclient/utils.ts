@@ -107,7 +107,9 @@ export class RefCountWrapper <T> {
 	}
 
 	public get ref (): T | null { return this.count_ > 0 ? this.ref_ : null; }
-	public get count (): number { return this.count_; }
+	public get count(): number { return this.count_; }
+
+	public setRefCount(c: number) { this.count_ = c; }
 
 	public incRef (): number {
 		this.count_ += 1;
@@ -126,6 +128,8 @@ export class RefCountWrapper <T> {
 
 export function decRefCount<T> (table: Map<string, RefCountWrapper<T>>, key: string): boolean {
 	const entry = table.get(key);
+	if (!entry)
+		console.assert(false, key, table);
 	if(entry && entry.decRef() === 0) {
 			table.delete(key);
 			return true; // Entry was removed
