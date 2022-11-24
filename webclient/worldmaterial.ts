@@ -33,7 +33,7 @@ export class WorldMaterial {
 	}
 
 	minLODLevel() {
-		return (this.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) ? -1 : 0;
+		return ((this.flags & MIN_LOD_LEVEL_IS_NEGATIVE_1) != 0) ? -1 : 0;
 	}
 
 	writeToStream(stream: BufferOut) {
