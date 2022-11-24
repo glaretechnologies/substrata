@@ -28,6 +28,9 @@ export class WorldMaterial {
 	emission_lum_flux: number;
 	flags: number;
 
+
+	loaded_colour_texture_URL: string | null; // The URL of the loaded colour texture.  This can be different from colour_texture_url as it may have a LOD suffix.
+
 	colourTexHasAlpha() {
 		return (this.flags & COLOUR_TEX_HAS_ALPHA_FLAG) != 0;
 	}

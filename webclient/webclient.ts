@@ -506,7 +506,7 @@ const loading_texture_URL_set = new Set<string>(); // Set of URL for textures th
 
 const loading_model_URL_to_world_ob_map = new Map<string, Set<any>>(); // Map from a URL of a loading model to a set of WorldObjects or Avatars using that model.
 
-const loading_texture_URL_to_materials_map = new Map<string, Array<THREE.Material>>(); // Map from a URL of a loading texture to a list of materials using that texture.
+const loading_texture_URL_to_materials_map = new Map<string, Array<[WorldMaterial, THREE.Material]>>(); // Map from a URL of a loading texture to a list of [world material, three material] pairs using that texture.
 
 const flip_y_matrix = new THREE.Matrix3();
 flip_y_matrix.set(1, 0, 0, 0, -1, 0, 0, 0, 1);
@@ -564,21 +564,23 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 		//console.log("setThreeJSMaterial(): lod_texture_URL: " + lod_texture_URL);
 
 		let new_texture = null;
+		let new_referenced_texture_URL = null; // Note that this is only set to a non-null value if we increment a reference count on the texture.
 		let is_empty_tex = false;
-		if (url_to_texture_map.has(lod_texture_URL)) {
+		if (url_to_texture_map.has(lod_texture_URL)) { // This texture has already been loaded, use it:
 			// console.log("Using texture '" + lod_texture_URL + "' from url_to_texture_map");
 			const entry = url_to_texture_map.get(lod_texture_URL);
 			entry.incRef();
-			const existing_texture: THREE.Texture = entry.ref; // This texture has already been loaded, use it
-			// const existing_texture: THREE.Texture = url_to_texture_map.get(lod_texture_URL); // This texture has already been loaded, use it
+			const existing_texture: THREE.Texture = entry.ref; 
 			new_texture = existing_texture.clone(); // Clone so that changes to e.g. the tex matrix don't effect this texture applied to other objects.
+
+			new_referenced_texture_URL = lod_texture_URL;
 		}
 		else { // Else texture has not been loaded:
 
 			// Add this material to the list of materials waiting for the texture
 			if (!loading_texture_URL_to_materials_map.has(lod_texture_URL)) // Initialise with empty list if needed
 				loading_texture_URL_to_materials_map.set(lod_texture_URL, []);
-			loading_texture_URL_to_materials_map.get(lod_texture_URL).push(three_mat);
+			loading_texture_URL_to_materials_map.get(lod_texture_URL).push([world_mat, three_mat]);
 
 			if (loading_texture_URL_set.has(lod_texture_URL)) { // Are we already loading the texture?
 				// Just wait for the texture to load
@@ -593,8 +595,8 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 			}
 
 			if(three_mat.map && three_mat.map.image) { // If the current material already has a texture assigned (from a different LOD level)
+				// Then just keep existing texture along with its mipmaps etc.
 				// console.log("Using existing image as placeholder for  '" + lod_texture_URL + "' ");
-				// Just keep existing texture along with its mipmaps etc.
 			}
 			else {
 				// console.log("Making new empty texture for  '" + lod_texture_URL + "' ");
@@ -624,6 +626,13 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 			new_texture.matrix = tex_matrix.premultiply(flip_y_matrix); // Flip the texture to keep consistency between native and web.
 
 			three_mat.map = new_texture;
+
+			// Decrement ref count for the old texture assigned to this material, if any.
+			// Note that we do this after incrementing the ref count for the new texture, so that if they are the same texture, it's not freed.
+			if (world_mat.loaded_colour_texture_URL)
+				decRefCount(url_to_texture_map, world_mat.loaded_colour_texture_URL);
+
+			world_mat.loaded_colour_texture_URL = new_referenced_texture_URL; // Finally assign the new texture URL, if any.
 		}
 	}
 }
@@ -660,7 +669,7 @@ function loadModelForObject(world_ob: WorldObject) {
 			// This is a voxel object
 
 			// Remove any existing mesh and physics object
-			removeAndDeleteGLObjectForOb(world_ob);
+			removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
 			removeAndDeletePhysicsObjectForOb(world_ob);
 
 			if (true) {
@@ -793,7 +802,9 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 				else {
 					// Assign this texture to all materials waiting for it.
 					for (let z = 0; z < waiting_mats.length; ++z) {
-						const mat = waiting_mats[z];
+						const mats_pair = waiting_mats[z];
+						const world_mat: WorldMaterial = mats_pair[0];
+						const mat: THREE.Material = mats_pair[1];
 
 						//console.log("Assigning texture '" + download_queue_item.URL + "' to waiting material: " + mat);
 
@@ -810,6 +821,8 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						mat.map.flipY = false;
 						mat.map.needsUpdate = true;
 						mat.needsUpdate = true;
+
+						world_mat.loaded_colour_texture_URL = download_queue_item.URL;
 
 						num_refs_added++;
 					}
@@ -918,7 +931,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 									const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
 									if (model_changing)
 										removeAndDeletePhysicsObjectForOb(world_ob);
-									removeAndDeleteGLObjectForOb(world_ob);
+									removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they will be reassigned to the new mesh, so we don't need to destroy them.
 
 									// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
 
@@ -1005,7 +1018,7 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 
 		if (world_ob_or_avatar instanceof WorldObject) {
 			const world_ob = world_ob_or_avatar;
-			removeAndDeleteGLObjectForOb(world_ob);
+			removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they have been assigned to the new mesh, so we don't need to destroy them.
 			if (model_changing)
 				removeAndDeletePhysicsObjectForOb(world_ob);
 		}
@@ -1589,28 +1602,24 @@ function removeAndDeleteMaterials (world_ob: WorldObject): void {
 
 	for(let i = 0; i !== materials.length; ++i) {
 		const mat = materials[i];
-		// Get appropriate texture for LOD level
-		if ((mat.colour_texture_url.length > 0) && world_ob.mesh && world_ob.mesh.material[i].map) {
-			const key = mat.getLODTextureURLForLevel(mat.colour_texture_url, world_ob.loaded_lod_level, mat.colourTexHasAlpha());
-			const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
-			decRefCount(url_to_texture_map, lodKey); // Calls dispose() on the texture if needed.
+
+		if (mat.loaded_colour_texture_URL) {
+			console.assert(world_ob.mesh && world_ob.mesh.material[i].map);
+			decRefCount(url_to_texture_map, mat.loaded_colour_texture_URL); // Calls dispose() on the texture if needed.
+
+			mat.loaded_colour_texture_URL = null;
 		}
 
 		// TODO: dispose of emissive texture when we start using emissive textures.
-		//if(mat.emission_texture_url) {
-		//	// No alpha for emissive?
-		//	const key = mat.getLODTextureURLForLevel(mat.emission_texture_url, world_ob.loaded_lod_level, false);
-		//	const lodKey = USE_KTX_TEXTURES ? removeDotAndExtension(key) + '.ktx2' : key;
-		//	decRefCount(url_to_texture_map, lodKey);
-		//}
 	}
 }
 
-function removeAndDeleteGLObjectForOb(world_ob: WorldObject) {
+function removeAndDeleteGLObjectForOb(world_ob: WorldObject, remove_and_delete_materials: boolean) {
 	// Remove from three.js scene
 	if (world_ob.mesh) {
 
-		removeAndDeleteMaterials(world_ob); // Remove materials before we remove the mesh, as removeAndDeleteMaterials() accesses world_ob.mesh.
+		if (remove_and_delete_materials)
+			removeAndDeleteMaterials(world_ob); // Remove materials before we remove the mesh, as removeAndDeleteMaterials() accesses world_ob.mesh.
 
 		const geom_info: GeomInfo = url_to_geom_map.get(world_ob.loaded_mesh_URL);
 		if (geom_info) {
@@ -1645,7 +1654,7 @@ function removeAndDeletePhysicsObjectForOb(world_ob: WorldObject) {
 
 function unloadObject(world_ob: WorldObject) {
 
-	removeAndDeleteGLObjectForOb(world_ob);
+	removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
 	removeAndDeletePhysicsObjectForOb(world_ob);
 
 	world_ob.mesh_state = MESH_NOT_LOADED;
