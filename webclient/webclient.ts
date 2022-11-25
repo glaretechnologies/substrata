@@ -924,30 +924,33 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 
 									const world_ob = world_ob_or_avatar;
 
-									geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
+									if (world_ob.in_proximity) { // Object may have moved out of proximity to camera by the time the model has loaded, don't apply it in this case.
 
-									const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
+										geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
-									const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
-									if (model_changing)
-										removeAndDeletePhysicsObjectForOb(world_ob);
-									removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they will be reassigned to the new mesh, so we don't need to destroy them.
+										const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
 
-									// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
+										const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
+										if (model_changing)
+											removeAndDeletePhysicsObjectForOb(world_ob);
+										removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they will be reassigned to the new mesh, so we don't need to destroy them.
 
-									const use_ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
-									const ob_aabb_longest_len = world_ob.AABBLongestLength();
+										// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
 
-									const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, old_mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
+										const use_ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
+										const ob_aabb_longest_len = world_ob.AABBLongestLength();
 
-									if (model_changing)
-										registerPhysicsObject(world_ob, triangles, mesh);
+										const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, old_mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
 
-									world_ob.loaded_lod_level = use_ob_lod_level;
-									world_ob.loaded_model_lod_level = loaded_model_lod_level;
-									world_ob.loaded_mesh_URL = download_queue_item.URL;
-									world_ob.mesh = mesh;
-									world_ob.mesh_state = MESH_LOADED;
+										if (model_changing)
+											registerPhysicsObject(world_ob, triangles, mesh);
+
+										world_ob.loaded_lod_level = use_ob_lod_level;
+										world_ob.loaded_model_lod_level = loaded_model_lod_level;
+										world_ob.loaded_mesh_URL = download_queue_item.URL;
+										world_ob.mesh = mesh;
+										world_ob.mesh_state = MESH_LOADED;
+									}
 								}
 								else if (world_ob_or_avatar instanceof Avatar) {
 
