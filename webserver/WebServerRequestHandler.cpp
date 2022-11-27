@@ -585,7 +585,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				return;
 			}
 		}
-		else if(request.path == "/obstacle.png") // Data files used by the webclient
+		else if(request.path == "/obstacle.png" || request.path == "/obstacle.ktx2" || request.path == "/sky_no_sun.png") // Data files used by the webclient
 		{
 			try
 			{

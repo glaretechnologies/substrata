@@ -53,6 +53,7 @@ interface BVHJob {
 	worldObjectIds: Array<number>
 }
 
+
 export default class PhysicsWorld {
 	private readonly bvhIndex_: Map<string, BVHRef>;
 	private readonly worldObjects_: Array<WorldObject>;
@@ -203,10 +204,37 @@ export default class PhysicsWorld {
 		// Variables that are generally useful in other parts of the code stored on the object
 		// We could move this inside the world class if necessary.
 		obj.world_id = idx;
-		obj.worldToObject = new THREE.Matrix4();
-		obj.mesh.updateMatrixWorld(true);
-		obj.worldToObject.copy(obj.mesh.matrixWorld);
-		obj.worldToObject.invert();
+
+		const axis = new THREE.Vector3(obj.axis.x, obj.axis.y, obj.axis.z);
+		axis.normalize();
+		const rot_matrix = new THREE.Matrix4();
+		rot_matrix.makeRotationAxis(axis, obj.angle);
+
+		const scale_matrix = new THREE.Matrix4();
+		scale_matrix.makeScale(obj.scale.x, obj.scale.y, obj.scale.z);
+
+		const inv_scale_matrix = new THREE.Matrix4();
+		inv_scale_matrix.makeScale(1.0 / obj.scale.x, 1.0 / obj.scale.y, 1.0 / obj.scale.z);
+
+		const trans_matrix = new THREE.Matrix4();
+		trans_matrix.makeTranslation(obj.pos.x, obj.pos.y, obj.pos.z);
+
+		const inv_trans_matrix = new THREE.Matrix4();
+		inv_trans_matrix.makeTranslation(-obj.pos.x, -obj.pos.y, -obj.pos.z);
+
+		// T R S
+		obj.objectToWorld = trans_matrix;
+		obj.objectToWorld.multiply(rot_matrix);
+		obj.objectToWorld.multiply(scale_matrix);
+
+		rot_matrix.transpose(); //  rot_matrix is now R^-1
+
+		// (T R S)^-1 = S^-1 R^-1 T^-1
+		obj.worldToObject = inv_scale_matrix;
+		obj.worldToObject.multiply(rot_matrix);
+		obj.worldToObject.multiply(inv_trans_matrix);
+
+
 		obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
 		obj.collidable = collidable;
 

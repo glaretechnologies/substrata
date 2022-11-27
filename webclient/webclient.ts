@@ -538,6 +538,9 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 	three_mat.opacity = (world_mat.opacity.val < 1.0) ? 0.3 : 1.0;
 	three_mat.transparent = world_mat.opacity.val < 1.0;
 
+	three_mat.envMap = env_tex;
+	three_mat.envMapIntensity = ENV_TEX_INTENSITY;
+
 	if (world_mat.opacity.val < 1.0) {
 		// Try and make this look vaguely like the native engine transparent shader, which has quite desaturated colours for transparent mats.
 		convertToLinearSRGB(three_mat.color);
@@ -688,14 +691,34 @@ function loadModelForObject(world_ob: WorldObject) {
 				geometry.computeVertexNormals();
 
 				const mesh = new THREE.Mesh(geometry, three_mats);
-				mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-				mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
+				//mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+				//mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
 
 				const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
 				axis.normalize();
-				const q = new THREE.Quaternion();
-				q.setFromAxisAngle(axis, world_ob.angle);
-				mesh.setRotationFromQuaternion(q);
+				//const q = new THREE.Quaternion();
+				//q.setFromAxisAngle(axis, world_ob.angle);
+				//mesh.setRotationFromQuaternion(q);
+
+				mesh.matrixAutoUpdate = false;
+
+				const rot_matrix = new THREE.Matrix4();
+				rot_matrix.makeRotationAxis(axis, world_ob.angle);
+
+				const scale_matrix = new THREE.Matrix4();
+				scale_matrix.makeScale(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z);
+
+				const trans_matrix = new THREE.Matrix4();
+				trans_matrix.makeTranslation(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z);
+
+				// T R S
+				mesh.matrix = to_y_up_matrix.clone();
+				mesh.matrix.multiply(trans_matrix);
+				mesh.matrix.multiply(rot_matrix);
+				mesh.matrix.multiply(scale_matrix);
+
+
+
 
 				scene.add(mesh);
 
@@ -759,14 +782,31 @@ function makeMeshAndAddToScene(geometry: THREE.BufferGeometry,
 		setThreeJSMaterial(three_mats[i], mats[i], pos, ob_aabb_longest_len, ob_lod_level);
 
 	const mesh = new THREE.Mesh(geometry, three_mats);
-	mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
-	mesh.scale.copy(new THREE.Vector3(scale.x, scale.y, scale.z));
-
+//	mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
+//	mesh.scale.copy(new THREE.Vector3(scale.x, scale.y, scale.z));
+//
 	const axis = new THREE.Vector3(world_axis.x, world_axis.y, world_axis.z);
 	axis.normalize();
-	const q = new THREE.Quaternion();
-	q.setFromAxisAngle(axis, angle);
-	mesh.setRotationFromQuaternion(q);
+//	const q = new THREE.Quaternion();
+//	q.setFromAxisAngle(axis, angle);
+//	mesh.setRotationFromQuaternion(q);
+
+	mesh.matrixAutoUpdate = false;
+
+	const rot_matrix = new THREE.Matrix4();
+	rot_matrix.makeRotationAxis(axis, angle);
+
+	const scale_matrix = new THREE.Matrix4();
+	scale_matrix.makeScale(scale.x, scale.y, scale.z);
+
+	const trans_matrix = new THREE.Matrix4();
+	trans_matrix.makeTranslation(pos.x, pos.y, pos.z);
+
+	// T R S
+	mesh.matrix = to_y_up_matrix.clone();
+	mesh.matrix.multiply(trans_matrix);
+	mesh.matrix.multiply(rot_matrix);
+	mesh.matrix.multiply(scale_matrix);
 
 	scene.add(mesh);
 
@@ -1114,8 +1154,6 @@ const client_avatar = new Avatar();
 client_avatar.pos = new Vec3d(initial_pos_x, initial_pos_y, initial_pos_z);
 
 
-THREE.Object3D.DefaultUp.copy(new THREE.Vector3(0, 0, 1));
-
 const scene = new THREE.Scene();
 
 // The outlineMaterial and Mesh used to highlight objects
@@ -1142,7 +1180,9 @@ const ktx_loader = new KTX2Loader()
 
 // Use linear tone mapping with a scale less than 1, which seems to be needed to make the sky model look good.
 renderer.toneMapping = THREE.LinearToneMapping;
-renderer.toneMappingExposure = 0.5;
+renderer.toneMappingExposure = 0.000000003 * 1.0e9; // 0.000000003 is the tonemapping value from the native rendering, in three we will work with a factor of 10e9 as well since we can't change the background intensity currently.
+
+renderer.outputEncoding = THREE.sRGBEncoding;
 
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1154,25 +1194,19 @@ cam_controller.position = new Float32Array([initial_pos_x, initial_pos_y, initia
 
 const proximity_loader = new ProximityLoader(MAX_OB_LOAD_DISTANCE_FROM_CAM, /*callback_function=*/newCellInProximity);
 
-const hemiLight = new THREE.HemisphereLight();
-hemiLight.color = new THREE.Color(0.4, 0.4, 0.45); // sky colour
-hemiLight.groundColor = new THREE.Color(0.5, 0.45, 0.4);
-hemiLight.intensity = 1.2 * 2;
-
-hemiLight.position.set(0, 20, 20);
-scene.add(hemiLight);
-
-
 const sun_phi = 1.0;
 const sun_theta = Math.PI / 4;
 
-//===================== Add directional light =====================
-const sundir = new THREE.Vector3();
-sundir.setFromSphericalCoords(1, sun_phi, sun_theta);
+//===================== Add sun light =====================
+const sundir_x = Math.cos(sun_phi) * Math.sin(sun_theta); // In z-up coords
+const sundir_y = Math.sin(sun_phi) * Math.sin(sun_theta);
+const sundir_z = Math.cos(sun_theta);
+const sundir_z_up = new THREE.Vector3(sundir_x, sundir_y, sundir_z);
+const sundir_y_up = new THREE.Vector3(sundir_x, sundir_z, -sundir_y); // Convert to y-up
 const dirLight = new THREE.DirectionalLight();
-dirLight.color = new THREE.Color(0.8, 0.8, 0.8);
-dirLight.intensity = 2;
-dirLight.position.copy(sundir);
+dirLight.color = new THREE.Color(1662102582.6479533, 1499657101.1924045, 1314152016.0871031); // See phong_frag_shader.glsl
+dirLight.intensity = 3.0e-10; // Not sure what units three.js uses for directional lights.  This value is chosen to roughly match native rendering.
+dirLight.position.copy(sundir_y_up);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 2048;
 dirLight.shadow.mapSize.height = 2048;
@@ -1227,57 +1261,66 @@ scene.add(dirLight);
 //}
 
 
-
-//===================== Add Sky =====================
-const sky = new Sky();
-sky.scale.setScalar(450000); // No idea what this does, seems to be needed to show the sky tho.
-scene.add(sky);
-
-const uniforms = sky.material.uniforms;
-uniforms['turbidity'].value =  0.4;
-//uniforms['rayleigh'].value = 0.5;
-//uniforms['mieCoefficient'].value = 0.1;
-//uniforms['mieDirectionalG'].value = 0.5;
-uniforms['up'].value.copy(new THREE.Vector3(0,0,1));
-
-const sun = new THREE.Vector3();
-sun.setFromSphericalCoords(1, sun_phi, sun_theta);
-
-uniforms['sunPosition'].value.copy(sun);
+//const placeholder_texture = new THREE.TextureLoader().load('./obstacle.png');
 
 
-const placeholder_texture = new THREE.TextureLoader().load('./obstacle.png');
+// Environment-map based lighting on MeshStandardMaterial doesn't work properly with z-up (it uses y-up when looking up the env map, and can't do rotations to z-up),
+// and also the standard environment map rendering doesn't work properly with z-up.
+// So for now, convert everything to three's y-up coordinates.
+// When 3.js allows z-up / env map rotations, then we can remove this code.
+const to_y_up_matrix = new THREE.Matrix4();
+to_y_up_matrix.set(
+	1, 0, 0, 0,
+	0, 0, 1, 0,
+	0, -1, 0, 0,
+	0, 0, 0, 1)
+
 
 //===================== Add ground plane quads =====================
 // Use multiple quads to improve z fighting.
-{
+function addGroundQuads() {
+
+	const plane_w = 200;
+
+	const texture = new THREE.TextureLoader().load('./obstacle.png');
+	texture.encoding = THREE.sRGBEncoding;
+
+	texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+	texture.wrapS = THREE.RepeatWrapping;
+	texture.wrapT = THREE.RepeatWrapping;
+
+	texture.matrixAutoUpdate = false;
+	texture.matrix.set(
+		plane_w, 0, 0,
+		0, plane_w, 0,
+		0, 0, 1
+	);
+
+	const material = new THREE.MeshStandardMaterial();
+
+	material.color = new THREE.Color(0.9, 0.9, 0.9);
+	material.color.convertSRGBToLinear();
+
+	//material.side = THREE.DoubleSide;
+
+	material.envMap = env_tex;
+	material.envMapIntensity = ENV_TEX_INTENSITY;
+	material.map = texture;
+
 	const half_res = 5;
 	for (let x = -half_res; x <= half_res; ++x)
 		for (let y = -half_res; y <= half_res; ++y) {
 
-			const plane_w = 200;
-			const geometry = new THREE.PlaneGeometry(plane_w, plane_w);
-			const material = new THREE.MeshStandardMaterial();
-			material.color = new THREE.Color(0.9, 0.9, 0.9);
-			//material.side = THREE.DoubleSide;
-
-			const texture = new THREE.TextureLoader().load('./obstacle.png');
-
-			texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-			texture.wrapS = THREE.RepeatWrapping;
-			texture.wrapT = THREE.RepeatWrapping;
-
-			texture.matrixAutoUpdate = false;
-			texture.matrix.set(
-				plane_w, 0, 0,
-				0, plane_w, 0,
-				0, 0, 1
-			);
-			material.map = texture;
-
+			const geometry = new THREE.PlaneGeometry(plane_w, plane_w); // in x-y axis
 			const plane = new THREE.Mesh(geometry, material);
-			plane.position.x = x * plane_w;
-			plane.position.y = y * plane_w;
+
+			plane.matrixAutoUpdate = false;
+
+			const trans_matrix = new THREE.Matrix4();
+			trans_matrix.makeTranslation(x * plane_w, y * plane_w, 0);
+
+			plane.matrix = to_y_up_matrix.clone();
+			plane.matrix.multiply(trans_matrix);
 
 			plane.castShadow = true;
 			plane.receiveShadow = true;
@@ -1287,6 +1330,25 @@ const placeholder_texture = new THREE.TextureLoader().load('./obstacle.png');
 }
 
 
+
+
+const gen = new THREE.PMREMGenerator(renderer);
+let env_tex = null;
+
+new THREE.TextureLoader().load('./sky_no_sun.png', function (texture) {
+
+	texture.encoding = THREE.sRGBEncoding;
+
+	texture.mapping = THREE.EquirectangularReflectionMapping; // needed?
+	const target: THREE.WebGLRenderTarget = gen.fromEquirectangular(texture);
+	env_tex = target.texture;
+
+	scene.background = texture;
+
+	addGroundQuads(); // Add ground quads now that env_tex has been loaded.
+});
+
+const ENV_TEX_INTENSITY = 1.0;
 
 
 const download_queue = new downloadqueue.DownloadQueue();
@@ -1482,14 +1544,14 @@ function animate() {
 	// Update shadow map 'camera' so that the shadow map volume is positioned around the camera.
 	{
 		const sun_right = new THREE.Vector3();
-		sun_right.crossVectors(new THREE.Vector3(0, 0, 1), sundir);
+		sun_right.crossVectors(new THREE.Vector3(0, 0, 1), sundir_z_up);
 		sun_right.normalize();
 		const sun_up = new THREE.Vector3();
-		sun_up.crossVectors(sundir, sun_right);
+		sun_up.crossVectors(sundir_z_up, sun_right);
 
 		const cam_dot_sun_right = sun_right.dot(cam_controller.positionV3); //camera.position);
 		const cam_dot_sun_up = sun_up.dot(cam_controller.positionV3); //camera.position);
-		const cam_dot_sun = -sundir.dot(cam_controller.positionV3); //camera.position);
+		const cam_dot_sun = -sundir_z_up.dot(cam_controller.positionV3); //camera.position);
 
 		//console.log("cam_dot_sun_up: " + cam_dot_sun_up);
 		//console.log("cam_dot_sun_right: " + cam_dot_sun_right);
@@ -1589,6 +1651,8 @@ function animate() {
 				);
 
 				mat.multiply(pre_ob_to_world_matrix);
+
+				mat.premultiply(to_y_up_matrix);
 
 				avatar.mesh.matrix.copy(mat);
 				avatar.mesh.matrixAutoUpdate = false;
