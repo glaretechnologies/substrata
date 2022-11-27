@@ -299,7 +299,7 @@ export class PlayerPhysics {
 		this.update(dt, pos);
 		controller.position = pos;
 		this.world_.ground.updateGroundPlane(pos);
-		if(this.visGroup_) this.visGroup_.position.set(pos[0], pos[1], pos[2] - EYE_HEIGHT);
+		if(this.visGroup_) this.visGroup_.position.set(pos[0], pos[2] - EYE_HEIGHT, -pos[1]);  // Convert to y-up
 
 		if(controller.isThirdPerson) {
 			const target = controller.firstPersonPos;
@@ -388,7 +388,7 @@ export class PlayerPhysics {
 		for(let s = 0; s !== 3; ++s) {
 			const z = 1.5 - s * 0.6;
 			const mesh = new THREE.Mesh(geo, mat);
-			mesh.position.set(0, 0, z);
+			mesh.position.set(0, z, 0); // Convert to y-up
 			mesh.scale.set(SPHERE_RAD, SPHERE_RAD, SPHERE_RAD);
 			this.visGroup_.add(mesh);
 		}

@@ -47,12 +47,14 @@ export default class CameraController {
 	private readonly position_: Float32Array;
 	private readonly rotation_: Float32Array;
 
-	private readonly camForwardsVec_: Float32Array;
-	private readonly camRightVec_: Float32Array;
-	private readonly positionV3_: THREE.Vector3;
+	private readonly camForwardsVec_: Float32Array; // in z-up coords
+	private readonly camRightVec_: Float32Array; // in z-up coords
+	private readonly positionV3_: THREE.Vector3; // in z-up coords
 
 	private readonly camPos3rdPerson: Float32Array;
 	private readonly camDelta: Float32Array;
+
+	private temp_pos_z_up: THREE.Vector3;
 
 	/*
 	public invertSidewaysMovement: boolean;
@@ -86,13 +88,15 @@ export default class CameraController {
 		this.camRightVec_ = new Float32Array(3);
 
 		this.camera.position.set(0, 0, 0);
-		this.camera.up = new THREE.Vector3(0, 0, 1);
-		this.camera.lookAt(new THREE.Vector3(0, 1, 0)); // We are positioned at [0, 0, 0]
+		this.camera.up = new THREE.Vector3(0, 1, 0);
+		this.camera.lookAt(new THREE.Vector3(0, 0, -1)); // We are positioned at [0, 0, 0]
 		this.positionV3_ = new THREE.Vector3;
 
 		// For 3rd person camera
 		this.camPos3rdPerson = new Float32Array([0, -1, 1]);
 		this.camDelta = new Float32Array(3);
+
+		this.temp_pos_z_up = new THREE.Vector3(0, 0, 0);
 
 		/*
 		this.moveSpeedScale_ = 1;
@@ -139,7 +143,8 @@ export default class CameraController {
 	public set cameraMode (mode: CameraMode) { this.mode_ = mode; }
 
 	public get positionV3(): THREE.Vector3 {
-		return this.mode_ === CameraMode.FIRST_PERSON ? this.camera.position : this.positionV3_;
+		this.temp_pos_z_up.set(this.camera.position.x, -this.camera.position.z, this.camera.position.y); // Convert from y-up to z-up
+		return this.mode_ === CameraMode.FIRST_PERSON ? this.temp_pos_z_up : this.positionV3_;
 	}
 
 	// These functions replicate the interface in substrata
@@ -148,7 +153,7 @@ export default class CameraController {
 	public set thirdPersonPos (pos: Float32Array) {
 		this.camPos3rdPerson.set(pos);
 		if(this.isThirdPerson) {
-			this.camera.position.set(...pos);
+			this.camera.position.set(pos[0], pos[2], -pos[1]); // // Convert to y-up
 		}
 	}
 
@@ -159,9 +164,9 @@ export default class CameraController {
 	public set position (pos: Float32Array) {
 		this.position_.set(pos);
 		this.positionV3_.set(...pos);
-		this.camera.position.set(...pos);
+		this.camera.position.set(pos[0], pos[2], -pos[1]); // Convert to y-up
 		if(this.isFirstPerson) {
-			this.camera.position.set(...pos);
+			this.camera.position.set(pos[0], pos[2], -pos[1]); // Convert to y-up
 		}
 	}
 
@@ -175,7 +180,7 @@ export default class CameraController {
 		this.rotation_[HEADING] = value;
 		const pos = new Float32Array(this.position);
 		add3(pos, this.camForwardsVec);
-		this.camera.lookAt(...pos);
+		this.camera.lookAt(pos[0], pos[2], -pos[1]); // Convert to y-up
 	}
 
 	public mouseLook (moveX: number, moveY: number): void {
@@ -185,8 +190,9 @@ export default class CameraController {
 	}
 
 	private tmp = new Float32Array(3);
-	public updateView (): void {
-		this.camera.lookAt(...add3(this.position, this.camForwardsVec, this.tmp));
+	public updateView(): void {
+		add3(this.position, this.camForwardsVec, this.tmp)
+		this.camera.lookAt(this.tmp[0], this.tmp[2], -this.tmp[1]); // Convert to y-up
 		this.camera.updateMatrix();
 	}
 
