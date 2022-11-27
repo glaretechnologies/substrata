@@ -4,7 +4,7 @@ world.ts
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
-import BVH, { createIndex, getIndexType, IntIndex, Triangles } from './bvh.js';
+import BVH, { createIndex, IntIndex, Triangles } from './bvh.js';
 import * as THREE from '../build/three.module.js';
 import type { WorldObject } from '../worldobject.js';
 import Caster from './caster.js';
@@ -48,12 +48,6 @@ interface BVHRef {
 	refCount: number;
 }
 
-interface BVHJob {
-	triangles: Triangles,
-	worldObjectIds: Array<number>
-}
-
-
 export default class PhysicsWorld {
 	private readonly bvhIndex_: Map<string, BVHRef>;
 	private readonly worldObjects_: Array<WorldObject>;
@@ -67,10 +61,6 @@ export default class PhysicsWorld {
 
 	// Ground Mesh
 	private readonly ground_: Ground;
-
-	// The BVH creation worker
-	private readonly worker: Worker;
-	private readonly jobList: Record<string, BVHJob>;
 
 	public constructor (scene?: THREE.Scene, caster?: Caster) {
 		this.scene_ = scene;
@@ -90,34 +80,6 @@ export default class PhysicsWorld {
 
 		this.ground_ = new Ground();
 		this.tempMeshes.add(this.ground.mesh);
-
-		this.jobList = {};
-		this.worker = new Worker('/webclient/physics/worker.js');
-		this.worker.onmessage = ev => this.processWorkerResponse(ev);
-	}
-
-	// Process the Worker Response
-	private processWorkerResponse(ev: MessageEvent<WorkerResult>): void {
-		const job = this.jobList[ev.data.key];
-
-		const bvh = extractWorkerResponse(ev.data as WorkerResult, job.triangles);
-
-		let refCount = 0;
-		for(let i = 0; i !== job.worldObjectIds.length; ++i) {
-			const obj = this.worldObjects_[job.worldObjectIds[i]];
-			// Only assign the bvh if the key matches (otherwise it has been unloaded and replaced with a different object)
-			if(obj && getBVHKey(obj) === ev.data.key) {
-				obj.bvh = bvh;
-				refCount++;
-			}
-		}
-
-		this.bvhIndex_[ev.data.key] = {
-			bvh,
-			refCount
-		};
-
-		delete this.jobList[ev.data.key];
 	}
 
 	// Getters/Setters
@@ -136,7 +98,7 @@ export default class PhysicsWorld {
 
 	// Returns true if the bvh is already registered or if it is in the jobList to be loaded
 	public hasModelBVH (key: string): boolean {
-		return key in this.bvhIndex_ || key in this.jobList;
+		return key in this.bvhIndex_; // || key in this.jobList;
 	}
 
 	public getModelBVH (key: string): BVH | undefined {
@@ -186,10 +148,12 @@ export default class PhysicsWorld {
 
 	// This function registers the model and potentially initiates a request for the BVH - if the BVH is already in the
 	// jobList, the additional request is queued and completed on receiving the built BVH
-	public registerWorldObject (bvhKey: string, obj: WorldObject, triangles?: Triangles, collidable=true): number {
+	//public registerWorldObject (bvhKey: string, obj: WorldObject, triangles?: Triangles, collidable=true): number {
+	public registerWorldObject (bvhKey: string, obj: WorldObject, bvhIn?: BVH, collidable=true): number {
 		const haveModel = this.hasModelBVH(bvhKey);
-		if (!haveModel && triangles === null) {
-			console.error('Cannot construct BVH for:', bvhKey);
+		if (!haveModel && bvhIn === null) {
+			console.error('Cannot register BVH for:', bvhKey, this);
+			//throw(new Error('bugger'));
 			return -1;
 		}
 
@@ -240,36 +204,13 @@ export default class PhysicsWorld {
 
 		const bvh = this.getModelBVH(bvhKey);
 		if (bvh == null) {
-			if (!haveModel) { // The model isn't in the job queue, so build it - triangles must exist
-				const indexType = getIndexType(triangles.index);
-				const indexBuf = triangles.index.buffer;
-				const vertexBuf = triangles.vertices.buffer;
-
-				this.jobList[bvhKey] = {
-					triangles,
-					worldObjectIds: [idx]
-				};
-
-				this.worker.postMessage({
-					id: idx,
-					key: bvhKey,
-					indexCount: triangles.index.length,
-					vertexCount: triangles.vertices.length,
-					stride: triangles.vert_stride,
-					indexType: indexType,
-					indexBuf,
-					vertexBuf,
-				}, [
-					// Transfer memory contained in the Triangles structure to the worker
-					indexBuf,
-					vertexBuf,
-				]);
-			} else {
-				this.jobList[bvhKey]?.worldObjectIds.push(idx);
-			}
+			this.bvhIndex_[bvhKey] = {
+				bvh: bvhIn,
+				refCount: 1
+			};
 		} else {
-			obj.bvh = bvh;
 			this.updateRefCount(bvhKey, 1);
+			obj.bvh = bvh;
 		}
 
 		return idx;
@@ -498,81 +439,3 @@ export default class PhysicsWorld {
 			/*toObject=*/this.ground.worldToObject, /*toWorld=*/this.ground.objectToWorld, /*points=*/collisionPoints);
 	}
 }
-
-/*
-// Testing Texture Compression & Workers
-this.textureLoader_ = new TextureLoader(Math.max(1, Math.floor((navigator.hardwareConcurrency ?? 4) / 2)));
-
-// Setup a quad that displays a compressed texture
-const mat = new THREE.MeshBasicMaterial({ map: null, side: THREE.DoubleSide });
-const quad = new THREE.Mesh(new THREE.PlaneGeometry(), mat);
-quad.position.set(0, 0, 4);
-quad.rotation.set(-Math.PI/2, 0, 0);
-quad.scale.set(8, 8, 8);
-this.tempMeshes.add(quad);
-
-this.textureLoader_.load('/webclient/testB.jpg',
-  (tex: THREE.CompressedTexture) => {
-    mat.map = tex;
-    mat.needsUpdate = true;
-  }
-);
-*/
-
-/*
-this.textureLoader_.readPixels('/webclient/testB.jpg').then(task => {
-  this.textureLoader_.compressTexture(task, (task: CompressionTask) => {
-    const format = task.channels === 3 ? THREE.RGB_S3TC_DXT1_Format : THREE.RGBA_S3TC_DXT5_Format;
-    const tex = new THREE.CompressedTexture(task.mipmaps, task.width, task.height, format);
-    tex.wrapS = THREE.ClampToEdgeWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.flipY = true;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    tex.magFilter = THREE.LinearFilter;
-    tex.needsUpdate = true;
-    mat.map = tex;
-    mat.needsUpdate = true;
-  });
-});
-*/
-
-/*
-setTimeout(() => {
-  this.textureLoader_.readPixels('/webclient/testB.jpg').then(task => {
-    console.log('task:', task);
-
-    this.textureLoader_.compressTexture(task, (task: CompressionTask) => {
-      const format = task.channels === 3 ? THREE.RGB_S3TC_DXT1_Format : THREE.RGBA_S3TC_DXT5_Format;
-      const tex = new THREE.CompressedTexture(task.mipmaps, task.width, task.height, format);
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      tex.flipY = true;
-      tex.minFilter = THREE.LinearMipmapLinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      tex.needsUpdate = true;
-      mat.map = tex;
-      mat.needsUpdate = true;
-    });
-  });
-}, 5000);
-*/
-
-/*
-// Test individual textures on a quad at [0, 0, 4]
-const textureLoader = new TextureLoader(1);
-
-// Setup a quad that displays a compressed texture
-const mat = new THREE.MeshBasicMaterial({ map: null, side: THREE.DoubleSide });
-const quad = new THREE.Mesh(new THREE.PlaneGeometry(), mat);
-quad.position.set(0, 0, 4);
-quad.rotation.set(Math.PI/2, 0, 0);
-quad.scale.set(8, 8, 8);
-this.tempMeshes.add(quad);
-
-textureLoader.load('/webclient/testA.png',
-  (tex: THREE.CompressedTexture) => {
-    mat.map = tex;
-    mat.needsUpdate = true;
-  }
-);
-*/

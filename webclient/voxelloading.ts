@@ -5,9 +5,7 @@ Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
 import * as fzstd from './fzstd.js'; // from 'https://cdn.skypack.dev/fzstd?min';
-import * as THREE from './build/three.module.js';
-import {copyIndex, Triangles} from './physics/bvh.js';
-
+import BVH, { Triangles } from './physics/bvh.js';
 
 function decompressVoxels(compressed_voxels: ArrayBuffer): Int32Array {
 	let decompressed_voxels_uint8 = fzstd.decompress(new Uint8Array(compressed_voxels));
@@ -77,10 +75,16 @@ function decompressVoxels(compressed_voxels: ArrayBuffer): Int32Array {
 	return voxels_out;
 }
 
+export interface VoxelMeshData {
+	groupsBuffer: ArrayBuffer
+	positionBuffer: ArrayBuffer
+	indexBuffer: ArrayBuffer
+	subsample_factor: number
+	bvh: BVH
+}
 
 // Does greedy meshing.  Adapted from VoxelMeshBuilding::doMakeIndigoMeshForVoxelGroupWith3dArray()
-// returns a THREE.BufferGeometry() object
-function doMakeMeshForVoxels(voxels: Int32Array, subsample_factor: number, mats_transparent_: Array<boolean>): [THREE.BufferGeometry, Triangles]
+function doMakeMeshForVoxels(voxels: Int32Array, subsample_factor: number, mats_transparent_: Array<boolean>): VoxelMeshData
 {
 	let num_voxels = voxels.length / 4;
 
@@ -160,7 +164,7 @@ function doMakeMeshForVoxels(voxels: Int32Array, subsample_factor: number, mats_
 		voxel_grid[(v_z - min_z) * (span_x * span_y) + (v_y - min_y) * span_x + (v_x - min_x)] = mat_i;
 	}
 
-	let geometry = new THREE.BufferGeometry();
+	// let geometry = new THREE.BufferGeometry();
 	let vert_coords = []
 
 	// For each material, we will have a list of vertex indices defining triangles with the given material
@@ -540,12 +544,14 @@ function doMakeMeshForVoxels(voxels: Int32Array, subsample_factor: number, mats_
 	}
 
 	let combined_vert_indices = new Uint32Array(combined_indices_size);
+	const groups = new Array<number>()
 
 	let cur_offset = 0;
 	for (let i = 0; i < num_mats; ++i) {
 		let mat_vert_indices_i = mat_vert_indices[i];
 		if (mat_vert_indices_i.length > 0) {
-			geometry.addGroup(/*start index=*/cur_offset, /*count=*/mat_vert_indices_i.length, /*mat index=*/i);
+			// geometry.addGroup(/*start index=*/cur_offset, /*count=*/mat_vert_indices_i.length, /*mat index=*/i);
+			groups.push(/*start index=*/cur_offset, /*count=*/mat_vert_indices_i.length, /*mat index=*/i);
 
 			for (let z = 0; z < mat_vert_indices_i.length; ++z) {
 				combined_vert_indices[cur_offset++] = mat_vert_indices_i[z];
@@ -553,23 +559,25 @@ function doMakeMeshForVoxels(voxels: Int32Array, subsample_factor: number, mats_
 		}
 	}
 
-	let vert_float32_array = new Float32Array(vert_coords);
-	geometry.setAttribute('position', new THREE.BufferAttribute(vert_float32_array, /*item size=*/3));
-	geometry.setIndex(new THREE.BufferAttribute(combined_vert_indices, /*item size=*/1));
+	const vert_float32_array = new Float32Array(vert_coords);
 
-	// We copy the buffers because they are transferred to the worker
-	let triangles = new Triangles(
-		new Float32Array(vert_float32_array), // vertices
-		copyIndex(combined_vert_indices), // index
+	const triangles = new Triangles(
+		vert_float32_array, // vertices
+		combined_vert_indices, // index
 		3 // stride: vertices are tightly packed
 	);
 
-	return [geometry, triangles]
+	return {
+		groupsBuffer: new Uint32Array(groups).buffer,
+		indexBuffer: combined_vert_indices.buffer,
+		positionBuffer: vert_float32_array.buffer,
+		bvh: new BVH(triangles),
+		subsample_factor
+	};
 }
 
 
-// returns [THREE.BufferGeometry(), Triangles, subsample_factor]
-export function makeMeshForVoxelGroup(compressed_voxels: ArrayBuffer, model_lod_level: number, mats_transparent: Array<boolean>): [THREE.BufferGeometry, Triangles, number] {
+export function makeMeshForVoxelGroup(compressed_voxels: ArrayBuffer, model_lod_level: number, mats_transparent: Array<boolean>): VoxelMeshData {
 
 	let voxels: Int32Array = decompressVoxels(compressed_voxels);
 	// voxels is an Int32Array array of voxel data, with each voxel laid out as (pos_x, pos_y, pos_z, mat_index)
@@ -589,6 +597,5 @@ export function makeMeshForVoxelGroup(compressed_voxels: ArrayBuffer, model_lod_
 	//console.log("makeMeshForVoxelGroup");
 	//console.log("num_voxels: " + num_voxels);
 
-	let [geometry, triangles]: [THREE.BufferGeometry, Triangles] = doMakeMeshForVoxels(voxels, subsample_factor, mats_transparent);
-	return [geometry, triangles, subsample_factor];
+	return doMakeMeshForVoxels(voxels, subsample_factor, mats_transparent);
 }

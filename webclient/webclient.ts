@@ -7,13 +7,10 @@ Copyright Glare Technologies Limited 2022 -
 
 import * as THREE from './build/three.module.js';
 import { KTX2Loader } from './examples/jsm/loaders/KTX2Loader.js';
-import { Sky } from './examples/jsm/objects/Sky.js';
-import * as voxelloading from './voxelloading.js';
 import { BufferIn, readDouble, readStringFromStream, readUInt32 } from './bufferin.js';
 import { BufferOut } from './bufferout.js';
-import { loadBatchedMesh } from './bmeshloading.js';
 import * as downloadqueue from './downloadqueue.js';
-import { Triangles } from './physics/bvh.js';
+import BVH, { Triangles, createIndex } from './physics/bvh.js';
 import PhysicsWorld from './physics/world.js';
 import CameraController from './cameraController.js';
 import { ScalarVal, WorldMaterial } from './worldmaterial.js';
@@ -41,14 +38,46 @@ import {
 	getBVHKey
 } from './worldobject.js';
 import { ProximityLoader } from './proximityloader.js';
-//import TextureLoader from './graphics/textureLoader.js';
+import { buildBatchedMesh, buildVoxelMesh } from './loader/MeshBuilder.js';
+import MeshLoader from './loader/MeshLoader.js';
+import { BMesh, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
 
+// Half the number of 'CPUs' or 2 workers
+const mesh_loader = new MeshLoader(Math.floor((navigator.hardwareConcurrency ?? 4) / 2));
+
+mesh_loader.onmessage = (resp: MeshLoaderResponse) => {
+	// Build the returned BVH from the transferred buffers...
+	let bvh: BVH;
+	if (resp.bvh != null) {
+		const triangles = new Triangles(
+			new Float32Array(resp.bvh.triPositionBuffer),
+			createIndex(resp.bvh.indexType, resp.bvh.triIndexBuffer),
+			3 // The stride is always 3 because it was created in the worker for this instance
+		);
+		bvh = new BVH(triangles, {
+			index: new Uint32Array(resp.bvh.bvhIndexBuffer),
+			nodeCount: resp.bvh.nodeCount,
+			aabbBuffer: new Float32Array(resp.bvh.aabbBuffer),
+			dataBuffer: new Uint32Array(resp.bvh.dataBuffer)
+		});
+	}
+
+	if(resp.bMesh != null) addBatchedMeshToScene(resp.bMesh, bvh);
+	else if(resp.voxelMesh != null) addVoxelMeshToScene(resp.voxelMesh, bvh);
+};
+
+mesh_loader.onerror = (err: ErrorEvent) => {
+	console.error('err:', err);
+	if(err.message.includes('bmesh')) {
+		num_resources_downloading--;
+	}
+};
+
 
 const texture_loader = new THREE.TextureLoader();
-//const texture_loader = new TextureLoader(Math.max(1, Math.floor((navigator.hardwareConcurrency ?? 4) / 2)));
 const USE_KTX_TEXTURES = true;
 
 
@@ -660,11 +689,14 @@ function loadModelForObject(world_ob: WorldObject) {
 			// This is a voxel object
 
 			// Remove any existing mesh and physics object
-			removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
-			removeAndDeletePhysicsObjectForOb(world_ob);
+			//removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
+			//removeAndDeletePhysicsObjectForOb(world_ob);
 
 			if (true) {
 
+				// Note: I'm not sure how to approach the issue of materials being initialised here, so I'm going to rebuild them
+				// on return so I don't have to store the materials while the mesh is constructed.
+				/*
 				const three_mats = [];
 				const mats_transparent: Array<boolean> = [];
 				for (let i = 0; i < world_ob.mats.length; ++i) {
@@ -673,9 +705,24 @@ function loadModelForObject(world_ob: WorldObject) {
 					three_mats.push(three_mat);
 					mats_transparent.push(world_ob.mats[i].opacity.val < 1.0);
 				}
-                
-				const [geometry, triangles, subsample_factor]: [THREE.BufferGeometry, Triangles, number] = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level, mats_transparent);
+				*/
+				const mats_transparent = world_ob.mats.map(e => e.opacity.val < 1.0);
+				// const [geometry, triangles, subsample_factor]: [THREE.BufferGeometry, Triangles, number] = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level, mats_transparent);
 
+				const copy = new Uint8Array(new ArrayBuffer(world_ob.compressed_voxels.byteLength));
+				copy.set(new Uint8Array(world_ob.compressed_voxels));
+
+				mesh_loader.enqueueRequest({
+					uid: world_ob.uid,
+					compressedVoxels: copy.buffer,
+					mats_transparent,
+					ob_lod_level,
+					model_lod_level,
+				});
+
+
+
+				/*
 				geometry.computeVertexNormals();
 
 				const mesh = new THREE.Mesh(geometry, three_mats);
@@ -719,6 +766,7 @@ function loadModelForObject(world_ob: WorldObject) {
 				world_ob.mesh_state = MESH_LOADED;
 
 				registerPhysicsObject(world_ob, triangles, mesh);
+ 			  */
 			}
 		}
 		else if(world_ob.model_url !== '') {
@@ -743,6 +791,81 @@ function loadModelForObject(world_ob: WorldObject) {
 	}
 }
 
+function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
+	const {	uid, ob_lod_level, model_lod_level } = voxelData;
+	//const [geometry, triangles, subsample_factor] = buildVoxelMesh(voxelData);
+	const geometry = buildVoxelMesh(voxelData);
+
+	const world_ob = world_objects.get(uid);
+	console.assert(world_ob != null);
+
+	const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
+	const aabb_longest_len = world_ob.AABBLongestLength();
+
+	const three_mats = [];
+	for (let i = 0; i < world_ob.mats.length; ++i) {
+		const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
+		setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
+		three_mats.push(three_mat);
+	}
+
+	removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
+	removeAndDeletePhysicsObjectForOb(world_ob);
+
+	geometry.computeVertexNormals();
+
+	const mesh = new THREE.Mesh(geometry, three_mats);
+	//mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+	//mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
+
+	const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+	axis.normalize();
+	//const q = new THREE.Quaternion();
+	//q.setFromAxisAngle(axis, world_ob.angle);
+	//mesh.setRotationFromQuaternion(q);
+
+	mesh.matrixAutoUpdate = false;
+
+	const rot_matrix = new THREE.Matrix4();
+	rot_matrix.makeRotationAxis(axis, world_ob.angle);
+
+	const scale_matrix = new THREE.Matrix4();
+	scale_matrix.makeScale(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z);
+
+	const trans_matrix = new THREE.Matrix4();
+	trans_matrix.makeTranslation(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z);
+
+	// T R S
+	mesh.matrix = to_y_up_matrix.clone();
+	mesh.matrix.multiply(trans_matrix);
+	mesh.matrix.multiply(rot_matrix);
+	mesh.matrix.multiply(scale_matrix);
+
+	/*
+	const mesh = new THREE.Mesh(geometry, three_mats);
+	mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
+	mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
+
+	const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+	axis.normalize();
+	const q = new THREE.Quaternion();
+	q.setFromAxisAngle(axis, world_ob.angle);
+	mesh.setRotationFromQuaternion(q);
+	*/
+
+	scene.add(mesh);
+
+	mesh.castShadow = true;
+	mesh.receiveShadow = true;
+
+	world_ob.loaded_lod_level = ob_lod_level;
+	world_ob.loaded_model_lod_level = model_lod_level;
+	world_ob.mesh = mesh;
+	world_ob.mesh_state = MESH_LOADED;
+
+	world_ob.bvh = bvh;
+	registerPhysicsObject(world_ob, bvh, mesh);
+}
 
 // Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
 // Old materials are also passed in, which come from the model with a different LOD level.  may be null.
@@ -770,14 +893,14 @@ function makeMeshAndAddToScene(geometry: THREE.BufferGeometry,
 		setThreeJSMaterial(three_mats[i], mats[i], pos, ob_aabb_longest_len, ob_lod_level);
 
 	const mesh = new THREE.Mesh(geometry, three_mats);
-//	mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
-//	mesh.scale.copy(new THREE.Vector3(scale.x, scale.y, scale.z));
-//
+	//	mesh.position.copy(new THREE.Vector3(pos.x, pos.y, pos.z));
+	//	mesh.scale.copy(new THREE.Vector3(scale.x, scale.y, scale.z));
+	//
 	const axis = new THREE.Vector3(world_axis.x, world_axis.y, world_axis.z);
 	axis.normalize();
-//	const q = new THREE.Quaternion();
-//	q.setFromAxisAngle(axis, angle);
-//	mesh.setRotationFromQuaternion(q);
+	//	const q = new THREE.Quaternion();
+	//	q.setFromAxisAngle(axis, angle);
+	//	mesh.setRotationFromQuaternion(q);
 
 	mesh.matrixAutoUpdate = false;
 
@@ -861,168 +984,118 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 				}
 
 				// Add to our loaded texture map
-				let ref_counted_tex = new RefCountWrapper(texture)
+				const ref_counted_tex = new RefCountWrapper(texture);
 				ref_counted_tex.setRefCount(num_refs_added);
 				url_to_texture_map.set(download_queue_item.URL, ref_counted_tex);
 			},
+			undefined,
 			function (err) { // onError callback
 				num_resources_downloading--;
 			}
 		);
-
-		/*
-		const loader = new THREE.TextureLoader();
-
-		loader.load('resource/' + download_queue_item.URL,
-
-			function (texture) { // onLoad callback
-				num_resources_downloading--;
-
-				//console.log("Loaded texture '" + download_queue_item.URL + "'.");
-
-				// There should be 1 or more materials that use this texture.
-				const waiting_mats = loading_texture_URL_to_materials_map.get(download_queue_item.URL);
-				if (!waiting_mats) {
-					console.log('Error: waiting mats was null or false.');
-				}
-				else {
-					// Assign this texture to all materials waiting for it.
-					for (let z = 0; z < waiting_mats.length; ++z) {
-						const mat = waiting_mats[z];
-
-						//console.log("Assigning texture '" + download_queue_item.URL + "' to waiting material: " + mat);
-
-						mat.map.image = texture.image; // Assign the texture image, but not the whole texture, because we want to keep the existing tex matrix etc..
-						mat.map.needsUpdate = true; // Seems to be needed to get the texture to show.
-					}
-
-					loading_texture_URL_to_materials_map.delete(download_queue_item.URL); // Now that this texture has been downloaded, remove from map
-				}
-
-				// Add to our loaded texture map
-				url_to_texture_map.set(download_queue_item.URL, texture);
-			},
-
-			undefined, // onProgress callback currently not supported
-
-			function (err) { // onError callback
-				//console.error('An error happened.');
-				num_resources_downloading--;
-			}
-		);
-		*/
 	}
 	else { // Else it's a model to download:
-		const model_url = download_queue_item.URL;
-		const encoded_url = encodeURIComponent(model_url);
-
-		const request = new XMLHttpRequest();
-		request.open('GET', '/resource/' + encoded_url, /*async=*/true);
-		request.responseType = 'arraybuffer';
-
-		request.onload = function (oEvent) {
-			num_resources_downloading--;
-
-			if (request.status >= 200 && request.status < 300) {
-				const array_buffer = request.response;
-				if (array_buffer) {
-
-					// console.log("Downloaded file: '" + model_url + "'!");
-					try {
-						const [geometry, triangles]: [THREE.BufferGeometry, Triangles] = loadBatchedMesh(array_buffer);
-
-						//console.log("Inserting " + model_url + " into url_to_geom_map");
-						const geom_info = new GeomInfo();
-						geom_info.geometry = geometry;
-						geom_info.triangles = triangles;
-						url_to_geom_map.set(model_url, geom_info); // Add to url_to_geom_map
-
-						const loaded_model_lod_level = WorldObject.getLODLevelForURL(model_url);
-
-						// Assign to any waiting world obs or avatars
-						const waiting_obs = loading_model_URL_to_world_ob_map.get(download_queue_item.URL);
-						if (!waiting_obs) {
-							console.log('Error: waiting obs was null or false:');
-							console.log(waiting_obs);
-						}
-						else {
-
-							for (const world_ob_or_avatar of waiting_obs) {
-
-								if (world_ob_or_avatar instanceof WorldObject) {
-
-									const world_ob = world_ob_or_avatar;
-
-									if (world_ob.in_proximity) { // Object may have moved out of proximity to camera by the time the model has loaded, don't apply it in this case.
-
-										geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
-
-										const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
-
-										const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
-										if (model_changing)
-											removeAndDeletePhysicsObjectForOb(world_ob);
-										removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they will be reassigned to the new mesh, so we don't need to destroy them.
-
-										// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
-
-										const use_ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
-										const ob_aabb_longest_len = world_ob.AABBLongestLength();
-
-										const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, old_mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
-
-										if (model_changing)
-											registerPhysicsObject(world_ob, triangles, mesh);
-
-										world_ob.loaded_lod_level = use_ob_lod_level;
-										world_ob.loaded_model_lod_level = loaded_model_lod_level;
-										world_ob.loaded_mesh_URL = download_queue_item.URL;
-										world_ob.mesh = mesh;
-										world_ob.mesh_state = MESH_LOADED;
-									}
-								}
-								else if (world_ob_or_avatar instanceof Avatar) {
-
-									const avatar = world_ob_or_avatar;
-									if (avatar.uid != client_avatar_uid) {
-										console.log('Avatar:', avatar);
-										const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, /*old mats=*/null, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
-											/*angle=*/0, /*ob_aabb_longest_len=*/1.0, /*ob_lod_level=*/0);
-
-										geom_info.use_count++;
-
-										//console.log("Loaded mesh '" + model_url + "'.");
-										avatar.loaded_mesh_URL = download_queue_item.URL;
-										avatar.mesh = mesh;
-										avatar.mesh_state = MESH_LOADED;
-									}
-								}
-							}
-
-							loading_model_URL_to_world_ob_map.delete(download_queue_item.URL); // Now that this model has been downloaded, remove from map
-
-							loading_model_URL_set.delete(download_queue_item.URL); // Remove from set of loading model URLs, so it can be downloaded/loaded again later.
-						}
-					}
-					catch (error) { // There was an exception loading/parsing the geometry
-						console.log('exception occurred while loading/parsing the geometry: ' + error);
-					}
-				}
-			}
-			else {
-				console.log('Request for \'' + model_url + '\' returned a non-200 error code: ' + request.status);
-			}
-		};
-
-		request.onerror = function (oEvent) {
-			num_resources_downloading--;
-			console.log('Request for \'' + model_url + '\' encountered an error: ' + request.status);
-		};
-
-		request.send(/*body=*/null);
+		// downloadModelOld(download_queue_item.URL);
+		mesh_loader.enqueueRequest(download_queue_item.URL);
 	}
 }
 
+// Adds a batched mesh model to the scene
+function addBatchedMeshToScene (bmeshData: BMesh, bvh: BVH): void {
+	const model_url = bmeshData.url;
+	const geometry = buildBatchedMesh(bmeshData);
+
+	//console.log("Inserting " + model_url + " into url_to_geom_map");
+	const geom_info = new GeomInfo();
+	geom_info.geometry = geometry;
+	// geom_info.triangles = triangles; // TODO: Build bvh in mesh loader and transfer rather than building separately
+	url_to_geom_map.set(model_url, geom_info); // Add to url_to_geom_map
+
+	const loaded_model_lod_level = WorldObject.getLODLevelForURL(model_url);
+
+	// Assign to any waiting world obs or avatars
+	const waiting_obs = loading_model_URL_to_world_ob_map.get(model_url);
+	if (waiting_obs == null) {
+		console.log('Error: waiting obs was null or false:');
+		console.log(waiting_obs);
+	}
+	else {
+
+		for (const world_ob_or_avatar of waiting_obs) {
+
+			if (world_ob_or_avatar instanceof WorldObject) {
+
+				const world_ob = world_ob_or_avatar;
+
+				if (world_ob.in_proximity) { // Object may have moved out of proximity to camera by the time the model has loaded, don't apply it in this case.
+
+					geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
+
+					const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
+
+					const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
+					if (model_changing)
+						removeAndDeletePhysicsObjectForOb(world_ob);
+					removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they will be reassigned to the new mesh, so we don't need to destroy them.
+
+					// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
+
+					const use_ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
+					const ob_aabb_longest_len = world_ob.AABBLongestLength();
+
+					const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, old_mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
+
+					if (model_changing) {
+						world_ob.bvh = bvh;
+						registerPhysicsObject(world_ob, bvh, mesh);
+					}
+
+
+					world_ob.loaded_lod_level = use_ob_lod_level;
+					world_ob.loaded_model_lod_level = loaded_model_lod_level;
+					world_ob.loaded_mesh_URL = model_url;
+					world_ob.mesh = mesh;
+					world_ob.mesh_state = MESH_LOADED;
+				}
+			}
+			else if (world_ob_or_avatar instanceof Avatar) {
+
+				const avatar = world_ob_or_avatar;
+				if (avatar.uid != client_avatar_uid) {
+					console.log('Avatar:', avatar);
+					const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, avatar.avatar_settings.materials, /*old mats=*/null, avatar.pos, /*scale=*/new Vec3f(1, 1, 1), /*axis=*/new Vec3f(0, 0, 1),
+						/*angle=*/0, /*ob_aabb_longest_len=*/1.0, /*ob_lod_level=*/0);
+
+					geom_info.use_count++;
+
+					//console.log("Loaded mesh '" + model_url + "'.");
+					avatar.loaded_mesh_URL = model_url;
+					avatar.mesh = mesh;
+					avatar.mesh_state = MESH_LOADED;
+				}
+			}
+		}
+	}
+
+	loading_model_URL_to_world_ob_map.delete(model_url); // Now that this model has been downloaded, remove from map
+	loading_model_URL_set.delete(model_url); // Remove from set of loading model URLs, so it can be downloaded/loaded again later.
+	num_resources_downloading--;
+}
+
+// Register a new world object with the physics engine
+function registerPhysicsObject(obj: WorldObject, bvh: BVH, mesh: THREE.Mesh) {
+	const bvh_key = getBVHKey(obj);
+	obj.mesh = mesh;
+	// Some variables are stored on the worldObject by registerWorldObject
+	physics_world.registerWorldObject(bvh_key, obj, bvh);
+}
+
+
+
+
+
+
+/*
 // Build the BVH for a new (unregistered) mesh
 function registerPhysicsObject(obj: WorldObject, triangles: Triangles, mesh: THREE.Mesh) {
 	const bvh_key = getBVHKey(obj);
@@ -1030,7 +1103,7 @@ function registerPhysicsObject(obj: WorldObject, triangles: Triangles, mesh: THR
 	// Some variables are stored on the worldObject by registerWorldObject
 	physics_world.registerWorldObject(bvh_key, obj, triangles);
 }
-
+*/
 // model_url will have lod level in it, e.g. cube_lod2.bmesh
 function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_aabb_longest_len: number, ob_lod_level: number, model_lod_level: number, mats: Array<WorldMaterial>, pos: Vec3d, scale: Vec3f, world_axis: Vec3f, angle: number) {
 
@@ -1062,7 +1135,7 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 		if (world_ob_or_avatar instanceof WorldObject) {
 			const world_ob = world_ob_or_avatar;
 			if (model_changing)
-				registerPhysicsObject(world_ob, geom_info.triangles, mesh);
+				registerPhysicsObject(world_ob, world_ob.bvh, mesh);
 		}
 		
 		if (world_ob_or_avatar instanceof WorldObject) {
@@ -1262,7 +1335,7 @@ to_y_up_matrix.set(
 	1, 0, 0, 0,
 	0, 0, 1, 0,
 	0, -1, 0, 0,
-	0, 0, 0, 1)
+	0, 0, 0, 1);
 
 
 //===================== Add ground plane quads =====================
@@ -1336,6 +1409,7 @@ new THREE.TextureLoader().load('./sky_no_sun.png', function (texture) {
 
 	addGroundQuads(); // Add ground quads now that env_tex has been loaded.
 });
+
 
 const ENV_TEX_INTENSITY = 1.0;
 

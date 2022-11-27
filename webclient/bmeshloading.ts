@@ -5,9 +5,8 @@ Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
 import * as fzstd from './fzstd.js';
-import * as THREE from './build/three.module.js';
 import * as bufferin from './bufferin.js';
-import { Triangles } from './physics/bvh.js';
+import BVH, { IndexType, Triangles } from './physics/bvh.js';
 
 
 class Vec3f {
@@ -144,12 +143,31 @@ function batchedMeshUnpackNormal(packed_normal: number): Vec3f // packed_normal 
 	return new Vec3f(x * (1. / 511.), y * (1. / 511.), z * (1. / 511.));
 }
 
+export interface BMeshData {
+	groupsBuffer: ArrayBuffer
+	indexType: number
+	indexBuffer: ArrayBuffer
+	interleaved: ArrayBuffer
+	interleavedStride: number
+	attributes: Array<VertAttribute>
+	bvh: BVH
+}
 
-export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Triangles] {
 
+export function loadBatchedMesh(data: ArrayBuffer): BMeshData {
 	let buff = new bufferin.BufferIn(data);
 
-	const geometry = new THREE.BufferGeometry();
+	const bmeshData: BMeshData = {
+		groupsBuffer: null,
+		indexType: 0,
+		indexBuffer: null,
+		interleaved: null,
+		interleavedStride: 0,
+		attributes: [],
+		bvh: null
+	}
+
+	//const geometry = new THREE.BufferGeometry();
 
 	//console.log("---------------------------loadBatchedMesh()-----------------------------");
 
@@ -213,15 +231,18 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 	if (num_batches > MAX_NUM_BATCHES)
 		throw "Too many batches.";
 
+	const groups = new Array<number>()
+
 	for (let i = 0; i < num_batches; ++i) {
 		let indices_start = buff.readUInt32();
 		let num_indices = buff.readUInt32();
 		let material_index = buff.readUInt32();
 
-		geometry.addGroup(/*start index=*/indices_start, /*count=*/num_indices, material_index);
+		// geometry.addGroup(/*start index=*/indices_start, /*count=*/num_indices, material_index);
+		groups.push(/*start index=*/indices_start, /*count=*/num_indices, material_index)
 	}
+	bmeshData.groupsBuffer = (new Uint32Array(groups)).buffer
 
-	
 	// Check header index type
 	if (index_type > MAX_COMPONENT_TYPE_VALUE)
 		throw "Invalid index type value.";
@@ -240,7 +261,7 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 	let vert_size = vertexSize(vert_attributes); // in bytes
 	let num_verts = vertex_data_size_B / vert_size;
 
-	let index_data = null;
+	let index_data: IndexType = null;
 
 	let compression = (flags & FLAG_USE_COMPRESSION) != 0;
 	if (compression) {
@@ -299,10 +320,10 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 			// Decompress data into plaintext buffer.
 			let compressed_text = buff.readData(vertex_data_compressed_size);
 			let plaintext = fzstd.decompress(new Uint8Array(compressed_text));
-			
+
 			/*
 			Read de-interleaved vertex data, and interleave it.
-		
+
 			p0 p1 p2 p3 ... pN n0 n1 n2 n3 ... nN c0 c1 c2 c3 ... cN
 			=>
 			p0 n0 c0 p1 n1 c1 p2 n2 c2 p3 n3 c3 ... pN nN cN
@@ -311,7 +332,7 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 			let dst = new Uint32Array(vertex_data.buffer, vertex_data.byteOffset, vertex_data.length / 4);
 
 			let src_i = 0;
-			
+
 			let attr_offset_B = 0;
 			for (let b = 0; b < vert_attributes.length; ++b)
 			{
@@ -340,7 +361,11 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 		throw "bmeshes without compression not currently supported.";
 	}
 
-	geometry.setIndex(new THREE.BufferAttribute(index_data, 1));
+	console.assert(1 < index_type && index_type < 5);
+	bmeshData.indexType = index_type - 2; // (uint8 = 2, uint16 = 3, uint32 = 4)
+	bmeshData.indexBuffer = index_data.buffer;
+	// geometry.setIndex(new THREE.BufferAttribute(index_data, 1));
+
 
 	// Convert and expand vertex data to something 3.js can handle
 
@@ -415,7 +440,9 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
 
-	let interleaved_buffer = new THREE.InterleavedBuffer(expanded, /*vert stride in elems=*/expanded_vert_size_B / 4);
+	bmeshData.interleaved = expanded.buffer;
+	bmeshData.interleavedStride = expanded_vert_size_B / 4;
+	//let interleaved_buffer = new THREE.InterleavedBuffer(expanded, /*vert stride in elems=*/expanded_vert_size_B / 4);
 
 	// Set the 3.js geometry vertex attributes
 	expanded_attr_offset_B = 0;
@@ -424,7 +451,7 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 
 		let attr = vert_attributes[i];
 		let expanded_attr_offset_uint32s = expanded_attr_offset_B / 4;
-		
+
 		let name = null;
 
 		if (attr.type == VertAttribute_Position) {
@@ -450,16 +477,18 @@ export function loadBatchedMesh(data: ArrayBuffer): [THREE.BufferGeometry, Trian
 
 			// console.log("Adding attribute " + name + "...");
 
-			geometry.setAttribute(name, new THREE.InterleavedBufferAttribute(interleaved_buffer, /*itemSize=*/num_components, /*offset=*/expanded_attr_offset_uint32s));
+			// Only push the attributes that are named...
+			bmeshData.attributes.push({
+				type: attr.type,
+				component_type: attr.component_type,
+				offset_B: expanded_attr_offset_uint32s
+			})
+			// geometry.setAttribute(name, new THREE.InterleavedBufferAttribute(interleaved_buffer, /*itemSize=*/num_components, /*offset=*/expanded_attr_offset_uint32s));
 		}
 		expanded_attr_offset_B += expanded_attr_sizes[i];
 	}
 
-	// creates a copy of the position data and index so that we can transmit it to the worker (this copy cannot be avoided)
-	const triangles = Triangles.extractTriangles(expanded, index_data, expanded_vert_size_B / 4)
+	bmeshData.bvh = new BVH(Triangles.extractTriangles(expanded, index_data, expanded_vert_size_B / 4))
 
-	if (!added_normals)
-		geometry.computeVertexNormals();
-
-	return [geometry, triangles];
+	return bmeshData;
 }
