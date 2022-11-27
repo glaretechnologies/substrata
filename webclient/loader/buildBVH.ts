@@ -1,5 +1,10 @@
-// Note: Most of these functions are defined in the maths or physics folders, but are copied here to avoid issues
-// with running workers using module imports in Firefox.
+/*=====================================================================
+buildBVH.ts
+---------------
+Copyright Glare Technologies Limited 2022 -
+
+The extracted dependencies for creating a bvh.
+=====================================================================*/
 
 // Generate a sequence of numbers from offset to count in an Uint32Array
 function range (count: number, offset=0): Uint32Array {
@@ -32,9 +37,9 @@ function max3 (curr: Float32Array, coff: number, cmp: Float32Array, cmpoff=0): F
 type IndexType = Uint32Array | Uint16Array | Uint8Array
 
 enum IntIndex {
-	UINT8 = 0,
-	UINT16 = 1,
-	UINT32 = 2
+  UINT8 = 0,
+  UINT16 = 1,
+  UINT32 = 2
 }
 
 // Creates an index buffer based on the input indexType (getIndexType) used for transferring memory between main / worker threads
@@ -124,10 +129,10 @@ class Triangles {
 }
 
 interface BVHData {
-	index: Uint32Array;
-	nodeCount: number;
-	aabbBuffer: Float32Array
-	dataBuffer: Uint32Array
+  index: Uint32Array;
+  nodeCount: number;
+  aabbBuffer: Float32Array
+  dataBuffer: Uint32Array
 }
 
 /*
@@ -304,33 +309,29 @@ class BVH {
 }
 
 interface WorkerParameters {
-	key: string; // The model_url or voxel id of the mesh
-	indexCount: number; // The number of elements in the indexBuf ArrayBuffer
-	indexType: number; // The type of index buffer: 0 = Uint8Array, 1 = Uint16Array, 2 = Uint32Array
-	indexBuf: ArrayBuffer; // The index ArrayBuffer we transfer from main to worker
-	stride: number; // The stride of the vertexBuf, now typically 3
-	vertexCount: number; // The number of vertices in the vertexBuf ArrayBuffer
-	vertexBuf: ArrayBuffer; // The vertices ArrayBuffer
-}
-
-function isWorkerParameters (obj: Record<string, unknown>): boolean {
-	return 'key' in obj && 'indexBuf' in obj && 'vertexBuf' in obj;
+  key: string; // The model_url or voxel id of the mesh
+  indexCount: number; // The number of elements in the indexBuf ArrayBuffer
+  indexType: number; // The type of index buffer: 0 = Uint8Array, 1 = Uint16Array, 2 = Uint32Array
+  indexBuf: ArrayBuffer; // The index ArrayBuffer we transfer from main to worker
+  stride: number; // The stride of the vertexBuf, now typically 3
+  vertexCount: number; // The number of vertices in the vertexBuf ArrayBuffer
+  vertexBuf: ArrayBuffer; // The vertices ArrayBuffer
 }
 
 interface WorkerResult {
-	key: string;
-	indexCount: number;
-	indexType: number;
-	indexBuf: ArrayBuffer;
-	stride: number;
-	vertexCount: number;
-	vertexBuf: ArrayBuffer;
+  key: string;
+  indexCount: number;
+  indexType: number;
+  indexBuf: ArrayBuffer;
+  stride: number;
+  vertexCount: number;
+  vertexBuf: ArrayBuffer;
 
-	// This data is the returned BVH data
-	bvhIndexBuf: ArrayBuffer // Uint32Array type
-	nodeCount: number; // Total number of nodes in BVH
-	aabbBuffer: ArrayBuffer // Float32Array(6 * nodeCount)
-	dataBuffer: ArrayBuffer // Uint32Array(2 * nodeCount)
+  // This data is the returned BVH data
+  bvhIndexBuf: ArrayBuffer // Uint32Array type
+  nodeCount: number; // Total number of nodes in BVH
+  aabbBuffer: ArrayBuffer // Float32Array(6 * nodeCount)
+  dataBuffer: ArrayBuffer // Uint32Array(2 * nodeCount)
 }
 
 function createTriangles (obj: WorkerParameters | WorkerResult) {
@@ -338,21 +339,3 @@ function createTriangles (obj: WorkerParameters | WorkerResult) {
 	const vertices = new Float32Array(obj.vertexBuf);
 	return new Triangles(vertices, triIndex, obj.stride);
 }
-
-onmessage = ev => {
-	if(!isWorkerParameters(ev.data)) return;
-
-	const triangles = createTriangles(ev.data as WorkerParameters);
-	const bvh = new BVH(triangles);
-	// Gets the internal data of the bvh object for transmission back to main
-	const { index, nodeCount, aabbBuffer, dataBuffer } = bvh.bvhData;
-
-	// Return the triangles to the caller...
-	postMessage({
-		...ev.data as WorkerParameters,
-		bvhIndexBuf: index.buffer,
-		nodeCount,
-		aabbBuffer,
-		dataBuffer
-	});
-};

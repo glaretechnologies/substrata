@@ -204,7 +204,7 @@ export default class BVH {
 	private readonly dataBuffer: Uint32Array; // 2 x uint32s per node [offset, count]
 	// Total memory usage per node = (6 + 2) x 4 = 32 bytes
 
-	private readonly tri: Triangles;
+	public readonly tri: Triangles;
 	private readonly index: Uint32Array; // The triangle index stored in consecutive ranges in the nodes
 	private readonly maxNodes: number;
 	private nodeCount: number; // Number of used nodes
@@ -244,7 +244,7 @@ export default class BVH {
 		}
 	}
 
-	// Return the internal data for transmission to the worker
+	// Return the internal data for transmission to the main thread
 	public get bvhData(): BVHData {
 		return {
 			index: this.index,
