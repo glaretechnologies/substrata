@@ -13,15 +13,23 @@ import { loadBatchedMesh } from '../bmeshloading.js';
 import { makeMeshForVoxelGroup } from '../voxelloading.js';
 import { getIndexType } from '../physics/bvh.js';
 
-function processBMeshRequest (url: string): void {
+function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number): void {
 	const encoded_url = encodeURIComponent(url);
 	fetch('/resource/' + encoded_url).then(resp => {
 		if(resp.status >= 200 && resp.status < 300) {
 			return resp.arrayBuffer();
 		} else {
-			throw new Error('Request for bmesh \'' + url + '\' encountered an error: ' + resp.status);
+			self.postMessage({
+				error: {
+					type: 1,
+					message: 'Fetch failed on URL: ' + url
+				}
+			});
+			return;
 		}
 	}).then((buffer: ArrayBuffer) => {
+		if(buffer == null) return;
+
 		const {
 			groupsBuffer, indexType, indexBuffer, interleaved, interleavedStride, attributes, bvh
 		} = loadBatchedMesh(buffer);
@@ -39,6 +47,8 @@ function processBMeshRequest (url: string): void {
 		};
 
 		const resp = {
+			pos,
+			sizeFactor,
 			bMesh: {
 				url,
 				groupsBuffer,
@@ -64,7 +74,7 @@ function processBMeshRequest (url: string): void {
 	});
 }
 
-function processVoxelMeshRequest (voxels: Voxels): void {
+function processVoxelMeshRequest (voxels: Voxels, pos: Float32Array, sizeFactor: number): void {
 	const { uid, model_lod_level, ob_lod_level } = voxels;
 
 	const def = makeMeshForVoxelGroup(voxels.compressedVoxels, voxels.model_lod_level, voxels.mats_transparent);
@@ -81,6 +91,8 @@ function processVoxelMeshRequest (voxels: Voxels): void {
 	};
 
 	self.postMessage({
+		pos,
+		sizeFactor,
 		voxelMesh: {
 			uid,
 			groupsBuffer: def.groupsBuffer,
@@ -99,14 +111,16 @@ function processVoxelMeshRequest (voxels: Voxels): void {
 		bvhTransfer.bvhIndexBuffer,
 		bvhTransfer.aabbBuffer,
 		bvhTransfer.dataBuffer,
-		// bvhTransfer.triIndexBuffer, // Copy of def.indexBuffer
-		// bvhTransfer.triPositionBuffer
 	]);
+	// Don't transfer...
+	// bvhTransfer.triIndexBuffer, // Copy of def.indexBuffer
+	// bvhTransfer.triPositionBuffer // Copy of def.positionBuffer
+
 }
 
 self.onmessage = (request: MessageEvent<MeshLoaderRequest>) => {
 	const task = request.data;
 	task.bmesh != null
-		? processBMeshRequest(task.bmesh)
-		: processVoxelMeshRequest(task.voxels);
+		? processBMeshRequest(task.bmesh, task.pos, task.sizeFactor)
+		: processVoxelMeshRequest(task.voxels, task.pos, task.sizeFactor);
 };

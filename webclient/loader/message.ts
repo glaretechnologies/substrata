@@ -23,18 +23,10 @@ export interface Voxels {
 
 // Input Task Description
 export interface MeshLoaderRequest {
-  bmesh?: string // If specified, represents the URL we need to fetch for the mesh.
+  pos: Float32Array; // The centroid of the AABB of the mesh
+  sizeFactor: number // Object Scale
+  bmesh?: string // If specified, the URL string
   voxels?: Voxels // The input voxels structure containing the compressed buffer and other dependent data
-}
-
-export interface VoxelMesh {
-  uid: bigint // The world_ob id
-  groupsBuffer: ArrayBuffer // The material groups (3 x uint32) - Actual Type is Uint32Array
-  positionBuffer: ArrayBuffer // The position buffer (3 x float32) - Float32Array
-  indexBuffer: ArrayBuffer // The index buffer - Uint32Array
-  subsample_factor: number
-  ob_lod_level: number;
-  model_lod_level: number;
 }
 
 export interface BMesh {
@@ -47,6 +39,16 @@ export interface BMesh {
   attributes: Array<VertAttribute> // The attributes packed into the interleaved buffer
 }
 
+export interface VoxelMesh {
+  uid: bigint // The world_ob id
+  groupsBuffer: ArrayBuffer // The material groups (3 x uint32) - Actual Type is Uint32Array
+  positionBuffer: ArrayBuffer // The position buffer (3 x float32) - Float32Array
+  indexBuffer: ArrayBuffer // The index buffer - Uint32Array
+  subsample_factor: number
+  ob_lod_level: number;
+  model_lod_level: number;
+}
+
 export interface BVHTransfer {
   bvhIndexBuffer: ArrayBuffer // Index with type defined by indexType (always Uint32)
   nodeCount: number, // Number of nodes in the BVH
@@ -57,9 +59,17 @@ export interface BVHTransfer {
   triPositionBuffer: ArrayBuffer // Float32Array of positions for triangle structure
 }
 
+export interface LoaderError {
+  type: number; // bmesh = 1, voxel = 2
+  message: string // description of the error
+}
+
 // Should we move the BVH construction here - makes sense to do it here as we have all the necessary data?
 export interface MeshLoaderResponse {
-  voxelMesh?: VoxelMesh // Return a voxelMesh
+  pos: Float32Array; // The centroid of the object
+  sizeFactor: number; // Object scale
   bMesh?: BMesh // Return an object mesh
+  voxelMesh?: VoxelMesh // Return a voxelMesh
   bvh?: BVHTransfer // Return the BVH data (loaded in this worker)
+  error?: LoaderError // Returned if some error occurs during the load
 }
