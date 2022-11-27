@@ -512,24 +512,12 @@ const flip_y_matrix = new THREE.Matrix3();
 flip_y_matrix.set(1, 0, 0, 0, -1, 0, 0, 0, 1);
 
 
-// Convert a non-linear sRGB colour to linear sRGB.
-// See http://chilliant.blogspot.com/2012/08/srgb-approximations-for-hlsl.html, expression for C_lin_3.
-function convertToLinearSRGB(c: THREE.Color)
-{
-	const r2 = c.r * c.r;
-	const g2 = c.g * c.g;
-	const b2 = c.b * c.b;
-	c.r = c.r * r2 * 0.305306011 + r2 * 0.682171111 + c.r * 0.012522878;
-	c.g = c.g * g2 * 0.305306011 + g2 * 0.682171111 + c.g * 0.012522878;
-	c.b = c.b * b2 * 0.305306011 + b2 * 0.682171111 + c.b * 0.012522878;
-}
-
-
 // Sets fields of a three.js material from a Substrata WorldMaterial.
 // If the world material has a texture, will start downloading it, by enqueuing an item onto the download queue, if the texture is not already downloaded or downloading.
 // three_mat has type THREE.Material and probably THREE.MeshStandardMaterial
 function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial, ob_pos: Vec3d, ob_aabb_longest_len: number, ob_lod_level: number) {
 	three_mat.color = new THREE.Color(world_mat.colour_rgb.r, world_mat.colour_rgb.g, world_mat.colour_rgb.b);
+	three_mat.color.convertSRGBToLinear();
 	three_mat.metalness = world_mat.metallic_fraction.val;
 	three_mat.roughness = world_mat.roughness.val;
 
@@ -543,7 +531,6 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 
 	if (world_mat.opacity.val < 1.0) {
 		// Try and make this look vaguely like the native engine transparent shader, which has quite desaturated colours for transparent mats.
-		convertToLinearSRGB(three_mat.color);
 		three_mat.color.r = 0.6 + three_mat.color.r * 0.4;
 		three_mat.color.g = 0.6 + three_mat.color.g * 0.4;
 		three_mat.color.b = 0.6 + three_mat.color.b * 0.4;
@@ -614,6 +601,7 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 			if (!is_empty_tex)
 				new_texture.needsUpdate = true; // Seems to be needed to get the texture to show.
 
+			new_texture.encoding = THREE.sRGBEncoding;
 			new_texture.wrapS = THREE.RepeatWrapping;
 			new_texture.wrapT = THREE.RepeatWrapping;
 			new_texture.flipY = false;
@@ -855,6 +843,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 						if (mat.map) cloned_texture.matrix = mat.map.matrix.clone(); // Use old/existing texture matrix (set from object state)
 
 						cloned_texture.matrixAutoUpdate = false;
+						cloned_texture.encoding = THREE.sRGBEncoding;
 						mat.map = cloned_texture;
 						mat.map.wrapS = THREE.RepeatWrapping;
 						mat.map.wrapT = THREE.RepeatWrapping;
