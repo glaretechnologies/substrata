@@ -40,13 +40,16 @@ import {
 import { ProximityLoader } from './proximityloader.js';
 import { buildBatchedMesh, buildVoxelMesh } from './loader/MeshBuilder.js';
 import MeshLoader from './loader/MeshLoader.js';
-import { BMesh, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
+import { BMesh, LoaderError, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
+import { LoadItemQueue, LoadItemQueueItem } from './loaditemqueue.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
 
+const load_item_queue = new LoadItemQueue();
+
 // Half the number of 'CPUs' or 2 workers
-const mesh_loader = new MeshLoader(Math.floor((navigator.hardwareConcurrency ?? 4) / 2));
+const mesh_loader = new MeshLoader(load_item_queue, Math.floor((navigator.hardwareConcurrency ?? 4) / 2));
 
 mesh_loader.onmessage = (resp: MeshLoaderResponse) => {
 	// Build the returned BVH from the transferred buffers...
@@ -69,13 +72,11 @@ mesh_loader.onmessage = (resp: MeshLoaderResponse) => {
 	else if(resp.voxelMesh != null) addVoxelMeshToScene(resp.voxelMesh, bvh);
 };
 
-mesh_loader.onerror = (err: ErrorEvent) => {
-	console.error('err:', err);
-	if(err.message.includes('bmesh')) {
-		num_resources_downloading--;
-	}
-};
+mesh_loader.onerror = (err: ErrorEvent | LoaderError) => {
+	console.error('err:', err.message);
+	if((err.type != null && err.type === 1) || err.message.includes('bmesh')) num_resources_downloading--;
 
+};
 
 const texture_loader = new THREE.TextureLoader();
 const USE_KTX_TEXTURES = true;
@@ -712,6 +713,7 @@ function loadModelForObject(world_ob: WorldObject) {
 				const copy = new Uint8Array(new ArrayBuffer(world_ob.compressed_voxels.byteLength));
 				copy.set(new Uint8Array(world_ob.compressed_voxels));
 
+				/*
 				mesh_loader.enqueueRequest({
 					uid: world_ob.uid,
 					compressedVoxels: copy.buffer,
@@ -719,8 +721,26 @@ function loadModelForObject(world_ob: WorldObject) {
 					ob_lod_level,
 					model_lod_level,
 				});
+				*/
 
+				const aabb_longest_len = world_ob.AABBLongestLength();
+				const centroid = new Float32Array([
+					(world_ob.aabb_ws_min[0] + world_ob.aabb_ws_max[0]) * 0.5,
+					(world_ob.aabb_ws_min[1] + world_ob.aabb_ws_max[1]) * 0.5,
+					(world_ob.aabb_ws_min[2] + world_ob.aabb_ws_max[2]) * 0.5
+				]);
 
+				load_item_queue.enqueueItem(new LoadItemQueueItem({
+					pos: centroid,
+					sizeFactor: aabb_longest_len,
+					voxels: {
+						uid: world_ob.uid,
+						compressedVoxels: copy.buffer,
+						mats_transparent,
+						ob_lod_level,
+						model_lod_level
+					}
+				}));
 
 				/*
 				geometry.computeVertexNormals();
@@ -996,7 +1016,16 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 	}
 	else { // Else it's a model to download:
 		// downloadModelOld(download_queue_item.URL);
-		mesh_loader.enqueueRequest(download_queue_item.URL);
+
+		// Here we already have the centroid and size factor as part of the download_queue_item...
+		const qi = download_queue_item;
+		load_item_queue.enqueueItem(new LoadItemQueueItem({
+			pos: new Float32Array(qi.pos.toArray()),
+			sizeFactor: qi.size_factor,
+			bmesh: qi.URL
+		}));
+
+		// mesh_loader.enqueueRequest(download_queue_item.URL);
 	}
 }
 
@@ -1586,11 +1615,16 @@ function animate() {
 		{
 			//let sort_start_time = curTimeS();
 			download_queue.sortQueue(cam_controller.positionV3); // camera.position);
+			// for now,we piggy back on this timer...
+			load_item_queue.sortQueue(cam_controller.positionV3);
+
 			//let sort_duration = curTimeS() - sort_start_time;
 			//console.log("Sorting download queue took " + (sort_duration * 1.0e3) + " ms (num obs in queue: " + download_queue.items.length + ")");
 
 			last_queue_sort_time = cur_time;
 		}
+
+		mesh_loader.processRequests();
 
 		// If there are less than N resources currently downloading, and there are items in the to-download queue, start downloading some of them.
 		const MAX_CONCURRENT_DOWNLOADS = 10;
