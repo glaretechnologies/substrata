@@ -585,13 +585,13 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 				return;
 			}
 		}
-		else if(request.path == "/obstacle.png" || request.path == "/obstacle.ktx2" || request.path == "/sky_no_sun.png") // Data files used by the webclient
+		else if(request.path == "/obstacle.png" || request.path == "/obstacle.ktx2" || request.path == "/sky_no_sun.exr") // Data files used by the webclient
 		{
 			try
 			{
 				std::string contents;
 				FileUtils::readEntireFile(data_store->webclient_dir + request.path, contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), "image/png");
+				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), web::ResponseUtils::getContentTypeForPath(request.path));
 			}
 			catch(FileUtils::FileUtilsExcep& e)
 			{
