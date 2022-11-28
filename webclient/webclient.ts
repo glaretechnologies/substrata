@@ -684,110 +684,31 @@ function loadModelForObject(world_ob: WorldObject) {
 		}
 			
 		
-		const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
+		if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) { // If this is a voxel object:
 
-		if(world_ob.compressed_voxels && (world_ob.compressed_voxels.byteLength > 0)) {
-			// This is a voxel object
+			const mats_transparent = world_ob.mats.map(e => e.opacity.val < 1.0);
 
-			// Remove any existing mesh and physics object
-			//removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
-			//removeAndDeletePhysicsObjectForOb(world_ob);
+			const copy = new Uint8Array(new ArrayBuffer(world_ob.compressed_voxels.byteLength));
+			copy.set(new Uint8Array(world_ob.compressed_voxels));
 
-			if (true) {
+			const aabb_longest_len = world_ob.AABBLongestLength();
+			const centroid = new Float32Array([
+				(world_ob.aabb_ws_min[0] + world_ob.aabb_ws_max[0]) * 0.5,
+				(world_ob.aabb_ws_min[1] + world_ob.aabb_ws_max[1]) * 0.5,
+				(world_ob.aabb_ws_min[2] + world_ob.aabb_ws_max[2]) * 0.5
+			]);
 
-				// Note: I'm not sure how to approach the issue of materials being initialised here, so I'm going to rebuild them
-				// on return so I don't have to store the materials while the mesh is constructed.
-				/*
-				const three_mats = [];
-				const mats_transparent: Array<boolean> = [];
-				for (let i = 0; i < world_ob.mats.length; ++i) {
-					const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
-					setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
-					three_mats.push(three_mat);
-					mats_transparent.push(world_ob.mats[i].opacity.val < 1.0);
-				}
-				*/
-				const mats_transparent = world_ob.mats.map(e => e.opacity.val < 1.0);
-				// const [geometry, triangles, subsample_factor]: [THREE.BufferGeometry, Triangles, number] = voxelloading.makeMeshForVoxelGroup(world_ob.compressed_voxels, model_lod_level, mats_transparent);
-
-				const copy = new Uint8Array(new ArrayBuffer(world_ob.compressed_voxels.byteLength));
-				copy.set(new Uint8Array(world_ob.compressed_voxels));
-
-				/*
-				mesh_loader.enqueueRequest({
+			load_item_queue.enqueueItem(new LoadItemQueueItem({
+				pos: centroid,
+				sizeFactor: aabb_longest_len,
+				voxels: {
 					uid: world_ob.uid,
 					compressedVoxels: copy.buffer,
 					mats_transparent,
 					ob_lod_level,
-					model_lod_level,
-				});
-				*/
-
-				const aabb_longest_len = world_ob.AABBLongestLength();
-				const centroid = new Float32Array([
-					(world_ob.aabb_ws_min[0] + world_ob.aabb_ws_max[0]) * 0.5,
-					(world_ob.aabb_ws_min[1] + world_ob.aabb_ws_max[1]) * 0.5,
-					(world_ob.aabb_ws_min[2] + world_ob.aabb_ws_max[2]) * 0.5
-				]);
-
-				load_item_queue.enqueueItem(new LoadItemQueueItem({
-					pos: centroid,
-					sizeFactor: aabb_longest_len,
-					voxels: {
-						uid: world_ob.uid,
-						compressedVoxels: copy.buffer,
-						mats_transparent,
-						ob_lod_level,
-						model_lod_level
-					}
-				}));
-
-				/*
-				geometry.computeVertexNormals();
-
-				const mesh = new THREE.Mesh(geometry, three_mats);
-				//mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-				//mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
-
-				const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-				axis.normalize();
-				//const q = new THREE.Quaternion();
-				//q.setFromAxisAngle(axis, world_ob.angle);
-				//mesh.setRotationFromQuaternion(q);
-
-				mesh.matrixAutoUpdate = false;
-
-				const rot_matrix = new THREE.Matrix4();
-				rot_matrix.makeRotationAxis(axis, world_ob.angle);
-
-				const scale_matrix = new THREE.Matrix4();
-				scale_matrix.makeScale(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z);
-
-				const trans_matrix = new THREE.Matrix4();
-				trans_matrix.makeTranslation(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z);
-
-				// T R S
-				mesh.matrix = to_y_up_matrix.clone();
-				mesh.matrix.multiply(trans_matrix);
-				mesh.matrix.multiply(rot_matrix);
-				mesh.matrix.multiply(scale_matrix);
-
-
-
-
-				scene.add(mesh);
-
-				mesh.castShadow = true;
-				mesh.receiveShadow = true;
-
-				world_ob.loaded_lod_level = ob_lod_level;
-				world_ob.loaded_model_lod_level = model_lod_level;
-				world_ob.mesh = mesh;
-				world_ob.mesh_state = MESH_LOADED;
-
-				registerPhysicsObject(world_ob, triangles, mesh);
- 			  */
-			}
+					model_lod_level
+				}
+			}));
 		}
 		else if(world_ob.model_url !== '') {
 
@@ -1598,11 +1519,40 @@ let cur_time = curTimeS();
 
 let last_update_URL_time = curTimeS();
 let last_avatar_update_send_time = curTimeS();
-let last_queue_sort_time = curTimeS() - 100;
+let last_download_queue_sort_time = curTimeS() - 100;
+let last_load_item_queue_sort_time = curTimeS() - 100;
+
+let last_update_stats_time = 0;
+let last_stats_update_frame_num = 0;
+let frame_num = 0;
+
+
+const stats_doc_elem = document.querySelector("#stats");
+
 
 function animate() {
 	const dt = Math.min(0.1, curTimeS() - cur_time);
 	cur_time = curTimeS();
+
+	if (stats_doc_elem && ((cur_time - last_update_stats_time) > 1.0)) {
+		const fps = (frame_num - last_stats_update_frame_num) / (cur_time - last_update_stats_time);
+
+		let s = fps.toFixed(1) + " fps<br/>";
+		if (renderer.info) {
+			s += "geometries: " + renderer.info.memory.geometries.toString() + "<br/>";
+			s += "textures: " + renderer.info.memory.textures.toString() + "<br/>";
+			s += "num programs: " + renderer.info.programs.length + "<br/>";
+			s += "render calls: " + renderer.info.render.calls + "<br/>";
+			s += "render triangles: " + renderer.info.render.triangles + "<br/>";
+		}
+		stats_doc_elem.innerHTML = s;
+
+		last_update_stats_time = cur_time;
+		last_stats_update_frame_num = frame_num;
+	}
+
+
+
 	requestAnimationFrame(animate);
 
 	doCamMovement(dt);
@@ -1611,17 +1561,23 @@ function animate() {
 
 	{
 		// Sort download queue (by distance from camera)
-		if (cur_time - last_queue_sort_time > 0.5)
+		if (cur_time - last_download_queue_sort_time > 2.0)
 		{
 			//let sort_start_time = curTimeS();
-			download_queue.sortQueue(cam_controller.positionV3); // camera.position);
-			// for now,we piggy back on this timer...
-			load_item_queue.sortQueue(cam_controller.positionV3);
+			download_queue.sortQueue(cam_controller.positionV3);
 
 			//let sort_duration = curTimeS() - sort_start_time;
 			//console.log("Sorting download queue took " + (sort_duration * 1.0e3) + " ms (num obs in queue: " + download_queue.items.length + ")");
 
-			last_queue_sort_time = cur_time;
+			last_download_queue_sort_time = cur_time;
+		}
+
+		// Sort load_item queue (by distance from camera)
+		if (cur_time - last_load_item_queue_sort_time > 0.1) {
+
+			load_item_queue.sortQueue(cam_controller.positionV3);
+
+			last_load_item_queue_sort_time = cur_time;
 		}
 
 		mesh_loader.processRequests();
@@ -1705,7 +1661,7 @@ function animate() {
 	}
 
 
-	// Update avatar positions
+	// Update OpenGL transforms of avatars of other users.
 	for (const avatar of avatars.values()) {
 
 		if (avatar.uid != client_avatar_uid) { // If this is our avatar, don't load it
@@ -1758,6 +1714,8 @@ function animate() {
 	}
 
 	checkForLODChanges();
+
+	frame_num++;
 }
 
 

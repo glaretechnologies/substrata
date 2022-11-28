@@ -30,10 +30,12 @@ function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number
 	}).then((buffer: ArrayBuffer) => {
 		if(buffer == null) return;
 
+		// Load the batched mesh (decompress etc.)
 		const {
 			groupsBuffer, indexType, indexBuffer, interleaved, interleavedStride, attributes, bvh
 		} = loadBatchedMesh(buffer);
 
+		// Send a response back to the main thread, with the built data.
 		const bvhData = bvh.bvhData;
 
 		const bvhTransfer = {
@@ -77,8 +79,10 @@ function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number
 function processVoxelMeshRequest (voxels: Voxels, pos: Float32Array, sizeFactor: number): void {
 	const { uid, model_lod_level, ob_lod_level } = voxels;
 
+	// Build the voxel mesh
 	const def = makeMeshForVoxelGroup(voxels.compressedVoxels, voxels.model_lod_level, voxels.mats_transparent);
 
+	// Send a response back to the main thread, with the built data.
 	const bvhData = def.bvh.bvhData;
 	const bvhTransfer = {
 		bvhIndexBuffer: bvhData.index.buffer,
@@ -118,6 +122,7 @@ function processVoxelMeshRequest (voxels: Voxels, pos: Float32Array, sizeFactor:
 
 }
 
+// Handle a task message from the main thread
 self.onmessage = (request: MessageEvent<MeshLoaderRequest>) => {
 	const task = request.data;
 	task.bmesh != null
