@@ -13,7 +13,7 @@ import Caster from './physics/caster.js';
 import { clamp } from './maths/functions.js';
 import { add3 } from './maths/vec3.js';
 
-export const DEFAULT_FOV = 75;
+export const HORIZONTAL_FOV = 73.821909132; // = 2 * asin((0.035/2) / 0.025)  (To match native calcs in GlWidget, see sensorWidth() etc.)
 export const DEFAULT_NEAR = 0.1;
 export const DEFAULT_FAR = 1000.0;
 export const MAX_CAM_DIST = 20.0;
@@ -68,14 +68,14 @@ export default class CameraController {
 	public readonly camSettings = {
 		near: DEFAULT_NEAR,
 		far: DEFAULT_FAR,
-		fov: DEFAULT_FOV
+		horizontal_fov: HORIZONTAL_FOV
 	};
 
 	private mode_: CameraMode = CameraMode.FIRST_PERSON;
 
 	public constructor (renderer: THREE.WebGLRenderer) {
 		this.rndr_ = renderer; // Needed for getSize which takes dPR into account
-		this.camera = new THREE.PerspectiveCamera(DEFAULT_FOV, getAR(), DEFAULT_NEAR, DEFAULT_FAR);
+		this.camera = new THREE.PerspectiveCamera(HORIZONTAL_FOV / getAR(), getAR(), DEFAULT_NEAR, DEFAULT_FAR);
 		this.camera.updateProjectionMatrix();
 		window.addEventListener('resize', this.onResize);
 		this.onResize();
@@ -107,6 +107,7 @@ export default class CameraController {
 	}
 
 	private onResize = () => {
+		this.camera.fov = HORIZONTAL_FOV / getAR();
 		this.camera.aspect = getAR();
 		this.camera.updateProjectionMatrix();
 	};
