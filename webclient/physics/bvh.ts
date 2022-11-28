@@ -227,6 +227,7 @@ export default class BVH {
 			this.aabbBuffer = copy.aabbBuffer;
 			this.dataBuffer = copy.dataBuffer;
 		} else { // Build BVH from scratch
+			if(tri.tri_count === 0) throw Error('BVH construction failed - triangle count is zero');
 			this.index = range(tri.tri_count);
 			this.maxNodes = 2 * tri.tri_count - 1; // TODO: Trim after building
 			this.aabbBuffer = new Float32Array(this.maxNodes * 6);
