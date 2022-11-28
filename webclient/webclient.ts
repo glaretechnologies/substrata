@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2022 -
 
 import * as THREE from './build/three.module.js';
 import { KTX2Loader } from './examples/jsm/loaders/KTX2Loader.js';
+import { EXRLoader } from './examples/jsm/loaders/EXRLoader.js';
 import { BufferIn, readDouble, readStringFromStream, readUInt32 } from './bufferin.js';
 import { BufferOut } from './bufferout.js';
 import * as downloadqueue from './downloadqueue.js';
@@ -1294,7 +1295,7 @@ function addGroundQuads() {
 
 	const plane_w = 200;
 
-	const texture = new THREE.TextureLoader().load('./obstacle.png');
+	const texture = texture_loader.load('./obstacle.png');
 	texture.encoding = THREE.sRGBEncoding;
 
 	texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -1347,9 +1348,7 @@ function addGroundQuads() {
 const gen = new THREE.PMREMGenerator(renderer);
 let env_tex = null;
 
-new THREE.TextureLoader().load('./sky_no_sun.png', function (texture) {
-
-	texture.encoding = THREE.sRGBEncoding;
+new EXRLoader().load('./sky_no_sun.exr', function (texture) {
 
 	texture.mapping = THREE.EquirectangularReflectionMapping; // needed?
 	const target: THREE.WebGLRenderTarget = gen.fromEquirectangular(texture);
