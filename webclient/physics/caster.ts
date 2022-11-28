@@ -15,8 +15,8 @@ import CameraController from '../cameraController';
 import { add3, addScaled3, applyMatrix4, cross3, mulScalar3, normalise3, transformDirection } from '../maths/vec3.js';
 import { DEG_TO_RAD } from '../maths/defs.js';
 
-const BOTTOM = 0;
-const TOP = 1;
+const LEFT = 0;
+const RIGHT = 1;
 
 export default class Caster {
 	private readonly rndr: THREE.WebGLRenderer;
@@ -33,10 +33,10 @@ export default class Caster {
 		this.rndr = renderer;
 		this.controller = controller;
 
-		this.theta = .5 * controller.camSettings.fov * DEG_TO_RAD;
+		this.theta = .5 * controller.camSettings.horizontal_fov * DEG_TO_RAD;
 		this.htan = Math.tan(this.theta);
-		this.frustum[TOP] = controller.camSettings.near * this.htan;
-		this.frustum[BOTTOM] = - this.frustum[TOP];
+		this.frustum[LEFT] = controller.camSettings.near * this.htan;
+		this.frustum[RIGHT] = - this.frustum[LEFT];
 	}
 
 	// Calculate a pick ray based on the current camera view at screen coordinates [x, y]
@@ -48,7 +48,7 @@ export default class Caster {
 		const invH = 1. / this.dims.y;
 		const AR = this.dims.x * invH;
 		const r = dPR * x / this.dims.x, u = (this.dims.y - dPR * y) * invH;
-		const right = AR * this.frustum[TOP]; const left = -right;
+		const top = this.frustum[LEFT] / AR; const bottom = -top;
 
 		const U = this.U;
 
@@ -56,8 +56,8 @@ export default class Caster {
 		const D = new Float32Array(this.controller.camForwardsVec);
 
 		cross3(D, R, U); // U = D x R
-		mulScalar3(R, lerpN(left, right, r)); // R *= lerp(left, right)
-		mulScalar3(U, lerpN(this.frustum[TOP], this.frustum[BOTTOM], u)); // U *= lerp(top, bottom)
+		mulScalar3(R, lerpN(this.frustum[LEFT], this.frustum[RIGHT], r)); // R *= lerp(left, right)
+		mulScalar3(U, lerpN(top, bottom, u)); // U *= lerp(top, bottom)
 
 		const dir = addScaled3(add3(R, U), D, this.controller.camSettings.near); // R = r + u + d * nearPlane
 		normalise3(dir);
