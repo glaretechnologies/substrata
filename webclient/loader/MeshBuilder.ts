@@ -71,7 +71,7 @@ export function buildBatchedMesh (bmesh: BMesh): THREE.BufferGeometry {
 	return geometry;
 }
 
-export function buildVoxelMesh (voxelData: VoxelMesh): THREE.BufferGeometry {
+export function buildVoxelMesh(voxelData: VoxelMesh): [THREE.BufferGeometry, number] {
 	const geometry = new THREE.BufferGeometry();
 
 	const groups = new Uint32Array(voxelData.groupsBuffer);
@@ -90,5 +90,5 @@ export function buildVoxelMesh (voxelData: VoxelMesh): THREE.BufferGeometry {
 	// This was originally performed in loadModelForObject in webclient.js
 	geometry.computeVertexNormals();
 
-	return geometry;
+	return [geometry, voxelData.subsample_factor];
 }

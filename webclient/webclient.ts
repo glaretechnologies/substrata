@@ -736,7 +736,7 @@ function loadModelForObject(world_ob: WorldObject) {
 function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
 	const {	uid, ob_lod_level, model_lod_level } = voxelData;
 	//const [geometry, triangles, subsample_factor] = buildVoxelMesh(voxelData);
-	const geometry = buildVoxelMesh(voxelData);
+	const [geometry, subsample_factor] = buildVoxelMesh(voxelData);
 
 	const world_ob = world_objects.get(uid);
 	console.assert(world_ob != null);
@@ -757,14 +757,9 @@ function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
 	geometry.computeVertexNormals();
 
 	const mesh = new THREE.Mesh(geometry, three_mats);
-	//mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-	//mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
 
 	const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
 	axis.normalize();
-	//const q = new THREE.Quaternion();
-	//q.setFromAxisAngle(axis, world_ob.angle);
-	//mesh.setRotationFromQuaternion(q);
 
 	mesh.matrixAutoUpdate = false;
 
@@ -772,7 +767,7 @@ function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
 	rot_matrix.makeRotationAxis(axis, world_ob.angle);
 
 	const scale_matrix = new THREE.Matrix4();
-	scale_matrix.makeScale(world_ob.scale.x, world_ob.scale.y, world_ob.scale.z);
+	scale_matrix.makeScale(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor);
 
 	const trans_matrix = new THREE.Matrix4();
 	trans_matrix.makeTranslation(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z);
@@ -782,18 +777,6 @@ function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
 	mesh.matrix.multiply(trans_matrix);
 	mesh.matrix.multiply(rot_matrix);
 	mesh.matrix.multiply(scale_matrix);
-
-	/*
-	const mesh = new THREE.Mesh(geometry, three_mats);
-	mesh.position.copy(new THREE.Vector3(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z));
-	mesh.scale.copy(new THREE.Vector3(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor));
-
-	const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-	axis.normalize();
-	const q = new THREE.Quaternion();
-	q.setFromAxisAngle(axis, world_ob.angle);
-	mesh.setRotationFromQuaternion(q);
-	*/
 
 	scene.add(mesh);
 
