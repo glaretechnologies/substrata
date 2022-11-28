@@ -464,9 +464,9 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			Reference<WebDataStoreFile> store_file;
 			{
 				Lock lock(data_store->mutex);
-				const auto compressed_lookup_res = data_store->public_files.find(filename);
-				if(compressed_lookup_res != data_store->public_files.end())
-					store_file = compressed_lookup_res->second;
+				const auto lookup_res = data_store->public_files.find(filename);
+				if(lookup_res != data_store->public_files.end())
+					store_file = lookup_res->second;
 			}
 
 			if(store_file.nonNull())
@@ -565,9 +565,9 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			Reference<WebDataStoreFile> store_file;
 			{
 				Lock lock(data_store->mutex);
-				const auto compressed_lookup_res = data_store->webclient_dir_files.find(path);
-				if(compressed_lookup_res != data_store->webclient_dir_files.end())
-					store_file = compressed_lookup_res->second;
+				const auto lookup_res = data_store->webclient_dir_files.find(path);
+				if(lookup_res != data_store->webclient_dir_files.end())
+					store_file = lookup_res->second;
 			}
 
 			if(store_file.nonNull())
@@ -583,20 +583,6 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 			{
 				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "No such file found or invalid filename");
 				return;
-			}
-		}
-		else if(request.path == "/obstacle.png" || request.path == "/obstacle.ktx2" || request.path == "/sky_no_sun.exr") // Data files used by the webclient
-		{
-			try
-			{
-				std::string contents;
-				FileUtils::readEntireFile(data_store->webclient_dir + request.path, contents);
-				web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, contents.data(), contents.length(), web::ResponseUtils::getContentTypeForPath(request.path));
-			}
-			catch(FileUtils::FileUtilsExcep& e)
-			{
-				conPrint("Failed to load file: " + e.what());
-				web::ResponseUtils::writeHTTPNotFoundHeaderAndData(reply_info, "Failed to load file");
 			}
 		}
 		else
