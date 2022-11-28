@@ -1278,7 +1278,7 @@ function addGroundQuads() {
 
 	const plane_w = 200;
 
-	const texture = texture_loader.load('./obstacle.png');
+	const texture = texture_loader.load('/webclient/obstacle.png');
 	texture.encoding = THREE.sRGBEncoding;
 
 	texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -1331,7 +1331,7 @@ function addGroundQuads() {
 const gen = new THREE.PMREMGenerator(renderer);
 let env_tex = null;
 
-new EXRLoader().load('./sky_no_sun.exr', function (texture) {
+new EXRLoader().load('/webclient/sky_no_sun.exr', function (texture) {
 
 	texture.mapping = THREE.EquirectangularReflectionMapping; // needed?
 	const target: THREE.WebGLRenderTarget = gen.fromEquirectangular(texture);
