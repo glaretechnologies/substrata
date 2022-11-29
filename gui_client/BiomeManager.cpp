@@ -270,12 +270,12 @@ static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshMa
 #endif
 
 
-GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
+GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
 {
 	std::vector<WorldMaterialRef> materials(2);
 	materials[0] = new WorldMaterial();
 	materials[0]->colour_rgb = Colour3f(162/256.f);
-	materials[0]->colour_texture_url = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg";
+	materials[0]->colour_texture_url = "GLB_image_11255090336016867094_jpg_11255090336016867094.jpg"; // Tree trunk texture
 	materials[0]->tex_matrix = Matrix2f(1, 0, 0, -1); // Y coord needs to be flipped on leaf texture for some reason.
 	materials[0]->roughness.val = 1.f;
 	materials[1] = new WorldMaterial();
@@ -299,8 +299,11 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAll
 		}
 	}
 
-	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(gl_engine, elm_tree_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
+	GLObjectRef tree_opengl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(opengl_engine, elm_tree_mesh_data->gl_meshdata, /*ob lod level=*/0, materials, /*lightmap URL=*/"", resource_manager, 
 		/*ob to world matrix=*/Matrix4f::identity());
+
+	// Do assignedLoadedOpenGLTexturesToMats() equivalent
+	tree_opengl_ob->materials[0].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(resource_manager.pathForURL(materials[0]->colour_texture_url)), /*use_sRGB=*/true);
 
 	raymesh_out = elm_tree_mesh_data->raymesh;
 
