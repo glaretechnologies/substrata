@@ -1,0 +1,20 @@
+{
+  "name": "webclient",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "build": "rollup -c rollup.worker.config.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^4.9.3",
+    "rollup": "^3.5.0",
+    "tslib": "^2.4.1",
+    "@rollup/plugin-typescript": "^10.0.1"
+  }
+}
