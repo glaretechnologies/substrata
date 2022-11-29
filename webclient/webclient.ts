@@ -1478,12 +1478,12 @@ function doCamMovement(dt: number) {
 	}
 
 	if(keys_down.has('ArrowLeft')) {
-		const turn_speed = run_pressed ? 5.0 : 1.0;
+		const turn_speed = run_pressed ? 3.0 : 1.0;
 		cam_controller.heading = cam_controller.heading + (dt * turn_speed);
 	}
 
 	if(keys_down.has('ArrowRight')) {
-		const turn_speed = run_pressed ? 5.0 : 1.0;
+		const turn_speed = run_pressed ? 3.0 : 1.0;
 		cam_controller.heading = cam_controller.heading - (dt * turn_speed);
 	}
 
