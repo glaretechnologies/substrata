@@ -43,6 +43,7 @@ import { buildBatchedMesh, buildVoxelMesh } from './loader/MeshBuilder.js';
 import MeshLoader from './loader/MeshLoader.js';
 import { BMesh, LoaderError, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
 import { LoadItemQueue, LoadItemQueueItem } from './loaditemqueue.js';
+import { floatMod } from './maths/functions.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
@@ -1132,6 +1133,7 @@ function newCellInProximity(cell_x: number, cell_y: number, cell_z: number) {
 let initial_pos_x = 1;
 let initial_pos_y = 1;
 let initial_pos_z = 2;
+let initial_heading_deg = 90;
 
 const params = new URLSearchParams(document.location.search);
 if(params.get('x'))
@@ -1140,6 +1142,8 @@ if(params.get('y'))
 	initial_pos_y = parseFloat(params.get('y'));
 if(params.get('z'))
 	initial_pos_z = parseFloat(params.get('z'));
+if (params.get('heading'))
+	initial_heading_deg = parseFloat(params.get('heading'));
 
 let world = '';
 if (params.get('world'))
@@ -1186,6 +1190,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const cam_controller = new CameraController(renderer);
 
 cam_controller.position = new Float32Array([initial_pos_x, initial_pos_y, initial_pos_z]);
+cam_controller.heading = initial_heading_deg / 180.0 * Math.PI;
 
 
 const proximity_loader = new ProximityLoader(MAX_OB_LOAD_DISTANCE_FROM_CAM, /*callback_function=*/newCellInProximity);
@@ -1618,7 +1623,10 @@ function animate() {
 		if (world != '') // Append world if != empty string.
 			url_path += 'world=' + encodeURIComponent(world) + '&';
 		const P = cam_controller.firstPersonPos;
-		url_path += 'x=' + P[0].toFixed(1) + '&y=' + P[1].toFixed(1) + '&z=' + P[2].toFixed(1);
+
+		const heading = floatMod(cam_controller.heading * 180 / Math.PI, 360.0);
+
+		url_path += 'x=' + P[0].toFixed(1) + '&y=' + P[1].toFixed(1) + '&z=' + P[2].toFixed(1) + '&heading=' + heading.toFixed(0);
 		window.history.replaceState('object or string', 'Title', url_path);
 		last_update_URL_time = cur_time;
 	}

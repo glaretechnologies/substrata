@@ -62,3 +62,14 @@ export function print3 (...args: (Float32Array | string | number)[]): void {
 	console.log(out);
 }
 
+
+// Euclidean modulo: result will be in [0, y) for positive y.
+// e.g.
+// floatMod(-3.f, 4.f) = 1.f
+// floatMod(-2.f, 4.f) = 2.f
+// ...
+export function floatMod(x: number, y: number): number
+{
+	const fract = x / y;
+	return (fract - Math.floor(fract)) * y;
+}
