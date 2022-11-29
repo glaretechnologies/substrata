@@ -4,44 +4,16 @@ world.ts
 Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 
-import BVH, { createIndex, IntIndex, Triangles } from './bvh.js';
+import BVH from './bvh.js';
 import * as THREE from '../build/three.module.js';
 import type { WorldObject } from '../worldobject.js';
 import Caster from './caster.js';
-import { makeAABB, spherePathToAABB, testAABB, transformAABB } from '../maths/geometry.js';
-import { createAABBMesh } from './debug.js';
+import { makeAABB, spherePathToAABB, testAABB } from '../maths/geometry.js';
 import { applyMatrix4, len3, mulScalar3, transformDirection } from '../maths/vec3.js';
 import { clearSphereTraceResult, DIST, makeRay, makeSphereTraceResult, SphereTraceResult } from './types.js';
 import { PlayerPhysics } from './player.js';
 import { Ground } from './ground.js';
 import { getBVHKey } from '../worldobject.js';
-
-enum DebugType {
-  AABB_MESH, // A single AABB, originally set to the BVH root AABB
-  TRI_MESH, // A triangle for highlighting triangle picking
-  BVH_MESH, // A BVH mesh visualising the leaf nodes of the BVH (visualising overlap)
-  ROT_MESH// An AABB transformed from local space into world space
-}
-
-interface DebugMesh {
-  idx: number;
-  mesh: THREE.Object3D;
-  type: DebugType
-}
-
-function extractWorkerResponse (result: WorkerResult, oldTriangles: Triangles): BVH {
-	//const triangles = createTriangles(result);
-	const vertices = new Float32Array(result.vertexBuf);
-	const triIndex = createIndex(result.indexType as IntIndex, result.indexBuf);
-
-	oldTriangles.transfer(vertices, triIndex);
-	return new BVH(oldTriangles, {
-		index: new Uint32Array(result.bvhIndexBuf),
-		nodeCount: result.nodeCount,
-		aabbBuffer: new Float32Array(result.aabbBuffer),
-		dataBuffer: new Uint32Array(result.dataBuffer)
-	});
-}
 
 interface BVHRef {
 	bvh: BVH,
@@ -56,7 +28,6 @@ export default class PhysicsWorld {
 	private caster_: Caster | undefined;
 	private scene_: THREE.Scene | undefined;
 
-	private debugMeshes: DebugMesh[];
 	private readonly tempMeshes: THREE.Group;
 
 	// Ground Mesh
@@ -68,7 +39,6 @@ export default class PhysicsWorld {
 		this.worldObjects_ = new Array<WorldObject>();
 		this.freeList_ = new Array<number>();
 		this.caster_ = caster;
-		this.debugMeshes = [];
 		this.tempMeshes = new THREE.Group();
 
 		this.player_ = new PlayerPhysics(this);
@@ -113,37 +83,6 @@ export default class PhysicsWorld {
 		}
 		// If not in index, return false as nothing needs to happen
 		return false;
-	}
-
-	// Add one of several debug meshes
-	private addDebugMesh (idx: number, type: DebugType, obj: WorldObject) {
-		let mesh: THREE.Object3D;
-		switch(type) {
-		case DebugType.AABB_MESH: mesh = obj.bvh.getRootAABBMesh(); break;
-		case DebugType.BVH_MESH: mesh = obj.bvh.getBVHMesh(); break;
-		case DebugType.TRI_MESH: mesh = obj.bvh.getTriangleHighlighter(); break;
-		case DebugType.ROT_MESH: {
-			const aabb = obj.bvh.rootAABB;
-			const transformed = transformAABB(obj.objectToWorld, aabb, new Float32Array(6));
-			mesh = createAABBMesh(transformed);
-			break;
-		}
-		}
-
-		const debugMesh = {
-			idx,
-			type,
-			mesh
-		};
-
-		if(type !== DebugType.ROT_MESH) {
-			debugMesh.mesh.position.copy(obj.mesh.position);
-			debugMesh.mesh.rotation.copy(obj.mesh.rotation);
-			debugMesh.mesh.scale.copy(obj.mesh.scale);
-		}
-		debugMesh.mesh.frustumCulled = false;
-		this.scene_.add(debugMesh.mesh);
-		this.debugMeshes.push(debugMesh);
 	}
 
 	// This function registers the model and potentially initiates a request for the BVH - if the BVH is already in the
@@ -289,30 +228,6 @@ export default class PhysicsWorld {
 		return hit;
 	}
 
-	public debugRay (origin: Float32Array, dir: Float32Array): void {
-		if(!this.caster_) return;
-
-		for(let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
-			const obj = this.worldObjects_[i];
-			if(obj && obj.bvh) { // Should collidable work on the picking rays?
-				const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.worldToObject, obj.bvh);
-				if(test) {
-					// See if we have any debug meshes associated to this mesh
-					const set = this.debugMeshes.filter(e => e.idx === i);
-					if(idx[0] !== -1) { // If we get a hit on an AABB (and potentially a triangle in idx[1])
-						for(let i = 0; i !== set.length; ++i) {
-							if(set[i].type === DebugType.AABB_MESH) {
-								obj.bvh.updateAABBMesh(set[i].mesh, idx[0]);
-							} else if(set[i].type === DebugType.TRI_MESH && idx[1] !== -1) {
-								obj.bvh.updateTriangleHighlighter(idx[1], set[i].mesh);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
 	// This function replicates the traceSphere function in the physics world in the Substrata C++ client.
 	public traceSphereWorld (sphere: Float32Array, translation: Float32Array): SphereTraceResult {
 		const spheres = new Float32Array(12);
@@ -438,4 +353,61 @@ export default class PhysicsWorld {
 		this.ground.bvh.appendCollPoints(/*spherePosWs=*/sphere, /*radius=*/sphere[3],
 			/*toObject=*/this.ground.worldToObject, /*toWorld=*/this.ground.objectToWorld, /*points=*/collisionPoints);
 	}
+
+	/*
+	These functions are old debugging functions that aren't really necessary any more
+	private addDebugMesh (idx: number, type: DebugType, obj: WorldObject) {
+		let mesh: THREE.Object3D;
+		switch(type) {
+		case DebugType.AABB_MESH: mesh = obj.bvh.getRootAABBMesh(); break;
+		case DebugType.BVH_MESH: mesh = obj.bvh.getBVHMesh(); break;
+		case DebugType.TRI_MESH: mesh = obj.bvh.getTriangleHighlighter(); break;
+		case DebugType.ROT_MESH: {
+			const aabb = obj.bvh.rootAABB;
+			const transformed = transformAABB(obj.objectToWorld, aabb, new Float32Array(6));
+			mesh = createAABBMesh(transformed);
+			break;
+		}
+		}
+
+		const debugMesh = {
+			idx,
+			type,
+			mesh
+		};
+
+		if(type !== DebugType.ROT_MESH) {
+			debugMesh.mesh.position.copy(obj.mesh.position);
+			debugMesh.mesh.rotation.copy(obj.mesh.rotation);
+			debugMesh.mesh.scale.copy(obj.mesh.scale);
+		}
+		debugMesh.mesh.frustumCulled = false;
+		this.scene_.add(debugMesh.mesh);
+		this.debugMeshes.push(debugMesh);
+	}
+
+	public debugRay (origin: Float32Array, dir: Float32Array): void {
+		if(!this.caster_) return;
+
+		for(let i = 0, end = this.worldObjects_.length; i !== end; ++i) {
+			const obj = this.worldObjects_[i];
+			if(obj && obj.bvh) { // Should collidable work on the picking rays?
+				const [test, idx] = this.caster_.testRayBVH(origin, dir, obj.worldToObject, obj.bvh);
+				if(test) {
+					// See if we have any debug meshes associated to this mesh
+					const set = this.debugMeshes.filter(e => e.idx === i);
+					if(idx[0] !== -1) { // If we get a hit on an AABB (and potentially a triangle in idx[1])
+						for(let i = 0; i !== set.length; ++i) {
+							if(set[i].type === DebugType.AABB_MESH) {
+								obj.bvh.updateAABBMesh(set[i].mesh, idx[0]);
+							} else if(set[i].type === DebugType.TRI_MESH && idx[1] !== -1) {
+								obj.bvh.updateTriangleHighlighter(idx[1], set[i].mesh);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	*/
 }
