@@ -241,7 +241,7 @@ void generateKTXTexture(const std::string& src_tex_path, int base_lod_level, int
 
 	int new_max_w_h;
 	if(lod_level == base_lod_level)
-		new_max_w_h = 4096;
+		new_max_w_h = 4096; // Basis compression can get pretty slow for large textures, so limit the texture size.
 	else
 		new_max_w_h = (lod_level == 0) ? 1024 : ((lod_level == 1) ? 256 : 64);
 
