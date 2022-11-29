@@ -2963,8 +2963,8 @@ void MainWindow::checkForLODChanges()
 				}
 			}
 		}
-		//conPrint("checkForLODChanges took " + timer.elapsedString() + " " + toString(world_state->objects.size()));
 	} // End lock scope
+	//conPrint("checkForLODChanges took took " + timer.elapsedStringMSWIthNSigFigs(4) + " (" + toString(world_state->objects.size()) + " obs)");
 }
 
 
@@ -3010,8 +3010,8 @@ void MainWindow::checkForAudioRangeChanges()
 				}
 			}
 		}
-		//conPrint("checkForAudioRangeChanges took " + timer.elapsedString() + " " + toString(world_state->objects.size()));
 	} // End lock scope
+	//conPrint("checkForAudioRangeChanges took " + timer.elapsedStringMSWIthNSigFigs(4) + " (" + toString(world_state->objects.size()) + " obs)");
 }
 
 
