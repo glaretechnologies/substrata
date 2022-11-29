@@ -47,7 +47,8 @@ export default class MeshLoader {
 
 		for(let i = 0; i !== poolSize; ++i) {
 			// NOTE: For now, we are using module types in order to not concatenate all the code into the worker just yet.
-			this.worker_[i] = new Worker('/webclient/loader/MeshLoaderWorker.js', { type: 'module' });
+			//this.worker_[i] = new Worker('/webclient/loader/MeshLoaderWorker.js', { type: 'module' });
+			this.worker_[i] = new Worker('/webclient/MeshLoaderWorker.js'); // Firefox doesn't support modules
 			this.worker_[i].onmessage = (ev: MessageEvent<MeshLoaderResponse>) => this.handleResponse(ev.data, i);
 			this.worker_[i].onerror = (ev: ErrorEvent | LoaderError) => this.handleError(ev, i);
 		}
