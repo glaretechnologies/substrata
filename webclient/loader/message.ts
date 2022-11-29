@@ -7,6 +7,9 @@ Contains the interfaces defining the worker request and response for
 mesh building.
 =====================================================================*/
 
+export const BMESH_TYPE = 1;
+export const VOXEL_TYPE = 2;
+
 export interface VertAttribute {
   type: number;
   component_type: number;

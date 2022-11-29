@@ -8,7 +8,7 @@ be included below.  This first version is for Chrome only so it's
 easier to debug before we harden it for all browsers.
 =====================================================================*/
 
-import { MeshLoaderRequest, Voxels } from './message.js';
+import { BMESH_TYPE, MeshLoaderRequest, VOXEL_TYPE, Voxels } from './message.js';
 import { loadBatchedMesh } from '../bmeshloading.js';
 import { makeMeshForVoxelGroup, VoxelMeshData } from '../voxelloading.js';
 import { getIndexType } from '../physics/bvh.js';
@@ -21,7 +21,7 @@ function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number
 		} else {
 			self.postMessage({
 				error: {
-					type: 1,
+					type: BMESH_TYPE,
 					message: `Fetch on url ${url} failed with error: ${resp.status}`,
 					url
 				}
@@ -76,9 +76,11 @@ function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number
 		]);
 	}).catch(err => {
 		self.postMessage({
-			type: 1,
-			message: `bmesh ${url} failed to load with ${err}`,
-			url
+			error: {
+				type: BMESH_TYPE,
+				message: `bmesh ${url} failed to load with ${err}`,
+				url
+			}
 		});
 	});
 }
@@ -92,9 +94,12 @@ function processVoxelMeshRequest (voxels: Voxels, pos: Float32Array, sizeFactor:
 		def = makeMeshForVoxelGroup(voxels.compressedVoxels, voxels.model_lod_level, voxels.mats_transparent);
 	} catch(err) {
 		self.postMessage({
-			type: 1,
-			message: `voxel mesh ${voxels.uid} failed to load with ${err}`
+			error: {
+				type: VOXEL_TYPE,
+				message: `voxel mesh ${voxels.uid} failed to load with ${err}`
+			}
 		});
+		return;
 	}
 
 	// Send a response back to the main thread, with the built data.
