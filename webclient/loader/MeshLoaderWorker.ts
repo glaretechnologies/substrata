@@ -10,7 +10,7 @@ easier to debug before we harden it for all browsers.
 
 import { MeshLoaderRequest, Voxels } from './message.js';
 import { loadBatchedMesh } from '../bmeshloading.js';
-import { makeMeshForVoxelGroup } from '../voxelloading.js';
+import { makeMeshForVoxelGroup, VoxelMeshData } from '../voxelloading.js';
 import { getIndexType } from '../physics/bvh.js';
 
 function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number): void {
@@ -22,7 +22,8 @@ function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number
 			self.postMessage({
 				error: {
 					type: 1,
-					message: 'Fetch failed on URL: ' + url
+					message: `Fetch on url ${url} failed with error: ${resp.status}`,
+					url
 				}
 			});
 			return;
@@ -73,6 +74,12 @@ function processBMeshRequest (url: string, pos: Float32Array, sizeFactor: number
 			resp.bvh.triIndexBuffer,
 			resp.bvh.triPositionBuffer
 		]);
+	}).catch(err => {
+		self.postMessage({
+			type: 1,
+			message: `bmesh ${url} failed to load with ${err}`,
+			url
+		});
 	});
 }
 
@@ -80,7 +87,15 @@ function processVoxelMeshRequest (voxels: Voxels, pos: Float32Array, sizeFactor:
 	const { uid, model_lod_level, ob_lod_level } = voxels;
 
 	// Build the voxel mesh
-	const def = makeMeshForVoxelGroup(voxels.compressedVoxels, voxels.model_lod_level, voxels.mats_transparent);
+	let def: VoxelMeshData;
+	try {
+		def = makeMeshForVoxelGroup(voxels.compressedVoxels, voxels.model_lod_level, voxels.mats_transparent);
+	} catch(err) {
+		self.postMessage({
+			type: 1,
+			message: `voxel mesh ${voxels.uid} failed to load with ${err}`
+		});
+	}
 
 	// Send a response back to the main thread, with the built data.
 	const bvhData = def.bvh.bvhData;
@@ -125,6 +140,7 @@ function processVoxelMeshRequest (voxels: Voxels, pos: Float32Array, sizeFactor:
 // Handle a task message from the main thread
 self.onmessage = (request: MessageEvent<MeshLoaderRequest>) => {
 	const task = request.data;
+
 	task.bmesh != null
 		? processBMeshRequest(task.bmesh, task.pos, task.sizeFactor)
 		: processVoxelMeshRequest(task.voxels, task.pos, task.sizeFactor);
