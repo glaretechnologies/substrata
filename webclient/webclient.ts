@@ -41,7 +41,7 @@ import {
 import { ProximityLoader } from './proximityloader.js';
 import { buildBatchedMesh, buildVoxelMesh } from './loader/MeshBuilder.js';
 import MeshLoader from './loader/MeshLoader.js';
-import { BMesh, LoaderError, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
+import { BMesh, BMESH_TYPE, LoaderError, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
 import { LoadItemQueue, LoadItemQueueItem } from './loaditemqueue.js';
 import { floatMod } from './maths/functions.js';
 
@@ -75,8 +75,8 @@ mesh_loader.onmessage = (resp: MeshLoaderResponse) => {
 };
 
 mesh_loader.onerror = (err: LoaderError) => {
-	// console.error('err:', err.message); Don't display, three.js does anyway
-	if(err.type === 1) { // BMesh errors are always type 1
+	console.error('err:', err.message);
+	if(err.type === BMESH_TYPE) { // BMesh errors are always type 1
 		if(loading_model_URL_set.has(err?.url)) {
 			loading_model_URL_set.delete(err?.url);
 		}
