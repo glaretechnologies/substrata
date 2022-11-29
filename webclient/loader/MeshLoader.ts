@@ -8,7 +8,7 @@ types in a worker.  Transfers out the buffers from the worker to the
 caller for uploading to the WebGL context.
 =====================================================================*/
 
-import { LoaderError, MeshLoaderRequest, MeshLoaderResponse } from './message.js';
+import { LoaderError, MeshLoaderResponse } from './message.js';
 import { clamp } from '../maths/functions.js';
 import { LoadItemQueue } from '../loaditemqueue.js';
 
@@ -83,6 +83,7 @@ export default class MeshLoader {
 	// We store the position in the message so that we can sort both before and after the mesh was loaded.
 	public processRequests() {
 		const q = this.load_item_queue_;
+
 		while(q.items.length > 0) {
 			const workerId = findMinIndex(this.jobCounter_); // Find worker with the least number of items in its queue
 			if(this.jobCounter_[workerId] >= this.maxInputLen_) break;

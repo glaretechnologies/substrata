@@ -74,10 +74,19 @@ mesh_loader.onmessage = (resp: MeshLoaderResponse) => {
 	else if(resp.voxelMesh != null) addVoxelMeshToScene(resp.voxelMesh, bvh);
 };
 
-mesh_loader.onerror = (err: ErrorEvent | LoaderError) => {
-	console.error('err:', err.message);
-	if((err.type != null && err.type === 1) || err.message.includes('bmesh')) num_resources_downloading--;
+mesh_loader.onerror = (err: LoaderError) => {
+	// console.error('err:', err.message); Don't display, three.js does anyway
+	if(err.type === 1) { // BMesh errors are always type 1
+		if(loading_model_URL_set.has(err?.url)) {
+			loading_model_URL_set.delete(err?.url);
+		}
 
+		if(loading_model_URL_to_world_ob_map.has(err?.url)) {
+			loading_model_URL_to_world_ob_map.delete(err?.url);
+		}
+
+		num_resources_downloading--;
+	}
 };
 
 const texture_loader = new THREE.TextureLoader();
@@ -1514,7 +1523,7 @@ let last_stats_update_frame_num = 0;
 let frame_num = 0;
 
 
-const stats_doc_elem = document.querySelector("#stats");
+const stats_doc_elem = document.querySelector('#stats');
 
 
 function animate() {
@@ -1524,13 +1533,13 @@ function animate() {
 	if (stats_doc_elem && ((cur_time - last_update_stats_time) > 1.0)) {
 		const fps = (frame_num - last_stats_update_frame_num) / (cur_time - last_update_stats_time);
 
-		let s = fps.toFixed(1) + " fps<br/>";
+		let s = fps.toFixed(1) + ' fps<br/>';
 		if (renderer.info) {
-			s += "geometries: " + renderer.info.memory.geometries.toString() + "<br/>";
-			s += "textures: " + renderer.info.memory.textures.toString() + "<br/>";
-			s += "num programs: " + renderer.info.programs.length + "<br/>";
-			s += "render calls: " + renderer.info.render.calls + "<br/>";
-			s += "render triangles: " + renderer.info.render.triangles + "<br/>";
+			s += 'geometries: ' + renderer.info.memory.geometries.toString() + '<br/>';
+			s += 'textures: ' + renderer.info.memory.textures.toString() + '<br/>';
+			s += 'num programs: ' + renderer.info.programs.length + '<br/>';
+			s += 'render calls: ' + renderer.info.render.calls + '<br/>';
+			s += 'render triangles: ' + renderer.info.render.triangles + '<br/>';
 		}
 		stats_doc_elem.innerHTML = s;
 

@@ -62,6 +62,7 @@ export interface BVHTransfer {
 export interface LoaderError {
   type: number; // bmesh = 1, voxel = 2
   message: string // description of the error
+  url?: string // In the case of a bmesh load error, we need to return the URL so we can remove it from the download set
 }
 
 // Should we move the BVH construction here - makes sense to do it here as we have all the necessary data?
