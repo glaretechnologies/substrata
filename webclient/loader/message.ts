@@ -63,7 +63,7 @@ export interface BVHTransfer {
 }
 
 export interface LoaderError {
-  type: number; // bmesh = 1, voxel = 2
+  type: number; // bmesh = 1, voxel = 2 (CONSTANTS DEFINED ABOVE)
   message: string // description of the error
   url?: string // In the case of a bmesh load error, we need to return the URL so we can remove it from the download set
 }

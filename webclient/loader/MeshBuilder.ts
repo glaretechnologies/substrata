@@ -56,18 +56,15 @@ export function buildBatchedMesh (bmesh: BMesh): THREE.BufferGeometry {
 	const interleavedBuffer = new THREE.InterleavedBuffer(interleaved, bmesh.interleavedStride);
 
 	// Reconstruct the interleaved buffer
-	let normalsFound = false;
 	for (let i = 0; i !== bmesh.attributes.length; ++i) {
 		const type = bmesh.attributes[i].type;
 		const offset = bmesh.attributes[i].offset_B;
-		if(type === VertAttribute_Normal) normalsFound = true;
 		console.assert(0 <= type && type < VertAttribute_Joints);
 		const name = attrNameTable[type];
 		const itemSize = attrComponents[type];
 		geometry.setAttribute(name,	new THREE.InterleavedBufferAttribute(interleavedBuffer, itemSize, offset));
 	}
 
-	if (!normalsFound) geometry.computeVertexNormals();
 	return geometry;
 }
 
@@ -86,9 +83,6 @@ export function buildVoxelMesh(voxelData: VoxelMesh): [THREE.BufferGeometry, num
 	const position = new Float32Array(voxelData.positionBuffer);
 	const positionBuffer = new THREE.BufferAttribute(position, 3);
 	geometry.setAttribute('position', positionBuffer);
-
-	// This was originally performed in loadModelForObject in webclient.js
-	geometry.computeVertexNormals();
 
 	return [geometry, voxelData.subsample_factor];
 }
