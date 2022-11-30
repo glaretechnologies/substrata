@@ -479,7 +479,9 @@ export default class BVH {
 	// See glare-core BVH::traceSphere
 	public traceSphere (
 		ray: Ray,
+		// @ts-ignore
 		toObject: THREE.Matrix4,
+		// @ts-ignore
 		toWorld: THREE.Matrix4,
 		radius: number,
 		result: SphereTraceResult
@@ -561,6 +563,7 @@ export default class BVH {
 
 	private intersectSphereTri(
 		ray: Ray,
+		// @ts-ignore
 		toWorld: THREE.Matrix4,
 		radius: number,
 		triIndex: number,
@@ -656,7 +659,9 @@ export default class BVH {
 	public appendCollPoints (
 		spherePosWs: Float32Array,
 		radius: number,
+		// @ts-ignore
 		toObject: THREE.Matrix4,
+		// @ts-ignore
 		toWorld: THREE.Matrix4,
 		points: Array<Float32Array> // TODO: make resizable buffer of Float32Array
 	) : void {
