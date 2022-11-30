@@ -44,6 +44,7 @@ import MeshLoader from './loader/MeshLoader.js';
 import { BMesh, BMESH_TYPE, LoaderError, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
 import { LoadItemQueue, LoadItemQueueItem } from './loaditemqueue.js';
 import { floatMod } from './maths/functions.js';
+import { CustomStandardMaterial } from './shaderMaterial.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
 ws.binaryType = 'arraybuffer'; // Change binary type from "blob" to "arraybuffer"
@@ -564,6 +565,10 @@ function setThreeJSMaterial(three_mat: THREE.Material, world_mat: WorldMaterial,
 
 	three_mat.side = THREE.DoubleSide; // Enable backface rendering as well.
 
+	// This should use the shader derivatives to calculate the normal (but will still need work)
+	// three_mat.flatShading = true;
+	three_mat.flatShading = false;
+
 	three_mat.opacity = (world_mat.opacity.val < 1.0) ? 0.3 : 1.0;
 	three_mat.transparent = world_mat.opacity.val < 1.0;
 
@@ -735,7 +740,9 @@ function loadModelForObject(world_ob: WorldObject) {
 		const zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
 
 		const geometry = new THREE.BoxGeometry();
-		const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+		//const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+		const material = new CustomStandardMaterial({ color: 0xaaaaaa });
+
 		const cube = new THREE.Mesh(geometry, material);
 		cube.position.copy(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
 		cube.scale.copy(new THREE.Vector3(xspan, yspan, zspan));
@@ -756,7 +763,8 @@ function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
 
 	const three_mats = [];
 	for (let i = 0; i < world_ob.mats.length; ++i) {
-		const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
+		// const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
+		const three_mat = old_mats ? old_mats[i] : new CustomStandardMaterial({}, true);
 		setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
 		three_mats.push(three_mat);
 	}
@@ -819,9 +827,10 @@ function makeMeshAndAddToScene(geometry: THREE.BufferGeometry,
 		three_mats = old_mats;
 	}
 	else {
+		const geoNormals = geometry.getAttribute('normal') == null;
 		three_mats = [];
 		for (let i = 0; i < mats.length; ++i)
-			three_mats.push(new THREE.MeshStandardMaterial({ vertexColors: use_vert_colours }));
+			three_mats.push(new CustomStandardMaterial({ vertexColors: use_vert_colours }, geoNormals));
 	}
 
 	for (let i = 0; i < mats.length; ++i)
@@ -1306,15 +1315,21 @@ function addGroundQuads() {
 		0, 0, 1
 	);
 
-	const material = new THREE.MeshStandardMaterial();
+	//const material = new THREE.MeshStandardMaterial();
+	const material = new CustomStandardMaterial();
 
+	// @ts-expect-error - incomplete type interface
 	material.color = new THREE.Color(0.9, 0.9, 0.9);
+	// @ts-expect-error - incomplete type interface
 	material.color.convertSRGBToLinear();
 
 	//material.side = THREE.DoubleSide;
 
+	// @ts-expect-error - incomplete type interface
 	material.envMap = env_tex;
+	// @ts-expect-error - incomplete type interface
 	material.envMapIntensity = ENV_TEX_INTENSITY;
+	// @ts-expect-error - incomplete type interface
 	material.map = texture;
 
 	const half_res = 5;
