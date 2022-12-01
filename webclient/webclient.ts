@@ -1177,7 +1177,7 @@ function newCellInProximity(cell_x: number, cell_y: number, cell_z: number) {
 // Parse initial camera location from URL
 let initial_pos_x = 1;
 let initial_pos_y = 1;
-let initial_pos_z = 2;
+let initial_pos_z = 1.8;
 let initial_heading_deg = 90;
 
 const params = new URLSearchParams(document.location.search);
@@ -1236,6 +1236,21 @@ const cam_controller = new CameraController(renderer);
 
 cam_controller.position = new Float32Array([initial_pos_x, initial_pos_y, initial_pos_z]);
 cam_controller.heading = initial_heading_deg / 180.0 * Math.PI;
+
+// If the initial position is off the ground, then the user may have entered a URL with a location standing on some elevated object.
+// We don't want the user to fall through the object before its physics representation has loaded.
+// 'Fix' this by making the user fly for a while, hopefully until the object has loaded.
+// TODO: improve - turn off flying when we detect nearby objects have loaded?
+function turnOffFlyMode() {
+	if (physics_world.player.flyMode && !user_manually_toggled_flying) { // If the user has manually turned flying on or off already, don't overwrite the user's choice.
+		physics_world.player.flyMode = false;
+	}
+}
+if (initial_pos_z > 2.0) { // If the initial spawn location was off the ground:
+	physics_world.player.flyMode = true; // Fly for a while before transitioning to walking mode.
+	setTimeout(turnOffFlyMode, 10.0 * 1000.0);
+}
+
 
 
 const proximity_loader = new ProximityLoader(MAX_OB_LOAD_DISTANCE_FROM_CAM, /*callback_function=*/newCellInProximity);
@@ -1464,10 +1479,14 @@ function onKeyUp(ev: KeyboardEvent) {
 	keys_down.delete(ev.code);
 }
 
+let user_manually_toggled_flying = false;
 function onKeyPress() {
 	const player = physics_world.player;
 	if(keys_down.has('KeyV')) player.cameraMode = (player.cameraMode + 1) % 2;
-	if(keys_down.has('KeyF')) player.flyMode = !player.flyMode;
+	if(keys_down.has('KeyF')) {
+		player.flyMode = !player.flyMode;
+		user_manually_toggled_flying = true;
+	}
 	if(keys_down.has('Space')) player.processJump();
 }
 
