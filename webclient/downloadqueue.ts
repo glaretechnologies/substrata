@@ -84,6 +84,8 @@ export class DownloadQueue {
 		//}
 	}
 
+	public length(): number { return this.items.length; }
+
 	dequeueItem() {
 		//console.log("Dequeueing item '" + this.items[0].URL + "' from download queue.  (New queue size: " + (this.items.length - 1) + ")");
 		return this.items.shift(); // Removes first item from list and returns it.

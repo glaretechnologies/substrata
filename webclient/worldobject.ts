@@ -77,6 +77,8 @@ export class WorldObject {
 	current_lod_level: number; // LOD level as a function of distance from camera etc.. Kept up to date.
 	in_proximity: boolean; // Used by proximity loader
 
+	cached_aabb_longest_len: number;
+
 	constructor() {
 		this.mesh_state = MESH_NOT_LOADED;
 
@@ -86,12 +88,16 @@ export class WorldObject {
 		this.loaded_lod_level = -10;
 	}
 
-	AABBLongestLength(): number {
-		return Math.max(
+	computeCachedData() { 
+		this.cached_aabb_longest_len = Math.max(
 			this.aabb_ws_max.x - this.aabb_ws_min.x,
 			this.aabb_ws_max.y - this.aabb_ws_min.y,
 			this.aabb_ws_max.z - this.aabb_ws_min.z
 		);
+	}
+
+	AABBLongestLength(): number {
+		return this.cached_aabb_longest_len;
 	}
 
 	getLODLevel(campos: THREE.Vector3): number {
@@ -212,6 +218,8 @@ export function readWorldObjectFromNetworkStreamGivenUID(buffer_in: BufferIn) {
 			ob.compressed_voxels = buffer_in.readData(voxel_data_size); // Read voxel data
 		}
 	}
+
+	ob.computeCachedData();
 
 	return ob;
 }
