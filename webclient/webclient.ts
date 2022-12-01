@@ -43,7 +43,7 @@ import { buildBatchedMesh, buildVoxelMesh } from './loader/MeshBuilder.js';
 import MeshLoader from './loader/MeshLoader.js';
 import { BMesh, BMESH_TYPE, LoaderError, MeshLoaderResponse, VoxelMesh } from './loader/message.js';
 import { LoadItemQueue, LoadItemQueueItem } from './loaditemqueue.js';
-import { floatMod } from './maths/functions.js';
+import { floatMod, clamp } from './maths/functions.js';
 import { CustomStandardMaterial } from './shaderMaterial.js';
 
 const ws = new WebSocket('wss://' + window.location.host, 'substrata-protocol');
@@ -71,8 +71,12 @@ mesh_loader.onmessage = (resp: MeshLoaderResponse) => {
 		});
 	}
 
-	if(resp.bMesh != null) addBatchedMeshToScene(resp.bMesh, bvh);
-	else if(resp.voxelMesh != null) addVoxelMeshToScene(resp.voxelMesh, bvh);
+	if(resp.bMesh != null)
+		addBatchedMeshToScene(resp.bMesh, bvh);
+	else if(resp.voxelMesh != null)
+		addVoxelMeshToScene(resp.voxelMesh, bvh);
+	else
+		console.log("Error, expected bMesh or voxelMesh");
 };
 
 mesh_loader.onerror = (err: LoaderError) => {
@@ -751,63 +755,77 @@ function loadModelForObject(world_ob: WorldObject) {
 }
 
 function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
-	const {	uid, ob_lod_level, model_lod_level } = voxelData;
+	const uid = voxelData.uid;
+	const loaded_ob_lod_level = voxelData.ob_lod_level;
+	const loaded_model_lod_level = voxelData.model_lod_level;
 	//const [geometry, triangles, subsample_factor] = buildVoxelMesh(voxelData);
 	const [geometry, subsample_factor] = buildVoxelMesh(voxelData);
 
 	const world_ob = world_objects.get(uid);
 	console.assert(world_ob != null);
 
-	const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
-	const aabb_longest_len = world_ob.AABBLongestLength();
+	if (world_ob.in_proximity) { // Object may have moved out of proximity to camera by the time the voxel mesh has been built, don't apply it in this case.
 
-	const three_mats = [];
-	for (let i = 0; i < world_ob.mats.length; ++i) {
-		// const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
-		const three_mat = old_mats ? old_mats[i] : new CustomStandardMaterial({}, true);
-		setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
-		three_mats.push(three_mat);
+		const ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
+		const ob_model_lod_level = clamp(ob_lod_level, 0, world_ob.max_model_lod_level);
+
+		// Check the object wants this particular LOD level model right now:
+		if (ob_model_lod_level == loaded_model_lod_level) {
+
+			const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
+			const aabb_longest_len = world_ob.AABBLongestLength();
+
+			const three_mats = [];
+			for (let i = 0; i < world_ob.mats.length; ++i) {
+				// const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
+				const three_mat = old_mats ? old_mats[i] : new CustomStandardMaterial({}, true);
+				setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
+				three_mats.push(three_mat);
+			}
+
+			removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
+			removeAndDeletePhysicsObjectForOb(world_ob);
+
+			geometry.computeVertexNormals();
+
+			const mesh = new THREE.Mesh(geometry, three_mats);
+
+			const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
+			axis.normalize();
+
+			mesh.matrixAutoUpdate = false;
+
+			const rot_matrix = new THREE.Matrix4();
+			rot_matrix.makeRotationAxis(axis, world_ob.angle);
+
+			const scale_matrix = new THREE.Matrix4();
+			scale_matrix.makeScale(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor);
+
+			const trans_matrix = new THREE.Matrix4();
+			trans_matrix.makeTranslation(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z);
+
+			// T R S
+			mesh.matrix = to_y_up_matrix.clone();
+			mesh.matrix.multiply(trans_matrix);
+			mesh.matrix.multiply(rot_matrix);
+			mesh.matrix.multiply(scale_matrix);
+
+			scene.add(mesh);
+
+			mesh.castShadow = true;
+			mesh.receiveShadow = true;
+
+			world_ob.loaded_lod_level = ob_lod_level;
+			world_ob.loaded_model_lod_level = loaded_model_lod_level;
+			world_ob.mesh = mesh;
+			world_ob.mesh_state = MESH_LOADED;
+
+			world_ob.bvh = bvh;
+			registerPhysicsObject(world_ob, bvh, mesh);
+		} else {
+			// console.log("!!!!!!!!Not applying loaded voxel model, wrong LOD, ob_model_lod_level: " + ob_model_lod_level + ", loaded_model_lod_level: " + loaded_model_lod_level);
+		}
 	}
-
-	removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
-	removeAndDeletePhysicsObjectForOb(world_ob);
-
-	geometry.computeVertexNormals();
-
-	const mesh = new THREE.Mesh(geometry, three_mats);
-
-	const axis = new THREE.Vector3(world_ob.axis.x, world_ob.axis.y, world_ob.axis.z);
-	axis.normalize();
-
-	mesh.matrixAutoUpdate = false;
-
-	const rot_matrix = new THREE.Matrix4();
-	rot_matrix.makeRotationAxis(axis, world_ob.angle);
-
-	const scale_matrix = new THREE.Matrix4();
-	scale_matrix.makeScale(world_ob.scale.x * subsample_factor, world_ob.scale.y * subsample_factor, world_ob.scale.z * subsample_factor);
-
-	const trans_matrix = new THREE.Matrix4();
-	trans_matrix.makeTranslation(world_ob.pos.x, world_ob.pos.y, world_ob.pos.z);
-
-	// T R S
-	mesh.matrix = to_y_up_matrix.clone();
-	mesh.matrix.multiply(trans_matrix);
-	mesh.matrix.multiply(rot_matrix);
-	mesh.matrix.multiply(scale_matrix);
-
-	scene.add(mesh);
-
-	mesh.castShadow = true;
-	mesh.receiveShadow = true;
-
-	world_ob.loaded_lod_level = ob_lod_level;
-	world_ob.loaded_model_lod_level = model_lod_level;
-	world_ob.mesh = mesh;
-	world_ob.mesh_state = MESH_LOADED;
-
-	world_ob.bvh = bvh;
-	registerPhysicsObject(world_ob, bvh, mesh);
 }
 
 // Make a THREE.Mesh object, assign it the geometry, and make some three.js materials for it, based on WorldMaterials passed in.
@@ -932,7 +950,7 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 				ref_counted_tex.setRefCount(num_refs_added);
 				url_to_texture_map.set(download_queue_item.URL, ref_counted_tex);
 			},
-			undefined,
+			undefined, // onProgress callback (currently not supported)
 			function (err) { // onError callback
 				num_resources_downloading--;
 			}
@@ -982,33 +1000,42 @@ function addBatchedMeshToScene (bmeshData: BMesh, bvh: BVH): void {
 
 				if (world_ob.in_proximity) { // Object may have moved out of proximity to camera by the time the model has loaded, don't apply it in this case.
 
-					geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
+					const ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
+					const ob_model_lod_level = clamp(ob_lod_level, 0, world_ob.max_model_lod_level);
 
-					const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
+					// Check the object wants this particular LOD level model right now:
+					const current_desired_model_LOD_URL = getLODModelURLForLevel(world_ob.model_url, ob_model_lod_level);
+					if (current_desired_model_LOD_URL === model_url) {
 
-					const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
-					if (model_changing)
-						removeAndDeletePhysicsObjectForOb(world_ob);
-					removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they will be reassigned to the new mesh, so we don't need to destroy them.
+						geom_info.use_count++; // NOTE: has to go before removeAndDeleteGLAndPhysicsObjectsForOb() in case we are remove and re-assigning the same model.
 
-					// console.log("Assigning model '" + download_queue_item.URL + "' to world object: " + world_ob);
+						const old_mats = world_ob.mesh ? world_ob.mesh.material : null;
 
-					const use_ob_lod_level = world_ob.getLODLevel(cam_controller.positionV3); // Used for determining which texture LOD level to load
-					const ob_aabb_longest_len = world_ob.AABBLongestLength();
+						const model_changing = model_url !== world_ob_or_avatar.loaded_mesh_URL;
+						if (model_changing)
+							removeAndDeletePhysicsObjectForOb(world_ob);
+						removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/false); // If the object had materials before, they will be reassigned to the new mesh, so we don't need to destroy them.
 
-					const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, old_mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, use_ob_lod_level);
+						// console.log("Assigning model '" + model_url + "' to world object: " + world_ob.uid);
 
-					if (model_changing) {
-						world_ob.bvh = bvh;
-						registerPhysicsObject(world_ob, bvh, mesh);
+						const ob_aabb_longest_len = world_ob.AABBLongestLength();
+
+						const mesh: THREE.Mesh = makeMeshAndAddToScene(geometry, world_ob.mats, old_mats, world_ob.pos, world_ob.scale, world_ob.axis, world_ob.angle, ob_aabb_longest_len, ob_lod_level);
+
+						if (model_changing) {
+							world_ob.bvh = bvh;
+							registerPhysicsObject(world_ob, bvh, mesh);
+						}
+
+						world_ob.loaded_lod_level = ob_lod_level;
+						world_ob.loaded_model_lod_level = loaded_model_lod_level;
+						world_ob.loaded_mesh_URL = model_url;
+						world_ob.mesh = mesh;
+						world_ob.mesh_state = MESH_LOADED;
 					}
-
-
-					world_ob.loaded_lod_level = use_ob_lod_level;
-					world_ob.loaded_model_lod_level = loaded_model_lod_level;
-					world_ob.loaded_mesh_URL = model_url;
-					world_ob.mesh = mesh;
-					world_ob.mesh_state = MESH_LOADED;
+					else {
+						// console.log("!!!!!!!!Not applying loaded model, wrong LOD, current_desired_model_LOD_URL: " + current_desired_model_LOD_URL + ", model_url: " + model_url);
+					}
 				}
 			}
 			else if (world_ob_or_avatar instanceof Avatar) {
@@ -1081,7 +1108,7 @@ function loadModelAndAddToScene(world_ob_or_avatar: any, model_url: string, ob_a
 				removeAndDeletePhysicsObjectForOb(world_ob);
 		}
 
-		// console.log("Loaded mesh '" + model_url + "'.");
+		// console.log("Assigning already loaded model '" + model_url + "' to world object or avatar: " + world_ob_or_avatar.uid);
 
 		const mesh: THREE.Mesh = makeMeshAndAddToScene(geom_info.geometry, mats, old_mats, pos, scale, world_axis, angle, ob_aabb_longest_len, ob_lod_level);
 
