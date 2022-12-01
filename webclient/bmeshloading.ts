@@ -368,6 +368,7 @@ export function loadBatchedMesh(data: ArrayBuffer): BMeshData {
 
 
 	// Convert and expand vertex data to something 3.js can handle
+	// Note that currently 3.js doesn't seem to handle GL_INT_2_10_10_10_REV, see https://github.com/mrdoob/three.js/issues/22956
 
 	// Do a pass over the attributes to get the expanded attribute size and total expanded vertex size.
 	let expanded_vert_size_B = 0;

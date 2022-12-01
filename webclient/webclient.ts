@@ -184,7 +184,7 @@ ws.onopen = function () {
 
 
 
-const MAX_OB_LOAD_DISTANCE_FROM_CAM = 200;
+const MAX_OB_LOAD_DISTANCE_FROM_CAM = 1000;
 
 
 const parcels = new Map<number, Parcel>();
@@ -1584,7 +1584,8 @@ let last_stats_update_frame_num = 0;
 let frame_num = 0;
 
 
-const stats_doc_elem = document.querySelector('#stats');
+const stats_doc_elem = document.getElementById('stats');
+const loading_status_bar_doc_elem = document.getElementById('loading_status_bar');
 
 
 function animate() {
@@ -1606,6 +1607,16 @@ function animate() {
 
 		last_update_stats_time = cur_time;
 		last_stats_update_frame_num = frame_num;
+
+		const num_items_loading = load_item_queue.length() + download_queue.length();
+		if (num_items_loading > 0) {
+			s = 'Loading ' + num_items_loading + ' items';
+			loading_status_bar_doc_elem.innerHTML = s;
+			loading_status_bar_doc_elem.hidden = false;
+		}
+		else {
+			loading_status_bar_doc_elem.hidden = true;
+		}
 	}
 
 
@@ -1863,7 +1874,21 @@ function checkForLODChanges()
 			(centroid_z - cam_pos_z) * (centroid_z - cam_pos_z);
 
 
-		if (cam_to_ob_d2 > MAX_OB_LOAD_DISTANCE_FROM_CAM * MAX_OB_LOAD_DISTANCE_FROM_CAM) {
+		const LOAD_EVERYTHING_DIST = 150.0; // Show every object, no matter how big, within a certain distance.
+
+		let new_in_proximity = false;
+		if (cam_to_ob_d2 > LOAD_EVERYTHING_DIST * LOAD_EVERYTHING_DIST) { // If further than x metres away:
+
+			let proj_len = ob.AABBLongestLength() / Math.sqrt(cam_to_ob_d2);
+
+			new_in_proximity = proj_len > 0.05;
+		}
+		else {
+			new_in_proximity = true;
+		}
+
+
+		if (!new_in_proximity) {
 			if (ob.in_proximity) { // If an object was in proximity to the camera, and moved out of load distance:
 
 				unloadObject(ob);

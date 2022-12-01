@@ -48,6 +48,8 @@ export class LoadItemQueue {
 		//}
 	}
 
+	public length(): number { return this.items.length; }
+
 	dequeueItem(): MeshLoaderRequest {
 		//console.log("Dequeueing item '" + this.items[0].URL + "' from download queue.  (New queue size: " + (this.items.length - 1) + ")");
 		console.assert(this.items.length > 0);
