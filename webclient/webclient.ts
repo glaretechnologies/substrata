@@ -76,7 +76,7 @@ mesh_loader.onmessage = (resp: MeshLoaderResponse) => {
 	else if(resp.voxelMesh != null)
 		addVoxelMeshToScene(resp.voxelMesh, bvh);
 	else
-		console.log("Error, expected bMesh or voxelMesh");
+		console.log('Error, expected bMesh or voxelMesh');
 };
 
 mesh_loader.onerror = (err: LoaderError) => {
@@ -744,7 +744,6 @@ function loadModelForObject(world_ob: WorldObject) {
 		const zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
 
 		const geometry = new THREE.BoxGeometry();
-		//const material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
 		const material = new CustomStandardMaterial({ color: 0xaaaaaa });
 
 		const cube = new THREE.Mesh(geometry, material);
@@ -758,7 +757,6 @@ function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
 	const uid = voxelData.uid;
 	const loaded_ob_lod_level = voxelData.ob_lod_level;
 	const loaded_model_lod_level = voxelData.model_lod_level;
-	//const [geometry, triangles, subsample_factor] = buildVoxelMesh(voxelData);
 	const [geometry, subsample_factor] = buildVoxelMesh(voxelData);
 
 	const world_ob = world_objects.get(uid);
@@ -776,17 +774,15 @@ function addVoxelMeshToScene (voxelData: VoxelMesh, bvh: BVH): void {
 			const aabb_longest_len = world_ob.AABBLongestLength();
 
 			const three_mats = [];
+			const mat_conf = { geoNormals: true, generateUVs: true };
 			for (let i = 0; i < world_ob.mats.length; ++i) {
-				// const three_mat = old_mats ? old_mats[i] : new THREE.MeshStandardMaterial();
-				const three_mat = old_mats ? old_mats[i] : new CustomStandardMaterial({}, true);
+				const three_mat = old_mats ? old_mats[i] : new CustomStandardMaterial({},mat_conf);
 				setThreeJSMaterial(three_mat, world_ob.mats[i], world_ob.pos, aabb_longest_len, ob_lod_level);
 				three_mats.push(three_mat);
 			}
 
 			removeAndDeleteGLObjectForOb(world_ob, /*remove_and_delete_materials=*/true);
 			removeAndDeletePhysicsObjectForOb(world_ob);
-
-			geometry.computeVertexNormals();
 
 			const mesh = new THREE.Mesh(geometry, three_mats);
 
@@ -848,7 +844,7 @@ function makeMeshAndAddToScene(geometry: THREE.BufferGeometry,
 		const geoNormals = geometry.getAttribute('normal') == null;
 		three_mats = [];
 		for (let i = 0; i < mats.length; ++i)
-			three_mats.push(new CustomStandardMaterial({ vertexColors: use_vert_colours }, geoNormals));
+			three_mats.push(new CustomStandardMaterial({ vertexColors: use_vert_colours }, { geoNormals } ));
 	}
 
 	for (let i = 0; i < mats.length; ++i)
@@ -957,8 +953,6 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 		);
 	}
 	else { // Else it's a model to download:
-		// downloadModelOld(download_queue_item.URL);
-
 		// Here we already have the centroid and size factor as part of the download_queue_item...
 		const qi = download_queue_item;
 		load_item_queue.enqueueItem(new LoadItemQueueItem({
@@ -966,8 +960,6 @@ function startDownloadingResource(download_queue_item: downloadqueue.DownloadQue
 			sizeFactor: qi.size_factor,
 			bmesh: qi.URL
 		}));
-
-		// mesh_loader.enqueueRequest(download_queue_item.URL);
 	}
 }
 
@@ -1357,7 +1349,6 @@ function addGroundQuads() {
 		0, 0, 1
 	);
 
-	//const material = new THREE.MeshStandardMaterial();
 	const material = new CustomStandardMaterial();
 
 	// @ts-expect-error - incomplete type interface
@@ -1879,7 +1870,7 @@ function checkForLODChanges()
 		let new_in_proximity = false;
 		if (cam_to_ob_d2 > LOAD_EVERYTHING_DIST * LOAD_EVERYTHING_DIST) { // If further than x metres away:
 
-			let proj_len = ob.AABBLongestLength() / Math.sqrt(cam_to_ob_d2);
+			const proj_len = ob.AABBLongestLength() / Math.sqrt(cam_to_ob_d2);
 
 			new_in_proximity = proj_len > 0.05;
 		}
