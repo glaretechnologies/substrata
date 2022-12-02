@@ -45,34 +45,45 @@ void PhysicsWorld::setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& 
 {
 	const js::AABBox new_aabb_ws = object.geometry->getAABBox().transformedAABBFast(new_ob_to_world);
 
-	if(large_objects.count(&object) > 0)
+	if(large_objects.count(&object) > 0) // If object is currently in large objects:
 	{
 		// Just keep in large objects.
 	}
 	else
 	{
-		const js::AABBox& old_aabb_ws = object.aabb_ws;
-
-		// See if the object has changed grid cells
-		const Vec4i old_min_bucket_i = ob_grid.bucketIndicesForPoint(old_aabb_ws.min_);
-		const Vec4i old_max_bucket_i = ob_grid.bucketIndicesForPoint(old_aabb_ws.max_);
-
-		const Vec4i new_min_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.min_);
-		const Vec4i new_max_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.max_);
-
-		//conPrint("setNewObToWorldMatrix()");
-		if(new_min_bucket_i != old_min_bucket_i || new_max_bucket_i != old_max_bucket_i)
+		const int new_num_cells = ob_grid.numCellsForAABB(new_aabb_ws);
+		if(new_num_cells >= LARGE_OB_NUM_CELLS_THRESHOLD)
 		{
-			// cells have changed.
+			large_objects.insert(&object);
+
+			const js::AABBox& old_aabb_ws = object.aabb_ws;
 			ob_grid.remove(&object, old_aabb_ws);
-			ob_grid.insert(&object, new_aabb_ws);
+		}
+		else
+		{
+			const js::AABBox& old_aabb_ws = object.aabb_ws;
+
+			// See if the object has changed grid cells
+			const Vec4i old_min_bucket_i = ob_grid.bucketIndicesForPoint(old_aabb_ws.min_);
+			const Vec4i old_max_bucket_i = ob_grid.bucketIndicesForPoint(old_aabb_ws.max_);
+
+			const Vec4i new_min_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.min_);
+			const Vec4i new_max_bucket_i = ob_grid.bucketIndicesForPoint(new_aabb_ws.max_);
+
+			//conPrint("setNewObToWorldMatrix()");
+			if(new_min_bucket_i != old_min_bucket_i || new_max_bucket_i != old_max_bucket_i)
+			{
+				// cells have changed.
+				ob_grid.remove(&object, old_aabb_ws);
+				ob_grid.insert(&object, new_aabb_ws);
 
 
-			// NOTE: could do something like this, but is tricky due to bucket hashing:
-			// Iterate over old cells, remove object from any cell not in new cells, 
-			// then iterate over new cells, add object to new cell if not already inserted.
+				// NOTE: could do something like this, but is tricky due to bucket hashing:
+				// Iterate over old cells, remove object from any cell not in new cells, 
+				// then iterate over new cells, add object to new cell if not already inserted.
 
-			//conPrint("cell changed!");
+				//conPrint("cell changed!");
+			}
 		}
 	}
 
