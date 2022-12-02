@@ -7998,152 +7998,155 @@ void MainWindow::objectEditedSlot()
 				Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
 
 			GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
-
-			js::Vector<EdgeMarker, 16> edge_markers;
-			Vec3d new_ob_pos;
-			const bool valid = clampObjectPositionToParcelForNewTransform(
-				*this->selected_ob,
-				opengl_ob,
-				this->selected_ob->pos, 
-				new_ob_to_world_matrix,
-				edge_markers, 
-				new_ob_pos);
-			if(valid)
+			if(opengl_ob.nonNull())
 			{
-				new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
-				selected_ob->setTransformAndHistory(new_ob_pos, this->selected_ob->axis, this->selected_ob->angle);
 
-				// Update in opengl engine.
-				if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
+				js::Vector<EdgeMarker, 16> edge_markers;
+				Vec3d new_ob_pos;
+				const bool valid = clampObjectPositionToParcelForNewTransform(
+					*this->selected_ob,
+					opengl_ob,
+					this->selected_ob->pos, 
+					new_ob_to_world_matrix,
+					edge_markers, 
+					new_ob_pos);
+				if(valid)
 				{
-					// Update materials
-					if(opengl_ob.nonNull())
+					new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
+					selected_ob->setTransformAndHistory(new_ob_pos, this->selected_ob->axis, this->selected_ob->angle);
+
+					// Update in opengl engine.
+					if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
 					{
-						if(!opengl_ob->materials.empty())
+						// Update materials
+						if(opengl_ob.nonNull())
 						{
-							opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
-
-							for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, *this->resource_manager,
-									opengl_ob->materials[i]
-								);
-
-							assignedLoadedOpenGLTexturesToMats(selected_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
-						}
-					}
-
-					ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
-				}
-				else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
-				{
-					if(selected_ob->content != selected_ob->loaded_content)
-					{
-						// Re-create opengl-ob
-						ui->glWidget->makeCurrent();
-
-						opengl_ob->materials.resize(1);
-						opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-
-						const std::string tex_key = "hypercard_" + selected_ob->content;
-
-						// If the hypercard texture is already loaded, use it
-						opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
-						opengl_ob->materials[0].tex_path = tex_key;
-
-						if(opengl_ob->materials[0].albedo_texture.isNull())
-						{
-							const bool just_added = checkAddTextureToProcessingSet(tex_key);
-							if(just_added) // not being loaded already:
+							if(!opengl_ob->materials.empty())
 							{
-								Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
-								task->tex_key = tex_key;
-								task->result_msg_queue = &this->msg_queue;
-								task->hypercard_content = selected_ob->content;
-								task->opengl_engine = ui->glWidget->opengl_engine;
-								load_item_queue.enqueueItem(*this->selected_ob, task, /*max task dist=*/200.f);
+								opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+
+								for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
+									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, *this->resource_manager,
+										opengl_ob->materials[i]
+									);
+
+								assignedLoadedOpenGLTexturesToMats(selected_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 							}
 						}
 
-						opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-						selected_ob->opengl_engine_ob = opengl_ob;
-
-						selected_ob->loaded_content = selected_ob->content;
+						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 					}
-				}
-				else if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
-				{
-					GLLightRef light = this->selected_ob->opengl_light;
-					if(light.nonNull())
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 					{
-						light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
-						float scale;
-						light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
-
-						ui->glWidget->makeCurrent();
-						ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
-
-
-						// Use material[1] from the WorldObject as the light housing GL material.
-						opengl_ob->materials.resize(2);
-						if(this->selected_ob->materials.size() >= 2)
-							ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
-						else
-							opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-
-						// Apply a light emitting material to the light surface material in the spotlight model.
-						if(this->selected_ob->materials.size() >= 1)
+						if(selected_ob->content != selected_ob->loaded_content)
 						{
-							opengl_ob->materials[1].emission_rgb = this->selected_ob->materials[0]->colour_rgb;
-							opengl_ob->materials[1].emission_scale = scale;
+							// Re-create opengl-ob
+							ui->glWidget->makeCurrent();
+
+							opengl_ob->materials.resize(1);
+							opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+
+							const std::string tex_key = "hypercard_" + selected_ob->content;
+
+							// If the hypercard texture is already loaded, use it
+							opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+							opengl_ob->materials[0].tex_path = tex_key;
+
+							if(opengl_ob->materials[0].albedo_texture.isNull())
+							{
+								const bool just_added = checkAddTextureToProcessingSet(tex_key);
+								if(just_added) // not being loaded already:
+								{
+									Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
+									task->tex_key = tex_key;
+									task->result_msg_queue = &this->msg_queue;
+									task->hypercard_content = selected_ob->content;
+									task->opengl_engine = ui->glWidget->opengl_engine;
+									load_item_queue.enqueueItem(*this->selected_ob, task, /*max task dist=*/200.f);
+								}
+							}
+
+							opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+							selected_ob->opengl_engine_ob = opengl_ob;
+
+							selected_ob->loaded_content = selected_ob->content;
 						}
 					}
+					else if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
+					{
+						GLLightRef light = this->selected_ob->opengl_light;
+						if(light.nonNull())
+						{
+							light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
+							float scale;
+							light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
+
+							ui->glWidget->makeCurrent();
+							ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
+
+
+							// Use material[1] from the WorldObject as the light housing GL material.
+							opengl_ob->materials.resize(2);
+							if(this->selected_ob->materials.size() >= 2)
+								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
+							else
+								opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+
+							// Apply a light emitting material to the light surface material in the spotlight model.
+							if(this->selected_ob->materials.size() >= 1)
+							{
+								opengl_ob->materials[1].emission_rgb = this->selected_ob->materials[0]->colour_rgb;
+								opengl_ob->materials[1].emission_scale = scale;
+							}
+						}
+					}
+
+					// Update transform of OpenGL object
+					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+					ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+					// Update physics object transform
+					selected_ob->physics_object->collidable = selected_ob->isCollidable();
+					this->physics_world->setNewObToWorldMatrix(*selected_ob->physics_object, new_ob_to_world_matrix);
+
+					// Update in Indigo view
+					ui->indigoView->objectTransformChanged(*selected_ob);
+
+					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
+
+					selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
+					// TODO: set max_lod_level here?
+					//selected_ob->max_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+
+					Lock lock(this->world_state->mutex);
+
+					// Mark as from-local-dirty to send an object updated message to the server
+					this->selected_ob->from_local_other_dirty = true;
+					this->world_state->dirty_from_local_objects.insert(this->selected_ob);
+
+
+					//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+					//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+					//lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+
+
+					if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
+					{
+						loadModelForObject(this->selected_ob.getPointer());
+						this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
+					}
+
+					loadScriptForObject(this->selected_ob.ptr());
+
+					doBiomeScatteringForObject(this->selected_ob.ptr()); // Scatter any biome stuff over it
+
+					// Update any instanced copies of object
+					updateInstancedCopiesOfObject(this->selected_ob.ptr());
 				}
-
-				// Update transform of OpenGL object
-				opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-				ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
-
-				// Update physics object transform
-				selected_ob->physics_object->collidable = selected_ob->isCollidable();
-				this->physics_world->setNewObToWorldMatrix(*selected_ob->physics_object, new_ob_to_world_matrix);
-
-				// Update in Indigo view
-				ui->indigoView->objectTransformChanged(*selected_ob);
-
-				updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
-
-				selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
-				// TODO: set max_lod_level here?
-				//selected_ob->max_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-
-				Lock lock(this->world_state->mutex);
-
-				// Mark as from-local-dirty to send an object updated message to the server
-				this->selected_ob->from_local_other_dirty = true;
-				this->world_state->dirty_from_local_objects.insert(this->selected_ob);
-
-
-				//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-				//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-				//lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
-
-
-				if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
+				else // Else if new transform is not valid
 				{
-					loadModelForObject(this->selected_ob.getPointer());
-					this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
+					showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 				}
-
-				loadScriptForObject(this->selected_ob.ptr());
-
-				doBiomeScatteringForObject(this->selected_ob.ptr()); // Scatter any biome stuff over it
-
-				// Update any instanced copies of object
-				updateInstancedCopiesOfObject(this->selected_ob.ptr());
-			}
-			else // Else if new transform is not valid
-			{
-				showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 			}
 		}
 
