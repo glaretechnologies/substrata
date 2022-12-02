@@ -107,7 +107,7 @@ const STATE_READ_CLIENT_AVATAR_UID = 3;
 
 let protocol_state = 0;
 
-const CyberspaceProtocolVersion = 35;
+const CyberspaceProtocolVersion = 36;
 const CyberspaceHello = 1357924680;
 const ClientProtocolOK = 10000;
 const ClientProtocolTooOld = 10001;
@@ -170,6 +170,11 @@ ws.onopen = function () {
 		buffer_out.writeUInt32(QueryObjectsInAABB);
 		buffer_out.writeUInt32(0); // message length - to be updated.
 
+		// Write camera position
+		buffer_out.writeDouble(cam_controller.position[0]);
+		buffer_out.writeDouble(cam_controller.position[1]);
+		buffer_out.writeDouble(cam_controller.position[2]);
+
 		buffer_out.writeFloat(aabb[0]);
 		buffer_out.writeFloat(aabb[1]);
 		buffer_out.writeFloat(aabb[2]);
@@ -185,6 +190,7 @@ ws.onopen = function () {
 
 
 const MAX_OB_LOAD_DISTANCE_FROM_CAM = 1000;
+const LOAD_EVERYTHING_DIST = 150.0; // Show every object, no matter how big, within a certain distance.
 
 
 const parcels = new Map<number, Parcel>();
@@ -275,7 +281,19 @@ ws.onmessage = function (event: MessageEvent) {
 
 					// let dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(camera.position);
 					const dist_from_cam = toThreeVector3(world_ob.pos).distanceTo(cam_controller.positionV3);
-					world_ob.in_proximity = dist_from_cam < MAX_OB_LOAD_DISTANCE_FROM_CAM;
+
+					let new_in_proximity = false;
+					if (dist_from_cam > LOAD_EVERYTHING_DIST) { // If further than x metres away:
+
+						const proj_len = world_ob.AABBLongestLength() / dist_from_cam;
+						new_in_proximity = proj_len > 0.05;
+					}
+					else {
+						new_in_proximity = true;
+					}
+
+
+					world_ob.in_proximity = new_in_proximity;
 					world_ob.current_lod_level = world_ob.getLODLevel(cam_controller.positionV3);
 					if (world_ob.in_proximity) {
 						loadModelForObject(world_ob);
@@ -1155,6 +1173,11 @@ function newCellInProximity(cell_x: number, cell_y: number, cell_z: number) {
 		buffer_out.writeUInt32(QueryObjects);
 		buffer_out.writeUInt32(0); // message length - to be updated.
 
+		// Write camera position
+		buffer_out.writeDouble(cam_controller.position[0]);
+		buffer_out.writeDouble(cam_controller.position[1]);
+		buffer_out.writeDouble(cam_controller.position[2]);
+
 		buffer_out.writeUInt32(1); // Num cells to query
 		buffer_out.writeInt32(cell_x);
 		buffer_out.writeInt32(cell_y);
@@ -1864,8 +1887,6 @@ function checkForLODChanges()
 			(centroid_y - cam_pos_y) * (centroid_y - cam_pos_y) +
 			(centroid_z - cam_pos_z) * (centroid_z - cam_pos_z);
 
-
-		const LOAD_EVERYTHING_DIST = 150.0; // Show every object, no matter how big, within a certain distance.
 
 		let new_in_proximity = false;
 		if (cam_to_ob_d2 > LOAD_EVERYTHING_DIST * LOAD_EVERYTHING_DIST) { // If further than x metres away:

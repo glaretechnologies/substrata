@@ -1488,7 +1488,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				// Do the model loading (conversion of voxel group to triangle mesh) in a different thread
 				Reference<LoadModelTask> load_model_task = new LoadModelTask();
 
-				load_model_task->voxel_ob_lod_level = ob_model_lod_level;
+				load_model_task->voxel_ob_model_lod_level = ob_model_lod_level;
 				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
 				load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
 				load_model_task->result_msg_queue = &this->msg_queue;
@@ -2769,6 +2769,7 @@ void MainWindow::newCellInProximity(const Vec3<int>& cell_coords)
 	{
 		// Make QueryObjects packet and enqueue to send to server
 		MessageUtils::initPacket(scratch_packet, Protocol::QueryObjects);
+		writeToStream<double>(this->cam_controller.getPosition(), scratch_packet); // Send camera position
 		scratch_packet.writeUInt32(1); // Num cells to query
 		scratch_packet.writeInt32(cell_coords.x);
 		scratch_packet.writeInt32(cell_coords.y);
@@ -3940,7 +3941,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						const int ob_model_lod_level = myClamp(ob_lod_level, 0, voxel_ob->max_model_lod_level);
 
 						// Check the object wants this particular LOD level model right now:
-						if(ob_model_lod_level == cur_loading_voxel_ob_lod_level)
+						if(ob_model_lod_level == cur_loading_voxel_ob_model_lod_level)
 						{
 							removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove any existing OpenGL and physics model
 
@@ -3989,7 +3990,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								doBiomeScatteringForObject(voxel_ob.ptr()); // Scatter any biome stuff over it
 							}
 
-							voxel_ob->loaded_model_lod_level = cur_loading_voxel_ob_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
+							voxel_ob->loaded_model_lod_level = cur_loading_voxel_ob_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
 
 							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 							if(this->selected_ob == voxel_ob)
@@ -4071,7 +4072,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										this->cur_loading_voxel_ob = voxel_ob;
 										this->cur_loading_voxel_subsample_factor = message->subsample_factor;
 										this->cur_loading_raymesh = message->raymesh;
-										this->cur_loading_voxel_ob_lod_level = message->voxel_ob_lod_level;
+										this->cur_loading_voxel_ob_model_lod_level = message->voxel_ob_model_lod_level;
 										ui->glWidget->opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
 										//logMessage("Initialised loading of voxel mesh: " + mesh_data_loading_progress.summaryString());
@@ -8616,6 +8617,7 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 	{
 		// Make QueryObjectsInAABB packet and enqueue to send
 		MessageUtils::initPacket(scratch_packet, Protocol::QueryObjectsInAABB);
+		writeToStream<double>(this->cam_controller.getPosition(), scratch_packet); // Send camera position
 		scratch_packet.writeFloat((float)initial_aabb.min_[0]);
 		scratch_packet.writeFloat((float)initial_aabb.min_[1]);
 		scratch_packet.writeFloat((float)initial_aabb.min_[2]);

@@ -592,7 +592,7 @@ public:
 	WorldObjectRef cur_loading_voxel_ob;
 	int cur_loading_voxel_subsample_factor;
 	Reference<RayMesh> cur_loading_raymesh;
-	int cur_loading_voxel_ob_lod_level;
+	int cur_loading_voxel_ob_model_lod_level;
 
 	OpenGLTextureLoadingProgress tex_loading_progress;
 

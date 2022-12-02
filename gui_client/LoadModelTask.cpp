@@ -50,7 +50,7 @@ void LoadModelTask::run(size_t thread_index)
 				WorldObject::decompressVoxelGroup(voxel_ob->getCompressedVoxels().data(), voxel_ob->getCompressedVoxels().size(), /*decompressed group out=*/voxel_group);
 
 				const int max_model_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
-				const int use_model_lod_level = myMin(voxel_ob_lod_level/*model_lod_level*/, max_model_lod_level);
+				const int use_model_lod_level = myMin(voxel_ob_model_lod_level/*model_lod_level*/, max_model_lod_level);
 
 				if(use_model_lod_level == 1)
 					subsample_factor = 2;
@@ -91,7 +91,7 @@ void LoadModelTask::run(size_t thread_index)
 		msg->raymesh = raymesh;
 		msg->lod_model_url = lod_model_url;
 		msg->voxel_ob_uid = voxel_ob.nonNull() ? voxel_ob->uid : UID::invalidUID();
-		msg->voxel_ob_lod_level = voxel_ob_lod_level;
+		msg->voxel_ob_model_lod_level = voxel_ob_model_lod_level;
 		msg->subsample_factor = subsample_factor;
 		result_msg_queue->enqueue(msg);
 	}

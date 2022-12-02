@@ -27,13 +27,14 @@ CyberspaceProtocolVersion
 34: Added AABB to ObjectTransformUpdate
 35: Added emission_rgb and emission_texture_url to WorldMaterial
 	Added sending user flags in LoggedInMessage
+36: Sending position at start of QueryObjects and QueryObjectsInAABB messages.
 */
 namespace Protocol
 {
 
 
 const uint32 CyberspaceHello = 1357924680;
-const uint32 CyberspaceProtocolVersion = 35;
+const uint32 CyberspaceProtocolVersion = 36;
 const uint32 ClientProtocolOK		= 10000;
 const uint32 ClientProtocolTooOld	= 10001;
 const uint32 ClientProtocolTooNew	= 10002;

@@ -304,6 +304,8 @@ ${PHYSICS_DIR}/SmallBVH.h
 
 set(maths
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/LineSegment4f.h
+${GLARE_CORE_TRUNK_DIR_ENV}/maths/CheckedMaths.cpp
+${GLARE_CORE_TRUNK_DIR_ENV}/maths/CheckedMaths.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/mathstypes.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/mathstypes.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix2.cpp
