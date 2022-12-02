@@ -1,0 +1,31 @@
+# const uint32 AvatarCreated			= 1000;
+#"\x00\x00\x03\xE8"
+
+# const uint32 ChatMessageID			= 2000;
+#"\x00\x00\x07\xD0"
+
+# const uint32 ObjectCreated			= 3000;
+#"\x00\x00\x0B\xB8"
+
+# const uint32 QueryObjects			= 3020
+#"\x00\x00\x0B\xCC"
+
+# const uint32 ParcelCreated			= 3100;
+#"\x00\x00\x0C\x1C"
+
+
+# const uint32 QueryParcels			= 3150;
+#"\x00\x00\x0C\x4E"
+"\xE4\xC0\x00\x00"
+
+#const uint32 GetAllObjects			= 3600
+#"\x00\x00\x0E\x10"
+
+# const uint32 GetFile				= 4000;
+#"\x00\x00\x0F\xA0"
+
+# const uint32 UserSelectedObject		= 6000;
+#"\x00\x00\x17\x70"
+
+# const uint32 LogInMessage			= 8000;
+#"\x00\x00\x1F\x40"
