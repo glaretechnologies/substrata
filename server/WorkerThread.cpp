@@ -37,7 +37,11 @@ Copyright Glare Technologies Limited 2018 -
 #include <MemMappedFile.h>
 #include <FileOutStream.h>
 #include <networking/RecordingSocket.h>
+#include <maths/CheckedMaths.h>
 #include <openssl/err.h>
+#include <algorithm>
+#include <RuntimeCheck.h>
+#include <Timer.h>
 
 
 static const bool VERBOSE = false;
@@ -1558,6 +1562,12 @@ void WorkerThread::doRun()
 						}
 					case Protocol::QueryObjects: // Client wants to query objects in certain grid cells
 						{
+							Vec3d cam_position;
+							if(client_protocol_version >= 36) // position was introduced in protocol version 36.
+								cam_position = readVec3FromStream<double>(msg_buffer);
+							else
+								cam_position = Vec3d(0.0);
+
 							const uint32 num_cells = msg_buffer.readUInt32();
 							if(num_cells > 100000)
 								throw glare::Exception("QueryObjects: too many cells: " + toString(num_cells));
@@ -1628,6 +1638,24 @@ void WorkerThread::doRun()
 						}
 					case Protocol::QueryObjectsInAABB: // Client wants to query objects in a particular AABB
 						{
+							// This kind of query will be done when a client connects.
+							// Because the AABB can be quite large (>= 1km on each side), the number of objects returned can be large.
+							// Therefore we first work out the objects in the AABB, then sort by distance to camera, and send back the closer objects first.
+							// This allows the client to start loading and displaying objects before all the queried objects are returned, which can take a while.
+							//
+							// For sending over websocket connections, we will also flush occasionally, which sends a websocket frame.
+							// To do this we will record the offset of the start of chunks. (~= 4096 bytes)
+
+							Vec3d cam_position;
+							if(client_protocol_version >= 36) // position was introduced in protocol version 36.
+							{
+								cam_position = readVec3FromStream<double>(msg_buffer);
+								if(!cam_position.isFinite())
+									throw glare::Exception("Invalid cam_position");
+							}
+							else
+								cam_position = Vec3d(0.0);
+
 							const float lower_x = msg_buffer.readFloat();
 							const float lower_y = msg_buffer.readFloat();
 							const float lower_z = msg_buffer.readFloat();
@@ -1637,38 +1665,82 @@ void WorkerThread::doRun()
 
 							const js::AABBox aabb(Vec4f(lower_x, lower_y, lower_z, 1.f), Vec4f(upper_x, upper_y, upper_z, 1.f));
 					
-							conPrintIfNotFuzzing("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4));
+							conPrintIfNotFuzzing("QueryObjectsInAABB, aabb: " + aabb.toStringNSigFigs(4) + ", cam_position: " + cam_position.toString());
 
 							SocketBufferOutStream packet(SocketBufferOutStream::DontUseNetworkByteOrder);
-							int num_obs_written = 0;
+							std::vector<size_t> chunk_begin_offsets; // Byte index of the start of a chunk (~= 4096 bytes).
+							chunk_begin_offsets.reserve(512);
+							chunk_begin_offsets.push_back(0);
+							size_t last_chunk_begin_offset = 0;
+
+							std::vector<const WorldObject*> obs;
+							obs.reserve(16384);
 
 							{ // Lock scope
 								Lock lock(world_state->mutex);
 								for(auto it = cur_world_state->objects.begin(); it != cur_world_state->objects.end(); ++it)
 								{
 									const WorldObject* ob = it->second.ptr();
+									const Vec4f ob_pos_vec4f = ob->pos.toVec4fPoint();
+									if(ob_pos_vec4f.isFinite() && aabb.contains(ob_pos_vec4f)) // If the object position is valid, and if it's in the query AABB:
+										obs.push_back(ob);
+								}
 
-									// See if the object is in any of the cell AABBs
-									if(aabb.contains(ob->pos.toVec4fPoint()))
+								// Sort objects from near to far from camera.
+								struct WorldObjectDistComparator
+								{
+									bool operator () (const WorldObject* a, const WorldObject* b)
 									{
-										// Create ObjectInitialSend packet
-										MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
-										ob->writeToNetworkStream(scratch_packet);
-										MessageUtils::updatePacketLengthField(scratch_packet);
+										const double a_dist2 = a->pos.getDist2(campos);
+										const double b_dist2 = b->pos.getDist2(campos);
+										return a_dist2 < b_dist2;
+									}
+									Vec3d campos;
+								};
 
-										packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append to packet
+								WorldObjectDistComparator comparator;
+								comparator.campos = cam_position;
+								std::sort(obs.begin(), obs.end(), comparator);
 
-										num_obs_written++;
+								for(size_t i=0; i<obs.size(); ++i)
+								{
+									const WorldObject* ob = obs[i];
+
+									// Create ObjectInitialSend packet
+									MessageUtils::initPacket(scratch_packet, Protocol::ObjectInitialSend);
+									ob->writeToNetworkStream(scratch_packet);
+									MessageUtils::updatePacketLengthField(scratch_packet);
+
+									packet.writeData(scratch_packet.buf.data(), scratch_packet.buf.size()); // Append scratch_packet with ObjectInitialSend message to packet.
+
+									if(packet.buf.size() - last_chunk_begin_offset >= 4096) // If we have written more than X bytes since last chunk start:
+									{
+										last_chunk_begin_offset = packet.buf.size();
+										chunk_begin_offsets.push_back(packet.buf.size()); // Record offset of start of chunk.
 									}
 								}
 							} // End lock scope
 
+							// Send back the data, now we have released the world lock.  Send it back in chunks instead of one big write. (better for websockets)
 							if(!packet.buf.empty())
 							{
-								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(num_obs_written) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on " + toString(obs.size()) + " object(s) (" + getNiceByteSize(packet.buf.size()) + ")...");
+								Timer timer;
 
-								socket->writeData(packet.buf.data(), packet.buf.size()); // Write data to network
-								socket->flush();
+								for(size_t i=0; i<chunk_begin_offsets.size(); ++i)
+								{
+									const size_t chunk_offset = chunk_begin_offsets[i];
+									if(chunk_offset < packet.buf.size())
+									{
+										const size_t chunk_end = ((i + 1) < chunk_begin_offsets.size()) ? chunk_begin_offsets[i + 1] : packet.buf.size();
+										const size_t chunk_size = chunk_end - chunk_offset;
+										runtimeCheck((chunk_offset < packet.buf.size()) && (CheckedMaths::addUnsignedInts(chunk_offset, chunk_size) <= packet.buf.size())); 
+										socket->writeData(&packet.buf[chunk_offset], chunk_size); // Write data to network
+										socket->flush(); // Will cause websockets to send a data frame.
+									}
+								}
+
+								conPrintIfNotFuzzing("QueryObjectsInAABB: Sending back info on objects took " + timer.elapsedStringNSigFigs(4));
 							}
 
 							break;

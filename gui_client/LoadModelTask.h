@@ -30,7 +30,7 @@ public:
 	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 
 	UID voxel_ob_uid; // Valid if we are loading voxel for an object, invalid otherwise.  Avoid storing WorldObjectRef to avoid dangling refs
-	int voxel_ob_lod_level;// If we are loaded a voxel model, the LOD level of the object.
+	int voxel_ob_model_lod_level;// If we loaded a voxel model, the model LOD level of the object.
 	int subsample_factor; // Computed when loading voxels.
 };
 
@@ -58,7 +58,7 @@ public:
 	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
 	
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
-	int voxel_ob_lod_level; // If we are loading a voxel model, the LOD level of the object.
+	int voxel_ob_model_lod_level; // If we are loading a voxel model, the model LOD level of the object.
 
 	Reference<RayMesh> unit_cube_raymesh;
 	Reference<OpenGLEngine> opengl_engine;
