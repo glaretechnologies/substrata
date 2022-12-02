@@ -248,7 +248,7 @@ void main()
 	diffuse_col.xyz *= 0.8f; // Just a hack scale to make the brightnesses look similar
 
 	float pixel_hash = texture(blue_noise_tex, gl_FragCoord.xy * (1 / 128.f)).x;
-	float dist_alpha_factor = smoothstep(100.f, 120.f,  /*dist=*/-pos_cs.z);
+	float dist_alpha_factor = smoothstep(100.f, 120.f,  /*dist=*/-pos_cs.z) * 1.001; // Make sure is > 1 when far away.
 	if(dist_alpha_factor <= pixel_hash) // Draw imposter only when dist_alpha_factor > pixel_hash, draw real object when dist_alpha_factor <= pixel_hash
 		discard;
 
