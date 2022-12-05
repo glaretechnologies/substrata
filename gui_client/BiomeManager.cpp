@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "physics/HashedGrid.h"
 #include "maths/PCG32.h"
 #include <Exception.h>
+#include <RuntimeCheck.h>
 
 
 BiomeManager::BiomeManager()
@@ -121,14 +122,14 @@ static const Matrix4f instanceObToWorldMatrix(const Vec4f& pos, float rot_z, con
 
 // Adds to instances parameter, updates instances_aabb_ws_in_out
 static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
-	ResourceManager& resource_manager, GLObjectRef prototype_ob, RayMeshRef raymesh, float density, float evenness, bool add_physics_objects, const Vec3f& base_scale, const Vec3f& scale_variation, float z_offset,
+	ResourceManager& resource_manager, GLObjectRef prototype_ob, PhysicsShape physics_shape, float density, float evenness, bool add_physics_objects, const Vec3f& base_scale, const Vec3f& scale_variation, float z_offset,
 	js::Vector<BiomeObInstance, 16>& instances, js::AABBox& instances_aabb_ws_in_out)
 {
-	world_ob.physics_object->buildUniformSampler(); // Check built.
+	runtimeCheck(world_ob.scattering_info.nonNull());
 
 	Timer timer;
 
-	const float surface_area = world_ob.physics_object->total_surface_area * 0.5f; // NOTE: assuming cube, ignoring underfaces.
+	const float surface_area = world_ob.scattering_info->total_surface_area * 0.5f; // NOTE: assuming cube, ignoring underfaces.
 
 	// If evenness > 0, then min separation distance will be > 0, so some points will be rejected.
 	// Generate more candidate points to compensate, so we get a roughly similar amount of accepted points.
@@ -149,12 +150,14 @@ static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, 
 
 	const float min_dist_2 = min_dist * min_dist;
 
-	HashedGrid<Vec3f> hashed_grid(world_ob.physics_object->getAABBoxWS(), cell_w,
+	HashedGrid<Vec3f> hashed_grid(world_ob.scattering_info->aabb_ws, cell_w,
 		N // Expected num items
 	);
 
 	// Compute AABB over all instances of the object
 	js::AABBox all_instances_aabb_ws = js::AABBox::emptyAABBox();
+
+	const Matrix4f to_world_matrix = obToWorldMatrix(world_ob);
 
 	//const size_t initial_num_instances = instances.size();
 	for(int i=0; i<N; ++i)
@@ -163,11 +166,18 @@ static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, 
 		const float u = rng.unitRandom();
 		const float v = rng.unitRandom();
 
-		PhysicsObject::SampleSurfaceResults results;
-		world_ob.physics_object->sampleSurfaceUniformly(u1, Vec2f(u, v), results);
+		// Pick sub-element
+		float sub_elem_prob;
+		const uint32 sub_elem_index = world_ob.scattering_info->uniform_dist.sample(u1, sub_elem_prob);
 
-		const Vec4f scatterpos = results.pos;
-		const Vec3f scatterpos_vec3(results.pos);
+		Vec4f pos_os, N_g_os;
+		unsigned int material_index;
+		Vec2f uv0;
+		HitInfo hitinfo;
+		world_ob.scattering_info->raymesh->sampleSubElement(sub_elem_index, SamplePair(u, v), pos_os, N_g_os, hitinfo, material_index, uv0);
+
+		const Vec4f scatterpos = to_world_matrix * pos_os;
+		const Vec3f scatterpos_vec3(scatterpos[0], scatterpos[1], scatterpos[2]);
 
 		bool scatterpos_valid = true;
 		const Vec4i begin = hashed_grid.getGridMinBound(scatterpos - Vec4f(min_dist, min_dist, min_dist, 0));
@@ -196,7 +206,7 @@ finished_looping:
 
 
 		BiomeObInstance instance;
-		const Vec4f pos = results.pos + Vec4f(0, 0, z_offset, 0);
+		const Vec4f pos = scatterpos + Vec4f(0, 0, z_offset, 0);
 		const float rot_z = Maths::get2Pi<float>() * rng.unitRandom();
 		const Vec3f scale = base_scale + (rng.unitRandom() * rng.unitRandom() * rng.unitRandom()) * scale_variation;
 		instance.to_world = instanceObToWorldMatrix(pos, rot_z, scale);// * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
@@ -208,11 +218,13 @@ finished_looping:
 		if(add_physics_objects)
 		{
 			PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true,
-				raymesh, // geometry
-				instance.to_world, // ob_to_world matrix
+				physics_shape, // geometry
 				NULL, // userdata
 				0 // userdata_type
 			);
+			physics_ob->pos = pos;
+			physics_ob->rot = Quatf::fromAxisAndAngle(Vec4f(0,0,1,0), rot_z);
+			physics_ob->scale = scale;
 
 			physics_world.addObject(physics_ob);
 		}
@@ -270,7 +282,7 @@ static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshMa
 #endif
 
 
-GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out)
+GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, PhysicsShape& physics_shape_out)
 {
 	std::vector<WorldMaterialRef> materials(2);
 	materials[0] = new WorldMaterial();
@@ -290,12 +302,13 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 		elm_tree_mesh_data = mesh_manager.getMeshData(model_URL);
 		if(elm_tree_mesh_data.isNull())
 		{
-			Reference<RayMesh> raymesh;
+			PhysicsShape physics_shape;
+			BatchedMeshRef batched_mesh;
 			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(model_URL, resource_manager, task_manager,
-				&vert_buf_allocator, /*skip opengl calls=*/false, raymesh);
+				&vert_buf_allocator, /*skip opengl calls=*/false, physics_shape, batched_mesh);
 
 			// Add to mesh manager
-			elm_tree_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, raymesh);
+			elm_tree_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, physics_shape);
 		}
 	}
 
@@ -305,7 +318,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 	// Do assignedLoadedOpenGLTexturesToMats() equivalent
 	tree_opengl_ob->materials[0].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(resource_manager.pathForURL(materials[0]->colour_texture_url)), /*use_sRGB=*/true);
 
-	raymesh_out = elm_tree_mesh_data->raymesh;
+	physics_shape_out = elm_tree_mesh_data->physics_shape;
 
 	for(size_t i=0; i<tree_opengl_ob->materials.size(); ++i)
 	{
@@ -343,12 +356,13 @@ GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexB
 		elm_tree_imposter_mesh_data = mesh_manager.getMeshData(model_URL);
 		if(elm_tree_imposter_mesh_data.isNull())
 		{
-			Reference<RayMesh> raymesh;
+			PhysicsShape physics_shape;
+			BatchedMeshRef batched_mesh;
 			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(model_URL, resource_manager, task_manager,
-				&vert_buf_allocator, /*skip opengl calls=*/false, raymesh);
+				&vert_buf_allocator, /*skip opengl calls=*/false, physics_shape, batched_mesh);
 
 			// Add to mesh manager
-			elm_tree_imposter_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, raymesh);
+			elm_tree_imposter_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, physics_shape);
 		}
 	}
 
@@ -375,8 +389,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 	//if(grass_ob.isNull())
 	//	grass_ob = makeGrassOb(mesh_manager, task_manager, resource_manager, grass_tex);
 
-	if(world_ob.physics_object.isNull())
-		return;
+	runtimeCheck(world_ob.scattering_info.nonNull());
 
 	if(world_ob.content == "biome: park")
 	{
@@ -384,19 +397,17 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 		Reference<ObBiomeData> ob_biome_date = new ObBiomeData();
 		ob_to_biome_data[&world_ob] = ob_biome_date;
 
-		world_ob.physics_object->buildUniformSampler(); // Check built.
-
 		if(true) // Scatter trees:
 		{
 
-		RayMeshRef tree_raymesh;
-		GLObjectRef tree_opengl_ob = makeElmTreeOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, tree_raymesh);
+		PhysicsShape physics_shape;
+		GLObjectRef tree_opengl_ob = makeElmTreeOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, physics_shape);
 
 		// Compute some tree instance points
 		// Scatter elm tree
 		js::Vector<BiomeObInstance, 16> ob_instances;
-		js::AABBox ob_trees_aabb_ws;
-		addScatteredObjects(world_ob, world_state, physics_world, mesh_manager, task_manager, opengl_engine, resource_manager, tree_opengl_ob, tree_raymesh,
+		js::AABBox ob_trees_aabb_ws = js::AABBox::emptyAABBox();
+		addScatteredObjects(world_ob, world_state, physics_world, mesh_manager, task_manager, opengl_engine, resource_manager, tree_opengl_ob, physics_shape,
 			0.005f, // density
 			0.6f, // evenness
 			true, // add_physics_objects
@@ -404,17 +415,19 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 			Vec3f(1.f), // scale variation
 			0.f, // z offset
 			ob_instances, // tree instances in/out
-			ob_trees_aabb_ws
+			ob_trees_aabb_ws // instances_aabb_ws_in_out
 		);
 
 		tree_opengl_ob->instance_info.resize(ob_instances.size());//tree_opengl_ob->instance_info.size() + tree_instances.size());
 
+		const js::AABBox tree_aabb_os = physics_shape.getAABBOS();
 		js::Vector<Matrix4f, 16> instance_matrices(ob_instances.size());
 		for(size_t z=0; z<ob_instances.size(); ++z)
 		{
 			instance_matrices[z] = ob_instances[z].to_world;
 
 			tree_opengl_ob->instance_info[z].to_world = ob_instances[z].to_world;
+			tree_opengl_ob->instance_info[z].aabb_ws = tree_aabb_os.transformedAABBFast(ob_instances[z].to_world);
 		}
 
 		tree_opengl_ob->enableInstancing(*opengl_engine.vert_buf_allocator, instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size());
@@ -436,6 +449,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 			imposter_matrices[z] = Matrix4f::translationMatrix(0,0,master_scale * 1.3f) * ob_instances[z].to_world_no_rot * Matrix4f::scaleMatrix(master_scale, master_scale * 0.64, master_scale); //Matrix4f::translationMatrix(tree_instances[z].pos + Vec4f(0,0,5.5,0)) * Matrix4f::uniformScaleMatrix(14);// * Matrix4f::rotationAroundZAxis(-Maths::pi_2<float>());
 
 			tree_imposter_opengl_ob->instance_info[z].to_world = imposter_matrices[z];
+			tree_imposter_opengl_ob->instance_info[z].aabb_ws = tree_aabb_os.transformedAABBFast(ob_instances[z].to_world_no_rot); // NOTE: use OS AABB of actual tree object for computing the WS AABB.
 		}
 		tree_imposter_opengl_ob->enableInstancing(*opengl_engine.vert_buf_allocator, imposter_matrices.data(), sizeof(Matrix4f) * imposter_matrices.size());
 

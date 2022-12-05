@@ -25,7 +25,7 @@ public:
 	// Results of the task:
 	
 	Reference<OpenGLMeshRenderData> gl_meshdata;
-	Reference<RayMesh> raymesh;
+	PhysicsShape physics_shape;
 	
 	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
 
@@ -60,7 +60,7 @@ public:
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
 	int voxel_ob_model_lod_level; // If we are loading a voxel model, the model LOD level of the object.
 
-	Reference<RayMesh> unit_cube_raymesh;
+	PhysicsShape unit_cube_shape;
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<ResourceManager> resource_manager;
 	glare::TaskManager* model_building_task_manager;

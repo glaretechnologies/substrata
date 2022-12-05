@@ -453,7 +453,7 @@ void GlWidget::focusOutEvent(QFocusEvent* e)
 }
 
 
-void GlWidget::playerPhyicsThink(float dt)
+void GlWidget::playerPhyicsThink(float dt, PlayerPhysicsInput& input_out)
 {
 	if(!player_physics)
 		return;
@@ -488,6 +488,19 @@ void GlWidget::playerPhyicsThink(float dt)
 
 	if(gamepad_strafe_leftright != 0 || gamepad_strafe_forwardsback != 0 || gamepad_turn_leftright != 0 || gamepad_turn_updown != 0)
 		cam_changed = true;
+
+	input_out.SHIFT_down =	false;
+	input_out.W_down =		false;
+	input_out.S_down =		false;
+	input_out.A_down =		false;
+	input_out.D_down =		false;
+	input_out.space_down =	false;
+	input_out.C_down =		false;
+	input_out.left_down =	false;
+	input_out.right_down =	false;
+	input_out.up_down =		false;
+	input_out.down_down =	false;
+
 
 	// On Windows we will use GetAsyncKeyState() to test if a key is down.
 	// On Mac OS / Linux we will use our W_down etc.. state.
@@ -536,6 +549,18 @@ void GlWidget::playerPhyicsThink(float dt)
 
 		if(cam_changed)
 			emit cameraUpdated();
+
+		input_out.SHIFT_down =	SHIFT_down;
+		input_out.W_down =		W_down;
+		input_out.S_down =		S_down;
+		input_out.A_down =		A_down;
+		input_out.D_down =		D_down;
+		input_out.space_down =	space_down;
+		input_out.C_down =		C_down;
+		input_out.left_down =	left_down;
+		input_out.right_down =	right_down;
+		input_out.up_down =		up_down;
+		input_out.down_down =	down_down;
 	}
 
 #if 0

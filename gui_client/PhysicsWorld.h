@@ -7,17 +7,28 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "PhysicsObject.h"
-#include "PhysicsObjectBVH.h"
-#include <physics/jscol_boundingsphere.h>
-#include <physics/HashedGrid2.h>
+//#include <physics/jscol_boundingsphere.h>
+//#include <physics/HashedGrid2.h>
 #include <maths/Vec4f.h>
+#include <maths/Quat.h>
 #include <maths/vec2.h>
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Vector.h>
+#include <utils/Mutex.h>
 #include <set>
-namespace Indigo { class TaskManager; }
-class PrintOutput;
 
+#if USE_JOLT
+#include <Jolt/Jolt.h>
+#include <Jolt\Physics\Body\BodyID.h>
+#include <Jolt/Physics/Body/BodyActivationListener.h>
+#endif
+
+namespace Indigo { class TaskManager; }
+namespace Indigo { class Mesh; }
+class PrintOutput;
+namespace JPH { class PhysicsSystem; }
+namespace JPH { class TempAllocatorImpl; }
+namespace JPH { class JobSystemThreadPool; }
 
 class RayTraceResult
 {
@@ -25,7 +36,8 @@ public:
 	Vec4f hit_normal_ws;
 	const PhysicsObject* hit_object;
 	float hitdist_ws;
-	unsigned int hit_tri_index;
+	//unsigned int hit_tri_index;
+	unsigned int hit_mat_index;
 	Vec2f coords; // hit object barycentric coords
 };
 
@@ -41,26 +53,55 @@ public:
 };
 
 
+// Jolt stuff:
+// Layer that objects can be in, determines which other objects it can collide with
+// Typically you at least want to have 1 layer for moving bodies and 1 layer for static bodies, but you can have more
+// layers if you want. E.g. you could have a layer for high detail collision (which is not used by the physics simulation
+// but only if you do collision testing).
+namespace Layers
+{
+	static constexpr uint8 NON_MOVING = 0;
+	static constexpr uint8 MOVING = 1;
+	static constexpr uint8 NON_COLLIDABLE = 2;
+	static constexpr uint8 NUM_LAYERS = 3;
+};
+
+
+
+void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale, Matrix4f& ob_to_world_out, Matrix4f& world_to_ob_out);
+
 /*=====================================================================
 PhysicsWorld
 ------------
 
 =====================================================================*/
 class PhysicsWorld : public ThreadSafeRefCounted
+#if USE_JOLT
+	, public JPH::BodyActivationListener
+#endif
 {
 public:
 	PhysicsWorld();
 	~PhysicsWorld();
+
+	static void init();
 		
 	void addObject(const Reference<PhysicsObject>& object);
 	
 	void removeObject(const Reference<PhysicsObject>& object);
 
-	// Updates transform data and grid cells
-	void setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world);
-	void setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world, const Matrix4f& new_world_to_ob); // For when the new_world_to_ob is already computed, so don't to invert new_ob_to_world.
+	static JPH::Ref<JPH::Shape> createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh);
+	static JPH::Ref<JPH::Shape> createJoltShapeForBatchedMesh(const BatchedMesh& mesh);
 
-	void computeObjectTransformData(PhysicsObject& object);
+	void think(double dt);
+
+	// BodyActivationListener interface:
+#if USE_JOLT
+	virtual void OnBodyActivated(const JPH::BodyID& inBodyID, uint64 inBodyUserData) override;
+	virtual void OnBodyDeactivated(const JPH::BodyID& inBodyID, uint64 inBodyUserData) override;
+#endif
+
+	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale);
 
 	void clear(); // Remove all objects
 
@@ -81,15 +122,22 @@ public:
 
 	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const;
 
-	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& translation_ws, SphereTraceResult& results_out) const;
-
-	void getCollPoints(const js::BoundingSphere& sphere, std::vector<Vec4f>& points_out) const;
-
 private:
-	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.
+	void setNewObToWorldTransformInternal(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale, bool update_jolt_ob_state);
+	
+	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.  TODO: can remove?
+	
+public:
+	Mutex activated_obs_mutex;
+	std::set<PhysicsObject*> activated_obs GUARDED_BY(activated_obs_mutex);
+	//std::set<JPH::BodyID> activated_obs;
+private:
+	std::vector<PhysicsObject*> temp_activated_obs;
 
-	HashedGrid2<PhysicsObject*, std::hash<PhysicsObject*>> ob_grid;
+public:
 
-	// For very large objects that would occupy many grid cells, store in a separate set instead to avoid spamming the hashed grid.
-	HashSet<PhysicsObject*> large_objects;
+	// Jolt
+	JPH::PhysicsSystem* physics_system;
+	JPH::TempAllocatorImpl* temp_allocator;
+	JPH::JobSystemThreadPool* job_system;
 };

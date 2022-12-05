@@ -9,6 +9,14 @@ include(../cmake/shared_settings.cmake)
 include(../cmake/shared_cxx_settings.cmake)
 include(../cmake/winter.cmake)
 
+#============== Jolt physics ==============
+
+set(PHYSICS_REPO_ROOT "${CMAKE_SOURCE_DIR}/jolt")
+include(../jolt/Jolt/Jolt.cmake)
+
+include_directories(${PHYSICS_REPO_ROOT})
+
+
 # Rules to build moc_xx.cpp files, from xx.h files, using the program 'moc'.
 addMocFileRule(gui_client MainWindow)
 addMocFileRule(gui_client GuiClientApplication)
@@ -481,6 +489,9 @@ add_definitions(-DEIGEN_MPL2_ONLY)
 #===================================== End Resonance Audio =====================================
 
 
+add_definitions(-DUSE_JOLT=1)
+
+
 SET(rc_stuff "../icons/substrata.rc")
 
 SOURCE_GROUP(gui_client FILES ${gui_client})
@@ -643,6 +654,9 @@ if(WIN32)
 		ole32
 		winmm 
 		dsound
+		
+		# Jolt physics
+		Jolt
 	)
 	
 	# Chromium embedded framework

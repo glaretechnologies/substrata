@@ -8,6 +8,7 @@ Code By Nicholas Chapman.
 
 
 #include "MeshBuilding.h"
+#include "PhysicsWorld.h"
 #include "../shared/WorldObject.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/VoxelMeshBuilding.h"
@@ -460,10 +461,11 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			mat_transparent[i] = loaded_object_out.materials[i]->opacity.val < 1.f;
 
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
 		const int subsample_factor = 1;
+		Indigo::MeshRef indigo_mesh;
 		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), subsample_factor, ob->ob_to_world_matrix, task_manager, &vert_buf_allocator, /*do opengl stuff=*/true, 
-			/*need_lightmap_uvs=*/false, mat_transparent, raymesh);
+			/*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
 		ob->materials.resize(loaded_object_out.materials.size());
 		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
@@ -886,12 +888,10 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
 	ResourceManager& resource_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
-	bool skip_opengl_calls, Reference<RayMesh>& raymesh_out)
+	bool skip_opengl_calls, PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out)
 {
 	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
-	size_t num_materials_referenced = 0;
 	Reference<OpenGLMeshRenderData> gl_meshdata;
-	Reference<RayMesh> raymesh;
 
 	// Load mesh from disk:
 	const std::string model_path = resource_manager.pathForURL(lod_model_URL);
@@ -958,21 +958,12 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelUR
 
 	gl_meshdata->animation_data = batched_mesh->animation_data;
 
-	// Build RayMesh from our batched mesh (used for physics + picking)
-	raymesh = new RayMesh(/*name=*/FileUtils::getFilename(model_path), false);
-	raymesh->fromBatchedMesh(*batched_mesh);
+	gl_meshdata->num_materials_referenced = batched_mesh->numMaterialsReferenced();
 
-	Geometry::BuildOptions options;
-	options.compute_is_planar = false;
-	DummyShouldCancelCallback should_cancel_callback;
-	StandardPrintOutput print_output;
-	raymesh->build(options, should_cancel_callback, print_output, false, task_manager);
+	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh);
 
-	num_materials_referenced = batched_mesh->numMaterialsReferenced();
+	batched_mesh_out = batched_mesh;
 
-	gl_meshdata->num_materials_referenced = num_materials_referenced;
-
-	raymesh_out = raymesh;
 	return gl_meshdata;
 }
 
@@ -1320,7 +1311,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
-	glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, Reference<RayMesh>& raymesh_out)
+	glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, PhysicsShape& physics_shape_out, Indigo::MeshRef& indigo_mesh_out)
 {
 	// Timer timer;
 	StandardPrintOutput print_output;
@@ -1346,15 +1337,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Convert Indigo mesh to opengl data
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh);
 
-	// Build RayMesh from our indigo mesh (used for physics + picking)
-	raymesh_out = new RayMesh("voxelmesh", /*enable_shading_normals=*/false);
-	raymesh_out->fromIndigoMeshForPhysics(*indigo_mesh);
-
-	// Build raymesh acceleration structure
-	Geometry::BuildOptions options;
-	options.compute_is_planar = false;
-	DummyShouldCancelCallback should_cancel_callback;
-	raymesh_out->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
+	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh);
 
 	// Load rendering data into GPU mem if requested.
 	if(do_opengl_stuff)
@@ -1386,6 +1369,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		mesh_data->vert_index_buffer_uint16.clearAndFreeMem();
 		mesh_data->vert_index_buffer_uint8.clearAndFreeMem();
 	}
+
+	indigo_mesh_out = indigo_mesh;
 
 	// conPrint("ModelLoading::makeModelForVoxelGroup for " + toString(voxel_group.voxels.size()) + " voxels took " + timer.elapsedString());
 	return mesh_data;
@@ -1432,14 +1417,15 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 8); // Verts can be shared due to no lightmap UVs.
-		testAssert(raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
+		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
 		testAssert(data->getNumTris()             == 6 * 2);
-		testAssert(raymesh->getTriangles().size() == 6 * 2);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 6 * 2);
 	}
 
 	// Test a single voxel, with lightmap UVs
@@ -1449,14 +1435,15 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
-		testAssert(raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
+		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
 		testAssert(data->getNumTris()             == 6 * 2);
-		testAssert(raymesh->getTriangles().size() == 6 * 2);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 6 * 2);
 	}
 
 	// Test two adjacent voxels with same material.
@@ -1467,14 +1454,15 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
-		testAssert(raymesh->getNumVerts() == 8);
+		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		testAssert(data->getNumTris()             == 6 * 2);
-		testAssert(raymesh->getTriangles().size() == 6 * 2);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 6 * 2);
 	}
 
 	// Test two adjacent voxels (along y axis) with same material.
@@ -1485,15 +1473,16 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
-		testAssert(raymesh->getNumVerts() == 8);
+		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		testAssert(data->getNumTris()             == 6 * 2);
-		testAssert(raymesh->getNumVerts() == 8);
-		testAssert(raymesh->getTriangles().size() == 2 * 6);
+		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 6);
 	}
 
 
@@ -1505,14 +1494,15 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 8);
-		testAssert(raymesh->getNumVerts() == 8);
+		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		testAssert(data->getNumTris()             == 6 * 2);
-		testAssert(raymesh->getTriangles().size() == 2 * 6);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 6);
 	}
 
 	// Test two adjacent voxels (along z axis) with same material, with lightmap UVs
@@ -1523,14 +1513,15 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent;
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
-		testAssert(raymesh->getNumVerts() == 8);
+		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
 		testAssert(data->getNumTris()             == 6 * 2);
-		testAssert(raymesh->getTriangles().size() == 2 * 6);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 6);
 	}
 
 
@@ -1542,14 +1533,15 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent(2, false);
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL,
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, physics_shape, indigo_mesh);
 
 		testEqual(data->getNumVerts(), (size_t)(4 * 3));
-		testAssert(raymesh->getNumVerts() == 4 * 3);
+		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
 		testEqual(data->getNumTris(), (size_t)(2 * 5 * 2)); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
-		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 5 * 2);
 	}
 
 	// Test two adjacent voxels with different opaque materials.  The faces between the voxels should not be added.
@@ -1560,41 +1552,42 @@ void ModelLoading::test()
 
 		js::Vector<bool, 16> mat_transparent(2, false);
 
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testEqual(data->getNumVerts(), (size_t)32); // verts half way along the sides of the cuboid can be shared.
-		testAssert(raymesh->getNumVerts() == 4 * 3);
+		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
 		testEqual(data->getNumTris(), (size_t)(2 * 5 * 2)); // Each voxel should have 5 faces (face between 2 voxels is not added),  * 2 voxels, * 2 triangles/face
-		testAssert(raymesh->getTriangles().size() == 2 * 5 * 2);
+		//testAssert(physics_shape->raymesh->getTriangles().size() == 2 * 5 * 2);
 	}
 
 	// Performance test
-	if(false)
-	{
-		PCG32 rng(1);
-		VoxelGroup group;
-		for(int z=0; z<100; z += 2)
-			for(int y=0; y<100; ++y)
-				for(int x=0; x<20; ++x)
-					if(rng.unitRandom() < 0.2f)
-						group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
+	//if(false)
+	//{
+	//	PCG32 rng(1);
+	//	VoxelGroup group;
+	//	for(int z=0; z<100; z += 2)
+	//		for(int y=0; y<100; ++y)
+	//			for(int x=0; x<20; ++x)
+	//				if(rng.unitRandom() < 0.2f)
+	//					group.voxels.push_back(Voxel(Vec3<int>(x, y, z), 0));
 
-		for(int i=0; i<500; ++i)
-		{
-			Timer timer;
+	//	for(int i=0; i<500; ++i)
+	//	{
+	//		Timer timer;
 
-			js::Vector<bool, 16> mat_transparent;
+	//		js::Vector<bool, 16> mat_transparent;
 
-			Reference<RayMesh> raymesh;
-			Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
-				/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
+	//		Reference<RayMesh> raymesh;
+	//		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+	//			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, raymesh);
 
-			conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
-			conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
-		}
-	}
+	//		conPrint("Meshing of " + toString(group.voxels.size()) + " voxels took " + timer.elapsedString());
+	//		conPrint("Resulting num tris: " + toString(raymesh->getTriangles().size()));
+	//	}
+	//}
 
 	conPrint("ModelLoading::test() done.");
 }

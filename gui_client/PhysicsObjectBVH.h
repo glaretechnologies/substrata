@@ -6,6 +6,9 @@ Copyright Glare Technologies Limited 2016 -
 #pragma once
 
 
+#if 0
+
+
 #include "../maths/Vec4f.h"
 #include "../utils/Platform.h"
 #include "../utils/Vector.h"
@@ -58,3 +61,6 @@ public:
 	js::Vector<const PhysicsObject*, 16> leaf_objects;
 	int32 root_node_index;
 };
+
+
+#endif

@@ -5,6 +5,11 @@ Fixed Substrata not closing immediately when a long download is in progress.
 Faster client startups due to not scanning for resource presence.
 Fixed some videos not looping.
 Allowing loading of models in AddObjectDialog and AvatarSettingsDialog, even if some textures are missing or invalid.
+Improved speed of loading objects on initial connect to server.
+Added importance factor for item loading queue.  Prioritising loading our own avatar first.
+Clearing online user and chat message box on disconnect from server.
+Various speed improvements for loading objects.
+Loading textures in chunks to reduce stuttering.
 
 0.95
 ====
