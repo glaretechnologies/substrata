@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2018 -
 #include "PhysicsWorld.h"
 #include "ModelLoading.h"
 #include "PlayerPhysics.h"
+#include "CarPhysics.h"
 #include "ClientThread.h"
 #include "WorldState.h"
 #include "CameraController.h"
@@ -183,7 +184,7 @@ private:
 	void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
-	void selectObject(const WorldObjectRef& ob, int selected_tri_index);
+	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
 	void deleteSelectedObject();
 	void deselectObject();
 	void deselectParcel();
@@ -315,6 +316,7 @@ public:
 	Reference<PhysicsWorld> physics_world;
 
 	PlayerPhysics player_physics;
+	CarPhysics car_physics;
 
 	Timer time_since_last_timer_ev;
 	Timer time_since_update_packet_sent;
@@ -381,7 +383,7 @@ public:
 
 	Reference<Indigo::Mesh> ground_quad_mesh;
 	Reference<OpenGLMeshRenderData> ground_quad_mesh_opengl_data;
-	Reference<RayMesh> ground_quad_raymesh;
+	PhysicsShape ground_quad_shape;
 
 	struct GroundQuad
 	{
@@ -395,16 +397,16 @@ public:
 	float load_distance, load_distance2;
 
 	Reference<OpenGLMeshRenderData> hypercard_quad_opengl_mesh; // Also used for name tags.
-	Reference<RayMesh> hypercard_quad_raymesh;
+	PhysicsShape hypercard_quad_shape;
 
 	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh; // For images, web-views etc.
-	Reference<RayMesh> image_cube_raymesh;
+	PhysicsShape image_cube_shape;
 
 	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh;
-	Reference<RayMesh> spotlight_raymesh;
+	PhysicsShape spotlight_shape;
 
 
-	Reference<RayMesh> unit_cube_raymesh;
+	PhysicsShape unit_cube_shape;
 
 	Reference<GLObject> ob_placement_beam;
 	Reference<GLObject> ob_placement_marker;
@@ -488,6 +490,8 @@ private:
 	std::unordered_set<std::string> audio_processing;
 
 	std::unordered_set<std::string> script_content_processing;
+
+	std::unordered_set<UID, UIDHasher> scatter_info_processing;
 
 
 	QTimer* update_ob_editor_transform_timer;
@@ -579,6 +583,9 @@ public:
 
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;
 
+	std::vector<Reference<GLObject> > wheel_gl_objects;
+	Reference<GLObject> car_body_gl_object;
+
 	QImage webview_qimage;
 	Timer time_since_last_webview_display;
 
@@ -591,7 +598,7 @@ public:
 	std::string cur_loading_lod_model_url;
 	WorldObjectRef cur_loading_voxel_ob;
 	int cur_loading_voxel_subsample_factor;
-	Reference<RayMesh> cur_loading_raymesh;
+	PhysicsShape cur_loading_physics_shape;
 	int cur_loading_voxel_ob_model_lod_level;
 
 	OpenGLTextureLoadingProgress tex_loading_progress;

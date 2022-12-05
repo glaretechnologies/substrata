@@ -1,7 +1,7 @@
 /*=====================================================================
 PhysicsObject.cpp
 -----------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "PhysicsObject.h"
 
@@ -14,15 +14,38 @@ Copyright Glare Technologies Limited 2016 -
 #include "../utils/ConPrint.h"
 
 
-PhysicsObject::PhysicsObject(bool collidable_)
-:	userdata(NULL), userdata_type(0), collidable(collidable_), uniform_dist(NULL), total_surface_area(0)
+js::AABBox PhysicsShape::getAABBOS() const
 {
+	JPH::AABox aabb = jolt_shape->GetLocalBounds();
+	return js::AABBox(
+		Vec4f(aabb.mMin.GetX(), aabb.mMin.GetY(), aabb.mMin.GetZ(), 1),
+		Vec4f(aabb.mMax.GetX(), aabb.mMax.GetY(), aabb.mMax.GetZ(), 1)
+	);
 }
 
 
-PhysicsObject::PhysicsObject(bool collidable_, const Reference<RayMesh>& geometry_, const Matrix4f& ob_to_world_, void* userdata_, int userdata_type_)
-:	ob_to_world(ob_to_world_), geometry(geometry_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_), uniform_dist(NULL), total_surface_area(0)
+
+PhysicsObject::PhysicsObject(bool collidable_)
+:	userdata(NULL), userdata_type(0), collidable(collidable_), /*uniform_dist(NULL), total_surface_area(0), */pos(0.f)//, rot(Quatf::identity()), scale(1.f)
 {
+	dynamic = false;
+#if USE_JOLT
+	is_sphere = false;
+	is_cube = false;
+	is_player = false;
+#endif
+}
+
+
+PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void* userdata_, int userdata_type_)
+:	shape(shape_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_)/*, uniform_dist(NULL), total_surface_area(0)*/
+{
+	dynamic = false;
+#if USE_JOLT
+	is_sphere = false;
+	is_cube = false;
+	is_player = false;
+#endif
 }
 
 
@@ -31,10 +54,37 @@ PhysicsObject::~PhysicsObject()
 }
 
 
+const js::AABBox PhysicsObject::getAABBoxWS() const
+{
+	Matrix4f ob_to_world_, world_to_ob;
+	computeToWorldAndToObMatrices(this->pos, this->rot, this->scale.toVec4fVector(), ob_to_world_, world_to_ob);
+
+	return this->shape.getAABBOS().transformedAABBFast(ob_to_world_);
+}
+
+
+const Matrix4f PhysicsObject::getObToWorldMatrix() const
+{
+	Matrix4f ob_to_world_, world_to_ob;
+	computeToWorldAndToObMatrices(this->pos, this->rot, this->scale.toVec4fVector(), ob_to_world_, world_to_ob);
+	return ob_to_world_;
+}
+
+
+const Matrix4f PhysicsObject::getWorldToObMatrix() const
+{
+	Matrix4f ob_to_world_, world_to_ob;
+	computeToWorldAndToObMatrices(this->pos, this->rot, this->scale.toVec4fVector(), ob_to_world_, world_to_ob);
+	return world_to_ob;
+}
+
+
 void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 {
 	results_out.hitdist_ws = -1;
 	results_out.hit_object = NULL;
+
+#if !USE_JOLT
 
 	// Test ray against object AABB.  Updates ray near and far distances if it intersects the AABB.
 	Ray clipped_ray = ray;
@@ -54,7 +104,7 @@ void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 	);
 
 	HitInfo hitinfo;
-	const float dist = (float)geometry->traceRay(
+	const float dist = (float)shape->raymesh->traceRay(
 		localray,
 		hitinfo
 	);
@@ -66,124 +116,14 @@ void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 		results_out.hit_tri_index = hitinfo.sub_elem_index;
 		results_out.hitdist_ws = dist;
 		unsigned int mat_index;
-		const Vec4f N_os = geometry->getGeometricNormalAndMatIndex(hitinfo, mat_index);
+		const Vec4f N_os = shape->raymesh->getGeometricNormalAndMatIndex(hitinfo, mat_index);
 		results_out.hit_normal_ws = normalise(this->world_to_ob.transposeMult3Vector(N_os));
 	}
-}
-
-
-void PhysicsObject::traceSphere(const js::BoundingSphere& sphere_ws, const Vec4f& translation_ws, const js::AABBox& spherepath_aabb_ws, SphereTraceResult& results_out) const
-{
-	if(!collidable)
-	{
-		results_out.hitdist_ws = -1;
-		return;
-	}
-
-	if(spherepath_aabb_ws.disjoint(this->aabb_ws))
-	{
-		results_out.hitdist_ws = -1;
-		return;
-	}
-
-	float translation_len_ws;
-	const Vec4f unitdir_ws = normalise(translation_ws, translation_len_ws);
-	if(translation_len_ws < 1.0e-10f)
-	{
-		results_out.hitdist_ws = -1;
-		return; // Avoid using NaN unitdir_ws
-	}
-
-	const Ray ray_ws(
-		sphere_ws.getCenter(), // origin
-		unitdir_ws, // direction
-		0.f, // min_t
-		translation_len_ws // max_t
-	);
-
-	bool point_in_tri;
-	Vec4f closest_hit_pos_ws;
-	Vec4f closest_hit_normal_ws;
-	const float smallest_dist_ws = (float)geometry->traceSphere(ray_ws, world_to_ob, ob_to_world, sphere_ws.getRadius(), closest_hit_pos_ws, closest_hit_normal_ws, point_in_tri);
-
-	if(smallest_dist_ws >= 0.f && smallest_dist_ws < std::numeric_limits<float>::infinity())
-	{
-		assert(closest_hit_normal_ws.isUnitLength());
-		assert(smallest_dist_ws <= translation_len_ws);
-
-		results_out.hit_pos_ws = closest_hit_pos_ws;
-		results_out.hit_normal_ws = closest_hit_normal_ws;
-		results_out.hitdist_ws = smallest_dist_ws;
-		results_out.point_in_tri = point_in_tri;
-	}
-	else
-	{
-		results_out.hitdist_ws = -1;
-	}
-}
-
-
-void PhysicsObject::appendCollPoints(const js::BoundingSphere& sphere_ws, const js::AABBox& sphere_aabb_ws, std::vector<Vec4f>& points_ws_in_out) const
-{
-	if(!collidable)
-		return;
-
-	if(sphere_aabb_ws.disjoint(this->aabb_ws))
-		return;
-
-	geometry->appendCollPoints(sphere_ws.getCenter(), sphere_ws.getRadius(), world_to_ob, ob_to_world, points_ws_in_out);
+#endif
 }
 
 
 size_t PhysicsObject::getTotalMemUsage() const
 {
-	return sizeof(ob_to_world) + sizeof(world_to_ob) + sizeof(aabb_ws) + geometry->getTotalMemUsage();
-}
-
-
-// From Object::buildUniformSampler from indigo source
-void PhysicsObject::buildUniformSampler()
-{
-	if(uniform_dist != NULL) // If already built:
-		return;
-
-	std::vector<float> local_sub_elem_surface_areas;
-	geometry->getSubElementSurfaceAreas(
-		ob_to_world, // A_inverse,
-		local_sub_elem_surface_areas
-	);
-
-	double A = 0;
-	for(size_t i=0; i<local_sub_elem_surface_areas.size(); ++i)
-		A += local_sub_elem_surface_areas[i];
-
-	//this->recip_total_surface_area = (float)(1 / A);
-	this->total_surface_area = (float)A;
-
-	delete uniform_dist;
-	uniform_dist = new DiscreteDistribution(local_sub_elem_surface_areas);
-}
-
-
-void PhysicsObject::sampleSurfaceUniformly(float sample, const Vec2f& samples, SampleSurfaceResults& results) const
-{
-	assert(this->uniform_dist);
-
-	// Pick sub-element
-	float sub_elem_prob;
-	results.hitinfo.sub_elem_index = uniform_dist->sample(sample, sub_elem_prob);
-
-	Vec4f pos_os, N_g_os;
-	unsigned int material_index;
-	Vec2f uv0;
-	geometry->sampleSubElement(results.hitinfo.sub_elem_index, samples, pos_os, N_g_os, results.hitinfo, material_index, uv0);
-
-	// Compute results.pd: is just 1 / total surface area as we are sampling uniformly.
-	// NOTE TODO: not actually correct for sphere.
-	//results.pd = this->recip_total_surface_area;
-
-	//float ob_to_world_det;
-	results.N_g_os = normalise(N_g_os);
-	results.N_g_ws = normalise(world_to_ob.transposeMult3Vector(N_g_os));
-	results.pos = ob_to_world * pos_os;
+	return 16; // TEMP HACK TODO
 }

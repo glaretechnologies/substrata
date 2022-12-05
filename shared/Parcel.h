@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <DatabaseKey.h>
 struct GLObject;
 class PhysicsObject;
+class PhysicsShape;
 class OpenGLEngine;
 class RayMesh;
 namespace glare { class TaskManager; }
@@ -123,7 +124,7 @@ public:
 
 	Reference<GLObject> makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine, bool write_privileges); // Shader program will be set by calling code later.
 
-	Reference<PhysicsObject> makePhysicsObject(Reference<RayMesh>& unit_cube_raymesh, glare::TaskManager& task_manager);
+	Reference<PhysicsObject> makePhysicsObject(PhysicsShape& unit_cube_shape, glare::TaskManager& task_manager);
 
 	void setColourForPerms(bool write_privileges);
 #endif

@@ -15,8 +15,10 @@ Copyright Glare Technologies Limited 2018 -
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
-#endif
 #include "../gui_client/PhysicsObject.h"
+#include "../gui_client/PhysicsWorld.h"
+#include "../dll/include/IndigoMesh.h"
+#endif
 #include <StandardPrintOutput.h>
 
 
@@ -377,7 +379,7 @@ void Parcel::setColourForPerms(bool write_privileges)
 }
 
 
-Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube_raymesh, glare::TaskManager& task_manager)
+Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape, glare::TaskManager& task_manager)
 {
 	Reference<PhysicsObject> new_physics_object = new PhysicsObject(/*collidable=*/false);
 
@@ -388,14 +390,11 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 
 		const Vec4f span = aabb_max_v4 - aabb_min_v4;
 
-		Matrix4f ob_to_world_matrix;
-		ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-		ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-		ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-		ob_to_world_matrix.setColumn(3, aabb_min_v4); // set origin
-
-		new_physics_object->geometry = unit_cube_raymesh;
-		new_physics_object->ob_to_world = ob_to_world_matrix;
+		new_physics_object->shape = unit_cube_shape;
+		new_physics_object->pos = aabb_min_v4;
+		new_physics_object->rot = Quatf::identity();
+		new_physics_object->scale = Vec3f(span[0], span[1], span[2]);
+		//new_physics_object->ob_to_world = ob_to_world_matrix;
 	}
 	else
 	{
@@ -473,14 +472,12 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(Reference<RayMesh>& unit_cube
 		}
 
 		mesh->buildTrisFromQuads();
-		Geometry::BuildOptions options;
-		options.compute_is_planar = false;
-		DummyShouldCancelCallback should_cancel_callback;
-		StandardPrintOutput print_output;
-		mesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
 
-		new_physics_object->geometry = mesh;
-		new_physics_object->ob_to_world = Matrix4f::identity();
+		new_physics_object->shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh->toIndigoMesh());
+
+		new_physics_object->pos = Vec4f(0,0,0,1);
+		new_physics_object->rot = Quatf::identity();
+		new_physics_object->scale = Vec3f(1.f);
 	}
 
 	new_physics_object->userdata = this;

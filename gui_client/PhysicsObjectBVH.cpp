@@ -5,6 +5,8 @@ Copyright Glare Technologies Limited 2016 -
 =====================================================================*/
 #include "PhysicsObjectBVH.h"
 
+#if 0
+
 
 #include "../physics/BinningBVHBuilder.h"
 #include "PhysicsObject.h"
@@ -356,3 +358,6 @@ size_t PhysicsObjectBVH::getTotalMemUsage() const
 {
 	return objects.capacitySizeBytes() + nodes.capacitySizeBytes() + leaf_objects.capacitySizeBytes();
 }
+
+
+#endif

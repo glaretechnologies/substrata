@@ -1,20 +1,44 @@
 /*=====================================================================
 PhysicsObject.h
 ---------------
-Copyright Glare Technologies Limited 2016 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
 
 #include "../maths/Vec4f.h"
+#include "../maths/Quat.h"
 #include "../maths/vec3.h"
 #include "../maths/Matrix4f.h"
 #include "utils/Vector.h"
 #include "simpleraytracer/raymesh.h"
+
+
+#if USE_JOLT
+#include <Jolt/Jolt.h>
+#include <Jolt\Physics\Body\BodyID.h>
+#include <Jolt\Physics\Collision\Shape\Shape.h>
+#endif
+
 namespace js { class BoundingSphere; }
 class RayTraceResult;
 class SphereTraceResult;
 class DiscreteDistribution;
+
+
+/*=====================================================================
+PhysicsShape
+------------
+Acceleration structure for a mesh.
+RayMesh in old code, Jolt shape with Jolt code.
+=====================================================================*/
+class PhysicsShape
+{
+public:
+	js::AABBox getAABBOS() const;
+
+	JPH::Ref<JPH::Shape> jolt_shape;
+};
 
 
 /*=====================================================================
@@ -35,59 +59,39 @@ public:
 	friend class PhysicsWorld;
 
 	PhysicsObject(bool collidable);
-	PhysicsObject(bool collidable, const Reference<RayMesh>& geometry, const Matrix4f& ob_to_world, void* userdata, int userdata_type);
+	PhysicsObject(bool collidable, const PhysicsShape& shape, void* userdata, int userdata_type);
 	~PhysicsObject();
 
 
 	void traceRay(const Ray& ray, RayTraceResult& results_out) const;
 
-	void traceSphere(const js::BoundingSphere& sphere, const Vec4f& dir, const js::AABBox& spherepath_aabb_ws, SphereTraceResult& results_out) const;
+	const js::AABBox getAABBoxWS() const;
 
-	void appendCollPoints(const js::BoundingSphere& sphere, const js::AABBox& sphere_aabb_ws, std::vector<Vec4f>& points_ws_in_out) const;
-
-	const js::AABBox& getAABBoxWS() const { return aabb_ws; }
-
-	const js::AABBox getAABBoxOS() const { return geometry->getAABBox(); }
-
-	//void setAABBoxWS(const js::AABBox& aabb) { aabb_ws = aabb; }
-
-	const Matrix4f& getObToWorldMatrix() const { return ob_to_world; }
-	const Matrix4f& getWorldToObMatrix() const { return world_to_ob; }
-
-	void buildUniformSampler();
-
-	class SampleSurfaceResults
-	{
-	public:
-		Vec4f pos;
-		Vec4f N_g_ws;
-		Vec4f N_g_os;
-		HitInfo hitinfo;
-		//PDType pd;
-	};
-	void sampleSurfaceUniformly(float sample, const Vec2f& samples, SampleSurfaceResults& results) const;
+	const Matrix4f getObToWorldMatrix() const;
+	const Matrix4f getWorldToObMatrix() const;
 
 	size_t getTotalMemUsage() const;
 
-	
-	Matrix4f ob_to_world; // Don't update directly after inserting into PhysicsWorld, call PhysicsWorld::setNewObToWorldMatrix instead, which updates the ob_grid.
-private:
-	// These are computed in PhysicsWorld::computeObjectTransformData().
-	Matrix4f world_to_ob;
-	js::AABBox aabb_ws;
 public:
-	//js::AABBox aabb_os;
-	
-
-	Reference<RayMesh> geometry;
+	PhysicsShape shape;
 
 	bool collidable; // Is this object solid, for the purposes of player physics?
 
 	void* userdata;
 	int userdata_type;
 
-	DiscreteDistribution* uniform_dist; // Used for sampling a point on the object surface uniformly wrt. surface area. Built by buildUniformSampler()
-	float total_surface_area; // Built when uniform_dist is built.
+	Vec4f pos;
+	Quatf rot; // Set in PhysicsWorld::think() from Jolt data
+	Vec3f scale;
+
+#if USE_JOLT
+	JPH::BodyID jolt_body_id;
+	bool is_sphere;
+	bool is_cube;
+	bool is_player;
+#endif
+	bool dynamic;
+
 private:
 	
 };

@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
+#include "PhysicsObject.h"
 #include <opengl/GLMemUsage.h>
 #include <simpleraytracer/raymesh.h>
 #include <map>
@@ -53,7 +54,7 @@ struct MeshData
 
 	Reference<OpenGLMeshRenderData> gl_meshdata;
 
-	Reference<RayMesh> raymesh;
+	PhysicsShape physics_shape;
 
 	mutable glare::AtomicInt refcount;
 
@@ -77,7 +78,7 @@ public:
 
 	void clear();
 
-	Reference<MeshData> insertMeshes(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata, Reference<RayMesh>& raymesh);
+	Reference<MeshData> insertMeshes(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata, PhysicsShape& physics_shape);
 
 	Reference<MeshData> getMeshData(const std::string& model_url);
 

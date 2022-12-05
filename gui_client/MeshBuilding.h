@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
+#include "PhysicsObject.h"
 #include <utils/Reference.h>
 #include <string>
 
@@ -13,6 +14,7 @@ Copyright Glare Technologies Limited 2022 -
 class OpenGLMeshRenderData;
 class VertexBufferAllocator;
 class RayMesh;
+class PhysicsShape;
 namespace glare { class TaskManager; }
 namespace Indigo { class Mesh; }
 
@@ -31,7 +33,7 @@ public:
 	struct MeshBuildingResults
 	{
 		Reference<OpenGLMeshRenderData> opengl_mesh_data;
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
 		Reference<Indigo::Mesh> indigo_mesh;
 	};
 
@@ -41,7 +43,7 @@ public:
 
 	static MeshBuildingResults makeSpotlightMeshes(const std::string& base_dir_path, glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 
-	static Reference<RayMesh> makeUnitCubeRayMesh(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
+	static PhysicsShape makeUnitCubePhysicsShape(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
 
 	static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(VertexBufferAllocator& allocator, float arc_end_angle);
 };

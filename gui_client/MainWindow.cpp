@@ -38,6 +38,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "URLWhitelist.h"
 #include "URLParser.h"
 #include "LoadModelTask.h"
+#include "BuildScatteringInfoTask.h"
 #include "LoadTextureTask.h"
 #include "LoadAudioTask.h"
 #include "../audio/MP3AudioFileReader.h"
@@ -557,6 +558,10 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
+	player_physics.shutdown();
+	car_physics.shutdown();
+
+
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
 
 	misc_info_ui.destroy();
@@ -925,10 +930,16 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 		ui->glWidget->opengl_engine->removeLight(ob.opengl_light);
 
 	if(ob.physics_object.nonNull())
-		physics_world->removeObject(ob.physics_object);
+	{
+		if(!ob.physics_object->dynamic)
+		{
+			physics_world->removeObject(ob.physics_object);
+			ob.physics_object = NULL;
+		}
+	}
 
 	ob.opengl_engine_ob = NULL;
-	ob.physics_object = NULL;
+	
 	
 	ob.mesh_manager_data = NULL;
 
@@ -968,8 +979,10 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 
 	// Make physics object
 	PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/false); // Make non-collidable, so avatar doesn't get stuck in large placeholder objects.
-	physics_ob->geometry = this->unit_cube_raymesh;
-	physics_ob->ob_to_world = cube_gl_ob->ob_to_world_matrix;
+	physics_ob->shape = this->unit_cube_shape;
+	physics_ob->pos = ob->pos.toVec4fPoint();
+	physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+	physics_ob->scale = ob->scale;
 
 	ob->physics_object = physics_ob;
 	physics_ob->userdata = ob;
@@ -1351,10 +1364,12 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-				physics_ob->geometry = this->hypercard_quad_raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->shape = this->hypercard_quad_shape;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = ob->scale;
 
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
@@ -1401,10 +1416,12 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-				physics_ob->geometry = this->spotlight_raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->shape = this->spotlight_shape;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = ob->scale;
 
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->spotlight_opengl_mesh;
@@ -1455,10 +1472,12 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 			if(ob->opengl_engine_ob.isNull())
 			{
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
-				physics_ob->geometry = this->image_cube_raymesh;
-				physics_ob->ob_to_world = ob_to_world_matrix;
+				physics_ob->shape = this->image_cube_shape;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->pos = ob->pos.toVec4fPoint();
+				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+				physics_ob->scale = ob->scale;
 
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->image_cube_opengl_mesh;
@@ -1490,7 +1509,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 				load_model_task->voxel_ob_model_lod_level = ob_model_lod_level;
 				load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-				load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+				load_model_task->unit_cube_shape = this->unit_cube_shape;
 				load_model_task->result_msg_queue = &this->msg_queue;
 				load_model_task->resource_manager = resource_manager;
 				load_model_task->voxel_ob = ob;
@@ -1513,6 +1532,29 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		else if(ob->object_type == WorldObject::ObjectType_Generic)
 		{
 			assert(ob->object_type == WorldObject::ObjectType_Generic);
+
+			
+			if(::hasPrefix(ob->content, "biome:")) // If we want to scatter on this object:
+			{
+				if(ob->scattering_info.isNull()) // if scattering info is not computed for this object yet:
+				{
+					const bool already_procesing = scatter_info_processing.count(ob->uid) > 0; // And we aren't already building scattering info for this object (e.g. task is in a queue):
+					if(!already_procesing)
+					{
+						Reference<BuildScatteringInfoTask> scatter_task = new BuildScatteringInfoTask();
+						scatter_task->ob_uid = ob->uid;
+						scatter_task->lod_model_url = ob->model_url; // Use full res model URL
+						scatter_task->ob_to_world = ob_to_world_matrix;
+						scatter_task->result_msg_queue = &this->msg_queue;
+						scatter_task->resource_manager = resource_manager;
+						scatter_task->model_building_task_manager = &model_building_subsidary_task_manager;
+						load_item_queue.enqueueItem(*ob, scatter_task, /*task max dist=*/1.0e10f);
+
+						scatter_info_processing.insert(ob->uid);
+					}
+				}
+			}
+
 
 			if(!ob->model_url.empty() && 
 				(ob->loaded_model_lod_level != ob_model_lod_level)) // We may already have the correct LOD model loaded, don't reload if so.
@@ -1538,25 +1580,41 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 						assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
-						ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-						ob->physics_object->geometry = mesh_data->raymesh;
-						ob->physics_object->ob_to_world = ob_to_world_matrix;
-						ob->physics_object->userdata = ob;
-						ob->physics_object->userdata_type = 0;
-
 						ob->loaded_model_lod_level = ob_model_lod_level;
+
+						if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload it's physics object in removeAndDeleteGLAndPhysicsObjectsForOb() above.
+						{
+							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+							ob->physics_object->shape = mesh_data->physics_shape;
+							ob->physics_object->userdata = ob;
+							ob->physics_object->userdata_type = 0;
+							ob->physics_object->pos = ob->pos.toVec4fPoint();
+							ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+							ob->physics_object->scale = ob->scale;
+
+							// if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
+							// {
+							// 	ob->physics_object->is_sphere = true;
+							// 	ob->physics_object->dynamic = false; // TEMP
+							// }
+							// if(ob->model_url == "Cube_obj_11907297875084081315.bmesh"/* && ob->scale == Vec3f(1.f)*/)
+							// {
+							// 	ob->physics_object->is_cube = true;
+							// 	ob->physics_object->dynamic = false;
+							// }
+
+							physics_world->addObject(ob->physics_object);
+						}
+
 
 						//Timer timer;
 						ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 						//if(timer.elapsed() > 0.01) conPrint("addObject took                    " + timer.elapsedStringNSigFigs(5));
 
-						physics_world->addObject(ob->physics_object);
 
 						ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
 						loadScriptForObject(ob); // Load any script for the object.
-
-						doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
 
 						// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 						if(this->selected_ob == ob)
@@ -1577,7 +1635,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 							load_model_task->lod_model_url = lod_model_url;
 							load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-							load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+							load_model_task->unit_cube_shape = this->unit_cube_shape;
 							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
 							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
@@ -1760,7 +1818,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 
 					load_model_task->lod_model_url = lod_model_url;
 					load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-					load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+					load_model_task->unit_cube_shape = this->unit_cube_shape;
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
 					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
@@ -1919,13 +1977,17 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 				if(ob->physics_object.nonNull())
 				{
 					PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-					physics_ob->geometry = ob->physics_object->geometry;
-					physics_ob->ob_to_world = ob->physics_object->ob_to_world;
+					physics_ob->shape = ob->physics_object->shape;
 
 					instance->physics_object = physics_ob;
 
 					physics_ob->userdata = instance.ptr();
 					physics_ob->userdata_type = 0;
+
+					physics_ob->pos = ob->pos.toVec4fPoint();
+					physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+					physics_ob->scale = ob->scale;
+
 					physics_world->addObject(physics_ob);
 				}
 
@@ -1958,10 +2020,6 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
-
-	assert(!ob->using_placeholder_model);
-		
-	//biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
 
 	if(::hasPrefix(ob->content, "biome:"))
 	{
@@ -2338,27 +2396,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, Matrix
 	// Update in physics engine
 	if(ob->physics_object.nonNull())
 	{
-		/*
-		inverse:
-		= (TRS)^-1
-		= S^-1 R^-1 T^-1
-		= S^-1 R^T T^-1
-		*/
-		const Matrix4f rot_inv = rot.getTranspose();
-		Matrix4f S_inv_R_inv;
-
-		// left-multiplying with a scale matrix is equivalent to multiplying column 0 with the scale vector (s_x, s_y, s_z, 0) etc.
-		S_inv_R_inv.setColumn(0, rot_inv.getColumn(0) * recip_scale);
-		S_inv_R_inv.setColumn(1, rot_inv.getColumn(1) * recip_scale);
-		S_inv_R_inv.setColumn(2, rot_inv.getColumn(2) * recip_scale);
-		S_inv_R_inv.setColumn(3, Vec4f(0, 0, 0, 1));
-
-		assert(epsEqual(S_inv_R_inv, Matrix4f::scaleMatrix(recip_scale[0], recip_scale[1], recip_scale[2]) * rot_inv));
-
-		const Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
-//		assert(Matrix4f::isInverse(world_to_ob, ob_to_world));
-
-		physics_world->setNewObToWorldMatrix(*ob->physics_object, ob_to_world, world_to_ob);
+		physics_world->setNewObToWorldTransform(*ob->physics_object, translation, Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle), use_scale);
 	}
 
 
@@ -2451,12 +2489,12 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 		RayTraceResult trace_results;
 		Vec4f start_trace_pos = new_aabb_ws.centroid();
 		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
-		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e30f), trace_results);
+		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e5f), trace_results);
 		const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
 		const Vec4f down_beam_startpos = start_trace_pos + Vec4f(0, 0, 1, 0) * (up_beam_len - 0.001f);
-		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e10f, trace_results);
+		this->physics_world->traceRay(down_beam_startpos, Vec4f(0, 0, -1, 0), /*max_t=*/1.0e5f, trace_results);
 		const float down_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : 1000.0f;
 		const Vec4f lower_hit_normal = trace_results.hit_object ? normalise(trace_results.hit_normal_ws) : Vec4f(0, 0, 1, 0);
 
@@ -2866,7 +2904,7 @@ void MainWindow::tryToMoveObject(const WorldObject& ob, /*const Matrix4f& tentat
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		this->physics_world->setNewObToWorldMatrix(*this->selected_ob->physics_object, new_to_world);
+		physics_world->setNewObToWorldTransform(*selected_ob->physics_object, desired_new_ob_pos, Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle), selected_ob->scale.toVec4fVector());
 
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*selected_ob);
@@ -3746,7 +3784,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 					// Add meshes to mesh manager
-					Reference<MeshData> mesh_data = mesh_manager.insertMeshes(cur_loading_lod_model_url, cur_loading_mesh_data, cur_loading_raymesh);
+					Reference<MeshData> mesh_data = mesh_manager.insertMeshes(cur_loading_lod_model_url, cur_loading_mesh_data, cur_loading_physics_shape);
 
 					// Data is uploaded - assign to any waiting objects
 					const int loaded_model_lod_level = WorldObject::getLODLevelForURL(cur_loading_lod_model_url/*message->lod_model_url*/);
@@ -3791,11 +3829,29 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
-											ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-											ob->physics_object->geometry = this->cur_loading_raymesh;
-											ob->physics_object->ob_to_world = ob_to_world_matrix;
-											ob->physics_object->userdata = ob;
-											ob->physics_object->userdata_type = 0;
+											if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload it's physics object in removeAndDeleteGLAndPhysicsObjectsForOb() above.
+											{
+												ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
+												ob->physics_object->shape = this->cur_loading_physics_shape;
+												ob->physics_object->userdata = ob;
+												ob->physics_object->userdata_type = 0;
+												ob->physics_object->pos = ob->pos.toVec4fPoint();
+												ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+												ob->physics_object->scale = ob->scale;
+
+												//if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
+												//{
+												//	ob->physics_object->is_sphere = true;
+												//	ob->physics_object->dynamic = false;
+												//}
+												//if(ob->model_url == "Cube_obj_11907297875084081315.bmesh"/* && ob->scale == Vec3f(1.f)*/)
+												//{
+												//	ob->physics_object->is_cube = true;
+												//	ob->physics_object->dynamic = false;
+												//}
+
+												physics_world->addObject(ob->physics_object);
+											}
 
 
 											ob->loaded_model_lod_level = loaded_model_lod_level;//message->model_lod_level;
@@ -3808,13 +3864,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 											ui->glWidget->opengl_engine->addObject(ob->opengl_engine_ob);
 
-											physics_world->addObject(ob->physics_object);
 
 											ui->indigoView->objectAdded(*ob, *this->resource_manager);
 
 											loadScriptForObject(ob); // Load any script for the object.
-
-											doBiomeScatteringForObject(ob); // Scatter any biome stuff over it
 
 											// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 											if(this->selected_ob == ob)
@@ -3912,7 +3965,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					cur_loading_mesh_data = NULL;
 					cur_loading_lod_model_url.clear();
-					cur_loading_raymesh = NULL;
+					cur_loading_physics_shape = PhysicsShape();
 				} // end if(mesh_data_loading_progress.done())
 
 
@@ -3949,8 +4002,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)cur_loading_voxel_subsample_factor/*message->subsample_factor*/);
 
 							PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
-							physics_ob->geometry = cur_loading_raymesh;
-							physics_ob->ob_to_world = use_ob_to_world_matrix;
+							physics_ob->shape = cur_loading_physics_shape;
 
 							GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 							opengl_ob->mesh_data = cur_loading_mesh_data;
@@ -3973,6 +4025,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							physics_ob->userdata = voxel_ob.ptr();
 							physics_ob->userdata_type = 0;
+							physics_ob->pos = voxel_ob->pos.toVec4fPoint();
+							physics_ob->rot = Quatf::fromAxisAndAngle(normalise(voxel_ob->axis), voxel_ob->angle);
+							physics_ob->scale = voxel_ob->scale;
 
 							// Add this object to the GL engine and physics engine.
 							if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
@@ -3986,8 +4041,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
 
 								loadScriptForObject(voxel_ob.ptr()); // Load any script for the object.
-
-								doBiomeScatteringForObject(voxel_ob.ptr()); // Scatter any biome stuff over it
 							}
 
 							voxel_ob->loaded_model_lod_level = cur_loading_voxel_ob_model_lod_level; //  message->voxel_ob_lod_level/*model_lod_level*/;
@@ -4000,7 +4053,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					cur_loading_mesh_data = NULL;
 					cur_loading_voxel_ob = NULL;
-					cur_loading_raymesh = NULL;
+					cur_loading_physics_shape = PhysicsShape();
 				} // end if(mesh_data_loading_progress.done())
 
 				//loading_times.push_back(doubleToStringNSigFigs(load_item_timer.elapsed() * 1.0e3, 3) + " ms, loaded chunk of voxel mesh: " + mesh_data_loading_progress.summaryString());
@@ -4071,7 +4124,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										this->cur_loading_mesh_data = message->gl_meshdata;
 										this->cur_loading_voxel_ob = voxel_ob;
 										this->cur_loading_voxel_subsample_factor = message->subsample_factor;
-										this->cur_loading_raymesh = message->raymesh;
+										this->cur_loading_physics_shape = message->physics_shape;
 										this->cur_loading_voxel_ob_model_lod_level = message->voxel_ob_model_lod_level;
 										ui->glWidget->opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
@@ -4091,7 +4144,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(!message->gl_meshdata->vbo_handle.valid()) // Mesh data may already be loaded into OpenGL, in that case we don't need to start loading it.
 							{
 								this->cur_loading_mesh_data = message->gl_meshdata;
-								this->cur_loading_raymesh = message->raymesh;
+								this->cur_loading_physics_shape = message->physics_shape;
 								this->cur_loading_lod_model_url = message->lod_model_url;
 								ui->glWidget->opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
@@ -4183,6 +4236,23 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				// Add to texture_loaded_messages_to_process to process later.
 				texture_loaded_messages_to_process.push_back((TextureLoadedThreadMessage*)msg.ptr());
+			}
+			else if(dynamic_cast<BuildScatteringInfoDoneThreadMessage*>(msg.getPointer()))
+			{
+				BuildScatteringInfoDoneThreadMessage* loaded_msg = static_cast<BuildScatteringInfoDoneThreadMessage*>(msg.ptr());
+
+				// Look up object
+				Lock lock(this->world_state->mutex);
+
+				auto res = this->world_state->objects.find(loaded_msg->ob_uid);
+				if(res != this->world_state->objects.end())
+				{
+					WorldObject* ob = res.getValue().ptr();
+
+					ob->scattering_info = loaded_msg->ob_scattering_info;
+
+					doBiomeScatteringForObject(ob);
+				}
 			}
 			else if(dynamic_cast<AudioLoadedThreadMessage*>(msg.getPointer()))
 			{
@@ -4733,7 +4803,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								load_model_task->lod_model_url = URL;
 								load_model_task->opengl_engine = this->ui->glWidget->opengl_engine;
-								load_model_task->unit_cube_raymesh = this->unit_cube_raymesh;
+								load_model_task->unit_cube_shape = this->unit_cube_shape;
 								load_model_task->result_msg_queue = &this->msg_queue;
 								load_model_task->resource_manager = resource_manager;
 								load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
@@ -4815,15 +4885,53 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	ui->glWidget->opengl_engine->setCurrentTime((float)cur_time);
-	ui->glWidget->playerPhyicsThink((float)dt);
+
+	PlayerPhysicsInput physics_input;
+	ui->glWidget->playerPhyicsThink((float)dt, /*input_out=*/physics_input);
 
 	if(physics_world.nonNull())
 	{
+		physics_world->think(dt);
+
+#if USE_JOLT
+		{
+			Lock lock(physics_world->activated_obs_mutex);
+			for(auto it = physics_world->activated_obs.begin(); it != physics_world->activated_obs.end(); ++it)
+			{
+				PhysicsObject* physics_ob = *it;
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0)
+				{
+					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+
+					if(this->selected_ob != ob) // Don't update selected object with physics engine state
+					{
+						const Matrix4f ob_to_world = ob->physics_object->getObToWorldMatrix();
+
+						// Update OpenGL object
+						if(ob->opengl_engine_ob.nonNull())
+						{
+							ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
+							ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+						}
+
+						// Update world object
+						Vec4f unit_axis;
+						float angle;
+						ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
+
+						const Vec3d pos = Vec3d(ob_to_world.getColumn(3));
+						ob->setTransformAndHistory(pos, Vec3f(unit_axis), angle);
+					}
+				}
+			}
+		}
+#endif
+
 		PERFORMANCEAPI_INSTRUMENT("player physics");
 
 		// Process player physics
 		const Vec4f last_campos = campos;
-		const UpdateEvents physics_events = player_physics.update(*this->physics_world, (float)dt, /*campos_out=*/campos);
+		const UpdateEvents physics_events = player_physics.update(*this->physics_world, physics_input, (float)dt, /*campos in/out=*/campos);
 		this->cam_controller.setPosition(toVec3d(campos));
 
 
@@ -4874,6 +4982,95 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				ui->glWidget->opengl_engine->updateObjectTransformData(*player_phys_debug_spheres[i]);
 			}
 		}
+
+
+		//--------------------------- Car controller and graphics -------------------------------
+		//car_physics.update(*this->physics_world, physics_input, (float)dt, /*campos_out=*/campos);
+		//this->cam_controller.setPosition(toVec3d(campos));
+
+		// Update car visualisation
+		if(false)
+		{
+			wheel_gl_objects.resize(4);
+
+			for(size_t i=0; i<wheel_gl_objects.size(); ++i)
+			{
+				if(wheel_gl_objects[i].isNull())
+				{
+					wheel_gl_objects[i] = ui->glWidget->opengl_engine->allocateObject();
+					wheel_gl_objects[i]->ob_to_world_matrix = Matrix4f::identity();
+					//wheel_gl_objects[i]->mesh_data = ui->glWidget->opengl_engine->getCylinderMesh();
+
+					GLTFLoadedData gltf_data;
+					BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_wheel.glb", gltf_data);
+					wheel_gl_objects[i]->mesh_data = GLMeshBuilding::buildBatchedMesh(ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
+					wheel_gl_objects[i]->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
+
+
+					OpenGLMaterial material;
+					material.albedo_rgb = Colour3f(0.2f, 0.2f, 0.2f);
+					//material.tex_path = "resources/obstacle.png";
+
+					
+					wheel_gl_objects[i]->materials = std::vector<OpenGLMaterial>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
+
+					wheel_gl_objects[i]->materials[2].albedo_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+					wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
+					wheel_gl_objects[i]->materials[2].roughness = 0.2f;
+					wheel_gl_objects[i]->materials[4].albedo_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+					wheel_gl_objects[i]->materials[4].metallic_frac = 1.f; // spokes
+					wheel_gl_objects[i]->materials[4].roughness = 0.2f;
+
+
+					ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(wheel_gl_objects[i]);
+				}
+
+				//wheel_gl_objects[i]->ob_to_world_matrix = bike_physics.getWheelTransform((int)i) *
+				//	Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::scaleMatrix(0.3f, 0.3f, 0.1f) * Matrix4f::translationMatrix(0, 0, -0.5f);
+
+				wheel_gl_objects[i]->ob_to_world_matrix = car_physics.getWheelTransform((int)i) * Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * ((i == 0 || i == 2) ?  Matrix4f::rotationAroundZAxis(Maths::pi<float>()) : Matrix4f::identity());
+
+				ui->glWidget->opengl_engine->updateObjectTransformData(*wheel_gl_objects[i]);
+			}
+
+			if(car_body_gl_object.isNull())
+			{
+				car_body_gl_object = ui->glWidget->opengl_engine->allocateObject();
+				car_body_gl_object->ob_to_world_matrix = Matrix4f::identity();
+				//car_body_gl_object->mesh_data = ui->glWidget->opengl_engine->getCubeMeshData();
+
+				GLTFLoadedData gltf_data;
+				BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_body.glb", gltf_data);
+				car_body_gl_object->mesh_data = GLMeshBuilding::buildBatchedMesh(ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
+				car_body_gl_object->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
+				car_body_gl_object->mesh_data->animation_data = batched_mesh->animation_data;
+
+				OpenGLMaterial material;
+				material.albedo_rgb = Colour3f(115 / 255.f, 187 / 255.f, 202 / 255.f);
+				material.roughness = 0.6;
+				material.metallic_frac = 0.0;
+					
+				car_body_gl_object->materials = std::vector<OpenGLMaterial>(car_body_gl_object->mesh_data->num_materials_referenced, material);
+
+				car_body_gl_object->materials[12].alpha = 0.5f;
+				car_body_gl_object->materials[12].transparent = true;
+
+				ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(car_body_gl_object);
+			}
+
+
+			car_body_gl_object->ob_to_world_matrix = car_physics.getBodyTransform() * Matrix4f::translationMatrix(0, 0.2f, -0.2f) * Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+			
+			//const float half_vehicle_length = 2.0f;
+			//const float half_vehicle_width = 0.9f;
+			//const float half_vehicle_height = 0.2f;
+			// 
+			// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+			//car_body_gl_object->ob_to_world_matrix = bike_physics.getBodyTransform();// * Matrix4f::translationMatrix(0, 0, half_vehicle_height) * Matrix4f::scaleMatrix(2 * half_vehicle_width, 2 * half_vehicle_length, 2 * half_vehicle_height) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
+
+			ui->glWidget->opengl_engine->updateObjectTransformData(*car_body_gl_object);
+		}
+		//--------------------------- END Car controller and graphics -------------------------------
 
 
 		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
@@ -5443,7 +5640,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects be checking numSecondsAgo().
 							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30)) 
-								selectObject(ob, /*selected_tri_index=*/0); // select it
+								selectObject(ob, /*selected_mat_index=*/0); // select it
 						}
 
 						ob->from_remote_other_dirty = false;
@@ -5497,7 +5694,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						// Update in physics engine
 						if(ob->physics_object.nonNull())
 						{
-							physics_world->setNewObToWorldMatrix(*ob->physics_object, interpolated_to_world_mat);
+							physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale.toVec4fVector());
 						}
 
 						proximity_loader.objectTransformChanged(ob);
@@ -5568,7 +5765,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
 								// Make physics object for parcel:
-								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
+								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape, task_manager);
 								physics_world->addObject(parcel->physics_object);
 							}
 							else // else if opengl ob is not null:
@@ -5643,7 +5840,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(ob->physics_object.nonNull())
 					{
 						// Update in physics engine
-						physics_world->setNewObToWorldMatrix(*ob->physics_object, ob->opengl_engine_ob->ob_to_world_matrix);
+						physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale.toVec4fVector());
 					}
 
 					if(ob->audio_source.nonNull())
@@ -5701,15 +5898,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		// Send AvatarTransformUpdate packet
 		{
-			/*Vec3d axis;
-			double angle;
-			this->cam_controller.getAxisAngleForAngles(this->cam_controller.getAngles(), axis, angle);
-
-			conPrint("cam_controller.getForwardsVec()" + this->cam_controller.getForwardsVec().toString());
-			conPrint("cam_controller.getAngles()" + this->cam_controller.getAngles().toString());
-			conPrint("axis: " + axis.toString());
-			conPrint("angle: " + toString(angle));*/
-
 			const uint32 anim_state = (player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
 
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
@@ -5839,7 +6027,7 @@ void MainWindow::updateVoxelEditMarkers()
 			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 			const Vec4f dir = getDirForPixelTrace(mouse_point.x(), mouse_point.y());
 			RayTraceResult results;
-			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
+			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 			if(results.hit_object)
 			{
 				const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
@@ -6658,7 +6846,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	new_world_object->materials[0]->colour_rgb = Colour3f(1.f);
 	new_world_object->materials[1] = new WorldMaterial();
 
-	const js::AABBox aabb_os = this->image_cube_raymesh->getAABBox();
+	const js::AABBox aabb_os = this->image_cube_shape.getAABBOS();
 	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 
@@ -7310,7 +7498,7 @@ void MainWindow::addParcelObjects()
 				ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
 
 				// Make physics object for parcel:
-				parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_raymesh, task_manager);
+				parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape, task_manager);
 				physics_world->addObject(parcel->physics_object);
 			}
 		}
@@ -7530,7 +7718,7 @@ void MainWindow::on_actionFind_Object_triggered()
 					WorldObject* ob = res.getValue().ptr();
 
 					deselectObject();
-					selectObject(ob, /*selected_tri_index=*/0);
+					selectObject(ob, /*selected_mat_index=*/0);
 				}
 				else
 					found = false;
@@ -7573,7 +7761,7 @@ void MainWindow::on_actionList_Objects_Nearby_triggered()
 					WorldObject* ob = res.getValue().ptr();
 
 					deselectObject();
-					selectObject(ob, /*selected_tri_index=*/0);
+					selectObject(ob, /*selected_mat_index=*/0);
 				}
 				else
 					found = false;
@@ -7729,7 +7917,8 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					// Update physics object transform
 					if(in_world_ob->physics_object.nonNull())
 					{
-						this->physics_world->setNewObToWorldMatrix(*in_world_ob->physics_object, obToWorldMatrix(*in_world_ob));
+						physics_world->setNewObToWorldTransform(*in_world_ob->physics_object, in_world_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(in_world_ob->axis.toVec4fVector()), in_world_ob->angle), 
+							in_world_ob->scale.toVec4fVector());
 					}
 
 					if(in_world_ob->audio_source.nonNull())
@@ -8105,12 +8294,13 @@ void MainWindow::objectEditedSlot()
 					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
 					ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
-					// Update physics object transform
-					selected_ob->physics_object->collidable = selected_ob->isCollidable();
-					this->physics_world->setNewObToWorldMatrix(*selected_ob->physics_object, new_ob_to_world_matrix);
+				// Update physics object transform
+				selected_ob->physics_object->collidable = selected_ob->isCollidable();
+				physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+					selected_ob->scale.toVec4fVector());
 
-					// Update in Indigo view
-					ui->indigoView->objectTransformChanged(*selected_ob);
+				// Update in Indigo view
+				ui->indigoView->objectTransformChanged(*selected_ob);
 
 					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
@@ -8137,8 +8327,6 @@ void MainWindow::objectEditedSlot()
 					}
 
 					loadScriptForObject(this->selected_ob.ptr());
-
-					doBiomeScatteringForObject(this->selected_ob.ptr()); // Scatter any biome stuff over it
 
 					// Update any instanced copies of object
 					updateInstancedCopiesOfObject(this->selected_ob.ptr());
@@ -8383,6 +8571,7 @@ void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub:/
 			if(res != this->world_state->parcels.end())
 			{
 				this->cam_controller.setPosition(res->second->getVisitPosition());
+				this->player_physics.setPosition(res->second->getVisitPosition());
 				showInfoNotification("Jumped to parcel " + toString(parse_res.parcel_uid));
 			}
 			else
@@ -8391,6 +8580,7 @@ void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub:/
 		else
 		{
 			this->cam_controller.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
+			this->player_physics.setPosition(Vec3d(parse_res.x, parse_res.y, parse_res.z));
 		}
 	}
 	catch(glare::Exception& e) // Handle URL parse failure
@@ -8531,6 +8721,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	models_processing.clear();
 	audio_processing.clear();
 	script_content_processing.clear();
+	scatter_info_processing.clear();
 
 	texture_server->clear();
 
@@ -8611,7 +8802,16 @@ void MainWindow::connectToServer(const std::string& URL/*const std::string& host
 		net_resource_download_thread_manager.addThread(new NetDownloadResourcesThread(&msg_queue, resource_manager, &num_net_resources_downloading));
 
 	if(physics_world.isNull())
+	{
 		physics_world = new PhysicsWorld();
+		player_physics.init(*physics_world, spawn_pos);
+
+		//car_physics.init(*physics_world);
+	}
+	else
+	{
+		this->player_physics.setPosition(spawn_pos);
+	}
 
 	// Note that getFirstPersonPosition() is used for consistency with proximity_loader.updateCamPos() calls, where getFirstPersonPosition() is used also.
 	const js::AABBox initial_aabb = proximity_loader.setCameraPosForNewConnection(this->cam_controller.getFirstPersonPosition().toVec4fPoint());
@@ -8991,7 +9191,7 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -8999,7 +9199,13 @@ void MainWindow::glWidgetMousePressed(QMouseEvent* e)
 
 			if(ob->web_view_data.nonNull()) // If this is a web-view object:
 			{
-				const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+				const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
+					Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+					Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 				ob->web_view_data->mousePressed(e, uvs);
 			}
 		}
@@ -9133,7 +9339,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -9141,7 +9347,13 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 
 			if(ob->web_view_data.nonNull()) // If this is a web-view object:
 			{
-				const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+				const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
+					Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+					Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 				ob->web_view_data->mouseReleased(e, uvs);
 			}
 		}
@@ -9153,7 +9365,7 @@ void MainWindow::glWidgetMouseClicked(QMouseEvent* e)
 		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 		if(results.hit_object)
 		{
 			const Vec4f hitpos_ws = origin + dir*results.hitdist_ws;
@@ -9281,10 +9493,11 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 			mat_transparent[i] = ob->materials[i]->opacity.val < 1.f;
 
 		// Add updated model!
-		Reference<RayMesh> raymesh;
+		PhysicsShape physics_shape;
+		Indigo::MeshRef indigo_mesh;
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, 
-			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, raymesh);
+			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
 		GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;
@@ -9299,9 +9512,10 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		}
 
 		Reference<PhysicsObject> physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
-		physics_ob->geometry = raymesh;
-		physics_ob->ob_to_world = ob_to_world;
-
+		physics_ob->shape = physics_shape;
+		physics_ob->pos = ob->pos.toVec4fPoint();
+		physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
+		physics_ob->scale = ob->scale;
 
 		ob->opengl_engine_ob = gl_ob;
 		ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
@@ -9411,7 +9625,7 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 	const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 	RayTraceResult results;
-	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
+	this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 
 	if(results.hit_object)
 	{
@@ -9427,7 +9641,7 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 
 		if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
 		{
-			selectObject(static_cast<WorldObject*>(results.hit_object->userdata), results.hit_tri_index);
+			selectObject(static_cast<WorldObject*>(results.hit_object->userdata), results.hit_mat_index);
 		}
 		else if(results.hit_object->userdata && results.hit_object->userdata_type == 1) // Else if we hit a parcel:
 		{
@@ -9529,7 +9743,7 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
 
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 
 		bool show_hyperlink_ui = false;
 		if(results.hit_object)
@@ -9540,7 +9754,13 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 				if(ob->web_view_data.nonNull()) // If this is a web-view object:
 				{
-					const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+					const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+					const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+					const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
+						Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+						Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 					ob->web_view_data->mouseMoved(e, uvs);
 				}
 				else 
@@ -9761,7 +9981,7 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		this->physics_world->setNewObToWorldMatrix(*ob->physics_object, new_ob_to_world);
+		physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), new_q, ob->scale.toVec4fVector());
 
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*ob);
@@ -9829,7 +10049,7 @@ void MainWindow::deleteSelectedObject()
 }
 
 
-void MainWindow::selectObject(const WorldObjectRef& ob, int selected_tri_index)
+void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 {
 	assert(ob.nonNull());
 
@@ -9887,14 +10107,8 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_tri_index)
 		updateSelectedObjectPlacementBeam();
 	}
 
-	int selected_mat = 0;
-	if(selected_ob->physics_object.nonNull())
-	{
-		selected_mat = selected_ob->physics_object->geometry->getMaterialIndexForTri(selected_tri_index/*results.hit_tri_index*/);
-	}
-
 	// Show object editor, hide parcel editor.
-	ui->objectEditor->setFromObject(*selected_ob, selected_mat); // Update the editor widget with values from the selected object
+	ui->objectEditor->setFromObject(*selected_ob, selected_mat_index); // Update the editor widget with values from the selected object
 	ui->objectEditor->setEnabled(true);
 	ui->objectEditor->show();
 	ui->parcelEditor->hide();
@@ -10150,7 +10364,7 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 #endif
 	
 		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e10f, results);
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
 	
 		if(results.hit_object && results.hit_object->userdata && results.hit_object->userdata_type == 0)
 		{
@@ -10158,7 +10372,13 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 	
 			if(ob->web_view_data.nonNull()) // If this is a web-view object:
 			{
-				const Vec2f uvs = results.hit_object->geometry->getUVCoords(HitInfo(results.hit_tri_index, results.coords), 0);
+				const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+				const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+				const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
+					Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+					Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
 				ob->web_view_data->wheelEvent(e, uvs);
 				e->accept();
 				return;
@@ -10352,8 +10572,10 @@ void MainWindow::updateGroundPlane()
 				ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(gl_ob);
 
 				Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
-				phy_ob->geometry = ground_quad_raymesh;
-				phy_ob->ob_to_world = gl_ob->ob_to_world_matrix;
+				phy_ob->shape = ground_quad_shape;
+				phy_ob->pos = Vec4f(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0, 1);
+				phy_ob->rot = Quatf::identity();
+				phy_ob->scale = Vec3f(1.f);
 
 				physics_world->addObject(phy_ob);
 
@@ -10823,6 +11045,8 @@ int main(int argc, char *argv[])
 			mw.ui->glWidget->setPlayerPhysics(&mw.player_physics);
 			mw.cam_controller.setMoveScale(0.3f);
 
+			PhysicsWorld::init(); // init Jolt stuff
+
 			const float sun_phi = 1.f;
 			const float sun_theta = Maths::pi<float>() / 4;
 			mw.ui->glWidget->opengl_engine->setSunDir(normalise(Vec4f(std::cos(sun_phi) * sin(sun_theta), std::sin(sun_phi) * sin(sun_theta), cos(sun_theta), 0)));
@@ -11035,14 +11259,7 @@ int main(int argc, char *argv[])
 				// Build OpenGLMeshRenderData
 				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), mw.ground_quad_mesh, false);
 
-				// Build RayMesh (for physics)
-				mw.ground_quad_raymesh = new RayMesh("mesh", false);
-				mw.ground_quad_raymesh->fromIndigoMesh(*mw.ground_quad_mesh);
-
-				mw.ground_quad_raymesh->buildTrisFromQuads();
-				Geometry::BuildOptions options;
-				DummyShouldCancelCallback should_cancel_callback;
-				mw.ground_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
+				mw.ground_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mw.ground_quad_mesh);
 			}
 
 
@@ -11051,25 +11268,23 @@ int main(int argc, char *argv[])
 
 			// Make hypercard physics mesh
 			{
-				mw.hypercard_quad_raymesh = new RayMesh("quad", false);
-				mw.hypercard_quad_raymesh->setMaxNumTexcoordSets(1);
-				mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 0));
-				mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 0));
-				mw.hypercard_quad_raymesh->addVertex(Vec3f(1, 0, 1));
-				mw.hypercard_quad_raymesh->addVertex(Vec3f(0, 0, 1));
+				Indigo::MeshRef mesh = new Indigo::Mesh();
 
-				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 0)));
-				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 0)));
-				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(1, 1)));
-				mw.hypercard_quad_raymesh->addUVs(std::vector<Vec2f>(1, Vec2f(0, 1)));
+				unsigned int v_start = 0;
+				{
+					mesh->addVertex(Indigo::Vec3f(0,0,0));
+					mesh->addVertex(Indigo::Vec3f(0,0,1));
+					mesh->addVertex(Indigo::Vec3f(0,1,1));
+					mesh->addVertex(Indigo::Vec3f(0,1,0));
+					const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+					mesh->addTriangle(vertex_indices, vertex_indices, 0);
+					const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+					mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+					v_start += 4;
+				}
+				mesh->endOfModel();
 
-				unsigned int v_i[] = { 0, 3, 2, 1 };
-				mw.hypercard_quad_raymesh->addQuad(v_i, v_i, 0);
-
-				mw.hypercard_quad_raymesh->buildTrisFromQuads();
-				Geometry::BuildOptions options;
-				DummyShouldCancelCallback should_cancel_callback;
-				mw.hypercard_quad_raymesh->build(options, should_cancel_callback, mw.print_output, false, mw.task_manager);
+				mw.hypercard_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh);
 			}
 
 			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
@@ -11078,18 +11293,18 @@ int main(int argc, char *argv[])
 			{
 				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(cyberspace_base_dir_path, mw.task_manager, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 				mw.spotlight_opengl_mesh = results.opengl_mesh_data;
-				mw.spotlight_raymesh = results.raymesh;
+				mw.spotlight_shape = results.physics_shape;
 			}
 
 			// Make image cube meshes
 			{
 				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(mw.task_manager, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 				mw.image_cube_opengl_mesh = results.opengl_mesh_data;
-				mw.image_cube_raymesh = results.raymesh;
+				mw.image_cube_shape = results.physics_shape;
 			}
 
 			// Make unit-cube raymesh (used for placeholder model)
-			mw.unit_cube_raymesh = MeshBuilding::makeUnitCubeRayMesh(mw.task_manager, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
+			mw.unit_cube_shape = mw.image_cube_shape;
 
 			// Make object-placement beam model
 			{

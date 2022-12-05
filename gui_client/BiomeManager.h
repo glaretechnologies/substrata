@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2021 -
 class QSettings;
 class WorldState;
 class PhysicsWorld;
+class PhysicsShape;
 class MeshManager;
 class OpenGLEngine;
 class VertexBufferAllocator;
@@ -66,7 +67,7 @@ public:
 	
 
 private:
-	Reference<GLObject> makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, RayMeshRef& raymesh_out);
+	Reference<GLObject> makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, PhysicsShape& physics_shape_out);
 	Reference<GLObject> makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
 
 	struct Patch;

@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../shared/UserID.h"
 #include "vec3.h"
 #include <physics/jscol_aabbox.h>
+#include <indigo/DiscreteDistribution.h>
 #if GUI_CLIENT
 //#include "../gui_client/MeshManager.h"
 //#include <graphics/ImageMap.h>
@@ -33,6 +34,7 @@ namespace glare { class PoolAllocator; }
 class ResourceManager;
 class WinterShaderEvaluator;
 class Matrix4f;
+class RayMesh;
 namespace Indigo { class SceneNodeModel; }
 namespace js { class AABBox; }
 class WebViewData;
@@ -82,6 +84,15 @@ inline void destroyAndFreeOb<WorldObject>(WorldObject* ob)
 //	template <class A, class B, class C> class PoolMap;
 //}
 struct UIDHasher;
+
+
+struct ObScatteringInfo : public ThreadSafeRefCounted
+{
+	js::AABBox aabb_ws;
+	Reference<RayMesh> raymesh; // for list of triangles
+	DiscreteDistribution uniform_dist; // Used for sampling a point on the object surface uniformly wrt. surface area.
+	float total_surface_area; // Total surface area of mesh
+};
 
 
 /*=====================================================================
@@ -289,6 +300,9 @@ public:
 
 	Reference<WebViewData> web_view_data;
 	Reference<AnimatedTexObData> animated_tex_data;
+
+
+	Reference<ObScatteringInfo> scattering_info;
 #endif
 
 	float max_load_dist2;

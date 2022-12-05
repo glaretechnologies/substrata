@@ -43,7 +43,7 @@ void MeshManager::clear()
 }
 
 
-Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata, Reference<RayMesh>& raymesh)
+Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata, PhysicsShape& physics_shape)
 {
 	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
 	//Lock lock(mutex);
@@ -57,7 +57,7 @@ Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, cons
 	{
 		Reference<MeshData> mesh_data = new MeshData();
 		mesh_data->gl_meshdata = gl_meshdata;
-		mesh_data->raymesh = raymesh;
+		mesh_data->physics_shape = physics_shape;
 		mesh_data->mesh_manager = this;
 		mesh_data->model_url = model_url;
 
@@ -116,7 +116,7 @@ GLMemUsage MeshManager::getTotalMemUsage() const
 	GLMemUsage sum;
 	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
 	{
-		sum.geom_cpu_usage += it->second->raymesh->getTotalMemUsage();
+		//sum.geom_cpu_usage += it->second->physics_shape->raymesh->getTotalMemUsage();
 
 		sum += it->second->gl_meshdata->getTotalMemUsage();
 	}

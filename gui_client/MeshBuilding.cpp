@@ -6,6 +6,8 @@ Copyright Glare Technologies Limited 2022 -
 #include "MeshBuilding.h"
 
 
+#include "PhysicsObject.h"
+#include "PhysicsWorld.h"
 #include "ModelLoading.h"
 #include <opengl/OpenGLEngine.h>
 #include <opengl/GLMeshBuilding.h>
@@ -130,19 +132,9 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager
 
 	Reference<OpenGLMeshRenderData> image_cube_opengl_mesh = GLMeshBuilding::buildIndigoMesh(&allocator, mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
 
-	// Build RayMesh (for physics)
-	Reference<RayMesh> image_cube_raymesh = new RayMesh("image_cube_mesh", /*enable shading normals=*/false);
-	image_cube_raymesh->fromIndigoMesh(*mesh); // Use fromIndigoMesh instead of fromIndigoMeshForPhysics so we get UVs
-
-	Geometry::BuildOptions options;
-	DummyShouldCancelCallback should_cancel_callback;
-	StandardPrintOutput print_output;
-	image_cube_raymesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
-
-
 	MeshBuildingResults results;
 	results.opengl_mesh_data = image_cube_opengl_mesh;
-	results.raymesh = image_cube_raymesh;
+	results.physics_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh);
 	results.indigo_mesh = mesh;
 	return results;
 }
@@ -159,20 +151,9 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 
 	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildBatchedMesh(&allocator, batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL); // Build OpenGLMeshRenderData
 
-	// Build RayMesh (for physics)
-	RayMeshRef spotlight_raymesh = new RayMesh("mesh", /*enable shading normals=*/false);
-	spotlight_raymesh->fromBatchedMesh(*batched_mesh);
-
-	spotlight_raymesh->buildTrisFromQuads();
-	Geometry::BuildOptions options;
-	DummyShouldCancelCallback should_cancel_callback;
-	StandardPrintOutput print_output;
-	spotlight_raymesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
-
 	MeshBuildingResults results;
 	results.opengl_mesh_data = spotlight_opengl_mesh;
-	results.raymesh = spotlight_raymesh;
-	//results.indigo_mesh = mesh;
+	results.physics_shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh);
 	return results;
 
 #if 0
@@ -235,51 +216,94 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 }
 
 
-Reference<RayMesh> MeshBuilding::makeUnitCubeRayMesh(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
+PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
 {
-	RayMeshRef unit_cube_raymesh = new RayMesh("mesh", false);
-	unit_cube_raymesh->addVertex(Vec3f(0, 0, 0));
-	unit_cube_raymesh->addVertex(Vec3f(1, 0, 0));
-	unit_cube_raymesh->addVertex(Vec3f(1, 1, 0));
-	unit_cube_raymesh->addVertex(Vec3f(0, 1, 0));
-	unit_cube_raymesh->addVertex(Vec3f(0, 0, 1));
-	unit_cube_raymesh->addVertex(Vec3f(1, 0, 1));
-	unit_cube_raymesh->addVertex(Vec3f(1, 1, 1));
-	unit_cube_raymesh->addVertex(Vec3f(0, 1, 1));
+	Indigo::MeshRef mesh = new Indigo::Mesh();
+	mesh->num_uv_mappings = 0;
 
-	unsigned int uv_i[] ={ 0, 0, 0, 0 };
+	// The y=0 and y=1 faces are the ones the image is actually applied to.
+
+	const unsigned int uv_indices[]   = {0, 0, 0};
+
+	// x=0 face
+	unsigned int v_start = 0;
 	{
-		unsigned int v_i[] ={ 0, 3, 2, 1 };
-		unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 0 quad
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(0,0,1));
+		mesh->addVertex(Indigo::Vec3f(0,1,1));
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, uv_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, uv_indices, 0);
+		v_start += 4;
 	}
+	// x=1 face
 	{
-		unsigned int v_i[] ={ 4, 5, 6, 7 };
-		unit_cube_raymesh->addQuad(v_i, uv_i, 0); // z = 1 quad
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,1));
+		mesh->addVertex(Indigo::Vec3f(1,0,1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, uv_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, uv_indices, 0);
+		v_start += 4;
 	}
+	// y=0 face
 	{
-		unsigned int v_i[] ={ 0, 1, 5, 4 };
-		unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 0 quad
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,1));
+		mesh->addVertex(Indigo::Vec3f(0,0,1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, vertex_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, vertex_indices_2, 0);
+		v_start += 4;
 	}
+	// y=1 face
 	{
-		unsigned int v_i[] ={ 2, 3, 7, 6 };
-		unit_cube_raymesh->addQuad(v_i, uv_i, 0); // y = 1 quad
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->addVertex(Indigo::Vec3f(0,1,1));
+		mesh->addVertex(Indigo::Vec3f(1,1,1));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, uv_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, uv_indices, 0);
+		v_start += 4;
 	}
+	// z=0 face
 	{
-		unsigned int v_i[] ={ 0, 4, 7, 3 };
-		unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 0 quad
+		mesh->addVertex(Indigo::Vec3f(0,0,0));
+		mesh->addVertex(Indigo::Vec3f(0,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,1,0));
+		mesh->addVertex(Indigo::Vec3f(1,0,0));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, uv_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, uv_indices, 0);
+		v_start += 4;
 	}
+	// z=1 face
 	{
-		unsigned int v_i[] ={ 1, 2, 6, 5 };
-		unit_cube_raymesh->addQuad(v_i, uv_i, 0); // x = 1 quad
+		mesh->addVertex(Indigo::Vec3f(0,0,1));
+		mesh->addVertex(Indigo::Vec3f(1,0,1));
+		mesh->addVertex(Indigo::Vec3f(1,1,1));
+		mesh->addVertex(Indigo::Vec3f(0,1,1));
+		const unsigned int vertex_indices[]   = {v_start + 0, v_start + 1, v_start + 2};
+		mesh->addTriangle(vertex_indices, uv_indices, 0);
+		const unsigned int vertex_indices_2[] = {v_start + 0, v_start + 2, v_start + 3};
+		mesh->addTriangle(vertex_indices_2, uv_indices, 0);
+		v_start += 4;
 	}
 
-	unit_cube_raymesh->buildTrisFromQuads();
-	Geometry::BuildOptions options;
-	DummyShouldCancelCallback should_cancel_callback;
-	StandardPrintOutput print_output;
-	unit_cube_raymesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
+	mesh->endOfModel();
 
-	return unit_cube_raymesh;
+	PhysicsShape physics_shape;
+	physics_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh);
+	return physics_shape;
 }
 
 

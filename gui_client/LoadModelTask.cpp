@@ -29,7 +29,7 @@ LoadModelTask::~LoadModelTask()
 void LoadModelTask::run(size_t thread_index)
 {
 	Reference<OpenGLMeshRenderData> gl_meshdata;
-	Reference<RayMesh> raymesh;
+	PhysicsShape physics_shape;
 	int subsample_factor = 1; // computed when loading voxels
 
 	try
@@ -42,7 +42,7 @@ void LoadModelTask::run(size_t thread_index)
 			{
 				// Add dummy cube marker for zero-voxel case.
 				gl_meshdata = opengl_engine->getCubeMeshData();
-				raymesh = unit_cube_raymesh;
+				physics_shape = unit_cube_shape;
 			}
 			else
 			{
@@ -64,8 +64,9 @@ void LoadModelTask::run(size_t thread_index)
 				// conPrint("Loading vox model for ob with UID " + voxel_ob->uid.toString() + " for LOD level " + toString(use_model_lod_level) + ", using subsample_factor " + toString(subsample_factor) + ", " + toString(voxel_group.voxels.size()) + " voxels");
 
 				const bool need_lightmap_uvs = !voxel_ob->lightmap_url.empty();
+				Indigo::MeshRef indigo_mesh;
 				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, subsample_factor, ob_to_world_matrix, *model_building_task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
-					need_lightmap_uvs, mat_transparent, raymesh);
+					need_lightmap_uvs, mat_transparent, /*physics shape out=*/physics_shape, indigo_mesh);
 
 				// Temp for testing: Save voxels to disk.
 				//FileUtils::writeEntireFile("d:/files/voxeldata/ob_" + voxel_ob->uid.toString() + "_voxeldata.voxdata", (const char*)voxel_group.voxels.data(), voxel_group.voxels.dataSizeBytes());
@@ -78,17 +79,18 @@ void LoadModelTask::run(size_t thread_index)
 
 			// We want to load and build the mesh at lod_model_url.
 			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
+			BatchedMeshRef batched_mesh;
 			gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager,
 				*model_building_task_manager, 
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.
-				raymesh);
+				/*physics shape out=*/physics_shape, batched_mesh);
 		}
 
 		// Send a ModelLoadedThreadMessage back to main window.
 		Reference<ModelLoadedThreadMessage> msg = new ModelLoadedThreadMessage();
 		msg->gl_meshdata = gl_meshdata;
-		msg->raymesh = raymesh;
+		msg->physics_shape = physics_shape;
 		msg->lod_model_url = lod_model_url;
 		msg->voxel_ob_uid = voxel_ob.nonNull() ? voxel_ob->uid : UID::invalidUID();
 		msg->voxel_ob_model_lod_level = voxel_ob_model_lod_level;
