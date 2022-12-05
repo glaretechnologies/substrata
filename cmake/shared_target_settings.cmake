@@ -50,7 +50,7 @@ else()
 	# Note that for some stupid reason, -no-pie is needed to get the executable to show up as clickable in the Ubuntu files app.
 	# See https://askubuntu.com/questions/1056882/i-cannot-run-any-executable-from-nautilus and https://gitlab.gnome.org/GNOME/nautilus/-/issues/1601
 	# Note that the server target doesn't include this cmake file, so the -no-pie won't apply to it.
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "-std=c++14 ${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS     "-std=c++17 ${SANITIZER_LINK_FLAGS} -Xlinker -rpath='$ORIGIN/lib' -no-pie")
 	
 	target_link_libraries(${CURRENT_TARGET}
 		libs

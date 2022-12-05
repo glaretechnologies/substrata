@@ -704,6 +704,7 @@ elseif(APPLE)
 			
 			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
+			Jolt # Jolt physics
 			)
 	endif()
 
@@ -736,6 +737,7 @@ else() # linux
 		#asound # ALSA lib required by RTAudio
 		pulse # PulseAudio lib required by RTAudio
 		pulse-simple # PulseAudio lib required by RTAudio
+		Jolt # Jolt physics
 	)
 	
 	if(CEF_SUPPORT)
