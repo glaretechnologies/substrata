@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <indigo/TextureServer.h>
 #include <opengl/OpenGLEngine.h>
 #include <opengl/OpenGLMeshRenderData.h>
+#include <simpleraytracer/raymesh.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
 #include <FileUtils.h>

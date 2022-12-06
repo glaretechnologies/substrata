@@ -6,24 +6,21 @@ Copyright Glare Technologies Limited 2022 -
 #pragma once
 
 
-#include "../maths/Vec4f.h"
-#include "../maths/Quat.h"
-#include "../maths/vec3.h"
-#include "../maths/Matrix4f.h"
-#include "utils/Vector.h"
-#include "simpleraytracer/raymesh.h"
-
-
+#include <maths/Vec4f.h>
+#include <maths/Quat.h>
+#include <maths/vec3.h>
+#include <maths/Matrix4f.h>
+#include <utils/Vector.h>
+#include <utils/ThreadSafeRefCounted.h>
+#include <utils/Reference.h>
+#include <physics/jscol_aabbox.h>
 #if USE_JOLT
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Body/BodyID.h>
 #include <Jolt/Physics/Collision/Shape/Shape.h>
 #endif
 
-namespace js { class BoundingSphere; }
 class RayTraceResult;
-class SphereTraceResult;
-class DiscreteDistribution;
 
 
 /*=====================================================================
@@ -46,11 +43,6 @@ PhysicsObject
 -------------
 
 =====================================================================*/
-#ifdef _WIN32
-#pragma warning(push)
-#pragma warning(disable:4324) // Disable 'structure was padded due to __declspec(align())' warning.
-#endif
-
 class PhysicsObject : public ThreadSafeRefCounted
 {
 public:
@@ -95,10 +87,6 @@ public:
 private:
 	
 };
-
-#ifdef _WIN32
-#pragma warning(pop)
-#endif
 
 
 typedef Reference<PhysicsObject> PhysicsObjectRef;

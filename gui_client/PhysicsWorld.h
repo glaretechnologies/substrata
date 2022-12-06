@@ -26,6 +26,7 @@ Copyright Glare Technologies Limited 2022 -
 namespace Indigo { class TaskManager; }
 namespace Indigo { class Mesh; }
 class PrintOutput;
+class BatchedMesh;
 namespace JPH { class PhysicsSystem; }
 namespace JPH { class TempAllocatorImpl; }
 namespace JPH { class JobSystemThreadPool; }

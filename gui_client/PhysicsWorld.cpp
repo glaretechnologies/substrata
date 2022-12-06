@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <dll/include/IndigoMesh.h>
 #include "../graphics/BatchedMesh.h"
 #include <simpleraytracer/ray.h>
+#include <simpleraytracer/raymesh.h>
 #include <utils/StringUtils.h>
 #include <utils/ConPrint.h>
 #include <utils/Timer.h>
@@ -309,16 +310,54 @@ void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_qu
 }
 
 
+inline static JPH::Vec3 toJoltVec3(const Vec4f& v)
+{
+	return JPH::Vec3(v[0], v[1], v[2]);
+}
+
+inline static Vec4f toVec4fVec(const JPH::Vec3& v)
+{
+	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 0.f);
+}
+
+
 void PhysicsWorld::setNewObToWorldTransformInternal(PhysicsObject& object, const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale, bool update_jolt_ob_state)
 {
 	if(update_jolt_ob_state && !object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
 	{
 		JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
-		body_interface.SetPositionRotationAndVelocity(object.jolt_body_id, /*pos=*/JPH::Vec3(translation[0], translation[1], translation[2]),
+		body_interface.SetPositionRotationAndVelocity(object.jolt_body_id, /*pos=*/toJoltVec3(translation),
 			/*rot=*/JPH::Quat(rot_quat.v[0], rot_quat.v[1], rot_quat.v[2], rot_quat.v[3]), /*vel=*/JPH::Vec3(0, 0, 0), /*ang vel=*/JPH::Vec3(0, 0, 0));
 
-		// TODO: set scale
+
+		// Update scale if needed.  This is a little complicated because we need to use the ScaledShape decorated shape.
+		JPH::RefConst<JPH::Shape> cur_shape = body_interface.GetShape(object.jolt_body_id);
+		if(cur_shape->GetSubType() == JPH::EShapeSubType::Scaled) // If current Jolt shape is a scaled shape:
+		{
+			assert(dynamic_cast<const JPH::ScaledShape*>(cur_shape.GetPtr()));
+			const JPH::ScaledShape* cur_scaled_shape = static_cast<const JPH::ScaledShape*>(cur_shape.GetPtr());
+
+			if(toJoltVec3(scale) != cur_scaled_shape->GetScale()) // If scale has changed:
+			{
+				const JPH::Shape* inner_shape = cur_scaled_shape->GetInnerShape(); // Get inner shape
+
+				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(inner_shape, toJoltVec3(scale)); // Make new decorated scaled shape with new scale
+
+				// conPrint("Made new scaled shape for new scale");
+				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
+			}
+		}
+		else // Else if current Jolt shape is not a scaled shape:
+		{
+			if(maskWToZero(scale) != Vec4f(1,1,1,0)) // And scale is != 1:
+			{
+				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(cur_shape, toJoltVec3(scale));
+
+				// conPrint("Changing to scaled shape");
+				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
+			}
+		}
 
 		body_interface.ActivateBody(object.jolt_body_id);
 	}
@@ -740,15 +779,7 @@ std::string PhysicsWorld::getLoadedMeshes() const
 }
 
 
-inline static JPH::Vec3 toJoltVec3(const Vec4f& v)
-{
-	return JPH::Vec3(v[0], v[1], v[2]);
-}
 
-inline static Vec4f toVec4fVec(const JPH::Vec3& v)
-{
-	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 0.f);
-}
 
 
 void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const

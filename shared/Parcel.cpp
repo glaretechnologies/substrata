@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2018 -
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
+#include "simpleraytracer/raymesh.h"
 #include "../gui_client/PhysicsObject.h"
 #include "../gui_client/PhysicsWorld.h"
 #include "../dll/include/IndigoMesh.h"
