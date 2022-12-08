@@ -34,7 +34,9 @@ class PhysicsShape
 public:
 	js::AABBox getAABBOS() const;
 
+#if USE_JOLT
 	JPH::Ref<JPH::Shape> jolt_shape;
+#endif
 };
 
 

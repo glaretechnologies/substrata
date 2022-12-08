@@ -477,6 +477,47 @@ include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/dll)
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/dll/include)
 
 
+
+
+set(basisu_dir ../basis_universal)
+set(basisu_files
+${basisu_dir}/encoder/basisu_backend.cpp
+${basisu_dir}/encoder/basisu_backend.h
+${basisu_dir}/encoder/basisu_basis_file.cpp
+${basisu_dir}/encoder/basisu_basis_file.h
+${basisu_dir}/encoder/basisu_bc7enc.cpp
+${basisu_dir}/encoder/basisu_bc7enc.h
+${basisu_dir}/encoder/basisu_comp.cpp
+${basisu_dir}/encoder/basisu_comp.h
+${basisu_dir}/encoder/basisu_enc.cpp
+${basisu_dir}/encoder/basisu_enc.h
+${basisu_dir}/encoder/basisu_etc.cpp
+${basisu_dir}/encoder/basisu_etc.h
+${basisu_dir}/encoder/basisu_frontend.cpp
+${basisu_dir}/encoder/basisu_frontend.h
+${basisu_dir}/encoder/basisu_gpu_texture.cpp
+${basisu_dir}/encoder/basisu_gpu_texture.h
+${basisu_dir}/encoder/basisu_kernels_imp.h
+${basisu_dir}/encoder/basisu_kernels_sse.cpp
+${basisu_dir}/encoder/basisu_miniz.h
+${basisu_dir}/encoder/basisu_opencl.cpp
+${basisu_dir}/encoder/basisu_opencl.h
+${basisu_dir}/encoder/basisu_pvrtc1_4.cpp
+${basisu_dir}/encoder/basisu_pvrtc1_4.h
+${basisu_dir}/encoder/basisu_resampler.cpp
+${basisu_dir}/encoder/basisu_resampler.h
+${basisu_dir}/encoder/basisu_resampler_filters.h
+${basisu_dir}/encoder/basisu_resample_filters.cpp
+${basisu_dir}/encoder/basisu_ssim.cpp
+${basisu_dir}/encoder/basisu_ssim.h
+${basisu_dir}/encoder/basisu_uastc_enc.cpp
+${basisu_dir}/encoder/basisu_uastc_enc.h
+
+${basisu_dir}/transcoder/basisu_transcoder.cpp
+)
+
+
+
 SOURCE_GROUP(graphics FILES ${graphics})
 SOURCE_GROUP(indigo FILES ${indigo_src})
 SOURCE_GROUP(maths FILES ${maths})
