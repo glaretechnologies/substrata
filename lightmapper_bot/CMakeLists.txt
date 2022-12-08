@@ -62,6 +62,22 @@ SET(shared_files
 
 
 
+include_directories(${basisu_dir})
+
+add_definitions(-DBASISU_SUPPORT_SSE=1)
+# Disable some basis universal stuff we don't use
+# add_definitions(-DBASISD_SUPPORT_UASTC=0) # This would be nice but it doesn't compile with it defined.
+# add_definitions(-DBASISD_SUPPORT_BC7_MODE5=0)
+# add_definitions(-DBASISD_SUPPORT_PVRTC1=0)
+# add_definitions(-DBASISD_SUPPORT_ETC2_EAC_A8=0)
+# add_definitions(-DBASISD_SUPPORT_UASTC=0)
+# add_definitions(-DBASISD_SUPPORT_ASTC=0)
+
+add_definitions(-DBASIS_NO_IMAGE_READERS=1)
+
+
+
+
 SOURCE_GROUP(lightmapper_bot FILES ${lightmapper_bot})
 SOURCE_GROUP(docs FILES ${docs})
 SOURCE_GROUP(shared_files FILES ${shared_files})
@@ -113,6 +129,7 @@ ${xxhash}
 ${docs}
 ${lang}
 ${meshoptimizer}
+${basisu_files}
 )
 
 
