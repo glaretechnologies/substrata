@@ -32,7 +32,7 @@ if(WIN32)
 elseif(APPLE)
 	
 	# NOTE: -stdlib=libc++ is needed for C++11 etc.
-	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++14 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices")
+	set_target_properties(${CURRENT_TARGET} PROPERTIES LINK_FLAGS "-std=c++17 -stdlib=libc++ -dead_strip -F/Library/Frameworks -framework CoreServices")
 	
 	target_link_libraries(${CURRENT_TARGET}
 		libs
