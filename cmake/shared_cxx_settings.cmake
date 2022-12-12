@@ -152,7 +152,8 @@ elseif(APPLE)
 	add_definitions(-DOSX -DINDIGO_NO_OPENMP)
 	add_definitions(-D__NO_AVX__)
 
-	SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.8")
+	# Jolt uses shared_mutex which was introduced in macOS 10.12.
+	SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.12")
 	SET(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk")
 
 	add_definitions(-DOSX_DEPLOYMENT_TARGET="${CMAKE_OSX_DEPLOYMENT_TARGET}")
