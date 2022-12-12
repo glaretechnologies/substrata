@@ -216,6 +216,9 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 
 	//conPrint("onground: " + boolToString(onground));
 
+	last_xy_plane_vel_rel_ground = Vec3f(0.f);
+	JPH::Vec3 ground_vel(0,0,0);
+
 	//-----------------------------------------------------------------
 	//apply movement forces
 	//-----------------------------------------------------------------
@@ -246,8 +249,12 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 				Vec3f parralel_impulse = moveimpulse;
 				parralel_impulse.removeComponentInDir(ground_normal);
 
+
+				ground_vel = jolt_character->GetGroundVelocity();
+				//conPrint("ground_vel: " + toVec3f(ground_vel).toString());
+
 				//vel = moveimpulse; // TEMP HACK parralel_impulse;
-				vel = parralel_impulse;
+				vel = toVec3f(ground_vel) + parralel_impulse;
 			}
 
 			//------------------------------------------------------------------------
@@ -356,6 +363,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 			// Recompute vel using proper ground normal
 			const Vec3f ground_normal = toVec3f(jolt_character->GetGroundNormal());
 			vel = removeComponentInDir(moveimpulse, ground_normal) + 
+				toVec3f(ground_vel) + 
 				Vec3f(0, 0, jumpspeed);
 
 			jumptimeremaining = -1;
@@ -404,10 +412,12 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	JPH::Vec3 new_position = jolt_character->GetPosition();
 	JPH::Vec3 velocity = (new_position - old_position) / dtime;
 
-	//conPrint("Effective velocity from jolt: " + toVec4fVec(velocity).toStringNSigFigs(4));
-	this->vel = Vec3f(velocity.GetX(), velocity.GetY(), velocity.GetZ());
+	//conPrint("Effective velocity from jolt: " + toVec4fVec(velocity).toStringNSigFigs(4) + "(dtime: " + toString(dtime) + ")");
+	this->vel = toVec3f(velocity);
 	// Get the velocity from jolt before we do stair climbing.  Otherwise the discontinuous movement of stair climbing
 	// can result in extremely large velocities.
+
+	this->last_xy_plane_vel_rel_ground = this->vel - toVec3f(ground_vel);
 
 	//---------------------------Do stair walking-------------------------------------------------
 	//just_climbed_step = false;
@@ -483,7 +493,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 		time_since_on_ground = 0;
 
 
-	moveimpulse.set(0, 0, 0);
+	//moveimpulse.set(0, 0, 0);
 
 
 #else // else if !USE_JOLT_PLAYER_PHYSICS:
@@ -805,6 +815,13 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 
 	return events;
 }
+
+
+void PlayerPhysics::zeroMoveImpulse()
+{
+	moveimpulse.set(0,0,0);
+}
+
 
 
 #if !USE_JOLT_PLAYER_PHYSICS

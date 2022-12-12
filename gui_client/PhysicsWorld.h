@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/ThreadSafeRefCounted.h>
 #include <utils/Vector.h>
 #include <utils/Mutex.h>
+#include <utils/HashSet.h>
 #include <set>
 
 #if USE_JOLT
@@ -96,6 +97,8 @@ public:
 
 	void think(double dt);
 
+	void updateActiveObjects();
+
 	// BodyActivationListener interface:
 #if USE_JOLT
 	virtual void OnBodyActivated(const JPH::BodyID& inBodyID, uint64 inBodyUserData) override;
@@ -103,6 +106,8 @@ public:
 #endif
 
 	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale);
+
+	void moveKinematicObject(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, float dt);
 
 	void clear(); // Remove all objects
 
@@ -117,6 +122,8 @@ public:
 	std::string getDiagnostics() const;
 
 	std::string getLoadedMeshes() const;
+
+	const Vec4f getPosInJolt(const Reference<PhysicsObject>& object);
 	//----------------------------------------------------------------------------------------
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const;
@@ -124,15 +131,13 @@ public:
 	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const;
 
 private:
-	void setNewObToWorldTransformInternal(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale, bool update_jolt_ob_state);
-	
 	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.  TODO: can remove?
 	
 public:
 	Mutex activated_obs_mutex;
-	std::set<PhysicsObject*> activated_obs GUARDED_BY(activated_obs_mutex);
+	HashSet<PhysicsObject*> activated_obs GUARDED_BY(activated_obs_mutex);
 	//std::set<JPH::BodyID> activated_obs;
-private:
+//private:
 	std::vector<PhysicsObject*> temp_activated_obs;
 
 public:

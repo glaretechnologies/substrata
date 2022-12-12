@@ -53,6 +53,9 @@ WorldObject::WorldObject() noexcept
 	current_lod_level = 0;
 	loaded_model_lod_level = -10;
 	loaded_lod_level = -10;
+
+	waypoint_index = 0;
+	dist_along_segment = 0;
 #endif
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
