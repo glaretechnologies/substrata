@@ -29,6 +29,7 @@ PhysicsObject::PhysicsObject(bool collidable_)
 :	userdata(NULL), userdata_type(0), collidable(collidable_), /*uniform_dist(NULL), total_surface_area(0), */pos(0.f)//, rot(Quatf::identity()), scale(1.f)
 {
 	dynamic = false;
+	kinematic = false;
 #if USE_JOLT
 	is_sphere = false;
 	is_cube = false;
@@ -41,6 +42,7 @@ PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void*
 :	shape(shape_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_)/*, uniform_dist(NULL), total_surface_area(0)*/
 {
 	dynamic = false;
+	kinematic = false;
 #if USE_JOLT
 	is_sphere = false;
 	is_cube = false;
@@ -120,10 +122,4 @@ void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 		results_out.hit_normal_ws = normalise(this->world_to_ob.transposeMult3Vector(N_os));
 	}
 #endif
-}
-
-
-size_t PhysicsObject::getTotalMemUsage() const
-{
-	return 16; // TEMP HACK TODO
 }

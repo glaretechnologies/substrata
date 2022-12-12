@@ -64,10 +64,8 @@ public:
 	const Matrix4f getObToWorldMatrix() const;
 	const Matrix4f getWorldToObMatrix() const;
 
-	size_t getTotalMemUsage() const;
-
 public:
-	PhysicsShape shape;
+	PhysicsShape shape; // This has a ref to the undecorated shape, actual shape used may be a ScaledShape.
 
 	bool collidable; // Is this object solid, for the purposes of player physics?
 
@@ -85,6 +83,8 @@ public:
 	bool is_player;
 #endif
 	bool dynamic;
+
+	bool kinematic;
 
 private:
 	

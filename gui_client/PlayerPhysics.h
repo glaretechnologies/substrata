@@ -64,6 +64,8 @@ public:
 
 	UpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_in_out);
 
+	void zeroMoveImpulse();
+
 	void setFlyModeEnabled(bool enabled);
 	bool flyModeEnabled() const { return flymode; }
 	
@@ -73,12 +75,16 @@ public:
 	bool onGroundRecently() const { return time_since_on_ground < 0.2f; }
 #endif
 
+	Vec3f getLastXYPlaneVelRelativeToGround() const { return last_xy_plane_vel_rel_ground; }
+
 	bool isRunPressed() const { return last_runpressed; }
 
 	void debugGetCollisionSpheres(const Vec4f& campos, std::vector<js::BoundingSphere>& spheres_out);
 private:
 	Vec3f vel;
 	Vec3f lastvel;
+
+	Vec3f last_xy_plane_vel_rel_ground;
 
 	Vec3f moveimpulse;
 	Vec3f lastgroundnormal;

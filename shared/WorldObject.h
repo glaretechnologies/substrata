@@ -303,7 +303,12 @@ public:
 
 
 	Reference<ObScatteringInfo> scattering_info;
-#endif
+
+
+	// For objects that are path controlled:
+	int waypoint_index;
+	float dist_along_segment;
+#endif // GUI_CLIENT
 
 	float max_load_dist2;
 	

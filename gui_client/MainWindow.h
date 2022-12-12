@@ -62,6 +62,7 @@ class SubstrataVideoReaderCallback;
 struct CreateVidReaderTask;
 class BiomeManager;
 class ScriptLoadedThreadMessage;
+class ObjectPathController;
 namespace glare { class PoolAllocator; }
 
 struct ID3D11Device;
@@ -205,7 +206,7 @@ private:
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
 	void startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
-	void evalObjectScript(WorldObject* ob, float use_global_time, Matrix4f& ob_to_world_out);
+	void evalObjectScript(WorldObject* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);
@@ -298,6 +299,8 @@ public:
 	void handlePasteOrDropMimeData(const QMimeData* mime_data);
 
 	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
+
+	void processLoading();
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
@@ -607,6 +610,8 @@ public:
 	bool should_close;
 
 	Reference<glare::PoolAllocator> world_ob_pool_allocator;
+
+	std::vector<Reference<ObjectPathController>> path_controllers;
 
 	uint64 frame_num;
 };

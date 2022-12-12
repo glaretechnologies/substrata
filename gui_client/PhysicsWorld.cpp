@@ -41,6 +41,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/CastResult.h>
 #endif
+#include <HashSet.h>
 
 
 #if USE_JOLT
@@ -140,6 +141,8 @@ static bool MyBroadPhaseCanCollide(JPH::ObjectLayer inLayer1, JPH::BroadPhaseLay
 		return inLayer2 == BroadPhaseLayers::MOVING;
 	case Layers::MOVING:
 		return true;
+	case Layers::NON_COLLIDABLE:
+		return false;
 	default:
 		assert(false);
 		return false;
@@ -170,10 +173,11 @@ void PhysicsWorld::init()
 
 
 PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
+:	activated_obs(NULL)
 #if !USE_JOLT
-:	//activation_callbacks(activation_callbacks_),
-	ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
-	large_objects(/*empty key=*/NULL, /*expected num items=*/32)
+	//activation_callbacks(activation_callbacks_),
+	,ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
+	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
 #endif
 {
 #if USE_JOLT
@@ -261,10 +265,72 @@ PhysicsWorld::~PhysicsWorld()
 static const int LARGE_OB_NUM_CELLS_THRESHOLD = 32;
 
 
-//void PhysicsWorld::setNewObToWorldMatrix(PhysicsObject& object, const Matrix4f& new_ob_to_world)
-void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale)
+inline static JPH::Vec3 toJoltVec3(const Vec4f& v)
 {
-	setNewObToWorldTransformInternal(object, translation, rot, scale, /*udpate_jolt_ob_state=*/true);
+	return JPH::Vec3(v[0], v[1], v[2]);
+}
+
+inline static Vec4f toVec4fVec(const JPH::Vec3& v)
+{
+	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 0.f);
+}
+
+inline static Vec4f toVec4fPos(const JPH::Vec3& v)
+{
+	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 1.f);
+}
+
+inline static JPH::Quat toJoltQuat(const Quatf& q)
+{
+	return JPH::Quat(q.v[0], q.v[1], q.v[2], q.v[3]);
+}
+
+inline static Quatf toQuat(const JPH::Quat& q)
+{
+	return Quatf(q.mValue[0], q.mValue[1], q.mValue[2], q.mValue[3]);
+}
+
+
+void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale)
+{
+	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
+	{
+		JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+
+		body_interface.SetPositionRotationAndVelocity(object.jolt_body_id, /*pos=*/toJoltVec3(translation),
+			/*rot=*/toJoltQuat(rot_quat), /*vel=*/JPH::Vec3(0, 0, 0), /*ang vel=*/JPH::Vec3(0, 0, 0));
+
+
+		// Update scale if needed.  This is a little complicated because we need to use the ScaledShape decorated shape.
+		JPH::RefConst<JPH::Shape> cur_shape = body_interface.GetShape(object.jolt_body_id);
+		if(cur_shape->GetSubType() == JPH::EShapeSubType::Scaled) // If current Jolt shape is a scaled shape:
+		{
+			assert(dynamic_cast<const JPH::ScaledShape*>(cur_shape.GetPtr()));
+			const JPH::ScaledShape* cur_scaled_shape = static_cast<const JPH::ScaledShape*>(cur_shape.GetPtr());
+
+			if(toJoltVec3(scale) != cur_scaled_shape->GetScale()) // If scale has changed:
+			{
+				const JPH::Shape* inner_shape = cur_scaled_shape->GetInnerShape(); // Get inner shape
+
+				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(inner_shape, toJoltVec3(scale)); // Make new decorated scaled shape with new scale
+
+				// conPrint("Made new scaled shape for new scale");
+				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
+			}
+		}
+		else // Else if current Jolt shape is not a scaled shape:
+		{
+			if(maskWToZero(scale) != Vec4f(1,1,1,0)) // And scale is != 1:
+			{
+				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(cur_shape, toJoltVec3(scale));
+
+				// conPrint("Changing to scaled shape");
+				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
+			}
+		}
+
+		body_interface.ActivateBody(object.jolt_body_id);
+	}
 }
 
 
@@ -310,56 +376,20 @@ void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_qu
 }
 
 
-inline static JPH::Vec3 toJoltVec3(const Vec4f& v)
+void PhysicsWorld::moveKinematicObject(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, float dt)
 {
-	return JPH::Vec3(v[0], v[1], v[2]);
-}
-
-inline static Vec4f toVec4fVec(const JPH::Vec3& v)
-{
-	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 0.f);
-}
-
-
-void PhysicsWorld::setNewObToWorldTransformInternal(PhysicsObject& object, const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale, bool update_jolt_ob_state)
-{
-	if(update_jolt_ob_state && !object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
+	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
 	{
 		JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
-		body_interface.SetPositionRotationAndVelocity(object.jolt_body_id, /*pos=*/toJoltVec3(translation),
-			/*rot=*/JPH::Quat(rot_quat.v[0], rot_quat.v[1], rot_quat.v[2], rot_quat.v[3]), /*vel=*/JPH::Vec3(0, 0, 0), /*ang vel=*/JPH::Vec3(0, 0, 0));
-
-
-		// Update scale if needed.  This is a little complicated because we need to use the ScaledShape decorated shape.
-		JPH::RefConst<JPH::Shape> cur_shape = body_interface.GetShape(object.jolt_body_id);
-		if(cur_shape->GetSubType() == JPH::EShapeSubType::Scaled) // If current Jolt shape is a scaled shape:
+		if(body_interface.GetMotionType(object.jolt_body_id) == JPH::EMotionType::Kinematic)
 		{
-			assert(dynamic_cast<const JPH::ScaledShape*>(cur_shape.GetPtr()));
-			const JPH::ScaledShape* cur_scaled_shape = static_cast<const JPH::ScaledShape*>(cur_shape.GetPtr());
-
-			if(toJoltVec3(scale) != cur_scaled_shape->GetScale()) // If scale has changed:
-			{
-				const JPH::Shape* inner_shape = cur_scaled_shape->GetInnerShape(); // Get inner shape
-
-				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(inner_shape, toJoltVec3(scale)); // Make new decorated scaled shape with new scale
-
-				// conPrint("Made new scaled shape for new scale");
-				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
-			}
+			body_interface.MoveKinematic(object.jolt_body_id, toJoltVec3(translation), toJoltQuat(rot), dt);
 		}
-		else // Else if current Jolt shape is not a scaled shape:
+		else
 		{
-			if(maskWToZero(scale) != Vec4f(1,1,1,0)) // And scale is != 1:
-			{
-				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(cur_shape, toJoltVec3(scale));
-
-				// conPrint("Changing to scaled shape");
-				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
-			}
+			//assert(0); // Tried to move a non-kinematic object with MoveKinematic().  Catch this ourself otherwise jolt crashes.
 		}
-
-		body_interface.ActivateBody(object.jolt_body_id);
 	}
 }
 
@@ -608,8 +638,10 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		JPH::BodyCreationSettings settings(final_shape,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			JPH::EMotionType::Static,
+			object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static,
 			object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE);
+		settings.mMassPropertiesOverride.mMass = 100.f;
+		settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 
 		settings.mUserData = (uint64)object.ptr();
 		settings.mFriction = 1.f;
@@ -643,6 +675,19 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 
 void PhysicsWorld::think(double dt)
 {
+	// If you take larger steps than 1 / 60th of a second you need to do multiple collision steps in order to keep the simulation stable. Do 1 collision step per 1 / 60th of a second (round up).
+	const int cCollisionSteps = 1;
+
+	// If you want more accurate step results you can do multiple sub steps within a collision step. Usually you would set this to 1.
+	const int cIntegrationSubSteps = 1;
+
+	// We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
+	physics_system->Update((float)dt, cCollisionSteps, cIntegrationSubSteps, temp_allocator, job_system);
+}
+
+
+void PhysicsWorld::updateActiveObjects()
+{
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
 	// Set PhysicsObject state from Jolt bodies, for active objects.
@@ -660,37 +705,25 @@ void PhysicsWorld::think(double dt)
 	for(auto it = temp_activated_obs.begin(); it != temp_activated_obs.end(); ++it)
 	{
 		PhysicsObject* ob = *it;
-		if(!ob->jolt_body_id.IsInvalid())
+		if(!ob->jolt_body_id.IsInvalid() && (ob->dynamic || ob->kinematic))
 		{
-			JPH::Vec3 pos = body_interface.GetCenterOfMassPosition(ob->jolt_body_id);
+			JPH::Vec3 pos = body_interface.GetCenterOfMassPosition(ob->jolt_body_id);  // NOTE: should we use GetPosition() here?
 			JPH::Quat rot = body_interface.GetRotation(ob->jolt_body_id);
 
-			conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
+			//conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
 
-			const Vec4f new_pos(pos.GetX(), pos.GetY(), pos.GetZ(), 1.f);
-			const Quatf new_rot(rot.GetX(), rot.GetY(), rot.GetZ(), rot.GetW());
-			this->setNewObToWorldTransformInternal(*ob, new_pos, new_rot, ob->scale.toVec4fVector(), /*udpate_jolt_ob_state=*/false); // Don't overwrite Jolt state, we are reading from it.
+			const Vec4f new_pos = toVec4fPos(pos);
+			const Quatf new_rot = toQuat(rot);
 
 			ob->rot = new_rot;
 			ob->pos = new_pos;
 		}
 	}
-
-	// If you take larger steps than 1 / 60th of a second you need to do multiple collision steps in order to keep the simulation stable. Do 1 collision step per 1 / 60th of a second (round up).
-	const int cCollisionSteps = 1;
-
-	// If you want more accurate step results you can do multiple sub steps within a collision step. Usually you would set this to 1.
-	const int cIntegrationSubSteps = 1;
-
-	// We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
-	const float cDeltaTime = myMin(1.f / 60.f, (float)dt); // 1.0f / 60.0f;
-
-	// Step the world
-	physics_system->Update(cDeltaTime, cCollisionSteps, cIntegrationSubSteps, temp_allocator, job_system);
 }
 
 
 // NOTE: may be called from a Jolt thread!
+// "Called whenever a body activates, note this can be called from any thread so make sure your code is thread safe."
 void PhysicsWorld::OnBodyActivated(const JPH::BodyID& inBodyID, uint64 inBodyUserData)
 {
 	//conPrint("Jolt body activated");
@@ -728,22 +761,32 @@ void PhysicsWorld::clear()
 
 PhysicsWorld::MemUsageStats PhysicsWorld::getTotalMemUsage() const
 {
-	HashMapInsertOnly2<const RayMesh*, int64> meshes(/*empty key=*/NULL, objects_set.size());
+	HashSet<const JPH::Shape*> meshes(/*empty_key=*/NULL, /*expected_num_items=*/objects_set.size());
 	MemUsageStats stats;
 	stats.num_meshes = 0;
 	stats.mem = 0;
-	//for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
-	//{
-	//	const PhysicsObject* ob = it->getPointer();
-	//
-	//	const bool added = meshes.insert(std::make_pair(ob->shape->raymesh.ptr(), 0)).second;
-	//
-	//	if(added)
-	//	{
-	//		stats.mem += ob->shape->raymesh->getTotalMemUsage();
-	//		stats.num_meshes++;
-	//	}
-	//}
+
+	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
+	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+
+	for(auto it = objects_set.begin(); it != objects_set.end(); ++it)
+	{
+		const PhysicsObject* ob = it->getPointer();
+
+		const JPH::Shape* shape = body_interface.GetShape(ob->jolt_body_id).GetPtr(); // Get actual possibly-decorated shape used.
+		if(shape)
+		{
+			const bool added = meshes.insert(shape).second;
+	
+			if(added)
+			{
+				JPH::Shape::Stats shape_stats = shape->GetStatsRecursive(visited_shapes);
+
+				stats.mem += shape_stats.mSizeBytes;
+				stats.num_meshes++;
+			}
+		}
+	}
 
 	return stats;
 }
@@ -779,7 +822,14 @@ std::string PhysicsWorld::getLoadedMeshes() const
 }
 
 
+const Vec4f PhysicsWorld::getPosInJolt(const Reference<PhysicsObject>& object)
+{
+	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
+	const JPH::Vec3 pos = body_interface.GetCenterOfMassPosition(object->jolt_body_id);
+
+	return toVec4fPos(pos);
+}
 
 
 void PhysicsWorld::traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const

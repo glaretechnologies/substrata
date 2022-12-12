@@ -453,7 +453,7 @@ void GlWidget::focusOutEvent(QFocusEvent* e)
 }
 
 
-void GlWidget::playerPhyicsThink(float dt, PlayerPhysicsInput& input_out)
+void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out)
 {
 	if(!player_physics)
 		return;

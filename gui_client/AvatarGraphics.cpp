@@ -64,7 +64,7 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 }
 
 
-void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& cam_rotation, const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out)
+void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& cam_rotation, float xyplane_speed_rel_ground, const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out)
 {
 	if(false) // debug_avatar_basis_ob.isNull())
 	{
@@ -93,19 +93,28 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		const Vec4f right_vec    = rotationMatrix(avatar_rotation) * Vec4f(0,1,0,0);
 		//const Vec4f up_vec       = rotationMatrix(avatar_rotation) * Vec4f(0,0,1,0);
 
+		const bool on_ground = (anim_state & ANIM_STATE_IN_AIR) == 0;
+
 		const Vec3d dpos = pos - last_pos;
 		const Vec3d vel = dpos / dt;
 		const double speed = vel.length();
 
 		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
 		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
-		const double xyplane_speed = Vec3d(vel.x, vel.y, 0).length();
+		const double xyplane_speed = on_ground ? xyplane_speed_rel_ground : Vec3d(vel.x, vel.y, 0).length();
 		
 		const Vec3d old_vel = last_vel;
 		const Vec3d accel = (vel - old_vel) / dt;
-		const float unclamped_sideways_accel = dot(right_vec,    accel.toVec4fVector());
-		const float unclamped_forwards_accel = dot(forwards_vec, accel.toVec4fVector());
-		
+		float unclamped_sideways_accel = dot(right_vec,    accel.toVec4fVector());
+		float unclamped_forwards_accel = dot(forwards_vec, accel.toVec4fVector());
+
+		// Don't lean if stationary with respect to ground.
+		if(on_ground && xyplane_speed < 0.1)
+		{
+			unclamped_sideways_accel = 0;
+			unclamped_forwards_accel = 0;
+		}
+
 		const Vec3f drot = cam_rotation - last_cam_rotation;
 		//const Vec3f rot_vel = drot / (float)dt;
 
@@ -117,7 +126,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		// float turn_forwards_nudge = 0;
 		double new_anim_transition_duration = 0.3; // Duration of the blend period, if we have a new animation to transiton to.
 		
-		if((anim_state & ANIM_STATE_IN_AIR) == 0) // if on ground:
+		if(on_ground) // if on ground:
 		{
 			const float max_accel_mag = 10.2f;
 			float clamped_sideways_accel = myClamp(unclamped_sideways_accel, -max_accel_mag, max_accel_mag);

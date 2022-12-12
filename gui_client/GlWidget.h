@@ -51,7 +51,7 @@ public:
 	void setCameraController(CameraController* cam_controller_);
 	void setPlayerPhysics(PlayerPhysics* player_physics_);
 
-	void playerPhyicsThink(float dt, PlayerPhysicsInput& input_out); // Process keys held down.
+	void processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out); // Process keys held down.
 
 	void setCamRotationOnMouseMoveEnabled(bool enabled) { cam_rot_on_mouse_move_enabled = enabled; }
 	void setKeyboardCameraMoveEnabled(bool enabled) { cam_move_on_key_input_enabled = enabled; }
