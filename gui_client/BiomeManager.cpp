@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "maths/PCG32.h"
 #include <Exception.h>
 #include <RuntimeCheck.h>
+#include <Parser.h>
 
 
 BiomeManager::BiomeManager()
@@ -123,6 +124,7 @@ static const Matrix4f instanceObToWorldMatrix(const Vec4f& pos, float rot_z, con
 // Adds to instances parameter, updates instances_aabb_ws_in_out
 static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager, GLObjectRef prototype_ob, PhysicsShape physics_shape, float density, float evenness, bool add_physics_objects, const Vec3f& base_scale, const Vec3f& scale_variation, float z_offset,
+	const js::Vector<js::AABBox, 16> no_scatter_aabbs, // Don't place instances in these volumes
 	js::Vector<BiomeObInstance, 16>& instances, js::AABBox& instances_aabb_ws_in_out)
 {
 	runtimeCheck(world_ob.scattering_info.nonNull());
@@ -180,6 +182,16 @@ static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, 
 		const Vec3f scatterpos_vec3(scatterpos[0], scatterpos[1], scatterpos[2]);
 
 		bool scatterpos_valid = true;
+
+		for(size_t z=0; z<no_scatter_aabbs.size(); ++z)
+			if(no_scatter_aabbs[z].contains(scatterpos))
+			{
+				scatterpos_valid = false;
+				break;
+			}
+		if(!scatterpos_valid)
+			continue;
+		
 		const Vec4i begin = hashed_grid.getGridMinBound(scatterpos - Vec4f(min_dist, min_dist, min_dist, 0));
 		const Vec4i end   = hashed_grid.getGridMaxBound(scatterpos + Vec4f(min_dist, min_dist, min_dist, 0));
 
@@ -383,6 +395,42 @@ GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexB
 }
 
 
+// Throws glare::Exception
+#if 0
+static void parseBiomeInfo(const std::string& ob_content, js::Vector<js::AABBox, 16>& no_tree_aabbs_out)
+{
+	Parser parser(ob_content);
+	if(!parser.parseCString("biome: park"))
+		throw glare::Exception("Expected biome: park");
+	parser.parseWhiteSpace();
+	while(!parser.eof())
+	{
+		if(parser.parseCString("no_tree_area"))
+		{
+			float x1, y1, x2, y2;
+			parser.parseWhiteSpace();
+			if(!parser.parseFloat(x1))
+				throw glare::Exception("Expected float");
+			parser.parseWhiteSpace();
+			if(!parser.parseFloat(y1))
+				throw glare::Exception("Expected float");
+			parser.parseWhiteSpace();
+			if(!parser.parseFloat(x2))
+				throw glare::Exception("Expected float");
+			parser.parseWhiteSpace();
+			if(!parser.parseFloat(y2))
+				throw glare::Exception("Expected float");
+			parser.parseWhiteSpace();
+
+			no_tree_aabbs_out.push_back(js::AABBox(Vec4f(x1, y1, -1000, 1), Vec4f(x2, y2, 1000, 1)));
+		}
+		else
+			throw glare::Exception("Invalid token");
+	}
+}
+#endif
+
+
 void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager)
 {
@@ -391,8 +439,35 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 	runtimeCheck(world_ob.scattering_info.nonNull());
 
-	if(world_ob.content == "biome: park")
+	if(hasPrefix(world_ob.content, "biome: park"))
 	{
+		// Parse no tree areas
+		js::Vector<js::AABBox, 16> no_tree_aabbs;
+
+		// This code below breaks existing builds that require "biome: park" to be the complete string, not just a prefix.  So don't use for now.
+		/*try
+		{
+			parseBiomeInfo(world_ob.content, no_tree_aabbs);
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("BiomeManager::addObjectToBiome: parse error: " + e.what());
+		}*/
+
+		// TEMP HACK: Hack in some no-tree areas to avoid the monorail.
+		if(world_ob.uid.value() == 152105)
+		{
+			no_tree_aabbs.push_back(js::AABBox(Vec4f(606, -144, -1000, 1), Vec4f(631, -126, 1000, 1)));
+			no_tree_aabbs.push_back(js::AABBox(Vec4f(633, -127, -1000, 1), Vec4f(639, -14.8, 1000, 1)));
+			no_tree_aabbs.push_back(js::AABBox(Vec4f(605, -4, -1000, 1), Vec4f(627, 3, 1000, 1)));
+		}
+		else if(world_ob.uid.value() == 152064)
+		{
+			no_tree_aabbs.push_back(js::AABBox(Vec4f(-194, 302, -1000, 1), Vec4f(-142, 310, 1000, 1)));
+		}
+
+
+
 		park_biome_physics_objects.push_back(world_ob.physics_object);
 		Reference<ObBiomeData> ob_biome_date = new ObBiomeData();
 		ob_to_biome_data[&world_ob] = ob_biome_date;
@@ -414,6 +489,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 			Vec3f(3.f), // base scale
 			Vec3f(1.f), // scale variation
 			0.f, // z offset
+			no_tree_aabbs,
 			ob_instances, // tree instances in/out
 			ob_trees_aabb_ws // instances_aabb_ws_in_out
 		);
