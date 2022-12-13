@@ -265,6 +265,7 @@ public:
 	void startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
+	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob);
 	void removeAndDeleteGLObjectForAvatar(Avatar& ob);
 	void addPlaceholderObjectsForOb(WorldObject& ob);

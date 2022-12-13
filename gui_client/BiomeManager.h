@@ -26,6 +26,8 @@ struct BiomeObInstance
 {
 	Matrix4f to_world; // Tree to-world
 	Matrix4f to_world_no_rot; // Tree to-world without rotation
+
+	Reference<PhysicsObject> physics_object;
 };
 
 
