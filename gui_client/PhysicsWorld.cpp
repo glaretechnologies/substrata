@@ -780,15 +780,20 @@ PhysicsWorld::MemUsageStats PhysicsWorld::getTotalMemUsage() const
 		if(shape)
 		{
 			const bool added = meshes.insert(shape).second;
-	
 			if(added)
 			{
 				JPH::Shape::Stats shape_stats = shape->GetStatsRecursive(visited_shapes);
 
 				stats.mem += shape_stats.mSizeBytes;
-				stats.num_meshes++;
 			}
 		}
+	}
+
+	for(auto it = visited_shapes.begin(); it != visited_shapes.end(); ++it)
+	{
+		const JPH::Shape* shape = *it;
+		if(dynamic_cast<const JPH::MeshShape*>(shape))
+			stats.num_meshes++;
 	}
 
 	return stats;
