@@ -124,6 +124,8 @@ public:
 	std::string getLoadedMeshes() const;
 
 	const Vec4f getPosInJolt(const Reference<PhysicsObject>& object);
+
+	size_t getNumObjects() const { return objects_set.size(); }
 	//----------------------------------------------------------------------------------------
 
 	void traceRay(const Vec4f& origin, const Vec4f& dir, float max_t, RayTraceResult& results_out) const;

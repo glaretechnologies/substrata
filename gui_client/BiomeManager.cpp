@@ -224,8 +224,6 @@ finished_looping:
 		instance.to_world = instanceObToWorldMatrix(pos, rot_z, scale);// * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
 		instance.to_world_no_rot = instanceObToWorldMatrix(pos, 0.f, scale);// * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
 
-		instances.push_back(instance);
-
 		// Make physics object
 		if(add_physics_objects)
 		{
@@ -239,7 +237,11 @@ finished_looping:
 			physics_ob->scale = scale;
 
 			physics_world.addObject(physics_ob);
+
+			instance.physics_object = physics_ob;
 		}
+
+		instances.push_back(instance);
 
 		all_instances_aabb_ws.enlargeToHoldAABBox(prototype_ob->mesh_data->aabb_os.transformedAABBFast(instance.to_world));
 	}
@@ -504,6 +506,9 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 			tree_opengl_ob->instance_info[z].to_world = ob_instances[z].to_world;
 			tree_opengl_ob->instance_info[z].aabb_ws = tree_aabb_os.transformedAABBFast(ob_instances[z].to_world);
+
+			if(ob_instances[z].physics_object.nonNull())
+				ob_biome_date->physics_objects.push_back(ob_instances[z].physics_object);
 		}
 
 		tree_opengl_ob->enableInstancing(*opengl_engine.vert_buf_allocator, instance_matrices.data(), sizeof(Matrix4f) * instance_matrices.size());

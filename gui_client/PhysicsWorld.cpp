@@ -797,6 +797,7 @@ std::string PhysicsWorld::getDiagnostics() const
 	const MemUsageStats stats = getTotalMemUsage();
 	std::string s;
 	s += "Objects: " + toString(objects_set.size()) + "\n";
+	s += "Jolt bodies: " + toString(this->physics_system->GetNumBodies()) + "\n";
 	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
 

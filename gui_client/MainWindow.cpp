@@ -922,7 +922,7 @@ void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_leve
 }
 
 
-void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
+void MainWindow::removeAndDeleteGLObjectsForOb(WorldObject& ob)
 {
 	if(ob.opengl_engine_ob.nonNull())
 		ui->glWidget->opengl_engine->removeObject(ob.opengl_engine_ob);
@@ -930,22 +930,24 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 	if(ob.opengl_light.nonNull())
 		ui->glWidget->opengl_engine->removeLight(ob.opengl_light);
 
-	if(ob.physics_object.nonNull())
-	{
-		if(!(ob.physics_object->dynamic || ob.physics_object->kinematic))
-		{
-			physics_world->removeObject(ob.physics_object);
-			ob.physics_object = NULL;
-		}
-	}
-
 	ob.opengl_engine_ob = NULL;
-	
-	
+
 	ob.mesh_manager_data = NULL;
 
 	ob.loaded_model_lod_level = -10;
 	ob.using_placeholder_model = false;
+}
+
+
+void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
+{
+	removeAndDeleteGLObjectsForOb(ob);
+
+	if(ob.physics_object.nonNull())
+	{
+		physics_world->removeObject(ob.physics_object);
+		ob.physics_object = NULL;
+	}
 }
 
 
@@ -1613,7 +1615,14 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
 					if(is_meshdata_loaded_into_opengl)
 					{
-						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+						removeAndDeleteGLObjectsForOb(*ob);
+
+						// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
+						if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
+						{
+							physics_world->removeObject(ob->physics_object);
+							ob->physics_object = NULL;
+						}
 
 						// Create gl and physics object now
 						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
@@ -1624,7 +1633,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 						ob->loaded_model_lod_level = ob_model_lod_level;
 
-						if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload it's physics object in removeAndDeleteGLAndPhysicsObjectsForOb() above.
+						if(ob->physics_object.isNull()) // if object was dynamic, we may not have unloaded its physics object above.
 						{
 							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 							ob->physics_object->shape = mesh_data->physics_shape;
@@ -3022,7 +3031,7 @@ void MainWindow::checkForLODChanges()
 			const float cam_to_ob_d2 = ob->aabb_ws.centroid().getDist2(cam_pos);
 			if(cam_to_ob_d2 > this->load_distance2) 
 			{
-				if(ob->in_proximity)// If an object was in proximity to the camera, and moved out of load distance:
+				if(ob->in_proximity) // If an object was in proximity to the camera, and moved out of load distance:
 				{
 					unloadObject(ob);
 					ob->in_proximity = false;
@@ -3214,7 +3223,14 @@ void MainWindow::processLoading()
 											if(!isFinite(ob->angle) || !ob->axis.isFinite())
 												throw glare::Exception("Invalid angle or axis");
 
-											removeAndDeleteGLAndPhysicsObjectsForOb(*ob); // Remove any existing OpenGL and physics model
+											removeAndDeleteGLObjectsForOb(*ob); // Remove any existing OpenGL model
+
+											// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
+											if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
+											{
+												physics_world->removeObject(ob->physics_object);
+												ob->physics_object = NULL;
+											}
 
 											// Create GLObject and PhysicsObjects for this world object.  The loaded mesh should be in the mesh_manager.
 											const Matrix4f ob_to_world_matrix = obToWorldMatrix(*ob);
@@ -3224,7 +3240,7 @@ void MainWindow::processLoading()
 
 											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
-											if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload it's physics object in removeAndDeleteGLAndPhysicsObjectsForOb() above.
+											if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload its physics object above.
 											{
 												ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
 												ob->physics_object->shape = this->cur_loading_physics_shape;
@@ -3394,13 +3410,33 @@ void MainWindow::processLoading()
 						// Check the object wants this particular LOD level model right now:
 						if(ob_model_lod_level == cur_loading_voxel_ob_model_lod_level)
 						{
-							removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove any existing OpenGL and physics model
+							removeAndDeleteGLObjectsForOb(*voxel_ob); // Remove any existing OpenGL model
+
+							// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
+							if(voxel_ob->physics_object.nonNull() && (voxel_ob->using_placeholder_model || !(voxel_ob->physics_object->dynamic || voxel_ob->physics_object->kinematic)))
+							{
+								physics_world->removeObject(voxel_ob->physics_object);
+								voxel_ob->physics_object = NULL;
+							}
 
 							const Matrix4f ob_to_world_matrix = obToWorldMatrix(*voxel_ob);
 							const Matrix4f use_ob_to_world_matrix = ob_to_world_matrix * Matrix4f::uniformScaleMatrix((float)cur_loading_voxel_subsample_factor/*message->subsample_factor*/);
 
-							PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
-							physics_ob->shape = cur_loading_physics_shape;
+							if(voxel_ob->physics_object.isNull())
+							{
+								PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/voxel_ob->isCollidable());
+								physics_ob->shape = cur_loading_physics_shape;
+
+								physics_ob->userdata = voxel_ob.ptr();
+								physics_ob->userdata_type = 0;
+								physics_ob->pos = voxel_ob->pos.toVec4fPoint();
+								physics_ob->rot = Quatf::fromAxisAndAngle(normalise(voxel_ob->axis), voxel_ob->angle);
+								physics_ob->scale = voxel_ob->scale;
+
+								voxel_ob->physics_object = physics_ob;
+
+								physics_world->addObject(physics_ob);
+							}
 
 							GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 							opengl_ob->mesh_data = cur_loading_mesh_data;
@@ -3413,7 +3449,7 @@ void MainWindow::processLoading()
 							opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
 
 							voxel_ob->opengl_engine_ob = opengl_ob;
-							voxel_ob->physics_object = physics_ob;
+							
 
 							assert(opengl_ob->mesh_data->vbo_handle.valid());
 							//if(!opengl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
@@ -3421,11 +3457,7 @@ void MainWindow::processLoading()
 
 							//loaded_size_B = opengl_ob->mesh_data->getTotalMemUsage().geom_gpu_usage;
 
-							physics_ob->userdata = voxel_ob.ptr();
-							physics_ob->userdata_type = 0;
-							physics_ob->pos = voxel_ob->pos.toVec4fPoint();
-							physics_ob->rot = Quatf::fromAxisAndAngle(normalise(voxel_ob->axis), voxel_ob->angle);
-							physics_ob->scale = voxel_ob->scale;
+							
 
 							// Add this object to the GL engine and physics engine.
 							if(!ui->glWidget->opengl_engine->isObjectAdded(opengl_ob))
@@ -3433,8 +3465,6 @@ void MainWindow::processLoading()
 								assignedLoadedOpenGLTexturesToMats(voxel_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 
 								ui->glWidget->opengl_engine->addObject(opengl_ob);
-
-								physics_world->addObject(physics_ob);
 
 								ui->indigoView->objectAdded(*voxel_ob, *this->resource_manager);
 
@@ -3512,10 +3542,6 @@ void MainWindow::processLoading()
 							if(res != world_state->objects.end())
 							{
 								WorldObjectRef voxel_ob = res.getValue().ptr();
-
-								//voxel_ob->aabb_os = message->gl_meshdata->aabb_os;
-
-								//removeAndDeleteGLAndPhysicsObjectsForOb(*voxel_ob); // Remove placeholder model if using one.
 
 								if(voxel_ob->in_proximity) // Object may be out of load distance now that it has actually been loaded.
 								{
@@ -5000,7 +5026,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					// conPrint("Setting object state from jolt");
 
-					if(this->selected_ob != ob) // Don't update selected object with physics engine state
+					if(this->selected_ob.ptr() != ob) // Don't update selected object with physics engine state
 					{
 						const Matrix4f ob_to_world = ob->physics_object->getObToWorldMatrix();
 
@@ -8866,6 +8892,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	web_view_obs.clear();
 	obs_with_scripts.clear();
 
+	path_controllers.clear();
+
 	objs_with_lightmap_rebuild_needed.clear();
 
 	proximity_loader.clearAllObjects();
@@ -8898,6 +8926,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 	if(physics_world.nonNull())
 	{
+		assert(physics_world->getNumObjects() == 0);
 		physics_world->clear();
 	}
 }
