@@ -662,6 +662,9 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 	if(!object->jolt_body_id.IsInvalid())
 	{
 		body_interface.RemoveBody(object->jolt_body_id);
+
+		body_interface.DestroyBody(object->jolt_body_id);
+
 		object->jolt_body_id = JPH::BodyID();
 
 		//conPrint("Removed Jolt body");
