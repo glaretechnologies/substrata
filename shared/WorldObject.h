@@ -247,7 +247,6 @@ public:
 	uint32 changed_flags;
 
 	bool using_placeholder_model;
-	std::string loaded_model_url;
 
 	std::string loaded_content;
 
