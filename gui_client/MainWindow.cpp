@@ -5821,7 +5821,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								if(isTrainFrontOb(ob))
 								{
 									const double offset = getTrainFrontObTimeOffset(ob);
-									path_controllers.push_back(new ObjectPathController(*world_state, ob, waypoints, offset, UID::invalidUID(), 0.f));
+									path_controllers.push_back(new ObjectPathController(*world_state, ob, waypoints, global_time + offset, UID::invalidUID(), 0.f));
 
 									ObjectPathController::sortPathControllers(path_controllers);
 								}
