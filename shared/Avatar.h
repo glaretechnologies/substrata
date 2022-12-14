@@ -99,8 +99,6 @@ public:
 	bool transform_dirty;
 	bool other_dirty;
 
-	std::string loaded_model_url;
-	//bool using_placeholder_model;
 
 	//Reference<GLObject> opengl_engine_ob;
 #if GUI_CLIENT

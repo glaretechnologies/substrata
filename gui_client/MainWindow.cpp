@@ -1365,7 +1365,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 	//print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", model URL: " + ob->model_url + ", ob_model_lod_level: " + toString(ob_model_lod_level));
 	Timer timer;
-	ob->loaded_model_url = ob->model_url;
 
 	ui->glWidget->makeCurrent();
 
@@ -1595,7 +1594,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 
 			if(!ob->model_url.empty() && 
-				(ob->loaded_model_lod_level != ob_model_lod_level)) // We may already have the correct LOD model loaded, don't reload if so.
+				(ob->loaded_model_lod_level != ob_model_lod_level))  // We may already have the correct LOD model loaded, don't reload if so.
 				// (The object LOD level might have changed, but the model LOD level may be the same due to max model lod level, for example for simple cube models.)
 			{
 				bool added_opengl_ob = false;
@@ -1774,8 +1773,6 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 		const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
 		avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
 	}
-
-	avatar->loaded_model_url = avatar->avatar_settings.model_url;
 
 
 	ui->glWidget->makeCurrent();
@@ -8276,30 +8273,97 @@ void MainWindow::sendChatMessageSlot()
 // Object has been edited, e.g. by the object editor.
 void MainWindow::objectEditedSlot()
 {
-	// Update object material(s) with values from editor.
-	if(this->selected_ob.nonNull())
+	try
 	{
-		// Multiple edits using the object editor, in a short timespan, will be merged together,
-		// unless force_new_undo_edit is true (is set when undo or redo is issued).
-		const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
-
-		if(start_new_edit)
-			undo_buffer.startWorldObjectEdit(*this->selected_ob);
-
-		ui->objectEditor->toObject(*this->selected_ob); // Sets changed_flags on object as well.
-
-		if(start_new_edit)
-			undo_buffer.finishWorldObjectEdit(*this->selected_ob);
-		else
-			undo_buffer.replaceFinishWorldObjectEdit(*this->selected_ob);
-		
-		time_since_object_edited.reset();
-		force_new_undo_edit = false;
-
-		setMaterialFlagsForObject(selected_ob.ptr());
-
-		try
+		// Update object material(s) with values from editor.
+		if(this->selected_ob.nonNull())
 		{
+			// Multiple edits using the object editor, in a short timespan, will be merged together,
+			// unless force_new_undo_edit is true (is set when undo or redo is issued).
+			const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
+
+			if(start_new_edit)
+				undo_buffer.startWorldObjectEdit(*this->selected_ob);
+
+			ui->objectEditor->toObject(*this->selected_ob); // Sets changed_flags on object as well.
+
+			if(start_new_edit)
+				undo_buffer.finishWorldObjectEdit(*this->selected_ob);
+			else
+				undo_buffer.replaceFinishWorldObjectEdit(*this->selected_ob);
+		
+			time_since_object_edited.reset();
+			force_new_undo_edit = false;
+
+			setMaterialFlagsForObject(selected_ob.ptr());
+
+		
+			if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED))
+			{
+				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED);
+
+				removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
+
+				const std::string mesh_path = this->selected_ob->model_url;
+
+				ModelLoading::MakeGLObjectResults results;
+				ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, mesh_path,
+					results
+				);
+			
+				this->selected_ob->opengl_engine_ob = results.gl_ob;
+				this->selected_ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*this->selected_ob);
+
+				ui->glWidget->opengl_engine->addObject(this->selected_ob->opengl_engine_ob);
+
+				ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
+
+				// If the user selected a mesh that is not a bmesh, convert it to bmesh.
+				std::string bmesh_disk_path;
+				if(!hasExtension(mesh_path, "bmesh")) 
+				{
+					// Save as bmesh in temp location
+					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+
+					BatchedMesh::WriteOptions write_options;
+					write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+					// TODO: show 'processing...' dialog while it compresses and saves?
+					results.batched_mesh->writeToFile(bmesh_disk_path, write_options);
+				}
+				else
+					bmesh_disk_path = mesh_path;
+
+				// Compute hash over model
+				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+				const std::string original_filename = FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
+				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
+
+				// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+				if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+					this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+				this->selected_ob->model_url = mesh_URL;
+				this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+				this->selected_ob->aabb_ws = results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob));
+
+				// NOTE: do we want to update materials and scale etc. on object, given that we have a new mesh now?
+
+				// Make new physics object
+				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
+				selected_ob->physics_object->shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh);
+				selected_ob->physics_object->userdata = selected_ob.ptr();
+				selected_ob->physics_object->userdata_type = 0;
+				selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
+				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
+				selected_ob->physics_object->scale = selected_ob->scale;
+			
+				selected_ob->physics_object->kinematic = !selected_ob->script.empty() || isTrainOb(selected_ob.ptr()); // TEMP HACK
+			
+				physics_world->addObject(selected_ob->physics_object);
+			}
+
+
 			// Copy all dependencies into resource directory if they are not there already.
 			// URLs will actually be paths from editing for now.
 			WorldObject::GetDependencyOptions options;
@@ -8317,223 +8381,193 @@ void MainWindow::objectEditedSlot()
 					resource_manager->copyLocalFileToResourceDir(local_path, URL);
 				}
 			}
-		}
-		catch(glare::Exception& e)
-		{
-			QMessageBox msgBox;
-			msgBox.setWindowTitle("Error");
-			msgBox.setText(QtUtils::toQString(e.what()));
-			msgBox.exec();
-		}
+		
 
 
-		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
+			this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
-		// Generate LOD textures for materials, if not already present on disk.
-		// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
-		LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, task_manager);
+			// Generate LOD textures for materials, if not already present on disk.
+			// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
+			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, task_manager);
 
-		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
-		const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
+			const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
+			const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
 
-		startLoadingTexturesForObject(*this->selected_ob, ob_lod_level, max_dist_for_ob_lod_level);
+			startLoadingTexturesForObject(*this->selected_ob, ob_lod_level, max_dist_for_ob_lod_level);
 
-		startDownloadingResourcesForObject(this->selected_ob.ptr(), ob_lod_level);
+			startDownloadingResourcesForObject(this->selected_ob.ptr(), ob_lod_level);
 
-		// All paths should be URLs now
-		//URLs.clear();
-		//this->selected_ob->appendDependencyURLs(URLs);
-		//
-		//// See if we have all required resources, we may have changed a texture URL to something we don't have
-		//bool all_downloaded = true;
-		//for(auto it = URLs.begin(); it != URLs.end(); ++it)
-		//{
-		//	const std::string& url = *it;
-		//	if(resource_manager->isValidURL(url))
-		//	{
-		//		if(!resource_manager->isFileForURLPresent(url))
-		//		{
-		//			all_downloaded = false;
-		//			startDownloadingResource(url);
-		//		}
-		//	}
-		//	else
-		//		all_downloaded = false;
-		//}
-
-		//if(all_downloaded)
-		if(selected_ob->model_url.empty() || resource_manager->isFileForURLPresent(selected_ob->model_url))
-		{
-			Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
-				Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
-				Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
-
-			GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
-			if(opengl_ob.nonNull())
+			if(selected_ob->model_url.empty() || resource_manager->isFileForURLPresent(selected_ob->model_url))
 			{
+				Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
+					Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
+					Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
 
-				js::Vector<EdgeMarker, 16> edge_markers;
-				Vec3d new_ob_pos;
-				const bool valid = clampObjectPositionToParcelForNewTransform(
-					*this->selected_ob,
-					opengl_ob,
-					this->selected_ob->pos, 
-					new_ob_to_world_matrix,
-					edge_markers, 
-					new_ob_pos);
-				if(valid)
+				GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
+				if(opengl_ob.nonNull())
 				{
-					new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
-					selected_ob->setTransformAndHistory(new_ob_pos, this->selected_ob->axis, this->selected_ob->angle);
-
-					// Update in opengl engine.
-					if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
+					js::Vector<EdgeMarker, 16> edge_markers;
+					Vec3d new_ob_pos;
+					const bool valid = clampObjectPositionToParcelForNewTransform(
+						*this->selected_ob,
+						opengl_ob,
+						this->selected_ob->pos, 
+						new_ob_to_world_matrix,
+						edge_markers, 
+						new_ob_pos);
+					if(valid)
 					{
-						// Update materials
-						if(opengl_ob.nonNull())
+						new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
+						selected_ob->setTransformAndHistory(new_ob_pos, this->selected_ob->axis, this->selected_ob->angle);
+
+						// Update in opengl engine.
+						if(this->selected_ob->object_type == WorldObject::ObjectType_Generic || this->selected_ob->object_type == WorldObject::ObjectType_VoxelGroup)
 						{
-							if(!opengl_ob->materials.empty())
+							// Update materials
+							if(opengl_ob.nonNull())
 							{
-								opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
-
-								for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
-									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, *this->resource_manager,
-										opengl_ob->materials[i]
-									);
-
-								assignedLoadedOpenGLTexturesToMats(selected_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
-							}
-						}
-
-						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
-					}
-					else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
-					{
-						if(selected_ob->content != selected_ob->loaded_content)
-						{
-							// Re-create opengl-ob
-							ui->glWidget->makeCurrent();
-
-							opengl_ob->materials.resize(1);
-							opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
-
-							const std::string tex_key = "hypercard_" + selected_ob->content;
-
-							// If the hypercard texture is already loaded, use it
-							opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
-							opengl_ob->materials[0].tex_path = tex_key;
-
-							if(opengl_ob->materials[0].albedo_texture.isNull())
-							{
-								const bool just_added = checkAddTextureToProcessingSet(tex_key);
-								if(just_added) // not being loaded already:
+								if(!opengl_ob->materials.empty())
 								{
-									Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
-									task->tex_key = tex_key;
-									task->result_msg_queue = &this->msg_queue;
-									task->hypercard_content = selected_ob->content;
-									task->opengl_engine = ui->glWidget->opengl_engine;
-									load_item_queue.enqueueItem(*this->selected_ob, task, /*max task dist=*/200.f);
+									opengl_ob->materials.resize(myMax(opengl_ob->materials.size(), this->selected_ob->materials.size()));
+
+									for(size_t i=0; i<myMin(opengl_ob->materials.size(), this->selected_ob->materials.size()); ++i)
+										ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[i], ob_lod_level, this->selected_ob->lightmap_url, *this->resource_manager,
+											opengl_ob->materials[i]
+										);
+
+									assignedLoadedOpenGLTexturesToMats(selected_ob.ptr(), *ui->glWidget->opengl_engine, *resource_manager);
 								}
 							}
 
-							opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-							selected_ob->opengl_engine_ob = opengl_ob;
-
-							selected_ob->loaded_content = selected_ob->content;
+							ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 						}
-					}
-					else if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
-					{
-						GLLightRef light = this->selected_ob->opengl_light;
-						if(light.nonNull())
+						else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 						{
-							light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
-							float scale;
-							light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
-
-							ui->glWidget->makeCurrent();
-							ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
-
-
-							// Use material[1] from the WorldObject as the light housing GL material.
-							opengl_ob->materials.resize(2);
-							if(this->selected_ob->materials.size() >= 2)
-								ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
-							else
-								opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
-
-							// Apply a light emitting material to the light surface material in the spotlight model.
-							if(this->selected_ob->materials.size() >= 1)
+							if(selected_ob->content != selected_ob->loaded_content)
 							{
-								opengl_ob->materials[1].emission_rgb = this->selected_ob->materials[0]->colour_rgb;
-								opengl_ob->materials[1].emission_scale = scale;
+								// Re-create opengl-ob
+								ui->glWidget->makeCurrent();
+
+								opengl_ob->materials.resize(1);
+								opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+
+								const std::string tex_key = "hypercard_" + selected_ob->content;
+
+								// If the hypercard texture is already loaded, use it
+								opengl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getTextureIfLoaded(OpenGLTextureKey(tex_key), /*use_sRGB=*/true);
+								opengl_ob->materials[0].tex_path = tex_key;
+
+								if(opengl_ob->materials[0].albedo_texture.isNull())
+								{
+									const bool just_added = checkAddTextureToProcessingSet(tex_key);
+									if(just_added) // not being loaded already:
+									{
+										Reference<MakeHypercardTextureTask> task = new MakeHypercardTextureTask();
+										task->tex_key = tex_key;
+										task->result_msg_queue = &this->msg_queue;
+										task->hypercard_content = selected_ob->content;
+										task->opengl_engine = ui->glWidget->opengl_engine;
+										load_item_queue.enqueueItem(*this->selected_ob, task, /*max task dist=*/200.f);
+									}
+								}
+
+								opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+								selected_ob->opengl_engine_ob = opengl_ob;
+
+								selected_ob->loaded_content = selected_ob->content;
 							}
 						}
+						else if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
+						{
+							GLLightRef light = this->selected_ob->opengl_light;
+							if(light.nonNull())
+							{
+								light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
+								float scale;
+								light->gpu_data.col = computeSpotlightColour(*this->selected_ob, light->gpu_data.cone_cos_angle_start, light->gpu_data.cone_cos_angle_end, scale);
+
+								ui->glWidget->makeCurrent();
+								ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
+
+
+								// Use material[1] from the WorldObject as the light housing GL material.
+								opengl_ob->materials.resize(2);
+								if(this->selected_ob->materials.size() >= 2)
+									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
+								else
+									opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+
+								// Apply a light emitting material to the light surface material in the spotlight model.
+								if(this->selected_ob->materials.size() >= 1)
+								{
+									opengl_ob->materials[1].emission_rgb = this->selected_ob->materials[0]->colour_rgb;
+									opengl_ob->materials[1].emission_scale = scale;
+								}
+							}
+						}
+
+						// Update transform of OpenGL object
+						opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+						ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+						// Update physics object transform
+						selected_ob->physics_object->collidable = selected_ob->isCollidable();
+						physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+							selected_ob->scale.toVec4fVector());
+
+						// Update in Indigo view
+						ui->indigoView->objectTransformChanged(*selected_ob);
+
+						updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
+
+						selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
+
+						Lock lock(this->world_state->mutex);
+
+						// Mark as from-local-dirty to send an object updated message to the server
+						this->selected_ob->from_local_other_dirty = true;
+						this->world_state->dirty_from_local_objects.insert(this->selected_ob);
+
+
+						//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
+						//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
+						//lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
+
+						loadScriptForObject(this->selected_ob.ptr());
+
+						// Update any instanced copies of object
+						updateInstancedCopiesOfObject(this->selected_ob.ptr());
 					}
-
-					// Update transform of OpenGL object
-					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
-					ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
-
-					// Update physics object transform
-					selected_ob->physics_object->collidable = selected_ob->isCollidable();
-					physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
-						selected_ob->scale.toVec4fVector());
-
-					// Update in Indigo view
-					ui->indigoView->objectTransformChanged(*selected_ob);
-
-					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
-
-					selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
-					// TODO: set max_lod_level here?
-					//selected_ob->max_lod_level = (d.loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-
-					Lock lock(this->world_state->mutex);
-
-					// Mark as from-local-dirty to send an object updated message to the server
-					this->selected_ob->from_local_other_dirty = true;
-					this->world_state->dirty_from_local_objects.insert(this->selected_ob);
-
-
-					//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
-					//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
-					//lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
-
-
-					if(this->selected_ob->model_url != this->selected_ob->loaded_model_url) // These will be different if model path was changed.
+					else // Else if new transform is not valid
 					{
-						loadModelForObject(this->selected_ob.getPointer());
-						this->ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
+						showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
 					}
-
-					loadScriptForObject(this->selected_ob.ptr());
-
-					// Update any instanced copies of object
-					updateInstancedCopiesOfObject(this->selected_ob.ptr());
 				}
-				else // Else if new transform is not valid
-				{
-					showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
-				}
+			}
+
+			if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
+				loadAudioForObject(this->selected_ob.getPointer());
+
+			if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
+				loadScriptForObject(this->selected_ob.getPointer());
+
+			if(this->selected_ob->audio_source.nonNull())
+			{
+				this->selected_ob->audio_source->pos = this->selected_ob->aabb_ws.centroid();
+				this->audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
+
+				this->selected_ob->audio_source->volume = this->selected_ob->audio_volume;
+				this->audio_engine.sourceVolumeUpdated(*this->selected_ob->audio_source);
 			}
 		}
 
-		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::AUDIO_SOURCE_URL_CHANGED))
-			loadAudioForObject(this->selected_ob.getPointer());
-
-		if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
-			loadScriptForObject(this->selected_ob.getPointer());
-
-		if(this->selected_ob->audio_source.nonNull())
-		{
-			this->selected_ob->audio_source->pos = this->selected_ob->aabb_ws.centroid();
-			this->audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
-
-			this->selected_ob->audio_source->volume = this->selected_ob->audio_volume;
-			this->audio_engine.sourceVolumeUpdated(*this->selected_ob->audio_source);
-		}
+	}
+	catch(glare::Exception& e)
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Error");
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
 	}
 }
 
