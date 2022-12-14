@@ -1405,7 +1405,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		{
 			if(ob->opengl_engine_ob.isNull())
 			{
-				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+				assert(ob->physics_object.isNull());
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->shape = this->hypercard_quad_shape;
@@ -1457,7 +1457,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		{
 			if(ob->opengl_engine_ob.isNull())
 			{
-				removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
+				assert(ob->physics_object.isNull());
 
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->shape = this->spotlight_shape;
@@ -1511,8 +1511,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		}
 		else if(ob->object_type == WorldObject::ObjectType_WebView)
 		{
-			//removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
-
 			if(ob->opengl_engine_ob.isNull())
 			{
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
