@@ -447,9 +447,6 @@ public:
 	
 	glare::TaskManager model_and_texture_loader_task_manager;
 public:
-private:
-	glare::TaskManager model_building_subsidary_task_manager; // Just for use in ModelLoading::makeGLObjectForModelURLAndMaterials in LoadModelTask etc..
-public:
 	MeshManager mesh_manager;
 private:
 	struct Notification

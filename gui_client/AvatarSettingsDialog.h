@@ -57,8 +57,9 @@ private:
 public:
 	std::string result_path;
 
-	BatchedMeshRef loaded_mesh;
-	WorldObjectRef loaded_object; // May by NULL if a valid object was not loaded.
+	BatchedMeshRef loaded_mesh; // May by NULL if a valid object was not loaded.
+
+	std::vector<WorldMaterialRef> loaded_materials;
 
 	std::string base_dir_path;
 

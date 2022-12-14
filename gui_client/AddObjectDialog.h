@@ -1,7 +1,7 @@
 /*=====================================================================
 AddObjectDialog.h
 ----------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
@@ -34,7 +34,7 @@ public:
 	void shutdownGL();
 
 
-	static void tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, WorldObjectRef loaded_object, OpenGLEngine* opengl_engine, 
+	static void tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, std::vector<WorldMaterialRef>& world_materials, OpenGLEngine* opengl_engine, 
 		TextureServer* texture_server, QWidget* parent_widget);
 
 private slots:;
@@ -60,14 +60,21 @@ private:
 public:
 	std::string result_path;
 	BatchedMeshRef loaded_mesh;
-	WorldObjectRef loaded_object; // May by NULL if a valid object was not loaded.
+
+	js::Vector<Voxel, 16> loaded_voxels;
+	std::vector<WorldMaterialRef> loaded_materials; // Will be cleared if a valid object was not loaded.
+	Vec3f scale;
+	Vec3f axis;
+	float angle;
+
+
 	bool loaded_mesh_is_image_cube; // Are we using the standard model for displaying images/videos?
 
 	float ob_cam_right_translation; // Amount the object position for the new object should be translated along the camera right vector.
 	float ob_cam_up_translation;
 
 private:
-	void makeMeshForWidthAndHeight(glare::TaskManager& task_manager, const std::string& local_path, int w, int h);
+	void makeMeshForWidthAndHeight(const std::string& local_path, int w, int h);
 
 	std::string base_dir_path;
 	std::vector<std::string> models;

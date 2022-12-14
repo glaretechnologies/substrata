@@ -403,16 +403,22 @@ static void rotateVRMMesh(BatchedMesh& mesh)
 }
 
 
-// We don't have a material file, just the model file:
-GLObjectRef ModelLoading::makeGLObjectForModelFile(
+void ModelLoading::makeGLObjectForModelFile(
 	OpenGLEngine& gl_engine,
 	VertexBufferAllocator& vert_buf_allocator,
-	glare::TaskManager& task_manager, 
-	const std::string& model_path,
-	BatchedMeshRef& mesh_out,
-	WorldObject& loaded_object_out
+	const std::string& model_path, 
+	MakeGLObjectResults& results_out
 )
 {
+	results_out.gl_ob = NULL;
+	results_out.batched_mesh = NULL;
+	results_out.voxels.voxels.clear();
+	results_out.materials.clear();
+	results_out.scale = Vec3f(1.f);
+	results_out.axis = Vec3f(0,0,1);
+	results_out.angle = 0;
+
+
 	if(hasExtension(model_path, "vox"))
 	{
 		VoxFileContents vox_contents;
@@ -428,21 +434,19 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		const int x_offset = (int)-model.aabb.centroid()[0];
 		const int y_offset = (int)-model.aabb.centroid()[1];
 
-		loaded_object_out.getDecompressedVoxels().resize(model.voxels.size());
+		results_out.voxels.voxels.resize(model.voxels.size());
 		for(size_t i=0; i<vox_contents.models[0].voxels.size(); ++i)
 		{
-			loaded_object_out.getDecompressedVoxels()[i].pos = Vec3<int>(model.voxels[i].x + x_offset, model.voxels[i].y + y_offset, model.voxels[i].z);
-			loaded_object_out.getDecompressedVoxels()[i].mat_index = model.voxels[i].mat_index;
+			results_out.voxels.voxels[i].pos = Vec3<int>(model.voxels[i].x + x_offset, model.voxels[i].y + y_offset, model.voxels[i].z);
+			results_out.voxels.voxels[i].mat_index = model.voxels[i].mat_index;
 		}
 
-		loaded_object_out.compressVoxels();
-
 		// Convert materials
-		loaded_object_out.materials.resize(vox_contents.used_materials.size());
-		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
+		results_out.materials.resize(vox_contents.used_materials.size());
+		for(size_t i=0; i<results_out.materials.size(); ++i)
 		{
-			loaded_object_out.materials[i] = new WorldMaterial();
-			loaded_object_out.materials[i]->colour_rgb = Colour3f(
+			results_out.materials[i] = new WorldMaterial();
+			results_out.materials[i]->colour_rgb = Colour3f(
 				vox_contents.used_materials[i].col_from_palette[0], 
 				vox_contents.used_materials[i].col_from_palette[1], 
 				vox_contents.used_materials[i].col_from_palette[2]);
@@ -456,27 +460,25 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		ob->ob_to_world_matrix = Matrix4f::uniformScaleMatrix(use_scale);
 
 
-		js::Vector<bool, 16> mat_transparent(loaded_object_out.materials.size());
-		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
-			mat_transparent[i] = loaded_object_out.materials[i]->opacity.val < 1.f;
+		js::Vector<bool, 16> mat_transparent(results_out.materials.size());
+		for(size_t i=0; i<results_out.materials.size(); ++i)
+			mat_transparent[i] = results_out.materials[i]->opacity.val < 1.f;
 
 
 		PhysicsShape physics_shape;
 		const int subsample_factor = 1;
 		Indigo::MeshRef indigo_mesh;
-		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(loaded_object_out.getDecompressedVoxelGroup(), subsample_factor, ob->ob_to_world_matrix, task_manager, &vert_buf_allocator, /*do opengl stuff=*/true, 
+		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob->ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/true, 
 			/*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
-		ob->materials.resize(loaded_object_out.materials.size());
-		for(size_t i=0; i<loaded_object_out.materials.size(); ++i)
+		ob->materials.resize(results_out.materials.size());
+		for(size_t i=0; i<results_out.materials.size(); ++i)
 		{
-			setGLMaterialFromWorldMaterialWithLocalPaths(*loaded_object_out.materials[i], ob->materials[i]);
+			setGLMaterialFromWorldMaterialWithLocalPaths(*results_out.materials[i], ob->materials[i]);
 		}
 
-		loaded_object_out.scale.set(use_scale, use_scale, use_scale);
-
-		mesh_out = NULL;
-		return ob;
+		results_out.scale.set(use_scale, use_scale, use_scale);
+		results_out.gl_ob = ob;
 	}
 	else if(hasExtension(model_path, "obj"))
 	{
@@ -513,10 +515,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 		ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip opengl calls=*/false);
 
 		ob->materials.resize(mesh->num_materials_referenced);
-		loaded_object_out.materials/*loaded_materials_out*/.resize(mesh->num_materials_referenced);
+		results_out.materials/*loaded_materials_out*/.resize(mesh->num_materials_referenced);
 		for(uint32 i=0; i<ob->materials.size(); ++i)
 		{
-			loaded_object_out.materials[i] = new WorldMaterial();
+			results_out.materials[i] = new WorldMaterial();
 
 			// Have we parsed such a material from the .mtl file?
 			bool found_mat = false;
@@ -530,10 +532,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
 
-					loaded_object_out.materials[i]->colour_rgb = mats.materials[z].Kd;
-					loaded_object_out.materials[i]->colour_texture_url = tex_path;
-					loaded_object_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
-					loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
+					results_out.materials[i]->colour_rgb = mats.materials[z].Kd;
+					results_out.materials[i]->colour_texture_url = tex_path;
+					results_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
+					results_out.materials[i]->roughness = ScalarVal(0.5f);
 
 					found_mat = true;
 				}
@@ -546,15 +548,15 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 				ob->materials[i].roughness = 0.5f;
 
 				//loaded_materials_out[i]->colour_texture_url = "resources/obstacle.png";
-				loaded_object_out.materials[i]->opacity = ScalarVal(1.f);
-				loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
+				results_out.materials[i]->opacity = ScalarVal(1.f);
+				results_out.materials[i]->roughness = ScalarVal(0.5f);
 			}
 
 			ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
-		mesh_out = new BatchedMesh();
-		mesh_out->buildFromIndigoMesh(*mesh);
-		return ob;
+		results_out.batched_mesh = new BatchedMesh();
+		results_out.batched_mesh->buildFromIndigoMesh(*mesh);
+		results_out.gl_ob = ob;
 	}
 	else if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
 	{
@@ -574,14 +576,13 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		const float scale = getScaleForMesh(*batched_mesh);
 
-		loaded_object_out.pos = Vec3d(0,0,0);
-		loaded_object_out.scale = Vec3f(scale);
-		loaded_object_out.axis = Vec3f(1,0,0);
-		loaded_object_out.angle = Maths::pi_2<float>();
-		loaded_object_out.translation = Vec4f(0.f);
+		results_out.scale = Vec3f(scale);
+		results_out.axis = Vec3f(1,0,0);
+		results_out.angle = Maths::pi_2<float>();
 
 		GLObjectRef gl_ob = gl_engine.allocateObject();
-		gl_ob->ob_to_world_matrix = obToWorldMatrix(loaded_object_out);
+		gl_ob->ob_to_world_matrix = Matrix4f::rotationMatrix(normalise(results_out.axis.toVec4fVector()), results_out.angle) * Matrix4f::scaleMatrix(scale, scale, scale);
+
 		gl_ob->mesh_data = GLMeshBuilding::buildBatchedMesh(&vert_buf_allocator, batched_mesh, /*skip_opengl_calls=*/false, /*instancing_matrix_data=*/NULL);
 
 		gl_ob->mesh_data->animation_data = batched_mesh->animation_data;// gltf_data.anim_data;
@@ -591,10 +592,10 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			throw glare::Exception("mats.materials had incorrect size.");
 
 		gl_ob->materials.resize(bmesh_num_mats_referenced);
-		loaded_object_out.materials.resize(bmesh_num_mats_referenced);
+		results_out.materials.resize(bmesh_num_mats_referenced);
 		for(uint32 i=0; i<bmesh_num_mats_referenced; ++i)
 		{
-			loaded_object_out.materials[i] = new WorldMaterial();
+			results_out.materials[i] = new WorldMaterial();
 
 			const std::string tex_path = gltf_data.materials.materials[i].diffuse_map.path;
 			const std::string metallic_roughness_tex_path = gltf_data.materials.materials[i].metallic_roughness_map.path;
@@ -620,20 +621,20 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			gl_ob->materials[i].transparent = gltf_data.materials.materials[i].alpha < 1.0f;
 			gl_ob->materials[i].metallic_frac = gltf_data.materials.materials[i].metallic;
 
-			loaded_object_out.materials[i]->colour_rgb = gltf_data.materials.materials[i].diffuse;
-			loaded_object_out.materials[i]->colour_texture_url = tex_path;
-			loaded_object_out.materials[i]->roughness.texture_url = metallic_roughness_tex_path; // HACK: just assign to roughness URL
-			loaded_object_out.materials[i]->emission_texture_url = emission_tex_path;
-			loaded_object_out.materials[i]->emission_rgb = gltf_data.materials.materials[i].emissive_factor;
-			loaded_object_out.materials[i]->emission_lum_flux_or_lum = use_emission ? L_v : 0.f;
-			loaded_object_out.materials[i]->opacity = ScalarVal(gl_ob->materials[i].alpha);
-			loaded_object_out.materials[i]->roughness.val = gltf_data.materials.materials[i].roughness;
-			loaded_object_out.materials[i]->opacity.val = gltf_data.materials.materials[i].alpha;
-			loaded_object_out.materials[i]->metallic_fraction.val = gltf_data.materials.materials[i].metallic;
-			loaded_object_out.materials[i]->tex_matrix = Matrix2f(1, 0, 0, -1);
+			results_out.materials[i]->colour_rgb = gltf_data.materials.materials[i].diffuse;
+			results_out.materials[i]->colour_texture_url = tex_path;
+			results_out.materials[i]->roughness.texture_url = metallic_roughness_tex_path; // HACK: just assign to roughness URL
+			results_out.materials[i]->emission_texture_url = emission_tex_path;
+			results_out.materials[i]->emission_rgb = gltf_data.materials.materials[i].emissive_factor;
+			results_out.materials[i]->emission_lum_flux_or_lum = use_emission ? L_v : 0.f;
+			results_out.materials[i]->opacity = ScalarVal(gl_ob->materials[i].alpha);
+			results_out.materials[i]->roughness.val = gltf_data.materials.materials[i].roughness;
+			results_out.materials[i]->opacity.val = gltf_data.materials.materials[i].alpha;
+			results_out.materials[i]->metallic_fraction.val = gltf_data.materials.materials[i].metallic;
+			results_out.materials[i]->tex_matrix = Matrix2f(1, 0, 0, -1);
 		}
-		mesh_out = batched_mesh;
-		return gl_ob;
+		results_out.batched_mesh = batched_mesh;
+		results_out.gl_ob = gl_ob;
 	}
 	else if(hasExtension(model_path, "stl"))
 	{
@@ -662,19 +663,19 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
-			loaded_object_out.materials.resize(mesh->num_materials_referenced);
+			results_out.materials.resize(mesh->num_materials_referenced);
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
 				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
-				loaded_object_out.materials[i] = new WorldMaterial();
+				results_out.materials[i] = new WorldMaterial();
 			}
 
-			mesh_out = new BatchedMesh();
-			mesh_out->buildFromIndigoMesh(*mesh);
-			return ob;
+			results_out.batched_mesh = new BatchedMesh();
+			results_out.batched_mesh->buildFromIndigoMesh(*mesh);
+			results_out.gl_ob = ob;
 		}
 		catch(Indigo::IndigoException& e)
 		{
@@ -698,7 +699,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			ob->mesh_data = GLMeshBuilding::buildIndigoMesh(&vert_buf_allocator, mesh, /*skip_opengl_calls=*/false);
 
 			ob->materials.resize(mesh->num_materials_referenced);
-			loaded_object_out.materials.resize(mesh->num_materials_referenced);
+			results_out.materials.resize(mesh->num_materials_referenced);
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
@@ -707,15 +708,15 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
-				loaded_object_out.materials[i] = new WorldMaterial();
-				//loaded_object_out.materials[i]->colour_texture_url = "resources/obstacle.png";
-				loaded_object_out.materials[i]->opacity = ScalarVal(1.f);
-				loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
+				results_out.materials[i] = new WorldMaterial();
+				//results_out.materials[i]->colour_texture_url = "resources/obstacle.png";
+				results_out.materials[i]->opacity = ScalarVal(1.f);
+				results_out.materials[i]->roughness = ScalarVal(0.5f);
 			}
 			
-			mesh_out = new BatchedMesh();
-			mesh_out->buildFromIndigoMesh(*mesh);
-			return ob;
+			results_out.batched_mesh = new BatchedMesh();
+			results_out.batched_mesh->buildFromIndigoMesh(*mesh);
+			results_out.gl_ob = ob;
 		}
 		catch(Indigo::IndigoException& e)
 		{
@@ -740,7 +741,7 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 
 		const size_t num_mats = bmesh->numMaterialsReferenced();
 		gl_ob->materials.resize(num_mats);
-		loaded_object_out.materials.resize(num_mats);
+		results_out.materials.resize(num_mats);
 		for(uint32 i=0; i<gl_ob->materials.size(); ++i)
 		{
 			// Assign dummy mat
@@ -749,24 +750,26 @@ GLObjectRef ModelLoading::makeGLObjectForModelFile(
 			gl_ob->materials[i].roughness = 0.5f;
 			gl_ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
-			loaded_object_out.materials[i] = new WorldMaterial();
-			//loaded_object_out.materials[i]->colour_texture_url = "resources/obstacle.png";
-			loaded_object_out.materials[i]->opacity = ScalarVal(1.f);
-			loaded_object_out.materials[i]->roughness = ScalarVal(0.5f);
+			results_out.materials[i] = new WorldMaterial();
+			//results_out.materials[i]->colour_texture_url = "resources/obstacle.png";
+			results_out.materials[i]->opacity = ScalarVal(1.f);
+			results_out.materials[i]->roughness = ScalarVal(0.5f);
 		}
 
-		mesh_out = bmesh;
-		return gl_ob;
+		results_out.batched_mesh = bmesh;
+		results_out.gl_ob = gl_ob;
 	}
 	else
 		throw glare::Exception("Format not supported: " + getExtension(model_path));
 }
 
 
-GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, glare::TaskManager& task_manager, 
+GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, 
 	const std::string& image_path, int im_w, int im_h,
 	BatchedMeshRef& mesh_out,
-	WorldObject& loaded_object_out)
+	std::vector<WorldMaterialRef>& world_materials_out,
+	Vec3f& scale_out
+	)
 {
 	float use_w, use_h;
 	if(im_w > im_h)
@@ -780,7 +783,7 @@ GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAll
 		use_w = (float)im_w / (float)im_h;
 	}
 
-	MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(task_manager, vert_buf_allocator);
+	MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(vert_buf_allocator);
 
 	const float depth = 0.02f;
 	const Matrix4f use_matrix = Matrix4f::scaleMatrix(use_w, depth, use_h) * Matrix4f::translationMatrix(-0.5f, 0, 0); // transform in gl preview
@@ -802,19 +805,20 @@ GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAll
 	preview_gl_ob->materials[1].tex_matrix = Matrix2f(1, 0, 0, -1);
 
 
-	loaded_object_out.scale = Vec3f(use_w, depth, use_h);
-	loaded_object_out.materials.resize(2);
+	scale_out = Vec3f(use_w, depth, use_h);
 
-	loaded_object_out.materials[0] = new WorldMaterial();
-	loaded_object_out.materials[0]->colour_rgb = Colour3f(0.9f);
-	loaded_object_out.materials[0]->opacity = ScalarVal(1.f);
-	loaded_object_out.materials[0]->roughness = ScalarVal(0.5f);
-	loaded_object_out.materials[0]->colour_texture_url = image_path;
+	world_materials_out.resize(2);
 
-	loaded_object_out.materials[1] = new WorldMaterial();
-	loaded_object_out.materials[1]->colour_rgb = Colour3f(0.7f);
-	loaded_object_out.materials[1]->opacity = ScalarVal(1.f);
-	loaded_object_out.materials[1]->roughness = ScalarVal(0.5f);
+	world_materials_out[0] = new WorldMaterial();
+	world_materials_out[0]->colour_rgb = Colour3f(0.9f);
+	world_materials_out[0]->opacity = ScalarVal(1.f);
+	world_materials_out[0]->roughness = ScalarVal(0.5f);
+	world_materials_out[0]->colour_texture_url = image_path;
+
+	world_materials_out[1] = new WorldMaterial();
+	world_materials_out[1]->colour_rgb = Colour3f(0.7f);
+	world_materials_out[1]->opacity = ScalarVal(1.f);
+	world_materials_out[1]->roughness = ScalarVal(0.5f);
 
 	mesh_out = new BatchedMesh();
 	mesh_out->buildFromIndigoMesh(*results.indigo_mesh);
@@ -886,13 +890,10 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 }
 
 
-Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelURL(const std::string& lod_model_URL,
-	ResourceManager& resource_manager, glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator,
+Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(const std::string& lod_model_URL,
+	ResourceManager& resource_manager, VertexBufferAllocator* vert_buf_allocator,
 	bool skip_opengl_calls, PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out)
 {
-	// Load Indigo mesh and OpenGL mesh data, or get from mesh_manager if already loaded.
-	Reference<OpenGLMeshRenderData> gl_meshdata;
-
 	// Load mesh from disk:
 	const std::string model_path = resource_manager.pathForURL(lod_model_URL);
 
@@ -954,7 +955,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndRayMeshForModelUR
 		if(batched_mesh->animation_data.vrm_data.nonNull())
 			rotateVRMMesh(*batched_mesh);
 
-	gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
+	Reference<OpenGLMeshRenderData> gl_meshdata = GLMeshBuilding::buildBatchedMesh(vert_buf_allocator, batched_mesh, /*skip opengl calls=*/skip_opengl_calls, /*instancing_matrix_data=*/NULL);
 
 	gl_meshdata->animation_data = batched_mesh->animation_data;
 
@@ -1311,7 +1312,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
-	glare::TaskManager& task_manager, VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, PhysicsShape& physics_shape_out, Indigo::MeshRef& indigo_mesh_out)
+	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, PhysicsShape& physics_shape_out, Indigo::MeshRef& indigo_mesh_out)
 {
 	// Timer timer;
 	StandardPrintOutput print_output;
@@ -1390,8 +1391,6 @@ void ModelLoading::test()
 {
 	conPrint("ModelLoading::test()");
 
-	glare::TaskManager task_manager;
-
 	// Test two adjacent voxels with different materials.  All faces should be added.
 	//{
 	//	VoxelGroup group;
@@ -1419,7 +1418,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 8); // Verts can be shared due to no lightmap UVs.
@@ -1437,7 +1436,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
@@ -1456,7 +1455,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
@@ -1475,7 +1474,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
@@ -1496,7 +1495,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 8);
@@ -1515,7 +1514,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
@@ -1535,7 +1534,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL,
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL,
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, physics_shape, indigo_mesh);
 
 		testEqual(data->getNumVerts(), (size_t)(4 * 3));
@@ -1554,7 +1553,7 @@ void ModelLoading::test()
 
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
-		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), task_manager, /*vert_buf_allocator=*/NULL, 
+		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
 			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
 
 		testEqual(data->getNumVerts(), (size_t)32); // verts half way along the sides of the cuboid can be shared.
