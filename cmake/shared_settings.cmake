@@ -271,6 +271,8 @@ ${UTILS_DIR}/RuntimeCheck.cpp
 ${UTILS_DIR}/RuntimeCheck.h
 ${UTILS_DIR}/GeneralMemAllocator.cpp
 ${UTILS_DIR}/GeneralMemAllocator.h
+${UTILS_DIR}/TopologicalSort.cpp
+${UTILS_DIR}/TopologicalSort.h
 )
 
 
