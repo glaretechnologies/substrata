@@ -209,7 +209,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	force_new_undo_edit(false),
 	log_window(NULL),
 	model_and_texture_loader_task_manager("model and texture loader task manager"),
-	model_building_subsidary_task_manager("model building subsidiary task manager"),
 	task_manager("mainwindow general task manager"),
 	url_parcel_uid(-1),
 	running_destructor(false),
@@ -221,7 +220,6 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	frame_num(0),
 	axis_and_rot_obs_enabled(false)
 {
-	model_building_subsidary_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
 	this->world_ob_pool_allocator = new glare::PoolAllocator(sizeof(WorldObject), 64);
@@ -1555,7 +1553,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				load_model_task->result_msg_queue = &this->msg_queue;
 				load_model_task->resource_manager = resource_manager;
 				load_model_task->voxel_ob = ob;
-				load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
 				load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
 
@@ -1589,7 +1586,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						scatter_task->ob_to_world = ob_to_world_matrix;
 						scatter_task->result_msg_queue = &this->msg_queue;
 						scatter_task->resource_manager = resource_manager;
-						scatter_task->model_building_task_manager = &model_building_subsidary_task_manager;
 						load_item_queue.enqueueItem(*ob, scatter_task, /*task max dist=*/1.0e10f);
 
 						scatter_info_processing.insert(ob->uid);
@@ -1690,7 +1686,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							load_model_task->unit_cube_shape = this->unit_cube_shape;
 							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
-							load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
 							load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
@@ -1873,7 +1868,6 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 					load_model_task->unit_cube_shape = this->unit_cube_shape;
 					load_model_task->result_msg_queue = &this->msg_queue;
 					load_model_task->resource_manager = resource_manager;
-					load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
 					load_item_queue.enqueueItem(*avatar, load_model_task, max_dist_for_ob_model_lod_level, our_avatar);
 				}
@@ -4893,7 +4887,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								load_model_task->unit_cube_shape = this->unit_cube_shape;
 								load_model_task->result_msg_queue = &this->msg_queue;
 								load_model_task->resource_manager = resource_manager;
-								load_model_task->model_building_task_manager = &model_building_subsidary_task_manager;
 
 								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, load_model_task, 
 									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
@@ -6395,26 +6388,23 @@ void MainWindow::updateStatusBar()
 
 void MainWindow::on_actionAvatarSettings_triggered()
 {
-	AvatarSettingsDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
-	const int res = d.exec();
-	d.shutdownGL();
+	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
+	const int res = dialog.exec();
+	dialog.shutdownGL();
 	ui->glWidget->makeCurrent();
-	if((res == QDialog::Accepted) && d.loaded_object.nonNull())
+	if((res == QDialog::Accepted) && dialog.loaded_mesh.nonNull()) //  loaded_object.nonNull()) // If the dialog was accepted, and we loaded something:
 	{
 		try
 		{
 			if(!this->logged_in_user_id.valid())
 				throw glare::Exception("You must be logged in to set your avatar model");
 
-			if(d.loaded_mesh.isNull())
-				throw glare::Exception("Model was not loaded."); // TEMP
-
 			std::string mesh_URL;
-			if(d.result_path != "")
+			if(dialog.result_path != "")
 			{
 				// If the user selected a mesh that is not a bmesh, convert it to bmesh
-				std::string bmesh_disk_path = d.result_path;
-				if(!hasExtension(d.result_path, "bmesh"))
+				std::string bmesh_disk_path = dialog.result_path;
+				if(!hasExtension(dialog.result_path, "bmesh"))
 				{
 					// Save as bmesh in temp location
 					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
@@ -6422,17 +6412,17 @@ void MainWindow::on_actionAvatarSettings_triggered()
 					BatchedMesh::WriteOptions write_options;
 					write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
 					// TODO: show 'processing...' dialog while it compresses and saves?
-					d.loaded_mesh->writeToFile(bmesh_disk_path, write_options);
+					dialog.loaded_mesh->writeToFile(bmesh_disk_path, write_options);
 				}
 				else
 				{
-					bmesh_disk_path = d.result_path;
+					bmesh_disk_path = dialog.result_path;
 				}
 
 				// Compute hash over model
 				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
 
-				const std::string original_filename = FileUtils::getFilename(d.result_path); // Use the original filename, not 'temp.igmesh'.
+				const std::string original_filename = FileUtils::getFilename(dialog.result_path); // Use the original filename, not 'temp.igmesh'.
 				mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
 
 				// Copy model to local resources dir.  UploadResourceThread will read from here.
@@ -6446,8 +6436,8 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.name = this->logged_in_user_name;
 			avatar.avatar_settings.model_url = mesh_URL;
-			avatar.avatar_settings.pre_ob_to_world_matrix = d.pre_ob_to_world_matrix;
-			avatar.avatar_settings.materials = d.loaded_object->materials;
+			avatar.avatar_settings.pre_ob_to_world_matrix = dialog.pre_ob_to_world_matrix;
+			avatar.avatar_settings.materials = dialog.loaded_materials;
 
 
 			// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
@@ -6854,48 +6844,47 @@ void MainWindow::on_actionAddObject_triggered()
 		return;
 	}
 
-	AddObjectDialog d(this->base_dir_path, this->settings, this->texture_server, this->resource_manager, 
+	AddObjectDialog dialog(this->base_dir_path, this->settings, this->texture_server, this->resource_manager, 
 #ifdef _WIN32
 		this->device_manager.ptr
 #else
 		NULL
 #endif
 	);
-	const int res = d.exec();
-	d.shutdownGL();
+	const int res = dialog.exec();
+	dialog.shutdownGL();
 	ui->glWidget->makeCurrent();
 
-	if((res == QDialog::Accepted) && d.loaded_object.nonNull())
+	if((res == QDialog::Accepted) && !dialog.loaded_materials.empty()) // If dialog was accepted, and we loaded an object successfully in it:
 	{
-		// Try and load model
 		try
 		{
-			const Vec3d adjusted_ob_pos = ob_pos + cam_controller.getRightVec() * d.ob_cam_right_translation + cam_controller.getUpVec() * d.ob_cam_up_translation; // Centre object in front of camera
+			const Vec3d adjusted_ob_pos = ob_pos + cam_controller.getRightVec() * dialog.ob_cam_right_translation + cam_controller.getUpVec() * dialog.ob_cam_up_translation; // Centre object in front of camera
 
 			// Some mesh types have a rotation to bring them to our z-up convention.  Don't change the rotation on those.
 			Vec3f axis(0, 0, 1);
 			float angle = 0;
-			if(d.loaded_object->axis == Vec3f(0, 0, 1))
+			if(dialog.axis == Vec3f(0, 0, 1))
 			{
 				// If we don't have a rotation to z-up, make object face camera.
 				angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle, facing camera.
 			}
 			else
 			{
-				axis = d.loaded_object->axis;
-				angle = d.loaded_object->angle;
+				axis = dialog.axis;
+				angle = dialog.angle;
 			}
 
 			createObject(
-				d.result_path,
-				d.loaded_mesh,
-				d.loaded_mesh_is_image_cube,
-				d.loaded_object->getDecompressedVoxels(),
+				dialog.result_path,
+				dialog.loaded_mesh,
+				dialog.loaded_mesh_is_image_cube,
+				dialog.loaded_voxels,
 				adjusted_ob_pos,
-				d.loaded_object->scale,
+				dialog.scale,
 				axis,
 				angle,
-				d.loaded_object->materials
+				dialog.loaded_materials
 			);
 		}
 		catch(glare::Exception& e)
@@ -7263,30 +7252,23 @@ void MainWindow::createModelObject(const std::string& local_model_path)
 		return;
 	}
 
-	WorldObjectRef new_world_object = new WorldObject();
-	new_world_object->axis = Vec3f(0, 0, 1);
-	new_world_object->angle = 0;
-	new_world_object->scale = Vec3f(1, 1, 1);
-
-	// Load mesh.  Updates new_world_object scale etc.
-	BatchedMeshRef loaded_mesh;
-	GLObjectRef preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_model_path,
-		loaded_mesh, // mesh out
-		*new_world_object
+	ModelLoading::MakeGLObjectResults results;
+	ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, local_model_path,
+		results
 	);
 
 	const Vec3d adjusted_ob_pos = ob_pos;
 
 	createObject(
 		local_model_path, // mesh path
-		loaded_mesh,
+		results.batched_mesh,
 		false, // loaded_mesh_is_image_cube
-		new_world_object->getDecompressedVoxels(),
+		results.voxels.voxels,
 		adjusted_ob_pos,
-		new_world_object->scale,
-		new_world_object->axis,
-		new_world_object->angle,
-		new_world_object->materials
+		results.scale,
+		results.axis,
+		results.angle,
+		results.materials
 	);
 }
 
@@ -7296,11 +7278,17 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 	// NOTE: adapted from AddObjectDialog::makeMeshForWidthAndHeight()
 
 	BatchedMeshRef batched_mesh;
-	WorldObjectRef new_world_object = new WorldObject();
-	GLObjectRef gl_ob = ModelLoading::makeImageCube(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_path, w, h, batched_mesh, *new_world_object);
+	std::vector<WorldMaterialRef> world_materials;
+	Vec3f scale;
+	GLObjectRef gl_ob = ModelLoading::makeImageCube(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, local_image_path, w, h, batched_mesh, world_materials, scale);
 
-	const float ob_cam_right_translation = -new_world_object->scale.x/2;
-	const float ob_cam_up_translation    = -new_world_object->scale.z/2;
+	WorldObjectRef new_world_object = new WorldObject();
+	new_world_object->materials = world_materials;
+	new_world_object->scale = scale;
+
+
+	const float ob_cam_right_translation = -scale.x/2;
+	const float ob_cam_up_translation    = -scale.z/2;
 
 	const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2.0f + 
 		cam_controller.getRightVec() * ob_cam_right_translation + cam_controller.getUpVec() * ob_cam_up_translation; // Centre object in front of camera
@@ -8298,7 +8286,7 @@ void MainWindow::objectEditedSlot()
 		if(start_new_edit)
 			undo_buffer.startWorldObjectEdit(*this->selected_ob);
 
-		ui->objectEditor->toObject(*this->selected_ob);
+		ui->objectEditor->toObject(*this->selected_ob); // Sets changed_flags on object as well.
 
 		if(start_new_edit)
 			undo_buffer.finishWorldObjectEdit(*this->selected_ob);
@@ -8310,14 +8298,14 @@ void MainWindow::objectEditedSlot()
 
 		setMaterialFlagsForObject(selected_ob.ptr());
 
-		// Copy all dependencies into resource directory if they are not there already.
-		// URLs will actually be paths from editing for now.
-		WorldObject::GetDependencyOptions options;
-		std::vector<DependencyURL> URLs;
-		this->selected_ob->appendDependencyURLsBaseLevel(options, URLs);
-
 		try
 		{
+			// Copy all dependencies into resource directory if they are not there already.
+			// URLs will actually be paths from editing for now.
+			WorldObject::GetDependencyOptions options;
+			std::vector<DependencyURL> URLs;
+			this->selected_ob->appendDependencyURLsBaseLevel(options, URLs);
+
 			for(size_t i=0; i<URLs.size(); ++i)
 			{
 				if(FileUtils::fileExists(URLs[i].URL)) // If this was a local path:
@@ -8338,10 +8326,11 @@ void MainWindow::objectEditedSlot()
 			msgBox.exec();
 		}
 
-		
 
 		this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
+		// Generate LOD textures for materials, if not already present on disk.
+		// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
 		LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, task_manager);
 
 		const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
@@ -8487,13 +8476,13 @@ void MainWindow::objectEditedSlot()
 					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
 					ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
-				// Update physics object transform
-				selected_ob->physics_object->collidable = selected_ob->isCollidable();
-				physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
-					selected_ob->scale.toVec4fVector());
+					// Update physics object transform
+					selected_ob->physics_object->collidable = selected_ob->isCollidable();
+					physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+						selected_ob->scale.toVec4fVector());
 
-				// Update in Indigo view
-				ui->indigoView->objectTransformChanged(*selected_ob);
+					// Update in Indigo view
+					ui->indigoView->objectTransformChanged(*selected_ob);
 
 					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
@@ -9692,7 +9681,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		const int subsample_factor = 1;
-		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world, task_manager, 
+		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
 			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
 
 		GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
@@ -11487,14 +11476,14 @@ int main(int argc, char *argv[])
 
 			// Make spotlight meshes
 			{
-				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(cyberspace_base_dir_path, mw.task_manager, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
+				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeSpotlightMeshes(cyberspace_base_dir_path, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 				mw.spotlight_opengl_mesh = results.opengl_mesh_data;
 				mw.spotlight_shape = results.physics_shape;
 			}
 
 			// Make image cube meshes
 			{
-				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(mw.task_manager, *mw.ui->glWidget->opengl_engine->vert_buf_allocator);
+				MeshBuilding::MeshBuildingResults results = MeshBuilding::makeImageCube(*mw.ui->glWidget->opengl_engine->vert_buf_allocator);
 				mw.image_cube_opengl_mesh = results.opengl_mesh_data;
 				mw.image_cube_shape = results.physics_shape;
 			}
@@ -11716,26 +11705,26 @@ int main(int argc, char *argv[])
 				// Test loading a vox file
 				if(false)
 				{
-					BatchedMeshRef mesh;
-					WorldObjectRef world_object = new WorldObject();
+					//BatchedMeshRef mesh;
+					//WorldObjectRef world_object = new WorldObject();
 
-					//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\teapot.vox";
-					//const std::string path = "D:\\downloads\\monu1.vox";
-					//const std::string path = "D:\\downloads\\chr_knight.vox";
-					//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\test.vox";
-					//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\monu10.vox";
-					const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
+					////const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\teapot.vox";
+					////const std::string path = "D:\\downloads\\monu1.vox";
+					////const std::string path = "D:\\downloads\\chr_knight.vox";
+					////const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\test.vox";
+					////const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\monu10.vox";
+					//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
 
-					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
-						//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
-						mesh,
-						*world_object
-					);
+					//glare::TaskManager task_manager;
+					//GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+					//	//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
+					//	mesh,
+					//	*world_object
+					//);
 
-					ob->ob_to_world_matrix = Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f);
+					//ob->ob_to_world_matrix = Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f);
 
-					mw.ui->glWidget->opengl_engine->addObject(ob);
+					//mw.ui->glWidget->opengl_engine->addObject(ob);
 
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}
@@ -11770,43 +11759,43 @@ int main(int argc, char *argv[])
 
 				if(false)
 				{
-					const std::string path = "D:\\models\\zomb_elm\\elm_LOD0.glb";
+					//const std::string path = "D:\\models\\zomb_elm\\elm_LOD0.glb";
 
-					WorldObjectRef proto_world_object = new WorldObject();
-					BatchedMeshRef mesh;
-					glare::TaskManager task_manager;
-					GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
-						mesh,
-						*proto_world_object
-					);
+					//WorldObjectRef proto_world_object = new WorldObject();
+					//BatchedMeshRef mesh;
+					//glare::TaskManager task_manager;
+					//GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+					//	mesh,
+					//	*proto_world_object
+					//);
 
-					for(int x=0; x<20; ++x)
-					for(int y=0; y<20; ++y)
-					{
-						/*WorldObjectRef world_object = new WorldObject();
-						world_object->pos = Vec3d(x*5, y*5, 2);
-						world_object->scale = Vec3f(1.f);
-						world_object->axis = Vec3f(1.f, 0, 0);
-						world_object->angle = Maths::pi<float>() / 2;
-						world_object->model_url = FileUtils::getFilename(path);
-						world_object->max_model_lod_level = 0;
-						world_object->g*/
+					//for(int x=0; x<20; ++x)
+					//for(int y=0; y<20; ++y)
+					//{
+					//	/*WorldObjectRef world_object = new WorldObject();
+					//	world_object->pos = Vec3d(x*5, y*5, 2);
+					//	world_object->scale = Vec3f(1.f);
+					//	world_object->axis = Vec3f(1.f, 0, 0);
+					//	world_object->angle = Maths::pi<float>() / 2;
+					//	world_object->model_url = FileUtils::getFilename(path);
+					//	world_object->max_model_lod_level = 0;
+					//	world_object->g*/
 
-						GLObjectRef new_ob = mw.ui->glWidget->opengl_engine->allocateObject();
-						new_ob->mesh_data = ob->mesh_data;
-						new_ob->ob_to_world_matrix = Matrix4f::translationMatrix(x*5.f, 5 + y*5.f, 0) * Matrix4f::uniformScaleMatrix(0.02f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
-						new_ob->materials = ob->materials;
+					//	GLObjectRef new_ob = mw.ui->glWidget->opengl_engine->allocateObject();
+					//	new_ob->mesh_data = ob->mesh_data;
+					//	new_ob->ob_to_world_matrix = Matrix4f::translationMatrix(x*5.f, 5 + y*5.f, 0) * Matrix4f::uniformScaleMatrix(0.02f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+					//	new_ob->materials = ob->materials;
 
-						
-						mw.ui->glWidget->opengl_engine->addObject(new_ob);
-					}
+					//	
+					//	mw.ui->glWidget->opengl_engine->addObject(new_ob);
+					//}
 
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}
 
 				if(false)
 				{
-					BatchedMeshRef mesh;
+				/*	BatchedMeshRef mesh;
 					WorldObjectRef world_object = new WorldObject();
 
 					const std::string path = "D:\\models\\dancedevil_glb_16934124793649044515_lod2.bmesh";
@@ -11819,7 +11808,7 @@ int main(int argc, char *argv[])
 
 					ob->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,2) * Matrix4f::uniformScaleMatrix(0.03f);
 
-					mw.ui->glWidget->opengl_engine->addObject(ob);
+					mw.ui->glWidget->opengl_engine->addObject(ob);*/
 
 					//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
 				}

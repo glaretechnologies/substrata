@@ -280,7 +280,10 @@ void ObjectEditor::setTransformFromObject(const WorldObject& ob)
 
 void ObjectEditor::toObject(WorldObject& ob_out)
 {
-	ob_out.model_url  = QtUtils::toIndString(this->modelFileSelectWidget->filename());
+	const std::string new_model_url = QtUtils::toIndString(this->modelFileSelectWidget->filename());
+	if(ob_out.model_url != new_model_url)
+		ob_out.changed_flags |= WorldObject::MODEL_URL_CHANGED;
+	ob_out.model_url = new_model_url;
 
 	const std::string new_script =  QtUtils::toIndString(this->scriptTextEdit->toPlainText());
 	if(ob_out.script != new_script)

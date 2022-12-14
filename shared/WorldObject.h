@@ -243,6 +243,7 @@ public:
 
 	static const uint32 AUDIO_SOURCE_URL_CHANGED	= 1; // Set when audio_source_url is changed
 	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed
+	static const uint32 MODEL_URL_CHANGED			= 4;
 	uint32 changed_flags;
 
 	bool using_placeholder_model;

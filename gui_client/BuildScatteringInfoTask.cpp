@@ -56,7 +56,7 @@ void BuildScatteringInfoTask::run(size_t thread_index)
 
 				const bool need_lightmap_uvs = false;//!voxel_ob->lightmap_url.empty();
 				Indigo::MeshRef indigo_mesh;
-				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, /*subsample_factor=*/1, ob_to_world_matrix, *model_building_task_manager, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
+				gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, /*subsample_factor=*/1, ob_to_world_matrix, /*vert_buf_allocator=*/NULL, /*do_opengl_stuff=*/false, 
 					need_lightmap_uvs, mat_transparent, /*physics shape out=*/physics_shape, /*indigo mesh out=*/indigo_mesh);
 
 				raymesh->fromIndigoMesh(*indigo_mesh);
@@ -70,8 +70,7 @@ void BuildScatteringInfoTask::run(size_t thread_index)
 
 			// We want to load and build the mesh at lod_model_url.
 			// conPrint("LoadModelTask: loading mesh with URL '" + lod_model_url + "'.");
-			gl_meshdata = ModelLoading::makeGLMeshDataAndRayMeshForModelURL(lod_model_url, *this->resource_manager,
-				*model_building_task_manager, 
+			gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(lod_model_url, *this->resource_manager,
 				/*vert_buf_allocator=*/NULL, 
 				true, // skip_opengl_calls - we need to do these on the main thread.
 				/*physics shape out=*/physics_shape,

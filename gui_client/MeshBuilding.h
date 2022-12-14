@@ -39,11 +39,11 @@ public:
 
 	// Make a cube with the first material on the front and back faces (-y and +y directions), and the second material on the side faces.
 	// Loads mesh data into current OpenGL context.
-	static MeshBuildingResults makeImageCube(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
+	static MeshBuildingResults makeImageCube(VertexBufferAllocator& allocator);
 
-	static MeshBuildingResults makeSpotlightMeshes(const std::string& base_dir_path, glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
+	static MeshBuildingResults makeSpotlightMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator);
 
-	static PhysicsShape makeUnitCubePhysicsShape(glare::TaskManager& task_manager, VertexBufferAllocator& allocator);
+	static PhysicsShape makeUnitCubePhysicsShape(VertexBufferAllocator& allocator);
 
 	static Reference<OpenGLMeshRenderData> makeRotationArcHandleMeshData(VertexBufferAllocator& allocator, float arc_end_angle);
 };

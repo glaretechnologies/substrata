@@ -48,6 +48,5 @@ public:
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
 
 	Reference<ResourceManager> resource_manager;
-	glare::TaskManager* model_building_task_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };

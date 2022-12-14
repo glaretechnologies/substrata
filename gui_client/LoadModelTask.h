@@ -63,6 +63,5 @@ public:
 	PhysicsShape unit_cube_shape;
 	Reference<OpenGLEngine> opengl_engine;
 	Reference<ResourceManager> resource_manager;
-	glare::TaskManager* model_building_task_manager;
 	ThreadSafeQueue<Reference<ThreadMessage> >* result_msg_queue;
 };

@@ -132,10 +132,6 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 
 	this->avatarPreviewGLWidget->makeCurrent();
 
-	this->loaded_object = new WorldObject();
-	this->loaded_object->scale.set(1, 1, 1);
-	this->loaded_object->axis = Vec3f(1, 0, 0);
-	this->loaded_object->angle = 0;
 	this->pre_ob_to_world_matrix = Matrix4f::identity();
 
 	// Try and load model
@@ -144,12 +140,14 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		if(preview_gl_ob.nonNull())
 			avatarPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob); // Remove previous object from engine.
 
-		glare::TaskManager task_manager;
-
-		preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*avatarPreviewGLWidget->opengl_engine, *avatarPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, use_local_path,
-			this->loaded_mesh, // mesh out
-			*this->loaded_object
+		ModelLoading::MakeGLObjectResults results;
+		ModelLoading::makeGLObjectForModelFile(*avatarPreviewGLWidget->opengl_engine, *avatarPreviewGLWidget->opengl_engine->vert_buf_allocator, use_local_path,
+			results
 		);
+
+		this->preview_gl_ob = results.gl_ob;
+		this->loaded_mesh = results.batched_mesh;
+		this->loaded_materials = results.materials;
 
 		/*Vec4f original_left_eye_pos = preview_gl_ob->mesh_data->animation_data.getNodePositionModelSpace("LeftEye");
 		if(original_left_eye_pos == Vec4f(0,0,0,1))
@@ -197,20 +195,20 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		preview_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -foot_bottom_height) * preview_gl_ob->ob_to_world_matrix;
 
 		// Try and load textures
-		AddObjectDialog::tryLoadTexturesForPreviewOb(preview_gl_ob, loaded_object, avatarPreviewGLWidget->opengl_engine.ptr(), this->avatarPreviewGLWidget->texture_server_ptr, this);
+		AddObjectDialog::tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, avatarPreviewGLWidget->opengl_engine.ptr(), this->avatarPreviewGLWidget->texture_server_ptr, this);
 
 		avatarPreviewGLWidget->opengl_engine->addObject(preview_gl_ob);
 	}
 	catch(Indigo::IndigoException& e)
 	{
-		this->loaded_object = NULL;
+		this->loaded_mesh = NULL;
 
 		if(show_error_dialogs)
 			QtUtils::showErrorMessageDialog(QtUtils::toQString(e.what()), this);
 	}
 	catch(glare::Exception& e)
 	{
-		this->loaded_object = NULL;
+		this->loaded_mesh = NULL;
 
 		if(show_error_dialogs)
 			QtUtils::showErrorMessageDialog(QtUtils::toQString(e.what()), this);

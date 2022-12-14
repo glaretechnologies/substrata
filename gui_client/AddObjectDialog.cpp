@@ -1,8 +1,7 @@
 /*=====================================================================
 AddObjectDialog.cpp
-------------------------
-File created by ClassTemplate on Wed Oct 07 15:16:48 2009
-Code By Nicholas Chapman.
+-------------------
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "AddObjectDialog.h"
 
@@ -65,8 +64,6 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 	connect(this->urlLineEdit, SIGNAL(editingFinished()), this, SLOT(urlEditingFinished()));
 
 	startTimer(10);
-
-	//loaded_model = false;
 
 	thread_manager.addThread(new NetDownloadResourcesThread(&this->msg_queue, resource_manager_, &num_net_resources_downloading));
 
@@ -156,10 +153,13 @@ void AddObjectDialog::filenameChanged(QString& filename)
 
 
 // Sets preview_gl_ob and loaded_object
-void AddObjectDialog::makeMeshForWidthAndHeight(glare::TaskManager& task_manager, const std::string& local_image_or_vid_path, int w, int h)
+void AddObjectDialog::makeMeshForWidthAndHeight(const std::string& local_image_or_vid_path, int w, int h)
 {
-	this->preview_gl_ob = ModelLoading::makeImageCube(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_image_or_vid_path, w, h,
-		this->loaded_mesh, *this->loaded_object);
+	this->preview_gl_ob = ModelLoading::makeImageCube(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, local_image_or_vid_path, w, h,
+		this->loaded_mesh, 
+		this->loaded_materials, // world_materials_out
+		this->scale // scale_out
+	);
 }
 
 
@@ -172,10 +172,10 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 	this->ob_cam_right_translation = 0;
 	this->ob_cam_up_translation = 0;
 
-	this->loaded_object = new WorldObject();
-	this->loaded_object->scale.set(1, 1, 1);
-	this->loaded_object->axis = Vec3f(0, 0, 1);
-	this->loaded_object->angle = 0;
+	this->loaded_materials.clear();
+	this->scale = Vec3f(1.f);
+	this->axis = Vec3f(0, 0, 1);
+	this->angle = 0;
 
 	// Try and load model
 	try
@@ -186,8 +186,6 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			objectPreviewGLWidget->opengl_engine->removeObject(preview_gl_ob);
 		}
 
-
-		glare::TaskManager task_manager;
 
 		if(hasExtension(local_path, "mp4"))
 		{
@@ -200,7 +198,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			if(frameinfo.isNull())
 				throw glare::Exception("frame was null. (EOS?)");
 
-			makeMeshForWidthAndHeight(task_manager, local_path, (int)frameinfo->width, (int)frameinfo->height);
+			makeMeshForWidthAndHeight(local_path, (int)frameinfo->width, (int)frameinfo->height);
 
 			// Load frame 0 into opengl texture
 			preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(frameinfo->width, frameinfo->height, objectPreviewGLWidget->opengl_engine.ptr(),
@@ -247,7 +245,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			{
 				const int W = video_surface->current_format.frameWidth();
 				const int H = video_surface->current_format.frameHeight();
-				makeMeshForWidthAndHeight(task_manager, local_path, W, H);
+				makeMeshForWidthAndHeight(local_path, W, H);
 
 				// Load frame 0 into opengl texture
 				preview_gl_ob->materials[0].albedo_texture = new OpenGLTexture(W, H, objectPreviewGLWidget->opengl_engine.ptr(),
@@ -265,7 +263,7 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			}
 			else
 			{
-				makeMeshForWidthAndHeight(task_manager, local_path, 1024, 1024);
+				makeMeshForWidthAndHeight(local_path, 1024, 1024);
 			}
 
 			delete media_player;
@@ -278,24 +276,34 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 			// We will scale our model so it has the same aspect ratio.
 			Reference<Map2D> im = ImageDecoding::decodeImage(base_dir_path, local_path);
 
-			makeMeshForWidthAndHeight(task_manager, local_path, (int)im->getMapWidth(), (int)im->getMapHeight());
+			makeMeshForWidthAndHeight(local_path, (int)im->getMapWidth(), (int)im->getMapHeight());
 			
-			BitUtils::setOrZeroBit(loaded_object->materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, LODGeneration::textureHasAlphaChannel(local_path, im)); // Set COLOUR_TEX_HAS_ALPHA_FLAG flag
+			BitUtils::setOrZeroBit(loaded_materials[0]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, LODGeneration::textureHasAlphaChannel(local_path, im)); // Set COLOUR_TEX_HAS_ALPHA_FLAG flag
 
 			this->loaded_mesh_is_image_cube = true;
 		}
 		else if(ModelLoading::hasSupportedModelExtension(local_path))
 		{
-			preview_gl_ob = ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, task_manager, local_path,
-				this->loaded_mesh, // mesh out
-				*this->loaded_object
+			ModelLoading::MakeGLObjectResults results;
+			ModelLoading::makeGLObjectForModelFile(*objectPreviewGLWidget->opengl_engine, *objectPreviewGLWidget->opengl_engine->vert_buf_allocator, local_path,
+				results
 			);
+
+			this->preview_gl_ob = results.gl_ob;
+
+			this->loaded_mesh = results.batched_mesh;
+			this->loaded_voxels = results.voxels.voxels;
+
+			this->loaded_materials = results.materials;
+			this->scale = results.scale;
+			this->axis = results.axis;
+			this->angle = results.angle;
 		}
 		else
 			throw glare::Exception("file did not have a supported image, video, or model extension: '" + getExtension(local_path) + "'");
 
 		// Try and load textures
-		tryLoadTexturesForPreviewOb(preview_gl_ob, loaded_object, objectPreviewGLWidget->opengl_engine.ptr(), this->objectPreviewGLWidget->texture_server_ptr, this);
+		tryLoadTexturesForPreviewOb(preview_gl_ob, this->loaded_materials, objectPreviewGLWidget->opengl_engine.ptr(), this->objectPreviewGLWidget->texture_server_ptr, this);
 
 		// Offset object vertically so it rests on the ground plane.
 		const js::AABBox cur_aabb_ws = preview_gl_ob->mesh_data->aabb_os.transformedAABBFast(preview_gl_ob->ob_to_world_matrix);
@@ -306,20 +314,20 @@ void AddObjectDialog::loadModelIntoPreview(const std::string& local_path)
 	}
 	catch(Indigo::IndigoException& e)
 	{
-		this->loaded_object = NULL;
+		this->loaded_materials.clear();
 
 		QtUtils::showErrorMessageDialog(QtUtils::toQString(e.what()), this);
 	}
 	catch(glare::Exception& e)
 	{
-		this->loaded_object = NULL;
+		this->loaded_materials.clear();
 
 		QtUtils::showErrorMessageDialog(QtUtils::toQString(e.what()), this);
 	}
 }
 
 
-void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, WorldObjectRef loaded_object, OpenGLEngine* opengl_engine, 
+void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, std::vector<WorldMaterialRef>& world_materials/*WorldObjectRef loaded_object*/, OpenGLEngine* opengl_engine, 
 	TextureServer* texture_server_ptr, QWidget* parent_widget)
 {
 	// Try and load textures.  Report any errors but continue with the loading.
@@ -335,14 +343,14 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 				Reference<Map2D> map = texture_server_ptr->getTexForPath(".", albedo_tex_path); // Hopefully is arleady loaded
 
 				const bool has_alpha = LODGeneration::textureHasAlphaChannel(albedo_tex_path, map);// preview_gl_ob->materials[i].albedo_texture->hasAlpha();// && !preview_gl_ob->materials[i].albedo_texture->isAlphaChannelAllWhite();
-				BitUtils::setOrZeroBit(loaded_object->materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
+				BitUtils::setOrZeroBit(world_materials[i]->flags, WorldMaterial::COLOUR_TEX_HAS_ALPHA_FLAG, has_alpha);
 			}
 			catch(glare::Exception& e)
 			{
 				QtUtils::showErrorMessageDialog(QtUtils::toQString("Error while loading model texture: '" + albedo_tex_path + "': " + e.what() + 
 					"\nLoading will continue without this texture"), parent_widget);
 
-				loaded_object->materials[i]->colour_texture_url = ""; // Clear texture in WorldMaterial, so we don't insert an invalid texture into the world.
+				world_materials[i]->colour_texture_url = ""; // Clear texture in WorldMaterial, so we don't insert an invalid texture into the world.
 			}
 		}
 
@@ -358,7 +366,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 				QtUtils::showErrorMessageDialog(QtUtils::toQString("Error while loading model texture: '" + metallic_roughness_tex_path + "': " + e.what() +
 					"\nLoading will continue without this texture"), parent_widget);
 
-				loaded_object->materials[i]->roughness.texture_url = ""; // Clear texture in WorldMaterial
+				world_materials[i]->roughness.texture_url = ""; // Clear texture in WorldMaterial
 			}
 		}
 
@@ -374,7 +382,7 @@ void AddObjectDialog::tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl
 				QtUtils::showErrorMessageDialog(QtUtils::toQString("Error while loading model texture: '" + emission_tex_path + "': " + e.what() +
 					"\nLoading will continue without this texture"), parent_widget);
 
-				loaded_object->materials[i]->emission_texture_url = ""; // Clear texture in WorldMaterial
+				world_materials[i]->emission_texture_url = ""; // Clear texture in WorldMaterial
 			}
 		}
 	}

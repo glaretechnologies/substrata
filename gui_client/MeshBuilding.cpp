@@ -23,7 +23,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/StandardPrintOutput.h>
 
 
-MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
+MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAllocator& allocator)
 {
 	Indigo::MeshRef mesh = new Indigo::Mesh();
 	mesh->num_uv_mappings = 1;
@@ -140,7 +140,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(glare::TaskManager
 }
 
 
-MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::string& base_dir_path, glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
+MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::string& base_dir_path, VertexBufferAllocator& allocator)
 {
 	const std::string model_path = base_dir_path + "/resources/spotlight5.glb";
 
@@ -216,7 +216,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 }
 
 
-PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(glare::TaskManager& task_manager, VertexBufferAllocator& allocator)
+PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(VertexBufferAllocator& allocator)
 {
 	Indigo::MeshRef mesh = new Indigo::Mesh();
 	mesh->num_uv_mappings = 0;
