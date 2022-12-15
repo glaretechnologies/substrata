@@ -7534,9 +7534,15 @@ void MainWindow::on_actionCloneObject_triggered()
 {
 	if(this->selected_ob.nonNull())
 	{
-		const double dist_to_ob = this->selected_ob->pos.getDist(this->cam_controller.getPosition());
+		// Position cloned object besides the source object.
+		// Translate along an axis depending on the camera viewpoint.
+		Vec3d use_offset_vec;
+		if(std::fabs(cam_controller.getRightVec().x) > std::fabs(cam_controller.getRightVec().y))
+			use_offset_vec = (cam_controller.getRightVec().x > 0) ? Vec3d(1,0,0) : Vec3d(-1,0,0);
+		else
+			use_offset_vec = (cam_controller.getRightVec().y > 0) ? Vec3d(0,1,0) : Vec3d(0,-1,0);
 
-		const Vec3d new_ob_pos = this->selected_ob->pos + this->cam_controller.getRightVec() * dist_to_ob * 0.2;
+		const Vec3d new_ob_pos = this->selected_ob->pos + use_offset_vec;
 
 		bool ob_pos_in_parcel;
 		const bool have_creation_perms = haveParcelObjectCreatePermissions(new_ob_pos, ob_pos_in_parcel);
