@@ -7343,6 +7343,21 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 }
 
 
+static bool isObjectWithPosition(const Vec3d& pos, WorldState* world_state)
+{
+	Lock lock(world_state->mutex);
+
+	for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+	{
+		WorldObject* ob = it.getValue().ptr();
+		if(ob->pos == pos)
+			return true;
+	}
+	
+	return false;
+}
+
+
 void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 {
 	try
@@ -7402,14 +7417,43 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					WorldObjectRef pasted_ob = new WorldObject();
 					readFromStream(in_stream_buf, *pasted_ob);
 
-					// Position pasted object in front of the camera
-					const float ob_w = pasted_ob->aabb_ws.longestLength();
-					const Vec3d ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * myMax(2.f, ob_w * 2.0f);
-					pasted_ob->pos = ob_pos;
+					// Choose a position for the pasted object.
+					Vec3d new_ob_pos;
+					if(pasted_ob->pos.getDist(this->cam_controller.getFirstPersonPosition()) > 50.0) // If the source object is far from the camera:
+					{
+						// Position pasted object in front of the camera.
+						const float ob_w = pasted_ob->aabb_ws.longestLength();
+						new_ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * myMax(2.f, ob_w * 2.0f);
+					}
+					else
+					{
+						// If the camera is near the source object, position pasted object besides the source object.
+						// Translate along an axis depending on the camera viewpoint.
+						Vec3d use_offset_vec;
+						if(std::fabs(cam_controller.getRightVec().x) > std::fabs(cam_controller.getRightVec().y))
+							use_offset_vec = (cam_controller.getRightVec().x > 0) ? Vec3d(1,0,0) : Vec3d(-1,0,0);
+						else
+							use_offset_vec = (cam_controller.getRightVec().y > 0) ? Vec3d(0,1,0) : Vec3d(0,-1,0);
+
+						// We don't want to paste directly in the same place as another object (for example a previously pasted object), otherwise users can create duplicate objects by mistake and lose them.
+						// So check if there is already an object there, and choose another position if so.
+						new_ob_pos = pasted_ob->pos;
+						for(int i=0; i<100; ++i)
+						{
+							const Vec3d tentative_pos = pasted_ob->pos + use_offset_vec * (i + 1) * 0.5f;
+							if(!isObjectWithPosition(tentative_pos, world_state.ptr()))
+							{
+								new_ob_pos = tentative_pos;
+								break;
+							}
+						}
+					}
+
+					pasted_ob->pos = new_ob_pos;
 
 					// Check permissions
 					bool ob_pos_in_parcel;
-					const bool have_creation_perms = haveParcelObjectCreatePermissions(ob_pos, ob_pos_in_parcel);
+					const bool have_creation_perms = haveParcelObjectCreatePermissions(new_ob_pos, ob_pos_in_parcel);
 					if(!have_creation_perms)
 					{
 						if(ob_pos_in_parcel)
