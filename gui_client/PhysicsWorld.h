@@ -117,7 +117,7 @@ public:
 		size_t mem;
 		size_t num_meshes;
 	};
-	MemUsageStats getTotalMemUsage() const;
+	MemUsageStats getMemUsageStats() const;
 
 	std::string getDiagnostics() const;
 

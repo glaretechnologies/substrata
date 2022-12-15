@@ -740,7 +740,7 @@ void PhysicsWorld::clear()
 }
 
 
-PhysicsWorld::MemUsageStats PhysicsWorld::getTotalMemUsage() const
+PhysicsWorld::MemUsageStats PhysicsWorld::getMemUsageStats() const
 {
 	HashSet<const JPH::Shape*> meshes(/*empty_key=*/NULL, /*expected_num_items=*/objects_set.size());
 	MemUsageStats stats;
@@ -780,7 +780,7 @@ PhysicsWorld::MemUsageStats PhysicsWorld::getTotalMemUsage() const
 
 std::string PhysicsWorld::getDiagnostics() const
 {
-	const MemUsageStats stats = getTotalMemUsage();
+	const MemUsageStats stats = getMemUsageStats();
 	std::string s;
 	s += "Objects: " + toString(objects_set.size()) + "\n";
 	s += "Jolt bodies: " + toString(this->physics_system->GetNumBodies()) + "\n";
