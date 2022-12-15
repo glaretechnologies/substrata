@@ -3464,7 +3464,11 @@ void MainWindow::processLoading()
 
 							// If we replaced the model for selected_ob, reselect it in the OpenGL engine
 							if(this->selected_ob == voxel_ob)
+							{
 								ui->glWidget->opengl_engine->selectObject(voxel_ob->opengl_engine_ob);
+								updateSelectedObjectPlacementBeam(); // We may have changed from a placeholder mesh, which has a different to-world matrix due to cube offset.
+								// So update the position of the object placement beam and axis arrows etc.
+							}
 						}
 					}	
 
