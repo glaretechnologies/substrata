@@ -7449,7 +7449,25 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 						}
 					}
 
+
+					// We want to compute the world space AABB for the pasted object.  We need the object space AABB to do this.  Try and get from source object.
+					js::AABBox aabb_os = pasted_ob->aabb_ws.transformedAABB(worldToObMatrix(*pasted_ob)); // Get AABB os from AABB ws, before we update position.  NOTE: assuming original AABB ws is correct.
+
+					// Try and find source object to get more accurate AABB os from opengl object.
+					{
+						Lock lock(world_state->mutex);
+
+						auto res = world_state->objects.find(pasted_ob->uid);
+						if(res != world_state->objects.end())
+						{
+							WorldObject* src_ob = res.getValue().ptr();
+							if(src_ob->opengl_engine_ob.nonNull() && src_ob->opengl_engine_ob->mesh_data.nonNull())
+								aabb_os = src_ob->opengl_engine_ob->mesh_data->aabb_os;
+						}
+					}
+
 					pasted_ob->pos = new_ob_pos;
+					pasted_ob->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*pasted_ob));
 
 					// Check permissions
 					bool ob_pos_in_parcel;
