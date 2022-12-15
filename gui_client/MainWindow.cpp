@@ -3809,33 +3809,51 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		msg += "model_loaded_messages_to_process: " + toString(model_loaded_messages_to_process.size()) + "\n";
 		msg += "texture_loaded_messages_to_process: " + toString(texture_loaded_messages_to_process.size()) + "\n";
 
-		if(ui->glWidget->opengl_engine.nonNull())
-		{
-			msg += ui->glWidget->opengl_engine->getDiagnostics() + "\n";
-			msg += "GL widget valid: " + boolToString(ui->glWidget->isValid()) + "\n";
-			//msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
-			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
-			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
-		}
-
 		if(texture_server)
 			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
-
-		if(physics_world.nonNull())
-		{
-			msg += "Physics:\n";
-			msg += physics_world->getDiagnostics() + "\n";
-		}
 
 		const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
 		msg += "mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()) + "\n";
 		msg += "mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()) + "\n";
 
+		if(ui->glWidget->opengl_engine.nonNull() && ui->graphicsDiagnosticsCheckBox->isChecked())
+		{
+			msg += "\n------------Graphics------------\n";
+			msg += ui->glWidget->opengl_engine->getDiagnostics() + "\n";
+			msg += "GL widget valid: " + boolToString(ui->glWidget->isValid()) + "\n";
+			//msg += "GL format has OpenGL: " + boolToString(ui->glWidget->format().hasOpenGL()) + "\n";
+			msg += "GL format OpenGL profile: " + toString((int)ui->glWidget->format().profile()) + "\n";
+			msg += "OpenGL engine initialised: " + boolToString(ui->glWidget->opengl_engine->initSucceeded()) + "\n";
+			msg += "--------------------------------\n";
+		}
+
+		// Only show physics details when physicsDiagnosticsCheckBox is checked.  Works around problem of physics_world->getDiagnostics() being slow, which causes stutters.
+		if(physics_world.nonNull() && ui->physicsDiagnosticsCheckBox->isChecked())
+		{
+			msg += "\n------------Physics------------\n";
+			msg += physics_world->getDiagnostics();
+			msg += "-------------------------------\n";
+		}
+
 
 		{
+			msg += "\nAudio engine:\n";
+			{
+				Lock lock(audio_engine.mutex);
+				msg += "Num audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
+			}
+			/*msg += "Audio sources\n";
+			Lock lock(audio_engine.mutex);
+			for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
+			{
+			msg += (*it)->debugname + "\n";
+			}*/
+		}
+
+		/*{ // Proximity loader is currently disabled.
 			msg += "Proximity loader:\n";
 			msg += proximity_loader.getDiagnostics() + "\n";
-		}
+		}*/
 
 		if(selected_ob.nonNull())
 		{
@@ -3877,19 +3895,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			}
 		}
 
-		{
-			msg += "\nAudio engine:\n";
-			{
-				Lock lock(audio_engine.mutex);
-				msg += "Num audio sources: " + toString(audio_engine.audio_sources.size()) + "\n";
-			}
-			/*msg += "Audio sources\n";
-			Lock lock(audio_engine.mutex);
-			for(auto it = audio_engine.audio_sources.begin(); it != audio_engine.audio_sources.end(); ++it)
-			{
-				msg += (*it)->debugname + "\n";
-			}*/
-		}
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
 		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())

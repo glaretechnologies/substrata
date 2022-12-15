@@ -1,3 +1,16 @@
+0.97
+====
+Using Jolt physics engine for player physics and other physics.
+Added monorail train movement code.
+Added path controller for moving objects around a path.
+Taking into account ground velocity when jumping in player physics.
+Positioning pasted objects: position near to source object if camera is nearby source object.
+Cloning an object: Use axis-aligned offset vector for choosing new cloned object position.
+Fixed move arrows being wrong on newly created voxel objects.
+Fixed abrupt visual changes between trees and their imposters in some cases.
+Fixed conversion of meshes to bmesh when editing object model_url.
+Fixed updated mesh not showing in opengl engine when editing object model_url.
+	
 0.96
 ====
 Improved voxel meshing: only create a face between voxels with different materials, when one is transparent.

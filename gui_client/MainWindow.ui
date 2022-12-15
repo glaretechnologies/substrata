@@ -235,7 +235,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>150</height>
+          <height>133</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -332,7 +332,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>148</height>
+          <height>133</height>
          </rect>
         </property>
        </widget>
@@ -369,6 +369,20 @@
       <widget class="QLabel" name="diagnosticsLabel">
        <property name="text">
         <string>Diagnostics</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="graphicsDiagnosticsCheckBox">
+       <property name="text">
+        <string>Show graphics engine details</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="physicsDiagnosticsCheckBox">
+       <property name="text">
+        <string>Show physics engine details</string>
        </property>
       </widget>
      </item>
