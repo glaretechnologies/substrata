@@ -946,6 +946,8 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 		physics_world->removeObject(ob.physics_object);
 		ob.physics_object = NULL;
 	}
+
+	// TOOD: removeObScriptingInfo(&ob);
 }
 
 
@@ -1908,18 +1910,27 @@ void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 }
 
 
+void MainWindow::removeObScriptingInfo(WorldObject* ob)
+{
+	removeInstancesOfObject(ob);
+	if(ob->script_evaluator.nonNull())
+	{
+		ob->script_evaluator = NULL;
+		this->obs_with_scripts.erase(ob);
+	}
+}
+
+
 void MainWindow::loadScriptForObject(WorldObject* ob)
 {
 	PERFORMANCEAPI_INSTRUMENT_FUNCTION();
 
 	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
-	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
+ 	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
 	{
 		// conPrint("MainWindow::loadAudioForObject(): SCRIPT_CHANGED bit was set, destroying script_evaluator.");
 		
-		removeInstancesOfObject(ob);
-		ob->script_evaluator = NULL;
-		this->obs_with_scripts.erase(ob);
+		removeObScriptingInfo(ob);
 
 		BitUtils::zeroBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
 	}
@@ -1978,12 +1989,11 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 			}
 		}
 
-		const int MAX_COUNT = 1000;
+		const int MAX_COUNT = 100;
 		count = myMin(count, MAX_COUNT);
 
 		this->obs_with_scripts.insert(ob);
 
-		//conPrint("WinterShaderEvaluator creation took " + timer.elapsedStringNSigFigs(4));
 		ob->num_instances = count;
 
 		if(count > 0) // If instancing was requested:
@@ -2021,6 +2031,7 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 				{
 					PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/ob->isCollidable());
 					physics_ob->shape = ob->physics_object->shape;
+					physics_ob->kinematic = true;
 
 					instance->physics_object = physics_ob;
 
@@ -2392,8 +2403,8 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, double
 	if(use_scale[1] == 0) use_scale[1] = 1.0e-6f;
 	if(use_scale[2] == 0) use_scale[2] = 1.0e-6f;
 	
-
-	const Matrix4f rot = Matrix4f::rotationMatrix(normalise(ob->axis.toVec4fVector()), ob->angle);
+	const Vec4f unit_axis = normalise(ob->axis.toVec4fVector());
+	const Matrix4f rot = Matrix4f::rotationMatrix(unit_axis, ob->angle);
 	Matrix4f ob_to_world;
 	ob_to_world.setColumn(0, rot.getColumn(0) * use_scale[0]);
 	ob_to_world.setColumn(1, rot.getColumn(1) * use_scale[1]);
@@ -2426,7 +2437,8 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, double
 #endif
 
 
-	// Update transform in 3d engine
+	// Update transform in 3d engine.
+	// Note that for instanced objects, opengl_engine_ob will be null for the instances.
 	if(ob->opengl_engine_ob.nonNull())
 	{
 		ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
@@ -2441,7 +2453,7 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, double
 	// Update in physics engine
 	if(ob->physics_object.nonNull())
 	{
-		physics_world->moveKinematicObject(*ob->physics_object, translation, Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle), 1 / 20.0/*(float)dt*/);
+		physics_world->moveKinematicObject(*ob->physics_object, translation, Quatf::fromAxisAndAngle(unit_axis, ob->angle), 1 / 20.0/*(float)dt*/);
 	}
 
 
@@ -3803,6 +3815,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		msg += "last_animated_tex_time: " + doubleToStringNSigFigs(this->last_animated_tex_time * 1000, 3) + " ms\n";
 		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
 		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
+		msg += "last_eval_script_time: " + doubleToStringNSigFigs(last_eval_script_time * 1000, 3) + "ms\n";
+		msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
 		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
 		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
 		msg += "model_and_texture_loader_task_manager unfinished tasks: " + toString(model_and_texture_loader_task_manager.getNumUnfinishedTasks()) + "\n";
@@ -4918,6 +4932,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(world_state.nonNull())
 	{
 		PERFORMANCEAPI_INSTRUMENT("eval scripts");
+		Timer timer;
+		int num_scripts_processed = 0;
 
 		Lock lock(this->world_state->mutex);
 
@@ -4935,6 +4951,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				Matrix4f ob_to_world;
 				evalObjectScript(ob, use_global_time, dt, ob_to_world);
+				num_scripts_processed++;
 
 				// If this object has instances (and has a graphics ob):
 				if(!ob->instances.empty() && ob->opengl_engine_ob.nonNull())
@@ -4942,13 +4959,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					// Update instance ob-to-world transform based on the script.
 					// Compute AABB over all instances of the object
 					js::AABBox all_instances_aabb_ws = js::AABBox::emptyAABBox();
+					const js::AABBox aabb_os = ob->opengl_engine_ob->mesh_data->aabb_os;
 					for(size_t z=0; z<ob->instances.size(); ++z)
 					{
 						WorldObject* instance = ob->instances[z].ptr();
 						Matrix4f instance_ob_to_world;
 						evalObjectScript(instance, use_global_time, dt, instance_ob_to_world); // Updates instance->physics_object->ob_to_world
+						num_scripts_processed++;
 
-						all_instances_aabb_ws.enlargeToHoldAABBox(ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(instance_ob_to_world));
+						all_instances_aabb_ws.enlargeToHoldAABBox(aabb_os.transformedAABBFast(instance_ob_to_world));
 
 						ob->instance_matrices[z] = instance_ob_to_world;
 					}
@@ -4966,6 +4985,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 			}
 		}
+
+		this->last_eval_script_time = timer.elapsed();
+		this->last_num_scripts_processed = num_scripts_processed;
 	}
 
 
@@ -5017,32 +5039,35 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				PhysicsObject* physics_ob = *it;
 
-				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0 && (physics_ob->dynamic || physics_ob->kinematic))
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0)
 				{
 					WorldObject* ob = (WorldObject*)physics_ob->userdata;
-
-					// conPrint("Setting object state from jolt");
-
-					if(this->selected_ob.ptr() != ob) // Don't update selected object with physics engine state
+					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
+					if(physics_ob->dynamic || (physics_ob->kinematic && ob->script.empty()))
 					{
-						const Matrix4f ob_to_world = ob->physics_object->getObToWorldMatrix();
+						// conPrint("Setting object state from jolt");
 
-						// Update OpenGL object
-						if(ob->opengl_engine_ob.nonNull())
+						if(this->selected_ob.ptr() != ob) // Don't update selected object with physics engine state
 						{
-							ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
-							ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+							const Matrix4f ob_to_world = ob->physics_object->getObToWorldMatrix();
 
-							ob->aabb_ws = ob->opengl_engine_ob->aabb_ws;
+							// Update OpenGL object
+							if(ob->opengl_engine_ob.nonNull())
+							{
+								ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
+								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+
+								ob->aabb_ws = ob->opengl_engine_ob->aabb_ws;
+							}
+
+							// Update world object
+							//	Vec4f unit_axis;
+							//	float angle;
+							//	ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
+							//
+							//	const Vec3d pos = Vec3d(ob_to_world.getColumn(3));
+							//	ob->setTransformAndHistory(pos, Vec3f(unit_axis), angle);
 						}
-
-						// Update world object
-						//	Vec4f unit_axis;
-						//	float angle;
-						//	ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
-						//
-						//	const Vec3d pos = Vec3d(ob_to_world.getColumn(3));
-						//	ob->setTransformAndHistory(pos, Vec3f(unit_axis), angle);
 					}
 				}
 			}
@@ -5664,6 +5689,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 
 						removeInstancesOfObject(ob);
+						//removeObScriptingInfo(ob);
 
 						this->world_state->objects.erase(ob->uid);
 
@@ -8956,6 +8982,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 				this->audio_engine.removeSource(ob->audio_source);
 				ob->audio_state = WorldObject::AudioState_NotLoaded;
 			}
+
+			removeInstancesOfObject(ob);
 		}
 
 		for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)

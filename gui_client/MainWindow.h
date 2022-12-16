@@ -216,6 +216,7 @@ private:
 	void updateSelectedObjectPlacementBeam();
 	void updateInstancedCopiesOfObject(WorldObject* ob);
 	void removeInstancesOfObject(WorldObject* ob);
+	void removeObScriptingInfo(WorldObject* ob);
 	void bakeLightmapsForAllObjectsInParcel(uint32 lightmap_flag);
 	void setMaterialFlagsForObject(WorldObject* ob);
 	
@@ -548,8 +549,10 @@ public:
 	double last_timerEvent_CPU_work_elapsed;
 	double last_animated_tex_time;
 	double last_model_and_tex_loading_time;
+	double last_eval_script_time;
 	int last_num_gif_textures_processed;
 	int last_num_mp4_textures_processed;
+	int last_num_scripts_processed;
 
 	Timer time_since_object_edited; // For undo edit merging.
 	bool force_new_undo_edit; // // Multiple edits using the object editor, in a short timespan, will be merged together, unless force_new_undo_edit is true (is set when undo or redo is issued).
