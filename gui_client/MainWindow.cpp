@@ -3647,10 +3647,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(in_CEF_message_loop)
 		return;
 
-
-	processLoading();
-
-
 	// We don't want to do the closeEvent stuff in the CEF message loop.  
 	// If we got a close event in there, handle it now when we're in the main message loop, and not the CEF message loop.
 	assert(!in_CEF_message_loop);
@@ -3665,20 +3661,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	CEF::doMessageLoopWork();
 	in_CEF_message_loop = false;
 
-	ui->glWidget->makeCurrent();
+
+	ui->glWidget->makeCurrent(); // Need to make this gl widget context current, before we execute OpenGL calls in processLoading.
+
+	processLoading();
 	
-	//TEMP HACK:
-	//for(int i=0; i<8; ++i)
-	//{
-	//	const double t = total_timer.elapsed();
-	//	const float phase_speed = 0.4;
-	//	//Vec4f pos(5 + std::sin(t * phase_speed + (float)i) * 4, 5 + std::cos(t * phase_speed + (float)i) * 2, 2 + (1 + (float)i * 0.12f) * std::sin(t * phase_speed) * 1.23f, 1);
-
-	//	Vec4f pos(5 + std::sin((float)(t * phase_speed + (float)i / 8 * Maths::get2Pi<float>()) * 4), (float)(5 + std::cos(t * phase_speed + (float)i / 8 * Maths::get2Pi<float>()) * 4), 4.5f, 1);
-
-	//	ui->glWidget->opengl_engine->setLightPos(test_lights[i], pos);
-	//}
-
 	/*
 	Flow of loading models, textures etc.
 
