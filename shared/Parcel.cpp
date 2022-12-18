@@ -395,15 +395,16 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape
 		new_physics_object->pos = aabb_min_v4;
 		new_physics_object->rot = Quatf::identity();
 		new_physics_object->scale = Vec3f(span[0], span[1], span[2]);
-		//new_physics_object->ob_to_world = ob_to_world_matrix;
 	}
 	else
 	{
 		//mw.ground_quad_raymesh->fromIndigoMesh(*mw.ground_quad_mesh);
 		Reference<RayMesh> mesh = new RayMesh("raymesh", false);
 
-		mesh->getVertices().resize(24);
-		mesh->getQuads().resize(6);
+		RayMesh::VertexVectorType& mesh_verts = mesh->getVertices();
+		RayMesh::QuadVectorType& quads = mesh->getQuads();
+		mesh_verts.resize(24);
+		quads.resize(6);
 
 		// Sides of parcel
 		for(int i=0; i<4; ++i)
@@ -417,17 +418,20 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape
 			Vec3f v3((float)v.x, (float)v.y, (float)zbounds.y);
 
 			const int face = i;
-			mesh->getVertices()[face*4 + 0].pos = v0;
-			mesh->getVertices()[face*4 + 1].pos = v1;
-			mesh->getVertices()[face*4 + 2].pos = v2;
-			mesh->getVertices()[face*4 + 3].pos = v3;
+			mesh_verts[face*4 + 0].pos = v0;
+			mesh_verts[face*4 + 1].pos = v1;
+			mesh_verts[face*4 + 2].pos = v2;
+			mesh_verts[face*4 + 3].pos = v3;
 
-			mesh->getQuads()[face].vertex_indices[0] = face*4 + 0;
-			mesh->getQuads()[face].vertex_indices[1] = face*4 + 1;
-			mesh->getQuads()[face].vertex_indices[2] = face*4 + 2;
-			mesh->getQuads()[face].vertex_indices[3] = face*4 + 3;
+			quads[face].vertex_indices[0] = face*4 + 0;
+			quads[face].vertex_indices[1] = face*4 + 1;
+			quads[face].vertex_indices[2] = face*4 + 2;
+			quads[face].vertex_indices[3] = face*4 + 3;
+			quads[face].setMatIndexAndUseShadingNormals(0, RayMesh_NoShadingNormals);
 			for(int c=0; c<4; ++c)
-				mesh->getQuads()[face].uv_indices[c] = 0;
+				quads[face].uv_indices[c] = 0;
+
+			
 		}
 
 		// Bottom
@@ -438,17 +442,18 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape
 			Vec3f v3((float)verts[1].x, (float)verts[1].y, (float)zbounds.x);
 
 			const int face = 4;
-			mesh->getVertices()[face*4 + 0].pos = v0;
-			mesh->getVertices()[face*4 + 1].pos = v1;
-			mesh->getVertices()[face*4 + 2].pos = v2;
-			mesh->getVertices()[face*4 + 3].pos = v3;
+			mesh_verts[face*4 + 0].pos = v0;
+			mesh_verts[face*4 + 1].pos = v1;
+			mesh_verts[face*4 + 2].pos = v2;
+			mesh_verts[face*4 + 3].pos = v3;
 
-			mesh->getQuads()[face].vertex_indices[0] = face*4 + 0;
-			mesh->getQuads()[face].vertex_indices[1] = face*4 + 1;
-			mesh->getQuads()[face].vertex_indices[2] = face*4 + 2;
-			mesh->getQuads()[face].vertex_indices[3] = face*4 + 3;
+			quads[face].vertex_indices[0] = face*4 + 0;
+			quads[face].vertex_indices[1] = face*4 + 1;
+			quads[face].vertex_indices[2] = face*4 + 2;
+			quads[face].vertex_indices[3] = face*4 + 3;
+			quads[face].setMatIndexAndUseShadingNormals(0, RayMesh_NoShadingNormals);
 			for(int c=0; c<4; ++c)
-				mesh->getQuads()[face].uv_indices[c] = 0;
+				quads[face].uv_indices[c] = 0;
 		}
 
 		// Top
@@ -459,17 +464,18 @@ Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape
 			Vec3f v3((float)verts[3].x, (float)verts[3].y, (float)zbounds.y);
 
 			const int face = 5;
-			mesh->getVertices()[face*4 + 0].pos = v0;
-			mesh->getVertices()[face*4 + 1].pos = v1;
-			mesh->getVertices()[face*4 + 2].pos = v2;
-			mesh->getVertices()[face*4 + 3].pos = v3;
+			mesh_verts[face*4 + 0].pos = v0;
+			mesh_verts[face*4 + 1].pos = v1;
+			mesh_verts[face*4 + 2].pos = v2;
+			mesh_verts[face*4 + 3].pos = v3;
 
-			mesh->getQuads()[face].vertex_indices[0] = face*4 + 0;
-			mesh->getQuads()[face].vertex_indices[1] = face*4 + 1;
-			mesh->getQuads()[face].vertex_indices[2] = face*4 + 2;
-			mesh->getQuads()[face].vertex_indices[3] = face*4 + 3;
+			quads[face].vertex_indices[0] = face*4 + 0;
+			quads[face].vertex_indices[1] = face*4 + 1;
+			quads[face].vertex_indices[2] = face*4 + 2;
+			quads[face].vertex_indices[3] = face*4 + 3;
+			quads[face].setMatIndexAndUseShadingNormals(0, RayMesh_NoShadingNormals);
 			for(int c=0; c<4; ++c)
-				mesh->getQuads()[face].uv_indices[c] = 0;
+				quads[face].uv_indices[c] = 0;
 		}
 
 		mesh->buildTrisFromQuads();
