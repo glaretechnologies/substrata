@@ -440,7 +440,7 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Me
 	for(uint32 i = 0; i < use_num_mats; ++i)
 		materials[i] = new SubstrataPhysicsMaterial(i);
 	
-	JPH::MeshShapeSettings* mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
+	JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
 	JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
 	if(result.HasError())
 		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
@@ -529,7 +529,7 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMe
 	for(uint32 i = 0; i < use_num_mats; ++i)
 		materials[i] = new SubstrataPhysicsMaterial(i);
 
-	JPH::MeshShapeSettings* mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
+	JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
 	JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
 	if(result.HasError())
 		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
@@ -560,9 +560,9 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 	}
 	else if(object->is_sphere)
 	{
-		JPH::SphereShapeSettings* sphere_shape = new JPH::SphereShapeSettings(0.5f);
+		JPH::Ref<JPH::SphereShapeSettings> sphere_shape = new JPH::SphereShapeSettings(0.5f);
 
-		JPH::ShapeSettings* final_shape_settings;
+		JPH::Ref<JPH::ShapeSettings> final_shape_settings;
 		if(object->scale == Vec3f(1.f))
 			final_shape_settings = sphere_shape;
 		else
@@ -582,9 +582,9 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 	}
 	else if(object->is_cube)
 	{
-		JPH::BoxShapeSettings* cube_shape_settings = new JPH::BoxShapeSettings(JPH::Vec3(0.5f, 0.5f, 0.5f));
+		JPH::Ref<JPH::BoxShapeSettings> cube_shape_settings = new JPH::BoxShapeSettings(JPH::Vec3(0.5f, 0.5f, 0.5f));
 
-		JPH::ShapeSettings* final_shape_settings;
+		JPH::Ref<JPH::ShapeSettings> final_shape_settings;
 		if(object->scale == Vec3f(1.f))
 			final_shape_settings = cube_shape_settings;
 		else
