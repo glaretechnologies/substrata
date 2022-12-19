@@ -10,6 +10,7 @@ Fixed move arrows being wrong on newly created voxel objects.
 Fixed abrupt visual changes between trees and their imposters in some cases.
 Fixed conversion of meshes to bmesh when editing object model_url.
 Fixed updated mesh not showing in opengl engine when editing object model_url.
+Changed instancing max count to 100.
 	
 0.96
 ====
