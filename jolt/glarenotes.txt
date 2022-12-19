@@ -1,1 +1,3 @@
-Pulled from https://github.com/jrouwe/JoltPhysics on 6/dec/2022.
+Pulled from https://github.com/jrouwe/JoltPhysics on 19/dec/2022.
+
+Incorporates MeshShapeSettings::Sanitize() fix: https://github.com/jrouwe/JoltPhysics/pull/367
