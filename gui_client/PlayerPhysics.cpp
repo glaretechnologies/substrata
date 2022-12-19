@@ -45,7 +45,7 @@ PlayerPhysics::PlayerPhysics()
 	onground(false),
 	flymode(false),
 	last_runpressed(false),
-	time_since_on_ground(0),
+	//time_since_on_ground(0),
 	campos_z_delta(0)
 {
 }
@@ -199,106 +199,42 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 
 UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float raw_dtime, Vec4f& campos_in_out)
 {
-	//return UpdateEvents(); // TEMP HACK IMPORTANT for car physics
-
 	//PlatformUtils::Sleep(30); // TEMP HACK
 	//raw_dtime *= 0.3;
 
 	const float dtime = myMin(raw_dtime, 0.1f); // Put a cap on dtime, so that if there is a long pause between update() calls for some reason (e.g. loading objects), 
-	//printVar(onground);
-	//conPrint("lastgroundnormal: " + lastgroundnormal.toString());
 
 	UpdateEvents events;
 #if USE_JOLT_PLAYER_PHYSICS
-
-	
-	//printVar(vel);
-
-	//conPrint("onground: " + boolToString(onground));
-
-	last_xy_plane_vel_rel_ground = Vec3f(0.f);
-	JPH::Vec3 ground_vel(0,0,0);
 
 	//-----------------------------------------------------------------
 	//apply movement forces
 	//-----------------------------------------------------------------
 	if(!flymode) // if not flying
 	{
-		const bool consider_on_ground = (jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround);
-		if(/*onground*/consider_on_ground)
+		Vec3f parralel_impulse = moveimpulse; // desired velocity
+		parralel_impulse.z = 0;
+
+		if(jolt_character->IsSupported()) // GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround)
 		{
-			//-----------------------------------------------------------------
-			//restrict movement to parallel to plane standing on,
-			//otherwise will 'take off' from downwards sloping surfaces when walking.
-			//-----------------------------------------------------------------
-			//Vec3f parralel_impulse = moveimpulse;
-			//parralel_impulse.removeComponentInDir(lastgroundnormal);
-			//dvel += parralel_impulse;
-
-			//vel = parralel_impulse;
-
-
-			JPH::Vec3 normal = jolt_character->GetGroundNormal();
-			//if(just_climbed_step)
-				normal = JPH::Vec3(0,0,1); // HACK  If this is not(0,0,1), fly off top of steps after step climbing
-
-			if(normal != JPH::Vec3(0, 0, 0)) // If ground normal is valid:
-			{
-				Vec3f ground_normal(normal.GetX(), normal.GetY(), normal.GetZ());
-
-				Vec3f parralel_impulse = moveimpulse;
-				parralel_impulse.removeComponentInDir(ground_normal);
-
-
-				ground_vel = jolt_character->GetGroundVelocity();
-				//conPrint("ground_vel: " + toVec3f(ground_vel).toString());
-
-				//vel = moveimpulse; // TEMP HACK parralel_impulse;
-				vel = toVec3f(ground_vel) + parralel_impulse;
-			}
-
-			//------------------------------------------------------------------------
-			//add the velocity of the object we are standing on
-			//------------------------------------------------------------------------
-			//if(lastgroundagent)
-			//{
-			//	vel += lastgroundagent->getVelocity(toVec3f(campos_out));
-			//}
+			vel = parralel_impulse; // When on the ground, set velocity instantly to the desired velocity.
+			vel += toVec3f(jolt_character->GetGroundVelocity()); // Add ground velocity, so player will move with a platform they are standing on.
+		}
+		else
+		{
+			if(parralel_impulse.length() > maxairspeed) // maxairspeed is really max acceleration in air.
+				parralel_impulse.setLength(maxairspeed);
+			vel += parralel_impulse * dtime; // Acclerate in desired direction.
 		}
 
-		//-----------------------------------------------------------------
-		//apply gravity
-		//-----------------------------------------------------------------
-		Vec3f dvel(0, 0, -9.81f);
-		//Vec3f dvel(0, 0, 0);
-
-		if(!/*onground*/consider_on_ground)
-		{
-			//-----------------------------------------------------------------
-			//restrict move impulse to horizontal plane
-			//-----------------------------------------------------------------
-			Vec3f horizontal_impulse = moveimpulse;
-			horizontal_impulse.z = 0;
-			//horizontal_impulse.removeComponentInDir(lastgroundnormal);
-			dvel += horizontal_impulse;
-
-			//-----------------------------------------------------------------
-			//restrict move impulse to length maxairspeed ms^-2
-			//-----------------------------------------------------------------
-			Vec2f horiz_vel(dvel.x, dvel.y);
-			if(horiz_vel.length() > maxairspeed)
-				horiz_vel.setLength(maxairspeed);
-
-			dvel.x = horiz_vel.x;
-			dvel.y = horiz_vel.y;
-		}
-
-		vel += dvel * dtime;
+		// Apply gravity, even when we are on the ground (supported).  Applying gravity when on ground seems to be important for preventing being InAir occasionally while riding platforms.
+		const Vec3f gravity_accel(0, 0, -9.81f); 
+		vel += gravity_accel * dtime;
 
 		if(vel.z < -100) // cap falling speed at 100 m/s
 			vel.z = -100;
 	}
-	else
+	else // Else if flying:
 	{
 		// Desired velocity is maintaining the current speed but pointing in the moveimpulse direction.
 		const float speed = vel.length();
@@ -310,191 +246,162 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 		vel += accel * dtime;
 	}
 
-	// From CharacterVirtualTest::HandleInput():
+	campos_z_delta = campos_z_delta - 20.f * dtime * campos_z_delta; // Exponentially reduce campos_z_delta over time until it reaches 0.
+	if(std::fabs(campos_z_delta) < 1.0e-5f)
+		campos_z_delta = 0;
+
+	this->onground = jolt_character->IsSupported(); // jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround;
+
+	// conPrint("Current ground state: " + getGroundStateName(jolt_character->GetGroundState()));
 	
-	//new_velocity += mPhysicsSystem->GetGravity() * inDeltaTime;
-	// Smooth the player input
-	//mDesiredVelocity = 0.25f * inMovementDirection * cCharacterSpeed + 0.75f * mDesiredVelocity;
-	//JPH::Vec3 mDesiredVelocity(moveimpulse.x, moveimpulse.y, 0.f/*moveimpulse.z*/);
-	JPH::Vec3 mDesiredVelocity(vel.x, vel.y, vel.z);
-
-	// True if the player intended to move
-	//mAllowSliding = !inMovementDirection.IsNearZero();
-	//bool mAllowSliding = false;
-
-	// Cancel movement in opposite direction of normal when sliding
-	JPH::CharacterVirtual::EGroundState ground_state = jolt_character->GetGroundState();
-	//conPrint("ground_state: " + getGroundStateName(ground_state));
-	this->onground = ground_state == JPH::CharacterVirtual::EGroundState::OnGround;
-
-	if(ground_state != JPH::CharacterVirtual::EGroundState::InAir)
+	// Jump
+	if((jumptimeremaining > 0) && 
+		jolt_character->IsSupported()) // jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround) // If on ground
 	{
-		//conPrint("Ground contact point: " + toVec4fVec(jolt_character->GetGroundPosition()).toStringNSigFigs(4));
-		//conPrint("Ground contact normal: " + toVec4fVec(jolt_character->GetGroundNormal()).toStringNSigFigs(4));
+		//conPrint("JUMPING");
+		onground = false;
+
+		// Recompute vel using proper ground normal.  Needed otherwise jumping while running uphill doesn't work properly.
+		const Vec3f ground_normal = toVec3f(jolt_character->GetGroundNormal());
+		vel = removeComponentInDir(moveimpulse, ground_normal) + 
+			toVec3f(jolt_character->GetGroundVelocity()) + 
+			Vec3f(0, 0, jumpspeed);
+
+		jumptimeremaining = -1;
+		events.jumped = true;
+		//time_since_on_ground = 1; // Hack this up to a large value so jump animation can play immediately.
 	}
-	//printVar((int)ground_state);
-	//JPH::Vec3 desired_velocity = mDesiredVelocity;
-	//if(ground_state == JPH::CharacterVirtual::EGroundState::OnSteepGround)
-	//{
-	//	JPH::Vec3 normal = jolt_character->GetGroundNormal();
-	//	normal.SetZ(0.0f);
-	//	float dot = normal.Dot(desired_velocity);
-	//	if(dot < 0.0f)
-	//		desired_velocity -= (dot * normal) / normal.LengthSq();
-	//}
-
-	//JPH::Vec3 current_vertical_velocity = JPH::Vec3(0, 0, jolt_character->GetLinearVelocity().GetZ());
-
-	JPH::Vec3 ground_velocity = jolt_character->GetGroundVelocity();
-
-	//JPH::Vec3 new_velocity;
-	if(ground_state == JPH::CharacterVirtual::EGroundState::OnGround // If on ground
-		/*&& (vel.z - ground_velocity.GetZ()) < 0.1f*/) // And not moving away from ground
-	{
-		// Assume velocity of ground when on ground
-		//new_velocity = ground_velocity;
-
-		// Jump
-		if(jumptimeremaining > 0)
-		{
-			conPrint("JUMPING");
-			//onground = false;
-
-			// Recompute vel using proper ground normal
-			const Vec3f ground_normal = toVec3f(jolt_character->GetGroundNormal());
-			vel = removeComponentInDir(moveimpulse, ground_normal) + 
-				toVec3f(ground_vel) + 
-				Vec3f(0, 0, jumpspeed);
-
-			jumptimeremaining = -1;
-			events.jumped = true;
-			time_since_on_ground = 1; // Hack this up to a large value so jump animation can play immediately.
-		}
-	}
-	//else
-	//	new_velocity = JPH::Vec3(0, 0, 0); // current_vertical_velocity;
 
 	jumptimeremaining -= dtime;
 
-	// Gravity
-	//if(!flymode)
-	//	new_velocity += physics_world.physics_system->GetGravity() * dtime;
-
-	// Player input
-	//new_velocity += desired_velocity;
-
-	//conPrint("new_velocity: " + toString(new_velocity.GetX()) + ", " + toString(new_velocity.GetY()) + ", " + toString(new_velocity.GetZ()));
-	// Update the velocity
 	jolt_character->SetLinearVelocity(JPH::Vec3(vel.x, vel.y, vel.z));
 
+	JPH::CharacterVirtual::ExtendedUpdateSettings settings;
+	settings.mStickToFloorStepDown		= JPH::Vec3(0, 0, -0.5f);
+	settings.mWalkStairsStepUp			= JPH::Vec3(0.0f, 0.0f, 0.4f);
 
 
+	// Put the guts of ExtendedUpdate here, just so we can extract pre_stair_walk_position from the middle of it.
+#if 0
+	jolt_character->ExtendedUpdate(dtime, physics_world.physics_system->GetGravity(), settings, physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING), 
+		physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), { }, {}, *physics_world.temp_allocator);
+#else
+	//----------------------------------------- ExtendedUpdate --------------------------------------
+	const float inDeltaTime = dtime;
+	const JPH::CharacterVirtual::ExtendedUpdateSettings inSettings = settings;
+	const JPH::Vec3 inGravity = physics_world.physics_system->GetGravity();
+	const JPH::BroadPhaseLayerFilter &inBroadPhaseLayerFilter = physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING);
+	const JPH::ObjectLayerFilter &inObjectLayerFilter = physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING);
+	const JPH::BodyFilter &inBodyFilter = {};
+	const JPH::ShapeFilter &inShapeFilter = {};
+	JPH::TempAllocator &inAllocator = *physics_world.temp_allocator;
 
+	const JPH::Vec3 mUp = jolt_character->GetUp();
 
+	// Update the velocity
+	JPH::Vec3 desired_velocity = jolt_character->GetLinearVelocity();
+	jolt_character->SetLinearVelocity(jolt_character->CancelVelocityTowardsSteepSlopes(desired_velocity));
 
 	// Remember old position
-	JPH::Vec3 old_position = jolt_character->GetPosition();
+	JPH::RVec3 old_position = jolt_character->GetPosition();
 
-	// Track that on ground before the update
-	//bool ground_to_air = jolt_character->GetGroundState() != JPH::CharacterBase::EGroundState::InAir;
-	bool ground_to_air = jolt_character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround || jolt_character->GetGroundState() == JPH::CharacterBase::EGroundState::OnSteepGround;
+	// Track if on ground before the update
+	bool ground_to_air = jolt_character->IsSupported();
 
 	// Update the character position (instant, do not have to wait for physics update)
-	jolt_character->Update(dtime, physics_world.physics_system->GetGravity(), physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING), 
-		physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), { }, *physics_world.temp_allocator);
-
+	jolt_character->Update(inDeltaTime, inGravity, inBroadPhaseLayerFilter, inObjectLayerFilter, inBodyFilter, inShapeFilter, inAllocator);
 
 	// ... and that we got into air after
-	if(jolt_character->GetGroundState() != JPH::CharacterBase::EGroundState::InAir)
+	if (jolt_character->IsSupported())
 		ground_to_air = false;
 
-	// Calculate effective velocity
-	JPH::Vec3 new_position = jolt_character->GetPosition();
-	JPH::Vec3 velocity = (new_position - old_position) / dtime;
+	const JPH::Vec3 pre_stair_walk_position = jolt_character->GetPosition(); // NICK NEW
 
-	//conPrint("Effective velocity from jolt: " + toVec4fVec(velocity).toStringNSigFigs(4) + "(dtime: " + toString(dtime) + ")");
-	this->vel = toVec3f(velocity);
-	// Get the velocity from jolt before we do stair climbing.  Otherwise the discontinuous movement of stair climbing
-	// can result in extremely large velocities.
-
-	this->last_xy_plane_vel_rel_ground = this->vel - toVec3f(ground_vel);
-
-	//---------------------------Do stair walking-------------------------------------------------
-	//just_climbed_step = false;
-	if(true)
+	// If stick to floor enabled and we're going from supported to not supported
+	if (ground_to_air && !inSettings.mStickToFloorStepDown.IsNearZero())
 	{
-		const JPH::Vec3 cStepUpHeight = JPH::Vec3(0.0f, 0.0f, 0.4f);
-		const float cMinStepForward = 0.02f;
-		const float cStepForwardTest = 0.15f;
+		// If we're not moving up, stick to the floor
+		float velocity = JPH::Vec3(jolt_character->GetPosition() - old_position).Dot(mUp) / inDeltaTime;
+		if (velocity <= 1.0e-6f)
+			jolt_character->StickToFloor(inSettings.mStickToFloorStepDown, inBroadPhaseLayerFilter, inObjectLayerFilter, inBodyFilter, inShapeFilter, inAllocator);
+	}
 
+	// If walk stairs enabled
+	if (!inSettings.mWalkStairsStepUp.IsNearZero())
+	{
 		// Calculate how much we wanted to move horizontally
-		JPH::Vec3 desired_horizontal_step = mDesiredVelocity * dtime;
+		JPH::Vec3 desired_horizontal_step = desired_velocity * inDeltaTime;
+		desired_horizontal_step -= desired_horizontal_step.Dot(mUp) * mUp;
 		float desired_horizontal_step_len = desired_horizontal_step.Length();
-		if(desired_horizontal_step_len > 0.0f)
+		if (desired_horizontal_step_len > 0.0f)
 		{
 			// Calculate how much we moved horizontally
-			JPH::Vec3 achieved_horizontal_step = jolt_character->GetPosition() - old_position;
-			achieved_horizontal_step.SetZ(0);
+			JPH::Vec3 achieved_horizontal_step = JPH::Vec3(jolt_character->GetPosition() - old_position);
+			achieved_horizontal_step -= achieved_horizontal_step.Dot(mUp) * mUp;
 
 			// Only count movement in the direction of the desired movement
 			// (otherwise we find it ok if we're sliding downhill while we're trying to climb uphill)
 			JPH::Vec3 step_forward_normalized = desired_horizontal_step / desired_horizontal_step_len;
-			achieved_horizontal_step = myMax(0.0f, achieved_horizontal_step.Dot(step_forward_normalized)) * step_forward_normalized;
+			achieved_horizontal_step = std::max(0.0f, achieved_horizontal_step.Dot(step_forward_normalized)) * step_forward_normalized;
 			float achieved_horizontal_step_len = achieved_horizontal_step.Length();
 
 			// If we didn't move as far as we wanted and we're against a slope that's too steep
-			if(achieved_horizontal_step_len + 1.0e-4f < desired_horizontal_step_len
-				&& jolt_character->CanWalkStairs(mDesiredVelocity))
+			if (achieved_horizontal_step_len + 1.0e-4f < desired_horizontal_step_len
+				&& jolt_character->CanWalkStairs(desired_velocity))
 			{
-				// CanWalkStairs should not have returned true if we are in air
-				assert(!ground_to_air);
-
 				// Calculate how much we should step forward
 				// Note that we clamp the step forward to a minimum distance. This is done because at very high frame rates the delta time
 				// may be very small, causing a very small step forward. If the step becomes small enough, we may not move far enough
 				// horizontally to actually end up at the top of the step.
-				JPH::Vec3 step_forward = step_forward_normalized * myMax(cMinStepForward, desired_horizontal_step_len - achieved_horizontal_step_len);
+				JPH::Vec3 step_forward = step_forward_normalized * std::max(inSettings.mWalkStairsMinStepForward, desired_horizontal_step_len - achieved_horizontal_step_len);
 
 				// Calculate how far to scan ahead for a floor. This is only used in case the floor normal at step_forward is too steep.
 				// In that case an additional check will be performed at this distance to check if that normal is not too steep.
-				JPH::Vec3 step_forward_test = step_forward_normalized * cStepForwardTest;
+				// Start with the ground normal in the horizontal plane and normalizing it
+				JPH::Vec3 step_forward_test = -jolt_character->GetGroundNormal();
+				step_forward_test -= step_forward_test.Dot(mUp) * mUp;
+				step_forward_test = step_forward_test.NormalizedOr(step_forward_normalized);
 
-				jolt_character->WalkStairs(dtime, /*physics_world.physics_system->GetGravity(), */cStepUpHeight, step_forward, step_forward_test, JPH::Vec3::sZero(),
-					physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING), physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), { }, *physics_world.temp_allocator);
+				// If this normalized vector and the character forward vector is bigger than a preset angle, we use the character forward vector instead of the ground normal
+				// to do our forward test
+				if (step_forward_test.Dot(step_forward_normalized) < inSettings.mWalkStairsCosAngleForwardContact)
+					step_forward_test = step_forward_normalized;
+
+				// Calculate the correct magnitude for the test vector
+				step_forward_test *= inSettings.mWalkStairsStepForwardTest;
+
+				jolt_character->WalkStairs(inDeltaTime, inSettings.mWalkStairsStepUp, step_forward, step_forward_test, inSettings.mWalkStairsStepDownExtra, inBroadPhaseLayerFilter, inObjectLayerFilter, inBodyFilter, inShapeFilter, inAllocator);
 			}
 		}
 	}
-	//--------------------------End stair walking--------------------------------------------------
+	// ----------------------------------------- End ExtendedUpdate --------------------------------------
+#endif
 
+
+	const float dz = jolt_character->GetPosition().GetZ() - pre_stair_walk_position.GetZ();
+	campos_z_delta = myClamp(campos_z_delta + dz, -0.3f, 0.3f);
+
+	this->vel = toVec3f(jolt_character->GetLinearVelocity());
 	
-
-	
-
-	if(true)
-	{
-		// If we're in air for the first frame and we're not moving up, stick to the floor
-		if(ground_to_air && (velocity.GetZ() <= 1.0e-6f) && !events.jumped)
-		{
-			//conPrint("!!!!!!!!!!!Sticking to floor");
-			jolt_character->StickToFloor(JPH::Vec3(0, 0, -0.5f), physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING), 
-				physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING), { }, *physics_world.temp_allocator);
-		}
-	}
-
-
-
-	JPH::Vec3 char_pos = jolt_character->GetPosition();
-	campos_in_out = Vec4f(char_pos.GetX(), char_pos.GetY(), char_pos.GetZ() + EYE_HEIGHT, 1.f);
-
-
-	if(!/*onground*/(jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround))
-		time_since_on_ground += dtime;
+	if(jolt_character->IsSupported())
+		this->last_xy_plane_vel_rel_ground = this->vel - toVec3f(jolt_character->GetGroundVelocity());
 	else
-		time_since_on_ground = 0;
+		this->last_xy_plane_vel_rel_ground = this->vel;
+	this->last_xy_plane_vel_rel_ground.z = 0;
+
+	// Set last_xy_plane_vel_rel_ground to zero if we are not trying to move the player.
+	// This prevents spurious walk movements when riding platforms in some circumstances (when player velocity does not equal ground velocity for some reason).
+	if(moveimpulse.length() == 0)
+		this->last_xy_plane_vel_rel_ground = Vec3f(0.f);
+
+	const JPH::Vec3 char_pos = jolt_character->GetPosition();
+	campos_in_out = Vec4f(char_pos.GetX(), char_pos.GetY(), char_pos.GetZ() + EYE_HEIGHT - campos_z_delta, 1.f);
 
 
-	//moveimpulse.set(0, 0, 0);
-
+	//if(!/*onground*/(jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround))
+	//	time_since_on_ground += dtime;
+	//else
+	//	time_since_on_ground = 0;
 
 #else // else if !USE_JOLT_PLAYER_PHYSICS:
 	

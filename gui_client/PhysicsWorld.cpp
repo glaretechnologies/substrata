@@ -28,8 +28,10 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
+#include <Jolt/Core/StreamWrapper.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/PhysicsScene.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/ScaledShape.h>
@@ -42,6 +44,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/Collision/CastResult.h>
 #endif
 #include <HashSet.h>
+#include <fstream>
 
 
 #if USE_JOLT
@@ -859,3 +862,80 @@ bool PhysicsWorld::doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, flo
 	const bool found_hit = this->physics_system->GetNarrowPhaseQuery().CastRay(ray, hit_result);
 	return found_hit;
 }
+
+
+void PhysicsWorld::writeJoltSnapshotToDisk(const std::string& path)
+{
+	// Convert physics system to scene
+	JPH::Ref<JPH::PhysicsScene> scene = new JPH::PhysicsScene();
+	scene->FromPhysicsSystem(this->physics_system);
+
+	// Save scene
+	std::ofstream stream(path.c_str(), std::ofstream::out | std::ofstream::trunc | std::ofstream::binary);
+	JPH::StreamOutWrapper wrapper(stream);
+	if(stream.is_open())
+		scene->SaveBinaryState(wrapper, /*inSaveShapes=*/true, /*inSaveGroupFilter=*/true);
+}
+
+
+#if BUILD_TESTS
+
+
+#include <simpleraytracer/raymesh.h>
+#include <utils/TaskManager.h>
+#include <maths/PCG32.h>
+#include <utils/TestUtils.h>
+#include <utils/StandardPrintOutput.h>
+#include <utils/ShouldCancelCallback.h>
+
+
+void PhysicsWorld::test()
+{
+	conPrint("PhysicsWorld::test()");
+
+	PhysicsWorld::init();
+
+	BatchedMesh mesh;
+	BatchedMesh::readFromFile("D:\\models\\aphrodite.bmesh", mesh);
+
+
+	glare::TaskManager task_manager(0);
+	StandardPrintOutput print_output;
+	DummyShouldCancelCallback should_cancel_callback;
+
+	{
+		double min_time = 1.0e10;
+		for(int i=0; i<1000; ++i)
+		{
+
+			RayMesh raymesh("sdfdsf", false);
+			raymesh.fromBatchedMesh(mesh);
+
+			Timer timer;
+			Geometry::BuildOptions options;
+			options.compute_is_planar = false;
+			raymesh.build(options, should_cancel_callback, print_output, false, task_manager);
+
+			min_time = myMin(min_time, timer.elapsed());
+			conPrint("raymesh.build took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
+		}
+	}
+
+
+
+
+	double min_time = 1.0e10;
+	for(int i=0; i<1000; ++i)
+	{
+		Timer timer;
+		auto res = createJoltShapeForBatchedMesh(mesh);
+		min_time = myMin(min_time, timer.elapsed());
+		conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
+	}
+
+
+	conPrint("PhysicsWorld::test() done");
+}
+
+
+#endif // BUILD_TESTS

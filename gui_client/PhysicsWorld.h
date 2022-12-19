@@ -132,6 +132,9 @@ public:
 
 	bool doesRayHitAnything(const Vec4f& origin, const Vec4f& dir, float max_t) const;
 
+	void writeJoltSnapshotToDisk(const std::string& path);
+
+	static void test();
 private:
 	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.  TODO: can remove?
 	

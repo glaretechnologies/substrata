@@ -98,7 +98,7 @@ private:
 
 	bool flymode;
 
-	float time_since_on_ground;
+	//float time_since_on_ground;
 	
 
 	std::vector<SpringSphereSet> springspheresets;
