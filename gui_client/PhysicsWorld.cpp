@@ -175,6 +175,77 @@ void PhysicsWorld::init()
 }
 
 
+// Modified from TempAllocatorImpl, added maxTop high water mark.
+class PhysicsWorldAllocatorImpl final : public JPH::TempAllocator
+{
+public:
+	JPH_OVERRIDE_NEW_DELETE
+
+	/// Constructs the allocator with a maximum allocatable size of inSize
+	explicit PhysicsWorldAllocatorImpl(uint inSize) :
+		mBase(static_cast<uint8 *>(JPH::AlignedAllocate(inSize, JPH_RVECTOR_ALIGNMENT))),
+		mSize(inSize),
+		maxTop(0)
+	{
+	}
+
+	/// Destructor, frees the block
+	virtual	~PhysicsWorldAllocatorImpl() override
+	{
+		assert(mTop == 0);
+		JPH::AlignedFree(mBase);
+	}
+
+	// See: TempAllocator
+	virtual void* Allocate(uint inSize) override
+	{
+		if(inSize == 0)
+		{
+			return nullptr;
+		}
+		else
+		{
+			uint new_top = mTop + JPH::AlignUp(inSize, JPH_RVECTOR_ALIGNMENT);
+			if(new_top > mSize)
+				throw glare::Exception("PhysicsWorldAllocatorImpl: out of memory");//JPH_CRASH; // Out of memory
+			void *address = mBase + mTop;
+			mTop = new_top;
+			maxTop = myMax(maxTop, mTop);
+			return address;
+		}
+	}
+
+	// See: TempAllocator
+	virtual void Free(void *inAddress, uint inSize) override
+	{
+		if(inAddress == nullptr)
+		{
+			assert(inSize == 0);
+		}
+		else
+		{
+			mTop -= JPH::AlignUp(inSize, JPH_RVECTOR_ALIGNMENT);
+			if(mBase + mTop != inAddress)
+				throw glare::Exception("PhysicsWorldAllocatorImpl: Freeing in the wrong order"); // JPH_CRASH; // Freeing in the wrong order
+		}
+	}
+
+	// Check if no allocations have been made
+	bool IsEmpty() const
+	{
+		return mTop == 0;
+	}
+
+	uint getMaxAllocated() { return maxTop; }
+
+private:
+	uint8 *							mBase;							///< Base address of the memory block
+	uint							mSize;							///< Size of the memory block
+	uint							mTop = 0;						///< Current top of the stack
+	uint							maxTop;							// high water mark
+};
+
+
 PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
 :	activated_obs(NULL)
 #if !USE_JOLT
@@ -184,12 +255,9 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 #endif
 {
 #if USE_JOLT
-	// We need a temp allocator for temporary allocations during the physics update. We're
-	// pre-allocating 10 MB to avoid having to do allocations during the physics update. 
-	// B.t.w. 10 MB is way too much for this example but it is a typical value you can use.
-	// If you don't want to pre-allocate you can also use TempAllocatorMalloc to fall back to
-	// malloc / free.
-	temp_allocator = new JPH::TempAllocatorImpl(10 * 1024 * 1024);
+	// Highest high water mark I have seen so far is 20.5 MB.  
+	// Note that increasing mMaxNumHits in CharacterVirtualSettings results in a lot more mem usage.
+	temp_allocator = new PhysicsWorldAllocatorImpl(32 * 1024 * 1024);
 
 	// We need a job system that will execute physics jobs on multiple threads. Typically
 	// you would implement the JobSystem interface yourself and let Jolt Physics run on top
@@ -240,6 +308,9 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 
 PhysicsWorld::~PhysicsWorld()
 {
+	delete physics_system;
+	delete job_system;
+	delete temp_allocator;
 }
 
 
@@ -296,7 +367,8 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(inner_shape, toJoltVec3(scale)); // Make new decorated scaled shape with new scale
 
 				// conPrint("Made new scaled shape for new scale");
-				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
+				// NOTE: Setting inUpdateMassProperties to false to avoid a crash/assert in Jolt, I think we need to set mass properties somewhere first.
+				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::DontActivate);
 			}
 		}
 		else // Else if current Jolt shape is not a scaled shape:
@@ -306,7 +378,8 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(cur_shape, toJoltVec3(scale));
 
 				// conPrint("Changing to scaled shape");
-				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/true, JPH::EActivation::DontActivate);
+				// NOTE: Setting inUpdateMassProperties to false to avoid a crash/assert in Jolt, I think we need to set mass properties somewhere first.
+				body_interface.SetShape(object.jolt_body_id, new_shape, /*inUpdateMassProperties=*/false, JPH::EActivation::DontActivate);
 			}
 		}
 
@@ -789,6 +862,9 @@ std::string PhysicsWorld::getDiagnostics() const
 	s += "Jolt bodies: " + toString(this->physics_system->GetNumBodies()) + "\n";
 	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
+
+	assert(dynamic_cast<PhysicsWorldAllocatorImpl*>(temp_allocator));
+	s += "temp allocator max usage: " + getNiceByteSize(static_cast<PhysicsWorldAllocatorImpl*>(temp_allocator)->getMaxAllocated()) + "\n";
 
 	return s;
 }

@@ -29,7 +29,7 @@ namespace Indigo { class Mesh; }
 class PrintOutput;
 class BatchedMesh;
 namespace JPH { class PhysicsSystem; }
-namespace JPH { class TempAllocatorImpl; }
+namespace JPH { class TempAllocator; }
 namespace JPH { class JobSystemThreadPool; }
 
 class RayTraceResult
@@ -149,6 +149,6 @@ public:
 
 	// Jolt
 	JPH::PhysicsSystem* physics_system;
-	JPH::TempAllocatorImpl* temp_allocator;
+	JPH::TempAllocator* temp_allocator;
 	JPH::JobSystemThreadPool* job_system;
 };
