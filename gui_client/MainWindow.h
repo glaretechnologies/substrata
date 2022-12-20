@@ -207,6 +207,7 @@ private:
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
 	void startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void evalObjectScript(WorldObject* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out);
+	void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out);
 	void updateStatusBar();
 	bool haveParcelObjectCreatePermissions(const Vec3d& new_ob_pos, bool& in_parcel_out);
 	bool haveObjectWritePermissions(const WorldObject& ob, const js::AABBox& new_aabb_ws, bool& ob_pos_in_parcel_out);

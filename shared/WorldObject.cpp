@@ -30,6 +30,14 @@ Copyright Glare Technologies Limited 2016 -
 #include <zstd.h>
 
 
+InstanceInfo::~InstanceInfo()
+{
+#if GUI_CLIENT
+	assert(physics_object.isNull());
+#endif
+}
+
+
 WorldObject::WorldObject() noexcept
 {
 	creator_id = UserID::invalidUserID();
@@ -60,13 +68,9 @@ WorldObject::WorldObject() noexcept
 	next_snapshot_i = 0;
 	//last_snapshot_time = 0;
 
-	instance_index = 0;
-	num_instances = 0;
 	translation = Vec4f(0.f);
 
 	max_load_dist2 = 1000000000;
-
-	prototype_object = NULL;
 
 	aabb_ws = js::AABBox::emptyAABBox();
 
@@ -81,7 +85,9 @@ WorldObject::WorldObject() noexcept
 
 WorldObject::~WorldObject()
 {
-
+#if GUI_CLIENT
+	assert(physics_object.isNull());
+#endif
 }
 
 

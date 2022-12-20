@@ -724,7 +724,10 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 		//conPrint("Removed Jolt body");
 	}
 
-	activated_obs.erase(object.ptr()); // Object should have been removed from there when its Jolt body is removed (and deactivated), but do it again to be safe.
+	{
+		Lock lock(activated_obs_mutex);
+		activated_obs.erase(object.ptr()); // Object should have been removed from there when its Jolt body is removed (and deactivated), but do it again to be safe.
+	}
 
 	this->objects_set.erase(object);
 }
@@ -740,42 +743,6 @@ void PhysicsWorld::think(double dt)
 
 	// We simulate the physics world in discrete time steps. 60 Hz is a good rate to update the physics system.
 	physics_system->Update((float)dt, cCollisionSteps, cIntegrationSubSteps, temp_allocator, job_system);
-}
-
-
-void PhysicsWorld::updateActiveObjects()
-{
-	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
-
-	// Set PhysicsObject state from Jolt bodies, for active objects.
-
-	// Copy activated_obs to temp_activated_obs, so we can iterate over the objects without holding activated_obs_mutex, which may lead to a deadlock.
-	{
-		Lock lock(activated_obs_mutex); // NOTE: deadlock potential?
-		temp_activated_obs.resize(activated_obs.size());
-		size_t i = 0;
-		for(auto it = activated_obs.begin(); it != activated_obs.end(); ++it)
-			temp_activated_obs[i++] = *it;
-	} // End lock scope
-
-
-	for(auto it = temp_activated_obs.begin(); it != temp_activated_obs.end(); ++it)
-	{
-		PhysicsObject* ob = *it;
-		if(!ob->jolt_body_id.IsInvalid() && (ob->dynamic || ob->kinematic))
-		{
-			JPH::Vec3 pos = body_interface.GetCenterOfMassPosition(ob->jolt_body_id);  // NOTE: should we use GetPosition() here?
-			JPH::Quat rot = body_interface.GetRotation(ob->jolt_body_id);
-
-			//conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
-
-			const Vec4f new_pos = toVec4fPos(pos);
-			const Quatf new_rot = toQuat(rot);
-
-			ob->rot = new_rot;
-			ob->pos = new_pos;
-		}
-	}
 }
 
 
@@ -860,6 +827,10 @@ std::string PhysicsWorld::getDiagnostics() const
 	std::string s;
 	s += "Objects: " + toString(objects_set.size()) + "\n";
 	s += "Jolt bodies: " + toString(this->physics_system->GetNumBodies()) + "\n";
+	{
+		Lock lock(activated_obs_mutex);
+		s += "Active bodies: " + toString(this->activated_obs.size()) + "\n";
+	}
 	s += "Meshes:  " + toString(stats.num_meshes) + "\n";
 	s += "mem usage: " + getNiceByteSize(stats.mem) + "\n";
 

@@ -5,7 +5,7 @@ Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
-
+#include "../shared/UID.h"
 #include <maths/Vec4f.h>
 #include <maths/Quat.h>
 #include <maths/vec3.h>
@@ -70,7 +70,9 @@ public:
 	bool collidable; // Is this object solid, for the purposes of player physics?
 
 	void* userdata;
-	int userdata_type;
+	int userdata_type; // 0 = WorldObject, 1 = Parcel, 2 = InstanceInfo
+
+	UID ob_uid; // Just for debugging.
 
 	Vec4f pos;
 	Quatf rot; // Set in PhysicsWorld::think() from Jolt data

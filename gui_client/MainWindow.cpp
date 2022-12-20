@@ -134,7 +134,7 @@ Copyright Glare Technologies Limited 2020 -
 #if BUGSPLAT_SUPPORT
 #include <BugSplat.h>
 #endif
-
+#include <Jolt/Physics/PhysicsSystem.h>
 
 #ifdef _WIN32
 #include <d3d11.h>
@@ -973,7 +973,10 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
 	
 	if(ob->physics_object.nonNull())
+	{
 		physics_world->removeObject(ob->physics_object);
+		ob->physics_object = NULL;
+	}
 
 	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(/*min=*/ob->aabb_ws.min_, /*max=*/ob->aabb_ws.max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
 
@@ -987,9 +990,11 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 	physics_ob->scale = ob->scale;
 
+	assert(ob->physics_object.isNull());
 	ob->physics_object = physics_ob;
 	physics_ob->userdata = ob;
 	physics_ob->userdata_type = 0;
+	physics_ob->ob_uid = ob->uid;
 	physics_world->addObject(physics_ob);
 
 	ob->using_placeholder_model = true;
@@ -1410,6 +1415,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->shape = this->hypercard_quad_shape;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
 				physics_ob->pos = ob->pos.toVec4fPoint();
 				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 				physics_ob->scale = ob->scale;
@@ -1462,6 +1468,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				physics_ob->shape = this->spotlight_shape;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
 				physics_ob->pos = ob->pos.toVec4fPoint();
 				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 				physics_ob->scale = ob->scale;
@@ -1512,10 +1519,13 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		{
 			if(ob->opengl_engine_ob.isNull())
 			{
+				assert(ob->physics_object.isNull());
+
 				PhysicsObjectRef physics_ob = new PhysicsObject(/*collidable=*/true);
 				physics_ob->shape = this->image_cube_shape;
 				physics_ob->userdata = ob;
 				physics_ob->userdata_type = 0;
+				physics_ob->ob_uid = ob->uid;
 				physics_ob->pos = ob->pos.toVec4fPoint();
 				physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 				physics_ob->scale = ob->scale;
@@ -1634,6 +1644,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							ob->physics_object->shape = mesh_data->physics_shape;
 							ob->physics_object->userdata = ob;
 							ob->physics_object->userdata_type = 0;
+							ob->physics_object->ob_uid = ob->uid;
 							ob->physics_object->pos = ob->pos.toVec4fPoint();
 							ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 							ob->physics_object->scale = ob->scale;
@@ -1897,12 +1908,13 @@ void MainWindow::removeInstancesOfObject(WorldObject* prototype_ob)
 {
 	for(size_t z=0; z<prototype_ob->instances.size(); ++z)
 	{
-		WorldObject* instance = prototype_ob->instances[z].ptr();
+		InstanceInfo& instance = prototype_ob->instances[z];
 		
-		if(instance->opengl_engine_ob.nonNull()) ui->glWidget->opengl_engine->removeObject(instance->opengl_engine_ob); // Remove from 3d engine
-		if(instance->opengl_light.nonNull()) ui->glWidget->opengl_engine->removeLight(instance->opengl_light); // Remove light from 3d engine
-
-		if(instance->physics_object.nonNull()) physics_world->removeObject(instance->physics_object); // Remove from physics engine
+		if(instance.physics_object.nonNull())
+		{
+			physics_world->removeObject(instance.physics_object); // Remove from physics engine
+			instance.physics_object = NULL;
+		}
 	}
 
 	prototype_ob->instances.clear();
@@ -1994,11 +2006,11 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 
 		this->obs_with_scripts.insert(ob);
 
-		ob->num_instances = count;
-
 		if(count > 0) // If instancing was requested:
 		{
 			// conPrint("Doing instancing with count " + toString(count));
+
+			removeInstancesOfObject(ob); // Make sure we remove any existing physics objects for existing instances.
 
 			ob->instance_matrices.resize(count);
 			ob->instances.resize(count);
@@ -2006,25 +2018,19 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 			// Create a bunch of copies of this object
 			for(size_t z=0; z<(size_t)count; ++z)
 			{
-				WorldObjectRef instance = new WorldObject();
+				InstanceInfo* instance = &ob->instances[z];
+
+				assert(instance->physics_object.isNull());
+
 				instance->instance_index = (int)z;
 				instance->num_instances = count;
 				instance->script_evaluator = ob->script_evaluator;
 				instance->prototype_object = ob;
 
-				instance->uid = UID::invalidUID();
-				instance->object_type = ob->object_type;
-				instance->model_url = ob->model_url;
-				instance->materials = ob->materials;
-				instance->content = ob->content;
-				instance->target_url = ob->target_url;
 				instance->pos = ob->pos;
 				instance->axis = ob->axis;
 				instance->angle = ob->angle;
 				instance->scale = ob->scale;
-				instance->flags = ob->flags;
-
-				instance->state = WorldObject::State_Alive;
 
 				// Make physics object
 				if(ob->physics_object.nonNull())
@@ -2035,8 +2041,9 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 
 					instance->physics_object = physics_ob;
 
-					physics_ob->userdata = instance.ptr();
-					physics_ob->userdata_type = 0;
+					physics_ob->userdata = instance;
+					physics_ob->userdata_type = 2;
+					physics_ob->ob_uid = UID(6666666);
 
 					physics_ob->pos = ob->pos.toVec4fPoint();
 					physics_ob->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
@@ -2045,8 +2052,7 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 					physics_world->addObject(physics_ob);
 				}
 
-				ob->instances[z] = instance;
-				ob->instance_matrices[z] = obToWorldMatrix(*instance);
+				ob->instance_matrices[z] = obToWorldMatrix(*ob); // Use transform of prototype object for now.
 			}
 
 			if(ob->opengl_engine_ob.nonNull())
@@ -2258,18 +2264,17 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 {
 	for(size_t z=0; z<ob->instances.size(); ++z)
 	{
-		WorldObject* instance = ob->instances[z].ptr();
-
-		instance->materials = ob->materials;
+		InstanceInfo* instance = &ob->instances[z];
 
 		instance->angle = ob->angle;
 		instance->pos = ob->pos;
 		instance->scale = ob->scale;
 
-		if(instance->physics_object.nonNull())
-		{
-			//TEMP physics_world->updateObjectTransformData(*instance->physics_object);
-		}
+		// TODO: update physics ob?
+		//if(instance->physics_object.nonNull())
+		//{
+		//	//TEMP physics_world->updateObjectTransformData(*instance->physics_object);
+		//}
 	}
 }
 
@@ -2365,8 +2370,8 @@ void MainWindow::showInfoNotification(const std::string& message)
 void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out)
 {
 	CybWinterEnv winter_env;
-	winter_env.instance_index = ob->instance_index;
-	winter_env.num_instances = ob->num_instances;
+	winter_env.instance_index = 0;
+	winter_env.num_instances = 1;
 
 	if(ob->script_evaluator->jitted_evalRotation)
 	{
@@ -2388,8 +2393,6 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, double
 
 	if(ob->script_evaluator->jitted_evalTranslation)
 	{
-		if(ob->prototype_object)
-			ob->pos = ob->prototype_object->pos;
 		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
 	}
 
@@ -2428,45 +2431,87 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, double
 	ob_to_world_inv_transpose.setColumn(2, rot.getColumn(2) * recip_scale[2]);
 	ob_to_world_inv_transpose.setColumn(3, Vec4f(0, 0, 0, 1));
 
-#ifndef NDEBUG
-	Matrix4f ob_to_world_inv_transpose_ref;
-	/*const bool invertible = */ob_to_world.getUpperLeftInverseTranspose(ob_to_world_inv_transpose_ref);
-	//assert(invertible);
-	//if(invertible)
-	//	assert(epsEqual(ob_to_world_inv_transpose, ob_to_world_inv_transpose_ref));
-#endif
-
-
 	// Update transform in 3d engine.
-	// Note that for instanced objects, opengl_engine_ob will be null for the instances.
 	if(ob->opengl_engine_ob.nonNull())
 	{
 		ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
 		ob->opengl_engine_ob->ob_to_world_inv_transpose_matrix = ob_to_world_inv_transpose;
 		ob->opengl_engine_ob->aabb_ws = ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
-
+	
 		ob->aabb_ws = ob->opengl_engine_ob->aabb_ws; // Update world space AABB (used for computing LOD level)
+
 		// TODO: need to call assignLightsToObject() somehow
 		//ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 	}
 
 	// Update in physics engine
 	if(ob->physics_object.nonNull())
-	{
-		physics_world->moveKinematicObject(*ob->physics_object, translation, Quatf::fromAxisAndAngle(unit_axis, ob->angle), 1 / 20.0/*(float)dt*/);
-	}
+		physics_world->moveKinematicObject(*ob->physics_object, translation, Quatf::fromAxisAndAngle(unit_axis, ob->angle), (float)dt);
 
 
 	if(ob->opengl_light.nonNull())
 	{
 		ob->opengl_light->gpu_data.dir = normalise(ob_to_world * Vec4f(0, 0, -1, 0));
-		float scale;
-		ob->opengl_light->gpu_data.col = computeSpotlightColour(*ob, ob->opengl_light->gpu_data.cone_cos_angle_start, ob->opengl_light->gpu_data.cone_cos_angle_end, scale);
 
-		ui->glWidget->makeCurrent();
 		ui->glWidget->opengl_engine->setLightPos(ob->opengl_light, setWToOne(translation));
 	}
 
+	ob_to_world_out = ob_to_world;
+}
+
+
+void MainWindow::evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out)
+{
+	CybWinterEnv winter_env;
+	winter_env.instance_index = ob->instance_index;
+	winter_env.num_instances = ob->num_instances;
+
+	if(ob->script_evaluator->jitted_evalRotation)
+	{
+		const Vec4f rot = ob->script_evaluator->evalRotation(use_global_time, winter_env);
+		ob->angle = rot.length();
+		if(isFinite(ob->angle))
+		{
+			if(ob->angle > 0)
+				ob->axis = Vec3f(normalise(rot));
+			else
+				ob->axis = Vec3f(1, 0, 0);
+		}
+		else
+		{
+			ob->angle = 0;
+			ob->axis = Vec3f(1, 0, 0);
+		}
+	}
+
+	if(ob->script_evaluator->jitted_evalTranslation)
+	{
+		if(ob->prototype_object)
+			ob->pos = ob->prototype_object->pos;
+		ob->translation = ob->script_evaluator->evalTranslation(use_global_time, winter_env);
+	}
+
+	// Compute object-to-world matrix, similarly to obToWorldMatrix().  Do it here so we can reuse some components of the computation.
+	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
+	const Vec4f translation = pos + ob->translation;
+
+	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
+	Vec4f use_scale = ob->scale.toVec4fVector();
+	if(use_scale[0] == 0) use_scale[0] = 1.0e-6f;
+	if(use_scale[1] == 0) use_scale[1] = 1.0e-6f;
+	if(use_scale[2] == 0) use_scale[2] = 1.0e-6f;
+
+	const Vec4f unit_axis = normalise(ob->axis.toVec4fVector());
+	const Matrix4f rot = Matrix4f::rotationMatrix(unit_axis, ob->angle);
+	Matrix4f ob_to_world;
+	ob_to_world.setColumn(0, rot.getColumn(0) * use_scale[0]);
+	ob_to_world.setColumn(1, rot.getColumn(1) * use_scale[1]);
+	ob_to_world.setColumn(2, rot.getColumn(2) * use_scale[2]);
+	ob_to_world.setColumn(3, translation);
+
+	// Update in physics engine
+	if(ob->physics_object.nonNull())
+		physics_world->moveKinematicObject(*ob->physics_object, translation, Quatf::fromAxisAndAngle(unit_axis, ob->angle), (float)dt);
 
 	ob_to_world_out = ob_to_world;
 }
@@ -3247,6 +3292,7 @@ void MainWindow::processLoading()
 												ob->physics_object->shape = this->cur_loading_physics_shape;
 												ob->physics_object->userdata = ob;
 												ob->physics_object->userdata_type = 0;
+												ob->physics_object->ob_uid = ob->uid;
 												ob->physics_object->pos = ob->pos.toVec4fPoint();
 												ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 												ob->physics_object->scale = ob->scale;
@@ -3430,6 +3476,7 @@ void MainWindow::processLoading()
 
 								physics_ob->userdata = voxel_ob.ptr();
 								physics_ob->userdata_type = 0;
+								physics_ob->ob_uid = voxel_ob->uid;
 								physics_ob->pos = voxel_ob->pos.toVec4fPoint();
 								physics_ob->rot = Quatf::fromAxisAndAngle(normalise(voxel_ob->axis), voxel_ob->angle);
 								physics_ob->scale = voxel_ob->scale;
@@ -3640,6 +3687,22 @@ void MainWindow::processLoading()
 }
 
 
+inline static Vec4f toVec4fPos(const JPH::Vec3& v)
+{
+	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 1.f);
+}
+
+inline static JPH::Quat toJoltQuat(const Quatf& q)
+{
+	return JPH::Quat(q.v[0], q.v[1], q.v[2], q.v[3]);
+}
+
+inline static Quatf toQuat(const JPH::Quat& q)
+{
+	return Quatf(q.mValue[0], q.mValue[1], q.mValue[2], q.mValue[3]);
+}
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	PERFORMANCEAPI_INSTRUMENT("timerEvent");
@@ -3803,6 +3866,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		msg += "last_num_gif_textures_processed: " + toString(last_num_gif_textures_processed) + "\n";
 		msg += "last_num_mp4_textures_processed: " + toString(last_num_mp4_textures_processed) + "\n";
 		msg += "last_eval_script_time: " + doubleToStringNSigFigs(last_eval_script_time * 1000, 3) + "ms\n";
+		msg += "num obs with scripts: " + toString(obs_with_scripts.size()) + "\n";
 		msg += "last_num_scripts_processed: " + toString(last_num_scripts_processed) + "\n";
 		msg += "last_model_and_tex_loading_time: " + doubleToStringNSigFigs(this->last_model_and_tex_loading_time * 1000, 3) + " ms\n";
 		msg += "load_item_queue: " + toString(load_item_queue.size()) + "\n";
@@ -3903,38 +3967,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	
-	//TEMP: move test audio source objects
-	if(!test_obs.empty())
-	{
-		Lock audio_engine_lock(audio_engine.mutex);
-
-		for(size_t i=0; i<test_obs.size(); ++i)
-		{
-			const double phase = (double)i / test_obs.size() * Maths::get2Pi<double>();
-			const double t = total_timer.elapsed() * 0.1;
-			const double r = 7 + sin(phase + 1.23432 * t) * 6;
-			Vec4f pos(
-				(float)(cos(phase + t) * r), 
-				(float)(sin(phase + t) * r), 
-				(float)(4 + sin(t * 1.234234) * 1), 
-				1);
-			//Vec4f pos = Vec4f(0, 0, 3, 1);
-
-			test_srcs[i]->pos = pos;
-			audio_engine.sourcePositionUpdated(*test_srcs[i]);
-		
-			test_obs[i]->ob_to_world_matrix = Matrix4f::translationMatrix(pos) * Matrix4f::uniformScaleMatrix(0.1f) * Matrix4f::translationMatrix(-0.5f, -0.5f, -0.5f);
-			ui->glWidget->opengl_engine->updateObjectTransformData(*test_obs[i]);
-		}
-	}
-
-
-
 	updateStatusBar();
-
 	
 	const double dt = time_since_last_timer_ev.elapsed();
 	time_since_last_timer_ev.reset();
+	const double global_time = world_state.nonNull() ? this->world_state->getCurrentGlobalTime() : 0.0; // Used as input into script functions
 
 	// Set current animation frame for objects with animated textures
 	//double animated_tex_time = 0;
@@ -4231,7 +4268,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
-	const double global_time = world_state.nonNull() ? this->world_state->getCurrentGlobalTime() : 0.0; // Used as input into script functions
 
 	ui->indigoView->timerThink();
 
@@ -4925,9 +4961,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		Lock lock(this->world_state->mutex);
 
 		// When float values get too large, the gap between successive values gets greater than the frame period,
-		// resulting in 'jumpy' transformations.  So mod the double value down to a smaller range (that wraps e.g. once per day)
+		// resulting in 'jumpy' transformations.  So mod the double value down to a smaller range (that wraps e.g. once per hour)
 		// and then cast to float.
-		const float use_global_time = (float)Maths::doubleMod(global_time, 3600 * 24);
+		const float use_global_time = (float)Maths::doubleMod(global_time, 3600);
 
 		for(auto it = this->obs_with_scripts.begin(); it != this->obs_with_scripts.end(); ++it)
 		{
@@ -4949,9 +4985,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					const js::AABBox aabb_os = ob->opengl_engine_ob->mesh_data->aabb_os;
 					for(size_t z=0; z<ob->instances.size(); ++z)
 					{
-						WorldObject* instance = ob->instances[z].ptr();
+						InstanceInfo* instance = &ob->instances[z];
 						Matrix4f instance_ob_to_world;
-						evalObjectScript(instance, use_global_time, dt, instance_ob_to_world); // Updates instance->physics_object->ob_to_world
+						evalObjectInstanceScript(instance, use_global_time, dt, instance_ob_to_world); // Updates instance->physics_object->ob_to_world
 						num_scripts_processed++;
 
 						all_instances_aabb_ws.enlargeToHoldAABBox(aabb_os.transformedAABBFast(instance_ob_to_world));
@@ -5019,17 +5055,39 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	if(physics_world.nonNull())
 	{
 		// Update transforms in OpenGL of objects the physics engine has moved.
-		physics_world->updateActiveObjects();
-#if USE_JOLT
+		JPH::BodyInterface& body_interface = physics_world->physics_system->GetBodyInterface();
+
 		{
-			for(auto it = physics_world->temp_activated_obs.begin(); it != physics_world->temp_activated_obs.end(); ++it)
+			Lock lock(physics_world->activated_obs_mutex);
+			for(auto it = physics_world->activated_obs.begin(); it != physics_world->activated_obs.end(); ++it)
 			{
 				PhysicsObject* physics_ob = *it;
 
+				// NOTE: doing 2 locks here that we could change to just use 1.
+				const JPH::Vec3 pos = body_interface.GetCenterOfMassPosition(physics_ob->jolt_body_id);  // NOTE: should we use GetPosition() here?
+				const JPH::Quat rot = body_interface.GetRotation(physics_ob->jolt_body_id);
+
+				//conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
+
+				const Vec4f new_pos = toVec4fPos(pos);
+				const Quatf new_rot = toQuat(rot);
+
+				physics_ob->rot = new_rot;
+				physics_ob->pos = new_pos;
+
 				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0)
 				{
+#ifndef NDEBUG
+					if(world_state->objects.find(physics_ob->ob_uid) == world_state->objects.end())
+					{
+						conPrint("Error: UID " + physics_ob->ob_uid.toString() + " not found for physics ob");
+						assert(0);
+					}
+#endif
 					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+					
 					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
+					// We will set the opengl transform in evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
 					if(physics_ob->dynamic || (physics_ob->kinematic && ob->script.empty()))
 					{
 						// conPrint("Setting object state from jolt");
@@ -5042,12 +5100,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(ob->opengl_engine_ob.nonNull())
 							{
 								ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
+
+								const js::AABBox prev_gl_aabb_ws = ob->opengl_engine_ob->aabb_ws;
 								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
 
-								ob->aabb_ws = ob->opengl_engine_ob->aabb_ws;
+								// For objects with instances (which will have a non-null instance_matrix_vbo), we want to use the AABB we computed in evalObjectScript(), which contains all the instance AABBs,
+								// and will have been overwritten in updateObjectTransformData().
+								if(ob->opengl_engine_ob->instance_matrix_vbo.nonNull())
+									ob->opengl_engine_ob->aabb_ws = prev_gl_aabb_ws;
+								else
+									ob->aabb_ws = ob->opengl_engine_ob->aabb_ws; // Update object AABB - used for computing LOD level.
 							}
 
-							// Update world object
+							// Update world object.  TODO for dynamic objects?
 							//	Vec4f unit_axis;
 							//	float angle;
 							//	ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
@@ -5057,9 +5122,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 					}
 				}
+				// Note that for instances, their OpenGL ob transform has effectively been set when instance_matrices was updated when evaluating scripts.
+				// So we don't need to set it from the physics object.
 			}
 		}
-#endif
 
 		// Update debug player-physics visualisation spheres
 		if(false)
@@ -5945,7 +6011,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						// Remove physics object
 						if(parcel->physics_object.nonNull())
+						{
 							physics_world->removeObject(parcel->physics_object);
+							parcel->physics_object = NULL;
+						}
 
 						this->world_state->parcels.erase(parcel->id);
 					}
@@ -5970,6 +6039,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob);
 
 								// Make physics object for parcel:
+								assert(parcel->physics_object.isNull());
 								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape, task_manager);
 								physics_world->addObject(parcel->physics_object);
 							}
@@ -7766,6 +7836,7 @@ void MainWindow::addParcelObjects()
 				ui->glWidget->opengl_engine->addObject(parcel->opengl_engine_ob); // Add to engine
 
 				// Make physics object for parcel:
+				assert(parcel->physics_object.isNull());
 				parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape, task_manager);
 				physics_world->addObject(parcel->physics_object);
 			}
@@ -8440,10 +8511,12 @@ void MainWindow::objectEditedSlot()
 				// NOTE: do we want to update materials and scale etc. on object, given that we have a new mesh now?
 
 				// Make new physics object
+				assert(selected_ob->physics_object.isNull());
 				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
 				selected_ob->physics_object->shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh);
 				selected_ob->physics_object->userdata = selected_ob.ptr();
 				selected_ob->physics_object->userdata_type = 0;
+				selected_ob->physics_object->ob_uid = selected_ob->uid;
 				selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = selected_ob->scale;
@@ -8962,7 +9035,10 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 				ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
 
 			if(ob->physics_object.nonNull())
+			{
 				this->physics_world->removeObject(ob->physics_object);
+				ob->physics_object = NULL;
+			}
 
 			if(ob->audio_source.nonNull())
 			{
@@ -8981,7 +9057,10 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 				ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
 
 			if(parcel->physics_object.nonNull())
+			{
 				this->physics_world->removeObject(parcel->physics_object);
+				parcel->physics_object = NULL;
+			}
 		}
 
 		for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
@@ -9788,7 +9867,10 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
 
 	if(ob->physics_object.nonNull())
+	{
 		physics_world->removeObject(ob->physics_object);
+		ob->physics_object = NULL;
+	}
 
 	// Update in Indigo view
 	ui->indigoView->objectRemoved(*ob);
@@ -9836,6 +9918,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 		ui->glWidget->opengl_engine->selectObject(gl_ob);
 
+		assert(ob->physics_object.isNull());
 		ob->physics_object = physics_ob;
 		physics_ob->userdata = (void*)(ob.ptr());
 		physics_ob->userdata_type = 0;
@@ -9967,6 +10050,11 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 			ui->parcelEditor->show();
 			ui->objectEditor->hide();
 			ui->editorDockWidget->show(); // Show the object editor dock widget if it is hidden.
+		}
+		else if(results.hit_object->userdata && results.hit_object->userdata_type == 2) // If we hit an instance:
+		{
+			InstanceInfo* instance = static_cast<InstanceInfo*>(results.hit_object->userdata);
+			selectObject(instance->prototype_object, results.hit_mat_index); // Select the original prototype object that the hit object is an instance of.
 		}
 		else // Else if the trace didn't hit anything:
 		{
@@ -10374,10 +10462,6 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	this->selected_ob->is_selected = true;
 
 	this->selection_point_os = Vec4f(0, 0, 0, 1); // Store a default value for this (kind of a pivot point).
-
-	// If we hit an instance, select the prototype object instead.
-	if(this->selected_ob->prototype_object)
-		this->selected_ob = this->selected_ob->prototype_object;
 
 
 	// Mark the materials on the hit object as selected
