@@ -95,6 +95,32 @@ struct ObScatteringInfo : public ThreadSafeRefCounted
 };
 
 
+struct InstanceInfo
+{
+	~InstanceInfo();
+
+	GLARE_ALIGNED_16_NEW_DELETE
+
+#if GUI_CLIENT
+	// Instances are drawn with OpenGL instancing, so don't need their own opengl object.
+	Reference<PhysicsObject> physics_object;
+
+	int instance_index;
+	int num_instances; // number of instances of the prototype object that this is object is an instance of.
+
+	Reference<WinterShaderEvaluator> script_evaluator;
+
+	WorldObject* prototype_object; // This is the object this instance is an instance of.
+
+	Vec3d pos;
+	Vec3f axis;
+	float angle;
+	Vec3f scale;
+	Vec4f translation; // As computed by a script.  Translation from current position in pos.
+#endif
+};
+
+
 /*=====================================================================
 WorldObject
 -----------
@@ -253,15 +279,13 @@ public:
 	//std::string loaded_audio_source_url;
 
 	//std::string loaded_script;
-	int instance_index;
-	int num_instances; // number of instances of the prototype object that this is object is an instance of.
 	Vec4f translation; // As computed by a script.  Translation from current position in pos.
-	WorldObject* prototype_object; // for instances - this is the object this object is a copy of.
-	std::vector<Reference<WorldObject>> instances;
 
 	DatabaseKey database_key;
 
 #if GUI_CLIENT
+	std::vector<InstanceInfo> instances;
+
 	Reference<GLObject> opengl_engine_ob;
 	Reference<GLLight> opengl_light;
 	Reference<PhysicsObject> physics_object;

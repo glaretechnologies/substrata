@@ -97,8 +97,6 @@ public:
 
 	void think(double dt);
 
-	void updateActiveObjects();
-
 	// BodyActivationListener interface:
 #if USE_JOLT
 	virtual void OnBodyActivated(const JPH::BodyID& inBodyID, uint64 inBodyUserData) override;
@@ -139,12 +137,10 @@ private:
 	std::set<Reference<PhysicsObject>> objects_set; // Use std::set for fast iteration.  TODO: can remove?
 	
 public:
-	Mutex activated_obs_mutex;
+	mutable Mutex activated_obs_mutex;
 	HashSet<PhysicsObject*> activated_obs GUARDED_BY(activated_obs_mutex);
 	//std::set<JPH::BodyID> activated_obs;
 //private:
-	std::vector<PhysicsObject*> temp_activated_obs;
-
 public:
 
 	// Jolt
