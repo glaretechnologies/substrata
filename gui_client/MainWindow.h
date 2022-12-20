@@ -425,6 +425,8 @@ public:
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
 
+	GLObjectRef aabb_viz_gl_ob;
+
 	static const int NUM_AXIS_ARROWS = 3;
 	LineSegment4f axis_arrow_segments[NUM_AXIS_ARROWS];
 	GLObjectRef axis_arrow_objects[NUM_AXIS_ARROWS]; // For ob placement

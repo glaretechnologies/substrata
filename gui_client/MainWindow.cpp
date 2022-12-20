@@ -2438,7 +2438,26 @@ void MainWindow::evalObjectScript(WorldObject* ob, float use_global_time, double
 		ob->opengl_engine_ob->ob_to_world_inv_transpose_matrix = ob_to_world_inv_transpose;
 		ob->opengl_engine_ob->aabb_ws = ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
 	
-		ob->aabb_ws = ob->opengl_engine_ob->aabb_ws; // Update world space AABB (used for computing LOD level)
+		// Update object world space AABB (used for computing LOD level).
+		// For objects with animated rotation, we want to compute an AABB without rotation, otherwise we can get a world-space AABB
+		// that effectively oscillates in size.  See https://youtu.be/Wo_PauArb6A for an example.
+		// This is bad because it can cause the object to oscillate between LOD levels.
+		// The AABB will be somewhat wrong, but hopefully it shouldn't matter too much.
+		if(ob->script_evaluator->jitted_evalRotation)
+		{
+			Matrix4f TS;
+			TS.setColumn(0, Vec4f(use_scale[0], 0, 0, 0));
+			TS.setColumn(1, Vec4f(0, use_scale[1], 0, 0));
+			TS.setColumn(2, Vec4f(0, 0, use_scale[2], 0));
+			TS.setColumn(3, translation);
+
+			ob->aabb_ws = ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(TS);
+		}
+		else
+		{
+			ob->aabb_ws = ob->opengl_engine_ob->aabb_ws;
+		}
+
 
 		// TODO: need to call assignLightsToObject() somehow
 		//ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
@@ -3854,6 +3873,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	gesture_ui.think();
 
+	// Update AABB visualisation, if we are showing one.
+	if(aabb_viz_gl_ob.nonNull() && selected_ob.nonNull())
+	{
+		const Vec4f span = selected_ob->aabb_ws.max_ - selected_ob->aabb_ws.min_;
+
+		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
+		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
+		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
+		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(3, selected_ob->aabb_ws.min_); // set origin
+
+		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_viz_gl_ob);
+	}
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
 	{
@@ -10464,6 +10495,13 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	this->selection_point_os = Vec4f(0, 0, 0, 1); // Store a default value for this (kind of a pivot point).
 
 
+	// If diagnostics widget is shown, show an AABB visualisation as well.
+	if(ui->diagnosticsDockWidget->isVisible())
+	{
+		this->aabb_viz_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->aabb_ws.min_, this->selected_ob->aabb_ws.max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
+		ui->glWidget->opengl_engine->addObject(this->aabb_viz_gl_ob);
+	}
+
 	// Mark the materials on the hit object as selected
 	if(this->selected_ob->opengl_engine_ob.nonNull())
 	{
@@ -10558,6 +10596,12 @@ void MainWindow::deselectObject()
 		{
 			ui->glWidget->opengl_engine->removeObject(ob_denied_move_markers.back());
 			ob_denied_move_markers.pop_back();
+		}
+
+		if(this->aabb_viz_gl_ob.nonNull())
+		{
+			ui->glWidget->opengl_engine->removeObject(this->aabb_viz_gl_ob);
+			this->aabb_viz_gl_ob = NULL;
 		}
 
 		// Deselect any currently selected object
