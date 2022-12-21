@@ -5058,6 +5058,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	PlayerPhysicsInput physics_input;
 	ui->glWidget->processPlayerPhysicsInput((float)dt, /*input_out=*/physics_input); // sets player physics move impulse.
 
+	const bool our_move_impulse_zero = !player_physics.isMoveImpulseNonZero();
+
 	// Advance physics sim and player physics with a maximum timestep size.
 	// We advance both together, otherwise if there is a large dt, the physics engine can advance objects past what the player physics can keep up with.
 	// This prevents stuff like the player falling off the back of a train when loading stutters occur.
@@ -5532,14 +5534,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					Vec3f rotation;
 					avatar->getInterpolatedTransform(cur_time, pos, rotation);
 
-					float xyplane_speed_rel_ground = 0;
+					bool use_xyplane_speed_rel_ground_override = false;
+					float xyplane_speed_rel_ground_override = 0;
 
 					// Do 3rd person cam stuff for our avatar:
 					if(our_avatar)
 					{
 						pos = cam_controller.getFirstPersonPosition();
 						rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
-						xyplane_speed_rel_ground = player_physics.getLastXYPlaneVelRelativeToGround().length();
+
+						use_xyplane_speed_rel_ground_override = true;
+						xyplane_speed_rel_ground_override = player_physics.getLastXYPlaneVelRelativeToGround().length();
 
 						const bool selfie_mode = this->cam_controller.selfieModeEnabled();
 
@@ -5552,7 +5557,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						//rotation = Vec3f(0, 0, 0); // just for testing
 						//pos = Vec3d(0,0,1.7);
 
-						avatar->anim_state = (player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
+						avatar->anim_state = 
+							(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
+							(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) | 
+							(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
 
 						if(cam_controller.thirdPersonEnabled())
 						{
@@ -5593,9 +5601,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					{
 						AnimEvents anim_events;
-						avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, xyplane_speed_rel_ground, avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, anim_events);
+						avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
+							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, anim_events);
 						
-						if(((avatar->anim_state & AvatarGraphics::ANIM_STATE_IN_AIR) == 0) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
+						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
 						{
 							//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
 							//footstep_sources[rnd_src_i]->cur_read_i = 0;
@@ -5719,7 +5728,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		Vec3d pos(cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
 		const int anim_state = 0;
 		float xyplane_speed_rel_ground = 0;
-		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, Vec3f(0, 0, (float)test_avatar_phase + Maths::pi_2<float>()), xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, anim_events);
+		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, Vec3f(0, 0, (float)test_avatar_phase + Maths::pi_2<float>()), false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, anim_events);
 		if(anim_events.footstrike)
 		{
 			//conPrint("footstrike");
@@ -6204,7 +6213,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		// Send AvatarTransformUpdate packet
 		{
-			const uint32 anim_state = (player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | (player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0);
+			const uint32 anim_state = 
+				(player_physics.onGroundRecently() ? 0 : AvatarGraphics::ANIM_STATE_IN_AIR) | 
+				(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) |
+				(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
 
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
@@ -11931,7 +11943,7 @@ int main(int argc, char *argv[])
 
 					AnimEvents anim_events;
 					float xyplane_speed_rel_ground = 0;
-					test_avatar->graphics.setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), xyplane_speed_rel_ground, Matrix4f::identity(), 0, 0.0, 0.01, anim_events);
+					test_avatar->graphics.setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), false, xyplane_speed_rel_ground, Matrix4f::identity(), 0, 0.0, 0.01, anim_events);
 				}
 
 				// Load a wedge

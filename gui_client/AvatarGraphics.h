@@ -62,11 +62,14 @@ public:
 	AvatarGraphics();
 	~AvatarGraphics();
 
+	// anim_state flags
 	static const uint32 ANIM_STATE_IN_AIR = 1; // Is the avatar not touching the ground? Could be jumping or flying etc..
 	static const uint32 ANIM_STATE_FLYING = 2; // Is the player flying (e.g. do they have flying movement mode on)
+	static const uint32 ANIM_STATE_MOVE_IMPULSE_ZERO = 4; // Is the player not pressing down any move keys.
 
-	// Pass in xyplane_speed_rel_ground, so when an avatar is riding on a moving object, we don't play a walk animation.
-	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, float xyplane_speed_rel_ground, const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out);
+	// xyplane_speed_rel_ground_override is the speed from the local physics sim.
+	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override,
+		const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out);
 
 	void build();
 	//void create(OpenGLEngine& engine, const std::string& URL);

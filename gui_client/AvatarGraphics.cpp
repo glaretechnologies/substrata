@@ -64,7 +64,9 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 }
 
 
-void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& cam_rotation, float xyplane_speed_rel_ground, const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out)
+void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& cam_rotation, 
+	bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override, 
+	const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out)
 {
 	if(false) // debug_avatar_basis_ob.isNull())
 	{
@@ -101,8 +103,16 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
 		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
-		const double xyplane_speed = on_ground ? xyplane_speed_rel_ground : Vec3d(vel.x, vel.y, 0).length();
-		
+		double xyplane_speed = Vec3d(vel.x, vel.y, 0).length();
+		if(use_xyplane_speed_rel_ground_override)
+			xyplane_speed = xyplane_speed_rel_ground_override; // Use overriding value (from local physics sim if this is our avatar)
+
+		// Set xyplane_speed to zero if the controller of the avatar is not trying to move it, and it is on the ground.
+		// This prevents spurious walk movements when riding platforms in some circumstances (when player velocity does not equal ground velocity for some reason).
+		// When flying we want to show walk/run anims when coming to a halt against the ground though.
+		if(on_ground && BitUtils::isBitSet(anim_state, ANIM_STATE_MOVE_IMPULSE_ZERO))
+			xyplane_speed = 0;
+
 		const Vec3d old_vel = last_vel;
 		const Vec3d accel = (vel - old_vel) / dt;
 		float unclamped_sideways_accel = dot(right_vec,    accel.toVec4fVector());
@@ -266,7 +276,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		{
 			this->avatar_rotation = cam_rotation;
 
-			const bool flying = (anim_state & ANIM_STATE_FLYING) != 0;
+			const bool flying = BitUtils::isBitSet(anim_state, ANIM_STATE_FLYING);
 			const bool moving_forwards = dot(vel.toVec4fVector(), forwards_vec) > speed * 0.4f;
 
 			const float max_accel_mag = 40.f;
