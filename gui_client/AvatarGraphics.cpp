@@ -110,7 +110,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		// Set xyplane_speed to zero if the controller of the avatar is not trying to move it, and it is on the ground.
 		// This prevents spurious walk movements when riding platforms in some circumstances (when player velocity does not equal ground velocity for some reason).
 		// When flying we want to show walk/run anims when coming to a halt against the ground though.
-		if(on_ground && BitUtils::isBitSet(anim_state, ANIM_STATE_MOVE_IMPULSE_ZERO))
+		if(on_ground && BitUtils::isBitSet(anim_state, ANIM_STATE_MOVE_IMPULSE_ZERO) && !BitUtils::isBitSet(anim_state, ANIM_STATE_FLYING))
 			xyplane_speed = 0;
 
 		const Vec3d old_vel = last_vel;
