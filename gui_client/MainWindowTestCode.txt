@@ -1,0 +1,357 @@
+/*=====================================================================
+MainWindowTestCode.cpp
+----------------------
+Copyright Glare Technologies Limited 2020 -
+=====================================================================*/
+
+Test code from Mainwindow.cpp
+May be useful in the future.
+
+
+
+	//test_obs.resize(5);
+	test_srcs.resize(test_obs.size());
+	for(size_t i=0; i<test_srcs.size(); ++i)
+	{
+		test_srcs[i] = new glare::AudioSource();
+		std::vector<float> buf(48000);
+		for(size_t s=0; s<48000; ++s)
+		{
+			const double phase = s * (Maths::get2Pi<double>() / 48000);
+			double val = sin(phase * 100) * 0.5 + sin(phase * 200 * i) * 0.2 + sin(phase * 400 * i) * 0.01 + sin(phase * 800 * i) * 0.002 + rng.unitRandom() * 0.04;
+			const double t = phase * 4;
+			const double window = (t >= 0 && t < 1) ? sin(t * Maths::recipPi<double>()) : 0;
+			val += sin(phase * 320 * i) * window * 0.4;
+
+			buf[s] = (float)val;
+		}
+		test_srcs[i]->buffer.pushBackNItems(buf.data(), buf.size());
+
+		audio_engine.addSource(test_srcs[i]);
+	}
+
+
+
+
+for(size_t i=0; i<mw.test_obs.size(); ++i)
+			{
+				mw.test_obs[i] = mw.ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), Colour4f(0.9, 0.2, 0.5, 1.f));
+				mw.ui->glWidget->opengl_engine->addObject(mw.test_obs[i]);
+			}
+
+
+
+// Load a test overlay quad
+			if(false)
+			{
+				OverlayObjectRef ob = new OverlayObject();
+
+				ob->ob_to_world_matrix.setToUniformScaleMatrix(0.95f);
+
+				ob->material.albedo_rgb = Colour3f(0.7f, 0.2f, 0.2f);
+				ob->material.alpha = 1.f;
+				try
+				{
+					ob->material.albedo_texture = mw.ui->glWidget->opengl_engine->getTexture("N:\\indigo\\trunk\\testscenes\\ColorChecker_sRGB_from_Ref.jpg");
+				}
+				catch(glare::Exception& e)
+				{
+					assert(0);
+					conPrint("ERROR: " + e.what());
+				}
+				ob->material.tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+
+				ob->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
+
+				mw.ui->glWidget->opengl_engine->addOverlayObject(ob);
+			}
+
+
+
+
+// TEMP: Add some test lights
+			//{
+			//	PCG32 rng;
+
+			//	for(int i=0; i<8; ++i)
+			//	{
+			//		GLLightRef light = new GLLight();
+			//		light->gpu_data.pos = Vec4f(0, 10 * (float)i, 1, 1);
+			//		light->gpu_data.dir = Vec4f(0, 0, -1, 0);
+			//		//light->gpu_data.right = Vec4f(1, 0, 0, 0);
+			//		const float light_col_factor = 1.0e10f;
+			//		light->gpu_data.col = Colour4f(light_col_factor * rng.unitRandom() * rng.unitRandom(), light_col_factor * rng.unitRandom() * rng.unitRandom(), light_col_factor * rng.unitRandom() * rng.unitRandom(), 1.f);
+			//		light->gpu_data.light_type = 1;
+			//		mw.ui->glWidget->opengl_engine->addLight(light);
+
+			//		test_lights[i] = light;
+			//	}
+			//}
+
+			// drawField(mw.ui->glWidget->opengl_engine.ptr());
+
+			// Load a test voxel
+			/*{
+				VoxelGroup voxel_group;
+				//voxel_group.voxel_width = 0.5;
+				voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 0), 0));
+				voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 0), 1));
+				voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 0, 1), 0));
+				//voxel_group.voxels.push_back(Voxel(Vec3<int>(0, 0, 1), 1));
+				//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 1), 0));
+				//voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2), 2));
+				//
+				//
+				//const int N = 10;
+				//for(int i=0; i<N; ++i)
+				//	voxel_group.voxels.push_back(Voxel(Vec3<int>(1, 1, 2 + i), 2));
+
+				Timer timer;
+
+				Reference<RayMesh> raymesh;
+				Reference<OpenGLMeshRenderData> gl_meshdata;
+				//for(int z=0; z<10000; ++z)
+					gl_meshdata = ModelLoading::makeModelForVoxelGroup(voxel_group, mw.task_manager, raymesh);
+
+				conPrint("Voxel meshing took " + timer.elapsedString());
+
+				GLObjectRef gl_ob = new GLObject();
+				gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(3, 3, 1);
+				gl_ob->mesh_data = gl_meshdata;
+
+				gl_ob->materials.resize(3);
+				gl_ob->materials[0].albedo_rgb = Colour3f(0.9f, 0.1f, 0.1f);
+				gl_ob->materials[0].albedo_tex_path = "resources/obstacle.png";
+
+				gl_ob->materials[1].albedo_rgb = Colour3f(0.1f, 0.9f, 0.1f);
+
+				gl_ob->materials[2].albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
+
+				mw.ui->glWidget->addObject(gl_ob);
+			}*/
+			//mw.ui->glWidget->opengl_engine->setDrawWireFrames(true);
+
+
+
+
+// TEMP: make a parcel
+if(false)
+{
+	ParcelRef parcel = new Parcel();
+	parcel->id = ParcelID(0);
+	parcel->owner_id = UserID(0);
+	parcel->admin_ids.push_back(UserID(0));
+	parcel->created_time = TimeStamp::currentTime();
+	parcel->description = " a parcel";
+	parcel->owner_name = "the owner";
+	parcel->verts[0] = Vec2d(10, 10);
+	parcel->verts[1] = Vec2d(20, 12);
+	parcel->verts[2] = Vec2d(18, 20);
+	parcel->verts[3] = Vec2d(11, 18);
+	parcel->zbounds = Vec2d(-0.1, 30);
+	parcel->build();
+
+	mw.world_state->parcels[parcel->id] = parcel;
+}
+
+
+// TEMP: make an avatar
+if(false)
+{
+	test_avatar = new Avatar();
+	test_avatar->pos = Vec3d(3,0,2);
+	test_avatar->rotation = Vec3f(1,0,0);
+	//test_avatar->create(*mw.ui->glWidget->opengl_engine, );
+
+
+	// Create gl and physics object now
+	/*WorldObject ob;
+	BatchedMeshRef mesh;
+	Reference<RayMesh> raymesh;
+	test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelFile(mw.task_manager, "D:\\models\\tor-avatar.glb", mesh, 
+	ob);
+
+	*/
+	const float EYE_HEIGHT = 1.67f;
+	const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
+	test_avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
+
+	//const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
+
+
+	//const std::string path = "D:/models/VRMs/vitalab2.vrm";
+	//const std::string path = "D:\\models\\VRMs\\PolygonApe_97.glb";
+	//const std::string path = "D:\\models\\VRMs\\schurli.glb";
+	//const std::string path = "D:\\models\\VRMs\\testguy.vrm";
+	//const std::string path = "D:\\models\\VRMs\\vroidhub_avatarsample_A.vrm";
+	//const std::string path = "D:\\models\\xbot.glb";
+	//const std::string path = "D:\\models\\xavatar3.glb";
+	const std::string path = "D:\\models\\readyplayerme_female_avatar2.glb";
+	//const std::string path = "D:\\models\\readyplayerme_avatar_animation_13.glb";
+	//const std::string path = "D:\\models\\readyplayerme_avatar_animation_05_30fps.glb";
+	const uint64 model_hash = FileChecksum::fileChecksum(path);
+	const std::string original_filename = FileUtils::getFilename(path); // Use the original filename, not 'temp.igmesh'.
+	const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(original_filename), model_hash); // ResourceManager::URLForPathAndHash(igmesh_disk_path, model_hash);
+	mw.resource_manager->copyLocalFileToResourceDir(path, mesh_URL);
+
+	// Create gl and physics object now
+	Reference<RayMesh> raymesh;
+	//test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForModelURLAndMaterials(mesh_URL, /*ob_lod_level*/0, test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
+	//	*mw.resource_manager,
+	//	mw.task_manager, mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(),
+	//	ob_to_world_matrix,
+	//	false, // skip opengl calls
+	//	raymesh);
+
+	test_avatar->graphics.build();
+
+	for(int z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+		test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
+	mw.ui->glWidget->opengl_engine->objectMaterialsUpdated(test_avatar->graphics.skinned_gl_ob);
+
+	{
+		for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
+		{
+			conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
+		}
+	}
+
+	// Load animation data for ready-player-me type avatars
+	{
+		FileInStream file(cyberspace_base_dir_path + "/resources/extracted_avatar_anim.bin");
+		test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+	}
+
+	if(!test_avatar->graphics.skinned_gl_ob->mesh_data->vbo_handle.valid()) // If this data has not been loaded into OpenGL yet:
+		OpenGLEngine::loadOpenGLMeshDataIntoOpenGL(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, *test_avatar->graphics.skinned_gl_ob->mesh_data); // Load mesh data into OpenGL
+
+	assignedLoadedOpenGLTexturesToMats(test_avatar.ptr(), *mw.ui->glWidget->opengl_engine, *mw.resource_manager);
+
+
+	mw.ui->glWidget->opengl_engine->addObject(test_avatar->graphics.skinned_gl_ob);
+
+
+	AnimEvents anim_events;
+	float xyplane_speed_rel_ground = 0;
+	test_avatar->graphics.setOverallTransform(*mw.ui->glWidget->opengl_engine, Vec3d(0, 3, 2.67), Vec3f(0, 0, 1), false, xyplane_speed_rel_ground, Matrix4f::identity(), 0, 0.0, 0.01, anim_events);
+}
+
+
+#endif
+
+
+
+
+	// Test loading a vox file
+	if(false)
+	{
+		//BatchedMeshRef mesh;
+		//WorldObjectRef world_object = new WorldObject();
+
+		////const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\teapot.vox";
+		////const std::string path = "D:\\downloads\\monu1.vox";
+		////const std::string path = "D:\\downloads\\chr_knight.vox";
+		////const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\test.vox";
+		////const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\monu10.vox";
+		//const std::string path = "O:\\indigo\\trunk\\testfiles\\vox\\seagull.vox";
+
+		//glare::TaskManager task_manager;
+		//GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+		//	//Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f),
+		//	mesh,
+		//	*world_object
+		//);
+
+		//ob->ob_to_world_matrix = Matrix4f::translationMatrix(12, 3, 0) * Matrix4f::uniformScaleMatrix(0.1f);
+
+		//mw.ui->glWidget->opengl_engine->addObject(ob);
+
+		//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+	}
+
+
+
+
+				
+	if(false)
+	{
+		//const std::string path = "D:\\models\\cryptovoxels-avatar-all-actions.glb";
+		//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/2CylinderEngine.glb";
+		//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/VertexColorTest.glb";
+		//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/RiggedSimple.glb";
+		//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/RiggedFigure.glb";
+		//const std::string path = TestUtils::getTestReposDir() + "/testfiles/gltf/BoxAnimated.glb";
+		//const std::string path = "C:\\Users\\nick\\Downloads\\schurli_animated.glb";
+		const std::string path = "C:\\Users\\nick\\Downloads\\GameObject4.glb";
+
+		BatchedMeshRef mesh;
+		WorldObjectRef world_object = new WorldObject();
+		world_object->pos = Vec3d(1, 0, 2);
+		world_object->scale = Vec3f(1.f);
+		world_object->axis = Vec3f(1.f, 0, 0);
+		world_object->angle = Maths::pi<float>() / 2;
+		world_object->model_url = FileUtils::getFilename(path);
+		world_object->max_model_lod_level = 0;
+
+		world_object->from_remote_other_dirty = true;
+		//mw.world_state->objects[UID(1000000)] = world_object;
+
+		mw.resource_manager->copyLocalFileToResourceDir(path, FileUtils::getFilename(path));
+	}
+
+
+	if(false)
+	{
+		//const std::string path = "D:\\models\\zomb_elm\\elm_LOD0.glb";
+
+		//WorldObjectRef proto_world_object = new WorldObject();
+		//BatchedMeshRef mesh;
+		//glare::TaskManager task_manager;
+		//GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+		//	mesh,
+		//	*proto_world_object
+		//);
+
+		//for(int x=0; x<20; ++x)
+		//for(int y=0; y<20; ++y)
+		//{
+		//	/*WorldObjectRef world_object = new WorldObject();
+		//	world_object->pos = Vec3d(x*5, y*5, 2);
+		//	world_object->scale = Vec3f(1.f);
+		//	world_object->axis = Vec3f(1.f, 0, 0);
+		//	world_object->angle = Maths::pi<float>() / 2;
+		//	world_object->model_url = FileUtils::getFilename(path);
+		//	world_object->max_model_lod_level = 0;
+		//	world_object->g*/
+
+		//	GLObjectRef new_ob = mw.ui->glWidget->opengl_engine->allocateObject();
+		//	new_ob->mesh_data = ob->mesh_data;
+		//	new_ob->ob_to_world_matrix = Matrix4f::translationMatrix(x*5.f, 5 + y*5.f, 0) * Matrix4f::uniformScaleMatrix(0.02f) * Matrix4f::rotationAroundXAxis(Maths::pi_2<float>());
+		//	new_ob->materials = ob->materials;
+
+		//	
+		//	mw.ui->glWidget->opengl_engine->addObject(new_ob);
+		//}
+
+		//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+	}
+
+	if(false)
+	{
+	/*	BatchedMeshRef mesh;
+		WorldObjectRef world_object = new WorldObject();
+
+		const std::string path = "D:\\models\\dancedevil_glb_16934124793649044515_lod2.bmesh";
+
+		glare::TaskManager task_manager;
+		GLObjectRef ob = ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, task_manager, path,
+			mesh,
+			*world_object
+		);
+
+		ob->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,2) * Matrix4f::uniformScaleMatrix(0.03f);
+
+		mw.ui->glWidget->opengl_engine->addObject(ob);*/
+
+		//mw.physics_world->addObject(makePhysicsObject(mesh, ob->ob_to_world_matrix, mw.print_output, mw.task_manager));
+	}

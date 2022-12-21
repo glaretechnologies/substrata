@@ -541,8 +541,8 @@ private:
 
 	LogWindow* log_window;
 public:
-	std::vector<GLObjectRef> test_obs;
-	std::vector<glare::AudioSourceRef> test_srcs;
+	//std::vector<GLObjectRef> test_obs;
+	//std::vector<glare::AudioSourceRef> test_srcs;
 
 	//std::vector<AudioSourceRef> footstep_sources;
 
