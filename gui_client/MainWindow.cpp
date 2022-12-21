@@ -10111,6 +10111,9 @@ void MainWindow::doObjectSelectionTraceForMouseEvent(QMouseEvent* e)
 		// Store the object-space selection point.  This will be used for moving the object.
 		// Note: we set this after the selectObject() call above, which sets selection_point_os to (0,0,0).
 		this->selection_point_os = results.hit_object->getWorldToObMatrix() * selection_point_ws;
+
+		// Add gl object to show selection position:
+		// ui->glWidget->opengl_engine->addObject(ui->glWidget->opengl_engine->makeAABBObject(selection_point_ws - Vec4f(0.05, 0.05, 0.05, 0), selection_point_ws + Vec4f(0.05, 0.05, 0.05, 0), Colour4f(0,0,1,1)));
 	}
 	else
 	{

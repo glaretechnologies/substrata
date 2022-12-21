@@ -345,6 +345,10 @@ inline static Quatf toQuat(const JPH::Quat& q)
 
 void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale)
 {
+	object.pos = translation;
+	object.rot = rot_quat;
+	object.scale = Vec3f(scale);
+
 	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
 	{
 		JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
@@ -398,11 +402,11 @@ void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_qu
 
 
 	const Matrix4f rot = rot_quat.toMatrix();
-	Matrix4f new_ob_to_world;
-	new_ob_to_world.setColumn(0, rot.getColumn(0) * use_scale[0]);
-	new_ob_to_world.setColumn(1, rot.getColumn(1) * use_scale[1]);
-	new_ob_to_world.setColumn(2, rot.getColumn(2) * use_scale[2]);
-	new_ob_to_world.setColumn(3, setWToOne(translation));
+	Matrix4f ob_to_world;
+	ob_to_world.setColumn(0, rot.getColumn(0) * use_scale[0]);
+	ob_to_world.setColumn(1, rot.getColumn(1) * use_scale[1]);
+	ob_to_world.setColumn(2, rot.getColumn(2) * use_scale[2]);
+	ob_to_world.setColumn(3, setWToOne(translation));
 
 	/*
 	inverse:
@@ -423,10 +427,15 @@ void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_qu
 
 	assert(epsEqual(S_inv_R_inv, Matrix4f::scaleMatrix(recip_scale[0], recip_scale[1], recip_scale[2]) * rot_inv));
 
-	const Matrix4f new_world_to_ob = rightTranslate(S_inv_R_inv, -translation);
+	const Matrix4f world_to_ob = rightTranslate(S_inv_R_inv, -translation);
 
-	ob_to_world_out = new_ob_to_world;
-	world_to_ob_out = new_world_to_ob;
+#ifndef NDEBUG
+	Matrix4f prod = ob_to_world * world_to_ob;
+	assert(epsEqual(Matrix4f::identity(), prod, /*eps=*/1.0e-3f));
+#endif
+	
+	ob_to_world_out = ob_to_world;
+	world_to_ob_out = world_to_ob;
 }
 
 

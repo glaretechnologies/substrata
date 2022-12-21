@@ -647,7 +647,8 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 					{
 						const PhysicsObject* const physics_ob = physics_obs[q];
 						RayTraceResult result;
-						physics_ob->traceRay(Ray(/*startpos=*/ray_trace_start_pos, /*unitdir=*/trace_dir, /*min_t=*/0, /*max_t=*/10000), result);
+						assert(0);
+						//physics_ob->traceRay(Ray(/*startpos=*/ray_trace_start_pos, /*unitdir=*/trace_dir, /*min_t=*/0, /*max_t=*/10000), result);
 						if(result.hit_object != NULL)
 						{
 							const Vec4f hitpos_ws = ray_trace_start_pos + trace_dir * result.hitdist_ws;
