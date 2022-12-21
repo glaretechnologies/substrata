@@ -74,9 +74,10 @@ public:
 
 	UID ob_uid; // Just for debugging.
 
-	Vec4f pos;
-	Quatf rot; // Set in PhysicsWorld::think() from Jolt data
-	Vec3f scale;
+	// TODO: This state is redundant, since it is stored in Jolt as well.  Remove?
+	//Vec4f pos;
+	//Quatf rot; // Set in PhysicsWorld::think() from Jolt data
+	//Vec3f scale;
 
 #if USE_JOLT
 	JPH::BodyID jolt_body_id;

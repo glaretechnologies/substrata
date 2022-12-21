@@ -83,6 +83,8 @@ const Matrix4f PhysicsObject::getWorldToObMatrix() const
 
 void PhysicsObject::traceRay(const Ray& ray, RayTraceResult& results_out) const
 {
+	assert(0); // Disabled for now
+
 	results_out.hitdist_ws = -1;
 	results_out.hit_object = NULL;
 
