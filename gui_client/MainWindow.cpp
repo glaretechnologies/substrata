@@ -2607,10 +2607,12 @@ void MainWindow::updateSelectedObjectPlacementBeam()
 
 		// We need to determine where to trace down from.  
 		// To find this point, first trace up *just* against the selected object.
+		// NOTE: With introduction of Jolt, we don't have just tracing against a single object, trace against world for now.
 		RayTraceResult trace_results;
 		Vec4f start_trace_pos = new_aabb_ws.centroid();
 		start_trace_pos[2] = new_aabb_ws.min_[2] - 0.001f;
-		this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e5f), trace_results);
+		//this->selected_ob->physics_object->traceRay(Ray(start_trace_pos, Vec4f(0, 0, 1, 0), 0.f, 1.0e5f), trace_results);
+		this->physics_world->traceRay(start_trace_pos, Vec4f(0, 0, 1, 0), 1.0e5f, trace_results);
 		const float up_beam_len = trace_results.hit_object ? trace_results.hitdist_ws : new_aabb_ws.axisLength(2) * 0.5f;
 
 		// Now Trace ray downwards.  Start from just below where we got to in upwards trace.
