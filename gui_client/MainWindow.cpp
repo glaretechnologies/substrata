@@ -5314,7 +5314,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
 		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
 		const Vec3f xyplane_vel = player_physics.getLastXYPlaneVelRelativeToGround();
-		const float xyplane_speed = xyplane_vel.length();
+		float xyplane_speed = xyplane_vel.length();
+
+		if(player_physics.onGroundRecently() && our_move_impulse_zero && !player_physics.flyModeEnabled()) // Suppress footsteps when on ground and not trying to move (walk anims should not be played in this case)
+			xyplane_speed = 0;
 
 		if(xyplane_speed > 0.1f)
 		{
