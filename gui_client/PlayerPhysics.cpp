@@ -391,11 +391,6 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 		this->last_xy_plane_vel_rel_ground = this->vel;
 	this->last_xy_plane_vel_rel_ground.z = 0;
 
-	// Set last_xy_plane_vel_rel_ground to zero if we are not trying to move the player.
-	// This prevents spurious walk movements when riding platforms in some circumstances (when player velocity does not equal ground velocity for some reason).
-	// When flying we want to show walk/run anims when coming to a halt against the ground though.
-	if((moveimpulse.length() == 0) && !flymode)
-		this->last_xy_plane_vel_rel_ground = Vec3f(0.f);
 
 	const JPH::Vec3 char_pos = jolt_character->GetPosition();
 	campos_in_out = Vec4f(char_pos.GetX(), char_pos.GetY(), char_pos.GetZ() + EYE_HEIGHT - campos_z_delta, 1.f);
@@ -724,6 +719,12 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 #endif // end if !USE_JOLT_PLAYER_PHYSICS
 
 	return events;
+}
+
+
+bool PlayerPhysics::isMoveImpulseNonZero()
+{
+	return moveimpulse.length2() != 0;
 }
 
 

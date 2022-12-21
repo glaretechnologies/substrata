@@ -64,6 +64,7 @@ public:
 
 	UpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_in_out);
 
+	bool isMoveImpulseNonZero();
 	void zeroMoveImpulse();
 
 	void setFlyModeEnabled(bool enabled);
