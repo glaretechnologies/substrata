@@ -70,6 +70,7 @@ void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* set
 	gl_settings.shadow_mapping = true;
 	gl_settings.compress_textures = true;
 	gl_settings.use_grouped_vbo_allocator = false; // Don't use best-fit allocator, as it uses a lot of GPU mem, and we don't need the perf from it.
+	gl_settings.use_general_arena_mem_allocator = false; // This uses a lot of CPU mem, so don't use.
 	opengl_engine = new OpenGLEngine(gl_settings);
 
 	viewport_w = viewport_h = 100;

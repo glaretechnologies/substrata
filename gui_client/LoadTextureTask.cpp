@@ -43,7 +43,7 @@ void LoadTextureTask::run(size_t thread_index)
 			map = ImageDecoding::decodeImage(".", key);
 
 		const bool allow_compression = opengl_engine->textureCompressionSupportedAndEnabled();
-		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), &opengl_engine->general_mem_allocator, &opengl_engine->getTaskManager(), allow_compression);
+		Reference<TextureData> texture_data = TextureProcessing::buildTextureData(map.ptr(), opengl_engine->mem_allocator.ptr(), &opengl_engine->getTaskManager(), allow_compression);
 
 		if(hasExtension(key, "gif") && texture_data->compressedSizeBytes() > 100000000)
 		{
