@@ -3974,6 +3974,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			this->cam_controller.setPosition(screenshot_campos);
 			this->cam_controller.setAngles(screenshot_camangles);
+			this->player_physics.setPosition(screenshot_campos);
 
 			// Enable fly mode so we don't just fall to the ground
 			ui->actionFly_Mode->setChecked(true);
@@ -5866,6 +5867,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(this->url_parcel_uid == (int)parcel->id.value())
 						{
 							cam_controller.setPosition(parcel->getVisitPosition());
+							player_physics.setPosition(parcel->getVisitPosition());
 							this->url_parcel_uid = -1;
 
 							showInfoNotification("Jumped to parcel " + parcel->id.toString());
@@ -7819,6 +7821,7 @@ void MainWindow::on_actionGo_to_Parcel_triggered()
 					const Parcel* parcel = res->second.ptr();
 
 					cam_controller.setPosition(parcel->getVisitPosition());
+					player_physics.setPosition(parcel->getVisitPosition());
 				}
 				else
 					found = false;
