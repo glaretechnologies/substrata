@@ -264,9 +264,12 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 
 		// Recompute vel using proper ground normal.  Needed otherwise jumping while running uphill doesn't work properly.
 		const Vec3f ground_normal = toVec3f(jolt_character->GetGroundNormal());
-		vel = removeComponentInDir(moveimpulse, ground_normal) + 
-			toVec3f(jolt_character->GetGroundVelocity()) + 
-			Vec3f(0, 0, jumpspeed);
+		if(flymode)
+			vel += Vec3f(0, 0, jumpspeed); // If flying, maintain sideways velocity.
+		else
+			vel = removeComponentInDir(moveimpulse, ground_normal) + 
+				toVec3f(jolt_character->GetGroundVelocity()) + 
+				Vec3f(0, 0, jumpspeed);
 
 		jumptimeremaining = -1;
 		events.jumped = true;
