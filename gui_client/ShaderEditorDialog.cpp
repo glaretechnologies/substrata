@@ -63,7 +63,7 @@ void ShaderEditorDialog::initialise(const std::string& shader)
 	this->blockSignals(true);
 
 	shaderEdit->blockSignals(true);
-	shaderEdit->setText(QtUtils::toQString(shader));
+	shaderEdit->setPlainText(QtUtils::toQString(shader));
 	shaderEdit->blockSignals(false);
 
 	this->blockSignals(false);
@@ -76,7 +76,7 @@ void ShaderEditorDialog::update(const std::string& shader)
 {
 	this->blockSignals(true);
 	shaderEdit->blockSignals(true);
-	shaderEdit->setText(QtUtils::toQString(shader));
+	shaderEdit->setPlainText(QtUtils::toQString(shader));
 	shaderEdit->blockSignals(false);
 	this->blockSignals(false);
 }
