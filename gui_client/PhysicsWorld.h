@@ -31,6 +31,10 @@ class BatchedMesh;
 namespace JPH { class PhysicsSystem; }
 namespace JPH { class TempAllocator; }
 namespace JPH { class JobSystemThreadPool; }
+class BPLayerInterfaceImpl;
+class MyBroadPhaseLayerFilter;
+class MyObjectLayerPairFilter;
+
 
 class RayTraceResult
 {
@@ -147,4 +151,7 @@ public:
 	JPH::PhysicsSystem* physics_system;
 	JPH::TempAllocator* temp_allocator;
 	JPH::JobSystemThreadPool* job_system;
+	BPLayerInterfaceImpl* broad_phase_layer_interface;
+	MyBroadPhaseLayerFilter* broad_phase_layer_filter;
+	MyObjectLayerPairFilter* object_layer_pair_filter;
 };

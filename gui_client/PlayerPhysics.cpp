@@ -95,7 +95,6 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 	settings->mShape = mStandingShape;
 	settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
 	settings->mSupportingVolume = JPH::Plane(JPH::Vec3(0,0,1), -SPHERE_RAD); // Accept contacts that touch the lower sphere of the capsule
-	settings->mMaxNumHits = 65536; // Set to a larger value.  Stops player getting stuck in objects, at the cost of very slow physics updates in some cases.
 	// See https://github.com/jrouwe/JoltPhysics/issues/364#issuecomment-1358400823
 	//settings->mCharacterPadding = 0.5f;
 	jolt_character = new JPH::CharacterVirtual(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), physics_world.physics_system);
