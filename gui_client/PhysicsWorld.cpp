@@ -64,24 +64,6 @@ static void traceImpl(const char* inFMT, ...)
 }
 
 
-// Function that determines if two object layers can collide
-static bool MyObjectCanCollide(JPH::ObjectLayer inObject1, JPH::ObjectLayer inObject2)
-{
-	switch(inObject1)
-	{
-	case Layers::NON_MOVING:
-		return inObject2 == Layers::MOVING; // Non moving only collides with moving
-	case Layers::MOVING:
-		return inObject2 != Layers::NON_COLLIDABLE; // Moving collides with everything apart from Layers::NON_COLLIDABLE
-	case Layers::NON_COLLIDABLE:
-		return false;
-	default:
-		assert(false);
-		return false;
-	}
-};
-
-
 // Each broadphase layer results in a separate bounding volume tree in the broad phase. You at least want to have
 // a layer for non-moving and moving objects to avoid having to update a tree full of static objects every frame.
 // You can have a 1-on-1 mapping between object layers and broadphase layers (like in this case) but if you have
@@ -135,22 +117,47 @@ private:
 	JPH::BroadPhaseLayer					mObjectToBroadPhase[Layers::NUM_LAYERS];
 };
 
-// Function that determines if two broadphase layers can collide
-static bool MyBroadPhaseCanCollide(JPH::ObjectLayer inLayer1, JPH::BroadPhaseLayer inLayer2)
+
+class MyBroadPhaseLayerFilter : public JPH::ObjectVsBroadPhaseLayerFilter
 {
-	switch(inLayer1)
+	/// Returns true if an object layer should collide with a broadphase layer
+	virtual bool ShouldCollide(JPH::ObjectLayer inLayer1, JPH::BroadPhaseLayer inLayer2) const
 	{
-	case Layers::NON_MOVING:
-		return inLayer2 == BroadPhaseLayers::MOVING;
-	case Layers::MOVING:
-		return true;
-	case Layers::NON_COLLIDABLE:
-		return false;
-	default:
-		assert(false);
-		return false;
+		switch(inLayer1)
+		{
+		case Layers::NON_MOVING:
+			return inLayer2 == BroadPhaseLayers::MOVING;
+		case Layers::MOVING:
+			return true;
+		case Layers::NON_COLLIDABLE:
+			return false;
+		default:
+			assert(false);
+			return false;
+		}
 	}
-}
+};
+
+
+class MyObjectLayerPairFilter : public JPH::ObjectLayerPairFilter
+{
+	/// Returns true if two layers can collide
+	virtual bool ShouldCollide(JPH::ObjectLayer inLayer1, JPH::ObjectLayer inLayer2) const
+	{
+		switch(inLayer1)
+		{
+		case Layers::NON_MOVING:
+			return inLayer2 == Layers::MOVING; // Non moving only collides with moving
+		case Layers::MOVING:
+			return inLayer2 != Layers::NON_COLLIDABLE; // Moving collides with everything apart from Layers::NON_COLLIDABLE
+		case Layers::NON_COLLIDABLE:
+			return false;
+		default:
+			assert(false);
+			return false;
+		}
+	}
+};
 
 
 #endif // USE_JOLT
@@ -284,11 +291,15 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 
 	// Create mapping table from object layer to broadphase layer
 	// Note: As this is an interface, PhysicsSystem will take a reference to this so this instance needs to stay alive!
-	BPLayerInterfaceImpl* broad_phase_layer_interface = new BPLayerInterfaceImpl();
+	broad_phase_layer_interface = new BPLayerInterfaceImpl();
+
+	broad_phase_layer_filter = new MyBroadPhaseLayerFilter();
+
+	object_layer_pair_filter = new MyObjectLayerPairFilter();
 
 	// Now we can create the actual physics system.
 	physics_system = new JPH::PhysicsSystem();
-	physics_system->Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, *broad_phase_layer_interface, MyBroadPhaseCanCollide, MyObjectCanCollide);
+	physics_system->Init(cMaxBodies, cNumBodyMutexes, cMaxBodyPairs, cMaxContactConstraints, *broad_phase_layer_interface, *broad_phase_layer_filter, *object_layer_pair_filter);
 
 	physics_system->SetGravity(JPH::Vec3Arg(0, 0, -9.81f));
 
@@ -309,6 +320,9 @@ PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_cal
 PhysicsWorld::~PhysicsWorld()
 {
 	delete physics_system;
+	delete object_layer_pair_filter;
+	delete broad_phase_layer_filter;
+	delete broad_phase_layer_interface;
 	delete job_system;
 	delete temp_allocator;
 }
