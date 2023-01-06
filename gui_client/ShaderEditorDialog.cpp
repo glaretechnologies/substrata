@@ -7,6 +7,8 @@ Copyright Glare Technologies Limited 2019 -
 
 
 #include "WinterShaderEvaluator.h"
+#include "Scripting.h"
+#include "ObjectPathController.h"
 #include <QtCore/QTimer>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QLabel>
@@ -122,23 +124,20 @@ void ShaderEditorDialog::emitShaderChangedTimerFired()
 
 void ShaderEditorDialog::buildCodeAndShowResults()
 {
+	const QSize status_label_size(60, 4);
+
 	const std::string shader = QtUtils::toIndString(shaderEdit->document()->toPlainText());
-	try
+	if(hasPrefix(shader, "<?xml"))
 	{
-		Timer build_timer;
+		// Try and parse script as XML
 
-		Winter::VirtualMachineRef vm;
-		WinterShaderEvaluator::EVAL_ROTATION_TYPE jitted_evalRotation;
-		WinterShaderEvaluator::EVAL_TRANSLATION_TYPE jitted_evalTranslation;
-		std::string error_msg;
-		Winter::BufferPosition error_pos(NULL, 0, 0);
-
-		WinterShaderEvaluator::build(base_dir_path, shader, vm, jitted_evalRotation, jitted_evalTranslation, error_msg, error_pos);
-
-		const QSize status_label_size(60, 4);
-		if(error_msg.empty())
+		try
 		{
-			this->outputTextEdit->setPlainText("Script built successfully."); // QtUtils::toQString("Script built successfully."));// in " + build_timer.elapsedString()));
+			Reference<ObjectPathController> path_controller;
+			Scripting::parseXMLScript(NULL, shader, 0.0, path_controller);
+
+
+			this->outputTextEdit->setPlainText("XML script built successfully.");
 
 			shaderEdit->blockSignals(true);
 			this->highlighter->clearError();
@@ -148,13 +147,13 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			p.fill(Qt::green);
 			this->buildStatusLabel->setPixmap(p);
 		}
-		else
+		catch(glare::Exception& e)
 		{
-			this->outputTextEdit->setPlainText(QtUtils::toQString(error_msg)); // + Winter::Diagnostics::positionString(error_pos)));
+			this->outputTextEdit->setPlainText(QtUtils::toQString(e.what())); // + Winter::Diagnostics::positionString(error_pos)));
 
 			// Use error pos:
 			shaderEdit->blockSignals(true);
-			this->highlighter->showErrorAtCharIndex((int)error_pos.pos, (int)error_pos.len);
+			//this->highlighter->showErrorAtCharIndex((int)error_pos.pos, (int)error_pos.len);
 			shaderEdit->blockSignals(false);
 
 			QPixmap p(status_label_size);
@@ -162,8 +161,51 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 			this->buildStatusLabel->setPixmap(p);
 		}
 	}
-	catch(glare::Exception& e)
+	else
 	{
-		this->outputTextEdit->setPlainText(QtUtils::toQString(e.what()));
+		// Try and parse script as Winter
+
+		try
+		{
+			Timer build_timer;
+
+			Winter::VirtualMachineRef vm;
+			WinterShaderEvaluator::EVAL_ROTATION_TYPE jitted_evalRotation;
+			WinterShaderEvaluator::EVAL_TRANSLATION_TYPE jitted_evalTranslation;
+			std::string error_msg;
+			Winter::BufferPosition error_pos(NULL, 0, 0);
+
+			WinterShaderEvaluator::build(base_dir_path, shader, vm, jitted_evalRotation, jitted_evalTranslation, error_msg, error_pos);
+
+			if(error_msg.empty())
+			{
+				this->outputTextEdit->setPlainText("Script built successfully."); // QtUtils::toQString("Script built successfully."));// in " + build_timer.elapsedString()));
+
+				shaderEdit->blockSignals(true);
+				this->highlighter->clearError();
+				shaderEdit->blockSignals(false);
+
+				QPixmap p(status_label_size);
+				p.fill(Qt::green);
+				this->buildStatusLabel->setPixmap(p);
+			}
+			else
+			{
+				this->outputTextEdit->setPlainText(QtUtils::toQString(error_msg)); // + Winter::Diagnostics::positionString(error_pos)));
+
+				// Use error pos:
+				shaderEdit->blockSignals(true);
+				this->highlighter->showErrorAtCharIndex((int)error_pos.pos, (int)error_pos.len);
+				shaderEdit->blockSignals(false);
+
+				QPixmap p(status_label_size);
+				p.fill(Qt::red);
+				this->buildStatusLabel->setPixmap(p);
+			}
+		}
+		catch(glare::Exception& e)
+		{
+			this->outputTextEdit->setPlainText(QtUtils::toQString(e.what()));
+		}
 	}
 }

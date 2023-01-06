@@ -493,7 +493,7 @@ void ObjectEditor::on_editScriptPushButton_clicked(bool checked)
 {
 	if(!shader_editor)
 	{
-		shader_editor = new ShaderEditorDialog(NULL, base_dir_path);
+		shader_editor = new ShaderEditorDialog(this, base_dir_path);
 
 		shader_editor->setWindowTitle("Script Editor");
 

@@ -305,6 +305,8 @@ public:
 	void disconnectFromServerAndClearAllObjects(); // Remove any WorldObjectRefs held by MainWindow.
 
 	void processLoading();
+	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
+	void createPathControlledPathVisObjects(const WorldObject& ob);
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
@@ -427,6 +429,7 @@ public:
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
 
 	GLObjectRef aabb_viz_gl_ob;
+	std::vector<GLObjectRef> selected_ob_viz_gl_obs;
 
 	static const int NUM_AXIS_ARROWS = 3;
 	LineSegment4f axis_arrow_segments[NUM_AXIS_ARROWS];
