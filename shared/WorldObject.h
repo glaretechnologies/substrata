@@ -322,6 +322,8 @@ public:
 	int loaded_lod_level; // Level for textures etc..  Actually this is more like what lod level we have requested textures at.  TODO: clarify and improve.
 
 
+	bool is_path_controlled; // Is this object controlled by a path controller script?  If so, we want to set the OpenGL transform from the physics engine.
+
 	Reference<WebViewData> web_view_data;
 	Reference<AnimatedTexObData> animated_tex_data;
 

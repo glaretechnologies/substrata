@@ -16,11 +16,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <TopologicalSort.h>
 
 
-static const float vel = 10.;
-static const float station_stop_time = 10.f; // We will stop on the station waypoint for some number of seconds.
-
-
-ObjectPathController::ObjectPathController(WorldState& world_state, WorldObjectRef controlled_ob_, const std::vector<PathWaypointIn>& waypoints_in, double initial_time, UID follow_ob_uid_, float follow_dist_)
+ObjectPathController::ObjectPathController(WorldObjectRef controlled_ob_, const std::vector<PathWaypointIn>& waypoints_in, double initial_time, UID follow_ob_uid_, float follow_dist_)
 {
 	cur_waypoint_index = 0;
 	m_dist_along_segment = 0;
@@ -35,18 +31,23 @@ ObjectPathController::ObjectPathController(WorldState& world_state, WorldObjectR
 	{
 		waypoints[i].pos = waypoints_in[i].pos;
 		waypoints[i].waypoint_type = waypoints_in[i].waypoint_type;
+		waypoints[i].pause_time = waypoints_in[i].pause_time;
+		waypoints[i].speed = waypoints_in[i].speed;
 	}
 
 	// Get total path traversal time
 	double total_time = 0;
 	for(size_t i=0; i != waypoints.size(); ++i)
 	{
-		const double seg_len = getSegmentLength(world_state, (int)i);
-		const double seg_traversal_time = seg_len / vel;
+		const double seg_len = getSegmentLength((int)i);
+		if(seg_len < 1.0e-5)
+			throw glare::Exception("Invalid path, near zero length segment");
+
+		const double seg_traversal_time = seg_len / waypoints[i].speed;
 		total_time += seg_traversal_time;
 
 		if(waypoints[i].waypoint_type == PathWaypointIn::Station)
-			total_time += station_stop_time;
+			total_time += waypoints[i].pause_time;
 	}
 	
 	// Get initial time mod total path traversal time
@@ -56,7 +57,7 @@ ObjectPathController::ObjectPathController(WorldState& world_state, WorldObjectR
 	Vec4f new_pos, new_dir;
 	Vec4f target_pos;
 	double target_dtime;
-	walkAlongPathForTime(world_state, initial_time, new_pos, new_dir, target_pos, target_dtime);
+	walkAlongPathForTime(initial_time, new_pos, new_dir, target_pos, target_dtime);
 }
 
 
@@ -66,17 +67,17 @@ ObjectPathController::~ObjectPathController()
 }
 
 
-inline static Vec4f getWaypointPos(WorldState& world_state, ObjectPathController::PathWaypoint& waypoint)
+inline static Vec4f getWaypointPos(ObjectPathController::PathWaypoint& waypoint)
 {
 	return waypoint.pos;
 }
 
 
 // Get length of path segment from waypoint waypoint_index to (waypoint_index + 1) % num waypoints.
-float ObjectPathController::getSegmentLength(WorldState& world_state, int waypoint_index)
+float ObjectPathController::getSegmentLength(int waypoint_index)
 {
-	const Vec4f entry_pos = getWaypointPos(world_state, waypoints[waypoint_index]);
-	const Vec4f exit_pos  = getWaypointPos(world_state, waypoints[Maths::intMod(waypoint_index + 1, (int)waypoints.size())]);
+	const Vec4f entry_pos = getWaypointPos(waypoints[waypoint_index]);
+	const Vec4f exit_pos  = getWaypointPos(waypoints[Maths::intMod(waypoint_index + 1, (int)waypoints.size())]);
 
 	const bool curve = waypoints[waypoint_index].waypoint_type == PathWaypointIn::CurveIn;
 	if(curve)
@@ -94,19 +95,19 @@ float ObjectPathController::getSegmentLength(WorldState& world_state, int waypoi
 }
 
 
-void ObjectPathController::walkAlongPathDistBackwards(WorldState& world_state, int waypoint_index, float dir_along_segment, float delta_dist, /*int& waypoint_index_out, float& dir_along_segment_out, */Vec4f& pos_out, Vec4f& dir_out)
+void ObjectPathController::walkAlongPathDistBackwards(int waypoint_index, float dir_along_segment, float delta_dist, /*int& waypoint_index_out, float& dir_along_segment_out, */Vec4f& pos_out, Vec4f& dir_out)
 {
 	while(delta_dist > 0)
 	{
 		const bool on_curve = waypoints[waypoint_index].waypoint_type == PathWaypointIn::CurveIn;
 
-		const Vec4f entry_pos = getWaypointPos(world_state, waypoints[waypoint_index]);
-		const Vec4f exit_pos  = getWaypointPos(world_state, waypoints[Maths::intMod(waypoint_index + 1, (int)waypoints.size())]);
+		const Vec4f entry_pos = getWaypointPos(waypoints[waypoint_index]);
+		const Vec4f exit_pos  = getWaypointPos(waypoints[Maths::intMod(waypoint_index + 1, (int)waypoints.size())]);
 
 		if(on_curve)
 		{
-			const Vec4f entry_dir = normalise(entry_pos - getWaypointPos(world_state, waypoints[Maths::intMod(waypoint_index - 1, (int)waypoints.size())]));
-			const Vec4f exit_dir  = normalise(getWaypointPos(world_state, waypoints[Maths::intMod(waypoint_index + 2, (int)waypoints.size())]) - exit_pos);
+			const Vec4f entry_dir = normalise(entry_pos - getWaypointPos(waypoints[Maths::intMod(waypoint_index - 1, (int)waypoints.size())]));
+			const Vec4f exit_dir  = normalise(getWaypointPos(waypoints[Maths::intMod(waypoint_index + 2, (int)waypoints.size())]) - exit_pos);
 
 			//conPrint("entry_dir: " + entry_dir.toStringNSigFigs(4));
 			//conPrint("exit_dir: " + exit_dir.toStringNSigFigs(4));
@@ -134,7 +135,7 @@ void ObjectPathController::walkAlongPathDistBackwards(WorldState& world_state, i
 			{
 				delta_dist -= curve_len_remaining;
 				waypoint_index = Maths::intMod(waypoint_index - 1, (int)waypoints.size()); // Advance (backwards) to next waypoint
-				dir_along_segment = getSegmentLength(world_state, waypoint_index); // We are now at the end of the previous waypoint.
+				dir_along_segment = getSegmentLength(waypoint_index); // We are now at the end of the previous waypoint.
 			}
 		}
 		else
@@ -154,7 +155,7 @@ void ObjectPathController::walkAlongPathDistBackwards(WorldState& world_state, i
 			{
 				delta_dist -= segment_len_remaining;
 				waypoint_index = Maths::intMod(waypoint_index - 1, (int)waypoints.size()); // Advance (backwards) to next waypoint
-				dir_along_segment = getSegmentLength(world_state, waypoint_index); // We are now at the end of the previous waypoint.
+				dir_along_segment = getSegmentLength(waypoint_index); // We are now at the end of the previous waypoint.
 			}
 		}
 	}
@@ -162,7 +163,7 @@ void ObjectPathController::walkAlongPathDistBackwards(WorldState& world_state, i
 
 
 
-void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& waypoint_index, float& dir_along_segment, */double delta_time, Vec4f& pos_out, Vec4f& dir_out, Vec4f& target_pos_out, double& target_dtime_out)
+void ObjectPathController::walkAlongPathForTime(/*int& waypoint_index, float& dir_along_segment, */double delta_time, Vec4f& pos_out, Vec4f& dir_out, Vec4f& target_pos_out, double& target_dtime_out)
 {
 	// Walk forwards by dt
 	float dtime_remaining = (float)delta_time;
@@ -170,9 +171,13 @@ void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& 
 	{
 		const bool on_curve = waypoints[cur_waypoint_index].waypoint_type == PathWaypointIn::CurveIn;
 
-		const Vec4f entry_pos = getWaypointPos(world_state, waypoints[cur_waypoint_index]);
-		const Vec4f exit_pos  = getWaypointPos(world_state, waypoints[Maths::intMod(cur_waypoint_index + 1, (int)waypoints.size())]);
+		const Vec4f entry_pos = getWaypointPos(waypoints[cur_waypoint_index]);
+		const Vec4f exit_pos  = getWaypointPos(waypoints[Maths::intMod(cur_waypoint_index + 1, (int)waypoints.size())]);
 
+		const Vec4f begin_dir = normalise(getWaypointPos(waypoints[cur_waypoint_index]) - getWaypointPos(waypoints[Maths::intMod(cur_waypoint_index - 1, (int)waypoints.size())]));
+		const Vec4f end_dir = normalise(exit_pos - entry_pos);
+
+		const float vel = waypoints[cur_waypoint_index].speed;
 		if(on_curve)
 		{
 			// r^2 + r^2 = d^2  =>   2r^2 = d^2     =>    r^2 = d^2 / 2   =>      r = sqrt(d^2/2)
@@ -190,8 +195,8 @@ void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& 
 				m_time_along_segment += dtime_remaining;
 				dtime_remaining = 0;
 
-				const Vec4f entry_dir = normalise(entry_pos - getWaypointPos(world_state, waypoints[Maths::intMod(cur_waypoint_index - 1, (int)waypoints.size())]));
-				const Vec4f exit_dir  = normalise(getWaypointPos(world_state, waypoints[Maths::intMod(cur_waypoint_index + 2, (int)waypoints.size())]) - exit_pos);
+				const Vec4f entry_dir = normalise(entry_pos - getWaypointPos(waypoints[Maths::intMod(cur_waypoint_index - 1, (int)waypoints.size())]));
+				const Vec4f exit_dir  = normalise(getWaypointPos(waypoints[Maths::intMod(cur_waypoint_index + 2, (int)waypoints.size())]) - exit_pos);
 
 				//conPrint("entry_dir: " + entry_dir.toStringNSigFigs(4));
 				//conPrint("exit_dir: " + exit_dir.toStringNSigFigs(4));
@@ -215,9 +220,9 @@ void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& 
 		}
 		else if(waypoints[cur_waypoint_index].waypoint_type == PathWaypointIn::Station)
 		{
-			if(m_time_along_segment < station_stop_time) // If still stopped at station:
+			if(m_time_along_segment < waypoints[cur_waypoint_index].pause_time) // If still stopped at station:
 			{
-				const float stop_time_remaining = station_stop_time - m_time_along_segment;
+				const float stop_time_remaining = waypoints[cur_waypoint_index].pause_time - m_time_along_segment;
 
 				if(dtime_remaining < stop_time_remaining) // If we will still be stopped in the dtime remaining:
 				{
@@ -225,7 +230,7 @@ void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& 
 					dtime_remaining = 0;
 
 					pos_out = entry_pos;
-					dir_out = normalise(exit_pos - entry_pos);
+					dir_out = begin_dir; // normalise(exit_pos - entry_pos);
 					target_pos_out = entry_pos;
 					target_dtime_out = stop_time_remaining - dtime_remaining;
 					break;
@@ -239,7 +244,7 @@ void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& 
 
 			const float segment_len = entry_pos.getDist(exit_pos);
 			const float segment_traversal_time = segment_len / vel;
-			const float travelling_time_along_segment = m_time_along_segment - station_stop_time; // time spent travelling past the station so far
+			const float travelling_time_along_segment = m_time_along_segment - waypoints[cur_waypoint_index].pause_time; // time spent travelling past the station so far
 
 			float segment_time_remaining = segment_traversal_time - travelling_time_along_segment;
 			if(dtime_remaining < segment_time_remaining) // If we won't reach the end of the segment in the dtime remaining:
@@ -248,8 +253,9 @@ void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& 
 				m_time_along_segment += dtime_remaining;
 				dtime_remaining = 0;
 
-				pos_out = Maths::uncheckedLerp(entry_pos, exit_pos, m_dist_along_segment / segment_len);
-				dir_out = normalise(exit_pos - entry_pos);
+				const float segment_dist_frac = m_dist_along_segment / segment_len;
+				pos_out = Maths::uncheckedLerp(entry_pos, exit_pos, segment_dist_frac);
+				dir_out = Maths::uncheckedLerp(begin_dir, end_dir, segment_dist_frac); // normalise(exit_pos - entry_pos);
 				target_pos_out = exit_pos;
 				target_dtime_out = segment_time_remaining - dtime_remaining;
 				break;
@@ -264,8 +270,10 @@ void ObjectPathController::walkAlongPathForTime(WorldState& world_state, /*int& 
 				cur_waypoint_index = Maths::intMod(cur_waypoint_index + 1, (int)waypoints.size());
 			}
 		}
-		else
+		else // else if waypoint_type == PathWaypointIn::CurveOut:
 		{
+			assert(waypoints[cur_waypoint_index].waypoint_type == PathWaypointIn::CurveOut);
+
 			const float segment_len = entry_pos.getDist(exit_pos);
 			const float segment_traversal_time = segment_len / vel;
 			float segment_time_remaining = segment_traversal_time - m_time_along_segment;
@@ -323,7 +331,7 @@ void ObjectPathController::update(WorldState& world_state, PhysicsWorld& physics
 			const int leader_waypoint_index = lead_ob->waypoint_index;
 			const float leader_dist_along_segment = lead_ob->dist_along_segment;
 
-			walkAlongPathDistBackwards(world_state, leader_waypoint_index, leader_dist_along_segment, follow_dist, /*pos_out=*/new_pos, /*dir_out=*/new_dir);
+			walkAlongPathDistBackwards(leader_waypoint_index, leader_dist_along_segment, follow_dist, /*pos_out=*/new_pos, /*dir_out=*/new_dir);
 		}
 		else
 		{
@@ -334,29 +342,23 @@ void ObjectPathController::update(WorldState& world_state, PhysicsWorld& physics
 	else
 	{
 
-		walkAlongPathForTime(world_state, dtime, new_pos, new_dir, target_pos, target_dtime);
+		walkAlongPathForTime(dtime, new_pos, new_dir, target_pos, target_dtime);
 
 		controlled_ob->waypoint_index = cur_waypoint_index;
 		controlled_ob->dist_along_segment = m_dist_along_segment;
 	}
 
-	controlled_ob->setPosAndHistory(Vec3d(new_pos));
-	controlled_ob->angle = std::atan2(new_dir[1], new_dir[0]);
-	controlled_ob->axis = Vec3f(0,0,1);
+	const Quatf initial_ob_rot = Quatf::fromAxisAndAngle(normalise(controlled_ob->axis), controlled_ob->angle);
 
-	Quatf track_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), std::atan2(new_dir[1], new_dir[0]));
+	const float track_angle = std::atan2(new_dir[1], new_dir[0]);
 
-	Quatf to_z_up = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+	const Quatf track_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), track_angle);
 
-	const Quatf final_rot_quat = track_rot * to_z_up;
+	const Quatf final_rot_quat = track_rot * initial_ob_rot;
 	Vec4f axis;
 	float angle;
 	final_rot_quat.toAxisAndAngle(axis, angle);
 	
-	controlled_ob->axis = Vec3f(axis);
-	controlled_ob->angle = angle;
-
-
 	// Update OpenGL object transform directly:
 	//if(controlled_ob->opengl_engine_ob.nonNull())
 	//{

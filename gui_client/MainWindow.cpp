@@ -1290,47 +1290,6 @@ static Colour4f computeSpotlightColour(const WorldObject& ob, float cone_cos_ang
 }
 
 
-static bool isTrainOb(const WorldObject* ob)
-{
-	// user id 2187 = voxvienne
-	return (ob->creator_id.value() == 0 || ob->creator_id.value() == 2187) && (hasPrefix(ob->content, "monorail: front") || hasPrefix(ob->content, "monorail: back"));
-}
-
-static bool isTrainFrontOb(const WorldObject* ob)
-{
-	return (ob->creator_id.value() == 0 || ob->creator_id.value() == 2187) && hasPrefix(ob->content, "monorail: front");
-}
-
-static bool isTrainBackOb(const WorldObject* ob)
-{
-	return (ob->creator_id.value() == 0 || ob->creator_id.value() == 2187) && hasPrefix(ob->content, "monorail: back");
-}
-
-
-static double getTrainFrontObTimeOffset(const WorldObject* ob)
-{
-	Parser parser(ob->content);
-	parser.parseCString("monorail: front");
-	parser.parseWhiteSpace();
-	double offset = 0;
-	parser.parseDouble(offset);
-	return offset;
-}
-
-
-static UID getTrainBackObFollowUID(const WorldObject* ob)
-{
-	Parser parser(ob->content);
-	parser.parseCString("monorail: back");
-	parser.parseWhiteSpace();
-	int64 uid;
-	if(parser.parseInt64(uid))
-		return UID(uid);
-	else
-		return UID::invalidUID();
-}
-
-
 // Check if the model file is downloaded.
 // If so, load the model into the OpenGL and physics engines.
 // If not, set a placeholder model and queue up the model download.
@@ -1636,7 +1595,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							ob->physics_object->scale = ob->scale;
 
 							// TEMP HACK
-							ob->physics_object->kinematic = !ob->script.empty() || isTrainOb(ob);
+							ob->physics_object->kinematic = !ob->script.empty();
 
 							// if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
 							// {
@@ -1916,6 +1875,16 @@ void MainWindow::removeObScriptingInfo(WorldObject* ob)
 		ob->script_evaluator = NULL;
 		this->obs_with_scripts.erase(ob);
 	}
+
+	// Remove any path controllers for this object
+	for(int i=(int)path_controllers.size() - 1; i >= 0; --i)
+	{
+		if(path_controllers[i]->controlled_ob.ptr() == ob)
+		{
+			path_controllers.erase(path_controllers.begin() + i);
+		}
+	}
+	ob->is_path_controlled = false;
 }
 
 
@@ -1926,34 +1895,56 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 	// If the script changed bit was set, destroy the script evaluator, we will create a new one.
  	if(BitUtils::isBitSet(ob->changed_flags, WorldObject::SCRIPT_CHANGED))
 	{
-		// conPrint("MainWindow::loadAudioForObject(): SCRIPT_CHANGED bit was set, destroying script_evaluator.");
+		// conPrint("MainWindow::loadScriptForObject(): SCRIPT_CHANGED bit was set, destroying script_evaluator.");
 		
 		removeObScriptingInfo(ob);
+
+		if(hasPrefix(ob->script, "<?xml"))
+		{
+			const double global_time = this->world_state->getCurrentGlobalTime();
+
+			Reference<ObjectPathController> path_controller;
+			Scripting::parseXMLScript(ob, ob->script, global_time, path_controller);
+
+			if(path_controller.nonNull())
+			{
+				path_controllers.push_back(path_controller);
+
+				ObjectPathController::sortPathControllers(path_controllers);
+
+				ob->is_path_controlled = true;
+
+				// conPrint("Added path controller, path_controllers.size(): " + toString(path_controllers.size()));
+			}
+
+			if(ob == selected_ob.ptr())
+				createPathControlledPathVisObjects(*ob); // Create or update 3d path visualisation.
+		}
+
+		if(!ob->script.empty() && ob->script_evaluator.isNull())
+		{
+			const bool just_inserted = checkAddScriptToProcessingSet(ob->script); // Mark script as being processed so another LoadScriptTask doesn't try and process it also.
+			if(just_inserted)
+			{
+				Reference<LoadScriptTask> task = new LoadScriptTask();
+				task->base_dir_path = base_dir_path;
+				task->result_msg_queue = &msg_queue;
+				task->script_content = ob->script;
+				load_item_queue.enqueueItem(*ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
+			}
+		}
+
 
 		BitUtils::zeroBit(ob->changed_flags, WorldObject::SCRIPT_CHANGED);
 	}
 
-
+	
 	// If we have a script evaluator already, but the opengl ob has been recreated (due to LOD level changes), we need to recreate the instance_matrices VBO
 	if(ob->script_evaluator.nonNull() && ob->opengl_engine_ob.nonNull() && ob->opengl_engine_ob->instance_matrix_vbo.isNull() && !ob->instance_matrices.empty())
 	{
 		ob->opengl_engine_ob->enableInstancing(*ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
 
 		ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
-	}
-
-
-	if(!ob->script.empty() && ob->script_evaluator.isNull())
-	{
-		const bool just_inserted = checkAddScriptToProcessingSet(ob->script); // Mark script as being processed so another LoadScriptTask doesn't try and process it also.
-		if(just_inserted)
-		{
-			Reference<LoadScriptTask> task = new LoadScriptTask();
-			task->base_dir_path = base_dir_path;
-			task->result_msg_queue = &msg_queue;
-			task->script_content = ob->script;
-			load_item_queue.enqueueItem(*ob, task, /*task max dist=*/std::numeric_limits<float>::infinity());
-		}
 	}
 }
 
@@ -3136,7 +3127,7 @@ void MainWindow::processLoading()
 												ob->physics_object->scale = ob->scale;
 
 												// TEMP HACK
-												ob->physics_object->kinematic = !ob->script.empty() || isTrainOb(ob);
+												ob->physics_object->kinematic = !ob->script.empty();
 
 												//if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
 												//{
@@ -4874,7 +4865,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				physics_ob->rot = new_rot;
 				physics_ob->pos = new_pos;
 
-				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0)
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
 				{
 #ifndef NDEBUG
 					if(world_state->objects.find(physics_ob->ob_uid) == world_state->objects.end())
@@ -4886,12 +4877,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					WorldObject* ob = (WorldObject*)physics_ob->userdata;
 					
 					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
-					// We will set the opengl transform in evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
-					if(physics_ob->dynamic || (physics_ob->kinematic && ob->script.empty()))
+					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
+					// There is also code in Scripting::evalObjectScript that computes a custom world space AABB that doesn't oscillate in size with animations.
+					// For path-controlled objects, however, we will set the OpenGL transform from the physics engine.
+					if(physics_ob->dynamic || (physics_ob->kinematic && ob->is_path_controlled))
 					{
-						// conPrint("Setting object state from jolt");
+						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
 
-						if(this->selected_ob.ptr() != ob) // Don't update selected object with physics engine state
+						if((this->selected_ob.ptr() != ob) || getPathControllerForOb(*ob)) // Don't update selected object with physics engine state, unless it is path controlled.
 						{
 							const Matrix4f ob_to_world = ob->physics_object->getObToWorldMatrix();
 
@@ -4911,7 +4904,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									ob->aabb_ws = ob->opengl_engine_ob->aabb_ws; // Update object AABB - used for computing LOD level.
 							}
 
-							// Update world object.  TODO for dynamic objects?
+							// Update world object state.  TODO for dynamic objects?
 							//	Vec4f unit_axis;
 							//	float angle;
 							//	ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
@@ -5649,79 +5642,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects be checking numSecondsAgo().
 							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30)) 
 								selectObject(ob, /*selected_mat_index=*/0); // select it
-
-
-							if(isTrainOb(ob))
-							{
-								const std::vector<PathWaypointIn> waypoints = {
-#if 0
-									{ Vec4f(0, 0, 1, 1.00000),				PathWaypointIn::CurveOut		}, // 1
-									{ Vec4f(100, 0, 1, 1.00000),			PathWaypointIn::CurveOut	},
-									{ Vec4f(100, 100, 1, 1.00000),			PathWaypointIn::CurveOut	},
-#else
-									{ Vec4f(43, -24.419, 12, 1.00000),				PathWaypointIn::CurveIn		}, // 1
-									{ Vec4f(67.4171, 0, 12.0000, 1.00000),			PathWaypointIn::CurveOut	},
-									{ Vec4f(277.577, 0, 12.0000, 1.00000),			PathWaypointIn::CurveIn		}, // 2
-									{ Vec4f(302.000, -24.423, 12.0000, 1.00000),	PathWaypointIn::CurveOut	},
-									{ Vec4f(302.000, -115.578, 12.0000, 1.00000),	PathWaypointIn::CurveIn		}, // 3
-									{ Vec4f(326.417, -140.000, 12.0000, 1.00000),	PathWaypointIn::CurveOut	},
-
-									//{ Vec4f(527.170, -140.000, 12.0000, 1.00000),	PathWaypointIn::CurveOut	},
-									{ Vec4f(534.370, -140.000, 12.0000, 1.00000),	PathWaypointIn::Station		},
-
-									{ Vec4f(612.582, -140.000, 12.0000, 1.00000) ,	PathWaypointIn::CurveIn		}, // 4
-									{ Vec4f(637.000, -115.576, 12.0000, 1.00000) ,	PathWaypointIn::CurveOut	},
-									{ Vec4f(637.000, -23.426, 12.0000, 1.00000) ,	PathWaypointIn::CurveIn		}, // 5
-									{ Vec4f(612.581, 1.00000, 12.0000, 1.00000)	 ,	PathWaypointIn::CurveOut	},
-									{ Vec4f(520.421, 1.00000, 12.0000, 1.00000)	 ,	PathWaypointIn::CurveIn		}, // 6
-									{ Vec4f(496.000, 25.423, 12.0000, 1.00000)	 ,	PathWaypointIn::CurveOut	},
-																												
-									{ Vec4f(496.000, 153.500, 12.0000, 1.00000)	 ,  PathWaypointIn::Station		},
-																											 
-									{ Vec4f(496.000, 406.583, 12.0000, 1.00000)	 ,	PathWaypointIn::CurveIn		}, // 7
-									{ Vec4f(471.581, 431.000, 12.0000, 1.00000)	 ,	PathWaypointIn::CurveOut	},
-																											 
-									{ Vec4f(-12.0000, 431.000, 12.0000, 1.00000) ,	PathWaypointIn::Station		},
-																											
-									{ Vec4f(-104.602, 431.000, 12.0000, 1.00000) ,	 PathWaypointIn::CurveIn	}, // 8
-									{ Vec4f(-129.000, 406.798, 12.0000, 1.00000) ,	 PathWaypointIn::CurveOut	},
-									{ Vec4f(-129.000, 331.212, 12.0000, 1.00000) ,	 PathWaypointIn::CurveIn	}, // 9
-									{ Vec4f(-153.399, 307.000, 12.0000, 1.00000) ,	 PathWaypointIn::CurveOut	},
-				
-									{ Vec4f(-177.340, 307.000, 12.0000, 1.00000) ,	PathWaypointIn::Station		},
-
-									{ Vec4f(-185.583, 307.000, 12.0000, 1.00000) ,	PathWaypointIn::CurveIn		}, // 10
-									{ Vec4f(-210.000, 282.587, 12.0000, 1.00000) ,	PathWaypointIn::CurveOut	},
-									{ Vec4f(-210.000, -185.575, 12.0000, 1.00000),	PathWaypointIn::CurveIn		}, // 11
-									{ Vec4f(-185.582, -210.000, 12.0000, 1.00000),	PathWaypointIn::CurveOut	},
-
-									{ Vec4f(-138.470, -210.000, 12.0000, 1.00000),	PathWaypointIn::Station		},
-
-									{ Vec4f(18.577, -210.000, 12.0000, 1.00000) ,	PathWaypointIn::CurveIn		}, // 12
-									{ Vec4f(43.0000, -185.580, 12.0000, 1.00000) ,	PathWaypointIn::CurveOut	},
-
-									{ Vec4f(43.0000, -30.4000, 12.0000, 1.00000) ,	PathWaypointIn::Station		},
-#endif
-								};
-
-								if(isTrainFrontOb(ob))
-								{
-									const double offset = getTrainFrontObTimeOffset(ob);
-									path_controllers.push_back(new ObjectPathController(*world_state, ob, waypoints, global_time + offset, UID::invalidUID(), 0.f));
-
-									ObjectPathController::sortPathControllers(path_controllers);
-								}
-								else if(isTrainBackOb(ob))
-								{
-									const UID follow_uid = getTrainBackObFollowUID(ob);
-									path_controllers.push_back(new ObjectPathController(*world_state, ob, waypoints, global_time, follow_uid, /*follow_dist=*/7.4f));
-
-									ObjectPathController::sortPathControllers(path_controllers);
-								}
-								else
-									assert(0);
-							}
-
 						}
 
 						ob->from_remote_other_dirty = false;
@@ -8354,7 +8274,7 @@ void MainWindow::objectEditedSlot()
 				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
 				selected_ob->physics_object->scale = selected_ob->scale;
 			
-				selected_ob->physics_object->kinematic = !selected_ob->script.empty() || isTrainOb(selected_ob.ptr()); // TEMP HACK
+				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
 			
 				physics_world->addObject(selected_ob->physics_object);
 			}
@@ -8529,7 +8449,14 @@ void MainWindow::objectEditedSlot()
 						//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
 						//lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
 
-						loadScriptForObject(this->selected_ob.ptr());
+						try
+						{
+							loadScriptForObject(this->selected_ob.ptr());
+						}
+						catch(glare::Exception& e)
+						{
+							logMessage("Error while loading script: " + e.what());
+						}
 
 						// Update any instanced copies of object
 						updateInstancedCopiesOfObject(this->selected_ob.ptr());
@@ -10284,6 +10211,63 @@ void MainWindow::deleteSelectedObject()
 }
 
 
+ObjectPathController* MainWindow::getPathControllerForOb(const WorldObject& ob)
+{
+	for(size_t i=0; i<path_controllers.size(); ++i)
+		if(path_controllers[i]->controlled_ob.ptr() == &ob)
+			return path_controllers[i].ptr();
+	return NULL;
+}
+
+
+void MainWindow::createPathControlledPathVisObjects(const WorldObject& ob)
+{
+	// Remove any existing ones
+	for(size_t i=0; i<selected_ob_viz_gl_obs.size(); ++i)
+		ui->glWidget->opengl_engine->removeObject(this->selected_ob_viz_gl_obs[i]);
+	selected_ob_viz_gl_obs.clear();
+
+	{
+		ObjectPathController* path_controller = getPathControllerForOb(ob);
+		if(path_controller)
+		{
+			// Draw path by making opengl objects
+			for(size_t i=0; i<path_controller->waypoints.size(); ++i)
+			{
+				const Vec4f begin_pos = path_controller->waypoints[i].pos;
+				const Vec4f end_pos = path_controller->waypoints[Maths::intMod((int)i + 1, (int)path_controller->waypoints.size())].pos;
+
+				GLObjectRef edge_gl_ob = ui->glWidget->opengl_engine->allocateObject();
+
+				Matrix4f dir_matrix; dir_matrix.constructFromVector(normalise(end_pos - begin_pos));
+				const Matrix4f scale_matrix = Matrix4f::scaleMatrix(/*radius=*/0.03f,/*radius=*/0.03f, begin_pos.getDist(end_pos));
+				const Matrix4f ob_to_world = Matrix4f::translationMatrix(begin_pos) * dir_matrix * scale_matrix;
+
+				edge_gl_ob->ob_to_world_matrix = ob_to_world;
+				edge_gl_ob->mesh_data = ui->glWidget->opengl_engine->getCylinderMesh();
+
+				OpenGLMaterial material;
+				material.albedo_rgb = Colour3f(0.8f, 0.3f, 0.3f);
+				material.transparent = true;
+				material.alpha = 0.9f;
+				edge_gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
+
+				ui->glWidget->opengl_engine->addObject(edge_gl_ob);
+
+				// Add cube at vertex
+				const float half_w = 0.2f;
+				GLObjectRef vert_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(begin_pos - Vec4f(half_w, half_w, half_w, 0), begin_pos + Vec4f(half_w, half_w, half_w, 0), Colour4f(0.3f, 0.8f, 0.3f, 0.9f));
+				ui->glWidget->opengl_engine->addObject(vert_gl_ob);
+
+				// Keep track of these objects we added.
+				selected_ob_viz_gl_obs.push_back(edge_gl_ob);
+				selected_ob_viz_gl_obs.push_back(vert_gl_ob);
+			}
+		}
+	}
+}
+
+
 void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 {
 	assert(ob.nonNull());
@@ -10306,6 +10290,8 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 		this->aabb_viz_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->aabb_ws.min_, this->selected_ob->aabb_ws.max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
 		ui->glWidget->opengl_engine->addObject(this->aabb_viz_gl_ob);
 	}
+
+	createPathControlledPathVisObjects(*this->selected_ob);
 
 	// Mark the materials on the hit object as selected
 	if(this->selected_ob->opengl_engine_ob.nonNull())
@@ -10403,11 +10389,18 @@ void MainWindow::deselectObject()
 			ob_denied_move_markers.pop_back();
 		}
 
+		// Remove visualisation objects
 		if(this->aabb_viz_gl_ob.nonNull())
 		{
 			ui->glWidget->opengl_engine->removeObject(this->aabb_viz_gl_ob);
 			this->aabb_viz_gl_ob = NULL;
 		}
+
+		for(size_t i=0; i<selected_ob_viz_gl_obs.size(); ++i)
+			ui->glWidget->opengl_engine->removeObject(this->selected_ob_viz_gl_obs[i]);
+		selected_ob_viz_gl_obs.clear();
+
+
 
 		// Deselect any currently selected object
 		ui->glWidget->opengl_engine->deselectObject(this->selected_ob->opengl_engine_ob);

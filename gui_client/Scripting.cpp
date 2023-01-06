@@ -9,15 +9,110 @@ Copyright Glare Technologies Limited 2022 -
 #include "WinterShaderEvaluator.h"
 #include "PhysicsWorld.h"
 #include "WorldState.h"
+#include "ObjectPathController.h"
 #include "../shared/WorldObject.h"
 #include <opengl/OpenGLEngine.h>
 #include <utils/Timer.h>
 #include <utils/Lock.h>
+#include <utils/IndigoXMLDoc.h>
+#include <utils/Parser.h>
+#include <utils/XMLParseUtils.h>
 #include "superluminal/PerformanceAPI.h"
 
 
 namespace Scripting
 {
+
+
+const Vec3d parseVec3(pugi::xml_node elem, const char* elemname)
+{
+	pugi::xml_node childnode = elem.child(elemname);
+	if(!childnode)
+		throw glare::Exception(std::string("could not find element '") + elemname + "'." + XMLParseUtils::elemContext(elem));
+
+	const char* const child_text = childnode.child_value();
+
+	Parser parser(child_text, std::strlen(child_text));
+
+	parser.parseWhiteSpace();
+
+	Vec3d v;
+	if(!parser.parseDouble(v.x))
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+	if(!parser.parseDouble(v.y))
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+	if(!parser.parseDouble(v.z))
+		throw glare::Exception("Failed to parse Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+	parser.parseWhiteSpace();
+
+	// We should be at the end of the string now
+	if(parser.notEOF())
+		throw glare::Exception("Parse error while parsing Vec3 from '" + std::string(child_text) + "'." + XMLParseUtils::elemContext(childnode));
+
+	return v;
+}
+
+
+void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out)
+{
+	try
+	{
+		IndigoXMLDoc doc(script.c_str(), script.size());
+
+		pugi::xml_node root_elem = doc.getRootElement();
+
+		pugi::xml_node follow_path_elem = root_elem.child("follow_path");
+		if(follow_path_elem)
+		{
+			std::vector<PathWaypointIn> waypoints;
+
+			const double time_offset = XMLParseUtils::parseDoubleWithDefault(follow_path_elem, "time_offset", 0.0);
+			const double default_speed = XMLParseUtils::parseDoubleWithDefault(follow_path_elem, "speed", 2.0);
+
+			UID follow_ob_uid = UID::invalidUID();
+			if(follow_path_elem.child("follow_ob_uid"))
+				follow_ob_uid = UID(XMLParseUtils::parseInt(follow_path_elem, "follow_ob_uid"));
+
+			const double follow_dist = XMLParseUtils::parseDoubleWithDefault(follow_path_elem, "follow_dist", 0.0);
+
+			for(pugi::xml_node waypoint_elem = follow_path_elem.child("waypoint"); waypoint_elem; waypoint_elem = waypoint_elem.next_sibling("waypoint"))
+			{
+				const Vec3d pos = parseVec3(waypoint_elem, "pos");
+
+				const std::string type = ::stripHeadAndTailWhitespace(XMLParseUtils::parseString(waypoint_elem, "type"));
+
+				const double pause_time = XMLParseUtils::parseDoubleWithDefault(waypoint_elem, "pause_time", 10.0);
+
+				const double speed = XMLParseUtils::parseDoubleWithDefault(waypoint_elem, "speed", default_speed);
+
+				PathWaypointIn waypoint;
+				waypoint.pos = pos.toVec4fPoint();
+				if(type == "CurveIn")
+					waypoint.waypoint_type = PathWaypointIn::CurveIn;
+				else if(type == "CurveOut")
+					waypoint.waypoint_type = PathWaypointIn::CurveOut;
+				else if(type == "Stop")
+					waypoint.waypoint_type = PathWaypointIn::Station;
+				else
+					throw glare::Exception("Invalid waypoint type: '" + type + "'.");
+
+				waypoint.pause_time = (float)pause_time;
+				waypoint.speed = (float)speed;
+
+				waypoints.push_back(waypoint);
+			}
+
+			if(ob.nonNull())
+				path_controller_out = new ObjectPathController(ob, waypoints, global_time + time_offset, /*follow ob UID=*/follow_ob_uid, /*follow dist=*/(float)follow_dist);
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		throw e;
+	}
+}
 
 
 void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, Matrix4f& ob_to_world_out)

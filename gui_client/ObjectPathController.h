@@ -29,9 +29,14 @@ struct PathWaypointIn
 		Station
 	};
 
+	PathWaypointIn() : pause_time(10.f), speed(10.f) {} 
+	PathWaypointIn(const Vec4f& pos_, WaypointType waypoint_type_): pos(pos_), waypoint_type(waypoint_type_) {}
+
 	//UID waypoint_ob_uid;
 	Vec4f pos;
 	WaypointType waypoint_type;
+	float pause_time;
+	float speed; // speed to next waypoint
 };
 
 
@@ -43,16 +48,18 @@ ObjectPathController
 class ObjectPathController : public RefCounted
 {
 public:
-	ObjectPathController(WorldState& world_state, WorldObjectRef controlled_ob, const std::vector<PathWaypointIn>& waypoints_in, double initial_time, UID follow_ob_uid, float follow_dist);
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	ObjectPathController(WorldObjectRef controlled_ob, const std::vector<PathWaypointIn>& waypoints_in, double initial_time, UID follow_ob_uid, float follow_dist);
 	~ObjectPathController();
 
 	void update(WorldState& world_state, PhysicsWorld& physics_world, OpenGLEngine* opengl_engine, float dtime);
 
 	static void sortPathControllers(std::vector<Reference<ObjectPathController>>& controllers);
 private:
-	void walkAlongPathForTime(WorldState& world_state, /*int& waypoint_index, float& dir_along_segment, */double delta_time, Vec4f& pos_out, Vec4f& dir_out, Vec4f& target_pos_out, double& target_dtime_out);
-	void walkAlongPathDistBackwards(WorldState& world_state, int waypoint_index, float dir_along_segment, float delta_dist, /*int& waypoint_index_out, float& dir_along_segment_out, */Vec4f& pos_out, Vec4f& dir_out);
-	float getSegmentLength(WorldState& world_state, int waypoint_index);
+	void walkAlongPathForTime(/*int& waypoint_index, float& dir_along_segment, */double delta_time, Vec4f& pos_out, Vec4f& dir_out, Vec4f& target_pos_out, double& target_dtime_out);
+	void walkAlongPathDistBackwards(int waypoint_index, float dir_along_segment, float delta_dist, /*int& waypoint_index_out, float& dir_along_segment_out, */Vec4f& pos_out, Vec4f& dir_out);
+	float getSegmentLength(int waypoint_index);
 public:
 	WorldObjectRef controlled_ob;
 
@@ -68,7 +75,8 @@ public:
 	{
 		Vec4f pos;
 		PathWaypointIn::WaypointType waypoint_type;
+		float pause_time;
+		float speed;
 	};
-private:
 	std::vector<PathWaypoint> waypoints;
 };
