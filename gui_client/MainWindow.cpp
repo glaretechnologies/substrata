@@ -539,6 +539,10 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
+	if(test_avatar.nonNull())
+		test_avatar->graphics.destroy(*ui->glWidget->opengl_engine); // Remove any OpenGL object for it
+
+
 	player_physics.shutdown();
 	car_physics.shutdown();
 
@@ -5484,16 +5488,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			phase_speed = 0;
 		}*/
-		double phase_speed = 0;
+		//double phase_speed = 0;
 
 
 		AnimEvents anim_events;
-		test_avatar_phase += phase_speed * dt;
-		const float r = 3;
-		Vec3d pos(cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
+		//test_avatar_phase += phase_speed * dt;
+		//const float r = 3;
+		Vec3d pos(0, 0, 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
 		const int anim_state = 0;
 		float xyplane_speed_rel_ground = 0;
-		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, Vec3f(0, 0, (float)test_avatar_phase + Maths::pi_2<float>()), false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, anim_events);
+		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, Vec3f(0, 1.57, 0),//Vec3f(0, 0, (float)test_avatar_phase + Maths::pi_2<float>()), 
+			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, anim_events);
 		if(anim_events.footstrike)
 		{
 			//conPrint("footstrike");
@@ -11522,6 +11527,59 @@ int main(int argc, char *argv[])
 				);
 				// Let any glare::Exception thrown fall through to below.
 			}
+
+
+			// TEMP: make an avatar for testing of animation retargeting etc.
+			if(false)
+			{
+				test_avatar = new Avatar();
+				test_avatar->pos = Vec3d(3,0,2);
+				test_avatar->rotation = Vec3f(1,0,0);
+
+				const float EYE_HEIGHT = 1.67f;
+				const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
+				test_avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
+
+				const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
+
+				const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
+				const uint64 model_hash = FileChecksum::fileChecksum(path);
+				const std::string original_filename = FileUtils::getFilename(path);
+				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(original_filename), model_hash);
+				mw.resource_manager->copyLocalFileToResourceDir(path, mesh_URL);
+
+				PhysicsShape physics_shape;
+				BatchedMeshRef batched_mesh;
+				Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(mesh_URL, *mw.resource_manager,
+					mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), false, physics_shape, batched_mesh);
+
+				test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*mw.ui->glWidget->opengl_engine, mesh_data, /*ob_lod_level=*/0, 
+					test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *mw.resource_manager, ob_to_world_matrix);
+
+				
+				// Load animation data
+				{
+					FileInStream file(cyberspace_base_dir_path + "/resources/extracted_avatar_anim.bin");
+					test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+				}
+
+				test_avatar->graphics.build();
+
+				for(int z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+					test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
+				mw.ui->glWidget->opengl_engine->objectMaterialsUpdated(test_avatar->graphics.skinned_gl_ob);
+
+				for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
+				{
+					conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
+				}
+
+				assignedLoadedOpenGLTexturesToMats(test_avatar.ptr(), *mw.ui->glWidget->opengl_engine, *mw.resource_manager);
+
+				mw.ui->glWidget->opengl_engine->addObject(test_avatar->graphics.skinned_gl_ob);
+			}
+
+
 
 			try
 			{
