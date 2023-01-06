@@ -133,6 +133,7 @@ private slots:;
 	void on_actionGoToPersonalWorld_triggered();
 	void on_actionGo_to_CryptoVoxels_World_triggered();
 	void on_actionGo_to_Parcel_triggered();
+	void on_actionGo_to_Position_triggered();
 	void on_actionFind_Object_triggered();
 	void on_actionList_Objects_Nearby_triggered();
 	void on_actionExport_view_to_Indigo_triggered();

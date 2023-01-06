@@ -84,6 +84,7 @@
     <property name="title">
      <string>Go</string>
     </property>
+    <addaction name="actionGo_to_Position"/>
     <addaction name="actionGo_to_Parcel"/>
     <addaction name="actionGoToMainWorld"/>
     <addaction name="actionGoToPersonalWorld"/>
@@ -591,6 +592,11 @@
   <action name="actionPaste_Object">
    <property name="text">
     <string>Paste Object</string>
+   </property>
+  </action>
+  <action name="actionGo_to_Position">
+   <property name="text">
+    <string>Go to Position</string>
    </property>
   </action>
  </widget>

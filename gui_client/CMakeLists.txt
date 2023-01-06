@@ -40,6 +40,7 @@ addMocFileRule(gui_client ShaderEditorDialog)
 addMocFileRule(gui_client AboutDialog)
 addMocFileRule(gui_client MainOptionsDialog)
 addMocFileRule(gui_client GoToParcelDialog)
+addMocFileRule(gui_client GoToPositionDialog)
 addMocFileRule(gui_client FindObjectDialog)
 addMocFileRule(gui_client ListObjectsNearbyDialog)
 addMocFileRule(gui_client LogWindow)
@@ -68,6 +69,7 @@ addUIFileRule(gui_client ShaderEditorDialog)
 addUIFileRule(gui_client AboutDialog)
 addUIFileRule(gui_client MainOptionsDialog)
 addUIFileRule(gui_client GoToParcelDialog)
+addUIFileRule(gui_client GoToPositionDialog)
 addUIFileRule(gui_client FindObjectDialog)
 addUIFileRule(gui_client ListObjectsNearbyDialog)
 addUIFileRule(gui_client LogWindow)
@@ -102,6 +104,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/moc_ShaderEditorDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_AboutDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_MainOptionsDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_GoToParcelDialog.cpp
+${CMAKE_SOURCE_DIR}/gui_client/moc_GoToPositionDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_FindObjectDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_ListObjectsNearbyDialog.cpp
 ${CMAKE_SOURCE_DIR}/gui_client/moc_LogWindow.cpp
@@ -124,6 +127,7 @@ ${CMAKE_SOURCE_DIR}/gui_client/ui_ShaderEditorDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_AboutDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_MainOptionsDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_GoToParcelDialog.h
+${CMAKE_SOURCE_DIR}/gui_client/ui_GoToPositionDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_FindObjectDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_ListObjectsNearbyDialog.h
 ${CMAKE_SOURCE_DIR}/gui_client/ui_LogWindow.h

@@ -40,7 +40,7 @@ PlayerPhysics::PlayerPhysics()
 :	vel(0,0,0),
 	moveimpulse(0,0,0),
 	lastgroundnormal(0,0,1),
-	lastvel(0,0,0),
+	//lastvel(0,0,0),
 	jumptimeremaining(0),
 	onground(false),
 	flymode(false),
@@ -134,6 +134,8 @@ void PlayerPhysics::shutdown()
 void PlayerPhysics::setPosition(const Vec3d& new_player_pos) // Move discontinuously.  For teleporting etc.
 {
 	jolt_character->SetPosition(toJoltVec3(new_player_pos));
+
+	this->vel = Vec3f(0.f);
 }
 
 

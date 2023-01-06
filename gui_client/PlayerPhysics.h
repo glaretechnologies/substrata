@@ -55,7 +55,7 @@ public:
 	void init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos);
 	void shutdown();
 
-	void setPosition(const Vec3d& new_player_pos); // Move discontinuously.  For teleporting etc.
+	void setPosition(const Vec3d& new_player_pos); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
 
 	void processMoveForwards(float factor, bool runpressed, CameraController& cam); // factor should be -1 for move backwards, 1 otherwise.
 	void processStrafeRight(float factor, bool runpressed, CameraController& cam);
@@ -83,7 +83,7 @@ public:
 	void debugGetCollisionSpheres(const Vec4f& campos, std::vector<js::BoundingSphere>& spheres_out);
 private:
 	Vec3f vel;
-	Vec3f lastvel;
+	//Vec3f lastvel;
 
 	Vec3f last_xy_plane_vel_rel_ground;
 

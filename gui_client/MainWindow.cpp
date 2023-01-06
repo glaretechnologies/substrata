@@ -147,6 +147,7 @@ Copyright Glare Technologies Limited 2020 -
 #endif
 #include <OpenGLEngineTests.h>
 #include "Scripting.h"
+#include "GoToPositionDialog.h"
 
 
 // If we are building on Windows, and we are not in Release mode (e.g. BUILD_TESTS is enabled), then make sure the console window is shown.
@@ -7842,6 +7843,24 @@ void MainWindow::on_actionGo_to_Parcel_triggered()
 			msgBox.setText("Please enter just a number.");
 			msgBox.exec();
 		}
+	}
+}
+
+
+void MainWindow::on_actionGo_to_Position_triggered()
+{
+	GoToPositionDialog d(this->settings, cam_controller.getFirstPersonPosition());
+	const int code = d.exec();
+	if(code == QDialog::Accepted)
+	{
+		const Vec3d pos(
+			d.XDoubleSpinBox->value(),
+			d.YDoubleSpinBox->value(),
+			d.ZDoubleSpinBox->value()
+		);
+			
+		cam_controller.setPosition(pos);
+		player_physics.setPosition(pos);
 	}
 }
 
