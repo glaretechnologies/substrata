@@ -41,7 +41,7 @@ static HANDLE makeWaitHandleForDir(const std::string& dir, bool watch_subtree)
 #elif defined(OSX)
  // TODO
 #else // else on Linux:
-static int makeWatchDescriptorForDir(const std::string& dir)
+static int makeWatchDescriptorForDir(int inotify_fd, const std::string& dir)
 {
 	const int watch_descriptor = inotify_add_watch(inotify_fd, dir.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
 	if(watch_descriptor == -1)
@@ -88,9 +88,9 @@ void WebDataFileWatcherThread::doRun()
 			throw glare::Exception("inotify_init failed: " + PlatformUtils::getLastErrorString());
 
 		std::vector<int> watch_descriptors;
-		watch_descriptors.push_back(makeWatchDescriptorForDir(web_data_store->fragments_dir));
-		watch_descriptors.push_back(makeWatchDescriptorForDir(web_data_store->public_files_dir));
-		watch_descriptors.push_back(makeWatchDescriptorForDir(web_data_store->webclient_dir));
+		watch_descriptors.push_back(makeWatchDescriptorForDir(inotify_fd, web_data_store->fragments_dir));
+		watch_descriptors.push_back(makeWatchDescriptorForDir(inotify_fd, web_data_store->public_files_dir));
+		watch_descriptors.push_back(makeWatchDescriptorForDir(inotify_fd, web_data_store->webclient_dir));
 
 		std::vector<uint8> buf(sizeof(struct inotify_event) + NAME_MAX + 1); // We have to read more than just sizeof(struct inotify_event), as the name field extends past end of structure.
 		// See https://man7.org/linux/man-pages/man7/inotify.7.html
