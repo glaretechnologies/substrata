@@ -30,52 +30,52 @@ WebDataFileWatcherThread::~WebDataFileWatcherThread()
 {}
 
 
+#if defined(_WIN32)
+static HANDLE makeWaitHandleForDir(const std::string& dir, bool watch_subtree)
+{
+	HANDLE wait_handle = FindFirstChangeNotification(StringUtils::UTF8ToPlatformUnicodeEncoding(dir).c_str(), /*watch subtree=*/watch_subtree, FILE_NOTIFY_CHANGE_LAST_WRITE);
+	if(wait_handle == INVALID_HANDLE_VALUE)
+		throw glare::Exception("FindFirstChangeNotification failed: " + PlatformUtils::getLastErrorString());
+	return wait_handle;
+}
+#elif defined(OSX)
+ // TODO
+#else // else on Linux:
+static int makeWatchDescriptorForDir(const std::string& dir)
+{
+	const int watch_descriptor = inotify_add_watch(inotify_fd, dir.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
+	if(watch_descriptor == -1)
+		throw glare::Exception("inotify_add_watch failed: " + PlatformUtils::getLastErrorString());
+	return watch_descriptor;
+}
+#endif
+
+
 void WebDataFileWatcherThread::doRun()
 {
 	try
 	{
 #if defined(_WIN32)
 		std::vector<HANDLE> wait_handles;
-
-		{
-			HANDLE wait_handle = FindFirstChangeNotification(StringUtils::UTF8ToPlatformUnicodeEncoding(web_data_store->public_files_dir).c_str(), /*watch subtree=*/FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
-			if(wait_handle == INVALID_HANDLE_VALUE)
-				throw glare::Exception("FindFirstChangeNotification failed: " + PlatformUtils::getLastErrorString());
-			wait_handles.push_back(wait_handle);
-		}
-
-		{
-			HANDLE wait_handle = FindFirstChangeNotification(StringUtils::UTF8ToPlatformUnicodeEncoding(web_data_store->webclient_dir).c_str(), /*watch subtree=*/TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
-			if(wait_handle == INVALID_HANDLE_VALUE)
-				throw glare::Exception("FindFirstChangeNotification failed: " + PlatformUtils::getLastErrorString());
-			wait_handles.push_back(wait_handle);
-		}
-
+		wait_handles.push_back(makeWaitHandleForDir(web_data_store->fragments_dir,		/*watch subtree=*/true));
+		wait_handles.push_back(makeWaitHandleForDir(web_data_store->public_files_dir,	/*watch subtree=*/false));
+		wait_handles.push_back(makeWaitHandleForDir(web_data_store->webclient_dir,		/*watch subtree=*/true));
+		
 		while(1)
 		{
 			const DWORD res = WaitForMultipleObjects(/*count=*/(DWORD)wait_handles.size(), wait_handles.data(), /*wait all=*/FALSE, /*wait time=*/INFINITE);
-			if(res == WAIT_OBJECT_0)
+			if(res >= WAIT_OBJECT_0 && res < WAIT_OBJECT_0 + (DWORD)wait_handles.size())
 			{
-				conPrint("public_files_dir changed, reloading files...");
+				const size_t i = res - WAIT_OBJECT_0;
+				conPrint("public_files_dir or webclient_dir or fragments_dir file(s) changed, reloading files...");
 
 				web_data_store->loadAndCompressFiles();
 
-				if(FindNextChangeNotification(wait_handles[0]) == 0)
-					throw glare::Exception("FindNextChangeNotification failed: " + PlatformUtils::getLastErrorString());
-			}
-			else if(res == (WAIT_OBJECT_0 + 1))
-			{
-				conPrint("webclient_dir changed, reloading files...");
-
-				web_data_store->loadAndCompressFiles();
-
-				if(FindNextChangeNotification(wait_handles[1]) == 0)
+				if(FindNextChangeNotification(wait_handles[i]) == 0)
 					throw glare::Exception("FindNextChangeNotification failed: " + PlatformUtils::getLastErrorString());
 			}
 			else
 				throw glare::Exception("Unhandled WaitForSingleObject result");
-
-
 		}
 #elif defined(OSX)
 		
@@ -88,16 +88,9 @@ void WebDataFileWatcherThread::doRun()
 			throw glare::Exception("inotify_init failed: " + PlatformUtils::getLastErrorString());
 
 		std::vector<int> watch_descriptors;
-		{
-			const int watch_descriptor = inotify_add_watch(inotify_fd, web_data_store->public_files_dir.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
-			if(watch_descriptor == -1)
-				throw glare::Exception("inotify_add_watch failed: " + PlatformUtils::getLastErrorString());
-		}
-		{
-			const int watch_descriptor = inotify_add_watch(inotify_fd, web_data_store->webclient_dir.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE);
-			if(watch_descriptor == -1)
-				throw glare::Exception("inotify_add_watch failed: " + PlatformUtils::getLastErrorString());
-		}
+		watch_descriptors.push_back(makeWatchDescriptorForDir(web_data_store->fragments_dir));
+		watch_descriptors.push_back(makeWatchDescriptorForDir(web_data_store->public_files_dir));
+		watch_descriptors.push_back(makeWatchDescriptorForDir(web_data_store->webclient_dir));
 
 		std::vector<uint8> buf(sizeof(struct inotify_event) + NAME_MAX + 1); // We have to read more than just sizeof(struct inotify_event), as the name field extends past end of structure.
 		// See https://man7.org/linux/man-pages/man7/inotify.7.html
@@ -109,7 +102,7 @@ void WebDataFileWatcherThread::doRun()
 
 			if(length >= (int)sizeof(struct inotify_event))
 			{
-				conPrint("public_files_dir or webclient_dir file(s) changed, reloading files...");
+				conPrint("public_files_dir or webclient_dir or fragments_dir file(s) changed, reloading files...");
 
 				// The reload-trigger file has changed in some way.  So reload files
 				web_data_store->loadAndCompressFiles();

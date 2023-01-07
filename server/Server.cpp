@@ -341,6 +341,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	pugi::xml_node root_elem = doc.getRootElement();
 
 	ServerConfig config;
+	config.fragments_dir = XMLParseUtils::parseStringWithDefault(root_elem, "fragments_dir", /*default val=*/"");
 	config.webserver_public_files_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
 	config.webclient_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
 	config.allow_light_mapper_bot_full_perms = XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
@@ -598,15 +599,23 @@ int main(int argc, char *argv[])
 
 		Reference<WebDataStore> web_data_store = new WebDataStore();
 
-		std::string default_webclient_dir, default_webserver_public_files_dir;
+		std::string default_fragments_dir, default_webclient_dir, default_webserver_public_files_dir;
 #if defined(_WIN32) || defined(OSX)
+		default_fragments_dir				= server_state_dir + "/webserver_fragments";
 		default_webserver_public_files_dir	= server_state_dir + "/webserver_public_files";
 		default_webclient_dir				= server_state_dir + "/webclient";
 #else
+		default_fragments_dir				= "/var/www/cyberspace/webserver_fragments";
 		default_webserver_public_files_dir	= "/var/www/cyberspace/public_html";
 		default_webclient_dir				= "/var/www/cyberspace/webclient";
 		//web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
 #endif
+		// Use fragments_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
+		if(!server_config.fragments_dir.empty())
+			web_data_store->fragments_dir = server_config.fragments_dir;
+		else
+			web_data_store->fragments_dir = default_fragments_dir;
+
 		// Use webserver_public_files_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
 		if(!server_config.webserver_public_files_dir.empty())
 			web_data_store->public_files_dir = server_config.webserver_public_files_dir;
@@ -619,6 +628,7 @@ int main(int argc, char *argv[])
 		else
 			web_data_store->webclient_dir = default_webclient_dir;
 
+		conPrint("webserver fragments_dir: " + web_data_store->fragments_dir);
 		conPrint("webserver public_files_dir: " + web_data_store->public_files_dir);
 		conPrint("webserver webclient_dir: " + web_data_store->webclient_dir);
 

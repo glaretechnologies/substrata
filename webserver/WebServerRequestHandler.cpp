@@ -271,7 +271,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		}
 		else if(request.path == "/about_scripting")
 		{
-			MainPageHandlers::renderAboutScripting(*this->world_state, request, reply_info);
+			MainPageHandlers::renderAboutScripting(*this->world_state, *this->data_store, request, reply_info);
 		}
 		else if(request.path == "/about_substrata")
 		{

@@ -94,6 +94,31 @@ void WebDataStore::loadAndCompressFiles()
 {
 	conPrint("WebDataStore::loadAndCompressFiles");
 
+	//-------------- Load (HTML) fragment files --------------
+	const std::vector<std::string> fragment_filenames = FileUtils::getFilesInDir(this->fragments_dir);
+
+	for(auto it = fragment_filenames.begin(); it != fragment_filenames.end(); ++it)
+	{
+		const std::string filename = *it;
+		const std::string path = fragments_dir + "/" + filename;
+
+		try
+		{
+			conPrint("Loading fragment from '" + path + "'...");
+			Reference<WebDataStoreFile> file = loadAndMaybeCompressFile(path);
+
+			{
+				Lock lock(mutex);
+				fragment_files[filename] = file;
+			}
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("WebDataStore::loadAndCompressFiles: warning: " + e.what());
+		}
+	}
+
+
 	//-------------- Load public files --------------
 	const std::vector<std::string> public_file_filenames = FileUtils::getFilesInDir(this->public_files_dir);
 
@@ -145,4 +170,15 @@ void WebDataStore::loadAndCompressFiles()
 	}
 
 	//conPrint("WebDataStore::loadAndCompressFiles done.");
+}
+
+
+Reference<WebDataStoreFile> WebDataStore::getFragmentFile(const std::string& path) // Returns NULL if not found
+{
+	Lock lock(mutex);
+	const auto lookup_res = fragment_files.find(path);
+	if(lookup_res != fragment_files.end())
+		return lookup_res->second;
+	else
+		return Reference<WebDataStoreFile>();
 }
