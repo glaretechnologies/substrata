@@ -341,7 +341,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 	pugi::xml_node root_elem = doc.getRootElement();
 
 	ServerConfig config;
-	config.fragments_dir = XMLParseUtils::parseStringWithDefault(root_elem, "fragments_dir", /*default val=*/"");
+	config.webserver_fragments_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webserver_fragments_dir", /*default val=*/"");
 	config.webserver_public_files_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webserver_public_files_dir", /*default val=*/"");
 	config.webclient_dir = XMLParseUtils::parseStringWithDefault(root_elem, "webclient_dir", /*default val=*/"");
 	config.allow_light_mapper_bot_full_perms = XMLParseUtils::parseBoolWithDefault(root_elem, "allow_light_mapper_bot_full_perms", /*default val=*/false);
@@ -611,8 +611,8 @@ int main(int argc, char *argv[])
 		//web_data_store->letsencrypt_webroot			= "/var/www/cyberspace/letsencrypt_webroot";
 #endif
 		// Use fragments_dir from the server config.xml file if it's in there (if string is non-empty), otherwise use a default value.
-		if(!server_config.fragments_dir.empty())
-			web_data_store->fragments_dir = server_config.fragments_dir;
+		if(!server_config.webserver_fragments_dir.empty())
+			web_data_store->fragments_dir = server_config.webserver_fragments_dir;
 		else
 			web_data_store->fragments_dir = default_fragments_dir;
 

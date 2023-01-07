@@ -259,7 +259,7 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		// Route GET request
 		if(request.path == "/")
 		{
-			MainPageHandlers::renderRootPage(*this->world_state, request, reply_info);
+			MainPageHandlers::renderRootPage(*this->world_state, *this->data_store, request, reply_info);
 		}
 		else if(request.path == "/terms")
 		{
