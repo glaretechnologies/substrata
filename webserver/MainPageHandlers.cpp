@@ -20,6 +20,7 @@ Copyright Glare Technologies Limited 2021 -
 #include <Lock.h>
 #include <StringUtils.h>
 #include <PlatformUtils.h>
+#include <WebDataStore.h>
 
 
 namespace MainPageHandlers
@@ -650,67 +651,18 @@ void renderFAQ(ServerAllWorldsState& world_state, const web::RequestInfo& reques
 }
 
 
-void renderAboutScripting(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderAboutScripting(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	std::string page = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Scripting in Substrata");
 	
-	page += "<p>Scripting in the Substrata metaverse is currently done with the <a href=\"https://github.com/glaretechnologies/winter\">Winter programming language</a>.</p>";
+	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("about_scripting.htmlfrag");
+	if(store_file.nonNull())
+	{
+		assert(!store_file->compressed);
+		page += std::string(store_file->data.begin(), store_file->data.end());
+	}
 
-	page += "<p>Winter is a high-performance functional programming language, made by us at Glare Technologies.  We use it in our other software "
-		"<a href=\"https://www.indigorenderer.com/\">Indigo Renderer</a> and <a href=\"https://www.chaoticafractals.com/\">Chaotica</a>.</p>";
-
-	page += "<h3>Winter Language reference</h3>";
-
-	page += "<p>See the <a href=\"https://github.com/glaretechnologies/winter\">Github Winter page</a> for the language reference documentation.</p>";
-
-	page += "<h3>Client-side execution</h3>";
-
-	page += "<p>Scripts in Substrata are executed in the Substrata client program (e.g. they are executed 'client-side').  Winter programs are restricted in what they can do, so are safe to execute client-side.  "
-		"(Although we can't rule out all bugs in the Winter execution environment)</p>";
-
-	page += "<h3>Scripting an object</h3>";
-
-	page += "<p>To make a script for an object, you edit code in the 'Script' text edit box in the object editor in the Substrata client, after selecting an object.   You can only edit scripts on objects that you own (e.g. that you created).</p>";
-
-	page += "<h3>Scriptable functions</h3>";
-
-	page += "<p>To script the behaviour of an object, you can define either of two functions:</p>";
-
-	page += "<h4>evalRotation</h4>";
-
-	page += "<code>def evalRotation(float time, WinterEnv env) vec3</code>";
-
-	page += "<p>time is the current global time in the Substrata metaverse.</p>";
-
-	page += "<p>This function returns a 3-vector, where the direction of the vector defines the axis of rotation, and the length of the vector defines the counter-clockwise rotation around the axis, in radians.</p>";
-
-	page += "<p>For example, the rotating wind turbine blades use the following script:<p>";
-
-	page += "<code>def evalRotation(float time, WinterEnv env) vec3 : vec3(-0.6, 0.0, 0.0) * time</code>";
-
-	page += "<p>This rotates the blades clockwise (due to the minus sign) around the x axis at a constant rate.</p>";
-
-	page += "<h4>evalTranslation</h4>";
-
-	page += "<code>def evalTranslation(float time, WinterEnv env) vec3</code>";
-
-	page += "<p>This function returns a 3-vector, which defines a spatial translation from the usual position of an object (as placed by a user or entered in the object editor).  The translation can be a function of time "
-		" to allow object movement.</p>";
-
-	page += "<p>For example, this script makes an object move back and forth along the x axis:</p>";
-
-	page += "<code>def evalTranslation(float time, WinterEnv env) vec3 : vec3(sin(time * 1.51) * 0.1, 0, 0)</code>";
-
-	page += "<h2>Future Scripting</h2>";
-
-	page += "<p>We may allow server-side scripting in the future, using a language like Javascript, and with some way of maintaining state.</p>";
-
-	page += "<p>We plan to allow users to run their own server as well, to control their parcels, which will allow arbitrarily complicated code to affect their Substrata parcels.</p>";
-
-	page += "<br/><br/>";
-	page += "<a href=\"/\">&lt; Home</a>";
-
-	page += WebServerResponseUtils::standardFooter(request_info, true);
+	page += WebServerResponseUtils::standardFooter(request_info, /*include_email_link=*/true);
 
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page);
 }

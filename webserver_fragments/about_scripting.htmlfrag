@@ -1,0 +1,79 @@
+
+
+<h2>Winter Scripting</h2>
+
+<p>Most scripting in the Substrata metaverse is currently done with the <a href="https://github.com/glaretechnologies/winter">Winter programming language</a>.
+</p>
+
+<p>Winter is a high-performance functional programming language, made by us at Glare Technologies.  We use it in our other software <a href="https://www.indigorenderer.com/">Indigo Renderer</a> and 
+<a href="https://www.chaoticafractals.com/">Chaotica</a>.
+</p>
+
+
+<h3>Winter Language reference</h3>
+<p>See the <a href="https://github.com/glaretechnologies/winter">Github Winter page</a> for the language reference documentation.
+</p>
+
+<h3>Client-side execution</h3>
+<p>Scripts in Substrata are executed in the Substrata client program (e.g. they are executed 'client-side').  
+Winter programs are restricted in what they can do, so are safe to execute client-side.  
+(Although we can't rule out all bugs in the Winter execution environment)</p><h3>Scripting an object</h3><p>To make a script for an object, you edit code in the 'Script' text edit box in the object editor in the Substrata client, 
+after selecting an object.   
+You can only edit scripts on objects that you own (e.g. that you created).</p>
+
+<h3>Scriptable functions</h3>
+<p>To script the behaviour of an object, you can define either of two functions:</p><h4>evalRotation</h4><code>def evalRotation(float time, WinterEnv env) vec3</code><p>time is the
+current global time in the Substrata metaverse.
+</p>
+<p>This function returns a 3-vector, where the direction of the vector defines the axis of rotation, and the length of the vector defines the counter-clockwise rotation around the axis, in radians.
+</p>
+<p>
+For example, the rotating wind turbine blades use the following script:<p><code>def evalRotation(float time, WinterEnv env) vec3 : vec3(-0.6, 0.0, 0.0) * time</code>
+
+<p>This rotates the blades clockwise (due to the minus sign) around the x axis at a constant rate.</p><h4>evalTranslation</h4><code>def evalTranslation(float time, WinterEnv env) vec3</code><p>This function returns a 3-vector, 
+which defines a spatial translation from the usual position of an object (as placed by a user or entered in the object editor).  
+The translation can be a function of time  to allow object movement.</p><p>For example, this script makes an object move back and forth along the x axis by a total of 1.6 metres:
+</p>
+<code>def evalTranslation(float time, WinterEnv env) vec3 : vec3(sin(time * 1.5) * 0.8, 0, 0)</code>
+
+
+
+<h2>XML Scripting: Follow Path Script</h2>
+
+<p>You can also use XML to define some behaviours for an object, for example make the object follow a path around the world.  (This is the kind of script that the monorail uses)</p>
+<p>
+The following is a script that makes an object continuously follow a square shaped path:
+</p>
+
+<code>
+<pre>
+&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+&lt;script&gt;
+	&lt;follow_path&gt;
+		&lt;speed&gt;3&lt;/speed&gt;
+
+		&lt;waypoint&gt;&lt;pos&gt;0 0 1&lt;/pos&gt;	&lt;type&gt;Stop&lt;/type&gt;	&lt;pause_time&gt;1&lt;/pause_time&gt;	&lt;/waypoint&gt;
+		&lt;waypoint&gt;&lt;pos&gt;10 0 1&lt;/pos&gt;	&lt;type&gt;Stop&lt;/type&gt;	&lt;pause_time&gt;1&lt;/pause_time&gt;	&lt;/waypoint&gt;
+		&lt;waypoint&gt;&lt;pos&gt;10 10 1&lt;/pos&gt;	&lt;type&gt;Stop&lt;/type&gt;	&lt;pause_time&gt;1&lt;/pause_time&gt;	&lt;/waypoint&gt;
+		&lt;waypoint&gt;&lt;pos&gt;0 10 1&lt;/pos&gt;	&lt;type&gt;Stop&lt;/type&gt;	&lt;pause_time&gt;1&lt;/pause_time&gt;	&lt;/waypoint&gt;
+	&lt;/follow_path&gt;
+&lt;/script&gt;
+</pre>
+</code>
+
+<p>Each waypoint has the position of the waypoint, what type of waypoint it is, and in the case of 'Stop' waypoints, how long the object will stop at the waypoint before continuing.
+</p>
+
+<p>The &lt;speed&gt;3&lt;/speed&gt; tag also sets the default speed of the object along the path, although this can be overridden for each waypoint.
+</p>
+
+<h2>Future Scripting</h2>
+<p>We may allow server-side scripting in the future, using a language like Javascript, and with some way of maintaining state.
+</p>
+<p>
+We plan to allow users to run their own server as well, to control their parcels, which will allow arbitrarily complicated code to affect their Substrata parcels.
+</p>
+
+<br/><br/>
+
+<a href="/">&lt; Home</a>																			
