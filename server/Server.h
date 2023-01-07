@@ -16,7 +16,7 @@ class ServerConfig
 public:
 	ServerConfig() : allow_light_mapper_bot_full_perms(false) {}
 	
-	std::string fragments_dir; // empty string = use default.
+	std::string webserver_fragments_dir; // empty string = use default.
 	std::string webserver_public_files_dir; // empty string = use default.
 	std::string webclient_dir; // empty string = use default.
 	

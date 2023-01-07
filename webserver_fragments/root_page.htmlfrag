@@ -1,0 +1,58 @@
+<p>																																																		
+Substrata is a multi-user cyberspace/metaverse.  Chat with other users or explore objects and places that other users have created.		
+<br/>																																	
+You can create a free user account and add objects to the world as well!																
+</p>																																	
+<p>																																		
+Land parcels in Substrata are <a href="/parcel_auction_list">for sale</a>, and can be minted as Ethereum NFTs.											
+</p>																																	
+<p>																																		
+Substrata is early in development, please expect rough edges!																			
+</p>																																	
+<p><a href="/about_substrata">Read about our goals and plans for Substrata</a></p>				
+<p><a href="/faq">Read general question and answers about Substrata</a></p>				
+																																			
+<h2>Downloads</h2>																														
+<p>To explore Substrata you will need to install the free client software for your platform:</p>										
+<p>																																		
+Windows - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v0.97.10_Setup.exe">Substrata_v0.97.10_Setup.exe</a>	
+</p>																																	
+<p>																																		
+MacOS - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v0.97.10.pkg">Substrata_v0.97.10.pkg</a>				
+</p>																																	
+<p>																																		
+Linux - <a href="https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v0.97.10.tar.gz">Substrata_v0.97.10.tar.gz</a>			
+</p>																																	
+																																			
+<h2>Buy a land parcel</h2>																												
+
+LAND_PARCELS_FOR_SALE_HTML
+
+<br/> <a href="/parcel_auction_list">View all parcels for sale</a>																																			
+																											
+<h2>Community</h2>																						
+																											
+<p>																										
+<a href="https://discord.gg/R6tfYn3" ><img width="200px" src="/files/join_us_on_discord.png" /></a>		
+</p>																									
+<p>																										
+<a href="https://twitter.com/SubstrataVr" ><img width="60px" src="/files/twitter.png" />@SubstrataVr</a>
+</p>																									
+																											
+<h2>Screenshots and Videos</h2>																			
+																											
+<iframe width="650" height="400" src="https://www.youtube.com/embed/5cKDiktip2w" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="650" height="400" src="https://www.youtube.com/embed/CcWYmJLdnFI" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+																																			
+<h2>Scripting</h2>																														
+<p>Read about <a href="/about_scripting">object scripting in Substrata</a>.</p>															
+																																			
+<h2>CryptoVoxels</h2>																													
+<p>																																		
+We are currently embedding the <a href="https://www.cryptovoxels.com">CryptoVoxels</a> world in Substrata, for testing and fun purposes!
+</p>																																	
+<p>																																		
+To explore the CryptoVoxels world, just install and run Substrata, and then select from the menu bar:									
+<p>																																		
+<b>Go &gt; Go to CryptoVoxels World</b>																									
+</p>																														

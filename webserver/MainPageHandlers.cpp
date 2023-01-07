@@ -27,7 +27,7 @@ namespace MainPageHandlers
 {
 
 
-void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
+void renderRootPage(ServerAllWorldsState& world_state, WebDataStore& data_store, const web::RequestInfo& request_info, web::ReplyInfo& reply_info)
 {
 	//std::string page_out = WebServerResponseUtils::standardHeader(world_state, request_info, /*page title=*/"Substrata");
 	//const bool logged_in = LoginHandlers::isLoggedInAsNick(data_store, request_info);
@@ -60,8 +60,6 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 
 	page_out += "<img src=\"/files/logo_main_page.png\" alt=\"substrata logo\" style=\"padding-bottom:20px\" />";
 
-
-	const std::string deployed_version = "0.97.7";// ::cyberspace_version;
 
 	std::string auction_html;
 	{ // lock scope
@@ -141,65 +139,15 @@ void renderRootPage(ServerAllWorldsState& world_state, const web::RequestInfo& r
 	} // end lock scope
 
 
+	Reference<WebDataStoreFile> store_file = data_store.getFragmentFile("root_page.htmlfrag");
+	if(store_file.nonNull())
+	{
+		assert(!store_file->compressed);
+		page_out += std::string(store_file->data.begin(), store_file->data.end());
+	}
 
-	page_out +=
-	"	<p>																																																		\n"
-	"	Substrata is a multi-user cyberspace/metaverse.  Chat with other users or explore objects and places that other users have created.																		\n"
-	"	<br/>																																																	\n"
-	"	You can create a free user account and add objects to the world as well!																																\n"
-	"	</p>																																																	\n"
-	"	<p>																																																		\n"
-	"	Land parcels in Substrata are <a href=\"/parcel_auction_list\">for sale</a>, and can be minted as Ethereum NFTs.																																\n"
-	"	</p>																																																\n"
-	"	<p>																																																		\n"
-	"	Substrata is early in development, please expect rough edges!																																			\n"
-	"	</p>																																														\n"
-	"	<p><a href=\"/about_substrata\">Read about our goals and plans for Substrata</a></p>				\n"
-	"	<p><a href=\"/faq\">Read general question and answers about Substrata</a></p>				\n"
-	"																																																			\n"
-	"	<h2>Downloads</h2>																																														\n"
-	"	<p>To explore Substrata you will need to install the free client software for your platform:</p>																										\n"
-	"	<p>																																																		\n"
-	"	Windows - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + "_Setup.exe\">Substrata_v" + deployed_version + "_Setup.exe</a>								\n"
-	"	</p>																																																	\n"
-	"	<p>																																																		\n"
-	"	MacOS - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".pkg\">Substrata_v" + deployed_version + ".pkg</a>												\n"
-	"	</p>																																																	\n"
-	"	<p>																																																		\n"
-	"	Linux - <a href=\"https://downloads.indigorenderer.com/dist/cyberspace/Substrata_v" + deployed_version + ".tar.gz\">Substrata_v" + deployed_version + ".tar.gz</a>										\n"
-	"	</p>																																																	\n"
-	"																																																			\n"
-	"	<h2>Buy a land parcel</h2>																																												\n"
-	 + auction_html + 
-	"   <br/> <a href=\"/parcel_auction_list\">View all parcels for sale</a>																																			\n"
-	"																																																			\n"
-	"	<h2>Community</h2>																																														\n"
-	"																																																			\n"
-	"	<p>																																																		\n"
-	"	<a href=\"https://discord.gg/R6tfYn3\" ><img width=\"200px\" src=\"/files/join_us_on_discord.png\" /></a>																								\n"
-	"	</p>																																																	\n"
-	"	<p>																																																		\n"
-	"	<a href=\"https://twitter.com/SubstrataVr\" ><img width=\"60px\" src=\"/files/twitter.png\" />@SubstrataVr</a>																							\n"
-	"	</p>																																																	\n"
-	"																																																			\n"
-	"	<h2>Screenshots and Videos</h2>																																											\n"
-	"																																																			\n"
-	"	<iframe width=\"650\" height=\"400\" src=\"https://www.youtube.com/embed/5cKDiktip2w\" frameborder=\"0\" allow=\"accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe>\n"
-	"	<iframe width=\"650\" height=\"400\" src=\"https://www.youtube.com/embed/CcWYmJLdnFI\" frameborder=\"0\" allow=\"accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe>\n"
-	"																																																			\n"
-	"	<h2>Scripting</h2>																																														\n"
-	"	<p>Read about <a href=\"/about_scripting\">object scripting in Substrata</a>.</p>																														\n"
-	"																																																			\n"
-	"	<h2>CryptoVoxels</h2>																																													\n"
-	"	<p>																																																		\n"
-	"	We are currently embedding the <a href=\"https://www.cryptovoxels.com\">CryptoVoxels</a> world in Substrata, for testing and fun purposes!																\n"
-	"	</p>																																																	\n"
-	"	<p>																																																		\n"
-	"	To explore the CryptoVoxels world, just install and run Substrata, and then select from the menu bar:																									\n"
-	"	<p>																																																		\n"
-	"	<b>Go &gt; Go to CryptoVoxels World</b>																																									\n"
-	"	</p>																																																	\n"
-		;
+	StringUtils::replaceFirstInPlace(page_out, "LAND_PARCELS_FOR_SALE_HTML", auction_html);
+
 	
 	page_out += WebServerResponseUtils::standardFooter(request_info, true);
 
