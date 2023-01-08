@@ -4796,7 +4796,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Evaluate scripts on objects
 	{
 		Timer timer;
-		Scripting::evaluateObjectScripts(this->obs_with_scripts, global_time, dt, world_state.ptr(), ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), 
+		Scripting::evaluateObjectScripts(this->obs_with_scripts, global_time, dt, world_state.ptr(), ui->glWidget->opengl_engine.ptr(), this->physics_world.ptr(), &this->audio_engine,
 			/*num_scripts_processed_out=*/this->last_num_scripts_processed
 		);
 		this->last_eval_script_time = timer.elapsed();
@@ -4902,6 +4902,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									ob->opengl_engine_ob->aabb_ws = prev_gl_aabb_ws;
 								else
 									ob->aabb_ws = ob->opengl_engine_ob->aabb_ws; // Update object AABB - used for computing LOD level.
+							}
+
+							// Update audio source for the object, if it has one.
+							if(ob->audio_source.nonNull())
+							{
+								ob->audio_source->pos = ob->aabb_ws.centroid();
+								audio_engine.sourcePositionUpdated(*ob->audio_source);
 							}
 
 							// Update world object state.  TODO for dynamic objects?
