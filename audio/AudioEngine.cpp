@@ -26,7 +26,7 @@ namespace glare
 
 AudioSource::AudioSource()
 :	cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
-	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0) 
+	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0)
 {}
 
 
@@ -622,7 +622,7 @@ void AudioEngine::addSource(AudioSourceRef source)
 
 	source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
 
-	if(source->pos.isFinite()) // Avoid crash in Resonance with NaN position coords.
+	if(source->pos.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
 	{
 		resonance->SetSourcePosition(source->resonance_handle, source->pos[0], source->pos[1], source->pos[2]);
 	}
@@ -680,7 +680,7 @@ void AudioEngine::sourcePositionUpdated(AudioSource& source)
 		return;
 
 	if(!source.pos.isFinite())
-		return; // Avoid crash in Resonance with NaN position coords.
+		return; // Avoid crash in Resonance with NaN or Inf position coords.
 
 	resonance->SetSourcePosition(source.resonance_handle, source.pos[0], source.pos[1], source.pos[2]);
 }
@@ -711,9 +711,12 @@ void AudioEngine::setHeadTransform(const Vec4f& head_pos, const Quatf& head_rot)
 		return;
 
 	//Lock lock(mutex);
-
-	resonance->SetHeadPosition(head_pos[0], head_pos[1], head_pos[2]);
-	resonance->SetHeadRotation(head_rot.v[0], head_rot.v[1], head_rot.v[2], head_rot.v[3]);
+	
+	if(head_pos.isFinite() && head_rot.v.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
+	{
+		resonance->SetHeadPosition(head_pos[0], head_pos[1], head_pos[2]);
+		resonance->SetHeadRotation(head_rot.v[0], head_rot.v[1], head_rot.v[2], head_rot.v[3]);
+	}
 }
 
 
@@ -726,6 +729,9 @@ SoundFileRef AudioEngine::loadSoundFile(const std::string& sound_file_path)
 void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec4f& pos)
 {
 	if(!initialised)
+		return;
+
+	if(!pos.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
 		return;
 
 	try
@@ -746,9 +752,9 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 		source->type = AudioSource::SourceType_OneShot;
 		source->shared_buffer = sound->buf;
 		source->remove_on_finish = true;
+		source->pos = pos;
 
 		addSource(source);
-		resonance->SetSourcePosition(source->resonance_handle, pos[0], pos[1], pos[2]);
 	}
 	catch(glare::Exception& e)
 	{
