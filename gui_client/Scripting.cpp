@@ -10,6 +10,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "PhysicsWorld.h"
 #include "WorldState.h"
 #include "ObjectPathController.h"
+#include "../audio/AudioEngine.h"
 #include "../shared/WorldObject.h"
 #include <opengl/OpenGLEngine.h>
 #include <utils/Timer.h>
@@ -115,7 +116,7 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 }
 
 
-void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, Matrix4f& ob_to_world_out)
+void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine, Matrix4f& ob_to_world_out)
 {
 	CybWinterEnv winter_env;
 	winter_env.instance_index = 0;
@@ -147,6 +148,9 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	// Compute object-to-world matrix, similarly to obToWorldMatrix().  Do it here so we can reuse some components of the computation.
 	const Vec4f pos((float)ob->pos.x, (float)ob->pos.y, (float)ob->pos.z, 1.f);
 	const Vec4f translation = pos + ob->translation;
+
+	if(!translation.isFinite()) // Avoid hitting assert in Jolt (and other potential problems) if translation is Nan, or Inf.
+		return;
 
 	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
 	Vec4f use_scale = ob->scale.toVec4fVector();
@@ -223,6 +227,13 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 		opengl_engine->setLightPos(ob->opengl_light, setWToOne(translation));
 	}
 
+	// Update audio source for the object, if it has one.
+	if(ob->audio_source.nonNull())
+	{
+		ob->audio_source->pos = ob->aabb_ws.centroid();
+		audio_engine->sourcePositionUpdated(*ob->audio_source);
+	}
+
 	ob_to_world_out = ob_to_world;
 }
 
@@ -284,7 +295,7 @@ void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt
 }
 
 
-void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double global_time, double dt, WorldState* world_state, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world,
+void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double global_time, double dt, WorldState* world_state, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine,
 	int& num_scripts_processed_out)
 {
 	// Evaluate scripts on objects
@@ -308,7 +319,7 @@ void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double gl
 			if(ob->script_evaluator.nonNull())
 			{
 				Matrix4f ob_to_world;
-				evalObjectScript(ob, use_global_time, dt, opengl_engine, physics_world, ob_to_world);
+				evalObjectScript(ob, use_global_time, dt, opengl_engine, physics_world, audio_engine, ob_to_world);
 				num_scripts_processed++;
 
 				// If this object has instances (and has a graphics ob):
