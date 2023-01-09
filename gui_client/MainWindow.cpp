@@ -10644,13 +10644,26 @@ void MainWindow::glWidgetMouseWheelEvent(QWheelEvent* e)
 		}
 	}
 
-	if(this->selected_ob.nonNull())
+	if(this->selected_ob.nonNull() && selected_ob_picked_up)
 	{
 		this->selection_vec_cs[1] *= (1.0f + e->angleDelta().y() * 0.0005f);
 	}
-	else if(cam_controller.thirdPersonEnabled())
+	else
 	{
-		cam_controller.handleScrollWheelEvent((float)e->angleDelta().y());
+		if(!cam_controller.thirdPersonEnabled() && (e->angleDelta().y() < 0)) // If we were in first person view, and scrolled down, change to third-person view.
+		{
+			ui->actionThird_Person_Camera->setChecked(true);
+			ui->actionThird_Person_Camera->triggered(true); // Need to manually trigger the action.
+		}
+		else if(cam_controller.thirdPersonEnabled())
+		{
+			const bool change_to_first_person = cam_controller.handleScrollWheelEvent((float)e->angleDelta().y());
+			if(change_to_first_person)
+			{
+				ui->actionThird_Person_Camera->setChecked(false);
+				ui->actionThird_Person_Camera->triggered(true); // Need to manually trigger the action.
+			}
+		}
 	}
 }
 
