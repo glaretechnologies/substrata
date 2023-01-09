@@ -52,7 +52,8 @@ public:
 
 	float getThirdPersonCamDist() const { return third_person_cam_dist; }
 
-	void handleScrollWheelEvent(float delta_y);
+	// Returns true if we are in third person view and have zoomed in sufficiently far to change to first person view.
+	bool handleScrollWheelEvent(float delta_y);
 
 	void setSelfieModeEnabled(double cur_time, bool enabled);
 	bool selfieModeEnabled() const { return selfie_mode; }

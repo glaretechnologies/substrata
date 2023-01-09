@@ -241,14 +241,21 @@ void CameraController::getBasisForAngles(const Vec3d& angles_in, const Vec3d& si
 }
 
 
-void CameraController::handleScrollWheelEvent(float delta_y)
+// Returns true if we are in third person view and have zoomed in sufficiently far to change to first person view.
+bool CameraController::handleScrollWheelEvent(float delta_y)
 {
 	if(thirdPersonEnabled())
 	{
+		const float MIN_CAM_DIST = 0.5f;
+
 		// Make change proportional to distance value.
 		// Mouse wheel scroll up reduces distance.
-		third_person_cam_dist = myClamp<float>(third_person_cam_dist - (third_person_cam_dist * delta_y * 0.002f), 0.5f, 20.f);
+		third_person_cam_dist = myClamp<float>(third_person_cam_dist - (third_person_cam_dist * delta_y * 0.002f), MIN_CAM_DIST, 20.f);
+
+		return third_person_cam_dist == MIN_CAM_DIST; // We have zoomed in all the way.
 	}
+	else
+		return false;
 }
 
 
