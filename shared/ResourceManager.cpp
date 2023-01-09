@@ -292,9 +292,9 @@ Version history:
 2: Serialising resource state
 */
 
-void ResourceManager::loadFromDisk(const std::string& path)
+void ResourceManager::loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk)
 {
-	conPrint("Reading resources from '" + path + "'...");
+	conPrint("Reading resource info from '" + path + "'...");
 
 	Lock lock(mutex);
 
@@ -312,6 +312,9 @@ void ResourceManager::loadFromDisk(const std::string& path)
 	if(version > RESOURCE_MANAGER_SERIALISATION_VERSION)
 		throw glare::Exception("Unknown version " + toString(version) + ", expected " + toString(RESOURCE_MANAGER_SERIALISATION_VERSION) + ".");
 	
+	// From version 2, we save the resource state with the resources, so we don't have to recompute it when loading the resources.
+	const bool check_resources_present_on_disk = (version == 1) || force_check_if_resources_exist_on_disk;
+
 	size_t num_resources_present = 0;
 	while(1)
 	{
@@ -330,13 +333,18 @@ void ResourceManager::loadFromDisk(const std::string& path)
 			//if(resource->getLocalPath().size() >= 260)
 			//	resource->setLocalPath(this->computeLocalPathFromURLHash(resource->URL, ::getExtension(resource->getLocalPath())));
 
-			// From version 2, we save the resource state with the resources, so we don't have to recompute it when loading the resources.
-			if(version == 1)
+			const Resource::State prev_resource_state = resource->getState();
+
+			if(check_resources_present_on_disk)
 			{
 				if(FileUtils::fileExists(resource->getLocalAbsPath(this->base_resource_dir)))
 				{
 					resource->setState(Resource::State_Present);
 					num_resources_present++;
+				}
+				else
+				{
+					resource->setState(Resource::State_NotPresent);
 				}
 			}
 			else
@@ -352,6 +360,9 @@ void ResourceManager::loadFromDisk(const std::string& path)
 					resource->setState(Resource::State_NotPresent);
 				}
 			}
+
+			if(resource->getState() != prev_resource_state) // Set changed flag for DB if we changed a resource state, so the DB gets saved to disk.
+				this->changed = 1;
 		}
 		else if(chunk == EOS_CHUNK)
 		{
@@ -363,7 +374,8 @@ void ResourceManager::loadFromDisk(const std::string& path)
 		}
 	}
 
-	conPrint("Loaded " + toString(resource_for_url.size()) + " resource(s).  (" + toString(num_resources_present) + " present on disk)  Elapsed: " + timer.elapsedStringNSigFigs(3) + "");
+	conPrint("Loaded info on " + toString(resource_for_url.size()) + " resource(s). (check_resources_present_on_disk: " + boolToString(check_resources_present_on_disk) + ", " + 
+		toString(num_resources_present) + " present on disk, changed: " + boolToString(changed) + ")  Elapsed: " + timer.elapsedStringNSigFigs(3) + "");
 }
 
 
