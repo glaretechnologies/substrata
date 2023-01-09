@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>758</width>
-    <height>261</height>
+    <width>810</width>
+    <height>342</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -106,6 +106,25 @@
       </item>
       <item row="0" column="1">
        <widget class="FileSelectWidget" name="customCacheDirFileSelectWidget"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox_4">
+     <property name="title">
+      <string>Starting</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Start location URL</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="startLocationURLLineEdit"/>
       </item>
      </layout>
     </widget>

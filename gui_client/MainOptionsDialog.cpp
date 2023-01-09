@@ -32,9 +32,11 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 	SignalBlocker::setChecked(this->bloomCheckBox,					settings->value(BloomKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->useCustomCacheDirCheckBox,		use_custom_cache_dir);
 	
-	this->customCacheDirFileSelectWidget->setFilename(settings->value(customCacheDirKey()).toString());
+	this->customCacheDirFileSelectWidget->setFilename(				settings->value(customCacheDirKey()).toString());
 
 	this->customCacheDirFileSelectWidget->setEnabled(use_custom_cache_dir);
+
+	this->startLocationURLLineEdit->setText(						settings->value(startLocationURLKey()).toString());
 }
 
 
@@ -51,6 +53,8 @@ void MainOptionsDialog::accepted()
 	settings->setValue(useCustomCacheDirKey(),						this->useCustomCacheDirCheckBox->isChecked());
 
 	settings->setValue(customCacheDirKey(),							this->customCacheDirFileSelectWidget->filename());
+
+	settings->setValue(startLocationURLKey(),						this->startLocationURLLineEdit->text());
 }
 
 
