@@ -36,6 +36,8 @@ public:
 	static const QString useCustomCacheDirKey() { return "setting/use_custom_cache_dir"; }
 
 	static const QString customCacheDirKey() { return "setting/custom_cache_dir"; }
+	
+	static const QString startLocationURLKey() { return "setting/start_location_URL"; }
 
 private slots:;
 	void accepted();

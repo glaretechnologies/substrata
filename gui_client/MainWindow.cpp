@@ -7811,6 +7811,28 @@ void MainWindow::on_actionGo_to_Position_triggered()
 }
 
 
+void MainWindow::on_actionSet_Start_Location_triggered()
+{
+	settings->setValue(MainOptionsDialog::startLocationURLKey(), QtUtils::toQString(this->url_widget->getURL()));
+}
+
+
+void MainWindow::on_actionGo_To_Start_Location_triggered()
+{
+	const std::string start_URL = QtUtils::toStdString(settings->value(MainOptionsDialog::startLocationURLKey()).toString());
+
+	if(start_URL.empty())
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Invalid start location URL");
+		msgBox.setText("You need to set a start location first with the 'Go > Set current location as start location' menu command.");
+		msgBox.exec();
+	}
+	else
+		visitSubURL(start_URL);
+}
+
+
 void MainWindow::on_actionFind_Object_triggered()
 {
 	FindObjectDialog d(this->settings);
@@ -8905,10 +8927,9 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 }
 
 
-void MainWindow::connectToServer(const std::string& URL/*const std::string& hostname, const std::string& worldname*/)
+void MainWindow::connectToServer(const std::string& URL)
 {
-	// Move player position back to near origin.
-	// Randomly vary the position a bit so players don't spawn inside other players.
+	// By default, randomly vary the position a bit so players don't spawn inside other players.
 	const double spawn_r = 4.0;
 	Vec3d spawn_pos = Vec3d(-spawn_r + 2 * spawn_r * rng.unitRandom(), -spawn_r + 2 * spawn_r * rng.unitRandom(), 2);
 
@@ -11213,13 +11234,18 @@ int main(int argc, char *argv[])
 		//std::string server_hostname = "substrata.info";
 		//std::string server_userpath = "";
 		std::string server_URL = "sub://substrata.info";
-		
+		bool server_URL_explicitly_specified = false;
+
 		if(parsed_args.isArgPresent("-h"))
+		{
 			server_URL = "sub://" + parsed_args.getArgStringValue("-h");
+			server_URL_explicitly_specified = true;
+		}
 			//server_hostname = parsed_args.getArgStringValue("-h");
 		if(parsed_args.isArgPresent("-u"))
 		{
 			server_URL = parsed_args.getArgStringValue("-u");
+			server_URL_explicitly_specified = true;
 			//const std::string URL = parsed_args.getArgStringValue("-u");
 			//try
 			//{
@@ -11264,9 +11290,11 @@ int main(int argc, char *argv[])
 			else
 			{
 				server_URL = parsed_args.getArgStringValue("-linku");
+				server_URL_explicitly_specified = true;
 			}
 #else
 			server_URL = parsed_args.getArgStringValue("-linku");
+			server_URL_explicitly_specified = true;
 #endif
 		}
 
@@ -11274,6 +11302,7 @@ int main(int argc, char *argv[])
 		{
 			// If we have received a url from a file-open event on Mac:
 			server_URL = open_even_filter->url; // Use it
+			server_URL_explicitly_specified = true;
 		}
 
 
@@ -11435,6 +11464,13 @@ int main(int argc, char *argv[])
 				mw.ground_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mw.ground_quad_mesh);
 			}
 
+			// If the user didn't explictly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
+			if(!server_URL_explicitly_specified)
+			{
+				const std::string start_loc_URL_setting = QtUtils::toStdString(mw.settings->value(MainOptionsDialog::startLocationURLKey()).toString());
+				if(!start_loc_URL_setting.empty())
+					server_URL = start_loc_URL_setting;
+			}
 
 			mw.connectToServer(server_URL/*server_hostname, server_userpath*/);
 

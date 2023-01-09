@@ -86,9 +86,12 @@
     </property>
     <addaction name="actionGo_to_Position"/>
     <addaction name="actionGo_to_Parcel"/>
+    <addaction name="actionGo_To_Start_Location"/>
     <addaction name="actionGoToMainWorld"/>
     <addaction name="actionGoToPersonalWorld"/>
     <addaction name="actionGo_to_CryptoVoxels_World"/>
+    <addaction name="separator"/>
+    <addaction name="actionSet_Start_Location"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -597,6 +600,16 @@
   <action name="actionGo_to_Position">
    <property name="text">
     <string>Go to Position</string>
+   </property>
+  </action>
+  <action name="actionSet_Start_Location">
+   <property name="text">
+    <string>Set current location as start location</string>
+   </property>
+  </action>
+  <action name="actionGo_To_Start_Location">
+   <property name="text">
+    <string>Go To Start Location</string>
    </property>
   </action>
  </widget>
