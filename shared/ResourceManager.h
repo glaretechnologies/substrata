@@ -83,7 +83,7 @@ public:
 	Mutex& getMutex() { return mutex; }
 
 	// Just used on client:
-	void loadFromDisk(const std::string& path);
+	void loadFromDisk(const std::string& path, bool force_check_if_resources_exist_on_disk);
 	void saveToDisk(const std::string& path);
 private:
 	std::string base_resource_dir;

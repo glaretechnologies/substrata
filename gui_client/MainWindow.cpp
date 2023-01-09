@@ -332,19 +332,33 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(user_details, SIGNAL(signUpClicked()), this, SLOT(on_actionSignUp_triggered()));
 	connect(url_widget, SIGNAL(URLChanged()), this, SLOT(URLChangedSlot()));
 
-	this->resources_dir = appdata_path + "/resources";
-	//this->resources_dir = appdata_path + "/resources_" + toString(PlatformUtils::getProcessID());
+	std::string cache_dir = appdata_path;
+	if(settings->value(MainOptionsDialog::useCustomCacheDirKey(), /*default value=*/false).toBool())
+	{
+		const std::string custom_cache_dir = QtUtils::toStdString(settings->value(MainOptionsDialog::customCacheDirKey()).toString());
+		if(!custom_cache_dir.empty()) // Don't use custom cache dir if it's the empty string (e.g. not set to something valid)
+			cache_dir = custom_cache_dir;
+	}
+
+	this->resources_dir = cache_dir + "/resources";
 	FileUtils::createDirIfDoesNotExist(this->resources_dir);
 
 	print("resources_dir: " + resources_dir);
 	resource_manager = new ResourceManager(this->resources_dir);
 
+	
+	// The user may have changed the resources dir (by changing the custom cache directory) since last time we ran.
+	// In this case, we want to check if each resources is actually present on disk in the current resources dir.
+	const std::string last_resources_dir = QtUtils::toStdString(settings->value("last_resources_dir").toString());
+	const bool resources_dir_changed = last_resources_dir != this->resources_dir;
+	settings->setValue("last_resources_dir", QtUtils::toQString(this->resources_dir));
+
+
 	const std::string resources_db_path = appdata_path + "/resources_db";
 	try
 	{
-		
 		if(FileUtils::fileExists(resources_db_path))
-			resource_manager->loadFromDisk(resources_db_path);
+			resource_manager->loadFromDisk(resources_db_path, /*check_if_resources_exist_on_disk=*/resources_dir_changed);
 	}
 	catch(glare::Exception& e)
 	{
@@ -2256,7 +2270,7 @@ void MainWindow::updateInstancedCopiesOfObject(WorldObject* ob)
 }
 
 
-void MainWindow::logMessage(const std::string& msg) // Print to stdout and append to LogWindow log display
+void MainWindow::logMessage(const std::string& msg) // Append to LogWindow log display
 {
 	//this->logfile << msg << "\n";
 	if(this->log_window && !running_destructor)
