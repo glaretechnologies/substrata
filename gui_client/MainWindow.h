@@ -134,6 +134,8 @@ private slots:;
 	void on_actionGo_to_CryptoVoxels_World_triggered();
 	void on_actionGo_to_Parcel_triggered();
 	void on_actionGo_to_Position_triggered();
+	void on_actionSet_Start_Location_triggered();
+	void on_actionGo_To_Start_Location_triggered();
 	void on_actionFind_Object_triggered();
 	void on_actionList_Objects_Nearby_triggered();
 	void on_actionExport_view_to_Indigo_triggered();
@@ -469,7 +471,9 @@ private:
 	// But we need to wait until the gl view has been reszied before we do this, so set this flag to do in a timer event.
 
 	std::string server_hostname; // e.g. "substrata.info" or "localhost"
+public:
 	std::string server_worldname; // e.g. "" or "ono-sendai"
+private:
 	int url_parcel_uid; // Was there a parcel UID in the URL? e.g. was it like sub://localhost/parcel/200?  If so we want to move there when the parcels are loaded and we know where it is. 
 	// -1 if no parcel UID in URL.
 
