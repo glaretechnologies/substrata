@@ -828,7 +828,13 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 			if(browser.isNull() && !ob->target_url.empty() && ob->opengl_engine_ob.nonNull())
 			{
 				const bool URL_in_whitelist = main_window->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
-				if(user_clicked_to_load || URL_in_whitelist)
+
+				// If the user is logged in to their personal world, and the user created the object, consider the URL to be safe.
+				const bool webview_is_safe = main_window->logged_in_user_id.valid() && 
+					(!main_window->server_worldname.empty() && (main_window->server_worldname == main_window->logged_in_user_name)) && // If this is the personal world of the user:
+					(main_window->logged_in_user_id == ob->creator_id);
+
+				if(user_clicked_to_load || URL_in_whitelist || webview_is_safe)
 				{
 					main_window->logMessage("Creating browser, target_url: " + ob->target_url);
 
@@ -865,7 +871,13 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 				// conPrint("Webview loading URL '" + ob->target_url + "'...");
 
 				const bool URL_in_whitelist = main_window->world_state->url_whitelist->isURLPrefixInWhitelist(ob->target_url);
-				if(URL_in_whitelist)
+
+				// If the user is logged in to their personal world, and the user created the object, consider the URL to be safe.
+				const bool webview_is_safe = main_window->logged_in_user_id.valid() && 
+					(!main_window->server_worldname.empty() && (main_window->server_worldname == main_window->logged_in_user_name)) && // If this is the personal world of the user:
+					(main_window->logged_in_user_id == ob->creator_id);
+
+				if(URL_in_whitelist || webview_is_safe)
 				{
 					browser->navigate(ob->target_url);
 
