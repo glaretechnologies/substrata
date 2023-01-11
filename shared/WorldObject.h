@@ -175,6 +175,8 @@ public:
 	void setPosAndHistory(const Vec3d& pos);
 	inline bool isCollidable() const;
 	inline void setCollidable(bool c);
+	inline bool isDynamic() const;
+	inline void setDynamic(bool c);
 
 	size_t getTotalMemUsage() const;
 
@@ -235,6 +237,7 @@ public:
 	static const uint32 COLLIDABLE_FLAG                         = 1; // Is this object solid from the point of view of the physics engine?
 	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG           = 2; // Does the lightmap for this object need to be built or rebuilt?
 	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 4; // Does a hiqh-quality lightmap for this object need to be built or rebuilt?
+	static const uint32 DYNAMIC_FLAG                            = 8; // Is this object a dynamic object (moving object) from the point of view of the physics engine?
 	uint32 flags;
 
 	TimeStamp created_time;
@@ -270,6 +273,7 @@ public:
 	static const uint32 AUDIO_SOURCE_URL_CHANGED	= 1; // Set when audio_source_url is changed
 	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed
 	static const uint32 MODEL_URL_CHANGED			= 4;
+	static const uint32 DYNAMIC_CHANGED				= 8;
 	uint32 changed_flags;
 
 	bool using_placeholder_model;
@@ -382,6 +386,21 @@ void WorldObject::setCollidable(bool c)
 		flags |= COLLIDABLE_FLAG;
 	else
 		flags &= ~COLLIDABLE_FLAG;
+}
+
+
+bool WorldObject::isDynamic() const
+{
+	return (flags & DYNAMIC_FLAG) != 0;
+}
+
+
+void WorldObject::setDynamic(bool c)
+{
+	if(c)
+		flags |= DYNAMIC_FLAG;
+	else
+		flags &= ~DYNAMIC_FLAG;
 }
 
 

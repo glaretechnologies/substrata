@@ -7,13 +7,25 @@
     <x>0</x>
     <y>0</y>
     <width>524</width>
-    <height>1162</height>
+    <height>1179</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
    <item>
     <widget class="QGroupBox" name="groupBox_2">
      <property name="title">
@@ -408,18 +420,39 @@
         </property>
        </spacer>
       </item>
-      <item row="15" column="0">
-       <widget class="QLabel" name="label_6">
-        <property name="text">
-         <string>Collidable</string>
-        </property>
-       </widget>
-      </item>
       <item row="15" column="1">
-       <widget class="QCheckBox" name="collidableCheckBox">
-        <property name="text">
-         <string/>
-        </property>
+       <widget class="QWidget" name="widget_9" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_8">
+         <property name="spacing">
+          <number>0</number>
+         </property>
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QCheckBox" name="collidableCheckBox">
+           <property name="text">
+            <string>Collidable</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="dynamicCheckBox">
+           <property name="text">
+            <string>Dynamic</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
       <item row="16" column="1">
@@ -613,6 +646,13 @@
        <widget class="QLabel" name="lightmapBakeStatusLabel">
         <property name="text">
          <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="15" column="0">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Physics</string>
         </property>
        </widget>
       </item>

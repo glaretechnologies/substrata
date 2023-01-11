@@ -319,7 +319,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 			PhysicsShape physics_shape;
 			BatchedMeshRef batched_mesh;
 			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(model_URL, resource_manager,
-				&vert_buf_allocator, /*skip opengl calls=*/false, physics_shape, batched_mesh);
+				&vert_buf_allocator, /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
 			// Add to mesh manager
 			elm_tree_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, physics_shape);
@@ -373,7 +373,7 @@ GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexB
 			PhysicsShape physics_shape;
 			BatchedMeshRef batched_mesh;
 			Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(model_URL, resource_manager, 
-				&vert_buf_allocator, /*skip opengl calls=*/false, physics_shape, batched_mesh);
+				&vert_buf_allocator, /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
 			// Add to mesh manager
 			elm_tree_imposter_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, physics_shape);

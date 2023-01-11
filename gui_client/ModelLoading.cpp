@@ -469,7 +469,7 @@ void ModelLoading::makeGLObjectForModelFile(
 		const int subsample_factor = 1;
 		Indigo::MeshRef indigo_mesh;
 		ob->mesh_data = ModelLoading::makeModelForVoxelGroup(results_out.voxels, subsample_factor, ob->ob_to_world_matrix, /*task_manager,*/ &vert_buf_allocator, /*do opengl stuff=*/true, 
-			/*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
+			/*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		ob->materials.resize(results_out.materials.size());
 		for(size_t i=0; i<results_out.materials.size(); ++i)
@@ -892,7 +892,7 @@ void ModelLoading::setMaterialTexPathsForLODLevel(GLObject& gl_ob, int ob_lod_le
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(const std::string& lod_model_URL,
 	ResourceManager& resource_manager, VertexBufferAllocator* vert_buf_allocator,
-	bool skip_opengl_calls, PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out)
+	bool skip_opengl_calls, bool build_dynamic_physics_ob, PhysicsShape& physics_shape_out, BatchedMeshRef& batched_mesh_out)
 {
 	// Load mesh from disk:
 	const std::string model_path = resource_manager.pathForURL(lod_model_URL);
@@ -961,7 +961,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 
 	gl_meshdata->num_materials_referenced = batched_mesh->numMaterialsReferenced();
 
-	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh);
+	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob);
 
 	batched_mesh_out = batched_mesh;
 
@@ -1312,7 +1312,8 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 
 Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const VoxelGroup& voxel_group, int subsample_factor, const Matrix4f& ob_to_world, 
-	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, PhysicsShape& physics_shape_out, Indigo::MeshRef& indigo_mesh_out)
+	VertexBufferAllocator* vert_buf_allocator, bool do_opengl_stuff, bool need_lightmap_uvs, const js::Vector<bool, 16>& mats_transparent, bool build_dynamic_physics_ob, 
+	PhysicsShape& physics_shape_out, Indigo::MeshRef& indigo_mesh_out)
 {
 	// Timer timer;
 	StandardPrintOutput print_output;
@@ -1338,7 +1339,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Convert Indigo mesh to opengl data
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh);
 
-	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh);
+	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, build_dynamic_physics_ob);
 
 	// Load rendering data into GPU mem if requested.
 	if(do_opengl_stuff)
@@ -1419,7 +1420,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 8); // Verts can be shared due to no lightmap UVs.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
@@ -1437,7 +1438,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8); // Physics mesh verts are always shared, regardless of lightmap UVs on rendering mesh.
@@ -1456,7 +1457,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1475,7 +1476,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1496,7 +1497,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 8);
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1515,7 +1516,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testAssert(data->getNumVerts()    == 6 * 4); // UV unwrapping will make verts unique
 		//testAssert(physics_shape->raymesh->getNumVerts() == 8);
@@ -1535,7 +1536,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL,
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/false , mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testEqual(data->getNumVerts(), (size_t)(4 * 3));
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);
@@ -1554,7 +1555,7 @@ void ModelLoading::test()
 		PhysicsShape physics_shape;
 		Indigo::MeshRef indigo_mesh;
 		Reference<OpenGLMeshRenderData> data = makeModelForVoxelGroup(group, /*subsample_factor=*/1, Matrix4f::identity(), /*vert_buf_allocator=*/NULL, 
-			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, physics_shape, indigo_mesh);
+			/*do_opengl_stuff=*/false, /*need_lightmap_uvs=*/true, mat_transparent, /*build_dynamic_physics_ob=*/false, physics_shape, indigo_mesh);
 
 		testEqual(data->getNumVerts(), (size_t)32); // verts half way along the sides of the cuboid can be shared.
 		//testAssert(physics_shape->raymesh->getNumVerts() == 4 * 3);

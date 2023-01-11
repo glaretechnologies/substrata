@@ -33,6 +33,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/PhysicsScene.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 #include <Jolt/Physics/Collision/PhysicsMaterialSimple.h>
@@ -493,7 +494,7 @@ public:
 };
 
 
-JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh)
+JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob)
 {
 	const Indigo::Vector<Indigo::Vec3f>& verts = mesh.vert_positions;
 	const Indigo::Vector<Indigo::Triangle>& tris = mesh.triangles;
@@ -502,57 +503,77 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Me
 	const size_t verts_size = verts.size();
 	const size_t final_num_tris_size = tris.size() + quads.size() * 2;
 	
-	JPH::VertexList vertex_list(verts_size);
-	JPH::IndexedTriangleList tri_list(final_num_tris_size);
-	
-	for(size_t i = 0; i < verts_size; ++i)
+	if(build_dynamic_physics_ob)
 	{
-		const Indigo::Vec3f& vert = verts[i];
-	
-		vertex_list[i] = JPH::Float3(vert.x, vert.y, vert.z);
-	}
-	
-	
-	for(size_t i = 0; i < tris.size(); ++i)
-	{
-		const Indigo::Triangle& tri = tris[i];
-	
-		const uint use_mat_index = tri.tri_mat_index < 32 ? tri.tri_mat_index : 0; // Jolt has a maximum of 32 materials per mesh
-		tri_list[i] = JPH::IndexedTriangle(tri.vertex_indices[0], tri.vertex_indices[1], tri.vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
-	}
+		// Jolt doesn't support dynamic triangles mesh shapes, so we need to convert it to a convex hull shape.
+		JPH::Array<JPH::Vec3> points(verts_size);
 
-	for(size_t i = 0; i < quads.size(); ++i)
-	{
-		const Indigo::Quad& quad = quads[i];
+		for(size_t i = 0; i < verts_size; ++i)
+		{
+			const Indigo::Vec3f& vert = verts[i];
+			points[i] = JPH::Vec3(vert.x, vert.y, vert.z);
+		}
 
-		const uint use_mat_index = quad.mat_index < 32 ? quad.mat_index : 0;
-		tri_list[tris.size() + i * 2 + 0] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[1], quad.vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
-		tri_list[tris.size() + i * 2 + 1] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[2], quad.vertex_indices[3], /*inMaterialIndex=*/use_mat_index);
+		JPH::Ref<JPH::ConvexHullShapeSettings> hull_shape_settings = new JPH::ConvexHullShapeSettings(
+			points
+		);
+
+		JPH::Result<JPH::Ref<JPH::Shape>> result = hull_shape_settings->Create();
+		if(result.HasError())
+			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+		JPH::Ref<JPH::Shape> shape = result.Get();
+		return shape;
 	}
+	else
+	{
+		JPH::VertexList vertex_list(verts_size);
+		JPH::IndexedTriangleList tri_list(final_num_tris_size);
 	
-	// Create materials
-	const uint32 use_num_mats = myMin(32u, mesh.num_materials_referenced); // Jolt has a maximum of 32 materials per mesh
-	JPH::PhysicsMaterialList materials(use_num_mats);
-	for(uint32 i = 0; i < use_num_mats; ++i)
-		materials[i] = new SubstrataPhysicsMaterial(i);
+		for(size_t i = 0; i < verts_size; ++i)
+		{
+			const Indigo::Vec3f& vert = verts[i];
+			vertex_list[i] = JPH::Float3(vert.x, vert.y, vert.z);
+		}
 	
-	JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
-	JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
-	if(result.HasError())
-		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
-	JPH::Ref<JPH::Shape> shape = result.Get();
-	return shape;
+	
+		for(size_t i = 0; i < tris.size(); ++i)
+		{
+			const Indigo::Triangle& tri = tris[i];
+	
+			const uint use_mat_index = tri.tri_mat_index < 32 ? tri.tri_mat_index : 0; // Jolt has a maximum of 32 materials per mesh
+			tri_list[i] = JPH::IndexedTriangle(tri.vertex_indices[0], tri.vertex_indices[1], tri.vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
+		}
+
+		for(size_t i = 0; i < quads.size(); ++i)
+		{
+			const Indigo::Quad& quad = quads[i];
+
+			const uint use_mat_index = quad.mat_index < 32 ? quad.mat_index : 0;
+			tri_list[tris.size() + i * 2 + 0] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[1], quad.vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
+			tri_list[tris.size() + i * 2 + 1] = JPH::IndexedTriangle(quad.vertex_indices[0], quad.vertex_indices[2], quad.vertex_indices[3], /*inMaterialIndex=*/use_mat_index);
+		}
+	
+		// Create materials
+		const uint32 use_num_mats = myMin(32u, mesh.num_materials_referenced); // Jolt has a maximum of 32 materials per mesh
+		JPH::PhysicsMaterialList materials(use_num_mats);
+		for(uint32 i = 0; i < use_num_mats; ++i)
+			materials[i] = new SubstrataPhysicsMaterial(i);
+	
+		JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
+		JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
+		if(result.HasError())
+			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+		JPH::Ref<JPH::Shape> shape = result.Get();
+		return shape;
+	}
 }
 
 
-JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh)
+JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob)
 {
 	const size_t vert_size = mesh.vertexSize();
 	const size_t num_verts = mesh.numVerts();
 	const size_t num_tris = mesh.numIndices() / 3;
-
-	JPH::VertexList vertex_list(num_verts);
-	JPH::IndexedTriangleList tri_list(num_tris);
 
 	const BatchedMesh::VertAttribute* pos_attr = mesh.findAttribute(BatchedMesh::VertAttribute_Position);
 	if(!pos_attr)
@@ -561,76 +582,106 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMe
 		throw glare::Exception("Pos attribute must have float type.");
 	const size_t pos_offset = pos_attr->offset_B;
 
-	// Copy Vertices
-	const uint8* src_vertex_data = mesh.vertex_data.data();
-	for(size_t i = 0; i < num_verts; ++i)
+	if(build_dynamic_physics_ob)
 	{
-		Vec3f vert_pos;
-		std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size, sizeof(::Vec3f));
+		// Jolt doesn't support dynamic triangles mesh shapes, so we need to convert it to a convex hull shape.
+		JPH::Array<JPH::Vec3> points(num_verts);
 
-		vertex_list[i] = JPH::Float3(vert_pos.x, vert_pos.y, vert_pos.z);
-	}
-
-	// Copy Triangles
-	const BatchedMesh::ComponentType index_type = mesh.index_type;
-
-	const uint8*  const index_data_uint8  = (const uint8* )mesh.index_data.data();
-	const uint16* const index_data_uint16 = (const uint16*)mesh.index_data.data();
-	const uint32* const index_data_uint32 = (const uint32*)mesh.index_data.data();
-
-	unsigned int dest_tri_i = 0;
-	for(size_t b = 0; b < mesh.batches.size(); ++b)
-	{
-		const size_t tri_begin = mesh.batches[b].indices_start / 3;
-		const size_t tri_end   = tri_begin + mesh.batches[b].num_indices / 3;
-		const uint32 mat_index = mesh.batches[b].material_index;
-
-		for(size_t t = tri_begin; t < tri_end; ++t)
+		const uint8* src_vertex_data = mesh.vertex_data.data();
+		for(size_t i = 0; i < num_verts; ++i)
 		{
-			uint32 vertex_indices[3];
-			if(index_type == BatchedMesh::ComponentType_UInt8)
-			{
-				vertex_indices[0] = index_data_uint8[t*3 + 0];
-				vertex_indices[1] = index_data_uint8[t*3 + 1];
-				vertex_indices[2] = index_data_uint8[t*3 + 2];
-			}
-			else if(index_type == BatchedMesh::ComponentType_UInt16)
-			{
-				vertex_indices[0] = index_data_uint16[t*3 + 0];
-				vertex_indices[1] = index_data_uint16[t*3 + 1];
-				vertex_indices[2] = index_data_uint16[t*3 + 2];
-			}
-			else if(index_type == BatchedMesh::ComponentType_UInt32)
-			{
-				vertex_indices[0] = index_data_uint32[t*3 + 0];
-				vertex_indices[1] = index_data_uint32[t*3 + 1];
-				vertex_indices[2] = index_data_uint32[t*3 + 2];
-			}
-			else
-			{
-				throw glare::Exception("Invalid index type.");
-			}
+			Vec3f vert_pos;
+			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size, sizeof(::Vec3f));
 
-
-			const uint use_mat_index = mat_index < 32 ? mat_index : 0;
-			tri_list[dest_tri_i] = JPH::IndexedTriangle(vertex_indices[0], vertex_indices[1], vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
-
-			dest_tri_i++;
+			points[i] = JPH::Vec3(vert_pos.x, vert_pos.y, vert_pos.z);
 		}
+
+		JPH::Ref<JPH::ConvexHullShapeSettings> hull_shape_settings = new JPH::ConvexHullShapeSettings(
+			points
+		);
+
+		JPH::Result<JPH::Ref<JPH::Shape>> result = hull_shape_settings->Create();
+		if(result.HasError())
+			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+		JPH::Ref<JPH::Shape> shape = result.Get();
+		return shape;
 	}
+	else
+	{
+		JPH::VertexList vertex_list(num_verts);
+		JPH::IndexedTriangleList tri_list(num_tris);
 
-	// Create materials
-	const uint32 use_num_mats = myMin(32u, (uint32)mesh.numMaterialsReferenced());
-	JPH::PhysicsMaterialList materials(use_num_mats);
-	for(uint32 i = 0; i < use_num_mats; ++i)
-		materials[i] = new SubstrataPhysicsMaterial(i);
+		// Copy Vertices
+		const uint8* src_vertex_data = mesh.vertex_data.data();
+		for(size_t i = 0; i < num_verts; ++i)
+		{
+			Vec3f vert_pos;
+			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size, sizeof(::Vec3f));
 
-	JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
-	JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
-	if(result.HasError())
-		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
-	JPH::Ref<JPH::Shape> shape = result.Get();
-	return shape;
+			vertex_list[i] = JPH::Float3(vert_pos.x, vert_pos.y, vert_pos.z);
+		}
+
+		// Copy Triangles
+		const BatchedMesh::ComponentType index_type = mesh.index_type;
+
+		const uint8*  const index_data_uint8  = (const uint8* )mesh.index_data.data();
+		const uint16* const index_data_uint16 = (const uint16*)mesh.index_data.data();
+		const uint32* const index_data_uint32 = (const uint32*)mesh.index_data.data();
+
+		unsigned int dest_tri_i = 0;
+		for(size_t b = 0; b < mesh.batches.size(); ++b)
+		{
+			const size_t tri_begin = mesh.batches[b].indices_start / 3;
+			const size_t tri_end   = tri_begin + mesh.batches[b].num_indices / 3;
+			const uint32 mat_index = mesh.batches[b].material_index;
+
+			for(size_t t = tri_begin; t < tri_end; ++t)
+			{
+				uint32 vertex_indices[3];
+				if(index_type == BatchedMesh::ComponentType_UInt8)
+				{
+					vertex_indices[0] = index_data_uint8[t*3 + 0];
+					vertex_indices[1] = index_data_uint8[t*3 + 1];
+					vertex_indices[2] = index_data_uint8[t*3 + 2];
+				}
+				else if(index_type == BatchedMesh::ComponentType_UInt16)
+				{
+					vertex_indices[0] = index_data_uint16[t*3 + 0];
+					vertex_indices[1] = index_data_uint16[t*3 + 1];
+					vertex_indices[2] = index_data_uint16[t*3 + 2];
+				}
+				else if(index_type == BatchedMesh::ComponentType_UInt32)
+				{
+					vertex_indices[0] = index_data_uint32[t*3 + 0];
+					vertex_indices[1] = index_data_uint32[t*3 + 1];
+					vertex_indices[2] = index_data_uint32[t*3 + 2];
+				}
+				else
+				{
+					throw glare::Exception("Invalid index type.");
+				}
+
+
+				const uint use_mat_index = mat_index < 32 ? mat_index : 0;
+				tri_list[dest_tri_i] = JPH::IndexedTriangle(vertex_indices[0], vertex_indices[1], vertex_indices[2], /*inMaterialIndex=*/use_mat_index);
+
+				dest_tri_i++;
+			}
+		}
+
+		// Create materials
+		const uint32 use_num_mats = myMin(32u, (uint32)mesh.numMaterialsReferenced());
+		JPH::PhysicsMaterialList materials(use_num_mats);
+		for(uint32 i = 0; i < use_num_mats; ++i)
+			materials[i] = new SubstrataPhysicsMaterial(i);
+
+		JPH::Ref<JPH::MeshShapeSettings> mesh_body_settings = new JPH::MeshShapeSettings(vertex_list, tri_list, materials);
+		JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
+		if(result.HasError())
+			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+		JPH::Ref<JPH::Shape> shape = result.Get();
+		return shape;
+	}
 }
 
 
@@ -667,8 +718,8 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		JPH::BodyCreationSettings sphere_settings(final_shape_settings,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			object->dynamic ? JPH::EMotionType::Dynamic : JPH::EMotionType::Static, 
-			Layers::MOVING);
+			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
+			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
 		sphere_settings.mRestitution = 0.7f;
 		sphere_settings.mUserData = (uint64)object.ptr();
 		
@@ -690,8 +741,8 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		JPH::BodyCreationSettings cube_settings(final_shape_settings,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			object->dynamic ? JPH::EMotionType::Dynamic : JPH::EMotionType::Static, 
-			Layers::MOVING);
+			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
+			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
 		//cube_settings.mRestitution = 0.5f;
 		cube_settings.mUserData = (uint64)object.ptr();
 		cube_settings.mFriction = 1.f;
@@ -706,22 +757,27 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		if(shape.GetPtr() == NULL)
 			return;
 
+		const bool is_mesh_shape = shape->GetType() == JPH::EShapeType::Mesh;
+		assert(!(object->dynamic && is_mesh_shape)); // We should have built a convex hull shape for dynamic objects.
+
 		JPH::Ref<JPH::Shape> final_shape;
 		if(object->scale == Vec3f(1.f))
 			final_shape = shape;
 		else
 			final_shape = new JPH::ScaledShape(shape, JPH::Vec3(object->scale[0], object->scale[1], object->scale[2]));
 
+		const JPH::EMotionType motion_type  = (object->dynamic && !is_mesh_shape) ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static);
+		const JPH::ObjectLayer object_layer = (object->dynamic && !is_mesh_shape) ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE);
+
 		JPH::BodyCreationSettings settings(final_shape,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static,
-			object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE);
+			motion_type, object_layer); 
 		settings.mMassPropertiesOverride.mMass = 100.f;
 		settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 
 		settings.mUserData = (uint64)object.ptr();
-		settings.mFriction = 1.f;
+		settings.mFriction = 0.4f;
 
 		object->jolt_body_id = body_interface.CreateAndAddBody(settings, JPH::EActivation::Activate);
 
@@ -886,7 +942,7 @@ const Vec4f PhysicsWorld::getPosInJolt(const Reference<PhysicsObject>& object)
 {
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
-	const JPH::Vec3 pos = body_interface.GetCenterOfMassPosition(object->jolt_body_id);
+	const JPH::Vec3 pos = body_interface.GetPosition(object->jolt_body_id);
 
 	return toVec4fPos(pos);
 }
@@ -998,7 +1054,7 @@ void PhysicsWorld::test()
 	for(int i=0; i<1000; ++i)
 	{
 		Timer timer;
-		auto res = createJoltShapeForBatchedMesh(mesh);
+		auto res = createJoltShapeForBatchedMesh(mesh, /*is dynamic=*/false);
 		min_time = myMin(min_time, timer.elapsed());
 		conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
 	}

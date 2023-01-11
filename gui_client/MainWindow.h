@@ -71,9 +71,10 @@ struct IMFDXGIDeviceManager;
 
 struct DownloadingResourceInfo
 {
-	DownloadingResourceInfo() : use_sRGB(true) {}
+	DownloadingResourceInfo() : use_sRGB(true), build_dynamic_physics_ob(false) {}
 
 	bool use_sRGB; // For downloading textures.  We keep track of this so we can load e.g. metallic-roughness textures into the OpenGL engine without sRGB.
+	bool build_dynamic_physics_ob; // For downloading meshes.
 
 	Vec3d pos; // Position of object using the resource
 	float size_factor;
@@ -262,7 +263,7 @@ private:
 		const Matrix4f& tentative_to_world_matrix, js::Vector<EdgeMarker, 16>& edge_markers_out, Vec3d& new_ob_pos_out);
 public:
 	bool checkAddTextureToProcessingSet(const std::string& path); // returns true if was not in processed set (and hence this call added it), false if it was.
-	bool checkAddModelToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
+	bool checkAddModelToProcessingSet(const std::string& url, bool dynamic_physics_shape); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddAudioToProcessingSet(const std::string& url); // returns true if was not in processed set (and hence this call added it), false if it was.
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
@@ -494,9 +495,27 @@ private:
 	// We have this set so that we don't process the same texture from multiple LoadTextureTasks running in parallel.
 	std::unordered_set<std::string> textures_processing;
 
+	// We build a different physics mesh for dynamic objects, so we need to keep track of which mesh we are building.
+	struct ModelProcessingKey
+	{
+		ModelProcessingKey(const std::string& URL_, const bool dynamic_physics_shape_) : URL(URL_), dynamic_physics_shape(dynamic_physics_shape_) {}
+
+		std::string URL;
+		bool dynamic_physics_shape;
+
+		bool operator == (const ModelProcessingKey& other) const { return URL == other.URL && dynamic_physics_shape == other.dynamic_physics_shape; }
+	};
+	struct ModelProcessingKeyHasher
+	{
+		size_t operator() (const ModelProcessingKey& key) const
+		{
+			std::hash<std::string> h;
+			return h(key.URL);
+		}
+	};
 	// Models being loaded or already loaded.
 	// We have this set so that we don't process the same model from multiple LoadModelTasks running in parallel.
-	std::unordered_set<std::string> models_processing;
+	std::unordered_set<ModelProcessingKey, ModelProcessingKeyHasher> models_processing;
 
 	// Audio files being loaded or already loaded.
 	// We have this set so that we don't process the same audio from multiple LoadAudioTasks running in parallel.
@@ -611,6 +630,7 @@ public:
 	MeshDataLoadingProgress mesh_data_loading_progress;
 	Reference<OpenGLMeshRenderData> cur_loading_mesh_data;
 	std::string cur_loading_lod_model_url;
+	bool cur_loading_dynamic_physics_shape;
 	WorldObjectRef cur_loading_voxel_ob;
 	int cur_loading_voxel_subsample_factor;
 	PhysicsShape cur_loading_physics_shape;
