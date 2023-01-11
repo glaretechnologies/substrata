@@ -793,9 +793,10 @@ bool MainWindow::checkAddTextureToProcessingSet(const std::string& path)
 }
 
 
-bool MainWindow::checkAddModelToProcessingSet(const std::string& url)
+bool MainWindow::checkAddModelToProcessingSet(const std::string& url, bool dynamic_physics_shape)
 {
-	auto res = models_processing.insert(url);
+	ModelProcessingKey key(url, dynamic_physics_shape);
+	auto res = models_processing.insert(key);
 	return res.second; // Was model inserted? (will be false if already present in set)
 }
 
@@ -1041,6 +1042,7 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 			{
 				DownloadingResourceInfo info;
 				info.use_sRGB = url_info.use_sRGB;
+				info.build_dynamic_physics_ob = ob->isDynamic();
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws, /*importance_factor=*/1.f);
 
@@ -1088,6 +1090,7 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 
 				DownloadingResourceInfo info;
 				info.use_sRGB = url_info.use_sRGB;
+				info.build_dynamic_physics_ob = false;
 				info.pos = ob->pos;
 				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws, our_avatar_importance_factor);
 
@@ -1523,6 +1526,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				load_model_task->result_msg_queue = &this->msg_queue;
 				load_model_task->resource_manager = resource_manager;
 				load_model_task->voxel_ob = ob;
+				load_model_task->build_dynamic_physics_ob = ob->isDynamic();
 
 				load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
 
@@ -1610,6 +1614,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 							// TEMP HACK
 							ob->physics_object->kinematic = !ob->script.empty();
+							ob->physics_object->dynamic = ob->isDynamic();
+							ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
+							ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
 
 							// if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
 							// {
@@ -1646,7 +1653,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				{
 					if(resource_manager->isFileForURLPresent(lod_model_url))
 					{
-						const bool just_added = this->checkAddModelToProcessingSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
+						const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/ob->isDynamic()); // Avoid making multiple LoadModelTasks for this mesh.
 						if(just_added)
 						{
 							// Do the model loading in a different thread
@@ -1657,6 +1664,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							load_model_task->unit_cube_shape = this->unit_cube_shape;
 							load_model_task->result_msg_queue = &this->msg_queue;
 							load_model_task->resource_manager = resource_manager;
+							load_model_task->build_dynamic_physics_ob = ob->isDynamic();
 
 							load_item_queue.enqueueItem(*ob, load_model_task, max_dist_for_ob_model_lod_level);
 						}
@@ -1826,7 +1834,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 		{
 			if(resource_manager->isFileForURLPresent(lod_model_url))
 			{
-				const bool just_added = this->checkAddModelToProcessingSet(lod_model_url); // Avoid making multiple LoadModelTasks for this mesh.
+				const bool just_added = this->checkAddModelToProcessingSet(lod_model_url, /*dynamic_physics_shape=*/false); // Avoid making multiple LoadModelTasks for this mesh.
 				if(just_added)
 				{
 					// Do the model loading in a different thread
@@ -2101,6 +2109,7 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 				{
 					DownloadingResourceInfo info;
 					info.use_sRGB = true;
+					info.build_dynamic_physics_ob = false;
 					info.pos = ob->pos;
 					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws, /*importance factor=*/1.f);
 
@@ -3071,7 +3080,8 @@ void MainWindow::processLoading()
 
 					// Now that this model is loaded, remove from models_processing set.
 					// If the model is unloaded, then this will allow it to be reprocessed and reloaded.
-					models_processing.erase(cur_loading_lod_model_url);
+					ModelProcessingKey key(cur_loading_lod_model_url, cur_loading_dynamic_physics_shape);
+					models_processing.erase(key);
 
 
 					// Add meshes to mesh manager
@@ -3142,6 +3152,9 @@ void MainWindow::processLoading()
 
 												// TEMP HACK
 												ob->physics_object->kinematic = !ob->script.empty();
+												ob->physics_object->dynamic = ob->isDynamic();
+												ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
+												ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
 
 												//if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
 												//{
@@ -3323,6 +3336,8 @@ void MainWindow::processLoading()
 								physics_ob->pos = voxel_ob->pos.toVec4fPoint();
 								physics_ob->rot = Quatf::fromAxisAndAngle(normalise(voxel_ob->axis), voxel_ob->angle);
 								physics_ob->scale = voxel_ob->scale;
+								physics_ob->kinematic = !voxel_ob->script.empty();
+								physics_ob->dynamic = voxel_ob->isDynamic();
 
 								voxel_ob->physics_object = physics_ob;
 
@@ -3467,6 +3482,7 @@ void MainWindow::processLoading()
 								this->cur_loading_mesh_data = message->gl_meshdata;
 								this->cur_loading_physics_shape = message->physics_shape;
 								this->cur_loading_lod_model_url = message->lod_model_url;
+								this->cur_loading_dynamic_physics_shape = message->built_dynamic_physics_ob;
 								ui->glWidget->opengl_engine->initialiseMeshDataLoadingProgress(*this->cur_loading_mesh_data, mesh_data_loading_progress);
 
 								//logMessage("Initialised loading of mesh '" + message->lod_model_url + "': " + mesh_data_loading_progress.summaryString());
@@ -3641,8 +3657,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				const LoadModelTask* task = static_cast<const LoadModelTask*>(item.task.ptr());
 				if(!task->lod_model_url.empty()) // Will be empty for voxel models
 				{
-					assert(models_processing.count(task->lod_model_url) > 0);
-					models_processing.erase(task->lod_model_url);
+					ModelProcessingKey key(task->lod_model_url, task->build_dynamic_physics_ob);
+					assert(models_processing.count(key) > 0);
+					models_processing.erase(key);
 				}
 				
 				//conPrint("Discarding model load task '" + task->lod_model_url + "' as too far away. (dist_from_item: " + doubleToStringNSigFigs(dist_from_item, 4) + ", task max dist: " + doubleToStringNSigFigs(item.task_max_dist, 3) + ")");
@@ -4729,6 +4746,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						bool use_SRGB = true;
 						Vec3d pos(0, 0, 0);
 						float size_factor = 1;
+						bool build_dynamic_physics_ob = false;
 						// Look up in our map of downloading resources
 						auto res = URL_to_downloading_info.find(URL);
 						if(res != URL_to_downloading_info.end())
@@ -4737,6 +4755,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							use_SRGB = info.use_sRGB;
 							pos = info.pos;
 							size_factor = info.size_factor;
+							build_dynamic_physics_ob = info.build_dynamic_physics_ob;
 						}
 						else
 						{
@@ -4786,6 +4805,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								load_model_task->unit_cube_shape = this->unit_cube_shape;
 								load_model_task->result_msg_queue = &this->msg_queue;
 								load_model_task->resource_manager = resource_manager;
+								load_model_task->build_dynamic_physics_ob = build_dynamic_physics_ob;
 
 								load_item_queue.enqueueItem(pos.toVec4fPoint(), size_factor, load_model_task, 
 									/*max task dist=*/std::numeric_limits<float>::infinity()); // NOTE: inf dist is a bit of a hack.
@@ -4868,7 +4888,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				PhysicsObject* physics_ob = *it;
 
 				// NOTE: doing 2 locks here that we could change to just use 1.
-				const JPH::Vec3 pos = body_interface.GetCenterOfMassPosition(physics_ob->jolt_body_id);  // NOTE: should we use GetPosition() here?
+				const JPH::Vec3 pos = body_interface.GetPosition(physics_ob->jolt_body_id);
 				const JPH::Quat rot = body_interface.GetRotation(physics_ob->jolt_body_id);
 
 				//conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
@@ -4898,7 +4918,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						// conPrint("Setting object state for ob " + ob->uid.toString() + " from jolt");
 
-						if((this->selected_ob.ptr() != ob) || getPathControllerForOb(*ob)) // Don't update selected object with physics engine state, unless it is path controlled.
+						const bool ob_picked_up = (this->selected_ob.ptr() == ob) && this->selected_ob_picked_up;
+
+						if(!ob_picked_up || getPathControllerForOb(*ob)) // Don't update selected object with physics engine state, unless it is path controlled.
 						{
 							const Matrix4f ob_to_world = ob->physics_object->getObToWorldMatrix();
 
@@ -4926,12 +4948,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							}
 
 							// Update world object state.  TODO for dynamic objects?
-							//	Vec4f unit_axis;
-							//	float angle;
-							//	ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
-							//
-							//	const Vec3d pos = Vec3d(ob_to_world.getColumn(3));
-							//	ob->setTransformAndHistory(pos, Vec3f(unit_axis), angle);
+							if(physics_ob->dynamic)
+							{
+								Vec4f unit_axis;
+								float angle;
+								ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
+							
+								ob->setTransformAndHistory(Vec3d(pos.GetX(), pos.GetY(), pos.GetZ()), Vec3f(unit_axis), angle);
+							}
+
+							if(this->selected_ob.ptr() == ob)
+							{
+								updateSelectedObjectPlacementBeam();
+							}
 						}
 					}
 				}
@@ -8254,14 +8283,54 @@ void MainWindow::objectEditedSlot()
 
 			setMaterialFlagsForObject(selected_ob.ptr());
 
-		
-			if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED))
+			if((selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED))
 			{
-				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED);
+				// Rebuild physics object
+				const Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
 
+				js::Vector<bool, 16> mat_transparent(selected_ob->materials.size());
+				for(size_t i=0; i<selected_ob->materials.size(); ++i)
+					mat_transparent[i] = selected_ob->materials[i]->opacity.val < 1.f;
+
+				PhysicsShape physics_shape;
+				Indigo::MeshRef indigo_mesh; // not used
+				const int subsample_factor = 1;
+				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
+					ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
+					physics_shape, indigo_mesh);
+
+				// Remove existing physics object
+				if(selected_ob->physics_object.nonNull())
+				{
+					physics_world->removeObject(selected_ob->physics_object);
+					selected_ob->physics_object = NULL;
+				}
+
+				// Make new physics object
+				assert(selected_ob->physics_object.isNull());
+				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
+				selected_ob->physics_object->shape.jolt_shape = physics_shape.jolt_shape;
+				selected_ob->physics_object->userdata = selected_ob.ptr();
+				selected_ob->physics_object->userdata_type = 0;
+				selected_ob->physics_object->ob_uid = selected_ob->uid;
+				selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
+				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
+				selected_ob->physics_object->scale = selected_ob->scale;
+
+				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+
+				physics_world->addObject(selected_ob->physics_object);
+
+				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
+			}
+
+		
+			if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED))
+			{
 				removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
 
-				const std::string mesh_path = this->selected_ob->model_url;
+				const std::string mesh_path = FileUtils::fileExists(this->selected_ob->model_url) ? this->selected_ob->model_url : resource_manager->pathForURL(this->selected_ob->model_url);
 
 				ModelLoading::MakeGLObjectResults results;
 				ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, mesh_path,
@@ -8275,41 +8344,49 @@ void MainWindow::objectEditedSlot()
 
 				ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
 
-				// If the user selected a mesh that is not a bmesh, convert it to bmesh.
-				std::string bmesh_disk_path;
-				if(!hasExtension(mesh_path, "bmesh")) 
+				if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED))
 				{
-					// Save as bmesh in temp location
-					bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+					// If the user selected a mesh that is not a bmesh, convert it to bmesh.
+					std::string bmesh_disk_path;
+					if(!hasExtension(mesh_path, "bmesh")) 
+					{
+						// Save as bmesh in temp location
+						bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
 
-					BatchedMesh::WriteOptions write_options;
-					write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
-					// TODO: show 'processing...' dialog while it compresses and saves?
-					results.batched_mesh->writeToFile(bmesh_disk_path, write_options);
+						BatchedMesh::WriteOptions write_options;
+						write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+						// TODO: show 'processing...' dialog while it compresses and saves?
+						results.batched_mesh->writeToFile(bmesh_disk_path, write_options);
+					}
+					else
+						bmesh_disk_path = mesh_path;
+
+					// Compute hash over model
+					const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+					const std::string original_filename = FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
+					const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
+
+					// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+					if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+						this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+					this->selected_ob->model_url = mesh_URL;
+					this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+					this->selected_ob->aabb_ws = results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob));
 				}
 				else
-					bmesh_disk_path = mesh_path;
+				{
+					assert(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED));
+				}
 
-				// Compute hash over model
-				const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
-
-				const std::string original_filename = FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
-				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
-
-				// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
-				if(!this->resource_manager->isFileForURLPresent(mesh_URL))
-					this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
-
-				this->selected_ob->model_url = mesh_URL;
-				this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-				this->selected_ob->aabb_ws = results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob));
 
 				// NOTE: do we want to update materials and scale etc. on object, given that we have a new mesh now?
 
 				// Make new physics object
 				assert(selected_ob->physics_object.isNull());
 				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
-				selected_ob->physics_object->shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh);
+				selected_ob->physics_object->shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
 				selected_ob->physics_object->userdata = selected_ob.ptr();
 				selected_ob->physics_object->userdata_type = 0;
 				selected_ob->physics_object->ob_uid = selected_ob->uid;
@@ -8318,8 +8395,15 @@ void MainWindow::objectEditedSlot()
 				selected_ob->physics_object->scale = selected_ob->scale;
 			
 				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+				selected_ob->physics_object->is_sphere = FileUtils::getFilename(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
+				selected_ob->physics_object->is_cube = FileUtils::getFilename(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
 			
 				physics_world->addObject(selected_ob->physics_object);
+
+
+				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED);
+				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
 			}
 
 
@@ -9692,7 +9776,8 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		Indigo::MeshRef indigo_mesh;
 		const int subsample_factor = 1;
 		Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
-			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, physics_shape, indigo_mesh);
+			ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/ob->isDynamic(),
+			physics_shape, indigo_mesh);
 
 		GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 		gl_ob->ob_to_world_matrix = ob_to_world;
@@ -9724,6 +9809,11 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 		ob->physics_object = physics_ob;
 		physics_ob->userdata = (void*)(ob.ptr());
 		physics_ob->userdata_type = 0;
+		physics_ob->ob_uid = ob->uid;
+
+		physics_ob->kinematic = !ob->script.empty();
+		physics_ob->dynamic = ob->isDynamic();
+
 		physics_world->addObject(physics_ob);
 
 		ob->aabb_ws = gl_ob->aabb_ws; // gl_ob->aabb_ws will ahve been set in ui->glWidget->addObject() above.
@@ -11461,7 +11551,7 @@ int main(int argc, char *argv[])
 				// Build OpenGLMeshRenderData
 				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), mw.ground_quad_mesh, false);
 
-				mw.ground_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mw.ground_quad_mesh);
+				mw.ground_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mw.ground_quad_mesh, /*build_dynamic_physics_ob=*/false);
 			}
 
 			// If the user didn't explictly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
@@ -11493,7 +11583,7 @@ int main(int argc, char *argv[])
 				}
 				mesh->endOfModel();
 
-				mw.hypercard_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh);
+				mw.hypercard_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
 			}
 
 			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));
@@ -11614,7 +11704,7 @@ int main(int argc, char *argv[])
 				PhysicsShape physics_shape;
 				BatchedMeshRef batched_mesh;
 				Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(mesh_URL, *mw.resource_manager,
-					mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), false, physics_shape, batched_mesh);
+					mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
 				test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*mw.ui->glWidget->opengl_engine, mesh_data, /*ob_lod_level=*/0, 
 					test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *mw.resource_manager, ob_to_world_matrix);

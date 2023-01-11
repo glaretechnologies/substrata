@@ -28,6 +28,7 @@ public:
 	PhysicsShape physics_shape;
 	
 	std::string lod_model_url; // URL of the model we loaded.  Empty when loaded voxel object.
+	bool built_dynamic_physics_ob;
 
 	UID voxel_ob_uid; // Valid if we are loading voxel for an object, invalid otherwise.  Avoid storing WorldObjectRef to avoid dangling refs
 	int voxel_ob_model_lod_level;// If we loaded a voxel model, the model LOD level of the object.
@@ -56,6 +57,7 @@ public:
 	virtual void run(size_t thread_index);
 
 	std::string lod_model_url; // The URL of a model with a specific LOD level to load.  Empty when loading voxel object.
+	bool build_dynamic_physics_ob; // If true, build a convex hull shape instead of a mesh physics shape.
 	
 	WorldObjectRef voxel_ob; // If non-null, the task is to load/mesh the voxels for this object.
 	int voxel_ob_model_lod_level; // If we are loading a voxel model, the model LOD level of the object.

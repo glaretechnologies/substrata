@@ -75,6 +75,7 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->rotAxisZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
+	connect(this->dynamicCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
 	connect(this->luminousFluxDoubleSpinBox,SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
@@ -160,6 +161,7 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	setTransformFromObject(ob);
 
 	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
+	SignalBlocker::setChecked(this->dynamicCheckBox, ob.isDynamic());
 	
 	lightmapURLLabel->setText(QtUtils::toQString(ob.lightmap_url));
 
@@ -320,6 +322,10 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	}
 
 	ob_out.setCollidable(this->collidableCheckBox->isChecked());
+	const bool new_dynamic = this->dynamicCheckBox->isChecked();
+	if(new_dynamic != ob_out.isDynamic())
+		ob_out.changed_flags |= WorldObject::DYNAMIC_CHANGED;
+	ob_out.setDynamic(new_dynamic);
 
 	if(ob_out.object_type != WorldObject::ObjectType_Hypercard) // Don't store materials for hypercards. (doesn't use them, and matEditor may have old/invalid data)
 	{
@@ -422,6 +428,7 @@ void ObjectEditor::setControlsEditable(bool editable)
 	this->rotAxisZDoubleSpinBox->setReadOnly(!editable);
 
 	this->collidableCheckBox->setEnabled(editable);
+	this->dynamicCheckBox->setEnabled(editable);
 
 	this->matEditor->setControlsEditable(editable);
 

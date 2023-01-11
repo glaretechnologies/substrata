@@ -96,8 +96,8 @@ public:
 	
 	void removeObject(const Reference<PhysicsObject>& object);
 
-	static JPH::Ref<JPH::Shape> createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh);
-	static JPH::Ref<JPH::Shape> createJoltShapeForBatchedMesh(const BatchedMesh& mesh);
+	static JPH::Ref<JPH::Shape> createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob);
+	static JPH::Ref<JPH::Shape> createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob);
 
 	void think(double dt);
 

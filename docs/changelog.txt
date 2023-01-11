@@ -4,6 +4,9 @@ Added initial XML scripting with follow (path controller) script.
 Added visualisation of paths when object is selected.
 Added 'Go to Position' dialog and command in Go menu.
 Updating audio source position for moving scripted objects.
+Added option to change cache directory (for downloaded resources)
+Made scrolling in and out sufficiently far transition between first and third person camera views.
+Added 'dynamic' checkbox in object editor to make objects dynamic physics objects.
 
 0.97
 ====
