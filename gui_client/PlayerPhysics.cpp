@@ -1,7 +1,7 @@
 /*=====================================================================
 PlayerPhysics.cpp
 -----------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 File created by ClassTemplate on Mon Sep 23 15:14:04 2002
 =====================================================================*/
 #include "PlayerPhysics.h"
@@ -33,8 +33,11 @@ static const float maxairspeed = 8;
 
 static const float JUMP_PERIOD = 0.1f; // Allow a jump command to be executed even if the player is not quite on the ground yet.
 
-const float SPHERE_RAD = 0.3f;
-const float EYE_HEIGHT = 1.67f;
+static const float SPHERE_RAD = 0.3f;
+static const float INTERACTION_SPHERE_RAD = 0.28f;
+static const float CYLINDER_HEIGHT = 1.3f; // Chosen so the capsule top is about the same height as the head of xbot.glb.  Can test this by jumping into an overhead ledge :)
+static const float EYE_HEIGHT = 1.67f;
+
 
 PlayerPhysics::PlayerPhysics()
 :	vel(0,0,0),
@@ -81,43 +84,48 @@ inline static Vec4f toVec4fVec(const JPH::Vec3& v)
 void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos)
 {
 #if USE_JOLT_PLAYER_PHYSICS
-	const float	cCharacterHeightStanding = 1.25f; // Chosen so the capsule top is about the same height as the head of xbot.glb.  Can test this by jumping into an overhead ledge :)
+	const float	cCharacterHeightStanding = CYLINDER_HEIGHT;
 	const float	cCharacterRadiusStanding = SPHERE_RAD;
 
-	JPH::RefConst<JPH::Shape> mStandingShape = JPH::RotatedTranslatedShapeSettings(
-		JPH::Vec3(0, 0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding), // position
-		JPH::Quat::sRotation(JPH::Vec3(1, 0, 0), Maths::pi_2<float>()), // rotate capsule from extending in the y-axis to the z-axis.
-		new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightStanding, /*inRadius=*/cCharacterRadiusStanding)).Create().Get();
+	// Create virtual character
+	{
+		JPH::RefConst<JPH::Shape> standing_shape = JPH::RotatedTranslatedShapeSettings(
+			JPH::Vec3(0, 0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding), // position
+			JPH::Quat::sRotation(JPH::Vec3(1, 0, 0), Maths::pi_2<float>()), // rotate capsule from extending in the y-axis to the z-axis.
+			new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightStanding, /*inRadius=*/cCharacterRadiusStanding)).Create().Get();
 
-	// Create 'player' character
-	JPH::Ref<JPH::CharacterVirtualSettings> settings = new JPH::CharacterVirtualSettings();
-	settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
-	settings->mShape = mStandingShape;
-	settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
-	settings->mSupportingVolume = JPH::Plane(JPH::Vec3(0,0,1), -SPHERE_RAD); // Accept contacts that touch the lower sphere of the capsule
-	// See https://github.com/jrouwe/JoltPhysics/issues/364#issuecomment-1358400823
-	//settings->mCharacterPadding = 0.5f;
-	jolt_character = new JPH::CharacterVirtual(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), physics_world.physics_system);
-	jolt_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
-	
-#if 0
-	JPH::RefConst<JPH::Shape> mStandingShape = JPH::RotatedTranslatedShapeSettings(
-		JPH::Vec3(0, 0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding), // position
-		JPH::Quat::sRotation(JPH::Vec3(1,0,0), Maths::pi_2<float>()), // rotate capsule from extending in the y-axis to the z-axis. // JPH::Quat::sIdentity(),
-		//JPH::Quat::sIdentity(),
-		new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightStanding, /*inRadius=*/cCharacterRadiusStanding)).Create().Get();
+		JPH::Ref<JPH::CharacterVirtualSettings> settings = new JPH::CharacterVirtualSettings();
+		settings->mShape = standing_shape;
+		settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
+		settings->mSupportingVolume = JPH::Plane(JPH::Vec3(0,0,1), -SPHERE_RAD); // Accept contacts that touch the lower sphere of the capsule
+		settings->mMaxStrength = 10000; // Default pushing force is 100 N, which doesn't seem enough.
 
-	// Create 'player' character
-	JPH::Ref<JPH::CharacterSettings> settings = new JPH::CharacterSettings();
-	settings->mMaxSlopeAngle = JPH::DegreesToRadians(45.0f);
-	settings->mLayer = Layers::MOVING;
-	settings->mShape = mStandingShape;
-	settings->mFriction = 0.5f;
-	settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
-	jolt_character = new JPH::Character(settings, JPH::Vec3(0, 0, 10), JPH::Quat::sIdentity(), 0, physics_world.physics_system);
-	jolt_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
-	jolt_character->AddToPhysicsSystem(JPH::EActivation::Activate);
-#endif
+		jolt_character = new JPH::CharacterVirtual(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), physics_world.physics_system);
+		jolt_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
+	}
+
+	// Create 'interaction' character.
+	// See https://github.com/jrouwe/JoltPhysics/discussions/239 ('Presence shape for virtual character controllers') and also 
+	// https://github.com/jrouwe/JoltPhysics/discussions/399 ('Pusher character object and step climbing interacting badly')
+	// We will give it a slightly larger radius than the virtual character, which seems to be needed to effectively push objects around.
+	if(false)
+	{
+		JPH::RefConst<JPH::Shape> standing_shape = JPH::RotatedTranslatedShapeSettings(
+			JPH::Vec3(0, 0, 0.5f * cCharacterHeightStanding + cCharacterRadiusStanding), // position
+			JPH::Quat::sRotation(JPH::Vec3(1, 0, 0), Maths::pi_2<float>()), // rotate capsule from extending in the y-axis to the z-axis.
+			new JPH::CapsuleShape(/*inHalfHeightOfCylinder=*/0.5f * cCharacterHeightStanding, /*inRadius=*/INTERACTION_SPHERE_RAD)).Create().Get();
+
+		JPH::Ref<JPH::CharacterSettings> settings = new JPH::CharacterSettings();
+		//settings->mLayer = Layers::PUSHER_CHARACTER;
+		settings->mShape = standing_shape;
+		settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
+
+		interaction_character = new JPH::Character(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), /*inUserData=*/0, physics_world.physics_system);
+		interaction_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
+
+		interaction_character->AddToPhysicsSystem(JPH::EActivation::Activate);
+	}
+
 #endif // USE_JOLT_PLAYER_PHYSICS
 }
 
@@ -125,6 +133,12 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 void PlayerPhysics::shutdown()
 {
 #if USE_JOLT_PLAYER_PHYSICS
+	if(interaction_character)
+	{
+		interaction_character->RemoveFromPhysicsSystem();
+		interaction_character = NULL;
+	}
+
 	//jolt_character->RemoveFromPhysicsSystem();
 	jolt_character = NULL;
 #endif
@@ -134,6 +148,9 @@ void PlayerPhysics::shutdown()
 void PlayerPhysics::setPosition(const Vec3d& new_player_pos) // Move discontinuously.  For teleporting etc.
 {
 	jolt_character->SetPosition(toJoltVec3(new_player_pos));
+
+	if(interaction_character)
+		interaction_character->SetPosition(toJoltVec3(new_player_pos));
 
 	this->vel = Vec3f(0.f);
 }
@@ -198,6 +215,18 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 	default: return "unknown";
 	}
 }*/
+
+
+// We don't want the virtual character to collide with the pusher object.
+class PlayerPhysicsObjectLayerFilter : public JPH::ObjectLayerFilter
+{
+public:
+	// Function to filter out object layers when doing collision query test (return true to allow testing against objects with this layer)
+	virtual bool ShouldCollide(JPH::ObjectLayer inLayer) const
+	{
+		return /*inLayer != Layers::PUSHER_CHARACTER && */inLayer != Layers::NON_COLLIDABLE;
+	}
+};
 
 
 UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float raw_dtime, Vec4f& campos_in_out)
@@ -286,6 +315,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	settings.mStickToFloorStepDown		= JPH::Vec3(0, 0, -0.5f);
 	settings.mWalkStairsStepUp			= JPH::Vec3(0.0f, 0.0f, 0.4f);
 
+	PlayerPhysicsObjectLayerFilter player_physics_filter;
 
 	// Put the guts of ExtendedUpdate here, just so we can extract pre_stair_walk_position from the middle of it.
 #if 0
@@ -297,7 +327,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	const JPH::CharacterVirtual::ExtendedUpdateSettings inSettings = settings;
 	const JPH::Vec3 inGravity = physics_world.physics_system->GetGravity();
 	const JPH::BroadPhaseLayerFilter &inBroadPhaseLayerFilter = physics_world.physics_system->GetDefaultBroadPhaseLayerFilter(Layers::MOVING);
-	const JPH::ObjectLayerFilter &inObjectLayerFilter = physics_world.physics_system->GetDefaultLayerFilter(Layers::MOVING);
+	const JPH::ObjectLayerFilter &inObjectLayerFilter = player_physics_filter;
 	const JPH::BodyFilter &inBodyFilter = {};
 	const JPH::ShapeFilter &inShapeFilter = {};
 	JPH::TempAllocator &inAllocator = *physics_world.temp_allocator;
@@ -398,6 +428,16 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 
 	const JPH::Vec3 char_pos = jolt_character->GetPosition();
 	campos_in_out = Vec4f(char_pos.GetX(), char_pos.GetY(), char_pos.GetZ() + EYE_HEIGHT - campos_z_delta, 1.f);
+
+
+	if(interaction_character)
+	{
+		const JPH::Vec3 z_smoothed_char_pos = jolt_character->GetPosition() - JPH::Vec3(0, 0, campos_z_delta);
+		const JPH::Vec3 pusher_to_virtual_char = z_smoothed_char_pos - interaction_character->GetPosition();
+
+		// Want to get to the virtual character in time dt, so d = v * dt, v = d / dt;
+		interaction_character->SetLinearVelocity(pusher_to_virtual_char / dtime);
+	}
 
 
 	//if(!/*onground*/(jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround))
@@ -816,19 +856,26 @@ static const Vec3f doSpringRelaxation(const std::vector<SpringSphereSet>& spring
 
 void PlayerPhysics::debugGetCollisionSpheres(const Vec4f& campos, std::vector<js::BoundingSphere>& spheres_out)
 {
+	// Visualise virtual character object.  The character object is a capsule, but visualise as 3 spheres.
 	spheres_out.resize(0);
-	for(int s=0; s<3; ++s)//for each sphere in body
+	
+	if(jolt_character)
 	{
-		//-----------------------------------------------------------------
-		//calc position of sphere
-		//-----------------------------------------------------------------
-		const Vec3f spherepos = Vec3f(campos) - Vec3f(0,0, (EYE_HEIGHT - 1.5f) + (float)s * 0.6f);
-		spheres_out.push_back(js::BoundingSphere(spherepos.toVec4fPoint(), SPHERE_RAD));
+		spheres_out.push_back(js::BoundingSphere((toVec3f(jolt_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD)).toVec4fPoint(),								SPHERE_RAD));
+		spheres_out.push_back(js::BoundingSphere((toVec3f(jolt_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + CYLINDER_HEIGHT / 2)).toVec4fPoint(),		SPHERE_RAD));
+		spheres_out.push_back(js::BoundingSphere((toVec3f(jolt_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + CYLINDER_HEIGHT)).toVec4fPoint(),			SPHERE_RAD));
 	}
 
+	// Visualise pusher character object
+	if(interaction_character)
+	{
+		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD)).toVec4fPoint(),						INTERACTION_SPHERE_RAD));
+		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + CYLINDER_HEIGHT / 2)).toVec4fPoint(),INTERACTION_SPHERE_RAD));
+		spheres_out.push_back(js::BoundingSphere((toVec3f(interaction_character->GetPosition()) + Vec3f(0, 0, SPHERE_RAD + CYLINDER_HEIGHT)).toVec4fPoint(),	INTERACTION_SPHERE_RAD));
+	}
 
 	// Add contact points from springspheresets, visualise as smaller spheres.
-	for(size_t s=0; s<springspheresets.size(); ++s)
+	/*for(size_t s=0; s<springspheresets.size(); ++s)
 	{
 		const SpringSphereSet& set = springspheresets[s];
 		for(size_t i=0; i<set.collpoints.size(); ++i)
@@ -836,5 +883,5 @@ void PlayerPhysics::debugGetCollisionSpheres(const Vec4f& campos, std::vector<js
 			const Vec4f& pos = set.collpoints[i];
 			spheres_out.push_back(js::BoundingSphere(pos, 0.05f));
 		}
-	}
+	}*/
 }

@@ -1,7 +1,7 @@
 /*=====================================================================
 PlayerPhysics.h
 ---------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 File created by ClassTemplate on Mon Sep 23 15:14:04 2002
 =====================================================================*/
 #pragma once
@@ -102,14 +102,15 @@ private:
 	//float time_since_on_ground;
 	
 
-	std::vector<SpringSphereSet> springspheresets;
+	//std::vector<SpringSphereSet> springspheresets;
 
 	// This is the amount which the displayed camera position is below the actual physical avatar position.
 	// This is to allow the physical avatar position to step up discontinuously, where as the camera position will smoothly increase to match the physical avatar position.
 	float campos_z_delta; // campos.z returned will be cam_return = cam_actual.z - campos_z_delta;
 	
 #if USE_JOLT_PLAYER_PHYSICS
-	//JPH::Ref<JPH::Character> jolt_character;
 	JPH::Ref<JPH::CharacterVirtual> jolt_character;
+
+	JPH::Ref<JPH::Character> interaction_character;
 #endif
 };
