@@ -685,6 +685,18 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMe
 }
 
 
+// Creates a box, centered at (0,0,0), with x and y extent = ground_quad_w, and z extent = 1.
+JPH::Ref<JPH::Shape> PhysicsWorld::createGroundQuadShape(float ground_quad_w)
+{
+	JPH::Ref<JPH::BoxShapeSettings> cube_shape_settings = new JPH::BoxShapeSettings(/*inHalfExtent=*/JPH::Vec3(ground_quad_w/2, ground_quad_w/2, 0.5f));
+
+	JPH::Result<JPH::Ref<JPH::Shape>> result = cube_shape_settings->Create();
+	if(result.HasError())
+		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
+	return result.Get();
+}
+
+
 void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 {
 	assert(object->pos.isFinite());
@@ -720,7 +732,12 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
 			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
 			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
-		sphere_settings.mRestitution = 0.7f;
+
+		sphere_settings.mFriction = myClamp(object->friction, 0.f, 1.f);
+		sphere_settings.mRestitution = myClamp(object->restitution, 0.f, 1.f);
+		sphere_settings.mMassPropertiesOverride.mMass = myMax(0.001f, object->mass);
+		sphere_settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+
 		sphere_settings.mUserData = (uint64)object.ptr();
 		
 		object->jolt_body_id = body_interface.CreateAndAddBody(sphere_settings, JPH::EActivation::Activate);
@@ -743,9 +760,12 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
 			object->dynamic ? JPH::EMotionType::Dynamic : (object->kinematic ? JPH::EMotionType::Kinematic : JPH::EMotionType::Static), 
 			object->dynamic ? Layers::MOVING : (object->collidable ? Layers::NON_MOVING : Layers::NON_COLLIDABLE));
-		//cube_settings.mRestitution = 0.5f;
+
+		cube_settings.mFriction = myClamp(object->friction, 0.f, 1.f);
+		cube_settings.mRestitution = myClamp(object->restitution, 0.f, 1.f);
+		cube_settings.mMassPropertiesOverride.mMass = myMax(0.001f, object->mass);
+		cube_settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 		cube_settings.mUserData = (uint64)object.ptr();
-		cube_settings.mFriction = 1.f;
 
 		object->jolt_body_id = body_interface.CreateAndAddBody(cube_settings, JPH::EActivation::Activate);
 
@@ -772,12 +792,14 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		JPH::BodyCreationSettings settings(final_shape,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
 			JPH::Quat(object->rot.v[0], object->rot.v[1], object->rot.v[2], object->rot.v[3]),
-			motion_type, object_layer); 
-		settings.mMassPropertiesOverride.mMass = 100.f;
+			motion_type, object_layer);
+		
+		settings.mFriction = myClamp(object->friction, 0.f, 1.f);
+		settings.mRestitution = myClamp(object->restitution, 0.f, 1.f);
+		settings.mMassPropertiesOverride.mMass = myMax(0.001f, object->mass);
 		settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 
 		settings.mUserData = (uint64)object.ptr();
-		settings.mFriction = 0.4f;
 
 		object->jolt_body_id = body_interface.CreateAndAddBody(settings, JPH::EActivation::Activate);
 

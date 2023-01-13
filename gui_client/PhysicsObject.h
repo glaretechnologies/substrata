@@ -89,6 +89,10 @@ public:
 
 	bool kinematic;
 
+	float mass;
+	float friction;
+	float restitution;
+
 private:
 	
 };

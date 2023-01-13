@@ -77,6 +77,10 @@ WorldObject::WorldObject() noexcept
 
 	max_model_lod_level = 0;
 
+	mass = 50.f;
+	friction = 0.5f;
+	restitution = 0.2f;
+
 	audio_volume = 1;
 
 	allocator = NULL;
@@ -427,7 +431,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 16;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 17;
 /*
 Version history:
 9: introduced voxels
@@ -438,6 +442,7 @@ Version history:
 14: Added aabb_ws
 15: Added max_lod_level
 16: Added audio_source_url, audio_volume
+17: Added mass, friction, restitution
 */
 
 
@@ -488,6 +493,11 @@ void WorldObject::writeToStream(OutStream& stream) const
 		if(compressed_voxels.size() > 0)
 			stream.writeData(compressed_voxels.data(), compressed_voxels.dataSizeBytes());
 	}
+
+	// New in v17:
+	stream.writeFloat(mass);
+	stream.writeFloat(friction);
+	stream.writeFloat(restitution);
 }
 
 
@@ -608,6 +618,12 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		}
 	}
 
+	if(v >= 17)
+	{
+		ob.mass = stream.readFloat();
+		ob.friction = stream.readFloat();
+		ob.restitution = stream.readFloat();
+	}
 
 	// Set ephemeral state
 	ob.state = WorldObject::State_Alive;
@@ -657,6 +673,11 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 		if(compressed_voxels.size() > 0)
 			stream.writeData(compressed_voxels.data(), compressed_voxels.dataSizeBytes());
 	}
+
+	// New in v17:
+	stream.writeFloat(mass);
+	stream.writeFloat(friction);
+	stream.writeFloat(restitution);
 }
 
 
@@ -693,10 +714,14 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	aabb_ws = other.aabb_ws;
 
 	max_model_lod_level = other.max_model_lod_level;
+
+	mass = other.mass;
+	friction = other.friction;
+	restitution = other.restitution;
 }
 
 
-void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID will have been read already
+void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID will have been read already
 {
 	// NOTE: The data in here needs to match that in copyNetworkStateFrom()
 
@@ -765,6 +790,14 @@ void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob) // UID wil
 		ob.getCompressedVoxels().resize(voxel_data_size);
 		if(voxel_data_size > 0)
 			stream.readData(ob.getCompressedVoxels().data(), voxel_data_size);
+	}
+
+	// New in v17:
+	if(!stream.endOfStream())
+	{
+		ob.mass = stream.readFloat();
+		ob.friction = stream.readFloat();
+		ob.restitution = stream.readFloat();
 	}
 
 	// Set ephemeral state

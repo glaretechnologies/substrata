@@ -419,7 +419,7 @@ void ClientThread::doRun()
 								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
 #endif
 								{
-									readFromNetworkStreamGivenUID(msg_buffer, *ob);
+									readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 									read = true;
 									ob->from_remote_other_dirty = true;
 									world_state->dirty_from_remote_objects.insert(ob);
@@ -430,7 +430,7 @@ void ClientThread::doRun()
 							if(!read)
 							{
 								WorldObject dummy;
-								readFromNetworkStreamGivenUID(msg_buffer, dummy);
+								readWorldObjectFromNetworkStreamGivenUID(msg_buffer, dummy);
 							}
 
 						}
@@ -511,7 +511,7 @@ void ClientThread::doRun()
 						// Read from network
 						WorldObjectRef ob = allocWorldObject();
 						ob->uid = object_uid;
-						readFromNetworkStreamGivenUID(msg_buffer, *ob);
+						readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 
 						ob->state = WorldObject::State_JustCreated;
 						ob->from_remote_other_dirty = true;
@@ -537,7 +537,7 @@ void ClientThread::doRun()
 						// Read from network
 						WorldObjectRef ob = allocWorldObject();
 						ob->uid = object_uid;
-						readFromNetworkStreamGivenUID(msg_buffer, *ob);
+						readWorldObjectFromNetworkStreamGivenUID(msg_buffer, *ob);
 
 						if(!isFinite(ob->angle))
 							ob->angle = 0;
