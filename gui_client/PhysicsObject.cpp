@@ -35,6 +35,10 @@ PhysicsObject::PhysicsObject(bool collidable_)
 	is_cube = false;
 	is_player = false;
 #endif
+
+	mass = 100.f;
+	friction = 0.5f;
+	restitution = 0.3f;
 }
 
 
@@ -48,6 +52,10 @@ PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void*
 	is_cube = false;
 	is_player = false;
 #endif
+
+	mass = 100.f;
+	friction = 0.5f;
+	restitution = 0.3f;
 }
 
 

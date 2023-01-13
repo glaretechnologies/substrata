@@ -247,6 +247,10 @@ public:
 
 	int max_model_lod_level; // maximum LOD level for model.  0 for models that don't have lower LOD versions.
 
+	float mass; // For physics engine: Mass of object in kg.
+	float friction; // "Friction of the body (dimensionless number, usually between 0 and 1, 0 = no friction, 1 = friction force equals force that presses the two bodies together)"
+	float restitution; // "Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response)"
+
 #if GUI_CLIENT
 	Reference<glare::AudioSource> audio_source;
 #endif
@@ -274,6 +278,7 @@ public:
 	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed
 	static const uint32 MODEL_URL_CHANGED			= 4;
 	static const uint32 DYNAMIC_CHANGED				= 8;
+	static const uint32 PHYSICS_VALUE_CHANGED		= 16;
 	uint32 changed_flags;
 
 	bool using_placeholder_model;
@@ -405,7 +410,7 @@ void WorldObject::setDynamic(bool c)
 
 
 void readFromStream(InStream& stream, WorldObject& ob);
-void readFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID will have been read already
+void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob); // UID will have been read already
 
 
 const Matrix4f obToWorldMatrix(const WorldObject& ob);

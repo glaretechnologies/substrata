@@ -98,7 +98,7 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 		settings->mShape = standing_shape;
 		settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
 		settings->mSupportingVolume = JPH::Plane(JPH::Vec3(0,0,1), -SPHERE_RAD); // Accept contacts that touch the lower sphere of the capsule
-		settings->mMaxStrength = 10000; // Default pushing force is 100 N, which doesn't seem enough.
+		settings->mMaxStrength = 1000; // Default pushing force is 100 N, which doesn't seem enough.
 
 		jolt_character = new JPH::CharacterVirtual(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), physics_world.physics_system);
 		jolt_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector

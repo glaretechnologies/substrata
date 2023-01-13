@@ -7,14 +7,14 @@
     <x>0</x>
     <y>0</y>
     <width>524</width>
-    <height>1179</height>
+    <height>1268</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
-   <property name="spacing">
+   <property name="leftMargin">
     <number>0</number>
    </property>
    <property name="topMargin">
@@ -27,80 +27,35 @@
     <number>0</number>
    </property>
    <item>
+    <widget class="QWidget" name="widget_11" native="true">
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <widget class="QLabel" name="infoLabel">
+        <property name="text">
+         <string>Info label</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="groupBox_2">
      <property name="title">
-      <string>Model</string>
+      <string/>
      </property>
      <layout class="QFormLayout" name="formLayout">
       <item row="0" column="0">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>Object Type:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="objectTypeLabel">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_11">
-        <property name="text">
-         <string>Created by:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLabel" name="createdByLabel">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_10">
-        <property name="text">
-         <string>Created:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QLabel" name="createdTimeLabel">
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <spacer name="verticalSpacer_4">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>10</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="4" column="0">
        <widget class="QLabel" name="modelLabel">
         <property name="text">
          <string>Model</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="0" column="1">
        <widget class="FileSelectWidget" name="modelFileSelectWidget"/>
       </item>
-      <item row="5" column="1">
+      <item row="1" column="1">
        <spacer name="verticalSpacer">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -116,14 +71,14 @@
         </property>
        </spacer>
       </item>
-      <item row="6" column="0">
+      <item row="2" column="0">
        <widget class="QLabel" name="label_3">
         <property name="text">
          <string>Position x/y/z</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="2" column="1">
        <widget class="QWidget" name="widget_4" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_4">
          <property name="leftMargin">
@@ -180,7 +135,7 @@
         </layout>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="3" column="1">
        <spacer name="verticalSpacer_5">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -193,14 +148,14 @@
         </property>
        </spacer>
       </item>
-      <item row="8" column="0">
+      <item row="4" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
          <string>Scale x/y/z </string>
         </property>
        </widget>
       </item>
-      <item row="8" column="1">
+      <item row="4" column="1">
        <widget class="QWidget" name="widget_2" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_2">
          <property name="spacing">
@@ -269,21 +224,21 @@
         </layout>
        </widget>
       </item>
-      <item row="9" column="1">
+      <item row="5" column="1">
        <widget class="QCheckBox" name="linkScaleCheckBox">
         <property name="text">
          <string>Link x/y/z scale</string>
         </property>
        </widget>
       </item>
-      <item row="10" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="label_5">
         <property name="text">
          <string>Rot z/y/x</string>
         </property>
        </widget>
       </item>
-      <item row="10" column="1">
+      <item row="6" column="1">
        <widget class="QWidget" name="widget_3" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_3">
          <property name="leftMargin">
@@ -349,14 +304,14 @@
         </layout>
        </widget>
       </item>
-      <item row="11" column="1">
+      <item row="7" column="1">
        <widget class="QCheckBox" name="show3DControlsCheckBox">
         <property name="text">
          <string>Show 3D pos/rot controls</string>
         </property>
        </widget>
       </item>
-      <item row="12" column="1">
+      <item row="8" column="1">
        <widget class="QWidget" name="widget_8" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_7">
          <property name="leftMargin">
@@ -404,7 +359,7 @@
         </layout>
        </widget>
       </item>
-      <item row="14" column="1">
+      <item row="10" column="1">
        <spacer name="verticalSpacer_2">
         <property name="orientation">
          <enum>Qt::Vertical</enum>
@@ -420,7 +375,7 @@
         </property>
        </spacer>
       </item>
-      <item row="15" column="1">
+      <item row="11" column="1">
        <widget class="QWidget" name="widget_9" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_8">
          <property name="spacing">
@@ -438,47 +393,17 @@
          <property name="bottomMargin">
           <number>0</number>
          </property>
-         <item>
-          <widget class="QCheckBox" name="collidableCheckBox">
-           <property name="text">
-            <string>Collidable</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QCheckBox" name="dynamicCheckBox">
-           <property name="text">
-            <string>Dynamic</string>
-           </property>
-          </widget>
-         </item>
         </layout>
        </widget>
       </item>
-      <item row="16" column="1">
-       <spacer name="verticalSpacer_3">
-        <property name="orientation">
-         <enum>Qt::Vertical</enum>
-        </property>
-        <property name="sizeType">
-         <enum>QSizePolicy::Fixed</enum>
-        </property>
-        <property name="sizeHint" stdset="0">
-         <size>
-          <width>20</width>
-          <height>10</height>
-         </size>
-        </property>
-       </spacer>
-      </item>
-      <item row="17" column="0">
+      <item row="13" column="0">
        <widget class="QLabel" name="label_9">
         <property name="text">
          <string>Script</string>
         </property>
        </widget>
       </item>
-      <item row="17" column="1">
+      <item row="13" column="1">
        <widget class="QWidget" name="widget_5" native="true">
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <property name="spacing">
@@ -531,48 +456,48 @@
         </layout>
        </widget>
       </item>
-      <item row="19" column="0">
+      <item row="15" column="0">
        <widget class="QLabel" name="label_12">
         <property name="text">
          <string>Content</string>
         </property>
        </widget>
       </item>
-      <item row="19" column="1">
+      <item row="15" column="1">
        <widget class="QTextEdit" name="contentTextEdit">
         <property name="minimumSize">
          <size>
           <width>0</width>
-          <height>100</height>
+          <height>60</height>
          </size>
         </property>
        </widget>
       </item>
-      <item row="20" column="0">
+      <item row="16" column="0">
        <widget class="QLabel" name="targetURLLabel">
         <property name="text">
          <string>Target URL</string>
         </property>
        </widget>
       </item>
-      <item row="20" column="1">
+      <item row="16" column="1">
        <widget class="QLineEdit" name="targetURLLineEdit"/>
       </item>
-      <item row="21" column="1">
+      <item row="17" column="1">
        <widget class="QLabel" name="visitURLLabel">
         <property name="text">
          <string>&lt;a href=&quot;#boo&quot;&gt;Open URL in web browser&lt;/a&gt;</string>
         </property>
        </widget>
       </item>
-      <item row="22" column="0">
+      <item row="18" column="0">
        <widget class="QLabel" name="label_7">
         <property name="text">
          <string>Lightmap URL:</string>
         </property>
        </widget>
       </item>
-      <item row="22" column="1">
+      <item row="18" column="1">
        <widget class="QWidget" name="widget_7" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_6">
          <property name="leftMargin">
@@ -610,7 +535,7 @@
         </layout>
        </widget>
       </item>
-      <item row="23" column="1">
+      <item row="19" column="1">
        <widget class="QWidget" name="widget_6" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_5">
          <property name="leftMargin">
@@ -642,108 +567,10 @@
         </layout>
        </widget>
       </item>
-      <item row="24" column="1">
+      <item row="20" column="1">
        <widget class="QLabel" name="lightmapBakeStatusLabel">
         <property name="text">
          <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="15" column="0">
-       <widget class="QLabel" name="label_6">
-        <property name="text">
-         <string>Physics</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="spotlightGroupBox">
-     <property name="title">
-      <string>Spotlight settings</string>
-     </property>
-     <layout class="QFormLayout" name="formLayout_2">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_13">
-        <property name="text">
-         <string>Luminous flux:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="IndigoDoubleSpinBox" name="luminousFluxDoubleSpinBox">
-        <property name="suffix">
-         <string> lm</string>
-        </property>
-        <property name="maximum">
-         <double>10000000.000000000000000</double>
-        </property>
-        <property name="singleStep">
-         <double>1.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_16">
-        <property name="text">
-         <string>Colour</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QPushButton" name="spotlightColourPushButton">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="minimumSize">
-         <size>
-          <width>30</width>
-          <height>30</height>
-         </size>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QGroupBox" name="audioGroupBox">
-     <property name="title">
-      <string>Audio settings</string>
-     </property>
-     <layout class="QGridLayout" name="gridLayout_2">
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_8">
-        <property name="text">
-         <string>Volume</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="FileSelectWidget" name="audioFileWidget"/>
-      </item>
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_14">
-        <property name="text">
-         <string>Audio File</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="RealControl" name="volumeDoubleSpinBox">
-        <property name="maximum">
-         <double>2.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>1.000000000000000</double>
         </property>
        </widget>
       </item>
@@ -811,6 +638,192 @@
           <width>200</width>
           <height>200</height>
          </size>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="physicsSettingsGroupBox">
+     <property name="title">
+      <string>Physics</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout_3">
+      <item row="0" column="1">
+       <widget class="QWidget" name="widget_10" native="true">
+        <layout class="QHBoxLayout" name="horizontalLayout_9">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QCheckBox" name="collidableCheckBox">
+           <property name="text">
+            <string>Collidable</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="dynamicCheckBox">
+           <property name="text">
+            <string>Dynamic</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Mass</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="IndigoDoubleSpinBox" name="massDoubleSpinBox">
+        <property name="suffix">
+         <string> kg</string>
+        </property>
+        <property name="maximum">
+         <double>100000.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>5.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_17">
+        <property name="text">
+         <string>Friction</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="IndigoDoubleSpinBox" name="frictionDoubleSpinBox">
+        <property name="maximum">
+         <double>1.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.050000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_18">
+        <property name="text">
+         <string>Restitution (elasticity)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="IndigoDoubleSpinBox" name="restitutionDoubleSpinBox">
+        <property name="maximum">
+         <double>1.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.050000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="audioGroupBox">
+     <property name="title">
+      <string>Audio</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_8">
+        <property name="text">
+         <string>Volume</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="FileSelectWidget" name="audioFileWidget"/>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_14">
+        <property name="text">
+         <string>Audio File</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="RealControl" name="volumeDoubleSpinBox">
+        <property name="maximum">
+         <double>2.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="spotlightGroupBox">
+     <property name="title">
+      <string>Spotlight</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_13">
+        <property name="text">
+         <string>Luminous flux:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="IndigoDoubleSpinBox" name="luminousFluxDoubleSpinBox">
+        <property name="suffix">
+         <string> lm</string>
+        </property>
+        <property name="maximum">
+         <double>10000000.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_16">
+        <property name="text">
+         <string>Colour</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QPushButton" name="spotlightColourPushButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>30</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
         </property>
        </widget>
       </item>

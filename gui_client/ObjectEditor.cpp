@@ -77,6 +77,10 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->dynamicCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 
+	connect(this->massDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->frictionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->restitutionDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+
 	connect(this->luminousFluxDoubleSpinBox,SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
 	connect(this->show3DControlsCheckBox,	SIGNAL(toggled(bool)),				this, SIGNAL(posAndRot3DControlsToggled()));
@@ -115,14 +119,14 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	std::string ob_type;
 	switch(ob.object_type)
 	{
-	case WorldObject::ObjectType_Generic: ob_type = "Generic"; break;
+	case WorldObject::ObjectType_Generic: ob_type = "Generic object"; break;
 	case WorldObject::ObjectType_Hypercard: ob_type = "Hypercard"; break;
 	case WorldObject::ObjectType_VoxelGroup: ob_type = "Voxel Group"; break;
 	case WorldObject::ObjectType_Spotlight: ob_type = "Spotlight"; break;
 	case WorldObject::ObjectType_WebView: ob_type = "Web View"; break;
 	}
 
-	this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
+	//this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
 
 	this->cloned_materials.resize(ob.materials.size());
 	for(size_t i=0; i<ob.materials.size(); ++i)
@@ -131,8 +135,12 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	const std::string creator_name = !ob.creator_name.empty() ? ob.creator_name :
 		(ob.creator_id.valid() ? ("user id: " + ob.creator_id.toString()) : "[Unknown]");
 
-	this->createdByLabel->setText(QtUtils::toQString(creator_name));
-	this->createdTimeLabel->setText(QtUtils::toQString(ob.created_time.timeAgoDescription()));
+	//this->createdByLabel->setText(QtUtils::toQString(creator_name));
+	//this->createdTimeLabel->setText(QtUtils::toQString(ob.created_time.timeAgoDescription()));
+
+	const std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
+
+	this->infoLabel->setText(QtUtils::toQString(info_text));
 
 	this->selected_mat_index = selected_mat_index_;
 
@@ -162,6 +170,11 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 
 	SignalBlocker::setChecked(this->collidableCheckBox, ob.isCollidable());
 	SignalBlocker::setChecked(this->dynamicCheckBox, ob.isDynamic());
+	
+	SignalBlocker::setValue(this->massDoubleSpinBox,		ob.mass);
+	SignalBlocker::setValue(this->frictionDoubleSpinBox,	ob.friction);
+	SignalBlocker::setValue(this->restitutionDoubleSpinBox, ob.restitution);
+
 	
 	lightmapURLLabel->setText(QtUtils::toQString(ob.lightmap_url));
 
@@ -326,6 +339,18 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	if(new_dynamic != ob_out.isDynamic())
 		ob_out.changed_flags |= WorldObject::DYNAMIC_CHANGED;
 	ob_out.setDynamic(new_dynamic);
+
+	const float new_mass		= (float)this->massDoubleSpinBox->value();
+	const float new_friction	= (float)this->frictionDoubleSpinBox->value(); 
+	const float new_restitution	= (float)this->restitutionDoubleSpinBox->value(); 
+
+	if(new_mass != ob_out.mass || new_friction != ob_out.friction || new_restitution != ob_out.restitution)
+		ob_out.changed_flags |= WorldObject::PHYSICS_VALUE_CHANGED;
+
+	ob_out.mass = new_mass;
+	ob_out.friction = new_friction;
+	ob_out.restitution = new_restitution;
+
 
 	if(ob_out.object_type != WorldObject::ObjectType_Hypercard) // Don't store materials for hypercards. (doesn't use them, and matEditor may have old/invalid data)
 	{

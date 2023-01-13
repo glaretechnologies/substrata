@@ -99,6 +99,9 @@ public:
 	static JPH::Ref<JPH::Shape> createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob);
 	static JPH::Ref<JPH::Shape> createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob);
 
+	// Creates a box, centered at (0,0,0), with x and y extent = ground_quad_w, and z extent = 1.
+	static JPH::Ref<JPH::Shape> createGroundQuadShape(float ground_quad_w);
+
 	void think(double dt);
 
 	// BodyActivationListener interface:

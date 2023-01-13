@@ -503,6 +503,15 @@ private:
 		std::string URL;
 		bool dynamic_physics_shape;
 
+		bool operator < (const ModelProcessingKey& other) const
+		{
+			if(URL < other.URL)
+				return true;
+			else if(URL > other.URL)
+				return false;
+			else
+				return !dynamic_physics_shape && other.dynamic_physics_shape;
+		}
 		bool operator == (const ModelProcessingKey& other) const { return URL == other.URL && dynamic_physics_shape == other.dynamic_physics_shape; }
 	};
 	struct ModelProcessingKeyHasher
@@ -612,7 +621,7 @@ public:
 
 	std::map<std::string, DownloadingResourceInfo> URL_to_downloading_info; // Map from URL to info about the resource, for currently downloading resources.
 
-	std::map<std::string, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
+	std::map<ModelProcessingKey, std::set<UID>> loading_model_URL_to_world_ob_UID_map;
 	std::map<std::string, std::set<UID>> loading_model_URL_to_avatar_UID_map;
 
 	std::vector<Reference<GLObject> > player_phys_debug_spheres;

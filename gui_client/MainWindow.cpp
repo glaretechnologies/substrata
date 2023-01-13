@@ -1618,6 +1618,10 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
 							ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
 
+							ob->physics_object->mass = ob->mass;
+							ob->physics_object->friction = ob->friction;
+							ob->physics_object->restitution = ob->restitution;
+
 							// if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
 							// {
 							// 	ob->physics_object->is_sphere = true;
@@ -1673,7 +1677,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 
 				// If the mesh wasn't loaded onto the GPU yet, add this object to the wait list, for when the mesh is loaded.
 				if(!added_opengl_ob)
-					this->loading_model_URL_to_world_ob_UID_map[lod_model_url].insert(ob->uid);
+					this->loading_model_URL_to_world_ob_UID_map[ModelProcessingKey(lod_model_url, ob->isDynamic())].insert(ob->uid);
 
 				load_placeholder = !added_opengl_ob;
 			}
@@ -3093,7 +3097,8 @@ void MainWindow::processLoading()
 					// Assign the loaded model for any objects using waiting for this model:
 					Lock lock(this->world_state->mutex);
 
-					auto res = this->loading_model_URL_to_world_ob_UID_map.find(cur_loading_lod_model_url);
+					const ModelProcessingKey model_loading_key(cur_loading_lod_model_url, cur_loading_dynamic_physics_shape);
+					auto res = this->loading_model_URL_to_world_ob_UID_map.find(model_loading_key);
 					if(res != this->loading_model_URL_to_world_ob_UID_map.end())
 					{
 						std::set<UID>& waiting_obs = res->second;
@@ -3115,7 +3120,7 @@ void MainWindow::processLoading()
 								
 									// Check the object wants this particular LOD level model right now:
 									const std::string current_desired_model_LOD_URL = ob->getLODModelURLForLevel(ob->model_url, ob_model_lod_level);
-									if(current_desired_model_LOD_URL == cur_loading_lod_model_url)
+									if((current_desired_model_LOD_URL == cur_loading_lod_model_url) && (ob->isDynamic() == cur_loading_dynamic_physics_shape))
 									{
 										try
 										{
@@ -3150,11 +3155,14 @@ void MainWindow::processLoading()
 												ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle);
 												ob->physics_object->scale = ob->scale;
 
-												// TEMP HACK
 												ob->physics_object->kinematic = !ob->script.empty();
 												ob->physics_object->dynamic = ob->isDynamic();
 												ob->physics_object->is_sphere = ob->model_url == "Icosahedron_obj_136334556484365507.bmesh";
 												ob->physics_object->is_cube = ob->model_url == "Cube_obj_11907297875084081315.bmesh";
+
+												ob->physics_object->mass = ob->mass;
+												ob->physics_object->friction = ob->friction;
+												ob->physics_object->restitution = ob->restitution;
 
 												//if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
 												//{
@@ -3203,7 +3211,7 @@ void MainWindow::processLoading()
 							}
 						}
 
-						loading_model_URL_to_world_ob_UID_map.erase(cur_loading_lod_model_url); // Now that this model has been downloaded, remove from map
+						loading_model_URL_to_world_ob_UID_map.erase(model_loading_key); // Now that this model has been downloaded, remove from map
 					}
 
 					// Assign the loaded model to any avatars waiting for this model:
@@ -3338,6 +3346,10 @@ void MainWindow::processLoading()
 								physics_ob->scale = voxel_ob->scale;
 								physics_ob->kinematic = !voxel_ob->script.empty();
 								physics_ob->dynamic = voxel_ob->isDynamic();
+
+								physics_ob->mass = voxel_ob->mass;
+								physics_ob->friction = voxel_ob->friction;
+								physics_ob->restitution = voxel_ob->restitution;
 
 								voxel_ob->physics_object = physics_ob;
 
@@ -5001,11 +5013,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					
 					material.alpha = 0.5f;
 					material.transparent = true;
-					if(i >= 4)
+					/*if(i >= 4)
 					{
 						material.albedo_rgb = Colour3f(0.1f, 0.1f, 0.9f);
 						material.transparent = false;
-					}
+					}*/
 
 					player_phys_debug_spheres[i]->materials = std::vector<OpenGLMaterial>(1, material);
 
@@ -8283,7 +8295,8 @@ void MainWindow::objectEditedSlot()
 
 			setMaterialFlagsForObject(selected_ob.ptr());
 
-			if((selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED))
+			if((selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && 
+				(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 			{
 				// Rebuild physics object
 				const Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
@@ -8320,13 +8333,19 @@ void MainWindow::objectEditedSlot()
 				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
 				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
 
+				selected_ob->physics_object->mass = selected_ob->mass;
+				selected_ob->physics_object->friction = selected_ob->friction;
+				selected_ob->physics_object->restitution = selected_ob->restitution;
+
 				physics_world->addObject(selected_ob->physics_object);
 
 				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
+				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED);
 			}
 
 		
-			if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED))
+			if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
+				(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 			{
 				removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
 
@@ -8377,7 +8396,7 @@ void MainWindow::objectEditedSlot()
 				}
 				else
 				{
-					assert(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED));
+//					assert(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED));
 				}
 
 
@@ -8398,12 +8417,17 @@ void MainWindow::objectEditedSlot()
 				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
 				selected_ob->physics_object->is_sphere = FileUtils::getFilename(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
 				selected_ob->physics_object->is_cube = FileUtils::getFilename(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
+
+				selected_ob->physics_object->mass = selected_ob->mass;
+				selected_ob->physics_object->friction = selected_ob->friction;
+				selected_ob->physics_object->restitution = selected_ob->restitution;
 			
 				physics_world->addObject(selected_ob->physics_object);
 
 
 				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED);
 				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
+				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED);
 			}
 
 
@@ -10955,7 +10979,7 @@ void MainWindow::updateGroundPlane()
 
 				Reference<PhysicsObject> phy_ob = new PhysicsObject(/*collidable=*/true);
 				phy_ob->shape = ground_quad_shape;
-				phy_ob->pos = Vec4f(new_quad.x * (float)ground_quad_w, new_quad.y * (float)ground_quad_w, 0, 1);
+				phy_ob->pos = Vec4f((new_quad.x + 0.5f) * (float)ground_quad_w, (new_quad.y + 0.5f) * (float)ground_quad_w, -0.5f, 1); // Ground quad shape is a box centered at (0,0,0), so need to offset a bit.
 				phy_ob->rot = Quatf::identity();
 				phy_ob->scale = Vec3f(1.f);
 
@@ -11551,7 +11575,7 @@ int main(int argc, char *argv[])
 				// Build OpenGLMeshRenderData
 				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), mw.ground_quad_mesh, false);
 
-				mw.ground_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mw.ground_quad_mesh, /*build_dynamic_physics_ob=*/false);
+				mw.ground_quad_shape.jolt_shape = PhysicsWorld::createGroundQuadShape(ground_quad_w);
 			}
 
 			// If the user didn't explictly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
