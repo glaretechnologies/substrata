@@ -57,12 +57,14 @@ AvatarPreviewWidget::AvatarPreviewWidget(QWidget *parent)
 
 AvatarPreviewWidget::~AvatarPreviewWidget()
 {
-	shutdown();
+	// Assume that shutdown() has been called already.
 }
 
 
 void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* settings_)
 {
+	this->makeCurrent();
+
 	base_dir_path = base_dir_path_;
 	settings = settings_;
 
@@ -79,12 +81,11 @@ void AvatarPreviewWidget::init(const std::string& base_dir_path_, QSettings* set
 
 void AvatarPreviewWidget::shutdown()
 {
+	// Make context current as we destroy the opengl enegine.
+	this->makeCurrent();
+
 	if(opengl_engine.nonNull())
-	{
-		// Make context current as we destroy the opengl enegine.
-		this->makeCurrent();
 		opengl_engine = NULL;
-	}
 }
 
 
