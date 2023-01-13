@@ -101,6 +101,8 @@ AddObjectDialog::~AddObjectDialog()
 void AddObjectDialog::shutdownGL()
 {
 	// Make sure we have set the gl context to current as we destroy objectPreviewGLWidget.
+	this->objectPreviewGLWidget->makeCurrent();
+
 	preview_gl_ob = NULL;
 	objectPreviewGLWidget->shutdown();
 }

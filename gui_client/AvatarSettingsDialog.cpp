@@ -82,6 +82,8 @@ AvatarSettingsDialog::~AvatarSettingsDialog()
 void AvatarSettingsDialog::shutdownGL()
 {
 	// Make sure we have set the gl context to current as we destroy avatarPreviewGLWidget.
+	this->avatarPreviewGLWidget->makeCurrent();
+	
 	preview_gl_ob = NULL;
 	avatarPreviewGLWidget->shutdown();
 }

@@ -6276,7 +6276,8 @@ void MainWindow::on_actionAvatarSettings_triggered()
 	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
 	const int res = dialog.exec();
 	dialog.shutdownGL();
-	ui->glWidget->makeCurrent();
+	ui->glWidget->makeCurrent();// Change back from the dialog GL context to the mainwindow GL context.
+
 	if((res == QDialog::Accepted) && dialog.loaded_mesh.nonNull()) //  loaded_object.nonNull()) // If the dialog was accepted, and we loaded something:
 	{
 		try
@@ -6738,7 +6739,7 @@ void MainWindow::on_actionAddObject_triggered()
 	);
 	const int res = dialog.exec();
 	dialog.shutdownGL();
-	ui->glWidget->makeCurrent();
+	ui->glWidget->makeCurrent(); // Change back from the dialog GL context to the mainwindow GL context.
 
 	if((res == QDialog::Accepted) && !dialog.loaded_materials.empty()) // If dialog was accepted, and we loaded an object successfully in it:
 	{

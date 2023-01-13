@@ -60,6 +60,8 @@ AddObjectPreviewWidget::AddObjectPreviewWidget(QWidget* parent)
 
 void AddObjectPreviewWidget::init(const std::string& base_dir_path_, QSettings* settings_)
 {
+	this->makeCurrent();
+
 	base_dir_path = base_dir_path_;
 	settings = settings_;
 
@@ -77,23 +79,24 @@ void AddObjectPreviewWidget::init(const std::string& base_dir_path_, QSettings* 
 
 AddObjectPreviewWidget::~AddObjectPreviewWidget()
 {
-	shutdown();
+	// Assume that shutdown() has been called already.
 }
 
 
 void AddObjectPreviewWidget::shutdown()
 {
+	// Make context current as we destroy the opengl engine.
+	this->makeCurrent();
+
 	if(opengl_engine.nonNull())
-	{
-		// Make context current as we destroy the opengl enegine.
-		this->makeCurrent();
 		opengl_engine = NULL;
-	}
 }
 
 
 void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called." (https://doc.qt.io/qt-5/qglwidget.html#resizeGL)
+
 	viewport_w = width_;
 	viewport_h = height_;
 
@@ -113,6 +116,8 @@ void AddObjectPreviewWidget::resizeGL(int width_, int height_)
 
 void AddObjectPreviewWidget::initializeGL()
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
+
 	opengl_engine->initialise(
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server_ptr,
@@ -194,6 +199,8 @@ void AddObjectPreviewWidget::initializeGL()
 
 void AddObjectPreviewWidget::paintGL()
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
+
 	if(opengl_engine.isNull())
 		return;
 
