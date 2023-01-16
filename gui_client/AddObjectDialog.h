@@ -31,14 +31,12 @@ public:
 		Reference<ResourceManager> resource_manager, IMFDXGIDeviceManager* dev_manager);
 	~AddObjectDialog();
 
-	void shutdownGL();
-
-
 	static void tryLoadTexturesForPreviewOb(Reference<GLObject> preview_gl_ob, std::vector<WorldMaterialRef>& world_materials, OpenGLEngine* opengl_engine, 
 		TextureServer* texture_server, QWidget* parent_widget);
 
 private slots:;
 	void accepted();
+	void dialogFinished();
 
 	void modelSelected(QListWidgetItem*);
 	void modelDoubleClicked(QListWidgetItem*);
@@ -49,9 +47,12 @@ private slots:;
 	void urlEditingFinished();
 	
 private:
+	virtual void closeEvent(QCloseEvent *event);
 	virtual void timerEvent(QTimerEvent* event);
 
 	void loadModelIntoPreview(const std::string& local_path);
+
+	void shutdownGL();
 
 	QSettings* settings;
 

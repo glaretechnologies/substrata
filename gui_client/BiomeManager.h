@@ -53,7 +53,7 @@ public:
 
 	void initTexturesAndModels(const std::string& base_dir_path, OpenGLEngine& opengl_engine, ResourceManager& resource_manager);
 
-	void addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
+	void addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, OpenGLEngine& opengl_engine,
 		ResourceManager& resource_manager);
 
 	bool isObjectInBiome(WorldObject* world_ob) const { return ob_to_biome_data.count(world_ob) > 0; }
@@ -69,8 +69,8 @@ public:
 	
 
 private:
-	Reference<GLObject> makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, PhysicsShape& physics_shape_out);
-	Reference<GLObject> makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
+	Reference<GLObject> makeElmTreeOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, ResourceManager& resource_manager, PhysicsShape& physics_shape_out);
+	Reference<GLObject> makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/);
 
 	struct Patch;
 	void updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w, const Vec4f& campos, const Vec4f& cam_forwards_ws, const Vec4f& cam_right_ws, const Vec4f& sundir, OpenGLEngine& opengl_engine);

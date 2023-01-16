@@ -43,6 +43,8 @@ public:
 	GlWidget(QWidget *parent = 0);
 	~GlWidget();
 
+	void shutdown();
+
 	// Non-empty if error occurred.
 	std::string getInitialisationErrorMsg() const { return initialisation_error_msg; }
 

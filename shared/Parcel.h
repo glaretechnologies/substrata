@@ -124,7 +124,7 @@ public:
 
 	Reference<GLObject> makeOpenGLObject(Reference<OpenGLEngine>& opengl_engine, bool write_privileges); // Shader program will be set by calling code later.
 
-	Reference<PhysicsObject> makePhysicsObject(PhysicsShape& unit_cube_shape, glare::TaskManager& task_manager);
+	Reference<PhysicsObject> makePhysicsObject(PhysicsShape& unit_cube_shape);
 
 	void setColourForPerms(bool write_privileges);
 #endif

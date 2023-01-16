@@ -91,6 +91,8 @@ void AvatarPreviewWidget::shutdown()
 
 void AvatarPreviewWidget::resizeGL(int width_, int height_)
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called." (https://doc.qt.io/qt-5/qglwidget.html#resizeGL)
+
 	viewport_w = width_;
 	viewport_h = height_;
 
@@ -109,6 +111,8 @@ void AvatarPreviewWidget::resizeGL(int width_, int height_)
 
 void AvatarPreviewWidget::initializeGL()
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
+
 	opengl_engine->initialise(
 		base_dir_path + "/data", // data dir (should contain 'shaders' and 'gl_data')
 		texture_server_ptr,
@@ -188,6 +192,8 @@ void AvatarPreviewWidget::initializeGL()
 
 void AvatarPreviewWidget::paintGL()
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
+
 	if(opengl_engine.isNull())
 		return;
 

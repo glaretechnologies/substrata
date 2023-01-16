@@ -190,6 +190,12 @@ GlWidget::~GlWidget()
 }
 
 
+void GlWidget::shutdown()
+{
+	opengl_engine = NULL;
+}
+
+
 void GlWidget::setCameraController(CameraController* cam_controller_)
 {
 	cam_controller = cam_controller_;
@@ -204,6 +210,8 @@ void GlWidget::setPlayerPhysics(PlayerPhysics* player_physics_)
 
 void GlWidget::resizeGL(int width_, int height_)
 {
+	assert(QGLContext::currentContext() == this->context());
+
 	viewport_w = width_;
 	viewport_h = height_;
 
@@ -224,6 +232,8 @@ void GlWidget::resizeGL(int width_, int height_)
 
 void GlWidget::initializeGL()
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
+
 	assert(this->texture_server_ptr);
 
 	bool shadows = true;
@@ -283,6 +293,10 @@ void GlWidget::initializeGL()
 
 void GlWidget::paintGL()
 {
+	assert(QGLContext::currentContext() == this->context()); // "There is no need to call makeCurrent() because this has already been done when this function is called."  (https://doc.qt.io/qt-5/qglwidget.html#initializeGL)
+	if(opengl_engine.isNull())
+		return;
+
 	if(take_map_screenshot)
 	{
 		const Vec3d cam_pos = cam_controller->getPosition();

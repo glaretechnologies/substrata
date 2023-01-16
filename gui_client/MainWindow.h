@@ -186,7 +186,8 @@ private:
 #else
 	bool nativeEvent(const QByteArray& event_type, void* message, long* result);
 #endif
-	void closeEvent(QCloseEvent* event);
+	void shutdownOpenGLStuff();
+	virtual void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
@@ -198,6 +199,7 @@ private:
 	void doObjectSelectionTraceForMouseEvent(QMouseEvent* e);
 public:
 	virtual OpenGLTextureRef makeToolTipTexture(const std::string& tooltip_text);
+	void setGLWidgetContextAsCurrent();
 private:
 	void loadModelForObject(WorldObject* ob);
 	void loadModelForAvatar(Avatar* ob);
@@ -454,7 +456,7 @@ public:
 	Reference<OpenGLProgram> parcel_shader_prog;
 
 	StandardPrintOutput print_output;
-	glare::TaskManager task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff.
+	glare::TaskManager* task_manager; // General purpose task manager, for quick/blocking multithreaded builds of stuff. Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent(). Lazily created.
 	
 	glare::TaskManager model_and_texture_loader_task_manager;
 public:
@@ -655,4 +657,6 @@ public:
 	std::vector<Reference<ObjectPathController>> path_controllers;
 
 	uint64 frame_num;
+
+	bool closing; // Timer events keep firing after closeEvent(), annoyingly, so keep track of if we are closing the Window, in which case we can early-out of timerEvent().
 };

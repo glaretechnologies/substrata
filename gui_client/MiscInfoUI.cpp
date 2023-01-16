@@ -37,6 +37,9 @@ void MiscInfoUI::destroy()
 		admin_msg_text_view->destroy();
 		admin_msg_text_view = NULL;
 	}
+
+	gl_ui = NULL;
+	opengl_engine = NULL;
 }
 
 

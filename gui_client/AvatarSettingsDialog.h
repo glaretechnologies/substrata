@@ -1,7 +1,7 @@
 /*=====================================================================
 AvatarSettingsDialog.h
 ----------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #pragma once
 
@@ -19,7 +19,7 @@ struct GLObject;
 
 /*=====================================================================
 AvatarSettingsDialog
--------------
+--------------------
 
 =====================================================================*/
 #ifdef _WIN32
@@ -35,19 +35,22 @@ public:
 		Reference<ResourceManager> resource_manager);
 	~AvatarSettingsDialog();
 
-	void shutdownGL();
 	//std::string getAvatarName();
 private slots:;
 	void accepted();
+	void dialogFinished();
 
 	void avatarFilenameChanged(QString& filename);
 
 	void animationComboBoxIndexChanged(int index);
 	
 private:
+	virtual void closeEvent(QCloseEvent *event);
 	virtual void timerEvent(QTimerEvent* event);
 
 	void loadModelIntoPreview(const std::string& local_path, bool show_error_dialogs);
+
+	void shutdownGL();
 
 	QSettings* settings;
 

@@ -122,7 +122,7 @@ static const Matrix4f instanceObToWorldMatrix(const Vec4f& pos, float rot_z, con
 
 
 // Adds to instances parameter, updates instances_aabb_ws_in_out
-static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
+static void addScatteredObjects(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager, GLObjectRef prototype_ob, PhysicsShape physics_shape, float density, float evenness, bool add_physics_objects, const Vec3f& base_scale, const Vec3f& scale_variation, float z_offset,
 	const js::Vector<js::AABBox, 16> no_scatter_aabbs, // Don't place instances in these volumes
 	js::Vector<BiomeObInstance, 16>& instances, js::AABBox& instances_aabb_ws_in_out)
@@ -296,7 +296,7 @@ static GLObjectRef makeGrassOb(VertexBufferAllocator& vert_buf_allocator, MeshMa
 #endif
 
 
-GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager, PhysicsShape& physics_shape_out)
+GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, ResourceManager& resource_manager, PhysicsShape& physics_shape_out)
 {
 	std::vector<WorldMaterialRef> materials(2);
 	materials[0] = new WorldMaterial();
@@ -355,7 +355,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 }
 
 
-GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, glare::TaskManager& task_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/)
+GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexBufferAllocator& vert_buf_allocator, MeshManager& mesh_manager, ResourceManager& resource_manager/*, OpenGLTextureRef elm_imposters_tex*/)
 {
 	std::vector<WorldMaterialRef> materials(1);
 	materials[0] = new WorldMaterial();
@@ -433,7 +433,7 @@ static void parseBiomeInfo(const std::string& ob_content, js::Vector<js::AABBox,
 #endif
 
 
-void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, glare::TaskManager& task_manager, OpenGLEngine& opengl_engine,
+void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_state, PhysicsWorld& physics_world, MeshManager& mesh_manager, OpenGLEngine& opengl_engine,
 	ResourceManager& resource_manager)
 {
 	//if(grass_ob.isNull())
@@ -478,13 +478,13 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 		{
 
 		PhysicsShape physics_shape;
-		GLObjectRef tree_opengl_ob = makeElmTreeOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager, physics_shape);
+		GLObjectRef tree_opengl_ob = makeElmTreeOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, resource_manager, physics_shape);
 
 		// Compute some tree instance points
 		// Scatter elm tree
 		js::Vector<BiomeObInstance, 16> ob_instances;
 		js::AABBox ob_trees_aabb_ws = js::AABBox::emptyAABBox();
-		addScatteredObjects(world_ob, world_state, physics_world, mesh_manager, task_manager, opengl_engine, resource_manager, tree_opengl_ob, physics_shape,
+		addScatteredObjects(world_ob, world_state, physics_world, mesh_manager, opengl_engine, resource_manager, tree_opengl_ob, physics_shape,
 			0.005f, // density
 			0.6f, // evenness
 			true, // add_physics_objects
@@ -519,7 +519,7 @@ void BiomeManager::addObjectToBiome(WorldObject& world_ob, WorldState& world_sta
 
 
 		// Add the imposter instances to the opengl engine as well
-		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, task_manager, resource_manager/*, elm_imposters_tex*/);
+		GLObjectRef tree_imposter_opengl_ob = makeElmTreeImposterOb(opengl_engine, *opengl_engine.vert_buf_allocator, mesh_manager, resource_manager/*, elm_imposters_tex*/);
 
 		tree_imposter_opengl_ob->instance_info.resize(ob_instances.size());
 		js::Vector<Matrix4f, 16> imposter_matrices(ob_instances.size());
