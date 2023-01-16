@@ -87,6 +87,8 @@ public:
 
 						// Copy dirty rect data into a packed buffer
 
+						main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while uploading to texture buffer.
+
 						const uint8* start_px = (uint8*)buffer + (width * 4) * rect.y + 4 * rect.x;
 						opengl_tex->loadRegionIntoExistingTexture(/*mip level=*/0, rect.x, rect.y, rect.width, rect.height, /*row stride (B) = */width * 4, ArrayRef<uint8>(start_px, rect.width * rect.height * 4), /*bind_needed=*/true);
 					}
@@ -150,7 +152,7 @@ public:
 	{
 		CEF_REQUIRE_UI_THREAD();
 
-		if(!opengl_engine)
+		if(!opengl_engine || opengl_tex.isNull())
 			return false;
 
 		//conPrint("GetScreenPoint: viewX: " + toString(viewX) + ", viewY: " + toString(viewY));
@@ -585,7 +587,7 @@ public:
 
 	void sendMouseClickEvent(CefBrowserHost::MouseButtonType btn_type, float uv_x, float uv_y, bool mouse_up, uint32 cef_modifiers)
 	{
-		if(cef_browser && cef_browser->GetHost())
+		if(cef_browser && cef_browser->GetHost() && mRenderHandler->opengl_tex.nonNull())
 		{
 			//mBrowser->GetHost()->SendFocusEvent(true);
 
@@ -602,7 +604,7 @@ public:
 
 	void sendMouseMoveEvent(float uv_x, float uv_y, uint32 cef_modifiers)
 	{
-		if(cef_browser && cef_browser->GetHost())
+		if(cef_browser && cef_browser->GetHost() && mRenderHandler->opengl_tex.nonNull())
 		{
 			CefMouseEvent cef_mouse_event;
 			cef_mouse_event.Reset();
@@ -617,7 +619,7 @@ public:
 
 	void sendMouseWheelEvent(float uv_x, float uv_y, int delta_x, int delta_y, uint32 cef_modifiers)
 	{
-		if(cef_browser && cef_browser->GetHost())
+		if(cef_browser && cef_browser->GetHost() && mRenderHandler->opengl_tex.nonNull())
 		{
 			CefMouseEvent cef_mouse_event;
 			cef_mouse_event.Reset();
@@ -840,6 +842,8 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 
 					if(ob->opengl_engine_ob.nonNull())
 					{
+						main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
+
 						std::vector<uint8> data(width * height * 4); // Use a zeroed buffer to clear the texture.
 						ob->opengl_engine_ob->materials[0].albedo_texture = new OpenGLTexture(width, height, opengl_engine, data, OpenGLTexture::Format_SRGBA_Uint8,
 							GL_SRGB8_ALPHA8, // GL internal format
@@ -856,6 +860,8 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 				{
 					if(ob->opengl_engine_ob->materials[0].albedo_texture.isNull())
 					{
+						main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
+
 						assert(!showing_click_to_load_text);
 						ob->opengl_engine_ob->materials[0].albedo_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url); // TEMP
 						showing_click_to_load_text = true;
@@ -895,6 +901,8 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 						main_window->audio_engine.removeSource(ob->audio_source);
 						ob->audio_source = NULL;
 					}
+
+					main_window->setGLWidgetContextAsCurrent(); // Make sure the correct context is current while making OpenGL calls.
 
 					user_clicked_to_load = false;
 					ob->opengl_engine_ob->materials[0].albedo_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url);

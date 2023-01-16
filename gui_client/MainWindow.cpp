@@ -211,7 +211,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	force_new_undo_edit(false),
 	log_window(NULL),
 	model_and_texture_loader_task_manager("model and texture loader task manager"),
-	task_manager("mainwindow general task manager"),
+	task_manager(NULL), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
 	url_parcel_uid(-1),
 	running_destructor(false),
 	biome_manager(NULL),
@@ -220,7 +220,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	in_CEF_message_loop(false),
 	should_close(false),
 	frame_num(0),
-	axis_and_rot_obs_enabled(false)
+	axis_and_rot_obs_enabled(false),
+	closing(false)
 {
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -553,8 +554,13 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
-	if(test_avatar.nonNull())
-		test_avatar->graphics.destroy(*ui->glWidget->opengl_engine); // Remove any OpenGL object for it
+	if(task_manager)
+	{
+		delete task_manager;
+		task_manager = NULL;
+	}
+
+	
 
 
 	player_physics.shutdown();
@@ -563,17 +569,7 @@ MainWindow::~MainWindow()
 
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
 
-	misc_info_ui.destroy();
-
-	ob_info_ui.destroy();
-
-	gesture_ui.destroy();
-
-	if(gl_ui.nonNull())
-	{
-		gl_ui->destroy();
-		gl_ui = NULL;
-	}
+	
 
 #if !defined(_WIN32)
 	QDesktopServices::unsetUrlHandler("sub"); // Remove 'this' as an URL handler.
@@ -593,17 +589,10 @@ MainWindow::~MainWindow()
 
 
 
-	disconnectFromServerAndClearAllObjects();
-
-	if(biome_manager) delete biome_manager;
-
 	//ui->glWidget->makeCurrent(); // This crashes on Mac
 
 	// Kill various threads before we start destroying members of MainWindow they may depend on.
 	save_resources_db_thread_manager.killThreadsBlocking();
-
-	task_manager.removeQueuedTasks();
-	task_manager.waitForTasksToComplete();
 
 	//mesh_manager.clear();
 
@@ -629,6 +618,12 @@ MainWindow::~MainWindow()
 }
 
 
+void MainWindow::shutdownOpenGLStuff()
+{
+	ui->glWidget->makeCurrent();
+}
+
+
 void MainWindow::closeEvent(QCloseEvent* event)
 {
 	// Don't try and close everything down while we're in the message loop in the chromium embedded framework (CEF) code,
@@ -647,12 +642,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	settings->setValue("mainwindow/geometry", saveGeometry());
 	settings->setValue("mainwindow/windowState", saveState());
 
-	// Close all OpenGL related tasks because opengl operations such as making textures fail after this closeEvent call, possibly due to a context being destroyed
-	task_manager.removeQueuedTasks();
-	task_manager.waitForTasksToComplete();
-
-	//model_building_task_manager.removeQueuedTasks();
-	//model_building_task_manager.waitForTasksToComplete();
+	// Destroy/close all OpenGL stuff, because once glWidget is destroyed, the OpenGL context is destroyed, so we can't free stuff properly.
 
 	model_loaded_messages_to_process.clear();
 
@@ -682,12 +672,62 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	}
 	obs_with_animated_tex.clear();
 
+	if(test_avatar.nonNull())
+		test_avatar->graphics.destroy(*ui->glWidget->opengl_engine); // Remove any OpenGL object for it
+
+
+	disconnectFromServerAndClearAllObjects();
+
+	if(biome_manager) delete biome_manager;
+
+	misc_info_ui.destroy();
+
+	ob_info_ui.destroy();
+
+	gesture_ui.destroy();
+
+	if(gl_ui.nonNull())
+	{
+		gl_ui->destroy();
+		gl_ui = NULL;
+	}
+
+
+	ground_quad_mesh_opengl_data = NULL;
+	hypercard_quad_opengl_mesh = NULL;
+	image_cube_opengl_mesh = NULL;
+	spotlight_opengl_mesh = NULL;
+	cur_loading_mesh_data = NULL;
+
+	ob_placement_beam = NULL;
+	ob_placement_marker = NULL;
+	voxel_edit_marker = NULL;
+	voxel_edit_face_marker = NULL;
+	ob_denied_move_marker = NULL;
+	ob_denied_move_markers.clear();
+	aabb_viz_gl_ob = NULL;
+	selected_ob_viz_gl_obs.clear();
+	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+		axis_arrow_objects[i] = NULL;
+	for(int i=0; i<3; ++i)
+		rot_handle_arc_objects[i] = NULL;
+	player_phys_debug_spheres.clear();
+	wheel_gl_objects.clear();
+	car_body_gl_object = NULL;
+	mouseover_selected_gl_ob = NULL;
+
+
+	ui->glWidget->shutdown(); // Shuts down OpenGL Engine.
+
+
+
 	if(log_window) log_window->close();
 
 	in_CEF_message_loop = true;
 	CEF::shutdownCEF();
 	in_CEF_message_loop = false;
 
+	this->closing = true;
 	QMainWindow::closeEvent(event);
 }
 
@@ -2146,7 +2186,7 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 			//		startDownloadingResource(URL);
 			//}
 
-			biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, task_manager, *ui->glWidget->opengl_engine, *resource_manager);
+			biome_manager->addObjectToBiome(*ob, *world_state, *physics_world, mesh_manager, *ui->glWidget->opengl_engine, *resource_manager);
 		}
 	}
 }
@@ -3578,7 +3618,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 {
 	PERFORMANCEAPI_INSTRUMENT("timerEvent");
 
-	if(in_CEF_message_loop)
+	if(closing || in_CEF_message_loop)
 		return;
 
 	// We don't want to do the closeEvent stuff in the CEF message loop.  
@@ -5832,7 +5872,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								// Make physics object for parcel:
 								assert(parcel->physics_object.isNull());
-								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape, task_manager);
+								parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
 								physics_world->addObject(parcel->physics_object);
 							}
 							else // else if opengl ob is not null:
@@ -6275,7 +6315,6 @@ void MainWindow::on_actionAvatarSettings_triggered()
 {
 	AvatarSettingsDialog dialog(this->base_dir_path, this->settings, this->texture_server, this->resource_manager);
 	const int res = dialog.exec();
-	dialog.shutdownGL();
 	ui->glWidget->makeCurrent();// Change back from the dialog GL context to the mainwindow GL context.
 
 	if((res == QDialog::Accepted) && dialog.loaded_mesh.nonNull()) //  loaded_object.nonNull()) // If the dialog was accepted, and we loaded something:
@@ -6343,8 +6382,11 @@ void MainWindow::on_actionAvatarSettings_triggered()
 			// Convert texture paths on the object to URLs
 			avatar.convertLocalPathsToURLS(*this->resource_manager);
 
+			if(!task_manager)
+				task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
+
 			// Generate LOD textures for materials, if not already present on disk.
-			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *resource_manager, task_manager);
+			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(avatar.avatar_settings.materials, *resource_manager, *task_manager);
 
 			// Send AvatarFullUpdate message to server
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarFullUpdate);
@@ -6700,9 +6742,12 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 	// Convert texture paths on the object to URLs
 	new_world_object->convertLocalPathsToURLS(*this->resource_manager);
 
+	if(!task_manager)
+		task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
+
 	// Generate LOD textures for materials, if not already present on disk.
 	// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
-	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, task_manager);
+	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, *task_manager);
 
 	// Send CreateObject message to server
 	{
@@ -6738,7 +6783,6 @@ void MainWindow::on_actionAddObject_triggered()
 #endif
 	);
 	const int res = dialog.exec();
-	dialog.shutdownGL();
 	ui->glWidget->makeCurrent(); // Change back from the dialog GL context to the mainwindow GL context.
 
 	if((res == QDialog::Accepted) && !dialog.loaded_materials.empty()) // If dialog was accepted, and we loaded an object successfully in it:
@@ -7634,7 +7678,7 @@ void MainWindow::addParcelObjects()
 
 				// Make physics object for parcel:
 				assert(parcel->physics_object.isNull());
-				parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape, task_manager);
+				parcel->physics_object = parcel->makePhysicsObject(this->unit_cube_shape);
 				physics_world->addObject(parcel->physics_object);
 			}
 		}
@@ -8454,9 +8498,12 @@ void MainWindow::objectEditedSlot()
 
 			this->selected_ob->convertLocalPathsToURLS(*this->resource_manager);
 
+			if(!task_manager)
+				task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
+
 			// Generate LOD textures for materials, if not already present on disk.
 			// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
-			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, task_manager);
+			LODGeneration::generateLODTexturesForMaterialsIfNotPresent(selected_ob->materials, *resource_manager, *task_manager);
 
 			const int ob_lod_level = this->selected_ob->getLODLevel(cam_controller.getPosition());
 			const float max_dist_for_ob_lod_level = selected_ob->getMaxDistForLODLevel(ob_lod_level);
@@ -8930,6 +8977,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	ui->onlineUsersTextEdit->clear();
 	ui->chatMessagesTextEdit->clear();
 
+	deselectObject();
 
 	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
 	if(world_state.nonNull())
@@ -10910,6 +10958,12 @@ OpenGLTextureRef MainWindow::makeToolTipTexture(const std::string& tooltip_text)
 
 	return ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("tooltip_" + tooltip_text), *map,
 		OpenGLTexture::Filtering_Fancy, OpenGLTexture::Wrapping_Clamp, /*allow compression=*/false);
+}
+
+
+void MainWindow::setGLWidgetContextAsCurrent()
+{
+	this->ui->glWidget->makeCurrent();
 }
 
 

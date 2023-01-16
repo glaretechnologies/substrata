@@ -380,7 +380,7 @@ void Parcel::setColourForPerms(bool write_privileges)
 }
 
 
-Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape, glare::TaskManager& task_manager)
+Reference<PhysicsObject> Parcel::makePhysicsObject(PhysicsShape& unit_cube_shape)
 {
 	Reference<PhysicsObject> new_physics_object = new PhysicsObject(/*collidable=*/false);
 

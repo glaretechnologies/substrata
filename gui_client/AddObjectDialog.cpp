@@ -63,6 +63,8 @@ AddObjectDialog::AddObjectDialog(const std::string& base_dir_path_, QSettings* s
 	connect(this->urlLineEdit, SIGNAL(textChanged(const QString&)), this, SLOT(urlChanged(const QString&)));
 	connect(this->urlLineEdit, SIGNAL(editingFinished()), this, SLOT(urlEditingFinished()));
 
+	connect(this, SIGNAL(finished(int)), this, SLOT(dialogFinished()));
+
 	startTimer(10);
 
 	thread_manager.addThread(new NetDownloadResourcesThread(&this->msg_queue, resource_manager_, &num_net_resources_downloading));
@@ -105,6 +107,13 @@ void AddObjectDialog::shutdownGL()
 
 	preview_gl_ob = NULL;
 	objectPreviewGLWidget->shutdown();
+}
+
+
+// Called when user presses ESC key, or clicks OK or cancel button.
+void AddObjectDialog::dialogFinished()
+{
+	shutdownGL();
 }
 
 
@@ -423,6 +432,13 @@ void AddObjectDialog::urlChanged(const QString& filename)
 
 void AddObjectDialog::urlEditingFinished()
 {}
+
+
+// Will be called when the user clicks the 'X' button.
+void AddObjectDialog::closeEvent(QCloseEvent* event)
+{
+	shutdownGL();
+}
 
 
 void AddObjectDialog::timerEvent(QTimerEvent* event)

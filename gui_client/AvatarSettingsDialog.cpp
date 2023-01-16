@@ -1,7 +1,7 @@
 /*=====================================================================
 AvatarSettingsDialog.cpp
 ------------------------
-Copyright Glare Technologies Limited 2021 -
+Copyright Glare Technologies Limited 2022 -
 =====================================================================*/
 #include "AvatarSettingsDialog.h"
 
@@ -64,6 +64,7 @@ AvatarSettingsDialog::AvatarSettingsDialog(const std::string& base_dir_path_, QS
 
 	connect(this->avatarSelectWidget, SIGNAL(filenameChanged(QString&)), this, SLOT(avatarFilenameChanged(QString&)));
 	connect(this->buttonBox, SIGNAL(accepted()), this, SLOT(accepted()));
+	connect(this, SIGNAL(finished(int)), this, SLOT(dialogFinished()));
 
 	connect(this->animationComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(animationComboBoxIndexChanged(int)));
 
@@ -81,9 +82,9 @@ AvatarSettingsDialog::~AvatarSettingsDialog()
 
 void AvatarSettingsDialog::shutdownGL()
 {
-	// Make sure we have set the gl context to current as we destroy avatarPreviewGLWidget.
+	// Make sure we have set the widget gl context to current as we destroy OpenGL stuff.
 	this->avatarPreviewGLWidget->makeCurrent();
-	
+
 	preview_gl_ob = NULL;
 	avatarPreviewGLWidget->shutdown();
 }
@@ -93,6 +94,15 @@ void AvatarSettingsDialog::shutdownGL()
 //{
 //	return QtUtils::toStdString(usernameLineEdit->text());
 //}
+
+
+// Called when user presses ESC key, or clicks OK or cancel button.
+void AvatarSettingsDialog::dialogFinished()
+{
+	//this->settings->setValue("username", this->usernameLineEdit->text());
+
+	shutdownGL();
+}
 
 
 void AvatarSettingsDialog::accepted()
@@ -112,8 +122,6 @@ void AvatarSettingsDialog::avatarFilenameChanged(QString& filename)
 
 	if(changed)
 	{
-		
-
 		loadModelIntoPreview(path, /*show_error_dialogs=*/true);
 	}
 }
@@ -215,6 +223,13 @@ void AvatarSettingsDialog::loadModelIntoPreview(const std::string& local_path, b
 		if(show_error_dialogs)
 			QtUtils::showErrorMessageDialog(QtUtils::toQString(e.what()), this);
 	}
+}
+
+
+// Will be called when the user clicks the 'X' button.
+void AvatarSettingsDialog::closeEvent(QCloseEvent* event)
+{
+	shutdownGL();
 }
 
 

@@ -18,7 +18,7 @@ class MainWindow;
 /*=====================================================================
 MiscInfoUI
 ----------
-For dhowing admin messages from server etc.
+For showing admin messages from server etc.
 =====================================================================*/
 class MiscInfoUI : public GLUICallbackHandler
 {

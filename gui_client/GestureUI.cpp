@@ -140,6 +140,9 @@ void GestureUI::destroy()
 	}
 	gesture_buttons.resize(0);
 
+	gl_ui = NULL;
+	opengl_engine = NULL;
+
 	/*if(gl_ui.nonNull())
 	{
 		gl_ui->destroy();

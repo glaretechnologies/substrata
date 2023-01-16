@@ -42,6 +42,9 @@ void ObInfoUI::destroy()
 		info_text_view->destroy();
 		info_text_view = NULL;
 	}
+
+	gl_ui = NULL;
+	opengl_engine = NULL;
 }
 
 
