@@ -239,7 +239,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>133</height>
+          <height>257</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -336,7 +336,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>133</height>
+          <height>253</height>
          </rect>
         </property>
        </widget>
@@ -369,36 +369,23 @@
    </attribute>
    <widget class="QWidget" name="diagnosticsDockWidgetContents">
     <layout class="QVBoxLayout" name="verticalLayout_11">
+     <property name="spacing">
+      <number>0</number>
+     </property>
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
      <item>
-      <widget class="QLabel" name="diagnosticsLabel">
-       <property name="text">
-        <string>Diagnostics</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QCheckBox" name="graphicsDiagnosticsCheckBox">
-       <property name="text">
-        <string>Show graphics engine details</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QCheckBox" name="physicsDiagnosticsCheckBox">
-       <property name="text">
-        <string>Show physics engine details</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPlainTextEdit" name="diagnosticsTextEdit">
-       <property name="readOnly">
-        <bool>true</bool>
-       </property>
-       <property name="textInteractionFlags">
-        <set>Qt::TextSelectableByMouse</set>
-       </property>
-      </widget>
+      <widget class="DiagnosticsWidget" name="diagnosticsWidget" native="true"/>
      </item>
     </layout>
    </widget>
@@ -642,6 +629,12 @@
    <class>IndigoView</class>
    <extends>QWidget</extends>
    <header>IndigoView.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>DiagnosticsWidget</class>
+   <extends>QWidget</extends>
+   <header>DiagnosticsWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
