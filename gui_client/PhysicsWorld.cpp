@@ -358,7 +358,11 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 			{
 				const JPH::Shape* inner_shape = cur_scaled_shape->GetInnerShape(); // Get inner shape
 
-				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(inner_shape, toJoltVec3(scale)); // Make new decorated scaled shape with new scale
+				JPH::Vec3 use_scale = toJoltVec3(scale);
+				if(inner_shape->GetSubType() == JPH::EShapeSubType::Sphere) // HACK: Jolt sphere shapes don't support non-uniform scale, so just force to a uniform scale.
+					use_scale = JPH::Vec3(scale[0], scale[0], scale[0]);
+
+				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(inner_shape, use_scale); // Make new decorated scaled shape with new scale
 
 				// conPrint("Made new scaled shape for new scale");
 				// NOTE: Setting inUpdateMassProperties to false to avoid a crash/assert in Jolt, I think we need to set mass properties somewhere first.
@@ -369,7 +373,11 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 		{
 			if(maskWToZero(scale) != Vec4f(1,1,1,0)) // And scale is != 1:
 			{
-				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(cur_shape, toJoltVec3(scale));
+				JPH::Vec3 use_scale = toJoltVec3(scale);
+				if(cur_shape->GetSubType() == JPH::EShapeSubType::Sphere) // HACK: Jolt sphere shapes don't support non-uniform scale, so just force to a uniform scale.
+					use_scale = JPH::Vec3(scale[0], scale[0], scale[0]);
+
+				JPH::RefConst<JPH::Shape> new_shape = new JPH::ScaledShape(cur_shape, use_scale);
 
 				// conPrint("Changing to scaled shape");
 				// NOTE: Setting inUpdateMassProperties to false to avoid a crash/assert in Jolt, I think we need to set mass properties somewhere first.
@@ -715,7 +723,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		if(object->scale == Vec3f(1.f))
 			final_shape_settings = sphere_shape;
 		else
-			final_shape_settings = new JPH::ScaledShapeSettings(sphere_shape, JPH::Vec3(object->scale[0], object->scale[1], object->scale[2]));
+			final_shape_settings = new JPH::ScaledShapeSettings(sphere_shape, JPH::Vec3(object->scale[0], object->scale[0], object->scale[0])); // Use uniform scale, sphere shapes must have uniform scale in jolt. 
 
 		JPH::BodyCreationSettings sphere_settings(final_shape_settings,
 			JPH::Vec3(object->pos[0], object->pos[1], object->pos[2]),
