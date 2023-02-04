@@ -134,6 +134,7 @@ Copyright Glare Technologies Limited 2020 -
 #if BUGSPLAT_SUPPORT
 #include <BugSplat.h>
 #endif
+#include "JoltUtils.h"
 #include <Jolt/Physics/PhysicsSystem.h>
 
 #ifdef _WIN32
@@ -705,8 +706,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	voxel_edit_face_marker = NULL;
 	ob_denied_move_marker = NULL;
 	ob_denied_move_markers.clear();
-	aabb_viz_gl_ob = NULL;
-	selected_ob_viz_gl_obs.clear();
+	aabb_vis_gl_ob = NULL;
+	selected_ob_vis_gl_obs.clear();
 	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 		axis_arrow_objects[i] = NULL;
 	for(int i=0; i<3; ++i)
@@ -3598,22 +3599,6 @@ void MainWindow::processLoading()
 }
 
 
-inline static Vec4f toVec4fPos(const JPH::Vec3& v)
-{
-	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 1.f);
-}
-
-inline static JPH::Quat toJoltQuat(const Quatf& q)
-{
-	return JPH::Quat(q.v[0], q.v[1], q.v[2], q.v[3]);
-}
-
-inline static Quatf toQuat(const JPH::Quat& q)
-{
-	return Quatf(q.mValue[0], q.mValue[1], q.mValue[2], q.mValue[3]);
-}
-
-
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	PERFORMANCEAPI_INSTRUMENT("timerEvent");
@@ -3767,16 +3752,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	gesture_ui.think();
 
 	// Update AABB visualisation, if we are showing one.
-	if(aabb_viz_gl_ob.nonNull() && selected_ob.nonNull())
+	if(aabb_vis_gl_ob.nonNull() && selected_ob.nonNull())
 	{
 		const Vec4f span = selected_ob->aabb_ws.max_ - selected_ob->aabb_ws.min_;
 
-		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-		aabb_viz_gl_ob->ob_to_world_matrix.setColumn(3, selected_ob->aabb_ws.min_); // set origin
+		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
+		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
+		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
+		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(3, selected_ob->aabb_ws.min_); // set origin
 
-		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_viz_gl_ob);
+		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_vis_gl_ob);
 	}
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
@@ -3805,7 +3790,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		msg += "mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()) + "\n";
 		msg += "mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()) + "\n";
 
-		if(ui->glWidget->opengl_engine.nonNull() && ui->graphicsDiagnosticsCheckBox->isChecked())
+		if(ui->glWidget->opengl_engine.nonNull() && ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked())
 		{
 			msg += "\n------------Graphics------------\n";
 			msg += ui->glWidget->opengl_engine->getDiagnostics() + "\n";
@@ -3817,7 +3802,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 
 		// Only show physics details when physicsDiagnosticsCheckBox is checked.  Works around problem of physics_world->getDiagnostics() being slow, which causes stutters.
-		if(physics_world.nonNull() && ui->physicsDiagnosticsCheckBox->isChecked())
+		if(physics_world.nonNull() && ui->diagnosticsWidget->physicsDiagnosticsCheckBox->isChecked())
 		{
 			msg += "\n------------Physics------------\n";
 			msg += physics_world->getDiagnostics();
@@ -3886,8 +3871,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 		// Don't update diagnostics string when part of it is selected, so user can actually copy it.
-		if(!ui->diagnosticsTextEdit->textCursor().hasSelection())
-			ui->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
+		if(!ui->diagnosticsWidget->diagnosticsTextEdit->textCursor().hasSelection())
+			ui->diagnosticsWidget->diagnosticsTextEdit->setPlainText(QtUtils::toQString(msg));
 	}
 
 	
@@ -4901,7 +4886,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	PlayerPhysicsInput physics_input;
 	ui->glWidget->processPlayerPhysicsInput((float)dt, /*input_out=*/physics_input); // sets player physics move impulse.
 
-	const bool our_move_impulse_zero = !player_physics.isMoveImpulseNonZero();
+	const bool our_move_impulse_zero = !player_physics.isMoveDesiredVelNonZero();
 
 	// Advance physics sim and player physics with a maximum timestep size.
 	// We advance both together, otherwise if there is a large dt, the physics engine can advance objects past what the player physics can keep up with.
@@ -4921,10 +4906,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			// Process player physics
 			UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, /*campos in/out=*/campos);
 			physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
-		}
-	}
+					}
+				}
 
-	player_physics.zeroMoveImpulse();
+	player_physics.zeroMoveDesiredVel();
 
 	this->cam_controller.setPosition(toVec3d(campos));
 
@@ -5007,7 +4992,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
 							
 								ob->setTransformAndHistory(Vec3d(pos.GetX(), pos.GetY(), pos.GetZ()), Vec3f(unit_axis), angle);
-							}
+								}
 
 							if(this->selected_ob.ptr() == ob)
 							{
@@ -5019,7 +5004,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Note that for instances, their OpenGL ob transform has effectively been set when instance_matrices was updated when evaluating scripts.
 				// So we don't need to set it from the physics object.
 			}
-		}
+							}
 
 		// Update debug player-physics visualisation spheres
 		if(false)
@@ -5741,7 +5726,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								last_restored_ob_uid_in_edit = UID::invalidUID();
 							}
 
-							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects be checking numSecondsAgo().
+							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects by checking numSecondsAgo().
 							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30)) 
 								selectObject(ob, /*selected_mat_index=*/0); // select it
 						}
@@ -10428,9 +10413,9 @@ ObjectPathController* MainWindow::getPathControllerForOb(const WorldObject& ob)
 void MainWindow::createPathControlledPathVisObjects(const WorldObject& ob)
 {
 	// Remove any existing ones
-	for(size_t i=0; i<selected_ob_viz_gl_obs.size(); ++i)
-		ui->glWidget->opengl_engine->removeObject(this->selected_ob_viz_gl_obs[i]);
-	selected_ob_viz_gl_obs.clear();
+	for(size_t i=0; i<selected_ob_vis_gl_obs.size(); ++i)
+		ui->glWidget->opengl_engine->removeObject(this->selected_ob_vis_gl_obs[i]);
+	selected_ob_vis_gl_obs.clear();
 
 	{
 		ObjectPathController* path_controller = getPathControllerForOb(ob);
@@ -10465,8 +10450,8 @@ void MainWindow::createPathControlledPathVisObjects(const WorldObject& ob)
 				ui->glWidget->opengl_engine->addObject(vert_gl_ob);
 
 				// Keep track of these objects we added.
-				selected_ob_viz_gl_obs.push_back(edge_gl_ob);
-				selected_ob_viz_gl_obs.push_back(vert_gl_ob);
+				selected_ob_vis_gl_obs.push_back(edge_gl_ob);
+				selected_ob_vis_gl_obs.push_back(vert_gl_ob);
 			}
 		}
 	}
@@ -10492,8 +10477,8 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	// If diagnostics widget is shown, show an AABB visualisation as well.
 	if(ui->diagnosticsDockWidget->isVisible())
 	{
-		this->aabb_viz_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->aabb_ws.min_, this->selected_ob->aabb_ws.max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
-		ui->glWidget->opengl_engine->addObject(this->aabb_viz_gl_ob);
+		this->aabb_vis_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->aabb_ws.min_, this->selected_ob->aabb_ws.max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
+		ui->glWidget->opengl_engine->addObject(this->aabb_vis_gl_ob);
 	}
 
 	createPathControlledPathVisObjects(*this->selected_ob);
@@ -10595,15 +10580,15 @@ void MainWindow::deselectObject()
 		}
 
 		// Remove visualisation objects
-		if(this->aabb_viz_gl_ob.nonNull())
+		if(this->aabb_vis_gl_ob.nonNull())
 		{
-			ui->glWidget->opengl_engine->removeObject(this->aabb_viz_gl_ob);
-			this->aabb_viz_gl_ob = NULL;
+			ui->glWidget->opengl_engine->removeObject(this->aabb_vis_gl_ob);
+			this->aabb_vis_gl_ob = NULL;
 		}
 
-		for(size_t i=0; i<selected_ob_viz_gl_obs.size(); ++i)
-			ui->glWidget->opengl_engine->removeObject(this->selected_ob_viz_gl_obs[i]);
-		selected_ob_viz_gl_obs.clear();
+		for(size_t i=0; i<selected_ob_vis_gl_obs.size(); ++i)
+			ui->glWidget->opengl_engine->removeObject(this->selected_ob_vis_gl_obs[i]);
+		selected_ob_vis_gl_obs.clear();
 
 
 

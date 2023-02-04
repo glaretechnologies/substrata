@@ -433,8 +433,8 @@ public:
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
 
-	GLObjectRef aabb_viz_gl_ob;
-	std::vector<GLObjectRef> selected_ob_viz_gl_obs;
+	GLObjectRef aabb_vis_gl_ob; // Used for visualising the AABB of the selected object.
+	std::vector<GLObjectRef> selected_ob_vis_gl_obs; // Used for visualising paths for path-controlled objects.
 
 	static const int NUM_AXIS_ARROWS = 3;
 	LineSegment4f axis_arrow_segments[NUM_AXIS_ARROWS];

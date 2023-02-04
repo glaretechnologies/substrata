@@ -13,12 +13,9 @@ Copyright Glare Technologies Limited 2022 -
 #include "../maths/Vec4f.h"
 #include "../maths/vec3.h"
 #include <vector>
-
-#if USE_JOLT_PLAYER_PHYSICS
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Vehicle/VehicleConstraint.h>
-#endif
 
 
 class CameraController;
