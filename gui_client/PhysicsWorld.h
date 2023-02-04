@@ -111,6 +111,7 @@ public:
 #endif
 
 	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& scale);
+	void setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, const Vec4f& linear_vel, const Vec4f& angular_vel);
 
 	void moveKinematicObject(PhysicsObject& object, const Vec4f& translation, const Quatf& rot, float dt);
 

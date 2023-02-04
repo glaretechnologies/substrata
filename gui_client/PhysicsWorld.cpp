@@ -17,6 +17,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/string_view.h>
 #include <stdarg.h>
 #include <Lock.h>
+#include "JoltUtils.h"
 
 
 #if USE_JOLT
@@ -256,8 +257,8 @@ private:
 
 PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
 :	activated_obs(NULL)
+	//activation_callbacks(activation_callbacks_)
 #if !USE_JOLT
-	//activation_callbacks(activation_callbacks_),
 	,ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
 	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
 #endif
@@ -332,32 +333,6 @@ PhysicsWorld::~PhysicsWorld()
 static const int LARGE_OB_NUM_CELLS_THRESHOLD = 32;
 
 
-inline static JPH::Vec3 toJoltVec3(const Vec4f& v)
-{
-	return JPH::Vec3(v[0], v[1], v[2]);
-}
-
-inline static Vec4f toVec4fVec(const JPH::Vec3& v)
-{
-	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 0.f);
-}
-
-inline static Vec4f toVec4fPos(const JPH::Vec3& v)
-{
-	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 1.f);
-}
-
-inline static JPH::Quat toJoltQuat(const Quatf& q)
-{
-	return JPH::Quat(q.v[0], q.v[1], q.v[2], q.v[3]);
-}
-
-inline static Quatf toQuat(const JPH::Quat& q)
-{
-	return Quatf(q.mValue[0], q.mValue[1], q.mValue[2], q.mValue[3]);
-}
-
-
 void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale)
 {
 	object.pos = translation;
@@ -403,6 +378,21 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 		}
 
 		body_interface.ActivateBody(object.jolt_body_id);
+	}
+}
+
+
+void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& pos, const Quatf& rot, const Vec4f& linear_vel, const Vec4f& angular_vel)
+{
+	object.pos = pos;
+	object.rot = rot;
+
+	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
+	{
+		JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+
+		body_interface.SetPositionRotationAndVelocity(object.jolt_body_id, /*pos=*/toJoltVec3(pos),
+			/*rot=*/toJoltQuat(rot), /*vel=*/toJoltVec3(linear_vel), /*ang vel=*/toJoltVec3(angular_vel));
 	}
 }
 

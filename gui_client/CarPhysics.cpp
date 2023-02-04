@@ -9,22 +9,18 @@ Copyright Glare Technologies Limited 2022 -
 #include "CameraController.h"
 #include "PhysicsWorld.h"
 #include "PhysicsObject.h"
+#include "JoltUtils.h"
 #include <StringUtils.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
-
-
-#if USE_JOLT_PLAYER_PHYSICS
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
-
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
 #include <Jolt/Physics/Vehicle/WheeledVehicleController.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
-#endif
 
 
 CarPhysics::CarPhysics()
@@ -38,27 +34,8 @@ CarPhysics::~CarPhysics()
 }
 
 
-#if USE_JOLT_PLAYER_PHYSICS
-inline static JPH::Vec3 toJoltVec3(const Vec4f& v)
-{
-	return JPH::Vec3(v[0], v[1], v[2]);
-}
-
-inline static Vec3f toVec3f(const JPH::Vec3& v)
-{
-	return Vec3f(v.GetX(), v.GetY(), v.GetZ());
-}
-inline static Vec4f toVec4fVec(const JPH::Vec3& v)
-{
-	return Vec4f(v.GetX(), v.GetY(), v.GetZ(), 0.f);
-}
-#endif
-
-
 void CarPhysics::init(PhysicsWorld& physics_world)
 {
-#if USE_JOLT_PLAYER_PHYSICS
-	
 	const float wheel_radius = 0.353f; // 0.3f;
 	const float wheel_width = 0.1f;
 	const float half_vehicle_length = 2.02f;
@@ -181,25 +158,19 @@ void CarPhysics::init(PhysicsWorld& physics_world)
 
 	// Set the collision tester
 	mVehicleConstraint->SetVehicleCollisionTester(mTester);
-
-#endif // USE_JOLT_PLAYER_PHYSICS
 }
 
 
 void CarPhysics::shutdown()
 {
-#if USE_JOLT_PLAYER_PHYSICS
 	//jolt_character->RemoveFromPhysicsSystem();
 	jolt_body = NULL;
-#endif
 }
 
 
 CarPhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float raw_dtime, Vec4f& campos_in_out)
 {
 	CarPhysicsUpdateEvents events;
-#if USE_JOLT_PLAYER_PHYSICS
-
 	
 	// Determine acceleration and brake
 	float forward = 0.0f, right = 0.0f, brake = 0.0f, hand_brake = 0.0f;
@@ -276,8 +247,6 @@ CarPhysicsUpdateEvents CarPhysics::update(PhysicsWorld& physics_world, const Pla
 
 
 	campos_in_out = toVec3f(mVehicleConstraint->GetVehicleBody()->GetPosition()).toVec4fPoint() + Vec4f(0,0,2,0);
-
-#endif // end if !USE_JOLT_PLAYER_PHYSICS
 
 	return events;
 }
