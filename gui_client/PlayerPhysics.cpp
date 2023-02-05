@@ -204,7 +204,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 		Vec3f parralel_vel = move_desired_vel;
 		parralel_vel.z = 0;
 
-		if(jolt_character->IsSupported()) // GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround)
+		if(jolt_character->IsSupported() && // GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround)
+			((vel.z - jolt_character->GetGroundVelocity().GetZ()) < 0.1f)) // And not moving away from ground.  (Need this because sometimes IsSupported() is true after we jumped)
 		{
 			vel = parralel_vel; // When on the ground, set velocity instantly to the desired velocity.
 			vel += toVec3f(jolt_character->GetGroundVelocity()); // Add ground velocity, so player will move with a platform they are standing on.
@@ -239,7 +240,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	if(std::fabs(campos_z_delta) < 1.0e-5f)
 		campos_z_delta = 0;
 
-	this->on_ground = jolt_character->IsSupported(); // jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround;
+	this->on_ground = jolt_character->IsSupported() && 
+		((jolt_character->GetLinearVelocity().GetZ() - jolt_character->GetGroundVelocity().GetZ()) < 0.1f); // And not moving away from ground.  (Need this because sometimes IsSupported() is true after we jumped)
 
 	// conPrint("Current ground state: " + getGroundStateName(jolt_character->GetGroundState()));
 	
