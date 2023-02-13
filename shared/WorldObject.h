@@ -172,7 +172,7 @@ public:
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
-	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const;
+	void getInterpolatedTransform(double cur_time, Vec3d& pos_out, Quatf& rot_out) const;
 	void setTransformAndHistory(const Vec3d& pos, const Vec3f& axis, float angle);
 	void setPosAndHistory(const Vec3d& pos);
 	inline bool isCollidable() const;
@@ -255,7 +255,6 @@ public:
 
 	uint32 physics_owner_id;
 	double last_physics_ownership_change_global_time; // Last change or renwewal time.
-	bool last_update_was_physics_update; // True if we received a ObjectPhysicsTransformUpdate for this object, false if we received a ObjectTransformUpdate
 
 #if GUI_CLIENT
 	Reference<glare::AudioSource> audio_source;
@@ -367,21 +366,15 @@ public:
 	
 	/*
 		Snapshots for client-side interpolation purposes.
-		next_i = index to write next snapshot in.
-		pos_snapshots[next_i - 1] is the last received update, received at time last_snapshot_time.
-		pos_snapshots[next_i - 2] is the update received before that, will be considerd to be received at last_snapshot_time - update_send_period.
+		next_snapshot_i: index (before modulo) to write next snapshot in.  (e.g. written index is next_snapshot_i % HISTORY_BUF_SIZE)
+		pos_snapshots[(next_snapshot_i - 1) % HISTORY_BUF_SIZE] is the last received update, received at time last_snapshot_time.
+		pos_snapshots[(next_snapshot_i - 2) % HISTORY_BUF_SIZE] is the update received before that, will be considerd to be received at last_snapshot_time - update_send_period.
 	*/
 	static const int HISTORY_BUF_SIZE = 4;
-	Vec3d pos_snapshots[HISTORY_BUF_SIZE];
-	Vec3f axis_snapshots[HISTORY_BUF_SIZE];
-	float angle_snapshots[HISTORY_BUF_SIZE];
-	double snapshot_times[HISTORY_BUF_SIZE];
-	//double last_snapshot_time;
 	uint32 next_snapshot_i;
-	uint32 next_insertable_snapshot_i;
+	uint32 next_insertable_snapshot_i; // Next insertable physics snapshot index.
 
-
-	struct PhysicsSnapshot
+	struct Snapshot
 	{
 		Vec4f pos;
 		Quatf rotation;
@@ -391,10 +384,10 @@ public:
 		double local_time; // Clock::getTimeSinceInit() when this snapshot was received locally.
 	};
 
-	PhysicsSnapshot physics_snapshots[HISTORY_BUF_SIZE];
+	Snapshot snapshots[HISTORY_BUF_SIZE];
 
+	bool snapshots_are_physics_snapshots; // Physics snapshots have different semantics than basic transform snapshots.
 	double transmission_time_offset;
-
 
 	Vec4f linear_vel; // Just for storing before sending out in a ObjectPhysicsTransformUpdate message.
 	Vec4f angular_vel;

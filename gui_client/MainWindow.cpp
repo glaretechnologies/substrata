@@ -2922,6 +2922,12 @@ void MainWindow::tryToMoveObject(const WorldObject& ob, /*const Matrix4f& tentat
 		this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 
+		if(this->selected_ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*this->selected_ob, world_state->getCurrentGlobalTime()))
+		{
+			// conPrint("==Taking ownership of physics object in tryToMoveObject()...==");
+			takePhysicsOwnershipOfObject(*this->selected_ob, world_state->getCurrentGlobalTime());
+		}
+
 		// Trigger sending update-lightmap update flag message later.
 		//this->selected_ob->flags |= WorldObject::LIGHTMAP_NEEDS_COMPUTING_FLAG;
 		//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
@@ -5104,11 +5110,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							}
 
 							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
-							Vec4f unit_axis;
-							float angle;
-							ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
 							if(physics_ob->dynamic)
-								ob->setTransformAndHistory(Vec3d(pos.GetX(), pos.GetY(), pos.GetZ()), Vec3f(unit_axis), angle);
+							{
+								Vec4f unit_axis;
+								float angle;
+								ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
+
+								ob->pos = Vec3d(pos.GetX(), pos.GetY(), pos.GetZ());
+								ob->axis = Vec3f(unit_axis);
+								ob->angle = angle;
+							}
 
 							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
 							if(physics_ob->dynamic && isObjectPhysicsOwnedBySelf(*ob, global_time))
@@ -5939,16 +5950,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				{
 					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
 
-					ob->last_update_was_physics_update = false;
-
 					ob->from_remote_transform_dirty = false;
 				}
 
 				if(ob->from_remote_physics_transform_dirty)
 				{
 					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
-
-					ob->last_update_was_physics_update = true;
 
 					ob->from_remote_physics_transform_dirty = false;
 				}
@@ -6064,14 +6071,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				WorldObject* ob = it->ptr();
 
-				bool inactive = false;
 				// See if object should be removed from the active set - an object should be removed if it has been a while since the last transform snapshot has been received.
 				const uint32 last_snapshot_mod_i = Maths::intMod(ob->next_snapshot_i - 1, WorldObject::HISTORY_BUF_SIZE);
-				if(ob->last_update_was_physics_update)
-					inactive = (cur_time - ob->physics_snapshots[last_snapshot_mod_i].local_time) > 1.0;
-				else
-					inactive = (cur_time - ob->snapshot_times[last_snapshot_mod_i]) > 1.0;
-
+				const bool inactive = (cur_time - ob->snapshots[last_snapshot_mod_i].local_time) > 1.0;
 				if(inactive)
 				{
 					// conPrint("------Removing inactive object-------");
@@ -6089,25 +6091,25 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 					else
 					{
-						if(ob->last_update_was_physics_update)
+						if(ob->snapshots_are_physics_snapshots)
 						{
 							// See if it's time to feed a physics snapshot into the physics system.  See 'docs\networked physics.txt' for more details.
 							const double padding_delay = 0.1;
 
-							// conPrint("next_insertable_snapshot_i: " + toString(ob->next_insertable_snapshot_i) + ", next_snapshot_i: " + toString(ob->next_snapshot_i));
+							conPrint("next_insertable_snapshot_i: " + toString(ob->next_insertable_snapshot_i) + ", next_snapshot_i: " + toString(ob->next_snapshot_i));
 
 							if(ob->next_insertable_snapshot_i < ob->next_snapshot_i) // If we have at least one snapshot that has not been inserted:
 							{
 								const uint32 next_insertable_snapshot_mod_i = Maths::intMod(ob->next_insertable_snapshot_i, WorldObject::HISTORY_BUF_SIZE);
-								const WorldObject::PhysicsSnapshot& snapshot = ob->physics_snapshots[next_insertable_snapshot_mod_i];
+								const WorldObject::Snapshot& snapshot = ob->snapshots[next_insertable_snapshot_mod_i];
 								const double desired_insertion_time = snapshot.client_time + ob->transmission_time_offset + padding_delay;
-								// conPrint("------------------------------------");
-								// conPrint("snapshot.client_time: " + toString(snapshot.client_time));
-								// conPrint("ob->transmission_time_offset: " + toString(ob->transmission_time_offset));
-								// conPrint("desired_insertion_time: " + toString(desired_insertion_time) + ", global_time: " + toString(global_time) + "(" + toString(desired_insertion_time - global_time) + " s in future)");
+								conPrint("------------------------------------");
+								conPrint("snapshot.client_time: " + toString(snapshot.client_time));
+								conPrint("ob->transmission_time_offset: " + toString(ob->transmission_time_offset));
+								conPrint("desired_insertion_time: " + toString(desired_insertion_time) + ", global_time: " + toString(global_time) + "(" + toString(desired_insertion_time - global_time) + " s in future)");
 								if(global_time >= desired_insertion_time)
 								{
-									// conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
+									conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
 									if(ob->physics_object.nonNull())
 										physics_world->setNewObToWorldTransform(*ob->physics_object, snapshot.pos, snapshot.rotation, snapshot.linear_vel, snapshot.angular_vel);
 
@@ -6117,15 +6119,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						}
 						else
 						{
+							// conPrint("Getting interpolated transform");
 							Vec3d pos;
-							Vec3f axis;
-							float angle;
-							ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+							Quatf rot;
+							ob->getInterpolatedTransform(cur_time, pos, rot);
 
 							if(ob->opengl_engine_ob.nonNull())
 							{
 								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
-									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
+									rot.toMatrix() *
 									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
 
 								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
@@ -6134,7 +6136,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(ob->physics_object.nonNull())
 							{
 								// Update in physics engine
-								physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale.toVec4fVector());
+								physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), rot, ob->scale.toVec4fVector());
 							}
 
 							if(ob->audio_source.nonNull())
@@ -8911,6 +8913,13 @@ void MainWindow::objectEditedSlot()
 						selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
 
 						Lock lock(this->world_state->mutex);
+
+						if(this->selected_ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*this->selected_ob, world_state->getCurrentGlobalTime()))
+						{
+							// conPrint("==Taking ownership of physics object in objectEditedSlot()...==");
+							takePhysicsOwnershipOfObject(*this->selected_ob, world_state->getCurrentGlobalTime());
+						}
+
 
 						// Mark as from-local-dirty to send an object updated message to the server
 						this->selected_ob->from_local_other_dirty = true;

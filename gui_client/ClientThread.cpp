@@ -394,12 +394,20 @@ void ClientThread::doRun()
 										ob->aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
 										ob->aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
 									}
+
+									// If we had physics snapshots, reset snapshots.
+									if(ob->snapshots_are_physics_snapshots)
+									{
+										// conPrint("Resetting snapshots.");
+										ob->next_insertable_snapshot_i = 0;
+										ob->next_snapshot_i = 0;
+									}
+									ob->snapshots_are_physics_snapshots = false;
+
 									
-									ob->pos_snapshots  [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = pos;
-									ob->axis_snapshots [Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = axis;
-									ob->angle_snapshots[Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = angle;
-									ob->snapshot_times[Maths::intMod(ob->next_snapshot_i, WorldObject::HISTORY_BUF_SIZE)] = Clock::getTimeSinceInit();
-									//ob->last_snapshot_time = Clock::getCurTimeRealSec();
+									ob->snapshots[ob->next_snapshot_i % (uint32)WorldObject::HISTORY_BUF_SIZE] = 
+										WorldObject::Snapshot({pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(axis), angle), /*linear vel=*/Vec4f(0.f), /*angular_vel=*/Vec4f(0.f), /*client time=*/0.0, /*local time=*/Clock::getTimeSinceInit()});
+
 									ob->next_snapshot_i++;
 
 									ob->from_remote_transform_dirty = true;
@@ -432,8 +440,8 @@ void ClientThread::doRun()
 						const uint32 transform_update_avatar_uid = msg_buffer.readUInt32();
 						const double transform_client_time = msg_buffer.readDouble();
 
-						//conPrint("ClientThread: received ObjectPhysicsTransformUpdate, last_transform_update_avatar_uid: " + toString(last_transform_update_avatar_uid));
-						//conPrint("last_transform_client_time: " + toString(last_transform_client_time) + ", cur global time: " + toString(world_state->getCurrentGlobalTime()));
+						//conPrint("ClientThread: received ObjectPhysicsTransformUpdate, transform_update_avatar_uid: " + toString(transform_update_avatar_uid));
+						//conPrint("transform_client_time: " + toString(transform_client_time) + ", cur global time: " + toString(world_state->getCurrentGlobalTime()));
 
 						if(transform_update_avatar_uid != (uint32)this->client_avatar_uid.value()) // Discard ObjectPhysicsTransformUpdate messages we sent.
 						{
@@ -446,14 +454,22 @@ void ClientThread::doRun()
 
 								if(ob->physics_owner_id == transform_update_avatar_uid) // Only process messages that are from the physics owner of this object, discard others.
 								{
+									// If we had non-physics snapshots, reset snapshots.
+									if(!ob->snapshots_are_physics_snapshots)
+									{
+										// conPrint("Resetting snapshots.");
+										ob->next_insertable_snapshot_i = 0;
+										ob->next_snapshot_i = 0;
+									}
+									ob->snapshots_are_physics_snapshots = true;
+
 									const double local_time = Clock::getTimeSinceInit();
 
-									ob->physics_snapshots[ob->next_snapshot_i % (uint32)WorldObject::HISTORY_BUF_SIZE] = 
-										WorldObject::PhysicsSnapshot({pos.toVec4fPoint(), rot, linear_vel, angular_vel, transform_client_time, local_time});
-
-									// conPrint("ClientThread: Added snapshot " + toString(ob->next_snapshot_i));
+									ob->snapshots[ob->next_snapshot_i % (uint32)WorldObject::HISTORY_BUF_SIZE] = WorldObject::Snapshot({pos.toVec4fPoint(), rot, linear_vel, angular_vel, transform_client_time, local_time});
 
 									ob->next_snapshot_i++;
+
+									// conPrint("ClientThread: Added snapshot " + toString(ob->next_snapshot_i));
 
 									//NEW: Compute transmission_time_offset: An estimate of local_clock_time - sending_clock_time.
 									// TODO: Handle a different client taking over sending messages.
