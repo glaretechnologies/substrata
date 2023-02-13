@@ -1,0 +1,196 @@
+Roughly based on https://gafferongames.com/post/networked_physics_in_virtual_reality/
+
+
+
+Changes to network protocol:
+* Adding uint32 transform_update_avatar_uid to end of ObjectTransformUpdate, for server -> client direction
+
+* Added ObjectPhysicsTransformUpdate message type
+
+* Added ObjectPhysicsOwnershipTaken and ObjectPhysicsOwnershipReleased message types.
+
+
+
+Dejittering buffer
+==================
+We use a dijittering buffer, which holds onto physics snapshots in a small ring buffer, and inserts them into the physics system at the appropriate time.
+
+
+
+
+Snapshots sent from client A:
+-----------------------------
+          
+    |<------ 0.1 s ------>|
+    |---------------------|---------------------|---------------------|
+   s_0                   s_1                   s_2                  s_3             snapshot name
+   t_0                   t_1                   t_2                  t_3             snapshot local time
+
+Bounced via server: (adds jitter)
+
+
+Received on client B:
+                          |----------------------|----------------|---------------------------------|
+                         s_0                    s_1              s_2                               s_3
+                       recv_t_0
+
+   |<-------------------->|
+   transmission_time_estimate
+ 
+recv_t_0: local time on client B when snapshot s_0 is received.
+
+transmission_time_offset: we compute the global time at client B at which the physics ownership packet was received, minus the global time at client A, at which the physics ownership packet was sent.
+
+Played back into internal physics system with some delay (padding_delay), so we can hide the jitter:
+                             
+                           padding_delay
+                          |<------------>|
+                                         |---------------------|---------------------|---------------------|
+                                        s_0                   s_1                  s_2                    s_3
+                                    playback_t_0             playback_t_1
+    |<---------------------------------->
+
+
+For any i >= 0:
+playback_t_i = t_i + transmission_time_offset + padding_delay
+
+
+=============================================
+
+Objects become 'physics owned' by a user when the user takes responsibility for computing the physics state of them with their physics engine.
+
+The user X will send a ObjectPhysicsOwnershipTaken message to declare themselves physics owner of the object.
+
+An object is owned by user X if physics_owner_id == user_x_avatar_id && (global_time - last_update_time < 10)
+
+
+A user will also send ObjectPhysicsOwnershipTaken with the renew flag bit set to 1, to renew their ownership, after half the ownership period (10 s/2 = 5 s) has elapsed.
+
+
+There are various situations where a user will claim ownership of an object:
+
+Adding object to active_set of physics engine:
+Mark as owned by user, if not currently owned by another user.
+
+Direct manipulation of object, e.g.
+OLD: * Editing object with editor
+OLD: * Dragging object with move/rotate controls
+* Walking into object with avatar
+
+Object that we physics-own leaves active set:
+OLD: Send physics_owner_id to invalid id (mark as not owned by anyone),
+OLD: Send ObjectPhysicsOwnershipReleased message to server.
+
+
+
+
+A walk-through of physics synchronisation in action
+---------------------------------------------------
+
+Client A
+--------
+User pushes / walks in to object ob.
+We process player_physics.contacted_events, which contains ob
+
+
+Client A takes physics ownership of object ob by setting (see takePhysicsOwnershipOfObject())
+    ob->physics_owner_id := client_A_avatar_uid 
+    ob->last_physics_ownership_change_global_time := global_time
+
+Client sends ObjectPhysicsOwnershipTaken message to server.
+
+In main timerEvent loop:
+    Iterating over physics_world->activated_obs:
+        Get updated position, linear vel and angular vel, store in ob.
+        Set from_local_physics_transform_dirty = true, store in dirty_from_local_objects
+
+Later in mesage-sending timerEvent loop:
+    if from_local_physics_transform_dirty flag is set:
+        Send ObjectPhysicsTransformUpdate packet to server
+
+
+
+Client B
+--------
+Receives ObjectPhysicsOwnershipTaken, (see ClientThread.cpp), sets
+    ob->physics_owner_id := client_A_avatar_uid 
+    ob->last_physics_ownership_change_global_time := global_time
+
+Computes and sets
+    ob->transmission_time_offset
+
+Receives ObjectPhysicsTransformUpdate in ClientThread.cpp
+
+Looks up object by UID
+
+    Appends physics snapshot in message to physics_snapshots
+    Sets ob from_remote_physics_transform_dirty flag, adds to dirty_from_remote_objects.
+
+In MainWindow timer loop:
+
+since from_remote_physics_transform_dirty is set for ob:
+    Adds to active_objects
+
+    Sets ob last_update_was_physics_update := true
+
+Iterating over active_objects:
+
+    Since last_update_was_physics_update is true:
+
+        Since we are not the current physics owner of ob:
+
+            If we have a physics snapshot to insert (global_time >= snapshot.client_time + ob->transmission_time_offset + padding_delay):
+                Insert physics snapshot into physics engine with setNewObToWorldTransform().
+
+
+
+
+Example sequence diagram of nearly concurrent physics ownership claims
+----------------------------------------------------------------------
+
+
+Client A                           Server                        Client B
+
+
+
+pushes ob                                                          pushes ob
+\                                                                    /
+   \  ObjectPhysicsOwnershipTaken                                  /
+     \      for client A, at time t_a                           / ObjectPhysicsOwnershipTaken message for client B, at time t_b
+       \                                                      /
+           \                                               /
+               \                                        /
+                    \                              /
+                          \                 /
+\                                 \/
+   \ ob Snapshot from A    /             \
+       \            /                           \
+          \   /                                     \
+          /                                               \
+       /  ObjectPhysicsOwnershipTaken client B, t_b         \      ObjectPhysicsOwnershipTaken client B, t_b
+    /  ObjectPhysicsOwnershipTaken client A, t_a               \     ObjectPhysicsOwnershipTaken client A, t_a 
+  /                \                      
+                        \
+t_b < t_a, so object becomes owned by client B, 
+ObjectPhysicsOwnershipTaken client A message is discarded.
+                            \
+                               \
+                            /     \
+                        /           \
+                    /                   \
+                /                           \
+            / ob snapshot from A                 \
+        /                                            \
+    /                                                      \
+/                                                                \
+ob snapshot from A is discarded
+as A is not owner
+
+
+
+
+ObjectPhysicsOwnershipReleased
+==============================
+
+NOTE: Disabled due to issue where the physics engine on the receiving end would release ownership of the object, then the object would be activated,
+then the receiving end would claim ownership of the object.

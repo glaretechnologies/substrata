@@ -237,6 +237,7 @@ private:
 	Vec4f getDirForPixelTrace(int pixel_pos_x, int pixel_pos_y);
 
 	bool getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out); // Returns true if point is visible from camera.
+	bool getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out); // Returns true if point is visible from camera.
 	Vec4f pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws, const Vec2f& pixel_coords);
 
 	void updateVoxelEditMarkers();
@@ -312,6 +313,17 @@ public:
 	void processLoading();
 	ObjectPathController* getPathControllerForOb(const WorldObject& ob);
 	void createPathControlledPathVisObjects(const WorldObject& ob);
+	
+	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time);
+	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time);
+	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
+	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
+	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
+	
+	void updateDiagnosticAABBForObject(WorldObject* ob); // Returns if vis still valid/needed.
+	void updateObjectsWithDiagnosticVis();
+
+	
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
 
@@ -375,6 +387,7 @@ public:
 	std::set<WorldObjectRef> obs_with_animated_tex; // Objects with animated textures (e.g. gifs or mp4s)
 	std::set<WorldObjectRef> web_view_obs;
 	std::set<WorldObjectRef> obs_with_scripts; // Objects with non-null script_evaluator
+	std::set<WorldObjectRef> obs_with_diagnostic_vis;
 
 	//std::ofstream logfile;
 
@@ -655,6 +668,8 @@ public:
 	Reference<glare::PoolAllocator> world_ob_pool_allocator;
 
 	std::vector<Reference<ObjectPathController>> path_controllers;
+
+	UID client_avatar_uid; // When we connect to a server, the server assigns a UID to the client/avatar.
 
 	uint64 frame_num;
 

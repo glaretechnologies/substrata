@@ -25,6 +25,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../gui_client/MeshManager.h"
 #include <graphics/ImageMap.h>
 #include "../gui_client/PhysicsObject.h"
+#include <opengl/ui/GLUITextView.h>
 #endif // GUI_CLIENT
 #include "../shared/ResourceManager.h"
 #include <zstd.h>
@@ -45,12 +46,15 @@ WorldObject::WorldObject() noexcept
 	
 	object_type = ObjectType_Generic;
 	from_remote_transform_dirty = false;
+	from_remote_physics_transform_dirty = false;
 	from_remote_other_dirty = false;
 	from_remote_lightmap_url_dirty = false;
 	from_remote_model_url_dirty = false;
 	from_remote_flags_dirty = false;
+	from_remote_physics_ownership_dirty = false;
 	from_local_transform_dirty = false;
 	from_local_other_dirty = false;
+	from_local_physics_dirty = false;
 	changed_flags = 0;
 	using_placeholder_model = false;
 
@@ -67,6 +71,7 @@ WorldObject::WorldObject() noexcept
 	dist_along_segment = 0;
 #endif
 	next_snapshot_i = 0;
+	next_insertable_snapshot_i = 0;
 	//last_snapshot_time = 0;
 
 	translation = Vec4f(0.f);
@@ -85,6 +90,12 @@ WorldObject::WorldObject() noexcept
 
 	allocator = NULL;
 	refcount = 0;
+
+	physics_owner_id = std::numeric_limits<uint32>::max();
+	last_physics_ownership_change_global_time = 0;
+
+	transmission_time_offset = 0;
+
 }
 
 
@@ -678,6 +689,10 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 	stream.writeFloat(mass);
 	stream.writeFloat(friction);
 	stream.writeFloat(restitution);
+
+	// Physics owner id has to be transmitted, or a new client joining will not be aware of who the physics owner of a moving object is, and will incorrectly take ownership of it.
+	stream.writeUInt32(physics_owner_id);
+	stream.writeDouble(last_physics_ownership_change_global_time);
 }
 
 
@@ -718,6 +733,9 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	mass = other.mass;
 	friction = other.friction;
 	restitution = other.restitution;
+
+	physics_owner_id = other.physics_owner_id;
+	last_physics_ownership_change_global_time = other.last_physics_ownership_change_global_time;
 }
 
 
@@ -799,6 +817,17 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 		ob.friction = stream.readFloat();
 		ob.restitution = stream.readFloat();
 	}
+
+	if(!stream.endOfStream())
+	{
+		const uint32 new_physics_owner_id = stream.readUInt32();
+		if(new_physics_owner_id != ob.physics_owner_id)
+			ob.changed_flags |= WorldObject::PHYSICS_OWNER_CHANGED;
+		ob.physics_owner_id = new_physics_owner_id;
+	}
+	
+	if(!stream.endOfStream())
+		ob.last_physics_ownership_change_global_time = stream.readDouble();
 
 	// Set ephemeral state
 	//ob.state = WorldObject::State_Alive;

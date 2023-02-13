@@ -15,7 +15,8 @@ Copyright Glare Technologies Limited 2016 -
 #include <DatabaseKey.h>
 #include "../shared/UID.h"
 #include "../shared/UserID.h"
-#include "vec3.h"
+#include <maths/vec3.h>
+#include <maths/Quat.h>
 #include <physics/jscol_aabbox.h>
 #include <indigo/DiscreteDistribution.h>
 #if GUI_CLIENT
@@ -40,6 +41,7 @@ namespace js { class AABBox; }
 class WebViewData;
 struct AnimatedTexObData;
 struct MeshData;
+class GLUITextView;
 class UInt8ComponentValueTraits;
 template <class V, class ComponentValueTraits> class ImageMap;
 
@@ -251,6 +253,10 @@ public:
 	float friction; // "Friction of the body (dimensionless number, usually between 0 and 1, 0 = no friction, 1 = friction force equals force that presses the two bodies together)"
 	float restitution; // "Restitution of body (dimensionless number, usually between 0 and 1, 0 = completely inelastic collision response, 1 = completely elastic collision response)"
 
+	uint32 physics_owner_id;
+	double last_physics_ownership_change_global_time; // Last change or renwewal time.
+	bool last_update_was_physics_update; // True if we received a ObjectPhysicsTransformUpdate for this object, false if we received a ObjectTransformUpdate
+
 #if GUI_CLIENT
 	Reference<glare::AudioSource> audio_source;
 #endif
@@ -266,19 +272,26 @@ public:
 
 	State state;
 	bool from_remote_transform_dirty; // Transformation has been changed remotely
+	bool from_remote_physics_transform_dirty; // Transformation has been changed remotely
 	bool from_remote_other_dirty;     // Something else has been changed remotely
 	bool from_remote_lightmap_url_dirty; // Lightmap URL has been changed remotely
 	bool from_remote_model_url_dirty; // Model URL has been changed remotely
 	bool from_remote_flags_dirty;     // Flags have been changed remotely
+	bool from_remote_physics_ownership_dirty; // Physics ownership has been changed remotely.
 
 	bool from_local_transform_dirty;  // Transformation has been changed locally
 	bool from_local_other_dirty;      // Something else has been changed locally
+	bool from_local_physics_dirty; // The physics engine has changed the state of an object locally.
+
+	uint32 last_transform_update_avatar_uid; // Avatar UID of last client that sent the last ObjectTransformUpdate or ObjectPhysicsTransformUpdate for this message.
+	double last_transform_client_time;
 
 	static const uint32 AUDIO_SOURCE_URL_CHANGED	= 1; // Set when audio_source_url is changed
 	static const uint32 SCRIPT_CHANGED				= 2; // Set when script is changed
 	static const uint32 MODEL_URL_CHANGED			= 4;
 	static const uint32 DYNAMIC_CHANGED				= 8;
 	static const uint32 PHYSICS_VALUE_CHANGED		= 16;
+	static const uint32 PHYSICS_OWNER_CHANGED		= 32;
 	uint32 changed_flags;
 
 	bool using_placeholder_model;
@@ -298,6 +311,11 @@ public:
 	Reference<GLObject> opengl_engine_ob;
 	Reference<GLLight> opengl_light;
 	Reference<PhysicsObject> physics_object;
+
+	Reference<GLObject> diagnostics_gl_ob; // For diagnostics visualisation
+
+	Reference<GLUITextView> diagnostic_text_view; // For diagnostics visualisation
+
 
 	Reference<MeshData> mesh_manager_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
@@ -360,6 +378,26 @@ public:
 	double snapshot_times[HISTORY_BUF_SIZE];
 	//double last_snapshot_time;
 	uint32 next_snapshot_i;
+	uint32 next_insertable_snapshot_i;
+
+
+	struct PhysicsSnapshot
+	{
+		Vec4f pos;
+		Quatf rotation;
+		Vec4f linear_vel;
+		Vec4f angular_vel;
+		double client_time; // global time on client when it took this snapshot.
+		double local_time; // Clock::getTimeSinceInit() when this snapshot was received locally.
+	};
+
+	PhysicsSnapshot physics_snapshots[HISTORY_BUF_SIZE];
+
+	double transmission_time_offset;
+
+
+	Vec4f linear_vel; // Just for storing before sending out in a ObjectPhysicsTransformUpdate message.
+	Vec4f angular_vel;
 private:
 	VoxelGroup voxel_group;
 	js::Vector<uint8, 16> compressed_voxels;

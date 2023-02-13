@@ -913,6 +913,42 @@ int main(int argc, char *argv[])
 								};
 								scratch_packet.writeData(aabb_data, sizeof(float) * 6);
 
+								scratch_packet.writeUInt32(ob->last_transform_update_avatar_uid);
+
+								enqueueMessageToBroadcast(scratch_packet, world_packets);
+
+								ob->from_remote_transform_dirty = false;
+								server.world_state->markAsChanged();
+							}
+						}
+						else if(ob->from_remote_physics_transform_dirty)
+						{
+							//conPrint("Object 'physics transform' dirty, sending physics transform update");
+
+							if(ob->state == WorldObject::State_Alive)
+							{
+								// Send ObjectPhysicsTransformUpdate packet
+								MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsTransformUpdate);
+								writeToStream(ob->uid, scratch_packet);
+								writeToStream(ob->pos, scratch_packet);
+
+								const Quatf rot = Quatf::fromAxisAndAngle(ob->axis, ob->angle);
+								scratch_packet.writeData(&rot.v.x, sizeof(float) * 4);
+
+								// Write aabb_data.  Although this was introduced in protocol version 34, clients using an older protocol version should be able to just ignore this data
+								// since it is at the end of the message and we use sized messages.
+								// const float aabb_data[6] = {
+								// 	ob->aabb_ws.min_[0], ob->aabb_ws.min_[1], ob->aabb_ws.min_[2],
+								// 	ob->aabb_ws.max_[0], ob->aabb_ws.max_[1], ob->aabb_ws.max_[2]
+								// };
+								// scratch_packet.writeData(aabb_data, sizeof(float) * 6);
+
+								scratch_packet.writeData(ob->linear_vel.x, sizeof(float) * 3);
+								scratch_packet.writeData(ob->angular_vel.x, sizeof(float) * 3);
+
+								scratch_packet.writeUInt32(ob->last_transform_update_avatar_uid);
+								scratch_packet.writeDouble(ob->last_transform_client_time);
+
 								enqueueMessageToBroadcast(scratch_packet, world_packets);
 
 								ob->from_remote_transform_dirty = false;
