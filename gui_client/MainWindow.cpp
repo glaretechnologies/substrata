@@ -6096,20 +6096,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// See if it's time to feed a physics snapshot into the physics system.  See 'docs\networked physics.txt' for more details.
 							const double padding_delay = 0.1;
 
-							conPrint("next_insertable_snapshot_i: " + toString(ob->next_insertable_snapshot_i) + ", next_snapshot_i: " + toString(ob->next_snapshot_i));
+							// conPrint("next_insertable_snapshot_i: " + toString(ob->next_insertable_snapshot_i) + ", next_snapshot_i: " + toString(ob->next_snapshot_i));
 
 							if(ob->next_insertable_snapshot_i < ob->next_snapshot_i) // If we have at least one snapshot that has not been inserted:
 							{
 								const uint32 next_insertable_snapshot_mod_i = Maths::intMod(ob->next_insertable_snapshot_i, WorldObject::HISTORY_BUF_SIZE);
 								const WorldObject::Snapshot& snapshot = ob->snapshots[next_insertable_snapshot_mod_i];
 								const double desired_insertion_time = snapshot.client_time + ob->transmission_time_offset + padding_delay;
-								conPrint("------------------------------------");
-								conPrint("snapshot.client_time: " + toString(snapshot.client_time));
-								conPrint("ob->transmission_time_offset: " + toString(ob->transmission_time_offset));
-								conPrint("desired_insertion_time: " + toString(desired_insertion_time) + ", global_time: " + toString(global_time) + "(" + toString(desired_insertion_time - global_time) + " s in future)");
+								// conPrint("------------------------------------");
+								// conPrint("snapshot.client_time: " + toString(snapshot.client_time));
+								// conPrint("ob->transmission_time_offset: " + toString(ob->transmission_time_offset));
+								// conPrint("desired_insertion_time: " + toString(desired_insertion_time) + ", global_time: " + toString(global_time) + "(" + toString(desired_insertion_time - global_time) + " s in future)");
 								if(global_time >= desired_insertion_time)
 								{
-									conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
+									// conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
 									if(ob->physics_object.nonNull())
 										physics_world->setNewObToWorldTransform(*ob->physics_object, snapshot.pos, snapshot.rotation, snapshot.linear_vel, snapshot.angular_vel);
 
