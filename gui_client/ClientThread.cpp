@@ -92,7 +92,6 @@ void ClientThread::doRun()
 
 		conPrint("ClientThread Connected to " + hostname + ":" + toString(port) + "!");
 
-		out_msg_queue->enqueue(new ClientConnectedToServerMessage());
 
 		socket->writeUInt32(Protocol::CyberspaceHello); // Write hello
 		socket->writeUInt32(Protocol::CyberspaceProtocolVersion); // Write protocol version
@@ -131,6 +130,8 @@ void ClientThread::doRun()
 
 		// Read assigned client avatar UID
 		this->client_avatar_uid = readUIDFromStream(*socket);
+
+		out_msg_queue->enqueue(new ClientConnectedToServerMessage(this->client_avatar_uid));
 
 
 		// Now that we have finished the initial query-response part of protocol, start client_sender_thread, which will do the sending of data on the socket.
@@ -360,8 +361,16 @@ void ClientThread::doRun()
 						if(peer_protocol_version >= 34) // AABB in ObjectTransformUpdate was added in protocol version 34.
 							msg_buffer.readData(aabb_data, sizeof(float)*6);
 
-						// Look up existing object in world state
+						// Read transform_update_avatar_uid, added during protocol version 36.
+						uint32 transform_update_avatar_uid = std::numeric_limits<uint32>::max();
+						if(!msg_buffer.endOfStream())
+							transform_update_avatar_uid = msg_buffer.readUInt32();
+
+						// conPrint("ClientThread: received ObjectTransformUpdate, transform_update_avatar_uid: " + toString(transform_update_avatar_uid));
+
+						if(transform_update_avatar_uid != (uint32)this->client_avatar_uid.value()) // Discard ObjectTransformUpdate messages we sent. 
 						{
+							// Look up existing object in world state
 							Lock lock(world_state->mutex);
 							auto res = world_state->objects.find(object_uid);
 							if(res != world_state->objects.end())
@@ -400,6 +409,75 @@ void ClientThread::doRun()
 								}
 							}
 						}
+						else
+						{
+							// conPrint("\tDiscarding ObjectTransformUpdate message, as we sent it.");
+						}
+						break;
+					}
+				case Protocol::ObjectPhysicsTransformUpdate:
+					{
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+
+						Quatf rot;
+						msg_buffer.readData(rot.v.x, sizeof(float) * 4);
+
+						Vec4f linear_vel(0.f);
+						msg_buffer.readData(linear_vel.x, sizeof(float) * 3);
+
+						Vec4f angular_vel(0.f);
+						msg_buffer.readData(angular_vel.x, sizeof(float) * 3);
+
+						const uint32 transform_update_avatar_uid = msg_buffer.readUInt32();
+						const double transform_client_time = msg_buffer.readDouble();
+
+						//conPrint("ClientThread: received ObjectPhysicsTransformUpdate, last_transform_update_avatar_uid: " + toString(last_transform_update_avatar_uid));
+						//conPrint("last_transform_client_time: " + toString(last_transform_client_time) + ", cur global time: " + toString(world_state->getCurrentGlobalTime()));
+
+						if(transform_update_avatar_uid != (uint32)this->client_avatar_uid.value()) // Discard ObjectPhysicsTransformUpdate messages we sent.
+						{
+							// Look up existing object in world state
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res.getValue().ptr();
+
+								if(ob->physics_owner_id == transform_update_avatar_uid) // Only process messages that are from the physics owner of this object, discard others.
+								{
+									const double local_time = Clock::getTimeSinceInit();
+
+									ob->physics_snapshots[ob->next_snapshot_i % (uint32)WorldObject::HISTORY_BUF_SIZE] = 
+										WorldObject::PhysicsSnapshot({pos.toVec4fPoint(), rot, linear_vel, angular_vel, transform_client_time, local_time});
+
+									// conPrint("ClientThread: Added snapshot " + toString(ob->next_snapshot_i));
+
+									ob->next_snapshot_i++;
+
+									//NEW: Compute transmission_time_offset: An estimate of local_clock_time - sending_clock_time.
+									// TODO: Handle a different client taking over sending messages.
+									/*if(ob->transmission_time_offset == std::numeric_limits<double>::infinity())
+									{
+										ob->transmission_time_offset = Clock::getTimeSinceInit() - last_transform_client_time;
+
+										conPrint("Storing new ob->transmission_time_offset: " + doubleToString(ob->transmission_time_offset));
+									}*/
+
+									ob->from_remote_physics_transform_dirty = true;
+									world_state->dirty_from_remote_objects.insert(ob);
+								}
+								else
+								{
+									// conPrint("\tDiscarding ObjectPhysicsTransformUpdate message as not from physics owner of object.");
+								}
+							}
+						}
+						else
+						{
+							// conPrint("\tDiscarding ObjectPhysicsTransformUpdate message as we sent it.");
+						}
+
 						break;
 					}
 				case Protocol::ObjectFullUpdate:
@@ -499,6 +577,53 @@ void ClientThread::doRun()
 								ob->flags = flags; // Copy flags
 								ob->from_remote_other_dirty = true;
 								world_state->dirty_from_remote_objects.insert(ob);
+							}
+						}
+						break;
+					}
+				case Protocol::ObjectPhysicsOwnershipTaken:
+					{
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const uint32 physics_owner_id = msg_buffer.readUInt32();
+						const double last_physics_ownership_change_global_time = msg_buffer.readDouble();
+						const uint32 flags = msg_buffer.readUInt32();
+
+						const bool renewal = BitUtils::isBitSet(flags, 0x1u); // See if flag bit is set which indicated this message is renewing ownership.
+
+						// conPrint("ClientThread: Received ObjectPhysicsOwnershipTaken, object_uid: " + object_uid.toString() + ", physics_owner_id: " + toString(physics_owner_id) + ", last_physics_ownership_change_global_time: " + 
+						// 	toString(last_physics_ownership_change_global_time) + ", renewal: " + boolToString(renewal));
+
+						// Look up existing object in world state
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res.getValue().ptr();
+
+								if(last_physics_ownership_change_global_time > ob->last_physics_ownership_change_global_time)
+								{
+									ob->physics_owner_id = physics_owner_id;
+									ob->last_physics_ownership_change_global_time = last_physics_ownership_change_global_time;
+
+									ob->from_remote_physics_ownership_dirty = true;
+									world_state->dirty_from_remote_objects.insert(ob);
+
+									if(renewal)
+									{
+										if(ob->transmission_time_offset == 0) // If we haven't computed transmission_time_offset yet, because we received info about the object after another client became physics owner of it 
+											// (e.g. we just connected to server)
+											ob->transmission_time_offset = world_state->getCurrentGlobalTime() - last_physics_ownership_change_global_time; // Compute it.
+									}
+									else
+									{
+										ob->transmission_time_offset = world_state->getCurrentGlobalTime() - last_physics_ownership_change_global_time;
+
+										// conPrint("Storing new ob->transmission_time_offset: " + doubleToString(ob->transmission_time_offset));
+
+										ob->next_insertable_snapshot_i = ob->next_snapshot_i; // Effectively remove queued snapshots.
+									}
+								}
 							}
 						}
 						break;

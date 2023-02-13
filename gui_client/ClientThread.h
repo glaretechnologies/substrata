@@ -1,8 +1,7 @@
 /*=====================================================================
 ClientThread.h
--------------------
-Copyright Glare Technologies Limited 2016 -
-Generated at 2016-01-16 22:59:23 +1300
+--------------
+Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
@@ -107,6 +106,9 @@ public:
 
 class ClientConnectedToServerMessage : public ThreadMessage
 {
+public:
+	ClientConnectedToServerMessage(const UID client_avatar_uid_) : client_avatar_uid(client_avatar_uid_) {}
+	UID client_avatar_uid;
 };
 
 
@@ -197,8 +199,9 @@ public:
 
 	bool all_objects_received;
 	Reference<WorldState> world_state;
-	UID client_avatar_uid;
 private:
+	UID client_avatar_uid;
+
 	WorldObjectRef allocWorldObject();
 
 	glare::AtomicInt should_die;

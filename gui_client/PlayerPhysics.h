@@ -34,7 +34,7 @@ PlayerPhysics
 -------------
 
 =====================================================================*/
-class PlayerPhysics
+class PlayerPhysics : JPH::CharacterContactListener
 {
 public:
 	PlayerPhysics();
@@ -67,6 +67,17 @@ public:
 	bool isRunPressed() const { return last_runpressed; }
 
 	void debugGetCollisionSpheres(const Vec4f& campos, std::vector<js::BoundingSphere>& spheres_out);
+
+	// JPH::CharacterContactListener interface:
+	// Called whenever the character collides with a body. Returns true if the contact can push the character.
+	virtual void OnContactAdded(const JPH::CharacterVirtual *inCharacter, const JPH::BodyID &inBodyID2, const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, JPH::CharacterContactSettings &ioSettings) override;
+
+	struct ContactedEvent
+	{
+		PhysicsObject* ob;
+	};
+	std::vector<ContactedEvent> contacted_events;
+
 private:
 	Vec3f last_xy_plane_vel_rel_ground;
 

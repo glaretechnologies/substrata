@@ -70,6 +70,8 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 		settings->mMaxStrength = 1000; // Default pushing force is 100 N, which doesn't seem enough.
 
 		jolt_character = new JPH::CharacterVirtual(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), physics_world.physics_system);
+
+		jolt_character->SetListener(this);
 	}
 
 	// Create 'interaction' character.
@@ -417,6 +419,25 @@ bool PlayerPhysics::isMoveDesiredVelNonZero()
 void PlayerPhysics::zeroMoveDesiredVel()
 {
 	move_desired_vel.set(0,0,0);
+}
+
+
+void PlayerPhysics::OnContactAdded(const JPH::CharacterVirtual *inCharacter, const JPH::BodyID &inBodyID2, const JPH::SubShapeID &inSubShapeID2, JPH::RVec3Arg inContactPosition, JPH::Vec3Arg inContactNormal, JPH::CharacterContactSettings &ioSettings)
+{
+	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+
+	if(body_interface.GetMotionType(inBodyID2) == JPH::EMotionType::Dynamic)
+	{
+		const uint64 user_data = body_interface.GetUserData(inBodyID2);
+		if(user_data != 0)
+		{
+			PhysicsObject* physics_ob = (PhysicsObject*)user_data;
+
+			//conPrint("Contact added");
+
+			contacted_events.push_back(ContactedEvent({physics_ob}));
+		}
+	}
 }
 
 

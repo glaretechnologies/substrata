@@ -256,8 +256,8 @@ private:
 
 
 PhysicsWorld::PhysicsWorld(/*PhysicsWorldBodyActivationCallbacks* activation_callbacks_*/)
-:	activated_obs(NULL)
-	//activation_callbacks(activation_callbacks_)
+:	activated_obs(/*empty_key_=*/NULL),
+	newly_activated_obs(/*empty_key_=*/NULL)
 #if !USE_JOLT
 	,ob_grid(/*cell_w=*/32.0, /*num_buckets=*/4096, /*expected_num_items_per_bucket=*/4, /*empty key=*/NULL),
 	large_objects(/*empty key=*/NULL, /*expected num items=*/32),
@@ -809,6 +809,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 
 void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 {
+	// conPrint("PhysicsWorld::removeObject: " + toHexString((uint64)object.ptr())); 
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
 	// Remove jolt body if it exists
@@ -826,6 +827,9 @@ void PhysicsWorld::removeObject(const Reference<PhysicsObject>& object)
 	{
 		Lock lock(activated_obs_mutex);
 		activated_obs.erase(object.ptr()); // Object should have been removed from there when its Jolt body is removed (and deactivated), but do it again to be safe.
+
+		newly_activated_obs.erase(object.ptr());
+		//deactivated_obs.erase(object.ptr());
 	}
 
 	this->objects_set.erase(object);
@@ -853,8 +857,15 @@ void PhysicsWorld::OnBodyActivated(const JPH::BodyID& inBodyID, uint64 inBodyUse
 
 	if(inBodyUserData != 0)
 	{
-		Lock lock(activated_obs_mutex);
-		activated_obs.insert((PhysicsObject*)inBodyUserData);
+		PhysicsObject* physics_ob = (PhysicsObject*)inBodyUserData;
+
+		{
+			Lock lock(activated_obs_mutex);
+			activated_obs.insert(physics_ob);
+
+			//activation_events.push_back(ActivationEvent({/*type=*/ActivationEvent::ActivationEventType_Activated, physics_ob}));
+			newly_activated_obs.insert(physics_ob);
+		}
 	}
 	//activated_obs.insert(inBodyID);
 }
@@ -867,8 +878,15 @@ void PhysicsWorld::OnBodyDeactivated(const JPH::BodyID& inBodyID, uint64 inBodyU
 
 	if(inBodyUserData != 0)
 	{
-		Lock lock(activated_obs_mutex);
-		activated_obs.erase((PhysicsObject*)inBodyUserData);
+		PhysicsObject* physics_ob = (PhysicsObject*)inBodyUserData;
+
+		{
+			Lock lock(activated_obs_mutex);
+			activated_obs.erase(physics_ob);
+
+			//activation_events.push_back(ActivationEvent({/*type=*/ActivationEvent::ActivationEventType_Deactivated, physics_ob }));
+			//deactivated_obs.insert(physics_ob);
+		}
 	}
 	//activated_obs.erase(inBodyID);
 }

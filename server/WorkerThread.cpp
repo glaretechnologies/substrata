@@ -1238,6 +1238,11 @@ void WorkerThread::doRun()
 							float aabb_data[6];
 							if(client_protocol_version >= 34) // AABB in ObjectTransformUpdate was added in protocol version 34.
 								msg_buffer.readData(aabb_data, sizeof(float)*6);
+							else
+							{
+								aabb_data[0] = 0; aabb_data[1] = 0; aabb_data[2] = 0;
+								aabb_data[3] = 1; aabb_data[4] = 1; aabb_data[5] = 1;
+							}
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -1272,6 +1277,9 @@ void WorkerThread::doRun()
 												ob->aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
 												ob->aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
 											}
+
+											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
+
 											ob->from_remote_transform_dirty = true;
 											cur_world_state->addWorldObjectAsDBDirty(ob);
 											cur_world_state->dirty_from_remote_objects.insert(ob);
@@ -1289,6 +1297,83 @@ void WorkerThread::doRun()
 
 							break;
 						}
+					case Protocol::ObjectPhysicsTransformUpdate:
+					{
+						//conPrint("received ObjectPhysicsTransformUpdate");
+						const UID object_uid = readUIDFromStream(msg_buffer);
+						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
+						
+						Quatf rot;
+						msg_buffer.readData(rot.v.x, sizeof(float) * 4);
+
+						Vec4f linear_vel(0.f);
+						Vec4f angular_vel(0.f);
+						msg_buffer.readData(linear_vel.x, sizeof(float) * 3);
+						msg_buffer.readData(angular_vel.x, sizeof(float) * 3);
+
+						const double client_cur_time = msg_buffer.readDouble();
+
+						// If client is not logged in, refuse object modification.
+						/*if(!client_user_id.valid())
+						{
+							writeErrorMessageToClient(socket, "You must be logged in to modify an object.");
+						}
+						*/
+						if(world_state->isInReadOnlyMode())
+						{
+							writeErrorMessageToClient(socket, "Server is in read-only mode, you can't modify an object right now.");
+						}
+						else
+						{
+							std::string err_msg_to_client;
+							// Look up existing object in world state
+							{
+								Lock lock(world_state->mutex);
+								auto res = cur_world_state->objects.find(object_uid);
+								if(res != cur_world_state->objects.end())
+								{
+									WorldObject* ob = res->second.getPointer();
+
+									// See if the user has permissions to alter this object:
+									//if(!userHasObjectWritePermissions(*ob, client_user_id, client_user_name, this->connected_world_name, *cur_world_state, server->config.allow_light_mapper_bot_full_perms))
+									//	err_msg_to_client = "You must be the owner of this object to change it.";
+									if(ob->isDynamic()) // We will only allow clients to apply PhysicsTransformUpdates to objects it the object is a dynamic object.
+									{
+										ob->pos = pos;
+										Vec4f axis;
+										float angle;
+										rot.toAxisAndAngle(axis, angle);
+										ob->axis = Vec3f(axis);
+										ob->angle = angle;
+
+										// TODO: Update AABB?
+										//if(client_protocol_version >= 34)
+										//{
+										//	ob->aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
+										//	ob->aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
+										//}
+
+										ob->linear_vel = linear_vel;
+										ob->angular_vel = angular_vel;
+
+										ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
+										ob->last_transform_client_time = client_cur_time;
+
+										ob->from_remote_physics_transform_dirty = true;
+										cur_world_state->addWorldObjectAsDBDirty(ob);
+										cur_world_state->dirty_from_remote_objects.insert(ob);
+
+										world_state->markAsChanged();
+									}
+								}
+							} // End lock scope
+
+							if(!err_msg_to_client.empty())
+								writeErrorMessageToClient(socket, err_msg_to_client);
+						}
+
+						break;
+					}
 					case Protocol::ObjectFullUpdate:
 						{
 							//conPrint("received ObjectFullUpdate");
@@ -1429,6 +1514,43 @@ void WorkerThread::doRun()
 									}
 								}
 							}
+							break;
+						}
+					case Protocol::ObjectPhysicsOwnershipTaken:
+						{
+							// conPrint("ObjectPhysicsOwnershipTaken");
+							const UID object_uid = readUIDFromStream(msg_buffer);
+							const uint32 physics_owner_id = msg_buffer.readUInt32();
+							const double client_global_time = msg_buffer.readDouble();
+							const uint32 flags = msg_buffer.readUInt32();
+
+							// Look up existing object in world state
+							{
+								Lock lock(world_state->mutex);
+								auto res = cur_world_state->objects.find(object_uid);
+								if(res != cur_world_state->objects.end())
+								{
+									WorldObject* ob = res->second.getPointer();
+
+									if(!world_state->isInReadOnlyMode())
+									{
+										ob->physics_owner_id = physics_owner_id;
+										ob->last_physics_ownership_change_global_time = client_global_time;
+
+										// Consider physics_owner_id ephemeral state, so doesn't need to be written to DB.
+									}
+								}
+							}
+
+							// Enqueue ObjectPhysicsOwnershipTaken messages to worker threads to send
+							MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsOwnershipTaken);
+							writeToStream(object_uid, scratch_packet);
+							scratch_packet.writeUInt32(physics_owner_id);
+							scratch_packet.writeDouble(client_global_time);
+							scratch_packet.writeUInt32(flags);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+							enqueuePacketToBroadcast(scratch_packet, server);
+
 							break;
 						}
 					case Protocol::CreateObject: // Client wants to create an object

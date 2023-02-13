@@ -100,6 +100,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/FileInStream.h"
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
+#include "../utils/IncludeXXHash.h"
 #include "../networking/Networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -308,6 +309,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	}
 
 	ui->objectEditor->init();
+
+	ui->diagnosticsWidget->init(settings);
 
 	connect(ui->chatPushButton, SIGNAL(clicked()), this, SLOT(sendChatMessageSlot()));
 	connect(ui->chatMessageLineEdit, SIGNAL(returnPressed()), this, SLOT(sendChatMessageSlot()));
@@ -1760,7 +1763,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 // Also enqueue any downloads for missing resources such as textures.
 void MainWindow::loadModelForAvatar(Avatar* avatar)
 {
-	const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+	const bool our_avatar = avatar->uid == this->client_avatar_uid;
 
 	const int ob_lod_level = avatar->getLODLevel(cam_controller.getPosition());
 	const int ob_model_lod_level = ob_lod_level;
@@ -3269,7 +3272,7 @@ void MainWindow::processLoading()
 							{
 								Avatar* av = res2->second.ptr();
 						
-								const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
+								const bool our_avatar = av->uid == this->client_avatar_uid;
 								if((cam_controller.thirdPersonEnabled() || !our_avatar)) // Don't load graphics for our avatar
 								{
 									const int av_lod_level = av->getLODLevel(cam_controller.getPosition());
@@ -3599,6 +3602,97 @@ void MainWindow::processLoading()
 }
 
 
+// For visualising physics ownership
+void MainWindow::updateDiagnosticAABBForObject(WorldObject* ob)
+{
+	if(ob->opengl_engine_ob.nonNull())
+	{
+		if(!isObjectPhysicsOwned(*ob, world_state->getCurrentGlobalTime())) //   ob->physics_owner_id == std::numeric_limits<uint32>::max()) // If object is unowned:
+		{
+			// Remove any existing visualisation AABB.
+			if(ob->diagnostics_gl_ob.nonNull())
+			{
+				ui->glWidget->opengl_engine->removeObject(ob->diagnostics_gl_ob);
+				ob->diagnostics_gl_ob = NULL;
+			}
+
+			if(ob->diagnostic_text_view.nonNull())
+			{
+				this->gl_ui->removeWidget(ob->diagnostic_text_view);
+				ob->diagnostic_text_view->destroy();
+				ob->diagnostic_text_view = NULL;
+			}
+		}
+		else
+		{
+			const Vec4f aabb_min = ob->opengl_engine_ob->aabb_ws.min_;
+			const Vec4f aabb_max = ob->opengl_engine_ob->aabb_ws.max_;
+
+			const uint64 hashval = XXH64(&ob->physics_owner_id, sizeof(ob->physics_owner_id), 1);
+			const Colour4f col((hashval % 3) / 3.0f, (hashval % 5) / 5.0f, (hashval % 7) / 7.0f, 0.5f);
+
+			const Vec4f span = aabb_max - aabb_min;
+
+			Matrix4f to_world;
+			to_world.setColumn(0, Vec4f(span[0], 0, 0, 0));
+			to_world.setColumn(1, Vec4f(0, span[1], 0, 0));
+			to_world.setColumn(2, Vec4f(0, 0, span[2], 0));
+			to_world.setColumn(3, aabb_min); // set origin
+
+			if(ob->diagnostics_gl_ob.isNull())
+			{
+				ob->diagnostics_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max, col);
+				ui->glWidget->opengl_engine->addObject(ob->diagnostics_gl_ob);
+			}
+			else
+			{
+				ob->diagnostics_gl_ob->materials[0].albedo_rgb = Colour3(col[0], col[1], col[2]);
+				ob->diagnostics_gl_ob->ob_to_world_matrix = to_world;
+
+				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->diagnostics_gl_ob);
+			}
+
+			const std::string diag_text = "physics_owner_id: " + toString(ob->physics_owner_id) + " since " + doubleToStringNSigFigs(world_state->getCurrentGlobalTime() - ob->last_physics_ownership_change_global_time, 2) + " s";
+			const Vec2f dims(0.4f, 0.05f);
+			if(ob->diagnostic_text_view.isNull())
+			{
+				ob->diagnostic_text_view = new GLUITextView();
+				ob->diagnostic_text_view->create(*this->gl_ui, this->ui->glWidget->opengl_engine, diag_text, Vec2f(0.f, 0.f), dims, "");
+			}
+			else
+			{
+				ob->diagnostic_text_view->setText(*this->gl_ui, diag_text);
+
+				Vec2f normed_coords;
+				const bool visible = getGLUICoordsForPoint((aabb_min + aabb_max) * 0.5f, normed_coords);
+				if(visible)
+				{
+					Vec2f botleft(normed_coords.x, normed_coords.y);
+
+					ob->diagnostic_text_view->setPosAndDims(botleft, dims);
+				}
+			}
+		}
+	}
+}
+
+
+void MainWindow::updateObjectsWithDiagnosticVis()
+{
+	for(auto it = obs_with_diagnostic_vis.begin(); it != obs_with_diagnostic_vis.end(); )
+	{
+		WorldObjectRef ob = *it;
+		updateDiagnosticAABBForObject(ob.ptr());
+
+		const bool remove = ob->diagnostics_gl_ob.isNull();
+		if(remove)
+			it = obs_with_diagnostic_vis.erase(it);
+		else
+			++it;
+	}
+}
+
+
 void MainWindow::timerEvent(QTimerEvent* event)
 {
 	PERFORMANCEAPI_INSTRUMENT("timerEvent");
@@ -3750,6 +3844,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		checkForAudioRangeChanges();
 
 	gesture_ui.think();
+
+	updateObjectsWithDiagnosticVis();
 
 	// Update AABB visualisation, if we are showing one.
 	if(aabb_vis_gl_ob.nonNull() && selected_ob.nonNull())
@@ -4384,6 +4480,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->connection_state = ServerConnectionState_Connected;
 				updateStatusBar();
 
+				this->client_avatar_uid = static_cast<const ClientConnectedToServerMessage*>(msg.getPointer())->client_avatar_uid;
+
 				// Try and log in automatically if we have saved credentials for this domain, and auto_login is true.
 				if(settings->value("LoginDialog/auto_login", /*default=*/true).toBool())
 				{
@@ -4410,7 +4508,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					const Vec3d cam_angles = this->cam_controller.getAngles();
 					Avatar avatar;
-					avatar.uid = this->client_thread->client_avatar_uid;
+					avatar.uid = this->client_avatar_uid;
 					avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 					avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 					writeToNetworkStream(avatar, scratch_packet);
@@ -4486,7 +4584,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const AvatarPerformGestureMessage* m = static_cast<const AvatarPerformGestureMessage*>(msg.getPointer());
 
-				if(m->avatar_uid != client_thread->client_avatar_uid) // Ignore messages about our own avatar
+				if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
 				{
 					if(world_state.nonNull())
 					{
@@ -4505,7 +4603,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				const AvatarStopGestureMessage* m = static_cast<const AvatarStopGestureMessage*>(msg.getPointer());
 
-				if(m->avatar_uid != client_thread->client_avatar_uid) // Ignore messages about our own avatar
+				if(m->avatar_uid != client_avatar_uid) // Ignore messages about our own avatar
 				{
 					if(world_state.nonNull())
 					{
@@ -4578,7 +4676,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
 				Avatar avatar;
-				avatar.uid = this->client_thread->client_avatar_uid;
+				avatar.uid = this->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 				avatar.avatar_settings = m->avatar_settings;
@@ -4601,7 +4699,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
 				Avatar avatar;
-				avatar.uid = this->client_thread->client_avatar_uid;
+				avatar.uid = this->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 				avatar.avatar_settings.model_url = "";
@@ -4628,7 +4726,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Send AvatarFullUpdate message, to change the nametag on our avatar.
 				const Vec3d cam_angles = this->cam_controller.getAngles();
 				Avatar avatar;
-				avatar.uid = this->client_thread->client_avatar_uid;
+				avatar.uid = this->client_avatar_uid;
 				avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 				avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 				avatar.avatar_settings.model_url = "";
@@ -4906,8 +5004,27 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			// Process player physics
 			UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, /*campos in/out=*/campos);
 			physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
+
+			// Process contact events for objects that the player touched.
+			// Take physics ownership of any such object if needed.
+			for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+			{
+				PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+				{
+					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+
+					const bool owned_by_self = isObjectPhysicsOwnedBySelf(*ob, global_time);
+					if(!owned_by_self)
+					{
+						// conPrint("==Taking ownership of physics object from avatar physics contact...==");
+						takePhysicsOwnershipOfObject(*ob, global_time);
 					}
 				}
+			}
+			player_physics.contacted_events.resize(0);
+		}
+	}
 
 	player_physics.zeroMoveDesiredVel();
 
@@ -4915,6 +5032,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	if(physics_world.nonNull())
 	{
+		Lock world_state_lock(this->world_state->mutex);
+
 		// Update transforms in OpenGL of objects the physics engine has moved.
 		JPH::BodyInterface& body_interface = physics_world->physics_system->GetBodyInterface();
 
@@ -4984,15 +5103,29 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								audio_engine.sourcePositionUpdated(*ob->audio_source);
 							}
 
-							// Update world object state.  TODO for dynamic objects?
+							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
+							Vec4f unit_axis;
+							float angle;
+							ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
 							if(physics_ob->dynamic)
-							{
-								Vec4f unit_axis;
-								float angle;
-								ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
-							
 								ob->setTransformAndHistory(Vec3d(pos.GetX(), pos.GetY(), pos.GetZ()), Vec3f(unit_axis), angle);
-								}
+
+							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
+							if(physics_ob->dynamic && isObjectPhysicsOwnedBySelf(*ob, global_time))
+							{
+								JPH::Vec3 linear_vel, angular_vel;
+								body_interface.GetLinearAndAngularVelocity(physics_ob->jolt_body_id, linear_vel, angular_vel);
+
+								ob->linear_vel = toVec4fVec(linear_vel);
+								ob->angular_vel = toVec4fVec(angular_vel);
+
+								// Mark as from-local-physics-dirty to send a physics transform updated message to the server
+								ob->from_local_physics_dirty = true;
+								this->world_state->dirty_from_local_objects.insert(ob);
+
+								// Check for sending of renewal of object physics ownership message
+								checkRenewalOfPhysicsOwnershipOfObject(*ob, global_time);
+							}
 
 							if(this->selected_ob.ptr() == ob)
 							{
@@ -5004,7 +5137,41 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// Note that for instances, their OpenGL ob transform has effectively been set when instance_matrices was updated when evaluating scripts.
 				// So we don't need to set it from the physics object.
 			}
-							}
+
+			// Process newly activated physics objects
+			for(auto it = physics_world->newly_activated_obs.begin(); it != physics_world->newly_activated_obs.end(); ++it)
+			{
+				PhysicsObject* physics_ob = *it;
+				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+				{
+#ifndef NDEBUG
+					if(world_state->objects.find(physics_ob->ob_uid) == world_state->objects.end())
+					{
+						conPrint("Error: UID " + physics_ob->ob_uid.toString() + " not found for physics ob");
+						assert(0);
+					}
+#endif
+					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+
+					if(ob->isDynamic())
+					{
+						// If this object is already owned by another user, let them continue to own it. 
+						// If it is unowned, however, take ownership of it.
+						if(!isObjectPhysicsOwned(*ob, global_time))
+						{
+							// conPrint("==Taking ownership of physics object...==");
+							takePhysicsOwnershipOfObject(*ob, global_time);
+						}
+					}
+
+					// If the showPhysicsObOwnershipCheckBox is checked, show an AABB visualisation.
+					if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
+						obs_with_diagnostic_vis.insert(ob);
+				}
+			}
+			physics_world->newly_activated_obs.clear();
+
+		} // End activated_obs_mutex scope
 
 		// Update debug player-physics visualisation spheres
 		if(false)
@@ -5313,7 +5480,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
 			{
 				Avatar* avatar = it->second.getPointer();
-				const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+				const bool our_avatar = avatar->uid == this->client_avatar_uid;
 
 				if(avatar->state == Avatar::State_Dead)
 				{
@@ -5640,8 +5807,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						obs_with_animated_tex.erase(ob);
 						web_view_obs.erase(ob);
 						obs_with_scripts.erase(ob);
+						obs_with_diagnostic_vis.erase(ob);
 					}
-					else
+					else // Else if not dead:
 					{
 						// Decompress voxel group
 						//ob->decompressVoxels();
@@ -5702,8 +5870,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
 
 								updateInstancedCopiesOfObject(ob);
-
-								active_objects.insert(ob);
 							}
 
 							if(ob == selected_ob.ptr())
@@ -5729,6 +5895,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							// If this object was (just) created by this user, select it.  NOTE: bit of a hack distinguishing newly created objects by checking numSecondsAgo().
 							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30)) 
 								selectObject(ob, /*selected_mat_index=*/0); // select it
+
+							// Set ephemeral state
+							ob->state = WorldObject::State_Alive;
 						}
 
 						ob->from_remote_other_dirty = false;
@@ -5758,42 +5927,30 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					ob->from_remote_lightmap_url_dirty = false;
 				}
+				else if(ob->from_remote_physics_ownership_dirty)
+				{
+					if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
+						obs_with_diagnostic_vis.insert(ob);
+
+					ob->from_remote_physics_ownership_dirty = false;
+				}
 				
 				if(ob->from_remote_transform_dirty)
 				{
-					if(ob != selected_ob.getPointer()) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
-					{
-						// Compute interpolated transformation
-						Vec3d pos;
-						Vec3f axis;
-						float angle;
-						ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
 
-						const Matrix4f interpolated_to_world_mat = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) *
-							Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) *
-							Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-
-						if(ob->opengl_engine_ob.nonNull())
-						{
-							ob->opengl_engine_ob->ob_to_world_matrix = interpolated_to_world_mat;
-							ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
-						}
-
-						// Update in physics engine
-						if(ob->physics_object.nonNull())
-						{
-							physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale.toVec4fVector());
-						}
-
-						proximity_loader.objectTransformChanged(ob);
-
-						// Update in Indigo view
-						ui->indigoView->objectTransformChanged(*ob);
-
-						active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
-					}
+					ob->last_update_was_physics_update = false;
 
 					ob->from_remote_transform_dirty = false;
+				}
+
+				if(ob->from_remote_physics_transform_dirty)
+				{
+					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
+
+					ob->last_update_was_physics_update = true;
+
+					ob->from_remote_physics_transform_dirty = false;
 				}
 			}
 
@@ -5905,10 +6062,19 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			Lock lock(this->world_state->mutex);
 			for(auto it = active_objects.begin(); it != active_objects.end();)
 			{
-				WorldObjectRef ob = *it;
+				WorldObject* ob = it->ptr();
 
-				if(cur_time - ob->snapshot_times[0]/*last_snapshot_time*/ > 1.0)
+				bool inactive = false;
+				// See if object should be removed from the active set - an object should be removed if it has been a while since the last transform snapshot has been received.
+				const uint32 last_snapshot_mod_i = Maths::intMod(ob->next_snapshot_i - 1, WorldObject::HISTORY_BUF_SIZE);
+				if(ob->last_update_was_physics_update)
+					inactive = (cur_time - ob->physics_snapshots[last_snapshot_mod_i].local_time) > 1.0;
+				else
+					inactive = (cur_time - ob->snapshot_times[last_snapshot_mod_i]) > 1.0;
+
+				if(inactive)
 				{
+					// conPrint("------Removing inactive object-------");
 					// Object is not active any more, remove from active_objects set.
 					auto to_erase = it;
 					it++;
@@ -5916,33 +6082,72 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				}
 				else
 				{
-					Vec3d pos;
-					Vec3f axis;
-					float angle;
-					ob->getInterpolatedTransform(cur_time, pos, axis, angle);
-
-					if(ob->opengl_engine_ob.nonNull())
+					if(ob->isDynamic() && isObjectPhysicsOwnedBySelf(*ob, global_time)) // If this is a dynamic physics object that we are the current physics owner of:
 					{
-						ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
-							Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
-							Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
-
-						ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+						// Don't update its transform from physics snapshots, let the physics engine set it directly.
+						// conPrint("Skipping interpolation of dynamic ob - we own it");
 					}
-
-					if(ob->physics_object.nonNull())
+					else
 					{
-						// Update in physics engine
-						physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale.toVec4fVector());
-					}
+						if(ob->last_update_was_physics_update)
+						{
+							// See if it's time to feed a physics snapshot into the physics system.  See 'docs\networked physics.txt' for more details.
+							const double padding_delay = 0.1;
 
-					if(ob->audio_source.nonNull())
-					{
-						// Update in audio engine
-						ob->audio_source->pos = ob->aabb_ws.centroid();
-						audio_engine.sourcePositionUpdated(*ob->audio_source);
-					}
+							// conPrint("next_insertable_snapshot_i: " + toString(ob->next_insertable_snapshot_i) + ", next_snapshot_i: " + toString(ob->next_snapshot_i));
 
+							if(ob->next_insertable_snapshot_i < ob->next_snapshot_i) // If we have at least one snapshot that has not been inserted:
+							{
+								const uint32 next_insertable_snapshot_mod_i = Maths::intMod(ob->next_insertable_snapshot_i, WorldObject::HISTORY_BUF_SIZE);
+								const WorldObject::PhysicsSnapshot& snapshot = ob->physics_snapshots[next_insertable_snapshot_mod_i];
+								const double desired_insertion_time = snapshot.client_time + ob->transmission_time_offset + padding_delay;
+								// conPrint("------------------------------------");
+								// conPrint("snapshot.client_time: " + toString(snapshot.client_time));
+								// conPrint("ob->transmission_time_offset: " + toString(ob->transmission_time_offset));
+								// conPrint("desired_insertion_time: " + toString(desired_insertion_time) + ", global_time: " + toString(global_time) + "(" + toString(desired_insertion_time - global_time) + " s in future)");
+								if(global_time >= desired_insertion_time)
+								{
+									// conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
+									if(ob->physics_object.nonNull())
+										physics_world->setNewObToWorldTransform(*ob->physics_object, snapshot.pos, snapshot.rotation, snapshot.linear_vel, snapshot.angular_vel);
+
+									ob->next_insertable_snapshot_i++;
+								}
+							}
+						}
+						else
+						{
+							Vec3d pos;
+							Vec3f axis;
+							float angle;
+							ob->getInterpolatedTransform(cur_time, pos, axis, angle);
+
+							if(ob->opengl_engine_ob.nonNull())
+							{
+								ob->opengl_engine_ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)pos.x, (float)pos.y, (float)pos.z) * 
+									Matrix4f::rotationMatrix(normalise(axis.toVec4fVector()), angle) * 
+									Matrix4f::scaleMatrix(ob->scale.x, ob->scale.y, ob->scale.z);
+
+								ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+							}
+
+							if(ob->physics_object.nonNull())
+							{
+								// Update in physics engine
+								physics_world->setNewObToWorldTransform(*ob->physics_object, Vec4f((float)pos.x, (float)pos.y, (float)pos.z, 0.f), Quatf::fromAxisAndAngle(normalise(axis.toVec4fVector()), angle), ob->scale.toVec4fVector());
+							}
+
+							if(ob->audio_source.nonNull())
+							{
+								// Update in audio engine
+								ob->audio_source->pos = ob->aabb_ws.centroid();
+								audio_engine.sourcePositionUpdated(*ob->audio_source);
+							}
+						}
+
+						if(ui->diagnosticsWidget->showPhysicsObOwnershipCheckBox->isChecked())
+							obs_with_diagnostic_vis.insert(ob);
+					}
 					it++;
 				}
 			}
@@ -5997,7 +6202,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
 
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
-			writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
+			writeToStream(this->client_avatar_uid, scratch_packet);
 			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
 			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), scratch_packet);
 			scratch_packet.writeUInt32(anim_state);
@@ -6024,6 +6229,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					world_ob->from_local_other_dirty = false;
 					world_ob->from_local_transform_dirty = false; // We sent all information, including transform, so transform is no longer dirty.
+					world_ob->from_local_physics_dirty = false;
 				}
 				else if(world_ob->from_local_transform_dirty)
 				{
@@ -6043,6 +6249,25 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
 					world_ob->from_local_transform_dirty = false;
+				}
+				else if(world_ob->from_local_physics_dirty)
+				{
+					// Send ObjectPhysicsTransformUpdate packet
+					MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsTransformUpdate);
+					writeToStream(world_ob->uid, scratch_packet);
+					writeToStream(world_ob->pos, scratch_packet);
+
+					const Quatf rot = Quatf::fromAxisAndAngle(world_ob->axis, world_ob->angle);
+					scratch_packet.writeData(&rot.v.x, sizeof(float) * 4);
+
+					scratch_packet.writeData(world_ob->linear_vel.x, sizeof(float) * 3);
+					scratch_packet.writeData(world_ob->angular_vel.x, sizeof(float) * 3);
+
+					scratch_packet.writeDouble(global_time); // Write last_transform_client_time
+
+					enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+					world_ob->from_local_physics_dirty = false;
 				}
 			}
 
@@ -6095,6 +6320,69 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	frame_num++;
+}
+
+
+static const double PHYSICS_ONWERSHIP_PERIOD = 10.0;
+
+bool MainWindow::isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time)
+{
+	return (ob.physics_owner_id == (uint32)this->client_avatar_uid.value()) && 
+		((global_time - ob.last_physics_ownership_change_global_time) < PHYSICS_ONWERSHIP_PERIOD);
+}
+
+
+
+bool MainWindow::isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time)
+{
+	return (ob.physics_owner_id != std::numeric_limits<uint32>::max()) && // If the owner is a valid UID,
+		(ob.physics_owner_id != (uint32)this->client_avatar_uid.value()) && // and the owner is not us,
+		((global_time - ob.last_physics_ownership_change_global_time) < PHYSICS_ONWERSHIP_PERIOD); // And the ownership is still valid
+}
+
+
+bool MainWindow::isObjectPhysicsOwned(WorldObject& ob, double global_time)
+{
+	return (ob.physics_owner_id != std::numeric_limits<uint32>::max()) && // If the owner is a valid UID,
+		((global_time - ob.last_physics_ownership_change_global_time) < PHYSICS_ONWERSHIP_PERIOD); // And the ownership is still valid
+}
+
+
+void MainWindow::takePhysicsOwnershipOfObject(WorldObject& ob, double global_time)
+{
+	ob.physics_owner_id = (uint32)this->client_avatar_uid.value();
+	ob.last_physics_ownership_change_global_time = global_time;
+
+
+	// Send ObjectPhysicsOwnershipTaken message to server.
+	MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsOwnershipTaken);
+	writeToStream(ob.uid, scratch_packet);
+	scratch_packet.writeUInt32((uint32)this->client_avatar_uid.value());
+	scratch_packet.writeDouble(global_time);
+	scratch_packet.writeUInt32(0); // Write flags.  Don't set renewal bit.
+	enqueueMessageToSend(*this->client_thread, scratch_packet);
+}
+
+
+void MainWindow::checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time)
+{
+	assert(isObjectPhysicsOwnedBySelf(ob, global_time)); // This should only be called when we already own the object
+
+	if((global_time - ob.last_physics_ownership_change_global_time) > PHYSICS_ONWERSHIP_PERIOD / 2)
+	{
+		// conPrint("Renewing physics ownership of object");
+
+		// Time to renew:
+		ob.last_physics_ownership_change_global_time = global_time;
+
+		// Send ObjectPhysicsOwnershipTaken message to server.
+		MessageUtils::initPacket(scratch_packet, Protocol::ObjectPhysicsOwnershipTaken);
+		writeToStream(ob.uid, scratch_packet);
+		scratch_packet.writeUInt32((uint32)this->client_avatar_uid.value());
+		scratch_packet.writeDouble(global_time);
+		scratch_packet.writeUInt32(1); // Write flags.  1: renewal flag bit.
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
 }
 
 
@@ -6341,7 +6629,7 @@ void MainWindow::on_actionAvatarSettings_triggered()
 
 			const Vec3d cam_angles = this->cam_controller.getAngles();
 			Avatar avatar;
-			avatar.uid = this->client_thread->client_avatar_uid;
+			avatar.uid = this->client_avatar_uid;
 			avatar.pos = Vec3d(this->cam_controller.getFirstPersonPosition());
 			avatar.rotation = Vec3f(0, (float)cam_angles.y, (float)cam_angles.x);
 			avatar.name = this->logged_in_user_name;
@@ -7762,7 +8050,7 @@ void MainWindow::on_actionThird_Person_Camera_triggered()
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 		{
 			Avatar* avatar = it->second.getPointer();
-			const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+			const bool our_avatar = avatar->uid == this->client_avatar_uid;
 			if(our_avatar)
 				avatar->other_dirty = true;
 		}
@@ -7774,7 +8062,7 @@ void MainWindow::on_actionThird_Person_Camera_triggered()
 		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
 		{
 			Avatar* avatar = it->second.getPointer();
-			const bool our_avatar = avatar->uid == this->client_thread->client_avatar_uid;
+			const bool our_avatar = avatar->uid == this->client_avatar_uid;
 			if(our_avatar)
 			{
 				avatar->graphics.destroy(*ui->glWidget->opengl_engine);
@@ -8952,6 +9240,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	}
 	this->client_thread = NULL; // Need to make sure client_thread is destroyed, since it hangs on to a bunch of references.
 
+	this->client_avatar_uid = UID::invalidUID();
+
 
 	this->logged_in_user_id = UserID::invalidUserID();
 	this->logged_in_user_name = "";
@@ -9028,6 +9318,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	obs_with_animated_tex.clear();
 	web_view_obs.clear();
 	obs_with_scripts.clear();
+	obs_with_diagnostic_vis.clear();
 
 	path_controllers.clear();
 
@@ -9323,8 +9614,12 @@ Vec4f MainWindow::pointOnLineWorldSpace(const Vec4f& p_a_ws, const Vec4f& p_b_ws
 
 
 /*
+s_x is distance left on sensor:
 s_x = sensor_width * (pixel_x - gl_w/2) / gl_w
-r_x = s_x / lens_sensor_dist
+
+Let r_x = (cam_to_point, forw) / (cam_to_point, right)
+From similar triangles,
+r_x = s_x / lens_sensor_dist, where s_x is distance left on sensor.
 
 so
 r_x = sensor_width * (pixel_x - gl_w/2) / (gl_w * lens_sensor_dist)
@@ -9338,8 +9633,6 @@ pixel_x = gl_w * (lens_sensor_dist * r_x + sensor_width / 2) / sensor_width;
 pixel_x = gl_w * (lens_sensor_dist * r_x / sensor_width + 1/2);
 pixel_x = gl_w * (lens_sensor_dist / sensor_width * r_x + 1/2);
 */
-
-
 bool MainWindow::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out) // Returns true if point is visible from camera.
 {
 	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
@@ -9353,14 +9646,12 @@ bool MainWindow::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out
 	const float gl_w = (float)ui->glWidget->geometry().width();
 	const float gl_h = (float)ui->glWidget->geometry().height();
 
-	Vec4f cam_to_point = point_ws - this->cam_controller.getPosition().toVec4fPoint();
+	const Vec4f cam_to_point = point_ws - this->cam_controller.getPosition().toVec4fPoint();
 	if(dot(cam_to_point, forwards) < 0.001)
 		return false; // point behind camera.
 
-	cam_to_point = cam_to_point / dot(cam_to_point, forwards);
-
-	const float r_x =  dot(cam_to_point, right);
-	const float r_y = -dot(cam_to_point, up);
+	const float r_x =  dot(cam_to_point, right) / dot(cam_to_point, forwards);
+	const float r_y = -dot(cam_to_point, up)    / dot(cam_to_point, forwards);
 
 	const float pixel_x = (gl_w * lens_sensor_dist * r_x + sensor_width  * gl_w/2) / sensor_width;
 	const float pixel_y = (gl_h * lens_sensor_dist * r_y + sensor_height * gl_h/2) / sensor_height;
@@ -9369,6 +9660,41 @@ bool MainWindow::getPixelForPoint(const Vec4f& point_ws, Vec2f& pixel_coords_out
 	return true;
 }
 
+
+/*
+Returns OpenGL UI coords on GL widget, for a world space point.   See GLUI.h for a description of the GL UI coordinate space.
+Let r_x = (cam_to_point, forw) / (cam_to_point, right)
+
+From similar triangles,
+r_x = s_x / lens_sensor_dist, where s_x is distance left on sensor.
+so s_x = r_x lens_sensor_dist
+
+Let normalised coord left on sensor  n_x = s_x / (sensor_width/2)
+
+so n_x = (r_x lens_sensor_dist) / (sensor_width/2) = 2 r_x lens_sensor_dist / sensor_width
+*/
+bool MainWindow::getGLUICoordsForPoint(const Vec4f& point_ws, Vec2f& coords_out) // Returns true if point is visible from camera.
+{
+	const Vec4f forwards = cam_controller.getForwardsVec().toVec4fVector();
+	const Vec4f right = cam_controller.getRightVec().toVec4fVector();
+	const Vec4f up = cam_controller.getUpVec().toVec4fVector();
+
+	const float sensor_width = GlWidget::sensorWidth();
+	const float lens_sensor_dist = GlWidget::lensSensorDist();
+
+	const Vec4f cam_to_point = point_ws - this->cam_controller.getPosition().toVec4fPoint();
+	if(dot(cam_to_point, forwards) < 0.001)
+		return false; // point behind camera.
+
+	const float r_x = dot(cam_to_point, right) / dot(cam_to_point, forwards);
+	const float r_y = dot(cam_to_point, up)    / dot(cam_to_point, forwards);
+
+	const float n_x = 2.f * (lens_sensor_dist * r_x) / sensor_width;
+	const float n_y = 2.f * (lens_sensor_dist * r_y) / sensor_width;
+
+	coords_out = Vec2f(n_x, n_y);
+	return true;
+}
 
 
 // See https://math.stackexchange.com/questions/1036959/midpoint-of-the-shortest-distance-between-2-rays-in-3d
@@ -10475,7 +10801,7 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 
 
 	// If diagnostics widget is shown, show an AABB visualisation as well.
-	if(ui->diagnosticsDockWidget->isVisible())
+	if(ui->diagnosticsDockWidget->isVisible() && ui->diagnosticsWidget->showObWSAABBCheckBox->isChecked())
 	{
 		this->aabb_vis_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->aabb_ws.min_, this->selected_ob->aabb_ws.max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
 		ui->glWidget->opengl_engine->addObject(this->aabb_vis_gl_ob);
@@ -11072,7 +11398,7 @@ void MainWindow::performGestureClicked(const std::string& gesture_name, bool ani
 		{
 			Avatar* av = it->second.getPointer();
 
-			const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
+			const bool our_avatar = av->uid == this->client_avatar_uid;
 			if(our_avatar)
 			{
 				av->graphics.performGesture(cur_time, gesture_name, animate_head, loop_anim);
@@ -11083,7 +11409,7 @@ void MainWindow::performGestureClicked(const std::string& gesture_name, bool ani
 	// Send AvatarPerformGesture message
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarPerformGesture);
-		writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
+		writeToStream(this->client_avatar_uid, scratch_packet);
 		scratch_packet.writeStringLengthFirst(gesture_name);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
@@ -11102,7 +11428,7 @@ void MainWindow::stopGesture()
 		{
 			Avatar* av = it->second.getPointer();
 
-			const bool our_avatar = av->uid == this->client_thread->client_avatar_uid;
+			const bool our_avatar = av->uid == this->client_avatar_uid;
 			if(our_avatar)
 			{
 				av->graphics.stopGesture(cur_time/*, gesture_name*/);
@@ -11115,7 +11441,7 @@ void MainWindow::stopGesture()
 	if(this->logged_in_user_id.valid())
 	{
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarStopGesture);
-		writeToStream(this->client_thread->client_avatar_uid, scratch_packet);
+		writeToStream(this->client_avatar_uid, scratch_packet);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}

@@ -24,5 +24,10 @@ public:
 	DiagnosticsWidget(QWidget* parent);
 	~DiagnosticsWidget();
 
+	void init(QSettings* settings);
+
+protected slots:
+	void settingsChanged();
 private:
+	QSettings* settings;
 };

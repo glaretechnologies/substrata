@@ -146,8 +146,11 @@ private:
 	
 public:
 	mutable Mutex activated_obs_mutex;
-	HashSet<PhysicsObject*> activated_obs GUARDED_BY(activated_obs_mutex);
+	HashSet<PhysicsObject*> activated_obs GUARDED_BY(activated_obs_mutex); // Currently activated objects
 	//std::set<JPH::BodyID> activated_obs;
+	
+	HashSet<PhysicsObject*> newly_activated_obs GUARDED_BY(activated_obs_mutex); // Objects that have become activated recently.
+	
 //private:
 public:
 
