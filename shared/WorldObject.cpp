@@ -72,6 +72,7 @@ WorldObject::WorldObject() noexcept
 #endif
 	next_snapshot_i = 0;
 	next_insertable_snapshot_i = 0;
+	snapshots_are_physics_snapshots = false;
 	//last_snapshot_time = 0;
 
 	translation = Vec4f(0.f);
@@ -287,12 +288,7 @@ void WorldObject::setTransformAndHistory(const Vec3d& pos_, const Vec3f& axis_, 
 	angle = angle_;
 
 	for(int i=0; i<HISTORY_BUF_SIZE; ++i)
-	{
-		pos_snapshots[i] = pos_;
-		axis_snapshots[i] = axis_;
-		angle_snapshots[i] = angle_;
-		snapshot_times[i] = 0;
-	}
+		snapshots[i] = Snapshot({pos_.toVec4fPoint(), Quatf::fromAxisAndAngle(axis_, angle_), /*linear vel=*/Vec4f(0.f), /*angular_vel=*/Vec4f(0.f), /*client time=*/0.0, /*local time=*/0.0});
 }
 
 
@@ -304,11 +300,11 @@ void WorldObject::setPosAndHistory(const Vec3d& pos_)
 #endif
 
 	for(int i=0; i<HISTORY_BUF_SIZE; ++i)
-		pos_snapshots[i] = pos_;
+		snapshots[i].pos = pos_.toVec4fPoint();
 }
 
 
-void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3f& axis_out, float& angle_out) const
+void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Quatf& rot_out) const
 {
 	/*
 	Timeline: check marks are snapshots received:
@@ -347,12 +343,12 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 	const double delay = send_period * 2.0; // Objects are rendered using the interpolated state at this past time.
 
 	const double delayed_time = cur_time - delay;
-	// Search through history for first snapshot
+	// Search through history for first snapshot with time > delayed_time
 	int begin = 0;
 	for(int i=(int)next_snapshot_i-HISTORY_BUF_SIZE; i<(int)next_snapshot_i; ++i)
 	{
 		const int modi = Maths::intMod(i, HISTORY_BUF_SIZE);
-		if(snapshot_times[modi] > delayed_time)
+		if(snapshots[modi].local_time > delayed_time)
 		{
 			begin = Maths::intMod(modi - 1, HISTORY_BUF_SIZE);
 			break;
@@ -362,69 +358,12 @@ void WorldObject::getInterpolatedTransform(double cur_time, Vec3d& pos_out, Vec3
 	const int end = Maths::intMod(begin + 1, HISTORY_BUF_SIZE);
 
 	// Snapshot times may be the same if we haven't received updates for this object yet.
-	const float t  = (snapshot_times[end] == snapshot_times[begin]) ? 0.f : (float)((delayed_time - snapshot_times[begin]) / (snapshot_times[end] - snapshot_times[begin])); // Interpolation fraction
+	const float t  = myClamp<float>(
+		(snapshots[end].local_time == snapshots[begin].local_time) ? 0.f : (float)((delayed_time - snapshots[begin].local_time) / (snapshots[end].local_time - snapshots[begin].local_time)),
+		0.f, 1.f); // Interpolation fraction
 
-	pos_out   = Maths::uncheckedLerp(pos_snapshots  [begin], pos_snapshots  [end], t);
-	axis_out  = Maths::uncheckedLerp(axis_snapshots [begin], axis_snapshots [end], t);
-	angle_out = Maths::uncheckedLerp(angle_snapshots[begin], angle_snapshots[end], t);
-
-	if(axis_out.length2() < 1.0e-10f)
-	{
-		axis_out = Vec3f(0,0,1);
-		angle_out = 0;
-	}
-
-	//const int last_snapshot_i = next_snapshot_i - 1;
-
-	//const double frac = (cur_time - last_snapshot_time) / send_period; // Fraction of send period ahead of last_snapshot cur time is
-	//printVar(frac);
-	//if(frac > 2.0f)
-	//	int a = 9;
-	//const double delayed_state_pos = (double)last_snapshot_i + frac - delay; // Delayed state position in normalised period coordinates.
-	//const int delayed_state_begin_snapshot_i = myClamp(Maths::floorToInt(delayed_state_pos), last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
-	//const int delayed_state_end_snapshot_i   = myClamp(delayed_state_begin_snapshot_i + 1,   last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
-	//const float t  = delayed_state_pos - delayed_state_begin_snapshot_i; // Interpolation fraction
-
-	//const int begin = Maths::intMod(delayed_state_begin_snapshot_i, HISTORY_BUF_SIZE);
-	//const int end   = Maths::intMod(delayed_state_end_snapshot_i,   HISTORY_BUF_SIZE);
-
-	//pos_out   = Maths::uncheckedLerp(pos_snapshots  [begin], pos_snapshots  [end], t);
-	//axis_out  = Maths::uncheckedLerp(axis_snapshots [begin], axis_snapshots [end], t);
-	//angle_out = Maths::uncheckedLerp(angle_snapshots[begin], angle_snapshots[end], t);
-
-	//if(axis_out.length2() < 1.0e-10f)
-	//{
-	//	axis_out = Vec3f(0,0,1);
-	//	angle_out = 0;
-	//}
-
-
-	//const double send_period = 0.1; // Time between update messages from server
-	//const double delay = /*send_period * */2.0; // Objects are rendered using the interpolated state at this past time.
-
-	//const int last_snapshot_i = next_snapshot_i - 1;
-
-	//const double frac = (cur_time - last_snapshot_time) / send_period; // Fraction of send period ahead of last_snapshot cur time is
-	//printVar(frac);
-	//if(frac > 2.0f)
-	//	int a = 9;
-	//const double delayed_state_pos = (double)last_snapshot_i + frac - delay; // Delayed state position in normalised period coordinates.
-	//const int delayed_state_begin_snapshot_i = myClamp(Maths::floorToInt(delayed_state_pos), last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
-	//const int delayed_state_end_snapshot_i   = myClamp(delayed_state_begin_snapshot_i + 1,   last_snapshot_i - HISTORY_BUF_SIZE + 1, last_snapshot_i);
-	//const float t  = delayed_state_pos - delayed_state_begin_snapshot_i; // Interpolation fraction
-
-	//const int begin = Maths::intMod(delayed_state_begin_snapshot_i, HISTORY_BUF_SIZE);
-	//const int end   = Maths::intMod(delayed_state_end_snapshot_i,   HISTORY_BUF_SIZE);
-
-	//pos_out   = Maths::uncheckedLerp(pos_snapshots  [begin], pos_snapshots  [end], t);
-	//axis_out  = Maths::uncheckedLerp(axis_snapshots [begin], axis_snapshots [end], t);
-	//angle_out = Maths::uncheckedLerp(angle_snapshots[begin], angle_snapshots[end], t);
-
-	//if(axis_out.length2() < 1.0e-10f)
-	//{
-	//	axis_out = Vec3f(0,0,1);
-	//	angle_out = 0;
-	//}
+	pos_out = Vec3d(Maths::uncheckedLerp(snapshots[begin].pos, snapshots[end].pos, t));
+	rot_out = Quatf::nlerp(snapshots[begin].rotation, snapshots[end].rotation, t);
 }
 
 

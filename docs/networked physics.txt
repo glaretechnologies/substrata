@@ -73,8 +73,8 @@ Adding object to active_set of physics engine:
 Mark as owned by user, if not currently owned by another user.
 
 Direct manipulation of object, e.g.
-OLD: * Editing object with editor
-OLD: * Dragging object with move/rotate controls
+* Editing object with editor
+* Dragging object with move/rotate controls
 * Walking into object with avatar
 
 Object that we physics-own leaves active set:
