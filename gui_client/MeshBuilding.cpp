@@ -155,64 +155,6 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 	results.opengl_mesh_data = spotlight_opengl_mesh;
 	results.physics_shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/false);
 	return results;
-
-#if 0
-	const float fixture_w = 0.1;
-
-	// Build Indigo::Mesh
-	Indigo::MeshRef spotlight_mesh = new Indigo::Mesh();
-	spotlight_mesh->num_uv_mappings = 1;
-
-	spotlight_mesh->vert_positions.resize(4);
-	spotlight_mesh->vert_normals.resize(4);
-	spotlight_mesh->uv_pairs.resize(4);
-	spotlight_mesh->quads.resize(1);
-
-	spotlight_mesh->vert_positions[0] = Indigo::Vec3f(-fixture_w/2, -fixture_w/2, 0.f);
-	spotlight_mesh->vert_positions[1] = Indigo::Vec3f(-fixture_w/2,  fixture_w/2, 0.f); // + y
-	spotlight_mesh->vert_positions[2] = Indigo::Vec3f( fixture_w/2,  fixture_w/2, 0.f);
-	spotlight_mesh->vert_positions[3] = Indigo::Vec3f( fixture_w/2, -fixture_w/2, 0.f); // + x
-
-	spotlight_mesh->vert_normals[0] = Indigo::Vec3f(0, 0, -1);
-	spotlight_mesh->vert_normals[1] = Indigo::Vec3f(0, 0, -1);
-	spotlight_mesh->vert_normals[2] = Indigo::Vec3f(0, 0, -1);
-	spotlight_mesh->vert_normals[3] = Indigo::Vec3f(0, 0, -1);
-
-	spotlight_mesh->uv_pairs[0] = Indigo::Vec2f(0, 0);
-	spotlight_mesh->uv_pairs[1] = Indigo::Vec2f(0, 1);
-	spotlight_mesh->uv_pairs[2] = Indigo::Vec2f(1, 1);
-	spotlight_mesh->uv_pairs[3] = Indigo::Vec2f(1, 0);
-
-	spotlight_mesh->quads[0].mat_index = 0;
-	spotlight_mesh->quads[0].vertex_indices[0] = 0;
-	spotlight_mesh->quads[0].vertex_indices[1] = 1;
-	spotlight_mesh->quads[0].vertex_indices[2] = 2;
-	spotlight_mesh->quads[0].vertex_indices[3] = 3;
-	spotlight_mesh->quads[0].uv_indices[0] = 0;
-	spotlight_mesh->quads[0].uv_indices[1] = 1;
-	spotlight_mesh->quads[0].uv_indices[2] = 2;
-	spotlight_mesh->quads[0].uv_indices[3] = 3;
-
-	spotlight_mesh->endOfModel();
-
-	Reference<OpenGLMeshRenderData> spotlight_opengl_mesh = GLMeshBuilding::buildIndigoMesh(&allocator, spotlight_mesh, /*skip opengl calls=*/false); // Build OpenGLMeshRenderData
-
-	// Build RayMesh (for physics)
-	RayMeshRef spotlight_raymesh = new RayMesh("mesh", /*enable shading normals=*/false);
-	spotlight_raymesh->fromIndigoMesh(*spotlight_mesh);
-
-	spotlight_raymesh->buildTrisFromQuads();
-	Geometry::BuildOptions options;
-	DummyShouldCancelCallback should_cancel_callback;
-	StandardPrintOutput print_output;
-	spotlight_raymesh->build(options, should_cancel_callback, print_output, /*verbose=*/false, task_manager);
-
-	MeshBuildingResults results;
-	results.opengl_mesh_data = spotlight_opengl_mesh;
-	results.raymesh = spotlight_raymesh;
-	results.indigo_mesh = spotlight_mesh;
-	return results;
-#endif
 }
 
 

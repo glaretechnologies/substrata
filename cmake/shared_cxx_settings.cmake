@@ -75,6 +75,7 @@ else()
 endif()
 
 add_definitions(-DNO_EMBREE)
+add_definitions(-DGEOMETRY_NO_TREE_BUILD_SUPPORT) # Don't build BVH stuff, using Jolt for now.
 add_definitions(-DMAP2D_FILTERING_SUPPORT=1)
 add_definitions(-DUSING_LIBRESSL)
 
