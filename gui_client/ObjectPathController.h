@@ -53,7 +53,7 @@ public:
 	ObjectPathController(WorldObjectRef controlled_ob, const std::vector<PathWaypointIn>& waypoints_in, double initial_time, UID follow_ob_uid, float follow_dist);
 	~ObjectPathController();
 
-	void update(WorldState& world_state, PhysicsWorld& physics_world, OpenGLEngine* opengl_engine, float dtime);
+	void update(WorldState& world_state, PhysicsWorld& physics_world, OpenGLEngine* opengl_engine, float dtime) REQUIRES(world_state.mutex);
 
 	static void sortPathControllers(std::vector<Reference<ObjectPathController>>& controllers);
 private:
