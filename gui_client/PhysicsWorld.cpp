@@ -1076,9 +1076,9 @@ void PhysicsWorld::test()
 			raymesh.fromBatchedMesh(mesh);
 
 			Timer timer;
-			Geometry::BuildOptions options;
-			options.compute_is_planar = false;
-			raymesh.build(options, should_cancel_callback, print_output, false, task_manager);
+			// Geometry::BuildOptions options;
+			// options.compute_is_planar = false;
+			// raymesh.build(options, should_cancel_callback, print_output, false, task_manager);
 
 			min_time = myMin(min_time, timer.elapsed());
 			conPrint("raymesh.build took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
