@@ -4986,7 +4986,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			path_controllers[i]->update(*world_state, *physics_world, ui->glWidget->opengl_engine.ptr(), (float)dt);
 	}
 
-	const Vec4f last_campos = campos;
 	UpdateEvents physics_events;
 
 	PlayerPhysicsInput physics_input;
@@ -5333,8 +5332,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		// TODO: If we are using 3rd person can, use animation events from the walk/run cycle animations to trigger sounds.
 		// Adapted from AvatarGraphics::setOverallTransform():
-		const Vec4f dpos = campos - last_campos;
-		const Vec4f vel = dpos / (float)dt;
 		// Only consider speed in x-y plane when deciding whether to play walk/run anim etc..
 		// This is because the stair-climbing code may make jumps in the z coordinate which means a very high z velocity.
 		const Vec3f xyplane_vel = player_physics.getLastXYPlaneVelRelativeToGround();
