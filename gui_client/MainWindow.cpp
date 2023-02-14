@@ -4980,9 +4980,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	ui->glWidget->opengl_engine->setCurrentTime((float)cur_time);
 
-	
-	for(size_t i=0; i<path_controllers.size(); ++i)
-		path_controllers[i]->update(*world_state, *physics_world, ui->glWidget->opengl_engine.ptr(), (float)dt);
+	{
+		Lock lock(this->world_state->mutex);
+		for(size_t i=0; i<path_controllers.size(); ++i)
+			path_controllers[i]->update(*world_state, *physics_world, ui->glWidget->opengl_engine.ptr(), (float)dt);
+	}
 
 	const Vec4f last_campos = campos;
 	UpdateEvents physics_events;
