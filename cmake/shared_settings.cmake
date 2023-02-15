@@ -65,8 +65,6 @@ ${GRAPHICS_DIR}/PerlinNoise.cpp
 ${GRAPHICS_DIR}/PerlinNoise.h
 ${GRAPHICS_DIR}/PNGDecoder.cpp
 ${GRAPHICS_DIR}/PNGDecoder.h
-${GRAPHICS_DIR}/TriBoxIntersection.cpp
-${GRAPHICS_DIR}/TriBoxIntersection.h
 ${GRAPHICS_DIR}/Voronoi.cpp
 ${GRAPHICS_DIR}/Voronoi.h
 ${GRAPHICS_DIR}/TextureProcessing.cpp
@@ -315,14 +313,11 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix2.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix2.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/matrix3.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/matrix3.h
-${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix4.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix4.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix4f.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Matrix4f.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/PCG32.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/plane.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/plane.h
-${GLARE_CORE_TRUNK_DIR_ENV}/maths/plane2.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Quat.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Quat.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/SSE.cpp
@@ -331,8 +326,6 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/maths/vec2.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/vec2.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/vec3.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/vec3.h
-${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4f.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4f.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/maths/Vec4i.cpp
