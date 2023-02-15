@@ -28,7 +28,6 @@ Copyright Glare Technologies Limited 2018 -
 //#include "../opengl/WGL.h"
 #include "../shared/ResourceManager.h"
 #include "../shared/WorldObject.h"
-#include "../indigo/ThreadContext.h"
 #include "../utils/ArgumentParser.h"
 #include "../utils/Timer.h"
 #include "../utils/TaskManager.h"
