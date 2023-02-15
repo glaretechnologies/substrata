@@ -281,10 +281,6 @@ ${openexrdir}/src/lib/OpenEXR/ImfXdr.h
 )
 
 
-
-
-
-
 FILE(GLOB libjpg "${jpegdir}/ja*.c" "${jpegdir}/jc*.c" "${jpegdir}/jd*.c" "${jpegdir}/jf*.c" "${jpegdir}/ji*.c" "${jpegdir}/jq*.c"
 "${jpegdir}/jutils.c"
 "${jpegdir}/jmemmgr.c"
@@ -321,7 +317,6 @@ ${tiffdir}/tif_read.c ${tiffdir}/tif_strip.c ${tiffdir}/tif_swab.c ${tiffdir}/ti
 ${tiffdir}/tif_unix.c ${tiffdir}/tif_version.c ${tiffdir}/tif_warning.c ${tiffdir}/tif_write.c ${tiffdir}/tif_zip.c
 )
 
-#FILE(GLOB lua "${luadir}/src/*.c")
 
 set(zlib
 ${zlibdir}/adler32.c
@@ -346,21 +341,6 @@ ${zlibdir}/zlib.h
 ${zlibdir}/zutil.h
 )
 
-SET(minizip 
-${zlibdir}/contrib/minizip/ioapi.c
-${zlibdir}/contrib/minizip/unzip.c
-${zlibdir}/contrib/minizip/zip.c
-${zlibdir}/contrib/minizip/crypt.h
-${zlibdir}/contrib/minizip/ioapi.h
-${zlibdir}/contrib/minizip/unzip.h
-${zlibdir}/contrib/minizip/zip.h
-)
-
-#set(zlib
-#${zlibdir}/adler32.c ${zlibdir}/compress.c ${zlibdir}/crc32.c ${zlibdir}/deflate.c ${zlibdir}/gzclose.c ${zlibdir}/gzlib.c ${zlibdir}/gzread.c ${zlibdir}/gzwrite.c
-#${zlibdir}/infback.c ${zlibdir}/inffast.c ${zlibdir}/inflate.c ${zlibdir}/inftrees.c ${zlibdir}/trees.c ${zlibdir}/uncompr.c ${zlibdir}/zutil.c
-#${zlibdir}/contrib/minizip/unzip.c ${zlibdir}/contrib/minizip/zip.c ${zlibdir}/contrib/minizip/ioapi.c
-#)
 
 set(pugixml
 ${pugixmldir}/pugixml.cpp
@@ -368,13 +348,11 @@ ${pugixmldir}/pugixml.hpp
 ${pugixmldir}/pugiconfig.hpp
 )
 
-# MESSAGE(${pugixml})
 
 enable_language(ASM) # For the .S file in zstd below.
 
 FILE(GLOB giflib "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.c" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.cpp" "${GLARE_CORE_TRUNK_DIR_ENV}/giflib/lib/*.h")
 FILE(GLOB little_cms "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/src/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/little_cms/include/*.h")
-#FILE(GLOB xxhash "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.h")
 FILE(GLOB zstandard "${zstddir}/lib/*.h"  
 "${zstddir}/lib/common/*.c"     "${zstddir}/lib/common/*.h"
 "${zstddir}/lib/compress/*.c"   "${zstddir}/lib/compress/*.h"        
@@ -385,17 +363,12 @@ SOURCE_GROUP(fftss FILES ${fftss})
 SOURCE_GROUP(ilmbase FILES ${ilmbase})
 SOURCE_GROUP(ilmthread FILES ${ilmthread})
 SOURCE_GROUP(openexr FILES ${openexr})
-#SOURCE_GROUP(lib3ds FILES ${lib3ds})
 SOURCE_GROUP(libjpg FILES ${libjpg})
 SOURCE_GROUP(libpng FILES ${libpng})
-#SOURCE_GROUP(libtiff FILES ${libtiff})
-#SOURCE_GROUP(lua FILES ${lua})
 SOURCE_GROUP(zlib FILES ${zlib})
-SOURCE_GROUP(zlib\\minizip FILES ${minizip})
 SOURCE_GROUP(pugixml FILES ${pugixml})
 SOURCE_GROUP(giflib FILES ${giflib})
 SOURCE_GROUP(little_cms FILES ${little_cms})
-#SOURCE_GROUP(xxhash FILES ${xxhash})
 SOURCE_GROUP(zstandard FILES ${zstandard})
 
 include(../cmake/shared_cxx_settings.cmake)
@@ -422,7 +395,6 @@ ${ilmthread}
 ${openexr}
 ${libpng}
 ${zlib}
-${minizip}
 ${pugixml}
 ${giflib}
 ${little_cms}
