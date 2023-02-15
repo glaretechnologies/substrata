@@ -117,7 +117,6 @@ Copyright Glare Technologies Limited 2020 -
 #include "../dll/IndigoStringUtils.h"
 #include "../dll/include/IndigoException.h"
 #include "../indigo/TextureServer.h"
-#include "../indigo/ThreadContext.h"
 #include "../opengl/OpenGLShader.h"
 #include "../graphics/PNGDecoder.h"
 #include "../graphics/jpegdecoder.h"

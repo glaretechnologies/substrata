@@ -20,7 +20,6 @@ Copyright Glare Technologies Limited 2022 -
 
 class CameraController;
 class PhysicsWorld;
-class ThreadContext;
 
 
 struct CarPhysicsUpdateEvents

@@ -462,8 +462,6 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ui/GLUICallbackHandler.h
 
 
 set(indigo_src
-${GLARE_CORE_TRUNK_DIR_ENV}/indigo/ThreadContext.cpp
-${GLARE_CORE_TRUNK_DIR_ENV}/indigo/ThreadContext.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/indigo/UVUnwrapper.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/indigo/UVUnwrapper.h
 )
