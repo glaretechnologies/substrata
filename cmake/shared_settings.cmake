@@ -217,8 +217,6 @@ ${UTILS_DIR}/StringUtils.cpp
 ${UTILS_DIR}/StringUtils.h
 ${UTILS_DIR}/string_view.cpp
 ${UTILS_DIR}/string_view.h
-${UTILS_DIR}/SystemInfo.cpp
-${UTILS_DIR}/SystemInfo.h
 ${UTILS_DIR}/Task.cpp
 ${UTILS_DIR}/Task.h
 ${UTILS_DIR}/TaskManager.cpp
