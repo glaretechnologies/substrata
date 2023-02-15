@@ -354,7 +354,6 @@ int main(int argc, char *argv[])
 	Clock::init();
 	Networking::createInstance();
 	PlatformUtils::ignoreUnixSignals();
-	OpenSSL::init();
 	TLSSocket::initTLS();
 
 	conPrint("Substrata server v" + ::cyberspace_version);

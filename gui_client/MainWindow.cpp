@@ -11656,7 +11656,6 @@ int main(int argc, char *argv[])
 		Clock::init();
 		Networking::createInstance();
 		Winter::VirtualMachine::init();
-		OpenSSL::init();
 		TLSSocket::initTLS();
 
 		PlatformUtils::ignoreUnixSignals();

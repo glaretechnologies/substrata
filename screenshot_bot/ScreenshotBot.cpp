@@ -49,7 +49,6 @@ int main(int argc, char* argv[])
 		Clock::init();
 		Networking::createInstance();
 		PlatformUtils::ignoreUnixSignals();
-		OpenSSL::init();
 		TLSSocket::initTLS();
 
 		const ScreenshotBotConfig config = parseScreenshotBotConfig(PlatformUtils::getAppDataDirectory("Cyberspace") + "/screenshot_bot_config.xml");
