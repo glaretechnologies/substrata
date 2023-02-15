@@ -346,7 +346,6 @@ FILE(GLOB xxhash "${GLARE_CORE_TRUNK_DIR_ENV}/xxHash-r39/*.c"  "${GLARE_CORE_TRU
 
 
 set(simpleraytracer
-${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/geometry.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/geometry.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/raymesh.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/simpleraytracer/raymesh.h
