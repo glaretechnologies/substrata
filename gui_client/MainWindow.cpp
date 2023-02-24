@@ -5025,8 +5025,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			if(hover_car_physics.nonNull())
 			{
-				hover_car_physics->update(*this->physics_world, physics_input, (float)substep_dt, /*campos_out=*/campos);
-				this->cam_controller.setPosition(toVec3d(campos));
+				hover_car_physics->update(*this->physics_world, physics_input, (float)substep_dt);
+				this->cam_controller.setPosition(toVec3d(hover_car_physics->getFirstPersonCamPos(*this->physics_world)));
 			}
 			else
 			{
@@ -5691,8 +5691,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									PlayerPhysicsInput other_avatar_physics_input;
 									other_avatar_physics_input.clear();
 
-									Vec4f hovercar_campos;
-									avatar->hover_car_physics->update(*physics_world, other_avatar_physics_input, (float)dt, hovercar_campos); // TEMP Just compute forces for hovercar now
+									avatar->hover_car_physics->update(*physics_world, other_avatar_physics_input, (float)dt); // TEMP Just compute forces for hovercar now
 
 									pose_constraint.sitting = true;
 									pose_constraint.seat_to_world				= avatar->hover_car_physics->getSeatToWorldTransform(*this->physics_world);
