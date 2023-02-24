@@ -348,6 +348,8 @@ public:
 	PlayerPhysics player_physics;
 	CarPhysics car_physics;
 	Reference<HoverCarPhysics> hover_car_physics;
+	double last_vehicle_renewal_msg_time;
+	UID hover_car_object_uid;
 
 	Timer time_since_last_timer_ev;
 	Timer time_since_update_packet_sent;

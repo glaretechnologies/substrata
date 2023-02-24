@@ -222,7 +222,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	should_close(false),
 	frame_num(0),
 	axis_and_rot_obs_enabled(false),
-	closing(false)
+	closing(false),
+	last_vehicle_renewal_msg_time(-1)
 {
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -5824,6 +5825,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 	}
 
+
+	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
+	// This is so any new player joining the world after we entered the vehicle can receive the information that we are inside it.
+	if(hover_car_physics.nonNull() && ((cur_time - last_vehicle_renewal_msg_time) > 4.0))
+	{
+		// conPrint("sending AvatarEnteredVehicle renewal msg");
+
+		// Send AvatarEnteredVehicle message to server
+		MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
+		writeToStream(this->client_avatar_uid, scratch_packet);
+		writeToStream(this->hover_car_object_uid, scratch_packet); // Write vehicle object UID
+		scratch_packet.writeUInt32(hover_car_physics->cur_seat_index); // Seat index.
+		scratch_packet.writeUInt32(1); // Write flags.  Set renewal bit.
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+		last_vehicle_renewal_msg_time = cur_time;
+	}
+
 	//TEMP
 	if(test_avatar.nonNull())
 	{
@@ -11220,8 +11239,10 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 								hover_car_physics_settings.hovercar_mass = ob->mass;
 								hover_car_physics_settings.script_settings = ob->hover_car_script->settings;
 
-								hover_car_physics = new HoverCarPhysics(ob->physics_object->jolt_body_id, hover_car_physics_settings);
-								hover_car_physics->cur_seat_index = (uint32)free_seat_index;
+								this->hover_car_physics = new HoverCarPhysics(ob->physics_object->jolt_body_id, hover_car_physics_settings);
+								this->hover_car_physics->cur_seat_index = (uint32)free_seat_index;
+								
+								this->hover_car_object_uid = ob->uid;
 
 								if(free_seat_index == 0) // If taking driver's seat:
 									takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
