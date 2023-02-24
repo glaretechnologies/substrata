@@ -620,6 +620,12 @@ void GlWidget::hideCursor()
 }
 
 
+bool GlWidget::isCursorHidden()
+{
+	return this->cursor().shape() == Qt::BlankCursor;
+}
+
+
 void GlWidget::setCursorIfNotHidden(Qt::CursorShape new_shape)
 {
 	if(this->cursor().shape() != Qt::BlankCursor)

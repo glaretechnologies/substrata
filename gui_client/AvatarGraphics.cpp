@@ -64,9 +64,19 @@ static const Matrix4f rotateThenTranslateMatrix(const Vec3d& translation, const 
 }
 
 
+static float mod2PiDiff(float x)
+{
+	const float diff = Maths::floatMod(x, Maths::get2Pi<float>());
+	if(diff > Maths::pi<float>())
+		return diff - Maths::get2Pi<float>();
+	else
+		return diff;
+}
+
+
 void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& cam_rotation, 
 	bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override, 
-	const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out)
+	const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, const PoseConstraint& pose_constraint, AnimEvents& anim_events_out)
 {
 	if(false) // debug_avatar_basis_ob.isNull())
 	{
@@ -136,177 +146,331 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		// float turn_forwards_nudge = 0;
 		double new_anim_transition_duration = 0.3; // Duration of the blend period, if we have a new animation to transiton to.
 		
-		if(on_ground) // if on ground:
+		const Vec4f up_os(0,1,0,0);
+
+		if(pose_constraint.sitting)
 		{
-			const float max_accel_mag = 10.2f;
-			float clamped_sideways_accel = myClamp(unclamped_sideways_accel, -max_accel_mag, max_accel_mag);
-			float clamped_forwards_accel = myClamp(unclamped_forwards_accel, -max_accel_mag, max_accel_mag);
-			const float blend_frac = 0.03f;
-			cur_sideweays_lean = cur_sideweays_lean * (1 - blend_frac) + clamped_sideways_accel * blend_frac;
-			cur_forwards_lean  = cur_forwards_lean  * (1 - blend_frac) + clamped_forwards_accel * blend_frac;
+			new_anim_i = idle_anim_i;
 
-			//const float forwards_vel = dot(forwards_vec, vel.toVec4fVector());
-			const bool moving_forwards = dot(forwards_vec, normalise(dpos.toVec4fVector())) > -0.1f;
+			const Vec4f seat_right_ws = pose_constraint.seat_to_world * Vec4f(1,0,0,0);
+			avatar_rotation.z = std::atan2(seat_right_ws[1], seat_right_ws[0]) + Maths::pi_2<float>();
+			avatar_rotation.y = Maths::pi_2<float>(); // pitch angle
 
-			//if(speed > 0.1 && (forwards_vel < -0.1f || forwards_vel > 0.1f))
-				lean_matrix = Matrix4f::rotationAroundXAxis(cur_sideweays_lean * -0.02f) * Matrix4f::rotationAroundYAxis(cur_forwards_lean * -0.02f); // NOTE: this forwards lean rotation dir is probably in the wrong direction, but is not visible anyway.
-
-			if(xyplane_speed > 6)
+			Vec4f hips_pos_os(0,0,0,1);
+			if(hips_node_i >= 0 && hips_node_i < (int)skinned_gl_ob->anim_node_data.size())
 			{
-				// Blend rotation of avatar towards camera rotation
-				const float rot_blend_frac = (float)(10 * dt);
-				this->avatar_rotation = this->avatar_rotation * (1 - rot_blend_frac) + cam_rotation * rot_blend_frac;
-
-				if(moving_forwards)
-					new_anim_i = running_anim_i;
-				else
-					new_anim_i = running_backwards_anim_i;
-
-				new_anim_transition_duration = 0.1;
+				hips_pos_os = (Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * pre_ob_to_world_matrix * skinned_gl_ob->anim_node_data[hips_node_i].last_pre_proc_to_object) * Vec4f(0,0,0,1);
 			}
-			else if(xyplane_speed > 0.1)
+
+			// pre_ob_to_world_matrix will rotate avatars from y-up and z-forwards to z-up and -y forwards.  Rotate around z axis to change to +y-forwards
+			skinned_gl_ob->ob_to_world_matrix = pose_constraint.seat_to_world * /*move hips to seat position=*/Matrix4f::translationMatrix(-hips_pos_os) * Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * pre_ob_to_world_matrix;
+
+			Matrix4f world_to_ob_matrix;
+			skinned_gl_ob->ob_to_world_matrix.getInverseForAffine3Matrix(world_to_ob_matrix);
+
+
+			if(hips_node_i >= 0 && hips_node_i < (int)skinned_gl_ob->anim_node_data.size()) // Upper torso
 			{
-				// Blend rotation of avatar towards camera rotation
-				const float rot_blend_frac = (float)(10 * dt);
-				this->avatar_rotation = this->avatar_rotation * (1 - rot_blend_frac) + cam_rotation * rot_blend_frac;
-
-				if(moving_forwards)
-					new_anim_i = walking_anim_i;
-				else
-					new_anim_i = walking_backwards_anim_i;
-
-				new_anim_transition_duration = 0.2;
+				skinned_gl_ob->anim_node_data[hips_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(-pose_constraint.upper_body_rot_angle); // Apply recline rotation to upper body (lean back)
 			}
-			else // else if (nearly) stationary:
-			{
-				const double turn_anim_duration = 57.0 / 60;// Left and right turn anims are 57 frames at 60fps
 
-				if(cur_time < turn_anim_end_time) // If we are currently performing a turn left/right anim:
+			if(	left_foot_node_i >= 0  && left_foot_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_foot_node_i >= 0 && right_foot_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{}
+
+			// Set upper leg rotation
+			if(	left_up_leg_node_i >= 0  && left_up_leg_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_up_leg_node_i >= 0 && right_up_leg_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
 				{
-					// Slowly rotate in the turn direction.
-					const float turn_sign = turning_left ? 1.f : -1.f;
+					const Matrix4f last_bone_to_object_space = skinned_gl_ob->anim_node_data[left_up_leg_node_i].last_pre_proc_to_object; // last bone to object space (y-up) transformation.
+					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_bone_to_object_space);
+					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), 0.07f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), /*to rotate to down=*/Maths::pi<float>() - pose_constraint.upper_leg_rot_angle) * Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), Maths::pi<float>());
+					// Note that node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform, so we want to undo the bone-to-object-space rotation last (so it should be on left)
+					skinned_gl_ob->anim_node_data[left_up_leg_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
+				}
+				{
+					const Matrix4f last_bone_to_object_space = skinned_gl_ob->anim_node_data[right_up_leg_node_i].last_pre_proc_to_object; // last bone to object space (y-up) transformation.
+					const Quatf bone_to_object_space_rot = normalise(Quatf::fromMatrix(last_bone_to_object_space));
+					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -0.07f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), /*to rotate to down=*/Maths::pi<float>() - pose_constraint.upper_leg_rot_angle) * Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), Maths::pi<float>());
+					skinned_gl_ob->anim_node_data[right_up_leg_node_i].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
+				}
+			}
 
-					if(turning_left)
-						new_anim_i = turn_left_anim_i;
+			if(	left_knee_node_i >= 0  && left_knee_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_knee_node_i >= 0 && right_knee_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				// Bend lower leg at knee
+				skinned_gl_ob->anim_node_data[left_knee_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
+				skinned_gl_ob->anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
+			}
+
+			// Arms:
+			if(	left_arm_node_i >= 0  && left_arm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_arm_node_i >= 0 && right_arm_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				{
+					const Matrix4f last_left_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[left_arm_node_i].last_pre_proc_to_object; // last left-arm bone to object space (y-up) transformation.
+					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_left_arm_bone_to_object_space);
+					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), 0.3f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), 2.1f);
+					// Note that node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform, so we want to undo the bone-to-object-space rotation last (so it should be on left)
+					skinned_gl_ob->anim_node_data[left_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
+				}
+				{
+					const Matrix4f last_right_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[right_arm_node_i].last_pre_proc_to_object; // last right-arm bone to object space (y-up) transformation.
+					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_right_arm_bone_to_object_space);
+					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -0.3f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), 2.1f);
+					skinned_gl_ob->anim_node_data[right_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
+				}
+			}
+
+
+			if(	left_forearm_node_i >= 0  && left_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_forearm_node_i >= 0 && right_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				// Bend lower arms (at elbow)
+				skinned_gl_ob->anim_node_data[left_forearm_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(-0.5f);
+				skinned_gl_ob->anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(-0.5f);
+			}
+			
+			
+		}
+		else // Else if not sitting:
+		{
+			// Reset any procedural_transforms we set to the identity matrix.
+			if(hips_node_i >= 0 && hips_node_i < (int)skinned_gl_ob->anim_node_data.size()) // Upper torso
+			{
+				skinned_gl_ob->anim_node_data[hips_node_i].procedural_transform = Matrix4f::identity();
+			}
+
+			if(	left_up_leg_node_i >= 0  && left_up_leg_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_up_leg_node_i >= 0 && right_up_leg_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				skinned_gl_ob->anim_node_data[left_up_leg_node_i].procedural_transform = Matrix4f::identity();
+				skinned_gl_ob->anim_node_data[right_up_leg_node_i].procedural_transform = Matrix4f::identity();
+			}
+
+			if(	left_knee_node_i >= 0  && left_knee_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_knee_node_i >= 0 && right_knee_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				skinned_gl_ob->anim_node_data[left_knee_node_i].procedural_transform = Matrix4f::identity();
+				skinned_gl_ob->anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::identity();
+			}
+
+			if(	left_arm_node_i >= 0  && left_arm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_arm_node_i >= 0 && right_arm_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				skinned_gl_ob->anim_node_data[left_arm_node_i ].procedural_transform = Matrix4f::identity();
+				skinned_gl_ob->anim_node_data[right_arm_node_i ].procedural_transform = Matrix4f::identity();
+			}
+
+			if(	left_forearm_node_i >= 0  && left_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size() && 
+				right_forearm_node_i >= 0 && right_forearm_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				skinned_gl_ob->anim_node_data[left_forearm_node_i].procedural_transform = Matrix4f::identity();
+				skinned_gl_ob->anim_node_data[right_forearm_node_i].procedural_transform = Matrix4f::identity();
+			}
+
+
+
+			if(on_ground) // if on ground:
+			{
+				const float max_accel_mag = 10.2f;
+				float clamped_sideways_accel = myClamp(unclamped_sideways_accel, -max_accel_mag, max_accel_mag);
+				float clamped_forwards_accel = myClamp(unclamped_forwards_accel, -max_accel_mag, max_accel_mag);
+				const float blend_frac = 0.03f;
+				cur_sideweays_lean = cur_sideweays_lean * (1 - blend_frac) + clamped_sideways_accel * blend_frac;
+				cur_forwards_lean  = cur_forwards_lean  * (1 - blend_frac) + clamped_forwards_accel * blend_frac;
+
+				//const float forwards_vel = dot(forwards_vec, vel.toVec4fVector());
+				const bool moving_forwards = dot(forwards_vec, normalise(dpos.toVec4fVector())) > -0.1f;
+
+				//if(speed > 0.1 && (forwards_vel < -0.1f || forwards_vel > 0.1f))
+					lean_matrix = Matrix4f::rotationAroundXAxis(cur_sideweays_lean * -0.02f) * Matrix4f::rotationAroundYAxis(cur_forwards_lean * -0.02f); // NOTE: this forwards lean rotation dir is probably in the wrong direction, but is not visible anyway.
+
+				if(xyplane_speed > 6)
+				{
+					// Blend rotation of avatar towards camera rotation
+					// We consider yaw angle (rotation around up axis) mod 2 pi, and rotate the closest way around the circle.
+					const float rot_blend_frac = (float)(10 * dt);
+					Vec3f rot_diff = cam_rotation - this->avatar_rotation;
+					rot_diff.z = mod2PiDiff(rot_diff.z);
+					this->avatar_rotation = this->avatar_rotation + rot_diff * rot_blend_frac;
+
+					if(moving_forwards)
+						new_anim_i = running_anim_i;
 					else
-						new_anim_i = turn_right_anim_i;
+						new_anim_i = running_backwards_anim_i;
 
-					{
-						const double turn_anim_start_time = turn_anim_end_time - turn_anim_duration;
-						const float frac = (float)((cur_time - turn_anim_start_time) / turn_anim_duration);
-						this->avatar_rotation = avatar_rotation_at_turn_start + Vec3f(0, 0, turn_sign * ::degreeToRad(118.f) * frac);
-
-						const double time_remaining = turn_anim_end_time - cur_time;
-						if(time_remaining < 0.3)
-						{
-							// Start blending into idle pose anim
-							new_anim_i = idle_anim_i;
-						}
-					}
+					new_anim_transition_duration = 0.1;
 				}
-				else
+				else if(xyplane_speed > 0.1)
 				{
-					if(turning && (skinned_gl_ob->current_anim_i == turn_left_anim_i || skinned_gl_ob->current_anim_i == turn_right_anim_i)) // If we were performing a turn, and we have finished the animation:
+					// Blend rotation of avatar towards camera rotation
+					const float rot_blend_frac = (float)(10 * dt);
+					Vec3f rot_diff = cam_rotation - this->avatar_rotation;
+					rot_diff.z = mod2PiDiff(rot_diff.z);
+					this->avatar_rotation = this->avatar_rotation + rot_diff * rot_blend_frac;
+
+					if(moving_forwards)
+						new_anim_i = walking_anim_i;
+					else
+						new_anim_i = walking_backwards_anim_i;
+
+					new_anim_transition_duration = 0.2;
+				}
+				else // else if (nearly) stationary:
+				{
+					const double turn_anim_duration = 57.0 / 60;// Left and right turn anims are 57 frames at 60fps
+
+					if(cur_time < turn_anim_end_time) // If we are currently performing a turn left/right anim:
 					{
-						//conPrint("Finished the turn anim");
-						turning = false;
-					}
+						// Slowly rotate in the turn direction.
+						const float turn_sign = turning_left ? 1.f : -1.f;
 
-
-					if(cur_time < gesture_anim.play_end_time) // if we are playing a gesture:
-					{
-						new_anim_i = gesture_anim.anim_i; // Continue current gesture
-
-
-						const double time_remaining = gesture_anim.play_end_time - cur_time;
-						//printVar(time_remaining);
-						if(time_remaining < 0.3)
-						{
-							// conPrint("Starting blend to idle pose anim");
-							// Start blending into idle pose anim
-							new_anim_i = idle_anim_i;
-						}
-
-					}
-					else // Else if we have finished playing any gesture:
-					{
-						//if(next_gesture_anim.anim_i >= 0) // If we have a next gesture:
-						//{
-						//	gesture_anim = next_gesture_anim;
-						//	next_gesture_anim.anim_i = -1;
-						//	//gesture_anim_i = next_gesture_anim_i;
-						//	//next_gesture_anim_i = -1;
-						//	new_anim_i = gesture_anim.anim_i;
-						//}
-						//else
-							new_anim_i = idle_anim_i;
-					}
-
-					const float yaw_diff = cam_rotation.z - avatar_rotation.z;
-
-					// conPrint("cam_rotation.z: " + doubleToStringNSigFigs(cam_rotation.z, 3) + ", avatar_rotation.z: " + doubleToStringNSigFigs(avatar_rotation.z, 3));
-
-					if(std::fabs(yaw_diff) > ::degreeToRad(118.f))
-					{
-						avatar_rotation_at_turn_start = avatar_rotation;
-
-						if(yaw_diff > 0)
-						{
+						if(turning_left)
 							new_anim_i = turn_left_anim_i;
-							// conPrint("Starting left turn anim");
-							turning_left = true;
-						}
 						else
-						{
 							new_anim_i = turn_right_anim_i;
-							// conPrint("Starting right turn anim");
-							turning_left = false;
+
+						{
+							const double turn_anim_start_time = turn_anim_end_time - turn_anim_duration;
+							const float frac = (float)((cur_time - turn_anim_start_time) / turn_anim_duration);
+							this->avatar_rotation = avatar_rotation_at_turn_start + Vec3f(0, 0, turn_sign * ::degreeToRad(118.f) * frac);
+
+							const double time_remaining = turn_anim_end_time - cur_time;
+							if(time_remaining < 0.3)
+							{
+								// Start blending into idle pose anim
+								new_anim_i = idle_anim_i;
+							}
+						}
+					}
+					else
+					{
+						if(turning && (skinned_gl_ob->current_anim_i == turn_left_anim_i || skinned_gl_ob->current_anim_i == turn_right_anim_i)) // If we were performing a turn, and we have finished the animation:
+						{
+							//conPrint("Finished the turn anim");
+							turning = false;
 						}
 
-						turn_anim_end_time = cur_time + turn_anim_duration;
-						skinned_gl_ob->use_time_offset = -cur_time; // Set anim time offset so that we are at the beginning of the animation. NOTE: bit of a hack, messes with the blended anim also.
-						turning = true;
 
-						new_anim_transition_duration = 0.3;
+						if(cur_time < gesture_anim.play_end_time) // if we are playing a gesture:
+						{
+							new_anim_i = gesture_anim.anim_i; // Continue current gesture
+
+
+							const double time_remaining = gesture_anim.play_end_time - cur_time;
+							//printVar(time_remaining);
+							if(time_remaining < 0.3)
+							{
+								// conPrint("Starting blend to idle pose anim");
+								// Start blending into idle pose anim
+								new_anim_i = idle_anim_i;
+							}
+
+						}
+						else // Else if we have finished playing any gesture:
+						{
+							//if(next_gesture_anim.anim_i >= 0) // If we have a next gesture:
+							//{
+							//	gesture_anim = next_gesture_anim;
+							//	next_gesture_anim.anim_i = -1;
+							//	//gesture_anim_i = next_gesture_anim_i;
+							//	//next_gesture_anim_i = -1;
+							//	new_anim_i = gesture_anim.anim_i;
+							//}
+							//else
+								new_anim_i = idle_anim_i;
+						}
+
+						const float yaw_diff = mod2PiDiff(cam_rotation.z - avatar_rotation.z);
+
+						// conPrint("cam_rotation.z: " + doubleToStringNSigFigs(cam_rotation.z, 3) + ", avatar_rotation.z: " + doubleToStringNSigFigs(avatar_rotation.z, 3));
+
+						if(std::fabs(yaw_diff) > ::degreeToRad(118.f))
+						{
+							avatar_rotation_at_turn_start = avatar_rotation;
+
+							if(yaw_diff > 0)
+							{
+								new_anim_i = turn_left_anim_i;
+								// conPrint("Starting left turn anim");
+								turning_left = true;
+							}
+							else
+							{
+								new_anim_i = turn_right_anim_i;
+								// conPrint("Starting right turn anim");
+								turning_left = false;
+							}
+
+							turn_anim_end_time = cur_time + turn_anim_duration;
+							skinned_gl_ob->use_time_offset = -cur_time; // Set anim time offset so that we are at the beginning of the animation. NOTE: bit of a hack, messes with the blended anim also.
+							turning = true;
+
+							new_anim_transition_duration = 0.3;
+						}
 					}
 				}
 			}
-		}
-		else
-		{
-			this->avatar_rotation = cam_rotation;
-
-			const bool flying = BitUtils::isBitSet(anim_state, ANIM_STATE_FLYING);
-			const bool moving_forwards = dot(vel.toVec4fVector(), forwards_vec) > speed * 0.4f;
-
-			const float max_accel_mag = 40.f;
-			float clamped_sideways_accel = myClamp(unclamped_sideways_accel, -max_accel_mag, max_accel_mag);
-			float clamped_forwards_accel = myClamp(unclamped_forwards_accel, -max_accel_mag, max_accel_mag);
-			const float blend_frac = 0.03f;
-
-			if(!flying) // If jumping:
+			else
 			{
-				clamped_forwards_accel = 0;
-				new_anim_transition_duration = 0.15; // Make the transition to jumping faster than the default.
+				this->avatar_rotation = cam_rotation;
+
+				const bool flying = BitUtils::isBitSet(anim_state, ANIM_STATE_FLYING);
+				const bool moving_forwards = dot(vel.toVec4fVector(), forwards_vec) > speed * 0.4f;
+
+				const float max_accel_mag = 40.f;
+				float clamped_sideways_accel = myClamp(unclamped_sideways_accel, -max_accel_mag, max_accel_mag);
+				float clamped_forwards_accel = myClamp(unclamped_forwards_accel, -max_accel_mag, max_accel_mag);
+				const float blend_frac = 0.03f;
+
+				if(!flying) // If jumping:
+				{
+					clamped_forwards_accel = 0;
+					new_anim_transition_duration = 0.15; // Make the transition to jumping faster than the default.
+				}
+
+				cur_sideweays_lean = cur_sideweays_lean * (1 - blend_frac) + clamped_sideways_accel * blend_frac;
+				cur_forwards_lean  = cur_forwards_lean  * (1 - blend_frac) + clamped_forwards_accel * blend_frac;
+
+
+				// flying
+				if(speed > 10 && moving_forwards && flying)
+					new_anim_i = flying_anim_i;
+				else
+					new_anim_i = floating_anim_i;
+
+				lean_matrix = Matrix4f::rotationAroundXAxis(cur_sideweays_lean * -0.02f) * Matrix4f::rotationAroundYAxis(cur_forwards_lean * 0.01f);
 			}
 
-			cur_sideweays_lean = cur_sideweays_lean * (1 - blend_frac) + clamped_sideways_accel * blend_frac;
-			cur_forwards_lean  = cur_forwards_lean  * (1 - blend_frac) + clamped_forwards_accel * blend_frac;
+			// Adjust position of avatar upwards if needed, so that the feet and hips are above 'ground' level.  ('Ground' level is 1.67 m below the camera position)
+			// Fixes issues like meebits being partially below ground in some poses.
+			float lowest_bone_z_os = 0;
+			if(hips_node_i >= 0 && hips_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				const Vec4f hips_pos_os = (Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * pre_ob_to_world_matrix * skinned_gl_ob->anim_node_data[hips_node_i].last_pre_proc_to_object) * Vec4f(0,0,0,1);
+				lowest_bone_z_os = myMin(lowest_bone_z_os, hips_pos_os[2]);
+			}
+			if(left_foot_node_i >= 0 && left_foot_node_i < (int)skinned_gl_ob->anim_node_data.size())
+			{
+				const Vec4f left_foot_pos_os = (Matrix4f::rotationAroundZAxis(Maths::pi<float>()) * pre_ob_to_world_matrix * skinned_gl_ob->anim_node_data[left_foot_node_i].last_pre_proc_to_object) * Vec4f(0,0,0,1);
+				lowest_bone_z_os = myMin(lowest_bone_z_os, left_foot_pos_os[2]);
+			}
+
+			const float lowest_node_height_above_ground = lowest_bone_z_os + 1.67f - 0.03f; // Translate up by default eye height.
+
+			float vertical_adjustment = 0;
+			if(lowest_node_height_above_ground < 0)
+				vertical_adjustment = -lowest_node_height_above_ground;
 
 
-			// flying
-			if(speed > 10 && moving_forwards && flying)
-				new_anim_i = flying_anim_i;
-			else
-				new_anim_i = floating_anim_i;
-
-			lean_matrix = Matrix4f::rotationAroundXAxis(cur_sideweays_lean * -0.02f) * Matrix4f::rotationAroundYAxis(cur_forwards_lean * 0.01f);
+			// pre_ob_to_world_matrix will rotate avatars from y-up and z-forwards to z-up and -y forwards.  Rotate around z axis to change to +x-forwards
+			skinned_gl_ob->ob_to_world_matrix = /*Matrix4f::translationMatrix(forwards_vec * turn_forwards_nudge) * */rotateThenTranslateMatrix(pos, avatar_rotation) * lean_matrix * Matrix4f::translationMatrix(0,0,vertical_adjustment) *
+				Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * pre_ob_to_world_matrix;
 		}
 
-
-		// pre_ob_to_world_matrix will rotate avatars from y-up and z-forwards to z-up and -y forwards.  Rotate around z axis to change to +x-forwards
-		skinned_gl_ob->ob_to_world_matrix = /*Matrix4f::translationMatrix(forwards_vec * turn_forwards_nudge) * */rotateThenTranslateMatrix(pos, avatar_rotation) * lean_matrix * 
-			Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * pre_ob_to_world_matrix;
 		engine.updateObjectTransformData(*skinned_gl_ob);
 
 		// See if we need to start a transition to a new animation
@@ -336,9 +500,6 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		// engine.updateObjectTransformData(*debug_avatar_basis_ob);
 
 
-		const Vec4f up_os(0,1,0,0);
-
-		
 		// Check node indices are in-bounds
 		if(	head_node_i >= 0 && head_node_i < (int)skinned_gl_ob->anim_node_data.size() &&
 			neck_node_i >= 0 && neck_node_i < (int)skinned_gl_ob->anim_node_data.size() &&
@@ -356,7 +517,7 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 
 
 			// Get total yaw and pitch differences between cam rotation and avatar rotation
-			const float total_yaw_amount   = cam_rotation.z - avatar_rotation.z;
+			const float total_yaw_amount = mod2PiDiff(cam_rotation.z - avatar_rotation.z);
 			const float total_pitch_amount = cam_rotation.y - Maths::pi_2<float>();
 
 			//------------------- Do head look-at procedural movement -----------------------
@@ -722,6 +883,16 @@ void AvatarGraphics::build()
 	// 
 	left_knee_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftLeg");
 	right_knee_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightLeg");
+
+	left_up_leg_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftUpLeg");
+	right_up_leg_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightUpLeg");
+
+	left_arm_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftArm");
+	right_arm_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightArm");
+
+	left_forearm_node_i  = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("LeftForeArm");
+	right_forearm_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("RightForeArm");
+
 
 	hips_node_i = skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Hips");
 	spine2_node_i =  skinned_gl_ob->mesh_data->animation_data.getNodeIndex("Spine2");

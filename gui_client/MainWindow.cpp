@@ -567,7 +567,7 @@ MainWindow::~MainWindow()
 
 
 	player_physics.shutdown();
-	car_physics.shutdown();
+	//car_physics.shutdown();
 
 
 	running_destructor = true; // Set this to not append log messages during destruction, causes assert failure in Qt.
@@ -1973,7 +1973,8 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 			const double global_time = this->world_state->getCurrentGlobalTime();
 
 			Reference<ObjectPathController> path_controller;
-			Scripting::parseXMLScript(ob, ob->script, global_time, path_controller);
+			Reference<Scripting::HoverCarScript> hover_car_script;
+			Scripting::parseXMLScript(ob, ob->script, global_time, path_controller, hover_car_script);
 
 			if(path_controller.nonNull())
 			{
@@ -1984,6 +1985,12 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 				ob->is_path_controlled = true;
 
 				// conPrint("Added path controller, path_controllers.size(): " + toString(path_controllers.size()));
+			}
+
+			if(hover_car_script.nonNull())
+			{
+				ob->hover_car_script = hover_car_script;
+				// conPrint("Added hover car script to object");
 			}
 
 			if(ob == selected_ob.ptr())
@@ -2921,7 +2928,7 @@ void MainWindow::tryToMoveObject(const WorldObject& ob, /*const Matrix4f& tentat
 		this->world_state->dirty_from_local_objects.insert(this->selected_ob);
 
 
-		if(this->selected_ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*this->selected_ob, world_state->getCurrentGlobalTime()))
+		if(this->selected_ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*this->selected_ob, world_state->getCurrentGlobalTime()) && !isObjectVehicleBeingDrivenByOther(*this->selected_ob))
 		{
 			// conPrint("==Taking ownership of physics object in tryToMoveObject()...==");
 			takePhysicsOwnershipOfObject(*this->selected_ob, world_state->getCurrentGlobalTime());
@@ -3852,6 +3859,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	updateObjectsWithDiagnosticVis();
 
+
+	// Update info UI with stuff like drawing the URL for objects with target URLs, and showing the 'press [E] to enter vehicle' message.
+	// Don't do this if the mouse cursor is hidden, because that implies we are click-dragging to change the camera orientation, and we don't want to show mouse over messages while doing that.
+	if(!ui->glWidget->isCursorHidden())
+	{
+		const QPoint widget_pos = ui->glWidget->mapFromGlobal(QCursor::pos());
+		updateInfoUIForMousePosition(widget_pos, /*mouse_event=*/NULL);
+	}
+
 	// Update AABB visualisation, if we are showing one.
 	if(aabb_vis_gl_ob.nonNull() && selected_ob.nonNull())
 	{
@@ -4275,7 +4291,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		conPrint("mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()));
 	}
 
-	// NOTE: goes after sceeenshot code might update campos
+	// NOTE: goes after sceeenshot code, which might update campos.
 	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 
 	const double cur_time = Clock::getTimeSinceInit(); // Used for animation, interpolation etc..
@@ -5007,28 +5023,35 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			PERFORMANCEAPI_INSTRUMENT("player physics");
 
-			// Process player physics
-			UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, /*campos in/out=*/campos);
-			physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
-
-			// Process contact events for objects that the player touched.
-			// Take physics ownership of any such object if needed.
-			for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+			if(hover_car_physics.nonNull())
 			{
-				PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
-				if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
-				{
-					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+				hover_car_physics->update(*this->physics_world, physics_input, (float)substep_dt, /*campos_out=*/campos);
+				this->cam_controller.setPosition(toVec3d(campos));
+			}
+			else
+			{
+				// Process player physics
+				UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, /*campos in/out=*/campos);
+				physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
 
-					const bool owned_by_self = isObjectPhysicsOwnedBySelf(*ob, global_time);
-					if(!owned_by_self)
+				// Process contact events for objects that the player touched.
+				// Take physics ownership of any such object if needed.
+				for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
+				{
+					PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+					if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
 					{
-						// conPrint("==Taking ownership of physics object from avatar physics contact...==");
-						takePhysicsOwnershipOfObject(*ob, global_time);
+						WorldObject* ob = (WorldObject*)physics_ob->userdata;
+						
+						if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+						{
+							// conPrint("==Taking ownership of physics object from avatar physics contact...==");
+							takePhysicsOwnershipOfObject(*ob, global_time);
+						}
 					}
 				}
+				player_physics.contacted_events.resize(0);
 			}
-			player_physics.contacted_events.resize(0);
 		}
 	}
 
@@ -5168,7 +5191,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						// If this object is already owned by another user, let them continue to own it. 
 						// If it is unowned, however, take ownership of it.
-						if(!isObjectPhysicsOwned(*ob, global_time))
+						if(!isObjectPhysicsOwned(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
 						{
 							// conPrint("==Taking ownership of physics object...==");
 							takePhysicsOwnershipOfObject(*ob, global_time);
@@ -5577,7 +5600,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(selfie_mode)
 							use_target_pos = avatar->graphics.getLastHeadPosition();
 						else
-							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint();
+						{
+							const Vec4f vertical_offset = hover_car_physics.nonNull() ? Vec4f(0,0,0.3f,0) : Vec4f(0);
+							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + vertical_offset;
+						}
 
 						//rotation = Vec3f(0, 0, 0); // just for testing
 						//pos = Vec3d(0,0,1.7);
@@ -5608,14 +5634,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							//printVar(cam_back_dir);
 
+							// Don't start tracing the ray back immediately or we may hit the car.
+							const float initial_ignore_dist = hover_car_physics.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), 3.f) : 0.f;
 							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 							RayTraceResult trace_results;
-							physics_world->traceRay(use_target_pos, normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() + 1.f, trace_results);
+							physics_world->traceRay(/*origin=*/use_target_pos + normalise(cam_back_dir) * initial_ignore_dist, 
+								/*dir=*/normalise(cam_back_dir), /*max_t=*/cam_back_dir.length() - initial_ignore_dist + 1.f, trace_results);
 
 							if(trace_results.hit_object)
 							{
-								const float use_dist = myClamp(trace_results.hitdist_ws - 0.05f, 0.5f, cam_back_dir.length());
+								const float use_dist = myClamp(initial_ignore_dist + trace_results.hitdist_ws - 0.05f, 0.5f, cam_back_dir.length());
 								cam_back_dir = normalise(cam_back_dir) * use_dist;
 							}
 
@@ -5625,9 +5654,62 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 
 					{
+						// Seat to world = object to world * seat to object
+						PoseConstraint pose_constraint;
+						pose_constraint.sitting = false;
+						if(our_avatar)
+						{
+							if(hover_car_physics.nonNull())
+							{
+								pose_constraint.sitting = true;
+								pose_constraint.seat_to_world				= hover_car_physics->getSeatToWorldTransform(*this->physics_world);
+								pose_constraint.model_to_y_forwards_rot_1	= hover_car_physics->settings.script_settings.model_to_y_forwards_rot_1;
+								pose_constraint.model_to_y_forwards_rot_2	= hover_car_physics->settings.script_settings.model_to_y_forwards_rot_2;
+								pose_constraint.upper_body_rot_angle		= hover_car_physics->settings.script_settings.seat_settings[hover_car_physics->cur_seat_index].upper_body_rot_angle;
+								pose_constraint.upper_leg_rot_angle			= hover_car_physics->settings.script_settings.seat_settings[hover_car_physics->cur_seat_index].upper_leg_rot_angle;
+								pose_constraint.lower_leg_rot_angle			= hover_car_physics->settings.script_settings.seat_settings[hover_car_physics->cur_seat_index].lower_leg_rot_angle;
+							}
+						}
+						else
+						{
+							if(avatar->entered_vehicle.nonNull()) // If the other avatar is in a vehicle:
+							{
+								// Create HoverCarPhysics for avatar if needed
+								if(avatar->hover_car_physics.isNull() && avatar->entered_vehicle->physics_object.nonNull() && avatar->entered_vehicle->hover_car_script.nonNull())
+								{
+									HoverCarPhysicsSettings hover_car_physics_settings;
+									hover_car_physics_settings.hovercar_mass = avatar->entered_vehicle->mass;
+									hover_car_physics_settings.script_settings = avatar->entered_vehicle->hover_car_script->settings;
+
+									avatar->hover_car_physics = new HoverCarPhysics(avatar->entered_vehicle->physics_object->jolt_body_id, hover_car_physics_settings);
+									avatar->hover_car_physics->cur_seat_index = avatar->vehicle_seat_index;
+								}
+
+								if(avatar->hover_car_physics.nonNull()) // If we have an active hovercar physics controller for this other avatar:
+								{
+									// Use empty input to the controller for now:
+									PlayerPhysicsInput other_avatar_physics_input;
+									other_avatar_physics_input.clear();
+
+									Vec4f hovercar_campos;
+									avatar->hover_car_physics->update(*physics_world, other_avatar_physics_input, (float)dt, hovercar_campos); // TEMP Just compute forces for hovercar now
+
+									pose_constraint.sitting = true;
+									pose_constraint.seat_to_world				= avatar->hover_car_physics->getSeatToWorldTransform(*this->physics_world);
+									pose_constraint.model_to_y_forwards_rot_1	= avatar->hover_car_physics->settings.script_settings.model_to_y_forwards_rot_1;
+									pose_constraint.model_to_y_forwards_rot_2	= avatar->hover_car_physics->settings.script_settings.model_to_y_forwards_rot_2;
+									pose_constraint.upper_body_rot_angle		= avatar->hover_car_physics->settings.script_settings.seat_settings[avatar->hover_car_physics->cur_seat_index].upper_body_rot_angle;
+									pose_constraint.upper_leg_rot_angle			= avatar->hover_car_physics->settings.script_settings.seat_settings[avatar->hover_car_physics->cur_seat_index].upper_leg_rot_angle;
+									pose_constraint.lower_leg_rot_angle			= avatar->hover_car_physics->settings.script_settings.seat_settings[avatar->hover_car_physics->cur_seat_index].lower_leg_rot_angle;
+								}
+							}
+							else
+								avatar->hover_car_physics = NULL; // Destroy physics controller if it exists.
+						}
+						 
 						AnimEvents anim_events;
 						avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
-							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, anim_events);
+							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, pose_constraint, anim_events);
 						
 						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
 						{
@@ -5646,8 +5728,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					// Update nametag transform also
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 					{
+						// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
+						Vec4f use_nametag_pos;
+						if(avatar->hover_car_physics.nonNull())
+							use_nametag_pos = avatar->hover_car_physics->getSeatToWorldTransform(*this->physics_world) * Vec4f(0,0,1.0f,1);
+						else
+							use_nametag_pos = pos.toVec4fPoint();
+
 						// We want to rotate the nametag towards the camera.
-						Vec4f to_cam = normalise(pos.toVec4fPoint() - this->cam_controller.getPosition().toVec4fPoint());
+						Vec4f to_cam = normalise(use_nametag_pos - this->cam_controller.getPosition().toVec4fPoint());
 						if(!isFinite(to_cam[0]))
 							to_cam = Vec4f(1, 0, 0, 0); // Handle case where to_cam was zero.
 
@@ -5673,7 +5762,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						avatar->nametag_z_offset = avatar->nametag_z_offset * (1 - blend_speed) + flying_z_offset * blend_speed;
 
 						// Rotate around z-axis, then translate to just above the avatar's head.
-						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(pos.toVec4fVector() + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
+						avatar->opengl_engine_nametag_ob->ob_to_world_matrix = Matrix4f::translationMatrix(use_nametag_pos + Vec4f(0, 0, 0.3f + avatar->nametag_z_offset, 0)) *
 							rot_matrix * Matrix4f::scaleMatrix(ws_width, 1, ws_height) * Matrix4f::translationMatrix(-0.5f, 0.f, 0.f);
 
 						assert(isFinite(avatar->opengl_engine_nametag_ob->ob_to_world_matrix.e[0]));
@@ -5747,6 +5836,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		//double phase_speed = 0;
 
 
+		PoseConstraint pose_constraint;
+		pose_constraint.sitting = false;
+		pose_constraint.seat_to_world = Matrix4f::translationMatrix(0,0,1.7f);
+
 		AnimEvents anim_events;
 		//test_avatar_phase += phase_speed * dt;
 		//const float r = 3;
@@ -5754,7 +5847,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		const int anim_state = 0;
 		float xyplane_speed_rel_ground = 0;
 		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, Vec3f(0, 1.57, 0),//Vec3f(0, 0, (float)test_avatar_phase + Maths::pi_2<float>()), 
-			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, anim_events);
+			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, pose_constraint, anim_events);
 		if(anim_events.footstrike)
 		{
 			//conPrint("footstrike");
@@ -6345,6 +6438,25 @@ bool MainWindow::isObjectPhysicsOwned(WorldObject& ob, double global_time)
 {
 	return (ob.physics_owner_id != std::numeric_limits<uint32>::max()) && // If the owner is a valid UID,
 		((global_time - ob.last_physics_ownership_change_global_time) < PHYSICS_ONWERSHIP_PERIOD); // And the ownership is still valid
+}
+
+
+bool MainWindow::isObjectVehicleBeingDrivenByOther(WorldObject& ob)
+{
+	return doesVehicleHaveAvatarInSeat(ob, /*seat_index=*/0);
+}
+
+
+bool MainWindow::doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index)
+{
+	// Iterate over all avatars (slow linear time of course!), see if any are in the drivers seat of this vehicle object.
+	for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+	{
+		const Avatar* avatar = it->second.getPointer();
+		if(avatar->entered_vehicle.ptr() == &ob && avatar->vehicle_seat_index == seat_index)
+			return true;
+	}
+	return false;
 }
 
 
@@ -8912,7 +9024,7 @@ void MainWindow::objectEditedSlot()
 
 						Lock lock(this->world_state->mutex);
 
-						if(this->selected_ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*this->selected_ob, world_state->getCurrentGlobalTime()))
+						if(this->selected_ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*this->selected_ob, world_state->getCurrentGlobalTime()) && !isObjectVehicleBeingDrivenByOther(*this->selected_ob))
 						{
 							// conPrint("==Taking ownership of physics object in objectEditedSlot()...==");
 							takePhysicsOwnershipOfObject(*this->selected_ob, world_state->getCurrentGlobalTime());
@@ -8928,14 +9040,6 @@ void MainWindow::objectEditedSlot()
 						//objs_with_lightmap_rebuild_needed.insert(this->selected_ob);
 						//lightmap_flag_timer->start(/*msec=*/2000); // Trigger sending update-lightmap update flag message later.
 
-						try
-						{
-							loadScriptForObject(this->selected_ob.ptr());
-						}
-						catch(glare::Exception& e)
-						{
-							logMessage("Error while loading script: " + e.what());
-						}
 
 						// Update any instanced copies of object
 						updateInstancedCopiesOfObject(this->selected_ob.ptr());
@@ -8951,7 +9055,18 @@ void MainWindow::objectEditedSlot()
 				loadAudioForObject(this->selected_ob.getPointer());
 
 			if(BitUtils::isBitSet(selected_ob->changed_flags, WorldObject::SCRIPT_CHANGED))
-				loadScriptForObject(this->selected_ob.getPointer());
+			{
+				try
+				{
+					loadScriptForObject(this->selected_ob.ptr());
+				}
+				catch(glare::Exception& e)
+				{
+					// Don't show a modal message box on script error, display non-modal error notification (and write to log) instead.
+					logMessage("Error while loading script: " + e.what());
+					showErrorNotification("Error while loading script: " + e.what());
+				}
+			}
 
 			if(this->selected_ob->audio_source.nonNull())
 			{
@@ -9308,6 +9423,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 		for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
 		{
 			Avatar* avatar = it->second.ptr();
+
+			avatar->entered_vehicle = NULL;
 
 			if(avatar->opengl_engine_nametag_ob.nonNull())
 				ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
@@ -10399,6 +10516,97 @@ inline static bool clipLineToPlaneBackHalfSpace(const Planef& plane, Vec4f& a, V
 }
 
 
+// pos is in glWidget local coordinates.
+// mouse_event is non-null if this is called from a mouse-move event
+void MainWindow::updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mouse_event)
+{
+	const Vec2f gl_coords = GLCoordsForGLWidgetPos(this, Vec2f((float)pos.x(), (float)pos.y()));
+
+	// New for object mouseover hyperlink showing, and webview mouse-move events:
+	if(this->physics_world.nonNull())
+	{
+		// Trace ray through scene
+		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+		const Vec4f dir = getDirForPixelTrace(pos.x(), pos.y());
+
+		RayTraceResult results;
+		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+
+		bool show_mouseover_info_ui = false;
+		if(results.hit_object)
+		{
+			if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
+			{
+				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+				if(ob->web_view_data.nonNull() && mouse_event) // If this is a web-view object:
+				{
+					const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
+					const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
+
+					const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
+						Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
+						Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
+
+					ob->web_view_data->mouseMoved(mouse_event, uvs);
+				}
+				else 
+				{
+					if(!ob->target_url.empty()) // And the object has a target URL:
+					{
+						// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
+						const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
+
+						if(!selected_editable_ob)
+						{
+							ob_info_ui.showHyperLink(ob->target_url, gl_coords);
+							show_mouseover_info_ui = true;
+						}
+					}
+
+					if(ob->hover_car_script.nonNull() && hover_car_physics.isNull()) // If this is a hover-car, and we are not already in a hover-car:
+					{
+						ob_info_ui.showMessage("Press [E] to enter vehicle", gl_coords);
+						show_mouseover_info_ui = true;
+					}
+
+					if(show_mouseover_info_ui)
+					{
+						// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
+						if(this->mouseover_selected_gl_ob.nonNull())
+						{
+							if(ob != this->selected_ob.ptr()) 
+								ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
+							this->mouseover_selected_gl_ob = NULL;
+						}
+
+						// Add outline around object
+						if(ob->opengl_engine_ob.nonNull())
+						{
+							this->mouseover_selected_gl_ob = ob->opengl_engine_ob;
+							ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
+						}
+					}
+				}
+			}
+		}
+
+		if(!show_mouseover_info_ui)
+		{
+			// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
+			if(this->mouseover_selected_gl_ob.nonNull())
+			{
+				const bool mouseover_is_selected_ob = this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull() && (this->selected_ob->opengl_engine_ob == this->mouseover_selected_gl_ob);
+				if(!mouseover_is_selected_ob)
+					ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
+				this->mouseover_selected_gl_ob = NULL;
+			}
+			ob_info_ui.hideMessage();
+		}
+	}
+}
+
+
 void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 {
 	this->last_gl_widget_mouse_move_pos = e->pos();
@@ -10419,81 +10627,8 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 		}
 	}
 
-
-	// New for object mouseover hyperlink showing, and webview mouse-move events:
-	if(this->physics_world.nonNull())
-	{
-		// Trace ray through scene
-		const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
-		const Vec4f dir = getDirForPixelTrace(e->pos().x(), e->pos().y());
-
-		RayTraceResult results;
-		this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
-
-		bool show_hyperlink_ui = false;
-		if(results.hit_object)
-		{
-			if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
-			{
-				WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
-
-				if(ob->web_view_data.nonNull()) // If this is a web-view object:
-				{
-					const Vec4f hitpos_ws = origin + dir * results.hitdist_ws;
-					const Vec4f hitpos_os = results.hit_object->getWorldToObMatrix() * hitpos_ws;
-
-					const Vec2f uvs = epsEqual(hitpos_os[1], 0.f) ?
-						Vec2f(hitpos_os[0],     hitpos_os[2]) : // y=0 face:
-						Vec2f(1 - hitpos_os[0], hitpos_os[2]); // y=1 face:
-
-					ob->web_view_data->mouseMoved(e, uvs);
-				}
-				else 
-				{
-					if((e->buttons() & Qt::LeftButton) == 0 && // If left mouse button is not pressed down (e.g. not drag-moving camera),
-						!ob->target_url.empty()) // And the object has a target URL:
-					{
-						// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
-						const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
-
-						if(!selected_editable_ob)
-						{
-							ob_info_ui.showHyperLink(ob->target_url, gl_coords);
-
-							// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
-							if(this->mouseover_selected_gl_ob.nonNull())
-							{
-								if(ob != this->selected_ob.ptr()) 
-									ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
-								this->mouseover_selected_gl_ob = NULL;
-							}
-
-							// Add outline around object
-							if(ob->opengl_engine_ob.nonNull())
-							{
-								this->mouseover_selected_gl_ob = ob->opengl_engine_ob;
-								ui->glWidget->opengl_engine->selectObject(ob->opengl_engine_ob);
-							}
-							show_hyperlink_ui = true;
-						}
-					}
-				}
-			}
-		}
-
-		if(!show_hyperlink_ui)
-		{
-			// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
-			if(this->mouseover_selected_gl_ob.nonNull())
-			{
-				const bool mouseover_is_selected_ob = this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull() && (this->selected_ob->opengl_engine_ob == this->mouseover_selected_gl_ob);
-				if(!mouseover_is_selected_ob)
-					ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
-				this->mouseover_selected_gl_ob = NULL;
-			}
-			ob_info_ui.hideHyperLink();
-		}
-	}
+	if(!ui->glWidget->isCursorHidden())
+		updateInfoUIForMousePosition(e->pos(), e);
 
 
 	if(selected_ob.nonNull() && grabbed_axis >= 0 && grabbed_axis < NUM_AXIS_ARROWS)
@@ -11016,32 +11151,132 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	}
 	else if(e->key() == Qt::Key::Key_E)
 	{
-		if(!ob_info_ui.getCurrentlyShowingHyperlink().empty())
+		// If we are controlling a vehicle, exit it
+		if(hover_car_physics.nonNull())
 		{
-			const std::string url = ob_info_ui.getCurrentlyShowingHyperlink();
-			if(StringUtils::containsString(url, "://"))
+			const Vec4f last_hover_car_pos = hover_car_physics->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
+			const Vec4f last_hover_car_linear_vel = hover_car_physics->getLinearVel(*this->physics_world);
+
+			const Vec4f last_hover_car_right_ws = hover_car_physics->getSeatToWorldTransform(*this->physics_world) * Vec4f(-1,0,0,0); // TEMP HACK: offset to left by 1m.
+			// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
+
+			hover_car_physics = NULL;
+
+			const Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2;
+
+			player_physics.setPosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
+
+
+			// Send AvatarExitedVehicle message to server
+			MessageUtils::initPacket(scratch_packet, Protocol::AvatarExitedVehicle);
+			writeToStream(this->client_avatar_uid, scratch_packet);
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+
+			return;
+		}
+		else
+		{
+			Lock lock(world_state->mutex);
+
+			const QPoint widget_pos = ui->glWidget->mapFromGlobal(QCursor::pos());
+
+			// conPrint("glWidgetKeyPressed: widget_pos: " + toString(widget_pos.x()) + ", " + toString(widget_pos.y()));
+
+			// Trace ray through scene
+			const Vec4f origin = this->cam_controller.getPosition().toVec4fPoint();
+			const Vec4f dir = getDirForPixelTrace(widget_pos.x(), widget_pos.y());
+
+			RayTraceResult results;
+			this->physics_world->traceRay(origin, dir, /*max_t=*/1.0e5f, results);
+
+			if(results.hit_object)
 			{
-				// URL already has protocol prefix
-				const std::string protocol = url.substr(0, url.find("://", 0));
-				if(protocol == "http" || protocol == "https")
+				if(results.hit_object->userdata && results.hit_object->userdata_type == 0) // If we hit an object:
 				{
-					QDesktopServices::openUrl(QtUtils::toQString(url));
+					WorldObject* ob = static_cast<WorldObject*>(results.hit_object->userdata);
+
+					if(ob->hover_car_script.nonNull() && ob->physics_object.nonNull())
+					{
+						if(hover_car_physics.isNull())
+						{
+							// Try to enter the vehicle.
+
+							// See if there are any spare seats
+							int free_seat_index = -1;
+							for(size_t z=0; z<ob->hover_car_script->settings.seat_settings.size(); ++z)
+							{
+								if(!doesVehicleHaveAvatarInSeat(*ob, (uint32)z))
+								{
+									free_seat_index = (int)z;
+									break;
+								}
+							}
+
+
+							if(free_seat_index == -1)
+								showInfoNotification("Vehicle is full, cannot enter");
+							else
+							{
+								HoverCarPhysicsSettings hover_car_physics_settings;
+								hover_car_physics_settings.hovercar_mass = ob->mass;
+								hover_car_physics_settings.script_settings = ob->hover_car_script->settings;
+
+								hover_car_physics = new HoverCarPhysics(ob->physics_object->jolt_body_id, hover_car_physics_settings);
+								hover_car_physics->cur_seat_index = (uint32)free_seat_index;
+
+								if(free_seat_index == 0) // If taking driver's seat:
+									takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
+
+
+								// Send AvatarEnteredVehicle message to server
+								MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
+								writeToStream(this->client_avatar_uid, scratch_packet);
+								writeToStream(ob->uid, scratch_packet); // Write vehicle object UID
+								scratch_packet.writeUInt32((uint32)free_seat_index); // Seat index.
+								scratch_packet.writeUInt32(0); // Write flags.  Don't set renewal bit.
+								enqueueMessageToSend(*this->client_thread, scratch_packet);
+							}
+							return;
+						}
+					}
+
+					if(!ob->target_url.empty()) // And the object has a target URL:
+					{
+						// If the mouse-overed ob is currently selected, and is editable, don't show the hyperlink, because 'E' is the key to pick up the object.
+						const bool selected_editable_ob = (selected_ob.ptr() == ob) && objectModificationAllowed(*ob);
+
+						if(!selected_editable_ob)
+						{
+							const std::string url = ob->target_url;
+							if(StringUtils::containsString(url, "://"))
+							{
+								// URL already has protocol prefix
+								const std::string protocol = url.substr(0, url.find("://", 0));
+								if(protocol == "http" || protocol == "https")
+								{
+									QDesktopServices::openUrl(QtUtils::toQString(url));
+								}
+								else if(protocol == "sub")
+								{
+									visitSubURL(url);
+								}
+								else
+								{
+									// Don't open this URL, might be something potentially unsafe like a file on disk
+									QErrorMessage m;
+									m.showMessage("This URL is potentially unsafe and will not be opened.");
+									m.exec();
+								}
+							}
+							else
+							{
+								QDesktopServices::openUrl(QtUtils::toQString("http://" + url));
+							}
+
+							return;
+						}
+					}
 				}
-				else if(protocol == "sub")
-				{
-					visitSubURL(url);
-				}
-				else
-				{
-					// Don't open this URL, might be something potentially unsafe like a file on disk
-					QErrorMessage m;
-					m.showMessage("This URL is potentially unsafe and will not be opened.");
-					m.exec();
-				}
-			}
-			else
-			{
-				QDesktopServices::openUrl(QtUtils::toQString("http://" + url));
 			}
 		}
 	}
@@ -11088,13 +11323,10 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 		}
 		else if(e->key() == Qt::Key::Key_E)
 		{
-			if(ob_info_ui.getCurrentlyShowingHyperlink().empty()) // If we didn't use the E-press to open a hyperlink:
-			{
-				if(!this->selected_ob_picked_up)
-					pickUpSelectedObject();
-				else
-					dropSelectedObject();
-			}
+			if(!this->selected_ob_picked_up)
+				pickUpSelectedObject();
+			else
+				dropSelectedObject();
 		}
 	}
 
@@ -11185,17 +11417,6 @@ void MainWindow::glWidgetViewportResized(int w, int h)
 void MainWindow::cameraUpdated()
 {
 	ui->indigoView->cameraUpdated(this->cam_controller);
-
-	// Remove outline around any previously mouse-overed object (unless it is the main selected ob)
-	if(this->mouseover_selected_gl_ob.nonNull())
-	{
-		const bool mouseover_is_selected_ob = this->selected_ob.nonNull() && this->selected_ob->opengl_engine_ob.nonNull() && (this->selected_ob->opengl_engine_ob == this->mouseover_selected_gl_ob);
-		if(!mouseover_is_selected_ob) 
-			ui->glWidget->opengl_engine->deselectObject(this->mouseover_selected_gl_ob);
-
-		this->mouseover_selected_gl_ob = NULL;
-	}
-	ob_info_ui.hideHyperLink();
 }
 
 
@@ -12091,7 +12312,9 @@ int main(int argc, char *argv[])
 
 				const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
 
-				const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
+				//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
+				//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
+				const std::string path = "D:\\models\\generic dude avatar.glb";
 				const uint64 model_hash = FileChecksum::fileChecksum(path);
 				const std::string original_filename = FileUtils::getFilename(path);
 				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(original_filename), model_hash);

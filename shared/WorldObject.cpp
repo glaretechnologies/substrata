@@ -25,6 +25,7 @@ Copyright Glare Technologies Limited 2016 -
 #include "../gui_client/MeshManager.h"
 #include <graphics/ImageMap.h>
 #include "../gui_client/PhysicsObject.h"
+#include "../gui_client/Scripting.h"
 #include <opengl/ui/GLUITextView.h>
 #endif // GUI_CLIENT
 #include "../shared/ResourceManager.h"

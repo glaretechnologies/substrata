@@ -110,18 +110,18 @@ void PlayerPhysics::shutdown()
 }
 
 
-void PlayerPhysics::setPosition(const Vec3d& new_player_pos) // Move discontinuously.  For teleporting etc.
+void PlayerPhysics::setPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel) // Move discontinuously.  For teleporting etc.
 {
 	if(jolt_character)
 	{
 		jolt_character->SetPosition(toJoltVec3(new_player_pos));
-		jolt_character->SetLinearVelocity(JPH::Vec3(0,0,0));
+		jolt_character->SetLinearVelocity(toJoltVec3(linear_vel));
 	}
 
 	if(interaction_character)
 	{
 		interaction_character->SetPosition(toJoltVec3(new_player_pos));
-		interaction_character->SetLinearVelocity(JPH::Vec3(0,0,0));
+		interaction_character->SetLinearVelocity(toJoltVec3(linear_vel));
 	}
 }
 
@@ -194,7 +194,7 @@ public:
 };
 
 
-UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_in_out)
+UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_out)
 {
 	UpdateEvents events;
 
@@ -388,7 +388,7 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 
 
 	const JPH::Vec3 char_pos = jolt_character->GetPosition();
-	campos_in_out = Vec4f(char_pos.GetX(), char_pos.GetY(), char_pos.GetZ() + EYE_HEIGHT - campos_z_delta, 1.f);
+	campos_out = Vec4f(char_pos.GetX(), char_pos.GetY(), char_pos.GetZ() + EYE_HEIGHT - campos_z_delta, 1.f);
 
 
 	if(interaction_character)

@@ -32,6 +32,7 @@ struct GLLight;
 class PhysicsObject;
 namespace glare { class AudioSource; }
 namespace glare { class PoolAllocator; }
+namespace Scripting { class HoverCarScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
 class Matrix4f;
@@ -340,6 +341,8 @@ public:
 	bool lightmap_baking; // Is lightmap baking in progress for this object?
 
 	Reference<WinterShaderEvaluator> script_evaluator;
+
+	Reference<Scripting::HoverCarScript> hover_car_script;
 
 	js::Vector<Matrix4f, 16> instance_matrices;
 

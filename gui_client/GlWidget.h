@@ -58,6 +58,7 @@ public:
 	void setCamRotationOnMouseMoveEnabled(bool enabled) { cam_rot_on_mouse_move_enabled = enabled; }
 	void setKeyboardCameraMoveEnabled(bool enabled) { cam_move_on_key_input_enabled = enabled; }
 	void hideCursor();
+	bool isCursorHidden();
 
 	void setCursorIfNotHidden(Qt::CursorShape new_shape);
 

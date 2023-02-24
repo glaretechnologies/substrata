@@ -56,7 +56,22 @@ const Vec3d parseVec3(pugi::xml_node elem, const char* elemname)
 }
 
 
-void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out)
+Quatf parseRotationWithDefault(pugi::xml_node elem, const char* elemname, const Quatf& default_rot)
+{
+	pugi::xml_node childnode = elem.child(elemname);
+	if(!childnode)
+		return default_rot;
+
+	const Vec3d v = parseVec3(elem, elemname);
+
+	if(v.length() < 1.0e-4f)
+		return Quatf::identity();
+	else
+		return Quatf::fromAxisAndAngle(normalise(v.toVec4fVector()), (float)v.length());
+}
+
+
+void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<HoverCarScript>& hover_car_script_out)
 {
 	try
 	{
@@ -107,6 +122,30 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 
 			if(ob.nonNull())
 				path_controller_out = new ObjectPathController(ob, waypoints, global_time + time_offset, /*follow ob UID=*/follow_ob_uid, /*follow dist=*/(float)follow_dist);
+		}
+
+		// ----------- hover car
+		pugi::xml_node hover_car_elem = root_elem.child("hover_car");
+		if(hover_car_elem)
+		{
+			hover_car_script_out = new HoverCarScript();
+
+			hover_car_script_out->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+			hover_car_script_out->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+
+			for(pugi::xml_node seat_elem = hover_car_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
+			{
+				SeatSettings seat_settings;
+				seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
+				seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
+				seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
+				seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
+
+				hover_car_script_out->settings.seat_settings.push_back(seat_settings);
+			}
+			
+			if(hover_car_script_out->settings.seat_settings.empty())
+				throw glare::Exception("hover_car element must have at least one seat element");
 		}
 	}
 	catch(glare::Exception& e)
