@@ -43,7 +43,7 @@ public:
 	void init(PhysicsWorld& physics_world, const Vec3d& initial_player_pos);
 	void shutdown();
 
-	void setPosition(const Vec3d& new_player_pos); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
+	void setPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel = Vec4f(0,0,0,1)); // Move discontinuously.  Zeroes velocity also.  For teleporting etc.
 
 	// Adds to desired velocity (move_desired_vel).
 	void processMoveForwards(float factor, bool runpressed, CameraController& cam); // factor should be -1 for move backwards, 1 otherwise.
@@ -51,7 +51,7 @@ public:
 	void processMoveUp(float factor, bool runpressed, CameraController& cam);
 	void processJump(CameraController& cam);
 
-	UpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_in_out);
+	UpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_out);
 
 	bool isMoveDesiredVelNonZero();
 	void zeroMoveDesiredVel();

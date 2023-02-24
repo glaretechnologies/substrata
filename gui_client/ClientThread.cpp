@@ -349,6 +349,53 @@ void ClientThread::doRun()
 
 						break;
 					}
+				case Protocol::AvatarEnteredVehicle:
+					{
+						conPrint("AvatarEnteredVehicle");
+
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const UID vehicle_ob_uid = readUIDFromStream(msg_buffer);
+						const uint32 seat_index = msg_buffer.readUInt32();
+						/*const uint32 flags =*/ msg_buffer.readUInt32();
+
+
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->avatars.find(avatar_uid);
+							if(res != world_state->avatars.end())
+							{
+								Avatar* avatar = res->second.getPointer();
+
+								auto res2 = world_state->objects.find(vehicle_ob_uid);
+								if(res2 != world_state->objects.end())
+								{
+									avatar->entered_vehicle = res2.getValue();
+									avatar->vehicle_seat_index = seat_index;
+								}
+							}
+						}
+
+						break;
+					}
+				case Protocol::AvatarExitedVehicle:
+					{
+						conPrint("AvatarExitedVehicle");
+
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+						{
+							Lock lock(world_state->mutex);
+							auto res = world_state->avatars.find(avatar_uid);
+							if(res != world_state->avatars.end())
+							{
+								Avatar* avatar = res->second.getPointer();
+								avatar->entered_vehicle = NULL;
+								avatar->vehicle_seat_index = 0;
+							}
+						}
+
+						break;
+					}
 				case Protocol::ObjectTransformUpdate:
 					{
 						//conPrint("ObjectTransformUpdate");

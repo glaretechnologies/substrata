@@ -33,9 +33,9 @@ public:
 
 	void showHyperLink(const std::string& URL, const Vec2f& gl_coords);
 
-	void hideHyperLink();
+	void showMessage(const std::string& message, const Vec2f& gl_coords);
 
-	std::string getCurrentlyShowingHyperlink() const; // Returns empty string if not showing currently
+	void hideMessage();
 
 	//bool handleMouseClick(const Vec2f& gl_coords);
 	//bool handleMouseMoved(const Vec2f& gl_coords);
@@ -55,6 +55,4 @@ private:
 	GLUIRef gl_ui;
 
 	Reference<OpenGLEngine> opengl_engine;
-
-	std::string currently_showing_url;
 };

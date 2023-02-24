@@ -17,7 +17,38 @@ class ObjectPathController;
 namespace Scripting
 {
 
-void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out);
+struct SeatSettings
+{
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	Vec4f seat_position; // in model/object space
+	float upper_body_rot_angle; // radians
+	float upper_leg_rot_angle; // radians
+	float lower_leg_rot_angle; // radians
+};
+
+
+struct HoverCarScriptedSettings
+{
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	Quatf model_to_y_forwards_rot_1;
+	Quatf model_to_y_forwards_rot_2;
+
+	std::vector<SeatSettings> seat_settings; // Will have size >= 1.
+};
+
+
+class HoverCarScript : public RefCounted
+{
+public:
+	GLARE_ALIGNED_16_NEW_DELETE
+
+	HoverCarScriptedSettings settings;
+};
+
+
+void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<HoverCarScript>& hover_car_script_out);
 
 
 void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double global_time, double dt, WorldState* world_state, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine,

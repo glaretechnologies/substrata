@@ -23,6 +23,8 @@ Generated at 2016-01-12 12:24:54 +1300
 struct GLObject;
 class AvatarGraphics;
 struct MeshData;
+class WorldObject;
+class HoverCarPhysics;
 
 
 
@@ -111,6 +113,11 @@ public:
 	AvatarGraphics graphics;
 
 	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+	Reference<WorldObject> entered_vehicle; // Reference to vehicle that the avatar has entered (e.g. is driving or a passenger)
+	uint32 vehicle_seat_index;
+
+	Reference<HoverCarPhysics> hover_car_physics;
 
 #endif
 

@@ -47,6 +47,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <unordered_set>
 #include <unordered_map>
 #include <deque>
+#include "HoverCarPhysics.h"
 class ArgumentParser;
 namespace Ui { class MainWindow; }
 class TextureServer;
@@ -316,11 +317,15 @@ public:
 	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time);
 	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time);
 	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
+	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob);
+	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index);
 	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	
 	void updateDiagnosticAABBForObject(WorldObject* ob); // Returns if vis still valid/needed.
 	void updateObjectsWithDiagnosticVis();
+
+	void updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mouse_event);
 
 	
 
@@ -342,6 +347,7 @@ public:
 
 	PlayerPhysics player_physics;
 	CarPhysics car_physics;
+	Reference<HoverCarPhysics> hover_car_physics;
 
 	Timer time_since_last_timer_ev;
 	Timer time_since_update_packet_sent;

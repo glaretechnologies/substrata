@@ -58,14 +58,6 @@ void ObInfoUI::think()
 
 void ObInfoUI::showHyperLink(const std::string& URL, const Vec2f& gl_coords)
 {
-	// conPrint("ObInfoUI::showHyperLink: URL: " + URL + ", gl_coords: " + gl_coords.toString());
-
-	currently_showing_url = URL;
-
-	// Convert from gl_coords to UI x/y coords
-	const float y_scale = 1 / opengl_engine->getViewPortAspectRatio();
-	const Vec2f coords(gl_coords.x, gl_coords.y * y_scale);
-
 	const int MAX_LEN = 60;
 	std::string trimmed_URL = URL;
 	if(trimmed_URL.size() > MAX_LEN)
@@ -73,7 +65,17 @@ void ObInfoUI::showHyperLink(const std::string& URL, const Vec2f& gl_coords)
 		trimmed_URL = trimmed_URL.substr(0, MAX_LEN) + "...";
 	}
 
-	info_text_view->setText(*gl_ui, "Press [E] to open " + trimmed_URL);
+	showMessage("Press [E] to open " + trimmed_URL, gl_coords);
+}
+
+
+void ObInfoUI::showMessage(const std::string& message, const Vec2f& gl_coords)
+{
+	// Convert from gl_coords to UI x/y coords
+	const float y_scale = 1 / opengl_engine->getViewPortAspectRatio();
+	const Vec2f coords(gl_coords.x, gl_coords.y * y_scale);
+
+	info_text_view->setText(*gl_ui, message);
 
 	const Vec2f tex_dims = info_text_view->getTextureDimensions();
 
@@ -90,18 +92,11 @@ void ObInfoUI::showHyperLink(const std::string& URL, const Vec2f& gl_coords)
 }
 
 
-void ObInfoUI::hideHyperLink()
+void ObInfoUI::hideMessage()
 {
-	currently_showing_url = "";
-
 	info_text_view->setPosAndDims(/*botleft=*/Vec2f(-100.f, -100.f), /*dims=*/Vec2f(0.6f, 0.2f)); // Position off-screen
 }
 
-
-std::string ObInfoUI::getCurrentlyShowingHyperlink() const // Returns empty string if not showing currently
-{
-	return currently_showing_url;
-}
 
 void ObInfoUI::updateWidgetPositions()
 {

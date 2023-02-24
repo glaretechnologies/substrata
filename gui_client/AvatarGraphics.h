@@ -39,6 +39,32 @@ struct AnimToPlay
 };
 
 
+
+
+#ifdef _WIN32
+#pragma warning(push)
+#pragma warning(disable:4324) // Disable 'structure was padded due to __declspec(align())' warning.
+#endif
+struct PoseConstraint
+{
+	PoseConstraint() : sitting(false) {}
+
+	// For sitting:
+	Matrix4f seat_to_world; // Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
+	Quatf model_to_y_forwards_rot_1;
+	Quatf model_to_y_forwards_rot_2;
+	float upper_body_rot_angle; // radians.  Positive number means lean back.
+	float upper_leg_rot_angle; // radians.  Positive number means bend leg forwards at hip.
+	float lower_leg_rot_angle; // radians.  Negative number means bend lower leg backwards at knee.  Rotation is relative to upper leg.
+
+	bool sitting;
+};
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
+
+
 /*=====================================================================
 AvatarGraphics
 --------------
@@ -69,7 +95,7 @@ public:
 
 	// xyplane_speed_rel_ground_override is the speed from the local physics sim.
 	void setOverallTransform(OpenGLEngine& engine, const Vec3d& pos, const Vec3f& rotation, bool use_xyplane_speed_rel_ground_override, float xyplane_speed_rel_ground_override,
-		const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, AnimEvents& anim_events_out);
+		const Matrix4f& pre_ob_to_world_matrix, uint32 anim_state, double cur_time, double dt, const PoseConstraint& pose_constraint, AnimEvents& anim_events_out);
 
 	void build();
 	//void create(OpenGLEngine& engine, const std::string& URL);
@@ -150,6 +176,14 @@ private:
 	int right_foot_node_i;
 	int left_knee_node_i;
 	int right_knee_node_i;
+	int left_up_leg_node_i;
+	int right_up_leg_node_i;
+
+	int left_arm_node_i;
+	int right_arm_node_i;
+
+	int left_forearm_node_i;
+	int right_forearm_node_i;
 
 	int hips_node_i;
 

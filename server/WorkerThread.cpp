@@ -1227,6 +1227,41 @@ void WorkerThread::doRun()
 							}
 							break;
 						}
+					case Protocol::AvatarEnteredVehicle:
+						{
+							conPrintIfNotFuzzing("AvatarEnteredVehicle");
+
+							const UID avatar_uid = readUIDFromStream(msg_buffer);
+							const UID vehicle_ob_uid = readUIDFromStream(msg_buffer);
+							const uint32 seat_index = msg_buffer.readUInt32();
+							const uint32 flags = msg_buffer.readUInt32();
+
+							
+							// Enqueue AvatarEnteredVehicle messages to worker threads to send
+							MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
+							writeToStream(avatar_uid, scratch_packet);
+							writeToStream(vehicle_ob_uid, scratch_packet);
+							scratch_packet.writeUInt32(seat_index);
+							scratch_packet.writeUInt32(flags);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+							enqueuePacketToBroadcast(scratch_packet, server);
+
+							break;
+						}
+					case Protocol::AvatarExitedVehicle:
+						{
+							conPrintIfNotFuzzing("AvatarExitedVehicle");
+
+							const UID avatar_uid = readUIDFromStream(msg_buffer);
+
+							// Enqueue AvatarExitedVehicle messages to worker threads to send
+							MessageUtils::initPacket(scratch_packet, Protocol::AvatarExitedVehicle);
+							writeToStream(avatar_uid, scratch_packet);
+							MessageUtils::updatePacketLengthField(scratch_packet);
+							enqueuePacketToBroadcast(scratch_packet, server);
+
+							break;
+						}
 					case Protocol::ObjectTransformUpdate:
 						{
 							//conPrint("received ObjectTransformUpdate");

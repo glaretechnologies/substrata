@@ -57,6 +57,9 @@ const uint32 AvatarIsHere			= 1005;
 const uint32 AvatarPerformGesture	= 1010;
 const uint32 AvatarStopGesture		= 1011;
 
+const uint32 AvatarEnteredVehicle	= 1100;
+const uint32 AvatarExitedVehicle	= 1101;
+
 const uint32 ChatMessageID			= 2000;
 
 const uint32 ObjectCreated			= 3000;
