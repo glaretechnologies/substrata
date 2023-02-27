@@ -288,8 +288,10 @@ void WorldObject::setTransformAndHistory(const Vec3d& pos_, const Vec3f& axis_, 
 	axis = axis_;
 	angle = angle_;
 
+	const Quatf rot_quat = Quatf::fromAxisAndAngle(normalise(axis_), angle_);
+
 	for(int i=0; i<HISTORY_BUF_SIZE; ++i)
-		snapshots[i] = Snapshot({pos_.toVec4fPoint(), Quatf::fromAxisAndAngle(axis_, angle_), /*linear vel=*/Vec4f(0.f), /*angular_vel=*/Vec4f(0.f), /*client time=*/0.0, /*local time=*/0.0});
+		snapshots[i] = Snapshot({pos_.toVec4fPoint(), rot_quat, /*linear vel=*/Vec4f(0.f), /*angular_vel=*/Vec4f(0.f), /*client time=*/0.0, /*local time=*/0.0});
 }
 
 

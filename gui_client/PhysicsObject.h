@@ -37,6 +37,7 @@ public:
 #if USE_JOLT
 	JPH::Ref<JPH::Shape> jolt_shape;
 #endif
+	size_t size_B; // Compute this once when the shape is created, as querying it from Jolt requires construction of a std::unordered_set for GetStatsRecursive(), which is slow.
 };
 
 
