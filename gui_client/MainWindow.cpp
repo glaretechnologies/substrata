@@ -5027,7 +5027,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			if(hover_car_physics.nonNull())
 			{
 				hover_car_physics->update(*this->physics_world, physics_input, (float)substep_dt);
-				this->cam_controller.setPosition(toVec3d(hover_car_physics->getFirstPersonCamPos(*this->physics_world)));
+				campos = hover_car_physics->getFirstPersonCamPos(*this->physics_world);
 			}
 			else
 			{

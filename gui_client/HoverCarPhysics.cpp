@@ -299,7 +299,7 @@ HoverCarPhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world,
 Vec4f HoverCarPhysics::getFirstPersonCamPos(PhysicsWorld& physics_world) const
 {
 	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world);
-	return seat_to_world * Vec4f(0,0,0.7f,1); // Raise camera position to appox head position
+	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to appox head position
 }
 
 
