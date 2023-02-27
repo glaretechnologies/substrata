@@ -7910,6 +7910,10 @@ void MainWindow::on_actionCloneObject_triggered()
 			new_world_object->aabb_ws = this->selected_ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
 
 		new_world_object->max_model_lod_level = selected_ob->max_model_lod_level;
+		new_world_object->mass = selected_ob->mass;
+		new_world_object->friction = selected_ob->friction;
+		new_world_object->restitution = selected_ob->restitution;
+
 
 		// Send CreateObject message to server
 		{
