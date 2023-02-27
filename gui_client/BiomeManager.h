@@ -20,6 +20,7 @@ class OpenGLEngine;
 class VertexBufferAllocator;
 struct GLObject;
 class OpenGLTexture;
+struct PhysicsShapeData;
 
 
 struct BiomeObInstance
@@ -98,5 +99,6 @@ private:
 
 
 	Reference<MeshData> elm_tree_mesh_data;
+	Reference<PhysicsShapeData> elm_tree_physics_shape_data;
 	Reference<MeshData> elm_tree_imposter_mesh_data;
 };

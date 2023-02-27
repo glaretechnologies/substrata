@@ -369,6 +369,7 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngine.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngine.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLEngineTests.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLMeshRenderData.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 

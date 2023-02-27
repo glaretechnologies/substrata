@@ -42,6 +42,7 @@ namespace js { class AABBox; }
 class WebViewData;
 struct AnimatedTexObData;
 struct MeshData;
+struct PhysicsShapeData;
 class GLUITextView;
 class UInt8ComponentValueTraits;
 template <class V, class ComponentValueTraits> class ImageMap;
@@ -318,6 +319,7 @@ public:
 
 
 	Reference<MeshData> mesh_manager_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+	Reference<PhysicsShapeData> mesh_manager_shape_data; // Likewise for the physics mesh data.
 
 	enum AudioState
 	{

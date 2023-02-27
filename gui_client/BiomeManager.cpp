@@ -322,7 +322,8 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 				&vert_buf_allocator, /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
 			// Add to mesh manager
-			elm_tree_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, physics_shape);
+			elm_tree_mesh_data = mesh_manager.insertMesh(model_URL, gl_meshdata);
+			elm_tree_physics_shape_data = mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(model_URL, /*is dynamic=*/false), physics_shape);
 		}
 	}
 
@@ -332,7 +333,7 @@ GLObjectRef BiomeManager::makeElmTreeOb(OpenGLEngine& opengl_engine, VertexBuffe
 	// Do assignedLoadedOpenGLTexturesToMats() equivalent
 	tree_opengl_ob->materials[0].albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(resource_manager.pathForURL(materials[0]->colour_texture_url)), /*use_sRGB=*/true);
 
-	physics_shape_out = elm_tree_mesh_data->physics_shape;
+	physics_shape_out = elm_tree_physics_shape_data->physics_shape;
 
 	for(size_t i=0; i<tree_opengl_ob->materials.size(); ++i)
 	{
@@ -376,7 +377,7 @@ GLObjectRef BiomeManager::makeElmTreeImposterOb(OpenGLEngine& gl_engine, VertexB
 				&vert_buf_allocator, /*skip opengl calls=*/false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
 			// Add to mesh manager
-			elm_tree_imposter_mesh_data = mesh_manager.insertMeshes(model_URL, gl_meshdata, physics_shape);
+			elm_tree_imposter_mesh_data = mesh_manager.insertMesh(model_URL, gl_meshdata);
 		}
 	}
 
@@ -645,7 +646,7 @@ void BiomeManager::updatePatchSet(std::map<Vec2i, Patch>& patches, float patch_w
 					// Trace ray down and get point on geometry
 					for(size_t q=0; q<physics_obs.size(); ++q)
 					{
-						const PhysicsObject* const physics_ob = physics_obs[q];
+						//const PhysicsObject* const physics_ob = physics_obs[q];
 						RayTraceResult result;
 						assert(0);
 						//physics_ob->traceRay(Ray(/*startpos=*/ray_trace_start_pos, /*unitdir=*/trace_dir, /*min_t=*/0, /*max_t=*/10000), result);

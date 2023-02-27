@@ -961,7 +961,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 
 	gl_meshdata->num_materials_referenced = batched_mesh->numMaterialsReferenced();
 
-	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob);
+	physics_shape_out = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/build_dynamic_physics_ob);
 
 	batched_mesh_out = batched_mesh;
 
@@ -1339,7 +1339,7 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 	// Convert Indigo mesh to opengl data
 	Reference<OpenGLMeshRenderData> mesh_data = buildVoxelOpenGLMeshData(*indigo_mesh);
 
-	physics_shape_out.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, build_dynamic_physics_ob);
+	physics_shape_out = PhysicsWorld::createJoltShapeForIndigoMesh(*indigo_mesh, build_dynamic_physics_ob);
 
 	// Load rendering data into GPU mem if requested.
 	if(do_opengl_stuff)

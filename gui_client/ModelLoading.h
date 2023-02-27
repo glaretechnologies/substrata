@@ -11,7 +11,6 @@ Copyright Glare Technologies Limited 2016 -
 #include <opengl/OpenGLEngine.h>
 #include <dll/include/IndigoMesh.h>
 #include <graphics/BatchedMesh.h>
-#include <utils/ManagerWithCache.h>
 #include <utils/Vector.h>
 
 

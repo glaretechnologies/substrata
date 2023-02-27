@@ -18,6 +18,13 @@ void MeshData::meshDataBecameUnused() const
 }
 
 
+void PhysicsShapeData::shapeDataBecameUnused() const
+{
+	if(mesh_manager)
+		mesh_manager->physicsShapeDataBecameUnused(this);
+}
+
+
 MeshManager::MeshManager()
 {
 	main_thread_id = PlatformUtils::getCurrentThreadID();
@@ -43,7 +50,7 @@ void MeshManager::clear()
 }
 
 
-Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata, PhysicsShape& physics_shape)
+Reference<MeshData> MeshManager::insertMesh(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata)
 {
 	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
 	//Lock lock(mutex);
@@ -55,11 +62,7 @@ Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, cons
 	auto res = model_URL_to_mesh_map.find(model_url);
 	if(res == model_URL_to_mesh_map.end())
 	{
-		Reference<MeshData> mesh_data = new MeshData();
-		mesh_data->gl_meshdata = gl_meshdata;
-		mesh_data->physics_shape = physics_shape;
-		mesh_data->mesh_manager = this;
-		mesh_data->model_url = model_url;
+		Reference<MeshData> mesh_data = new MeshData(model_url, gl_meshdata, /*mesh_manager=*/this);
 
 		model_URL_to_mesh_map.insert(std::make_pair(model_url, mesh_data));
 		return mesh_data;
@@ -82,6 +85,25 @@ Reference<MeshData> MeshManager::insertMeshes(const std::string& model_url, cons
 }
 
 
+Reference<PhysicsShapeData> MeshManager::insertPhysicsShape(const MeshManagerPhysicsShapeKey& key, PhysicsShape& physics_shape)
+{
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+
+	auto res = physics_shape_map.find(key);
+	if(res == physics_shape_map.end())
+	{
+		Reference<PhysicsShapeData> shape_data = new PhysicsShapeData(key.URL, key.dynamic_physics_shape, physics_shape, /*mesh_manager=*/this);
+
+		physics_shape_map.insert(std::make_pair(key, shape_data));
+		return shape_data;
+	}
+	else
+	{
+		return res->second;
+	}
+}
+
+
 Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
 {
 	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
@@ -89,6 +111,18 @@ Reference<MeshData> MeshManager::getMeshData(const std::string& model_url)
 
 	auto res = model_URL_to_mesh_map.find(model_url);
 	if(res != model_URL_to_mesh_map.end())
+		return res->second;
+	else
+		return NULL;
+}
+
+
+Reference<PhysicsShapeData> MeshManager::getPhysicsShapeData(const MeshManagerPhysicsShapeKey& key)
+{
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+
+	auto res = physics_shape_map.find(key);
+	if(res != physics_shape_map.end())
 		return res->second;
 	else
 		return NULL;
@@ -108,6 +142,14 @@ void MeshManager::meshDataBecameUnused(const MeshData* meshdata)
 }
 
 
+void MeshManager::physicsShapeDataBecameUnused(const PhysicsShapeData* shape_data)
+{
+	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
+
+	physics_shape_map.erase(MeshManagerPhysicsShapeKey(shape_data->model_url, shape_data->dynamic));
+}
+
+
 GLMemUsage MeshManager::getTotalMemUsage() const
 {
 	assert(PlatformUtils::getCurrentThreadID() == main_thread_id);
@@ -116,9 +158,15 @@ GLMemUsage MeshManager::getTotalMemUsage() const
 	GLMemUsage sum;
 	for(auto it = model_URL_to_mesh_map.begin(); it != model_URL_to_mesh_map.end(); ++it)
 	{
-		//sum.geom_cpu_usage += it->second->physics_shape->raymesh->getTotalMemUsage();
-
-		sum += it->second->gl_meshdata->getTotalMemUsage();
+		const MeshData* meshdata = it->second.ptr();
+		sum += meshdata->gl_meshdata->getTotalMemUsage();
 	}
+	
+	for(auto it = physics_shape_map.begin(); it != physics_shape_map.end(); ++it)
+	{
+		const PhysicsShapeData* shapedata = it->second.ptr();
+		sum.geom_cpu_usage += shapedata->physics_shape.size_B;
+	}
+
 	return sum;
 }

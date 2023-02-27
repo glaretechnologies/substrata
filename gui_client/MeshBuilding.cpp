@@ -134,7 +134,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeImageCube(VertexBufferAlloca
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = image_cube_opengl_mesh;
-	results.physics_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	results.physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
 	results.indigo_mesh = mesh;
 	return results;
 }
@@ -153,7 +153,7 @@ MeshBuilding::MeshBuildingResults MeshBuilding::makeSpotlightMeshes(const std::s
 
 	MeshBuildingResults results;
 	results.opengl_mesh_data = spotlight_opengl_mesh;
-	results.physics_shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/false);
+	results.physics_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*batched_mesh, /*is dynamic=*/false);
 	return results;
 }
 
@@ -244,7 +244,7 @@ PhysicsShape MeshBuilding::makeUnitCubePhysicsShape(VertexBufferAllocator& alloc
 	mesh->endOfModel();
 
 	PhysicsShape physics_shape;
-	physics_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+	physics_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
 	return physics_shape;
 }
 

@@ -992,6 +992,8 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 		ob.physics_object = NULL;
 	}
 
+	ob.mesh_manager_shape_data = NULL;
+
 	// TOOD: removeObScriptingInfo(&ob);
 }
 
@@ -1622,7 +1624,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				// print("Loading model for ob: UID: " + ob->uid.toString() + ", type: " + WorldObject::objectTypeString((WorldObject::ObjectType)ob->object_type) + ", lod_model_url: " + lod_model_url);
 
 				Reference<MeshData> mesh_data = mesh_manager.getMeshData(lod_model_url);
-				if(mesh_data.nonNull())
+				Reference<PhysicsShapeData> physics_shape_data = mesh_manager.getPhysicsShapeData(MeshManagerPhysicsShapeKey(lod_model_url, ob->isDynamic()));
+				if(mesh_data.nonNull() && physics_shape_data.nonNull())
 				{
 					const bool is_meshdata_loaded_into_opengl = mesh_data->gl_meshdata->vbo_handle.valid();
 					if(is_meshdata_loaded_into_opengl)
@@ -1640,6 +1643,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
 						
 						ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+						ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
 
 						assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
 
@@ -1648,7 +1652,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						if(ob->physics_object.isNull()) // if object was dynamic, we may not have unloaded its physics object above.
 						{
 							ob->physics_object = new PhysicsObject(/*collidable=*/ob->isCollidable());
-							ob->physics_object->shape = mesh_data->physics_shape;
+							ob->physics_object->shape = physics_shape_data->physics_shape;
 							ob->physics_object->userdata = ob;
 							ob->physics_object->userdata_type = 0;
 							ob->physics_object->ob_uid = ob->uid;
@@ -3146,7 +3150,8 @@ void MainWindow::processLoading()
 
 
 					// Add meshes to mesh manager
-					Reference<MeshData> mesh_data = mesh_manager.insertMeshes(cur_loading_lod_model_url, cur_loading_mesh_data, cur_loading_physics_shape);
+					Reference<MeshData> mesh_data						= mesh_manager.insertMesh(cur_loading_lod_model_url, cur_loading_mesh_data);
+					Reference<PhysicsShapeData> physics_shape_data		= mesh_manager.insertPhysicsShape(MeshManagerPhysicsShapeKey(cur_loading_lod_model_url, /*is dynamic=*/cur_loading_dynamic_physics_shape), cur_loading_physics_shape);
 
 					// Data is uploaded - assign to any waiting objects
 					const int loaded_model_lod_level = WorldObject::getLODLevelForURL(cur_loading_lod_model_url/*message->lod_model_url*/);
@@ -3200,6 +3205,7 @@ void MainWindow::processLoading()
 												*resource_manager, ob_to_world_matrix);
 
 											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+											ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
 
 											if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload its physics object above.
 											{
@@ -3905,6 +3911,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
 
 		const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
+		msg += "mesh_manager gl meshes:                 " + toString(this->mesh_manager.getNumGLMeshDataObs()) + "\n";
+		msg += "mesh_manager physics shapes:            " + toString(this->mesh_manager.getNumPhysicsShapeDataObs()) + "\n";
 		msg += "mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()) + "\n";
 		msg += "mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()) + "\n";
 
@@ -8774,7 +8782,7 @@ void MainWindow::objectEditedSlot()
 				// Make new physics object
 				assert(selected_ob->physics_object.isNull());
 				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
-				selected_ob->physics_object->shape.jolt_shape = physics_shape.jolt_shape;
+				selected_ob->physics_object->shape = physics_shape;
 				selected_ob->physics_object->userdata = selected_ob.ptr();
 				selected_ob->physics_object->userdata_type = 0;
 				selected_ob->physics_object->ob_uid = selected_ob->uid;
@@ -8857,7 +8865,7 @@ void MainWindow::objectEditedSlot()
 				// Make new physics object
 				assert(selected_ob->physics_object.isNull());
 				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
-				selected_ob->physics_object->shape.jolt_shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
+				selected_ob->physics_object->shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
 				selected_ob->physics_object->userdata = selected_ob.ptr();
 				selected_ob->physics_object->userdata_type = 0;
 				selected_ob->physics_object->ob_uid = selected_ob->uid;
@@ -12189,7 +12197,7 @@ int main(int argc, char *argv[])
 				// Build OpenGLMeshRenderData
 				mw.ground_quad_mesh_opengl_data = GLMeshBuilding::buildIndigoMesh(mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), mw.ground_quad_mesh, false);
 
-				mw.ground_quad_shape.jolt_shape = PhysicsWorld::createGroundQuadShape(ground_quad_w);
+				mw.ground_quad_shape = PhysicsWorld::createGroundQuadShape(ground_quad_w);
 			}
 
 			// If the user didn't explictly specify a URL (e.g. on the command line), and there is a valid start location URL setting, use it.
@@ -12221,7 +12229,7 @@ int main(int argc, char *argv[])
 				}
 				mesh->endOfModel();
 
-				mw.hypercard_quad_shape.jolt_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
+				mw.hypercard_quad_shape = PhysicsWorld::createJoltShapeForIndigoMesh(*mesh, /*build_dynamic_physics_ob=*/false);
 			}
 
 			mw.hypercard_quad_opengl_mesh = MeshPrimitiveBuilding::makeQuadMesh(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, Vec4f(1, 0, 0, 0), Vec4f(0, 0, 1, 0));

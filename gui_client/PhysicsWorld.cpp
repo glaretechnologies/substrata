@@ -492,7 +492,17 @@ public:
 };
 
 
-JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob)
+static size_t computeSizeBForShape(JPH::Ref<JPH::Shape> jolt_shape)
+{
+	JPH::Shape::VisitedShapes visited_shapes; // Jolt uses this to make sure it doesn't double-count sub-shapes.
+
+	JPH::Shape::Stats shape_stats = jolt_shape->GetStatsRecursive(visited_shapes);
+
+	return shape_stats.mSizeBytes;
+}
+
+
+PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh, bool build_dynamic_physics_ob)
 {
 	const Indigo::Vector<Indigo::Vec3f>& verts = mesh.vert_positions;
 	const Indigo::Vector<Indigo::Triangle>& tris = mesh.triangles;
@@ -519,7 +529,10 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Me
 		JPH::Result<JPH::Ref<JPH::Shape>> result = hull_shape_settings->Create();
 		if(result.HasError())
 			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
-		JPH::Ref<JPH::Shape> shape = result.Get();
+		JPH::Ref<JPH::Shape> jolt_shape = result.Get();
+		PhysicsShape shape;
+		shape.jolt_shape = jolt_shape;
+		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
 	}
 	else
@@ -561,13 +574,16 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Me
 		JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
 		if(result.HasError())
 			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
-		JPH::Ref<JPH::Shape> shape = result.Get();
+		JPH::Ref<JPH::Shape> jolt_shape = result.Get();
+		PhysicsShape shape;
+		shape.jolt_shape = jolt_shape;
+		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
 	}
 }
 
 
-JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob)
+PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob)
 {
 	const size_t vert_size = mesh.vertexSize();
 	const size_t num_verts = mesh.numVerts();
@@ -601,7 +617,10 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMe
 		JPH::Result<JPH::Ref<JPH::Shape>> result = hull_shape_settings->Create();
 		if(result.HasError())
 			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
-		JPH::Ref<JPH::Shape> shape = result.Get();
+		JPH::Ref<JPH::Shape> jolt_shape = result.Get();
+		PhysicsShape shape;
+		shape.jolt_shape = jolt_shape;
+		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
 	}
 	else
@@ -677,21 +696,28 @@ JPH::Ref<JPH::Shape> PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMe
 		JPH::Result<JPH::Ref<JPH::Shape>> result = mesh_body_settings->Create();
 		if(result.HasError())
 			throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
-		JPH::Ref<JPH::Shape> shape = result.Get();
+		JPH::Ref<JPH::Shape> jolt_shape = result.Get();
+		PhysicsShape shape;
+		shape.jolt_shape = jolt_shape;
+		shape.size_B = computeSizeBForShape(jolt_shape);
 		return shape;
 	}
 }
 
 
 // Creates a box, centered at (0,0,0), with x and y extent = ground_quad_w, and z extent = 1.
-JPH::Ref<JPH::Shape> PhysicsWorld::createGroundQuadShape(float ground_quad_w)
+PhysicsShape PhysicsWorld::createGroundQuadShape(float ground_quad_w)
 {
 	JPH::Ref<JPH::BoxShapeSettings> cube_shape_settings = new JPH::BoxShapeSettings(/*inHalfExtent=*/JPH::Vec3(ground_quad_w/2, ground_quad_w/2, 0.5f));
 
 	JPH::Result<JPH::Ref<JPH::Shape>> result = cube_shape_settings->Create();
 	if(result.HasError())
 		throw glare::Exception(std::string("Error building Jolt shape: ") + result.GetError().c_str());
-	return result.Get();
+	JPH::Ref<JPH::Shape> jolt_shape = result.Get();
+	PhysicsShape shape;
+	shape.jolt_shape = jolt_shape;
+	shape.size_B = computeSizeBForShape(jolt_shape);
+	return shape;
 }
 
 
