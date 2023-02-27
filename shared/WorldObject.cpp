@@ -798,6 +798,17 @@ const Matrix4f obToWorldMatrix(const WorldObject& ob)
 }
 
 
+const Vec3f useScaleForWorldOb(const Vec3f& scale)
+{
+	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.
+	Vec3f use_scale = scale;
+	if(use_scale.x == 0) use_scale.x = 1.0e-6f;
+	if(use_scale.y == 0) use_scale.y = 1.0e-6f;
+	if(use_scale.z == 0) use_scale.z = 1.0e-6f;
+	return use_scale;
+}
+
+
 const Matrix4f worldToObMatrix(const WorldObject& ob)
 {
 	const Vec4f pos((float)ob.pos.x, (float)ob.pos.y, (float)ob.pos.z, 1.f);
