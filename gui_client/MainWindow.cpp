@@ -2913,7 +2913,7 @@ void MainWindow::tryToMoveObject(const WorldObject& ob, /*const Matrix4f& tentat
 		ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
 
 		// Update physics object
-		physics_world->setNewObToWorldTransform(*selected_ob->physics_object, desired_new_ob_pos, Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle), selected_ob->scale.toVec4fVector());
+		physics_world->setNewObToWorldTransform(*selected_ob->physics_object, desired_new_ob_pos, Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle), useScaleForWorldOb(selected_ob->scale).toVec4fVector());
 
 		// Update in Indigo view
 		ui->indigoView->objectTransformChanged(*selected_ob);
@@ -8917,9 +8917,7 @@ void MainWindow::objectEditedSlot()
 
 			if(selected_ob->model_url.empty() || resource_manager->isFileForURLPresent(selected_ob->model_url))
 			{
-				Matrix4f new_ob_to_world_matrix = Matrix4f::translationMatrix((float)this->selected_ob->pos.x, (float)this->selected_ob->pos.y, (float)this->selected_ob->pos.z) *
-					Matrix4f::rotationMatrix(normalise(this->selected_ob->axis.toVec4fVector()), this->selected_ob->angle) *
-					Matrix4f::scaleMatrix(this->selected_ob->scale.x, this->selected_ob->scale.y, this->selected_ob->scale.z);
+				Matrix4f new_ob_to_world_matrix = obToWorldMatrix(*this->selected_ob);
 
 				GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
 				if(opengl_ob.nonNull())
@@ -9031,7 +9029,7 @@ void MainWindow::objectEditedSlot()
 						// Update physics object transform
 						selected_ob->physics_object->collidable = selected_ob->isCollidable();
 						physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
-							selected_ob->scale.toVec4fVector());
+							useScaleForWorldOb(selected_ob->scale).toVec4fVector());
 
 						// Update in Indigo view
 						ui->indigoView->objectTransformChanged(*selected_ob);
