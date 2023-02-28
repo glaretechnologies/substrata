@@ -766,7 +766,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		
 		object->jolt_body_id = body_interface.CreateAndAddBody(sphere_settings, JPH::EActivation::Activate);
 
-		conPrint("Added Jolt sphere body, dynamic: " + boolToString(object->dynamic));
+		//conPrint("Added Jolt sphere body, dynamic: " + boolToString(object->dynamic));
 	}
 	else if(object->is_cube)
 	{
