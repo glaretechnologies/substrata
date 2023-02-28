@@ -598,7 +598,6 @@ MainWindow::~MainWindow()
 	// Kill various threads before we start destroying members of MainWindow they may depend on.
 	save_resources_db_thread_manager.killThreadsBlocking();
 
-	//mesh_manager.clear();
 
 	if(this->client_tls_config)
 		tls_config_free(this->client_tls_config);
@@ -619,12 +618,6 @@ MainWindow::~MainWindow()
 #endif
 
 	delete ui;
-}
-
-
-void MainWindow::shutdownOpenGLStuff()
-{
-	ui->glWidget->makeCurrent();
 }
 
 
@@ -719,6 +712,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	wheel_gl_objects.clear();
 	car_body_gl_object = NULL;
 	mouseover_selected_gl_ob = NULL;
+
+
+	mesh_manager.clear(); // Mesh manager has references to cached/unused meshes, so need to zero out the references before we shut down the OpenGL engine.
 
 
 	ui->glWidget->shutdown(); // Shuts down OpenGL Engine.
@@ -1642,7 +1638,10 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						// Create gl and physics object now
 						ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, mesh_data->gl_meshdata, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager, ob_to_world_matrix);
 						
+						mesh_data->meshDataBecameUsed();
 						ob->mesh_manager_data = mesh_data;// Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+						physics_shape_data->shapeDataBecameUsed();
 						ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
 
 						assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
@@ -1850,6 +1849,7 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 				avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, mesh_data->gl_meshdata, ob_lod_level, avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), 
 					*resource_manager, ob_to_world_matrix);
 
+				mesh_data->meshDataBecameUsed();
 				avatar->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 				// Load animation data for ready-player-me type avatars
@@ -3204,7 +3204,10 @@ void MainWindow::processLoading()
 											ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, cur_loading_mesh_data, ob_lod_level, ob->materials, ob->lightmap_url,
 												*resource_manager, ob_to_world_matrix);
 
+											mesh_data->meshDataBecameUsed();
 											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
+
+											physics_shape_data->shapeDataBecameUsed();
 											ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
 
 											if(ob->physics_object.isNull()) // if object was dynamic, we didn't unload its physics object above.
@@ -3311,6 +3314,7 @@ void MainWindow::processLoading()
 											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, cur_loading_mesh_data, av_lod_level, av->avatar_settings.materials, /*lightmap_url=*/std::string(),
 												*resource_manager, ob_to_world_matrix);
 
+											mesh_data->meshDataBecameUsed();
 											av->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
 											// Load animation data for ready-player-me type avatars
@@ -3736,6 +3740,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	ui->glWidget->makeCurrent(); // Need to make this gl widget context current, before we execute OpenGL calls in processLoading.
 
+
+	mesh_manager.trimMeshMemoryUsage();
+
 	processLoading();
 	
 	/*
@@ -3910,11 +3917,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		if(texture_server)
 			msg += "texture_server total mem usage:         " + getNiceByteSize(this->texture_server->getTotalMemUsage()) + "\n";
 
-		const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
-		msg += "mesh_manager gl meshes:                 " + toString(this->mesh_manager.getNumGLMeshDataObs()) + "\n";
-		msg += "mesh_manager physics shapes:            " + toString(this->mesh_manager.getNumPhysicsShapeDataObs()) + "\n";
-		msg += "mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()) + "\n";
-		msg += "mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()) + "\n";
+		msg += this->mesh_manager.getDiagnostics();
 
 		if(ui->glWidget->opengl_engine.nonNull() && ui->diagnosticsWidget->graphicsDiagnosticsCheckBox->isChecked())
 		{
@@ -4261,45 +4264,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 	}
 
-	if(false) // stats_timer.elapsed() > 10.0)
-	{
-		stats_timer.reset();
-
-		conPrint("\n============================================");
-		
-		conPrint("World objects CPU mem usage:            " + getNiceByteSize(this->world_state->getTotalMemUsage()));
-
-		if(this->physics_world.nonNull())
-		{
-			conPrint(this->physics_world->getLoadedMeshes());
-		}
-		//	conPrint("physics_world->getTotalMemUsage:        " + getNiceByteSize(this->physics_world->getTotalMemUsage()));
 	
-		conPrint("texture_server->getTotalMemUsage:       " + getNiceByteSize(this->texture_server->getTotalMemUsage()));
-		
-		if(this->ui->glWidget->opengl_engine.nonNull())
-		{
-			conPrint("------ OpenGL Engine ------");
-			const GLMemUsage mem_usage = this->ui->glWidget->opengl_engine->getTotalMemUsage();
-			conPrint("opengl_engine geom  CPU mem usage:            " + getNiceByteSize(mem_usage.geom_cpu_usage));
-			conPrint("opengl_engine tex   CPU mem usage:            " + getNiceByteSize(mem_usage.texture_cpu_usage));
-			conPrint("opengl_engine total CPU mem usage:            " + getNiceByteSize(mem_usage.totalCPUUsage()));
-
-			conPrint("opengl_engine geom  GPU mem usage:            " + getNiceByteSize(mem_usage.geom_gpu_usage));
-			conPrint("opengl_engine tex   GPU mem usage:            " + getNiceByteSize(mem_usage.texture_gpu_usage));
-			conPrint("opengl_engine total GPU mem usage:            " + getNiceByteSize(mem_usage.totalGPUUsage()));
-
-			//conPrint("texture_data_manager TotalMemUsage:     " + getNiceByteSize(this->ui->glWidget->opengl_engine->texture_data_manager->getTotalMemUsage()));
-		}
-
-		
-		//conPrint("mesh_manager num meshes:                " + toString(this->mesh_manager.model_URL_to_mesh_map.size()));
-
-		const GLMemUsage mesh_mem_usage = this->mesh_manager.getTotalMemUsage();
-		conPrint("mesh_manager total CPU usage:           " + getNiceByteSize(mesh_mem_usage.totalCPUUsage()));
-		conPrint("mesh_manager total GPU usage:           " + getNiceByteSize(mesh_mem_usage.totalGPUUsage()));
-	}
-
 	// NOTE: goes after sceeenshot code, which might update campos.
 	Vec4f campos = this->cam_controller.getFirstPersonPosition().toVec4fPoint();
 

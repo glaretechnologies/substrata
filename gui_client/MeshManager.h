@@ -9,6 +9,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "PhysicsObject.h"
 #include <opengl/GLMemUsage.h>
 #include <simpleraytracer/raymesh.h>
+#include <utils/ManagerWithCache.h>
 #include <map>
 class OpenGLMeshRenderData;
 class MeshManager;
@@ -47,7 +48,8 @@ struct MeshData
 	//----------------------------------------
 
 
-	void meshDataBecameUnused() const;
+	void meshDataBecameUsed() const; // Called when an object starts using this mesh.
+	void meshDataBecameUnused() const; // Called by decRefCount()
 
 
 	std::string model_url;
@@ -64,7 +66,7 @@ struct PhysicsShapeData
 {
 	PhysicsShapeData(const std::string& model_URL_, bool dynamic_, PhysicsShape physics_shape_, MeshManager* mesh_manager_) : model_url(model_URL_), dynamic(dynamic_), physics_shape(physics_shape_), refcount(0), mesh_manager(mesh_manager_) {}
 
-	//------------------- Custom ReferenceCounted stuff, so we can call meshDataBecameUnused() ---------------------
+	//------------------- Custom ReferenceCounted stuff, so we can call shapeDataBecameUnused() ---------------------
 	/// Increment reference count
 	inline void incRefCount() const
 	{
@@ -93,7 +95,8 @@ struct PhysicsShapeData
 	//----------------------------------------
 
 
-	void shapeDataBecameUnused() const;
+	void shapeDataBecameUsed() const; // Called when an object starts using this physics shape.
+	void shapeDataBecameUnused() const; // Called by decRefCount()
 
 
 	std::string model_url;
@@ -111,6 +114,7 @@ struct PhysicsShapeData
 // NOTE: copied from MainWindow::ModelProcessingKey
 struct MeshManagerPhysicsShapeKey
 {
+	MeshManagerPhysicsShapeKey() {}
 	MeshManagerPhysicsShapeKey(const std::string& URL_, const bool dynamic_physics_shape_) : URL(URL_), dynamic_physics_shape(dynamic_physics_shape_) {}
 
 	std::string URL;
@@ -127,13 +131,20 @@ struct MeshManagerPhysicsShapeKey
 	}
 	bool operator == (const MeshManagerPhysicsShapeKey& other) const { return URL == other.URL && dynamic_physics_shape == other.dynamic_physics_shape; }
 };
+struct MeshManagerPhysicsShapeKeyHasher
+{
+	size_t operator() (const MeshManagerPhysicsShapeKey& key) const
+	{
+		std::hash<std::string> h;
+		return h(key.URL);
+	}
+};
 
 
 /*=====================================================================
 MeshManager
 -----------
-Caches meshes and OpenGL data loaded from disk and built.
-RayMesh and OpenGLMeshRenderData in particular.
+Caches OpenGLMeshRenderData and physics shapes loaded from disk and built.
 
 NOTE: Do we need to make this class threadsafe?  Or are all methods called on the main thread (in particular meshDataBecameUnused()?)
 =====================================================================*/
@@ -148,22 +159,29 @@ public:
 	Reference<MeshData> insertMesh(const std::string& model_url, const Reference<OpenGLMeshRenderData>& gl_meshdata);
 	Reference<PhysicsShapeData> insertPhysicsShape(const MeshManagerPhysicsShapeKey& key, PhysicsShape& physics_shape);
 
-	Reference<MeshData> getMeshData(const std::string& model_url);
-	Reference<PhysicsShapeData> getPhysicsShapeData(const MeshManagerPhysicsShapeKey& key);
+	Reference<MeshData> getMeshData(const std::string& model_url); // Returns null reference if not found.
+	Reference<PhysicsShapeData> getPhysicsShapeData(const MeshManagerPhysicsShapeKey& key); // Returns null reference if not found.
 
-	void meshDataBecameUnused(const MeshData* meshdata);
-	void physicsShapeDataBecameUnused(const PhysicsShapeData* meshdata);
+	void meshDataBecameUsed(const MeshData* meshdata);
+	void meshDataBecameUnused(const MeshData* meshdata); // Called by decRefCount()
+	void physicsShapeDataBecameUsed(const PhysicsShapeData* meshdata);
+	void physicsShapeDataBecameUnused(const PhysicsShapeData* meshdata); // Called by decRefCount()
 
-	GLMemUsage getTotalMemUsage() const;
-	size_t getNumGLMeshDataObs() const { return model_URL_to_mesh_map.size(); }
-	size_t getNumPhysicsShapeDataObs() const { return physics_shape_map.size(); }
+	std::string getDiagnostics() const;
+
+	void trimMeshMemoryUsage();
 
 	//Mutex& getMutex() { return mutex; }
 private:
 	//mutable Mutex mutex;
-	std::map<std::string, Reference<MeshData> > model_URL_to_mesh_map;
+	ManagerWithCache<std::string, Reference<MeshData> > model_URL_to_mesh_map;
 
-	std::map<MeshManagerPhysicsShapeKey, Reference<PhysicsShapeData>> physics_shape_map;
+	ManagerWithCache<MeshManagerPhysicsShapeKey, Reference<PhysicsShapeData>, MeshManagerPhysicsShapeKeyHasher> physics_shape_map;
 
 	uint64 main_thread_id;
+
+	uint64 mesh_CPU_mem_usage; // Running sum of CPU RAM used by inserted meshes.
+	uint64 mesh_GPU_mem_usage; // Running sum of CPU RAM used by inserted meshes.
+
+	uint64 shape_mem_usage; // Running sum of CPU RAM used by inserted physics shapes.
 };
