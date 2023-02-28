@@ -186,7 +186,6 @@ private:
 #else
 	bool nativeEvent(const QByteArray& event_type, void* message, long* result);
 #endif
-	void shutdownOpenGLStuff();
 	virtual void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
@@ -562,8 +561,6 @@ private:
 	QTimer* lightmap_flag_timer;
 
 	std::set<WorldObjectRef> objs_with_lightmap_rebuild_needed;
-
-	Timer stats_timer;
 
 public:
 	Vec3d screenshot_campos;
