@@ -34,7 +34,7 @@ static const float EYE_HEIGHT = 1.67f;
 
 PlayerPhysics::PlayerPhysics()
 :	move_desired_vel(0,0,0),
-	jump_time_remaining(0),
+	last_jump_time(-1),
 	on_ground(false),
 	fly_mode(false),
 	last_runpressed(false),
@@ -157,9 +157,9 @@ void PlayerPhysics::processMoveUp(float factor, bool runpressed, CameraControlle
 }
 
 
-void PlayerPhysics::processJump(CameraController& cam)
+void PlayerPhysics::processJump(CameraController& cam, double cur_time)
 {
-	jump_time_remaining = JUMP_PERIOD;
+	last_jump_time = cur_time;
 }
 
 
@@ -194,7 +194,7 @@ public:
 };
 
 
-UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_out)
+UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, double cur_time, Vec4f& campos_out)
 {
 	UpdateEvents events;
 
@@ -248,7 +248,8 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 	// conPrint("Current ground state: " + getGroundStateName(jolt_character->GetGroundState()));
 	
 	// Jump
-	if((jump_time_remaining > 0) && 
+	const double time_since_jump_pressed = cur_time - last_jump_time;
+	if((time_since_jump_pressed < JUMP_PERIOD) &&
 		jolt_character->IsSupported()) // jolt_character->GetGroundState() == JPH::CharacterVirtual::EGroundState::OnGround) // If on ground
 	{
 		//conPrint("JUMPING");
@@ -263,12 +264,10 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 				toVec3f(jolt_character->GetGroundVelocity()) + 
 				Vec3f(0, 0, jump_speed);
 
-		jump_time_remaining = -1;
+		last_jump_time = -1;
 		events.jumped = true;
 		//time_since_on_ground = 1; // Hack this up to a large value so jump animation can play immediately.
 	}
-
-	jump_time_remaining -= dtime;
 
 	jolt_character->SetLinearVelocity(JPH::Vec3(vel.x, vel.y, vel.z));
 
