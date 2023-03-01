@@ -1669,17 +1669,6 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 							ob->physics_object->friction = ob->friction;
 							ob->physics_object->restitution = ob->restitution;
 
-							// if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
-							// {
-							// 	ob->physics_object->is_sphere = true;
-							// 	ob->physics_object->dynamic = false; // TEMP
-							// }
-							// if(ob->model_url == "Cube_obj_11907297875084081315.bmesh"/* && ob->scale == Vec3f(1.f)*/)
-							// {
-							// 	ob->physics_object->is_cube = true;
-							// 	ob->physics_object->dynamic = false;
-							// }
-
 							physics_world->addObject(ob->physics_object);
 						}
 
@@ -3229,17 +3218,6 @@ void MainWindow::processLoading()
 												ob->physics_object->mass = ob->mass;
 												ob->physics_object->friction = ob->friction;
 												ob->physics_object->restitution = ob->restitution;
-
-												//if(ob->model_url == "Icosahedron_obj_136334556484365507.bmesh")
-												//{
-												//	ob->physics_object->is_sphere = true;
-												//	ob->physics_object->dynamic = false;
-												//}
-												//if(ob->model_url == "Cube_obj_11907297875084081315.bmesh"/* && ob->scale == Vec3f(1.f)*/)
-												//{
-												//	ob->physics_object->is_cube = true;
-												//	ob->physics_object->dynamic = false;
-												//}
 
 												physics_world->addObject(ob->physics_object);
 											}
