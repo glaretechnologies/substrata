@@ -4983,7 +4983,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			else
 			{
 				// Process player physics
-				UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, /*campos in/out=*/campos);
+				UpdateEvents substep_physics_events = player_physics.update(*this->physics_world, physics_input, (float)substep_dt, cur_time, /*campos out=*/campos);
 				physics_events.jumped = physics_events.jumped || substep_physics_events.jumped;
 
 				// Process contact events for objects that the player touched.

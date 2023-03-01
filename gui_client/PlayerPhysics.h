@@ -49,9 +49,10 @@ public:
 	void processMoveForwards(float factor, bool runpressed, CameraController& cam); // factor should be -1 for move backwards, 1 otherwise.
 	void processStrafeRight(float factor, bool runpressed, CameraController& cam);
 	void processMoveUp(float factor, bool runpressed, CameraController& cam);
-	void processJump(CameraController& cam);
+	void processJump(CameraController& cam, double cur_time);
 
-	UpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, Vec4f& campos_out);
+	// NOTE: cur_time should be from Clock::getTimeSinceInit().
+	UpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime, double cur_time, Vec4f& campos_out);
 
 	bool isMoveDesiredVelNonZero();
 	void zeroMoveDesiredVel();
@@ -83,7 +84,7 @@ private:
 
 	Vec3f move_desired_vel;
 
-	float jump_time_remaining; // Time since the user hit the jump key.
+	double last_jump_time; // The time when the user last hit the jump key.
 	bool on_ground; // Was the user on the ground as of the last update() call.
 	bool last_runpressed; // Was the run key pressed as of the last time processMoveForwards etc. was called?
 
