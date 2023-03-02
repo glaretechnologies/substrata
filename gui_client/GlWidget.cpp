@@ -335,8 +335,8 @@ void GlWidget::paintGL()
 		opengl_engine->draw();
 	}
 
-	//conPrint("FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
-	//timer.reset();
+	//conPrint("FPS: " + doubleToStringNSigFigs(1 / fps_timer.elapsed(), 1));
+	//fps_timer.reset();
 }
 
 
@@ -352,7 +352,7 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 		if(e->key() == Qt::Key::Key_Space)
 		{
 			if(cam_move_on_key_input_enabled)
-				this->player_physics->processJump(*this->cam_controller);
+				this->player_physics->processJump(*this->cam_controller, /*cur time=*/Clock::getTimeSinceInit());
 			space_down = true;
 		}
 		else if(e->key() == Qt::Key::Key_W)
@@ -710,8 +710,8 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 		mouse_move_origin = QCursor::pos();
 #endif
 
-		//conPrint("mouseMoveEvent FPS: " + doubleToStringNSigFigs(1 / timer.elapsed(), 1));
-		//timer.reset();
+		//conPrint("mouseMoveEvent FPS: " + doubleToStringNSigFigs(1 / fps_timer.elapsed(), 1));
+		//fps_timer.reset();
 	}
 
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
@@ -722,8 +722,8 @@ void GlWidget::mouseMoveEvent(QMouseEvent* e)
 
 	emit mouseMoved(e);
 
-	//conPrint("mouseMoveEvent time since last event: " + doubleToStringNSigFigs(timer.elapsed(), 5));
-	//timer.reset();
+	//conPrint("mouseMoveEvent time since last event: " + doubleToStringNSigFigs(fps_timer.elapsed(), 5));
+	//fps_timer.reset();
 }
 
 
