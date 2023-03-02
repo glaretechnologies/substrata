@@ -112,7 +112,7 @@ private:
 	int viewport_w, viewport_h;
 
 	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down;
-	Timer timer;
+	//Timer fps_timer;
 	bool cam_rot_on_mouse_move_enabled;
 	bool cam_move_on_key_input_enabled;
 
