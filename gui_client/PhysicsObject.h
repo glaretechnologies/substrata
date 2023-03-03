@@ -84,18 +84,13 @@ public:
 	JPH::BodyID jolt_body_id;
 	bool is_sphere;
 	bool is_cube;
-	bool is_player;
 #endif
 	bool dynamic;
-
 	bool kinematic;
 
 	float mass;
 	float friction;
 	float restitution;
-
-private:
-	
 };
 
 

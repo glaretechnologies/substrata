@@ -7,11 +7,9 @@ Copyright Glare Technologies Limited 2022 -
 
 
 #include "PhysicsWorld.h"
-#include "../utils/StringUtils.h"
-#include "../simpleraytracer/ray.h"
-#include "../physics/jscol_boundingsphere.h"
-#include "indigo/DiscreteDistribution.h"
-#include "../utils/ConPrint.h"
+#include <simpleraytracer/ray.h>
+#include <utils/StringUtils.h>
+#include <utils/ConPrint.h>
 
 
 js::AABBox PhysicsShape::getAABBOS() const
@@ -33,7 +31,6 @@ PhysicsObject::PhysicsObject(bool collidable_)
 #if USE_JOLT
 	is_sphere = false;
 	is_cube = false;
-	is_player = false;
 #endif
 
 	mass = 100.f;
@@ -50,7 +47,6 @@ PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void*
 #if USE_JOLT
 	is_sphere = false;
 	is_cube = false;
-	is_player = false;
 #endif
 
 	mass = 100.f;

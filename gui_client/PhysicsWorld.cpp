@@ -737,11 +737,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 
 	JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
 
-	if(object->is_player)
-	{
-
-	}
-	else if(object->is_sphere)
+	if(object->is_sphere)
 	{
 		JPH::Ref<JPH::SphereShapeSettings> sphere_shape = new JPH::SphereShapeSettings(0.5f);
 
