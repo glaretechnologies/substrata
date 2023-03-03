@@ -764,7 +764,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 
 		sphere_settings.mUserData = (uint64)object.ptr();
 		
-		object->jolt_body_id = body_interface.CreateAndAddBody(sphere_settings, JPH::EActivation::Activate);
+		object->jolt_body_id = body_interface.CreateAndAddBody(sphere_settings, JPH::EActivation::DontActivate);
 
 		//conPrint("Added Jolt sphere body, dynamic: " + boolToString(object->dynamic));
 	}
@@ -791,7 +791,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 		cube_settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 		cube_settings.mUserData = (uint64)object.ptr();
 
-		object->jolt_body_id = body_interface.CreateAndAddBody(cube_settings, JPH::EActivation::Activate);
+		object->jolt_body_id = body_interface.CreateAndAddBody(cube_settings, JPH::EActivation::DontActivate);
 
 		//conPrint("Added Jolt cube body, dynamic: " + boolToString(object->dynamic));
 	}
@@ -825,7 +825,7 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 
 		settings.mUserData = (uint64)object.ptr();
 
-		object->jolt_body_id = body_interface.CreateAndAddBody(settings, JPH::EActivation::Activate);
+		object->jolt_body_id = body_interface.CreateAndAddBody(settings, JPH::EActivation::DontActivate);
 
 		//conPrint("Added Jolt mesh body");
 	}
