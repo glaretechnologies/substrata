@@ -47,7 +47,6 @@ Copyright Glare Technologies Limited 2018 -
 #include <unordered_set>
 #include <unordered_map>
 #include <deque>
-#include "HoverCarPhysics.h"
 class ArgumentParser;
 namespace Ui { class MainWindow; }
 class TextureServer;
@@ -64,6 +63,7 @@ class BiomeManager;
 class ScriptLoadedThreadMessage;
 class ObjectPathController;
 namespace glare { class PoolAllocator; }
+class VehiclePhysics;
 
 struct ID3D11Device;
 struct IMFDXGIDeviceManager;
@@ -346,9 +346,9 @@ public:
 
 	PlayerPhysics player_physics;
 	CarPhysics car_physics;
-	Reference<HoverCarPhysics> hover_car_physics;
+	Reference<VehiclePhysics> vehicle_physics;
 	double last_vehicle_renewal_msg_time;
-	UID hover_car_object_uid;
+	UID vehicle_object_uid; // UID of vehicle object we are riding.
 
 	Timer time_since_last_timer_ev;
 	Timer time_since_update_packet_sent;

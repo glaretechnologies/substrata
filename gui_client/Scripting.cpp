@@ -71,7 +71,7 @@ Quatf parseRotationWithDefault(pugi::xml_node elem, const char* elemname, const 
 }
 
 
-void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<HoverCarScript>& hover_car_script_out)
+void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<VehicleScript>& vehicle_script_out)
 {
 	try
 	{
@@ -124,28 +124,60 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 				path_controller_out = new ObjectPathController(ob, waypoints, global_time + time_offset, /*follow ob UID=*/follow_ob_uid, /*follow dist=*/(float)follow_dist);
 		}
 
-		// ----------- hover car
-		pugi::xml_node hover_car_elem = root_elem.child("hover_car");
-		if(hover_car_elem)
+		// ----------- hover car -----------
 		{
-			hover_car_script_out = new HoverCarScript();
-
-			hover_car_script_out->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_1", Quatf::identity());
-			hover_car_script_out->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_2", Quatf::identity());
-
-			for(pugi::xml_node seat_elem = hover_car_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
+			pugi::xml_node hover_car_elem = root_elem.child("hover_car");
+			if(hover_car_elem)
 			{
-				SeatSettings seat_settings;
-				seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
-				seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
-				seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
-				seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
+				Reference<HoverCarScript> hover_car_script = new HoverCarScript();
 
-				hover_car_script_out->settings.seat_settings.push_back(seat_settings);
-			}
+				hover_car_script->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+				hover_car_script->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(hover_car_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+
+				for(pugi::xml_node seat_elem = hover_car_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
+				{
+					SeatSettings seat_settings;
+					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
+					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
+					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
+					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
+
+					hover_car_script->settings.seat_settings.push_back(seat_settings);
+				}
 			
-			if(hover_car_script_out->settings.seat_settings.empty())
-				throw glare::Exception("hover_car element must have at least one seat element");
+				if(hover_car_script->settings.seat_settings.empty())
+					throw glare::Exception("hover_car element must have at least one seat element");
+
+				vehicle_script_out = hover_car_script;
+			}
+		}
+
+		// ----------- bike -----------
+		{
+			pugi::xml_node bike_elem = root_elem.child("bike");
+			if(bike_elem)
+			{
+				Reference<BikeScript> bike_script = new BikeScript();
+
+				bike_script->settings.model_to_y_forwards_rot_1 = parseRotationWithDefault(bike_elem, "model_to_y_forwards_rot_1", Quatf::identity());
+				bike_script->settings.model_to_y_forwards_rot_2 = parseRotationWithDefault(bike_elem, "model_to_y_forwards_rot_2", Quatf::identity());
+
+				for(pugi::xml_node seat_elem = bike_elem.child("seat"); seat_elem; seat_elem = seat_elem.next_sibling("seat"))
+				{
+					SeatSettings seat_settings;
+					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
+					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
+					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
+					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
+
+					bike_script->settings.seat_settings.push_back(seat_settings);
+				}
+
+				if(bike_script->settings.seat_settings.empty())
+					throw glare::Exception("bike element must have at least one seat element");
+
+				vehicle_script_out = bike_script;
+			}
 		}
 	}
 	catch(glare::Exception& e)

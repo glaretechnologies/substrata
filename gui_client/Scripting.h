@@ -28,7 +28,7 @@ struct SeatSettings
 };
 
 
-struct HoverCarScriptedSettings
+struct VehicleScriptedSettings
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
@@ -39,16 +39,33 @@ struct HoverCarScriptedSettings
 };
 
 
-class HoverCarScript : public RefCounted
+class VehicleScript : public RefCounted
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	HoverCarScriptedSettings settings;
+	virtual ~VehicleScript() {}
+
+	VehicleScriptedSettings settings;
 };
 
 
-void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<HoverCarScript>& hover_car_script_out);
+class HoverCarScript : public VehicleScript
+{
+public:
+	GLARE_ALIGNED_16_NEW_DELETE
+};
+
+
+class BikeScript : public VehicleScript
+{
+public:
+	GLARE_ALIGNED_16_NEW_DELETE
+};
+
+
+
+void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_time, Reference<ObjectPathController>& path_controller_out, Reference<VehicleScript>& vehicle_script_out);
 
 
 void evaluateObjectScripts(std::set<WorldObjectRef>& obs_with_scripts, double global_time, double dt, WorldState* world_state, OpenGLEngine* opengl_engine, PhysicsWorld* physics_world, glare::AudioEngine* audio_engine,

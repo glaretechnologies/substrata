@@ -1,13 +1,13 @@
 /*=====================================================================
-HoverCarPhysics.h
------------------
+BikePhysics.h
+-------------
 Copyright Glare Technologies Limited 2023 -
 =====================================================================*/
 #pragma once
 
 
-#include "VehiclePhysics.h"
 #include "PlayerPhysics.h"
+#include "VehiclePhysics.h"
 #include "PhysicsObject.h"
 #include "PlayerPhysicsInput.h"
 #include "Scripting.h"
@@ -24,27 +24,29 @@ class CameraController;
 class PhysicsWorld;
 
 
-struct HoverCarPhysicsSettings
+struct BikePhysicsSettings
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
 	Scripting::VehicleScriptedSettings script_settings;
-	float hovercar_mass;
+	float bike_mass;
 };
 
 
 /*=====================================================================
-HoverCarPhysics
----------------
+BikePhysics
+-----------
 
 =====================================================================*/
-class HoverCarPhysics : public VehiclePhysics
+class BikePhysics : public VehiclePhysics
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	HoverCarPhysics(JPH::BodyID car_body_id, HoverCarPhysicsSettings settings);
-	~HoverCarPhysics();
+	BikePhysics(JPH::BodyID car_body_id, BikePhysicsSettings settings, PhysicsWorld& physics_world);
+	~BikePhysics();
+
+	//virtual void shutdown(PhysicsWorld& physics_world);
 
 	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime);
 
@@ -52,16 +54,32 @@ public:
 
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const;
 
+
+	Matrix4f getWheelToWorldTransform(PhysicsWorld& physics_world, int wheel_index) const;
+
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
 	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const;
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const;
 
-	const Scripting::VehicleScriptedSettings& getSettings() const { return settings.script_settings; }
+	virtual const Scripting::VehicleScriptedSettings& getSettings() const { return settings.script_settings; }
 
-
-	HoverCarPhysicsSettings settings;
+	BikePhysicsSettings settings;
+	uint32 cur_seat_index;
+	
 private:
+	PhysicsWorld* m_physics_world;
 	JPH::BodyID car_body_id;
 	float unflip_up_force_time_remaining;
+
+
+	JPH::Ref<JPH::VehicleConstraint>		vehicle_constraint; // The vehicle constraint
+	JPH::Ref<JPH::VehicleCollisionTester>	collision_tester; // Collision testers for the wheel
+
+	float cur_steering_right;
+
+	float smoothed_desired_roll_angle;
+
+
+	//JPH::AngleConstraintPart				roll_constraint;
 };

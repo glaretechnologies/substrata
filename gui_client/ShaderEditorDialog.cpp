@@ -134,8 +134,8 @@ void ShaderEditorDialog::buildCodeAndShowResults()
 		try
 		{
 			Reference<ObjectPathController> path_controller;
-			Reference<Scripting::HoverCarScript> hover_car_script;
-			Scripting::parseXMLScript(NULL, shader, 0.0, path_controller, hover_car_script);
+			Reference<Scripting::VehicleScript> vehicle_script;
+			Scripting::parseXMLScript(NULL, shader, 0.0, path_controller, vehicle_script);
 
 
 			this->outputTextEdit->setPlainText("XML script built successfully.");

@@ -24,7 +24,7 @@ struct GLObject;
 class AvatarGraphics;
 struct MeshData;
 class WorldObject;
-class HoverCarPhysics;
+class VehiclePhysics;
 
 
 
@@ -117,7 +117,7 @@ public:
 	Reference<WorldObject> entered_vehicle; // Reference to vehicle that the avatar has entered (e.g. is driving or a passenger)
 	uint32 vehicle_seat_index;
 
-	Reference<HoverCarPhysics> hover_car_physics;
+	Reference<VehiclePhysics> vehicle_physics;
 
 #endif
 
