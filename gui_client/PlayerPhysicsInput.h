@@ -16,9 +16,9 @@ class PlayerPhysicsInput
 public:
 	void clear()
 	{
-		SHIFT_down = A_down = W_down = S_down = D_down = space_down = C_down = left_down = right_down = up_down = down_down = false;
+		SHIFT_down = CTRL_down = A_down = W_down = S_down = D_down = space_down = C_down = left_down = right_down = up_down = down_down = false;
 	}
 
 
-	bool SHIFT_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down;
+	bool SHIFT_down, CTRL_down, A_down, W_down, S_down, D_down, space_down, C_down, left_down, right_down, up_down, down_down;
 };

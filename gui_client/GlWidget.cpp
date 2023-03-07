@@ -112,6 +112,7 @@ GlWidget::GlWidget(QWidget *parent)
 	viewport_aspect_ratio = 1;
 
 	SHIFT_down = false;
+	CTRL_down = false;
 	W_down = false;
 	A_down = false;
 	S_down = false;
@@ -348,6 +349,7 @@ void GlWidget::keyPressEvent(QKeyEvent* e)
 	if(this->player_physics)
 	{
 		SHIFT_down = (e->modifiers() & Qt::ShiftModifier);
+		CTRL_down  = (e->modifiers() & Qt::ControlModifier);
 
 		if(e->key() == Qt::Key::Key_Space)
 		{
@@ -402,6 +404,7 @@ void GlWidget::keyReleaseEvent(QKeyEvent* e)
 	if(this->player_physics)
 	{
 		SHIFT_down = (e->modifiers() & Qt::ShiftModifier);
+		CTRL_down  = (e->modifiers() & Qt::ControlModifier);
 
 		if(e->key() == Qt::Key::Key_Space)
 		{
@@ -454,6 +457,7 @@ void GlWidget::focusOutEvent(QFocusEvent* e)
 	// conPrint("GlWidget::focusOutEvent");
 
 	SHIFT_down = false;
+	CTRL_down = false;
 	A_down = false;
 	W_down = false;
 	S_down = false;
@@ -504,6 +508,7 @@ void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out
 		cam_changed = true;
 
 	input_out.SHIFT_down =	false;
+	input_out.CTRL_down =	false;
 	input_out.W_down =		false;
 	input_out.S_down =		false;
 	input_out.A_down =		false;
@@ -524,6 +529,7 @@ void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out
 	{
 #ifdef _WIN32
 		SHIFT_down =	GetAsyncKeyState(VK_SHIFT);
+		CTRL_down	=	GetAsyncKeyState(VK_CONTROL);
 		W_down =		GetAsyncKeyState('W');
 		S_down =		GetAsyncKeyState('S');
 		A_down =		GetAsyncKeyState('A');
@@ -534,9 +540,9 @@ void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out
 		right_down =	GetAsyncKeyState(VK_RIGHT);
 		up_down =		GetAsyncKeyState(VK_UP);
 		down_down =		GetAsyncKeyState(VK_DOWN);
+#else
+		CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
 #endif
-		const bool CTRL_down = QApplication::keyboardModifiers().testFlag(Qt::ControlModifier);
-
 		const float selfie_move_factor = cam_controller->selfieModeEnabled() ? -1.f : 1.f;
 
 		if(W_down || up_down)
@@ -565,6 +571,7 @@ void GlWidget::processPlayerPhysicsInput(float dt, PlayerPhysicsInput& input_out
 			emit cameraUpdated();
 
 		input_out.SHIFT_down =	SHIFT_down;
+		input_out.CTRL_down =	CTRL_down;
 		input_out.W_down =		W_down;
 		input_out.S_down =		S_down;
 		input_out.A_down =		A_down;

@@ -6,6 +6,7 @@ Copyright Glare Technologies Limited 2023 -
 #pragma once
 
 
+#include "VehiclePhysics.h"
 #include "PlayerPhysics.h"
 #include "PhysicsObject.h"
 #include "PlayerPhysicsInput.h"
@@ -23,16 +24,11 @@ class CameraController;
 class PhysicsWorld;
 
 
-struct HoverCarPhysicsUpdateEvents
-{
-};
-
-
 struct HoverCarPhysicsSettings
 {
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	Scripting::HoverCarScriptedSettings script_settings;
+	Scripting::VehicleScriptedSettings script_settings;
 	float hovercar_mass;
 };
 
@@ -42,7 +38,7 @@ HoverCarPhysics
 ---------------
 
 =====================================================================*/
-class HoverCarPhysics : public RefCounted
+class HoverCarPhysics : public VehiclePhysics
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
@@ -50,7 +46,7 @@ public:
 	HoverCarPhysics(JPH::BodyID car_body_id, HoverCarPhysicsSettings settings);
 	~HoverCarPhysics();
 
-	HoverCarPhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime);
+	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime);
 
 	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const;
 
@@ -61,9 +57,10 @@ public:
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const;
 
+	const Scripting::VehicleScriptedSettings& getSettings() const { return settings.script_settings; }
+
 
 	HoverCarPhysicsSettings settings;
-	uint32 cur_seat_index;
 private:
 	JPH::BodyID car_body_id;
 	float unflip_up_force_time_remaining;

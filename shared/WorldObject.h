@@ -32,7 +32,7 @@ struct GLLight;
 class PhysicsObject;
 namespace glare { class AudioSource; }
 namespace glare { class PoolAllocator; }
-namespace Scripting { class HoverCarScript; }
+namespace Scripting { class VehicleScript; }
 class ResourceManager;
 class WinterShaderEvaluator;
 class Matrix4f;
@@ -344,7 +344,7 @@ public:
 
 	Reference<WinterShaderEvaluator> script_evaluator;
 
-	Reference<Scripting::HoverCarScript> hover_car_script;
+	Reference<Scripting::VehicleScript> vehicle_script;
 
 	js::Vector<Matrix4f, 16> instance_matrices;
 

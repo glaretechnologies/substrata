@@ -14,7 +14,6 @@ Copyright Glare Technologies Limited 2023 -
 #include <PlatformUtils.h>
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
-#include <Jolt/Physics/Body/BodyCreationSettings.h>
 
 
 HoverCarPhysics::HoverCarPhysics(JPH::BodyID car_body_id_, HoverCarPhysicsSettings settings_)
@@ -45,9 +44,9 @@ static float liftCoeffForCosTheta(float cos_theta)
 }
 
 
-HoverCarPhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime)
+VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime)
 {
-	HoverCarPhysicsUpdateEvents events;
+	VehiclePhysicsUpdateEvents events;
 
 	if(cur_seat_index == 0)
 	{
