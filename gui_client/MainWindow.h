@@ -188,6 +188,7 @@ private:
 #endif
 	virtual void closeEvent(QCloseEvent* event);
 	virtual void timerEvent(QTimerEvent* event);
+	void startMainTimer();
 	void rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle);
 	void selectObject(const WorldObjectRef& ob, int selected_mat_index);
 	void deleteSelectedObject();
@@ -676,6 +677,8 @@ public:
 	UID client_avatar_uid; // When we connect to a server, the server assigns a UID to the client/avatar.
 
 	uint64 frame_num;
+
+	int main_timer_id;
 
 	bool closing; // Timer events keep firing after closeEvent(), annoyingly, so keep track of if we are closing the Window, in which case we can early-out of timerEvent().
 };
