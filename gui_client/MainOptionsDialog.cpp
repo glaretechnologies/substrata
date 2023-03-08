@@ -30,6 +30,12 @@ MainOptionsDialog::MainOptionsDialog(QSettings* settings_)
 	SignalBlocker::setChecked(this->shadowsCheckBox,				settings->value(shadowsKey(),				/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->MSAACheckBox,					settings->value(MSAAKey(),					/*default val=*/true).toBool());
 	SignalBlocker::setChecked(this->bloomCheckBox,					settings->value(BloomKey(),					/*default val=*/true).toBool());
+	
+	const bool limit_FPS = settings->value(limitFPSKey(), /*default val=*/false).toBool();
+	SignalBlocker::setChecked(this->limitFPSCheckBox,				limit_FPS);
+	SignalBlocker::setValue(this->FPSLimitSpinBox,					settings->value(FPSLimitKey(),				/*default val=*/60).toInt());
+	this->FPSLimitSpinBox->setEnabled(limit_FPS);
+
 	SignalBlocker::setChecked(this->useCustomCacheDirCheckBox,		use_custom_cache_dir);
 	
 	this->customCacheDirFileSelectWidget->setFilename(				settings->value(customCacheDirKey()).toString());
@@ -50,6 +56,8 @@ void MainOptionsDialog::accepted()
 	settings->setValue(shadowsKey(),								this->shadowsCheckBox->isChecked());
 	settings->setValue(MSAAKey(),									this->MSAACheckBox->isChecked());
 	settings->setValue(BloomKey(),									this->bloomCheckBox->isChecked());
+	settings->setValue(limitFPSKey(),								this->limitFPSCheckBox->isChecked());
+	settings->setValue(FPSLimitKey(),								this->FPSLimitSpinBox->value());
 	settings->setValue(useCustomCacheDirKey(),						this->useCustomCacheDirCheckBox->isChecked());
 
 	settings->setValue(customCacheDirKey(),							this->customCacheDirFileSelectWidget->filename());

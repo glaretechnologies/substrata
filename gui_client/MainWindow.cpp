@@ -225,7 +225,8 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	frame_num(0),
 	axis_and_rot_obs_enabled(false),
 	closing(false),
-	last_vehicle_renewal_msg_time(-1)
+	last_vehicle_renewal_msg_time(-1),
+	main_timer_id(0)
 {
 	model_and_texture_loader_task_manager.setThreadPriorities(MyThread::Priority_Lowest);
 
@@ -411,6 +412,29 @@ static const char* default_help_info_message = "Use the W/A/S/D keys and arrow k
 	"Double-click an object to select it.";
 
 
+void MainWindow::startMainTimer()
+{
+	// Stop previous timer, if it exists.
+	if(main_timer_id != 0)
+		killTimer(main_timer_id);
+
+	int use_interval = 1; // in milliseconds
+	const bool limit_FPS = settings->value(MainOptionsDialog::limitFPSKey(), /*default val=*/false).toBool();
+	if(limit_FPS)
+	{
+		const int max_FPS = myClamp(settings->value(MainOptionsDialog::FPSLimitKey(), /*default val=*/60).toInt(), 15, 1000);
+		use_interval = (int)(1000.0 / max_FPS);
+	}
+
+#ifdef OSX
+	// Set to at least 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
+	use_interval = myMax(use_interval, 17); 
+#endif
+
+	main_timer_id = startTimer(use_interval);
+}
+
+
 void MainWindow::initialise()
 {
 	setWindowTitle(QtUtils::toQString(computeWindowTitle()));
@@ -421,12 +445,8 @@ void MainWindow::initialise()
 	ui->objectEditor->setControlsEnabled(false);
 	ui->parcelEditor->hide();
 
-#ifdef OSX
-	startTimer(17); // Set to 17ms due to this issue on Mac OS: https://bugreports.qt.io/browse/QTBUG-60346
-#else
-	startTimer(1);
-#endif
-
+	startMainTimer();
+	
 	ui->infoDockWidget->setTitleBarWidget(new QWidget());
 	ui->infoDockWidget->hide();
 
@@ -8510,6 +8530,8 @@ void MainWindow::on_actionOptions_triggered()
 		ui->glWidget->max_draw_dist = myMin(2000.f, dist * 1.5f);
 
 		//ui->glWidget->opengl_engine->setMSAAEnabled(settings->value(MainOptionsDialog::MSAAKey(), /*default val=*/true).toBool());
+
+		startMainTimer(); // Restart main timer, as the timer interval depends on max FPS, whiich may have changed.
 	}
 }
 

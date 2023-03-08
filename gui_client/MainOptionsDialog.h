@@ -33,6 +33,10 @@ public:
 
 	static const QString BloomKey() { return "setting/bloom"; }
 
+	static const QString limitFPSKey() { return "setting/limit_FPS"; }
+
+	static const QString FPSLimitKey() { return "setting/FPS_limit"; }
+
 	static const QString useCustomCacheDirKey() { return "setting/use_custom_cache_dir"; }
 
 	static const QString customCacheDirKey() { return "setting/custom_cache_dir"; }
