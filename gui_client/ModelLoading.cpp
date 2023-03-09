@@ -425,6 +425,23 @@ static void rotateVRMMesh(BatchedMesh& mesh)
 }
 
 
+/*
+let exponent = gamma
+
+gamma = 2 / (alpha^2 - 2)
+alpha = r^2
+gamma = 2 / (r^4 - 2)
+r^4 - 2 = 2 / gamma
+r^4 = 2 / gamma + 2
+r = (2 / gamma + 2)^(1/4)
+
+*/
+static float roughnessForExponent(float exponent)
+{
+	return std::pow(2.f / (myMax(1.f, exponent) + 2), 1.f / 4.f);
+}
+
+
 void ModelLoading::makeGLObjectForModelFile(
 	OpenGLEngine& gl_engine,
 	VertexBufferAllocator& vert_buf_allocator,
@@ -549,15 +566,20 @@ void ModelLoading::makeGLObjectForModelFile(
 				{
 					const std::string tex_path = (!mats.materials[z].map_Kd.path.empty()) ? FileUtils::join(FileUtils::getDirectory(mats.mtl_file_path), mats.materials[z].map_Kd.path) : "";
 
-					ob->materials[i].albedo_linear_rgb = sanitiseAndConvertToLinearAlbedoColour(mats.materials[z].Kd);
+					// Colours in MTL files seem to be linear.
+					// We will add the ambient and diffuse colours together to get the final colour, otherwise the result can be too dark.
+					const Colour3f use_col = sanitiseAlbedoColour(mats.materials[z].Ka + mats.materials[z].Kd); // Clamps to [0, 1]
+					const float roughness = roughnessForExponent(mats.materials[z].Ns_exponent);
+
+					ob->materials[i].albedo_linear_rgb = use_col;
 					ob->materials[i].tex_path = tex_path;
-					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
+					ob->materials[i].roughness = roughness;
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
 
-					results_out.materials[i]->colour_rgb = mats.materials[z].Kd;
+					results_out.materials[i]->colour_rgb = toNonLinearSRGB(use_col);
 					results_out.materials[i]->colour_texture_url = tex_path;
 					results_out.materials[i]->opacity = ScalarVal(ob->materials[i].alpha);
-					results_out.materials[i]->roughness = ScalarVal(0.5f);
+					results_out.materials[i]->roughness = ScalarVal(roughness);
 
 					found_mat = true;
 				}
