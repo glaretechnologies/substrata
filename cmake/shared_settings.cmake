@@ -72,6 +72,8 @@ ${GRAPHICS_DIR}/TextureProcessing.h
 ${GRAPHICS_DIR}/TextureProcessingTests.cpp
 ${GRAPHICS_DIR}/TextureProcessingTests.h
 ${GRAPHICS_DIR}/TextureData.h
+${GRAPHICS_DIR}/SRGBUtils.cpp
+${GRAPHICS_DIR}/SRGBUtils.h
 )
 
 set(MESHOPTIMIZER_DIR "${GLARE_CORE_TRUNK_DIR_ENV}/meshoptimizer/src")
