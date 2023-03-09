@@ -112,6 +112,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../simpleraytracer/ray.h"
 #include "../graphics/ImageMap.h"
 #include "../graphics/FormatDecoderGLTF.h"
+#include "../graphics/SRGBUtils.h"
 //#include "../opengl/EnvMapProcessing.h"
 #include "../dll/include/IndigoMesh.h"
 #include "../dll/IndigoStringUtils.h"
@@ -1449,7 +1450,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->hypercard_quad_opengl_mesh;
 				opengl_ob->materials.resize(1);
-				opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+				opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
@@ -1507,7 +1508,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				if(ob->materials.size() >= 2)
 					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
 				else
-					opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
@@ -1523,7 +1524,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				// Apply a light emitting material to the light surface material in the spotlight model.
 				if(ob->materials.size() >= 1)
 				{
-					opengl_ob->materials[1].emission_rgb = ob->materials[0]->colour_rgb;
+					opengl_ob->materials[1].emission_linear_rgb = toLinearSRGB(ob->materials[0]->colour_rgb);
 					opengl_ob->materials[1].emission_scale = scale;
 				}
 
@@ -1559,7 +1560,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 				opengl_ob->mesh_data = this->image_cube_opengl_mesh;
 				opengl_ob->materials.resize(2);
-				opengl_ob->materials[0].albedo_rgb = Colour3f(1.f);
+				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
@@ -3669,7 +3670,7 @@ void MainWindow::updateDiagnosticAABBForObject(WorldObject* ob)
 			}
 			else
 			{
-				ob->diagnostics_gl_ob->materials[0].albedo_rgb = Colour3(col[0], col[1], col[2]);
+				ob->diagnostics_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3(col[0], col[1], col[2]));
 				ob->diagnostics_gl_ob->ob_to_world_matrix = to_world;
 
 				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->diagnostics_gl_ob);
@@ -5209,7 +5210,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					player_phys_debug_spheres[i]->mesh_data = ui->glWidget->opengl_engine->getSphereMeshData();
 
 					OpenGLMaterial material;
-					material.albedo_rgb = (i < 3) ? Colour3f(0.3f, 0.8f, 0.3f) : Colour3f(0.8f, 0.3f, 0.3f);
+					material.albedo_linear_rgb = (i < 3) ? Colour3f(0.3f, 0.8f, 0.3f) : Colour3f(0.8f, 0.3f, 0.3f);
 					
 					material.alpha = 0.5f;
 					material.transparent = true;
@@ -5254,16 +5255,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 					OpenGLMaterial material;
-					material.albedo_rgb = Colour3f(0.2f, 0.2f, 0.2f);
+					material.albedo_linear_rgb = Colour3f(0.2f, 0.2f, 0.2f);
 					//material.tex_path = "resources/obstacle.png";
 
 					
 					wheel_gl_objects[i]->materials = std::vector<OpenGLMaterial>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
 
-					wheel_gl_objects[i]->materials[2].albedo_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+					wheel_gl_objects[i]->materials[2].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
 					wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
 					wheel_gl_objects[i]->materials[2].roughness = 0.2f;
-					wheel_gl_objects[i]->materials[4].albedo_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+					wheel_gl_objects[i]->materials[4].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
 					wheel_gl_objects[i]->materials[4].metallic_frac = 1.f; // spokes
 					wheel_gl_objects[i]->materials[4].roughness = 0.2f;
 
@@ -5292,7 +5293,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				car_body_gl_object->mesh_data->animation_data = batched_mesh->animation_data;
 
 				OpenGLMaterial material;
-				material.albedo_rgb = Colour3f(115 / 255.f, 187 / 255.f, 202 / 255.f);
+				material.albedo_linear_rgb = Colour3f(115 / 255.f, 187 / 255.f, 202 / 255.f);
 				material.roughness = 0.6;
 				material.metallic_frac = 0.0;
 					
@@ -5342,16 +5343,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 						OpenGLMaterial material;
-						material.albedo_rgb = Colour3f(0.2f, 0.2f, 0.2f);
+						material.albedo_linear_rgb = Colour3f(0.2f, 0.2f, 0.2f);
 						//material.tex_path = "resources/obstacle.png";
 
 
 						wheel_gl_objects[i]->materials = std::vector<OpenGLMaterial>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
 
-						wheel_gl_objects[i]->materials[2].albedo_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+						wheel_gl_objects[i]->materials[2].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
 						wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
 						wheel_gl_objects[i]->materials[2].roughness = 0.2f;
-						wheel_gl_objects[i]->materials[4].albedo_rgb = Colour3f(0.8f, 0.8f, 0.8f);
+						wheel_gl_objects[i]->materials[4].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
 						wheel_gl_objects[i]->materials[4].metallic_frac = 1.f; // spokes
 						wheel_gl_objects[i]->materials[4].roughness = 0.2f;
 
@@ -6664,7 +6665,7 @@ void MainWindow::updateVoxelEditMarkers()
 							should_display_voxel_edit_marker = true;
 							should_display_voxel_edit_face_marker = true;
 
-							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.1, 0.9, 0.2);
+							this->voxel_edit_marker->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.1, 0.9, 0.2));
 							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker);
 
 						}
@@ -6695,7 +6696,7 @@ void MainWindow::updateVoxelEditMarkers()
 
 							should_display_voxel_edit_marker = true;
 							
-							this->voxel_edit_marker->materials[0].albedo_rgb = Colour3f(0.9, 0.1, 0.1);
+							this->voxel_edit_marker->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9, 0.1, 0.1));
 							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker);
 						}
 					}
@@ -9064,12 +9065,12 @@ void MainWindow::objectEditedSlot()
 								if(this->selected_ob->materials.size() >= 2)
 									ModelLoading::setGLMaterialFromWorldMaterial(*this->selected_ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
 								else
-									opengl_ob->materials[0].albedo_rgb = Colour3f(0.85f);
+									opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
 
 								// Apply a light emitting material to the light surface material in the spotlight model.
 								if(this->selected_ob->materials.size() >= 1)
 								{
-									opengl_ob->materials[1].emission_rgb = this->selected_ob->materials[0]->colour_rgb;
+									opengl_ob->materials[1].emission_linear_rgb = toLinearSRGB(this->selected_ob->materials[0]->colour_rgb);
 									opengl_ob->materials[1].emission_scale = scale;
 								}
 							}
@@ -10824,10 +10825,10 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 			// Set grab controls to default colours
 			for(int i=0; i<NUM_AXIS_ARROWS; ++i)
-				axis_arrow_objects[i]->materials[0].albedo_rgb = axis_arrows_default_cols[i % 3];
+				axis_arrow_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i % 3]);
 
 			for(int i=0; i<3; ++i)
-				rot_handle_arc_objects[i]->materials[0].albedo_rgb = axis_arrows_default_cols[i];
+				rot_handle_arc_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i]);
 
 			//if(!mouse_trace_hit_selected_ob)
 			{
@@ -10835,12 +10836,12 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 				const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), dummy_grabbed_point_ws);
 		
 				if(axis >= 0 && axis < NUM_AXIS_ARROWS)
-					axis_arrow_objects[axis]->materials[0].albedo_rgb = axis_arrows_mouseover_cols[axis % 3];
+					axis_arrow_objects[axis]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_mouseover_cols[axis % 3]);
 
 				if(axis >= NUM_AXIS_ARROWS && axis < NUM_AXIS_ARROWS + 3)
 				{
 					const int grabbed_rot_axis = axis - NUM_AXIS_ARROWS;
-					rot_handle_arc_objects[grabbed_rot_axis]->materials[0].albedo_rgb = axis_arrows_mouseover_cols[grabbed_rot_axis];
+					rot_handle_arc_objects[grabbed_rot_axis]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_mouseover_cols[grabbed_rot_axis]);
 				}
 			}
 		}
@@ -10973,7 +10974,7 @@ void MainWindow::createPathControlledPathVisObjects(const WorldObject& ob)
 				edge_gl_ob->mesh_data = ui->glWidget->opengl_engine->getCylinderMesh();
 
 				OpenGLMaterial material;
-				material.albedo_rgb = Colour3f(0.8f, 0.3f, 0.3f);
+				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f, 0.3f, 0.3f));
 				material.transparent = true;
 				material.alpha = 0.9f;
 				edge_gl_ob->materials = std::vector<OpenGLMaterial>(1, material);
@@ -11548,7 +11549,7 @@ GLObjectRef MainWindow::makeNameTagGLObject(const std::string& nametag)
 	}
 
 	gl_ob->materials[0].fresnel_scale = 0.1f;
-	gl_ob->materials[0].albedo_rgb = Colour3f(0.8f);
+	gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
 	gl_ob->materials[0].albedo_texture = ui->glWidget->opengl_engine->getOrLoadOpenGLTextureForMap2D(OpenGLTextureKey("nametag_" + nametag), *map);
 	return gl_ob;
 }
@@ -11641,7 +11642,7 @@ void MainWindow::updateGroundPlane()
 
 				GLObjectRef gl_ob = ui->glWidget->opengl_engine->allocateObject();
 				gl_ob->materials.resize(1);
-				gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
+				gl_ob->materials[0].albedo_linear_rgb = Colour3f(0.79f); // toLinearSRGB(Colour3f(0.9f));
 				//gl_ob->materials[0].albedo_rgb = Colour3f(Maths::fract(it->x * 0.1234), Maths::fract(it->y * 0.436435f), 0.7f);
 				try
 				{
@@ -12198,7 +12199,7 @@ int main(int argc, char *argv[])
 
 			for(int i=0; i<3; ++i)
 			{
-				mw.axis_arrow_objects[i]->materials[0].albedo_rgb = axis_arrows_default_cols[i];
+				mw.axis_arrow_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i]);
 				mw.axis_arrow_objects[i]->always_visible = true;
 			}
 
@@ -12209,7 +12210,7 @@ int main(int argc, char *argv[])
 				ob->ob_to_world_matrix = Matrix4f::translationMatrix((float)i * 3, 0, 2);
 				ob->mesh_data = MeshBuilding::makeRotationArcHandleMeshData(*mw.ui->glWidget->opengl_engine->vert_buf_allocator, arc_handle_half_angle * 2);
 				ob->materials.resize(1);
-				ob->materials[0].albedo_rgb = axis_arrows_default_cols[i];
+				ob->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i]);
 				ob->always_visible = true;
 				mw.rot_handle_arc_objects[i] = ob;
 			}
@@ -12318,7 +12319,7 @@ int main(int argc, char *argv[])
 				mw.ob_placement_beam->mesh_data = mw.ui->glWidget->opengl_engine->getCylinderMesh();
 
 				OpenGLMaterial material;
-				material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.3f, 0.8f, 0.3f));
 				material.transparent = true;
 				material.alpha = 0.9f;
 
@@ -12339,7 +12340,7 @@ int main(int argc, char *argv[])
 				mw.ob_denied_move_marker->mesh_data = mw.ui->glWidget->opengl_engine->getSphereMeshData();
 
 				OpenGLMaterial material;
-				material.albedo_rgb = Colour3f(0.8f, 0.2f, 0.2f);
+				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f, 0.2f, 0.2f));
 				material.transparent = true;
 				material.alpha = 0.9f;
 
@@ -12353,7 +12354,7 @@ int main(int argc, char *argv[])
 				mw.voxel_edit_marker->mesh_data = mw.ui->glWidget->opengl_engine->getCubeMeshData();
 
 				OpenGLMaterial material;
-				material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.3f, 0.8f, 0.3f));
 				material.transparent = true;
 				material.alpha = 0.3f;
 
@@ -12367,7 +12368,7 @@ int main(int argc, char *argv[])
 				mw.voxel_edit_face_marker->mesh_data = mw.ui->glWidget->opengl_engine->getUnitQuadMeshData();
 
 				OpenGLMaterial material;
-				material.albedo_rgb = Colour3f(0.3f, 0.8f, 0.3f);
+				material.albedo_linear_rgb = toLinearSRGB(Colour3f(0.3f, 0.8f, 0.3f));
 				mw.voxel_edit_face_marker->materials = std::vector<OpenGLMaterial>(1, material);
 			}
 

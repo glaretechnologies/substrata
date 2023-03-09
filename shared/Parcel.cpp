@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2018 -
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
+#include "graphics/SRGBUtils.h"
 #include "simpleraytracer/raymesh.h"
 #include "../gui_client/PhysicsObject.h"
 #include "../gui_client/PhysicsWorld.h"
@@ -365,7 +366,7 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 		ob->ob_to_world_matrix.setToIdentity();
 		ob->mesh_data = mesh_data;
 		ob->materials.resize(1);
-		ob->materials[0].albedo_rgb = col;
+		ob->materials[0].albedo_linear_rgb = toLinearSRGB(col);
 		ob->materials[0].alpha = 0.5f;
 		ob->materials[0].transparent = true;
 		return ob;
@@ -376,7 +377,7 @@ Reference<GLObject> Parcel::makeOpenGLObject(Reference<OpenGLEngine>& opengl_eng
 void Parcel::setColourForPerms(bool write_privileges)
 {
 	if(opengl_engine_ob.nonNull() && !opengl_engine_ob->materials.empty())
-		opengl_engine_ob->materials[0].albedo_rgb = colForPrivs(write_privileges, /*is_admin_owned=*/owner_id == UserID(0));
+		opengl_engine_ob->materials[0].albedo_linear_rgb = toLinearSRGB(colForPrivs(write_privileges, /*is_admin_owned=*/owner_id == UserID(0)));
 }
 
 

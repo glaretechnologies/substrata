@@ -18,6 +18,7 @@ Code By Nicholas Chapman.
 #include "../graphics/FormatDecoderSTL.h"
 #include "../graphics/FormatDecoderGLTF.h"
 #include "../graphics/FormatDecoderVox.h"
+#include "../graphics/SRGBUtils.h"
 #include "../simpleraytracer/raymesh.h"
 #include "../dll/IndigoStringUtils.h"
 #include "../utils/ShouldCancelCallback.h"
@@ -47,12 +48,33 @@ static inline Colour3f sanitiseAlbedoColour(const Colour3f& col)
 }
 
 
+static inline Colour3f sanitiseEmissionColour(const Colour3f& col)
+{
+	if(col.isFinite()) // Check for NaN components
+		return col;
+	else
+		return Colour3f(0.0f);
+}
+
+
+static inline Colour3f sanitiseAndConvertToLinearAlbedoColour(const Colour3f& col)
+{
+	return toLinearSRGB(sanitiseAlbedoColour(col));
+}
+
+
+static inline Colour3f sanitiseAndConvertToLinearEmissionColour(const Colour3f& col)
+{
+	return toLinearSRGB(sanitiseEmissionColour(col));
+}
+
+
 void ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(const WorldMaterial& mat, OpenGLMaterial& opengl_mat)
 {
-	opengl_mat.albedo_rgb = sanitiseAlbedoColour(mat.colour_rgb);
+	opengl_mat.albedo_linear_rgb = sanitiseAndConvertToLinearAlbedoColour(mat.colour_rgb);
 	opengl_mat.tex_path = mat.colour_texture_url;
 
-	opengl_mat.emission_rgb = mat.emission_rgb;
+	opengl_mat.emission_linear_rgb = sanitiseAndConvertToLinearEmissionColour(mat.emission_rgb);
 	opengl_mat.emission_tex_path = mat.emission_texture_url;
 
 	/*
@@ -97,13 +119,13 @@ static const std::string toLocalPath(const std::string& URL, ResourceManager& re
 
 void ModelLoading::setGLMaterialFromWorldMaterial(const WorldMaterial& mat, int lod_level, const std::string& lightmap_url, ResourceManager& resource_manager, OpenGLMaterial& opengl_mat)
 {
-	opengl_mat.albedo_rgb = sanitiseAlbedoColour(mat.colour_rgb);
+	opengl_mat.albedo_linear_rgb = sanitiseAndConvertToLinearAlbedoColour(mat.colour_rgb);
 	if(!mat.colour_texture_url.empty())
 		opengl_mat.tex_path = toLocalPath(mat.getLODTextureURLForLevel(mat.colour_texture_url, lod_level, /*has alpha=*/mat.colourTexHasAlpha()), resource_manager);
 	else
 		opengl_mat.tex_path.clear();
 
-	opengl_mat.emission_rgb = mat.emission_rgb;
+	opengl_mat.emission_linear_rgb = sanitiseAndConvertToLinearEmissionColour(mat.emission_rgb);
 	opengl_mat.emission_tex_path = mat.emission_texture_url;
 	opengl_mat.emission_scale = mat.emission_lum_flux_or_lum / (683.002f * 106.856e-9f); // See comments above
 
@@ -527,7 +549,7 @@ void ModelLoading::makeGLObjectForModelFile(
 				{
 					const std::string tex_path = (!mats.materials[z].map_Kd.path.empty()) ? FileUtils::join(FileUtils::getDirectory(mats.mtl_file_path), mats.materials[z].map_Kd.path) : "";
 
-					ob->materials[i].albedo_rgb = sanitiseAlbedoColour(mats.materials[z].Kd);
+					ob->materials[i].albedo_linear_rgb = sanitiseAndConvertToLinearAlbedoColour(mats.materials[z].Kd);
 					ob->materials[i].tex_path = tex_path;
 					ob->materials[i].roughness = 0.5f;//mats.materials[z].Ns_exponent; // TODO: convert
 					ob->materials[i].alpha = myClamp(mats.materials[z].d_opacity, 0.f, 1.f);
@@ -543,7 +565,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			if(!found_mat)
 			{
 				// Assign dummy mat
-				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+				ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.7f, 0.7f, 0.7f));
 				//ob->materials[i].albedo_tex_path = "resources/obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 
@@ -597,9 +619,11 @@ void ModelLoading::makeGLObjectForModelFile(
 		{
 			results_out.materials[i] = new WorldMaterial();
 
-			const std::string tex_path = gltf_data.materials.materials[i].diffuse_map.path;
-			const std::string metallic_roughness_tex_path = gltf_data.materials.materials[i].metallic_roughness_map.path;
-			const std::string emission_tex_path = gltf_data.materials.materials[i].emissive_map.path;
+			const GLTFResultMaterial& gltf_mat = gltf_data.materials.materials[i];
+
+			const std::string tex_path = gltf_mat.diffuse_map.path;
+			const std::string metallic_roughness_tex_path = gltf_mat.metallic_roughness_map.path;
+			const std::string emission_tex_path = gltf_mat.emissive_map.path;
 
 			// NOTE: gltf has (0,0) at the upper left of the image, as opposed to the Indigo/substrata/opengl convention of (0,0) being at the lower left
 			// (See https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#images)
@@ -608,30 +632,30 @@ void ModelLoading::makeGLObjectForModelFile(
 
 			const float L_v = 2.0e5f; // luminance.  Chosen to have a bit of a glow in daylight.
 			const float L_e = L_v / (683.002f * 106.856e-9f); // spectral radiance.  See previous comments for equation.
-			const bool use_emission = gltf_data.materials.materials[i].emissive_factor.nonZero();
+			const bool use_emission = gltf_mat.emissive_factor.nonZero();
 
-			gl_ob->materials[i].albedo_rgb = sanitiseAlbedoColour(gltf_data.materials.materials[i].diffuse);
-			gl_ob->materials[i].tex_path = tex_path;
-			gl_ob->materials[i].metallic_roughness_tex_path = metallic_roughness_tex_path;
-			gl_ob->materials[i].emission_tex_path = emission_tex_path;
-			gl_ob->materials[i].emission_rgb = gltf_data.materials.materials[i].emissive_factor;
-			gl_ob->materials[i].emission_scale = use_emission ? L_e : 0.f;
-			gl_ob->materials[i].roughness = gltf_data.materials.materials[i].roughness;
-			gl_ob->materials[i].alpha = gltf_data.materials.materials[i].alpha;
-			gl_ob->materials[i].transparent = gltf_data.materials.materials[i].alpha < 1.0f;
-			gl_ob->materials[i].metallic_frac = gltf_data.materials.materials[i].metallic;
+			gl_ob->materials[i].albedo_linear_rgb               = sanitiseAlbedoColour(gltf_mat.colour_factor); // Note that gltf_mat.colour_factor is already linear.
+			gl_ob->materials[i].tex_path                        = tex_path;
+			gl_ob->materials[i].metallic_roughness_tex_path     = metallic_roughness_tex_path;
+			gl_ob->materials[i].emission_tex_path               = emission_tex_path;
+			gl_ob->materials[i].emission_linear_rgb             = sanitiseEmissionColour(gltf_mat.emissive_factor); // Note that gltf_mat.emissive_factor is already linear.
+			gl_ob->materials[i].emission_scale                  = use_emission ? L_e : 0.f;
+			gl_ob->materials[i].roughness                       = gltf_mat.roughness;
+			gl_ob->materials[i].alpha                           = gltf_mat.alpha;
+			gl_ob->materials[i].transparent                     = gltf_mat.alpha < 1.0f;
+			gl_ob->materials[i].metallic_frac                   = gltf_mat.metallic;
 
-			results_out.materials[i]->colour_rgb = gltf_data.materials.materials[i].diffuse;
-			results_out.materials[i]->colour_texture_url = tex_path;
-			results_out.materials[i]->roughness.texture_url = metallic_roughness_tex_path; // HACK: just assign to roughness URL
-			results_out.materials[i]->emission_texture_url = emission_tex_path;
-			results_out.materials[i]->emission_rgb = gltf_data.materials.materials[i].emissive_factor;
-			results_out.materials[i]->emission_lum_flux_or_lum = use_emission ? L_v : 0.f;
-			results_out.materials[i]->opacity = ScalarVal(gl_ob->materials[i].alpha);
-			results_out.materials[i]->roughness.val = gltf_data.materials.materials[i].roughness;
-			results_out.materials[i]->opacity.val = gltf_data.materials.materials[i].alpha;
-			results_out.materials[i]->metallic_fraction.val = gltf_data.materials.materials[i].metallic;
-			results_out.materials[i]->tex_matrix = Matrix2f(1, 0, 0, -1);
+			results_out.materials[i]->colour_rgb                = toNonLinearSRGB(gltf_mat.colour_factor);
+			results_out.materials[i]->colour_texture_url        = tex_path;
+			results_out.materials[i]->roughness.texture_url     = metallic_roughness_tex_path; // HACK: just assign to roughness URL
+			results_out.materials[i]->emission_texture_url      = emission_tex_path;
+			results_out.materials[i]->emission_rgb              = toNonLinearSRGB(gltf_mat.emissive_factor);
+			results_out.materials[i]->emission_lum_flux_or_lum  = use_emission ? L_v : 0.f;
+			results_out.materials[i]->opacity                   = ScalarVal(gl_ob->materials[i].alpha);
+			results_out.materials[i]->roughness.val             = gltf_mat.roughness;
+			results_out.materials[i]->opacity.val               = gltf_mat.alpha;
+			results_out.materials[i]->metallic_fraction.val     = gltf_mat.metallic;
+			results_out.materials[i]->tex_matrix                = Matrix2f(1, 0, 0, -1);
 		}
 		results_out.batched_mesh = batched_mesh;
 		results_out.gl_ob = gl_ob;
@@ -667,7 +691,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
-				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+				ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
 
 				results_out.materials[i] = new WorldMaterial();
@@ -703,7 +727,7 @@ void ModelLoading::makeGLObjectForModelFile(
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
 				// Assign dummy mat
-				ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+				ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 				ob->materials[i].tex_path = "resources/obstacle.png";
 				ob->materials[i].roughness = 0.5f;
 				ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
@@ -745,7 +769,7 @@ void ModelLoading::makeGLObjectForModelFile(
 		for(uint32 i=0; i<gl_ob->materials.size(); ++i)
 		{
 			// Assign dummy mat
-			gl_ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+			gl_ob->materials[i].albedo_linear_rgb = Colour3f(0.7f, 0.7f, 0.7f);
 			gl_ob->materials[i].tex_path = "resources/obstacle.png";
 			gl_ob->materials[i].roughness = 0.5f;
 			gl_ob->materials[i].tex_matrix = Matrix2f(1, 0, 0, -1);
@@ -794,13 +818,13 @@ GLObjectRef ModelLoading::makeImageCube(OpenGLEngine& gl_engine, VertexBufferAll
 	preview_gl_ob->materials.resize(2);
 
 	// Front/back face material:
-	preview_gl_ob->materials[0].albedo_rgb = Colour3f(0.9f);
+	preview_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9f));
 	preview_gl_ob->materials[0].tex_path = image_path;
 	preview_gl_ob->materials[0].roughness = 0.5f;
 	preview_gl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1);
 
 	// Edge material:
-	preview_gl_ob->materials[1].albedo_rgb = Colour3f(0.7f);
+	preview_gl_ob->materials[1].albedo_linear_rgb = toLinearSRGB(Colour3f(0.7f));
 	preview_gl_ob->materials[1].roughness = 0.5f;
 	preview_gl_ob->materials[1].tex_matrix = Matrix2f(1, 0, 0, -1);
 
@@ -847,7 +871,7 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_e
 		else
 		{
 			// Assign dummy mat
-			ob->materials[i].albedo_rgb = Colour3f(0.7f, 0.7f, 0.7f);
+			ob->materials[i].albedo_linear_rgb = toLinearSRGB(Colour3f(0.7f, 0.7f, 0.7f));
 			ob->materials[i].tex_path = "resources/obstacle.png";
 			ob->materials[i].roughness = 0.5f;
 		}
@@ -861,16 +885,16 @@ GLObjectRef ModelLoading::makeGLObjectForMeshDataAndMaterials(OpenGLEngine& gl_e
 		{
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
-				ob->materials[i].albedo_rgb.r *= 0.6;
-				ob->materials[i].albedo_rgb.b *= 0.6;
+				ob->materials[i].albedo_linear_rgb.r *= 0.6;
+				ob->materials[i].albedo_linear_rgb.b *= 0.6;
 			}
 		}
 		else if(lod_level == 2)
 		{
 			for(uint32 i=0; i<ob->materials.size(); ++i)
 			{
-				ob->materials[i].albedo_rgb.g *= 0.6;
-				ob->materials[i].albedo_rgb.b *= 0.6;
+				ob->materials[i].albedo_linear_rgb.g *= 0.6;
+				ob->materials[i].albedo_linear_rgb.b *= 0.6;
 			}
 		}
 	}

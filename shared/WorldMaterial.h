@@ -59,10 +59,10 @@ public:
 
 	// NOTE: If adding new member variables, make sure to add to clone() and operator ==() below.
 
-	Colour3f colour_rgb;
+	Colour3f colour_rgb; // Non-linear sRGB
 	std::string colour_texture_url;
 
-	Colour3f emission_rgb;
+	Colour3f emission_rgb; // Non-linear sRGB
 	std::string emission_texture_url;
 
 	ScalarVal roughness; // Metallic-roughness texture URL will be stored in roughness.texture_url.
