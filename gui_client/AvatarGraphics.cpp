@@ -83,9 +83,9 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 		debug_avatar_basis_ob = engine.allocateObject();
 		debug_avatar_basis_ob->mesh_data = MeshPrimitiveBuilding::make3DBasisArrowMesh(*engine.vert_buf_allocator); // Base will be at origin, tip will lie at (1, 0, 0)
 		debug_avatar_basis_ob->materials.resize(3);
-		debug_avatar_basis_ob->materials[0].albedo_rgb = Colour3f(0.9f, 0.5f, 0.3f);
-		debug_avatar_basis_ob->materials[1].albedo_rgb = Colour3f(0.5f, 0.9f, 0.5f);
-		debug_avatar_basis_ob->materials[2].albedo_rgb = Colour3f(0.3f, 0.5f, 0.9f);
+		debug_avatar_basis_ob->materials[0].albedo_linear_rgb = Colour3f(0.9f, 0.5f, 0.3f);
+		debug_avatar_basis_ob->materials[1].albedo_linear_rgb = Colour3f(0.5f, 0.9f, 0.5f);
+		debug_avatar_basis_ob->materials[2].albedo_linear_rgb = Colour3f(0.3f, 0.5f, 0.9f);
 		debug_avatar_basis_ob->ob_to_world_matrix = Matrix4f::translationMatrix(1000, 0, 0);
 		engine.addObject(debug_avatar_basis_ob);
 	}

@@ -23,6 +23,7 @@ Copyright Glare Technologies Limited 2019 -
 #include <opengl/OpenGLEngine.h>
 #include <opengl/FrameBuffer.h>
 #include <graphics/PNGDecoder.h>
+#include <graphics/SRGBUtils.h>
 #include <qt/QtUtils.h>
 #include <FileUtils.h>
 #include <StringUtils.h>
@@ -131,7 +132,7 @@ void MaterialBrowser::createOpenGLEngineAndSurface()
 
 		GLObjectRef ob = opengl_engine->allocateObject();
 		ob->materials.resize(1);
-		ob->materials[0].albedo_rgb = Colour3f(0.9f);
+		ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9f));
 		try
 		{
 			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");

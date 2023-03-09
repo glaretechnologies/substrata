@@ -14,6 +14,7 @@ Copyright Glare Technologies Limited 2020 -
 #if GUI_CLIENT
 #include "opengl/OpenGLEngine.h"
 #include "opengl/OpenGLMeshRenderData.h"
+#include "graphics/SRGBUtils.h"
 #endif
 #include "../gui_client/PhysicsObject.h"
 #include <StandardPrintOutput.h>
@@ -49,7 +50,7 @@ Reference<GLObject> GroundPatch::makeOpenGLObject(Reference<OpenGLEngine>& openg
 
 	ob->mesh_data = unit_quad_mesh_data;
 	ob->materials.resize(1);
-	ob->materials[0].albedo_rgb = Colour3f(0.9f);
+	ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9f));
 	ob->materials[0].alpha = 0.5f;
 	ob->materials[0].transparent = true;
 

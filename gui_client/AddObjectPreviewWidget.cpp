@@ -7,6 +7,7 @@
 #include "../indigo/globals.h"
 #include "../graphics/Map2D.h"
 #include "../graphics/ImageMap.h"
+#include "../graphics/SRGBUtils.h"
 #include "../maths/vec3.h"
 #include "../maths/GeometrySampling.h"
 #include "../utils/Lock.h"
@@ -175,7 +176,7 @@ void AddObjectPreviewWidget::initializeGL()
 
 		GLObjectRef ob = opengl_engine->allocateObject();
 		ob->materials.resize(1);
-		ob->materials[0].albedo_rgb = Colour3f(0.8f);
+		ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.8f));
 		try
 		{
 			ob->materials[0].albedo_texture = opengl_engine->getTexture("resources/obstacle.png");
