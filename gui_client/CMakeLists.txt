@@ -591,6 +591,7 @@ ${indigo_audio}
 ${resonance}
 ${meshoptimizer}
 ${rc_stuff}
+${natvis_files}
 )
 
 add_definitions(-DGUI_CLIENT=1)
