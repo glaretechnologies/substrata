@@ -243,6 +243,8 @@ ${UTILS_DIR}/UTF8Utils.cpp
 ${UTILS_DIR}/UTF8Utils.h
 ${UTILS_DIR}/Vector.cpp
 ${UTILS_DIR}/Vector.h
+${UTILS_DIR}/VectorUnitTests.cpp
+${UTILS_DIR}/VectorUnitTests.h
 ${UTILS_DIR}/VRef.h
 ${UTILS_DIR}/XMLParseUtils.cpp
 ${UTILS_DIR}/XMLParseUtils.h
@@ -510,6 +512,11 @@ ${basisu_dir}/encoder/basisu_uastc_enc.h
 ${basisu_dir}/transcoder/basisu_transcoder.cpp
 )
 
+
+# Add natvis file
+if(WIN32)
+set(natvis_files ${GLARE_CORE_TRUNK_DIR_ENV}/glare-core.natvis)
+endif()
 
 
 SOURCE_GROUP(graphics FILES ${graphics})
