@@ -34,8 +34,10 @@ public:
 private:
 	SocketInterfaceRef socket;
 	glare::AtomicInt should_die;
+
+	Condition stuff_to_do_condition;
 	
-	Mutex data_to_send_mutex;
-	js::Vector<uint8, 16> data_to_send			GUARDED_BY(data_to_send_mutex);
+	Mutex mutex;
+	js::Vector<uint8, 16> data_to_send			GUARDED_BY(mutex);
 	js::Vector<uint8, 16> temp_data_to_send;
 };
