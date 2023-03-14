@@ -972,8 +972,7 @@ static float getAnimLength(const AnimationData& animation_data, int anim_i)
 {
 	if(anim_i >= 0)
 	{
-		const AnimationDatum* anim = animation_data.animations[anim_i].ptr();
-		return animation_data.getAnimationLength(*anim);
+		return animation_data.animations[anim_i]->anim_len;
 	}
 	else
 	{
