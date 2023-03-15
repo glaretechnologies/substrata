@@ -1,3 +1,4 @@
+// Jolt Physics Library (https://github.com/jrouwe/JoltPhysics)
 // SPDX-FileCopyrightText: 2021 Jorrit Rouwe
 // SPDX-License-Identifier: MIT
 
@@ -30,7 +31,10 @@ public:
 
 	Vec3						mUp { 0, 1, 0 };							///< Vector indicating the up direction of the vehicle (in local space to the body)
 	Vec3						mForward { 0, 0, 1 };						///< Vector indicating forward direction of the vehicle (in local space to the body)
-	float						mMaxPitchRollAngle = JPH_PI;				///< Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
+	//float						mMaxPitchRollAngle = JPH_PI;				///< Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
+	float						mMaxPitchAngle = JPH_PI;				///< Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
+	float						mMaxRollAngle = JPH_PI;				///< Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
+
 	Array<Ref<WheelSettings>>	mWheels;									///< List of wheels and their properties
 	Array<VehicleAntiRollBar>	mAntiRollBars;								///< List of anti rollbars and their properties
 	Ref<VehicleControllerSettings> mController;								///< Defines how the vehicle can accelerate / decellerate
@@ -73,7 +77,13 @@ public:
 	virtual EConstraintSubType	GetSubType() const override					{ return EConstraintSubType::Vehicle; }
 
 	/// Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
-	void						SetMaxPitchRollAngle(float inMaxPitchRollAngle) { mCosMaxPitchRollAngle = Cos(inMaxPitchRollAngle); }
+	//void						SetMaxPitchRollAngle(float inMaxPitchRollAngle) { mCosMaxPitchRollAngle = Cos(inMaxPitchRollAngle); }
+
+	// Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
+	void						SetMaxPitchAngle(float inMaxPitchAngle) { mCosMaxPitchAngle = Cos(inMaxPitchAngle); }
+	void						SetMaxRollAngle(float inMaxRollAngle) { mCosMaxRollAngle = Cos(inMaxRollAngle); }
+
+	void						SetTiltAngle(float t) { tilt_angle = t; }
 	
 	/// Set the interface that tests collision between wheel and ground
 	void						SetVehicleCollisionTester(const VehicleCollisionTester *inTester) { mVehicleCollisionTester = inTester; }
@@ -101,6 +111,7 @@ public:
 
 	/// Get the state of a wheel
 	Wheel *						GetWheel(uint inIdx)						{ return mWheels[inIdx]; }
+	const Wheel *				GetWheel(uint inIdx) const					{ return mWheels[inIdx]; }
 
 	/// Get the transform of a wheel in local space to the vehicle body, returns a matrix that transforms a cylinder aligned with the Y axis in body space (not COM space)
 	/// @param inWheelIndex Index of the wheel to fetch
@@ -121,6 +132,7 @@ public:
 	virtual bool				SolveVelocityConstraint(float inDeltaTime) override;
 	virtual bool				SolvePositionConstraint(float inDeltaTime, float inBaumgarte) override;
 	virtual void				BuildIslands(uint32 inConstraintIndex, IslandBuilder &ioBuilder, BodyManager &inBodyManager) override;
+	virtual uint				BuildIslandSplits(LargeIslandSplitter &ioSplitter) const override;
 #ifdef JPH_DEBUG_RENDERER
 	virtual void				DrawConstraint(DebugRenderer *inRenderer) const override;
 	virtual void				DrawConstraintLimits(DebugRenderer *inRenderer) const override;
@@ -134,7 +146,7 @@ private:
 	virtual void				OnStep(float inDeltaTime, PhysicsSystem &inPhysicsSystem) override;
 
 	// Calculate the contact positions of the wheel in world space, relative to the center of mass of both bodies
-	void						CalculateWheelContactPoint(RMat44Arg inBodyTransform, const Wheel &inWheel, Vec3 &outR1PlusU, Vec3 &outR2) const;
+	void						CalculateWheelContactPoint(const Wheel &inWheel, Vec3 &outR1PlusU, Vec3 &outR2) const;
 
 	// Calculate the constraint properties for mPitchRollPart
 	void						CalculatePitchRollConstraintProperties(float inDeltaTime, RMat44Arg inBodyTransform);
@@ -149,10 +161,25 @@ private:
 	bool						mIsActive = false;							///< If this constraint is active
 
 	// Prevent vehicle from toppling over
-	float						mCosMaxPitchRollAngle;						///< Cos of the max pitch/roll angle
-	float						mCosPitchRollAngle;							///< Cos of the current pitch/roll angle
-	Vec3						mPitchRollRotationAxis { 0, 1, 0 };			///< Current axis along which to apply torque to prevent the car from toppling over
-	AngleConstraintPart			mPitchRollPart;								///< Constraint part that prevents the car from toppling over
+	//float						mCosMaxPitchRollAngle;						///< Cos of the max pitch/roll angle
+	//float						mCosPitchRollAngle;							///< Cos of the current pitch/roll angle
+	//Vec3						mPitchRollRotationAxis { 0, 1, 0 };			///< Current axis along which to apply torque to prevent the car from toppling over
+	//AngleConstraintPart			mPitchRollPart;								///< Constraint part that prevents the car from toppling over
+
+
+	// Prevent vehicle from toppling over
+	float						mCosMaxPitchAngle;							///< Cos of the max pitch/roll angle
+	float						mCosPitchAngle;								///< Cos of the current pitch/roll angle
+	Vec3						mPitchRotationAxis { 0, 1, 0 };				///< Current axis along which to apply torque to prevent the car from toppling over
+	AngleConstraintPart			mPitchPart;									///< Constraint part that prevents the car from toppling over
+
+	//Vec3 desired_right_axis;
+	float tilt_angle;
+
+	float						mCosMaxRollAngle;							///< Cos of the max pitch/roll angle
+	float						mCosRollAngle;								///< Cos of the current pitch/roll angle
+	Vec3						mRollRotationAxis { 0, 1, 0 };				///< Current axis along which to apply torque to prevent the car from toppling over
+	AngleConstraintPart			mRollPart;									///< Constraint part that prevents the car from toppling over
 
 	// Interfaces
 	RefConst<VehicleCollisionTester> mVehicleCollisionTester;				///< Class that performs testing of collision for the wheels
