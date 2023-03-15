@@ -371,7 +371,8 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 		}
 		else // Else if current Jolt shape is not a scaled shape:
 		{
-			if(maskWToZero(scale) != Vec4f(1,1,1,0)) // And scale is != 1:
+			// We use OffsetCenterOfMass for vehicles, which have the scale 'built-in' / ignored.  So we don't want to scale the OffsetCenterOfMass shape.
+			if(maskWToZero(scale) != Vec4f(1,1,1,0) && cur_shape->GetSubType() != JPH::EShapeSubType::OffsetCenterOfMass) // And scale is != 1 (and shape is not OffsetCenterOfMass that we use for vehicles):
 			{
 				JPH::Vec3 use_scale = toJoltVec3(scale);
 				if(cur_shape->GetSubType() == JPH::EShapeSubType::Sphere) // HACK: Jolt sphere shapes don't support non-uniform scale, so just force to a uniform scale.
@@ -728,6 +729,9 @@ void PhysicsWorld::addObject(const Reference<PhysicsObject>& object)
 	assert(object->rot.v.isFinite());
 
 	this->objects_set.insert(object);
+
+	if(!object->jolt_body_id.IsInvalid())
+		return; // Jolt body is already built, we don't need to do anything more.
 
 	if(object->scale.x == 0 || object->scale.y == 0 || object->scale.z == 0)
 	{

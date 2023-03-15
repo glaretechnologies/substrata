@@ -69,9 +69,9 @@ void CarPhysics::init(PhysicsWorld& physics_world)
 	vehicle.mUp = JPH::Vec3(0,0,1);
 	vehicle.mForward = JPH::Vec3(0,1,0);
 	//vehicle.mDrawConstraintSize = 0.1f;
-	//vehicle.mMaxPitchAngle = JPH::DegreesToRadians(60.0f);
-	//vehicle.mMaxRollAngle = JPH::DegreesToRadians(20.0f);
-	vehicle.mMaxPitchRollAngle = JPH::DegreesToRadians(5.0f);
+	vehicle.mMaxPitchAngle = JPH::DegreesToRadians(60.0f);
+	vehicle.mMaxRollAngle = JPH::DegreesToRadians(60.f);
+//	vehicle.mMaxPitchRollAngle = JPH::DegreesToRadians(5.0f);
 
 	// Wheels
 
