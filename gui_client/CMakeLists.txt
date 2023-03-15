@@ -603,6 +603,8 @@ if(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
 	
+	add_definitions(/ZI) # Set debug info format to 'Program Database for Edit & Continue'
+	
 	if(BUGSPLAT_SUPPORT)
 		add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
 	endif()
