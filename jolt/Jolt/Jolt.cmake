@@ -1,3 +1,8 @@
+# Requires C++ 17
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Root
 set(JOLT_PHYSICS_ROOT ${PHYSICS_REPO_ROOT}/Jolt)
 
@@ -29,6 +34,8 @@ set(JOLT_PHYSICS_SRC_FILES
 	${JOLT_PHYSICS_ROOT}/Core/JobSystem.inl
 	${JOLT_PHYSICS_ROOT}/Core/JobSystemThreadPool.cpp
 	${JOLT_PHYSICS_ROOT}/Core/JobSystemThreadPool.h
+	${JOLT_PHYSICS_ROOT}/Core/JobSystemWithBarrier.cpp
+	${JOLT_PHYSICS_ROOT}/Core/JobSystemWithBarrier.h
 	${JOLT_PHYSICS_ROOT}/Core/LinearCurve.cpp
 	${JOLT_PHYSICS_ROOT}/Core/LinearCurve.h
 	${JOLT_PHYSICS_ROOT}/Core/LockFreeHashMap.h
@@ -46,6 +53,8 @@ set(JOLT_PHYSICS_SRC_FILES
 	${JOLT_PHYSICS_ROOT}/Core/Result.h
 	${JOLT_PHYSICS_ROOT}/Core/RTTI.cpp
 	${JOLT_PHYSICS_ROOT}/Core/RTTI.h
+	${JOLT_PHYSICS_ROOT}/Core/Semaphore.cpp
+	${JOLT_PHYSICS_ROOT}/Core/Semaphore.h
 	${JOLT_PHYSICS_ROOT}/Core/StaticArray.h
 	${JOLT_PHYSICS_ROOT}/Core/StreamIn.h
 	${JOLT_PHYSICS_ROOT}/Core/StreamOut.h
@@ -214,6 +223,8 @@ set(JOLT_PHYSICS_SRC_FILES
 	${JOLT_PHYSICS_ROOT}/Physics/Collision/CollisionGroup.cpp
 	${JOLT_PHYSICS_ROOT}/Physics/Collision/CollisionGroup.h
 	${JOLT_PHYSICS_ROOT}/Physics/Collision/ContactListener.h
+	${JOLT_PHYSICS_ROOT}/Physics/Collision/EstimateCollisionResponse.cpp
+	${JOLT_PHYSICS_ROOT}/Physics/Collision/EstimateCollisionResponse.h
 	${JOLT_PHYSICS_ROOT}/Physics/Collision/GroupFilter.cpp
 	${JOLT_PHYSICS_ROOT}/Physics/Collision/GroupFilter.h
 	${JOLT_PHYSICS_ROOT}/Physics/Collision/GroupFilterTable.cpp
@@ -333,6 +344,8 @@ set(JOLT_PHYSICS_SRC_FILES
 	${JOLT_PHYSICS_ROOT}/Physics/EActivation.h
 	${JOLT_PHYSICS_ROOT}/Physics/IslandBuilder.cpp
 	${JOLT_PHYSICS_ROOT}/Physics/IslandBuilder.h
+	${JOLT_PHYSICS_ROOT}/Physics/LargeIslandSplitter.cpp
+	${JOLT_PHYSICS_ROOT}/Physics/LargeIslandSplitter.h
 	${JOLT_PHYSICS_ROOT}/Physics/PhysicsLock.cpp
 	${JOLT_PHYSICS_ROOT}/Physics/PhysicsLock.h
 	${JOLT_PHYSICS_ROOT}/Physics/PhysicsScene.cpp

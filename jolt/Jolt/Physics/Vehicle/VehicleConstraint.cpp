@@ -1,3 +1,4 @@
+// Jolt Physics Library (https://github.com/jrouwe/JoltPhysics)
 // SPDX-FileCopyrightText: 2021 Jorrit Rouwe
 // SPDX-License-Identifier: MIT
 
@@ -19,7 +20,9 @@ JPH_IMPLEMENT_SERIALIZABLE_VIRTUAL(VehicleConstraintSettings)
 
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mUp)
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mForward)
-	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mMaxPitchRollAngle)
+	//JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mMaxPitchRollAngle)
+	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mMaxPitchAngle)
+	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mMaxRollAngle)
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mWheels)
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mAntiRollBars)
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mController)
@@ -31,7 +34,9 @@ void VehicleConstraintSettings::SaveBinaryState(StreamOut &inStream) const
 
 	inStream.Write(mUp);
 	inStream.Write(mForward);
-	inStream.Write(mMaxPitchRollAngle);
+	//inStream.Write(mMaxPitchRollAngle);
+	inStream.Write(mMaxPitchAngle);
+	inStream.Write(mMaxRollAngle);
 
 	uint32 num_anti_rollbars = (uint32)mAntiRollBars.size();
 	inStream.Write(num_anti_rollbars);
@@ -53,7 +58,9 @@ void VehicleConstraintSettings::RestoreBinaryState(StreamIn &inStream)
 
 	inStream.Read(mUp);
 	inStream.Read(mForward);
-	inStream.Read(mMaxPitchRollAngle);
+	//inStream.Read(mMaxPitchRollAngle);
+	inStream.Read(mMaxPitchAngle);
+	inStream.Read(mMaxRollAngle);
 
 	uint32 num_anti_rollbars = 0;
 	inStream.Read(num_anti_rollbars);
@@ -86,7 +93,12 @@ VehicleConstraint::VehicleConstraint(Body &inVehicleBody, const VehicleConstrain
 	mBody = &inVehicleBody;
 	mUp = inSettings.mUp;
 	mForward = inSettings.mForward;
-	SetMaxPitchRollAngle(inSettings.mMaxPitchRollAngle);
+	//SetMaxPitchRollAngle(inSettings.mMaxPitchRollAngle);
+	SetMaxPitchAngle(inSettings.mMaxPitchAngle);
+	SetMaxRollAngle(inSettings.mMaxRollAngle);
+
+	tilt_angle = 0;
+
 
 	// Copy anti-rollbar settings
 	mAntiRollBars.resize(inSettings.mAntiRollBars.size());
@@ -129,7 +141,7 @@ Mat44 VehicleConstraint::GetWheelLocalTransform(uint inWheelIndex, Vec3Arg inWhe
 	// Calculate the matrix that takes us from the rotational space to vehicle local space
 	Vec3 local_forward = Quat::sRotation(mUp, wheel->mSteerAngle) * mForward;
 	Vec3 local_right = local_forward.Cross(mUp);
-	Vec3 local_wheel_pos = settings->mPosition + settings->mDirection * (wheel->mContactLength - settings->mRadius);
+	Vec3 local_wheel_pos = settings->mPosition + settings->mDirection * wheel->mSuspensionLength;
 	Mat44 rotational_to_local(Vec4(local_right, 0), Vec4(mUp, 0), Vec4(local_forward, 0), Vec4(local_wheel_pos, 1));
 
 	// Calculate transform of rotated wheel
@@ -161,13 +173,12 @@ void VehicleConstraint::OnStep(float inDeltaTime, PhysicsSystem &inPhysicsSystem
 		w->mContactBodyID = BodyID();
 		w->mContactBody = nullptr;
 		w->mContactSubShapeID = SubShapeID();
-		float max_len = settings->mSuspensionMaxLength + settings->mRadius;
-		w->mContactLength = max_len;
+		w->mSuspensionLength = settings->mSuspensionMaxLength;
 
 		// Test collision to find the floor
 		RVec3 origin = mBody->GetCenterOfMassPosition() + mBody->GetRotation() * (settings->mPosition - mBody->GetShape()->GetCenterOfMass());
 		w->mWSDirection = mBody->GetRotation() * settings->mDirection;
-		if (mVehicleCollisionTester->Collide(inPhysicsSystem, wheel_index, origin, w->mWSDirection, max_len, mBody->GetID(), w->mContactBody, w->mContactSubShapeID, w->mContactPosition, w->mContactNormal, w->mContactLength))
+		if (mVehicleCollisionTester->Collide(inPhysicsSystem, *this, wheel_index, origin, w->mWSDirection, mBody->GetID(), w->mContactBody, w->mContactSubShapeID, w->mContactPosition, w->mContactNormal, w->mSuspensionLength))
 		{
 			// Store ID (pointer is not valid outside of the simulation step)
 			w->mContactBodyID = w->mContactBody->GetID();
@@ -196,7 +207,7 @@ void VehicleConstraint::OnStep(float inDeltaTime, PhysicsSystem &inPhysicsSystem
 		if (lw->mContactBody != nullptr && rw->mContactBody != nullptr)
 		{
 			// Calculate the impulse to apply based on the difference in suspension length
-			float difference = rw->mContactLength - lw->mContactLength;
+			float difference = rw->mSuspensionLength - lw->mSuspensionLength;
 			float impulse = difference * r.mStiffness * inDeltaTime;
 			lw->mAntiRollBarImpulse = -impulse;
 			rw->mAntiRollBarImpulse = impulse;
@@ -279,36 +290,114 @@ void VehicleConstraint::BuildIslands(uint32 inConstraintIndex, IslandBuilder &io
 	ioBuilder.LinkConstraint(inConstraintIndex, mBody->GetIndexInActiveBodiesInternal(), min_active_index); 
 }
 
-void VehicleConstraint::CalculateWheelContactPoint(RMat44Arg inBodyTransform, const Wheel &inWheel, Vec3 &outR1PlusU, Vec3 &outR2) const
+uint VehicleConstraint::BuildIslandSplits(LargeIslandSplitter &ioSplitter) const
 {
-	RVec3 contact_pos = inBodyTransform * (inWheel.mSettings->mPosition + inWheel.mSettings->mDirection * inWheel.mContactLength);
-	outR1PlusU = Vec3(contact_pos - mBody->GetCenterOfMassPosition());
-	outR2 = Vec3(contact_pos - inWheel.mContactBody->GetCenterOfMassPosition());
+	return ioSplitter.AssignToNonParallelSplit(mBody);
+}
+
+void VehicleConstraint::CalculateWheelContactPoint(const Wheel &inWheel, Vec3 &outR1PlusU, Vec3 &outR2) const
+{
+	outR1PlusU = Vec3(inWheel.mContactPosition - mBody->GetCenterOfMassPosition());
+	outR2 = Vec3(inWheel.mContactPosition - inWheel.mContactBody->GetCenterOfMassPosition());
 }
 
 void VehicleConstraint::CalculatePitchRollConstraintProperties(float inDeltaTime, RMat44Arg inBodyTransform)
 {
 	// Check if a limit was specified
-	if (mCosMaxPitchRollAngle < JPH_PI)
+	//if (mCosMaxPitchRollAngle < JPH_PI)
+	//{
+	//	// Calculate cos of angle between world up vector and vehicle up vector
+	//	Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
+	//	mCosPitchRollAngle = mUp.Dot(vehicle_up);
+	//	if (mCosPitchRollAngle < mCosMaxPitchRollAngle)
+	//	{
+	//		// Calculate rotation axis to rotate vehicle towards up
+	//		Vec3 rotation_axis = mUp.Cross(vehicle_up);
+	//		float len = rotation_axis.Length();
+	//		if (len > 0.0f)
+	//			mPitchRollRotationAxis = rotation_axis / len;
+	//
+	//		mPitchRollPart.CalculateConstraintProperties(inDeltaTime, *mBody, Body::sFixedToWorld, mPitchRollRotationAxis);
+	//	}
+	//	else
+	//		mPitchRollPart.Deactivate();
+	//}
+	//else
+	//	mPitchRollPart.Deactivate();
+
+	Vec3 vehicle_forward = inBodyTransform.Multiply3x3(mForward);
+	Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
+	Vec3 vehicle_right = vehicle_forward.Cross(vehicle_up);
+
+	Vec3 no_roll_vehicle_right = vehicle_forward.Cross(mUp).Normalized();
+
+	Vec3 no_roll_vehicle_up = no_roll_vehicle_right.Cross(vehicle_forward).Normalized();
+	if(no_roll_vehicle_right.Dot(vehicle_right) < 0)
+		no_roll_vehicle_up = -no_roll_vehicle_up;
+
+	// Check if a limit was specified
+	if (mCosMaxPitchAngle < JPH_PI)
 	{
+		//const float cos_theta = vehicle_forward.Dot(mUp);
+		//const float theta = acos(cos_theta);
+		//const float pitch = JPH_PI/2 - theta;
+		//mCosPitchAngle = Cos(pitch); 
 		// Calculate cos of angle between world up vector and vehicle up vector
-		Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
-		mCosPitchRollAngle = mUp.Dot(vehicle_up);
-		if (mCosPitchRollAngle < mCosMaxPitchRollAngle)
+		//Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
+		mCosPitchAngle = mUp.Dot(no_roll_vehicle_up);//mUp.Dot(vehicle_up);
+		if (mCosPitchAngle < mCosMaxPitchAngle)
 		{
 			// Calculate rotation axis to rotate vehicle towards up
-			Vec3 rotation_axis = mUp.Cross(vehicle_up);
+			//Vec3 rotation_axis = mUp.Cross(vehicle_forward); // vehicle_forward.Cross(mUp); //mUp.Cross(vehicle_up);
+			Vec3 rotation_axis = mUp.Cross(no_roll_vehicle_up);
 			float len = rotation_axis.Length();
 			if (len > 0.0f)
-				mPitchRollRotationAxis = rotation_axis / len;
+				mPitchRotationAxis = rotation_axis / len;
 
-			mPitchRollPart.CalculateConstraintProperties(inDeltaTime, *mBody, Body::sFixedToWorld, mPitchRollRotationAxis);
+			mPitchPart.CalculateConstraintProperties(inDeltaTime, *mBody, Body::sFixedToWorld, mPitchRotationAxis);
 		}
 		else
-			mPitchRollPart.Deactivate();
+			mPitchPart.Deactivate();
 	}
 	else
-		mPitchRollPart.Deactivate();
+		mPitchPart.Deactivate();
+
+	// Check if a limit was specified
+	if (mCosMaxRollAngle < JPH_PI)
+	{
+		//Vec3 vehicle_forward = inBodyTransform.Multiply3x3(mForward);
+		//Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
+
+		const float cos_theta = vehicle_forward.Dot(mUp); // If vehicle forwards vec is nearly pointing straight up or down, roll becomes undefined.
+		if(cos_theta > -0.9f && cos_theta < 0.9f /*&& vehicle_up.Dot(mUp) > 0*/)
+		{
+
+			//Vec3 no_roll_vehicle_up = (vehicle_forward.Cross(mUp)).Cross(vehicle_forward).Normalized();
+
+
+			const Vec3 desired_no_roll_vehicle_up = (no_roll_vehicle_up * Cos(tilt_angle) + no_roll_vehicle_right * Sin(tilt_angle)).Normalized();
+
+			// Calculate cos of angle between world up vector and vehicle up vector
+
+			mCosRollAngle = desired_no_roll_vehicle_up/*no_roll_vehicle_up*/.Dot(vehicle_up);
+			if (mCosRollAngle < mCosMaxRollAngle)
+			{
+				// Calculate rotation axis to rotate vehicle towards up
+				Vec3 rotation_axis = desired_no_roll_vehicle_up/*no_roll_vehicle_up*/.Cross(vehicle_up);//vehicle_up.Cross(no_roll_vehicle_up);//mUp.Cross(vehicle_up);
+				float len = rotation_axis.Length();
+				if (len > 0.0f)
+					mRollRotationAxis = rotation_axis / len;
+
+				mRollPart.CalculateConstraintProperties(inDeltaTime, *mBody, Body::sFixedToWorld, mRollRotationAxis);
+			}
+			else
+				mRollPart.Deactivate();
+		}
+		else
+			mRollPart.Deactivate();
+	}
+	else
+		mRollPart.Deactivate();
 }
 
 void VehicleConstraint::SetupVelocityConstraint(float inDeltaTime)
@@ -321,16 +410,16 @@ void VehicleConstraint::SetupVelocityConstraint(float inDeltaTime)
 			const WheelSettings *settings = w->mSettings;
 
 			Vec3 r1_plus_u, r2;
-			CalculateWheelContactPoint(body_transform, *w, r1_plus_u, r2);
+			CalculateWheelContactPoint(*w, r1_plus_u, r2);
 
 			// Suspension spring
 			if (settings->mSuspensionMaxLength > settings->mSuspensionMinLength)
-				w->mSuspensionPart.CalculateConstraintProperties(inDeltaTime, *mBody, r1_plus_u, *w->mContactBody, r2, w->mWSDirection, w->mAntiRollBarImpulse, w->mContactLength - settings->mRadius - settings->mSuspensionMaxLength - settings->mSuspensionPreloadLength, settings->mSuspensionFrequency, settings->mSuspensionDamping);
+				w->mSuspensionPart.CalculateConstraintProperties(inDeltaTime, *mBody, r1_plus_u, *w->mContactBody, r2, w->mWSDirection, w->mAntiRollBarImpulse, w->mSuspensionLength - settings->mSuspensionMaxLength - settings->mSuspensionPreloadLength, settings->mSuspensionFrequency, settings->mSuspensionDamping);
 			else
 				w->mSuspensionPart.Deactivate();
 
 			// Check if we reached the 'max up' position
-			float max_up_error = w->mContactLength - settings->mRadius - settings->mSuspensionMinLength;
+			float max_up_error = w->mSuspensionLength - settings->mSuspensionMinLength;
 			if (max_up_error < 0.0f)
 				w->mSuspensionMaxUpPart.CalculateConstraintProperties(inDeltaTime, *mBody, r1_plus_u, *w->mContactBody, r2, w->mWSDirection, 0.0f, max_up_error);
 			else
@@ -363,7 +452,9 @@ void VehicleConstraint::WarmStartVelocityConstraint(float inWarmStartImpulseRati
 			w->mLateralPart.WarmStart(*mBody, *w->mContactBody, -w->mContactLateral, inWarmStartImpulseRatio);	
 		}
 
-	mPitchRollPart.WarmStart(*mBody, Body::sFixedToWorld, inWarmStartImpulseRatio);
+	//mPitchRollPart.WarmStart(*mBody, Body::sFixedToWorld, inWarmStartImpulseRatio);
+	mPitchPart.WarmStart(*mBody, Body::sFixedToWorld, inWarmStartImpulseRatio);
+	mRollPart.WarmStart(*mBody, Body::sFixedToWorld, inWarmStartImpulseRatio);
 }
 
 bool VehicleConstraint::SolveVelocityConstraint(float inDeltaTime) 
@@ -387,8 +478,14 @@ bool VehicleConstraint::SolveVelocityConstraint(float inDeltaTime)
 	impulse |= mController->SolveLongitudinalAndLateralConstraints(inDeltaTime);
 
 	// Apply the pitch / roll constraint to avoid the vehicle from toppling over
-	if (mPitchRollPart.IsActive())
-		impulse |= mPitchRollPart.SolveVelocityConstraint(*mBody, Body::sFixedToWorld, mPitchRollRotationAxis, 0, FLT_MAX);
+	//if (mPitchRollPart.IsActive())
+	//	impulse |= mPitchRollPart.SolveVelocityConstraint(*mBody, Body::sFixedToWorld, mPitchRollRotationAxis, 0, FLT_MAX);
+
+	if (mPitchPart.IsActive())
+		impulse |= mPitchPart.SolveVelocityConstraint(*mBody, Body::sFixedToWorld, mPitchRotationAxis, 0, FLT_MAX);
+
+	if (mRollPart.IsActive())
+		impulse |= mRollPart.SolveVelocityConstraint(*mBody, Body::sFixedToWorld, mRollRotationAxis, 0, FLT_MAX);
 
 	return impulse;
 }
@@ -416,7 +513,7 @@ bool VehicleConstraint::SolvePositionConstraint(float inDeltaTime, float inBaumg
 			{
 				// Recalculate constraint properties since the body may have moved
 				Vec3 r1_plus_u, r2;
-				CalculateWheelContactPoint(body_transform, *w, r1_plus_u, r2);
+				CalculateWheelContactPoint(*w, r1_plus_u, r2);
 				w->mSuspensionMaxUpPart.CalculateConstraintProperties(inDeltaTime, *mBody, r1_plus_u, *w->mContactBody, r2, ws_direction, 0.0f, max_up_error);
 
 				impulse |= w->mSuspensionMaxUpPart.SolvePositionConstraint(*mBody, *w->mContactBody, ws_direction, max_up_error, inBaumgarte);
@@ -425,8 +522,14 @@ bool VehicleConstraint::SolvePositionConstraint(float inDeltaTime, float inBaumg
 
 	// Apply the pitch / roll constraint to avoid the vehicle from toppling over
 	CalculatePitchRollConstraintProperties(inDeltaTime, body_transform);
-	if (mPitchRollPart.IsActive())
-		impulse |= mPitchRollPart.SolvePositionConstraint(*mBody, Body::sFixedToWorld, mCosPitchRollAngle - mCosMaxPitchRollAngle, inBaumgarte);
+	//if (mPitchRollPart.IsActive())
+	//	impulse |= mPitchRollPart.SolvePositionConstraint(*mBody, Body::sFixedToWorld, mCosPitchRollAngle - mCosMaxPitchRollAngle, inBaumgarte);
+
+	if (mPitchPart.IsActive())
+		impulse |= mPitchPart.SolvePositionConstraint(*mBody, Body::sFixedToWorld, mCosPitchAngle - mCosMaxPitchAngle, inBaumgarte);
+
+	if (mRollPart.IsActive())
+		impulse |= mRollPart.SolvePositionConstraint(*mBody, Body::sFixedToWorld, mCosRollAngle - mCosMaxRollAngle, inBaumgarte);
 
 	return impulse;
 }
@@ -461,8 +564,14 @@ void VehicleConstraint::SaveState(StateRecorder &inStream) const
 		w->mLateralPart.SaveState(inStream);
 	}
 
-	inStream.Write(mPitchRollRotationAxis); // When rotation is too small we use last frame so we need to store it
-	mPitchRollPart.SaveState(inStream);
+	//inStream.Write(mPitchRollRotationAxis); // When rotation is too small we use last frame so we need to store it
+	//mPitchRollPart.SaveState(inStream);
+
+	inStream.Write(mPitchRotationAxis); // When rotation is too small we use last frame so we need to store it
+	mPitchPart.SaveState(inStream);
+
+	inStream.Write(mRollRotationAxis); // When rotation is too small we use last frame so we need to store it
+	mRollPart.SaveState(inStream);
 }
 
 void VehicleConstraint::RestoreState(StateRecorder &inStream)
@@ -482,8 +591,14 @@ void VehicleConstraint::RestoreState(StateRecorder &inStream)
 		w->mLateralPart.RestoreState(inStream);
 	}
 
-	inStream.Read(mPitchRollRotationAxis);
-	mPitchRollPart.RestoreState(inStream);
+	//inStream.Read(mPitchRollRotationAxis);
+	//mPitchRollPart.RestoreState(inStream);
+
+	inStream.Read(mPitchRotationAxis);
+	mPitchPart.RestoreState(inStream);
+
+	inStream.Read(mRollRotationAxis);
+	mRollPart.RestoreState(inStream);
 }
 
 Ref<ConstraintSettings> VehicleConstraint::GetConstraintSettings() const
