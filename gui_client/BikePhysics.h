@@ -43,10 +43,8 @@ class BikePhysics : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	BikePhysics(JPH::BodyID car_body_id, BikePhysicsSettings settings, PhysicsWorld& physics_world);
+	BikePhysics(WorldObjectRef object, BikePhysicsSettings settings, PhysicsWorld& physics_world);
 	~BikePhysics();
-
-	//virtual void shutdown(PhysicsWorld& physics_world);
 
 	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime);
 
@@ -64,12 +62,17 @@ public:
 
 	virtual const Scripting::VehicleScriptedSettings& getSettings() const { return settings.script_settings; }
 
+	virtual void updateDebugVisObjects(OpenGLEngine& opengl_engine) override;
+
 	BikePhysicsSettings settings;
 	uint32 cur_seat_index;
 	
 private:
+	WorldObject* world_object;
 	PhysicsWorld* m_physics_world;
-	JPH::BodyID car_body_id;
+	OpenGLEngine* m_opengl_engine;
+	JPH::BodyID bike_body_id;
+
 	float unflip_up_force_time_remaining;
 
 
@@ -80,6 +83,28 @@ private:
 
 	float smoothed_desired_roll_angle;
 
+	float cur_target_tilt_angle;
 
-	//JPH::AngleConstraintPart				roll_constraint;
+	// Debug vis:
+	Reference<GLObject> body_gl_ob;
+	Reference<GLObject> wheel_attach_point_gl_ob[2];
+	Reference<GLObject> wheel_gl_ob[2];
+	Reference<GLObject> coll_tester_gl_ob[2];
+	Reference<GLObject> contact_point_gl_ob[2];
+	Reference<GLObject> contact_laterial_force_gl_ob[2];
+	Reference<GLObject> righting_force_gl_ob;
+	Reference<GLObject> desired_bike_up_vec_gl_ob;
+	
+	Vec4f last_desired_up_vec;
+	Vec4f last_force_point;
+	Vec4f last_force_vec;
+
+	//float last_roll;
+	float last_roll_error;
+
+	int steering_node_i;
+	int back_arm_node_i;
+	int front_wheel_node_i;
+	int back_wheel_node_i;
+	int root_node_i;
 };
