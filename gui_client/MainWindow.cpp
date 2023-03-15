@@ -167,8 +167,8 @@ static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV ren
 static const float ob_load_distance = 600.f;
 // See also  // TEMP HACK: set a smaller max loading distance for CV features in ClientThread.cpp
 
-static AvatarRef test_avatar;
-static double test_avatar_phase = 0;
+std::vector<AvatarRef> test_avatars;
+std::vector<double> test_avatar_phases;
 
 
 static const Colour4f DEFAULT_OUTLINE_COLOUR   = Colour4f::fromHTMLHexString("0ff7fb"); // light blue
@@ -692,8 +692,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	}
 	obs_with_animated_tex.clear();
 
-	if(test_avatar.nonNull())
-		test_avatar->graphics.destroy(*ui->glWidget->opengl_engine); // Remove any OpenGL object for it
+	for(size_t i=0; i<test_avatars.size(); ++i)
+		test_avatars[i]->graphics.destroy(*ui->glWidget->opengl_engine); // Remove any OpenGL object for it
 
 
 	disconnectFromServerAndClearAllObjects();
@@ -5047,9 +5047,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				PhysicsObject* physics_ob = *it;
 
-				// NOTE: doing 2 locks here that we could change to just use 1.
-				const JPH::Vec3 pos = body_interface.GetPosition(physics_ob->jolt_body_id);
-				const JPH::Quat rot = body_interface.GetRotation(physics_ob->jolt_body_id);
+				JPH::Vec3 pos;
+				JPH::Quat rot;
+				body_interface.GetPositionAndRotation(physics_ob->jolt_body_id, pos, rot);
 
 				//conPrint("Setting active object " + toString(ob->jolt_body_id.GetIndex()) + " state from jolt: " + toString(pos.GetX()) + ", " + toString(pos.GetY()) + ", " + toString(pos.GetZ()));
 
@@ -5231,6 +5231,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 
 
+		if(vehicle_physics.nonNull())
+		{
+			// vehicle_physics->updateDebugVisObjects(*ui->glWidget->opengl_engine);
+		}
+
 		//--------------------------- Car controller and graphics -------------------------------
 		//car_physics.update(*this->physics_world, physics_input, (float)dt, /*campos_out=*/campos);
 		//this->cam_controller.setPosition(toVec3d(campos));
@@ -5318,58 +5323,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			ui->glWidget->opengl_engine->updateObjectTransformData(*car_body_gl_object);
 		}
 		//--------------------------- END Car controller and graphics -------------------------------
-
-
-		// TEMP NEW:
-		if(vehicle_physics.nonNull())
-		{
-			if(vehicle_physics.isType<BikePhysics>())
-			{
-				BikePhysics* bike_physics = vehicle_physics.downcastToPtr<BikePhysics>();
-
-				wheel_gl_objects.resize(2);
-				for(size_t i=0; i<wheel_gl_objects.size(); ++i)
-				{
-					if(wheel_gl_objects[i].isNull())
-					{
-						wheel_gl_objects[i] = ui->glWidget->opengl_engine->allocateObject();
-						wheel_gl_objects[i]->ob_to_world_matrix = Matrix4f::identity();
-						//wheel_gl_objects[i]->mesh_data = ui->glWidget->opengl_engine->getCylinderMesh();
-
-						GLTFLoadedData gltf_data;
-						BatchedMeshRef batched_mesh = FormatDecoderGLTF::loadGLBFile("D:\\models\\lambo_wheel.glb", gltf_data);
-						wheel_gl_objects[i]->mesh_data = GLMeshBuilding::buildBatchedMesh(ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), batched_mesh, /*skip opengl calls=*/false, /*instancing_matrix_data=*/NULL);
-						wheel_gl_objects[i]->mesh_data->num_materials_referenced = batched_mesh->numMaterialsReferenced();
-
-
-						OpenGLMaterial material;
-						material.albedo_linear_rgb = Colour3f(0.2f, 0.2f, 0.2f);
-						//material.tex_path = "resources/obstacle.png";
-
-
-						wheel_gl_objects[i]->materials = std::vector<OpenGLMaterial>(wheel_gl_objects[i]->mesh_data->num_materials_referenced, material);
-
-						wheel_gl_objects[i]->materials[2].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
-						wheel_gl_objects[i]->materials[2].metallic_frac = 1.f; // break pads
-						wheel_gl_objects[i]->materials[2].roughness = 0.2f;
-						wheel_gl_objects[i]->materials[4].albedo_linear_rgb = Colour3f(0.8f, 0.8f, 0.8f);
-						wheel_gl_objects[i]->materials[4].metallic_frac = 1.f; // spokes
-						wheel_gl_objects[i]->materials[4].roughness = 0.2f;
-
-
-						ui->glWidget->opengl_engine->addObjectAndLoadTexturesImmediately(wheel_gl_objects[i]);
-					}
-
-					//wheel_gl_objects[i]->ob_to_world_matrix = bike_physics.getWheelTransform((int)i) *
-					//	Matrix4f::rotationAroundXAxis(Maths::pi_2<float>()) * Matrix4f::scaleMatrix(0.3f, 0.3f, 0.1f) * Matrix4f::translationMatrix(0, 0, -0.5f);
-
-					wheel_gl_objects[i]->ob_to_world_matrix = bike_physics->getWheelToWorldTransform(*physics_world, (int)i) * 
-						Matrix4f::rotationAroundZAxis(Maths::pi_2<float>()) * ((i == 0 || i == 2) ?  Matrix4f::rotationAroundZAxis(Maths::pi<float>()) : Matrix4f::identity());
-
-					ui->glWidget->opengl_engine->updateObjectTransformData(*wheel_gl_objects[i]);
-				}
-			}
-		}
 
 
 		// Set some basic 3rd person cam variables that will be updated below if we are connected to a server
@@ -5702,7 +5655,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(avatar->entered_vehicle.nonNull()) // If the other avatar is in a vehicle:
 							{
 								// Create HoverCarPhysics for avatar if needed
-								if(avatar->vehicle_physics.isNull() && avatar->entered_vehicle->physics_object.nonNull() && avatar->entered_vehicle->vehicle_script.nonNull())
+								if(avatar->vehicle_physics.isNull() && avatar->entered_vehicle->physics_object.nonNull() && avatar->entered_vehicle->opengl_engine_ob.nonNull() && avatar->entered_vehicle->vehicle_script.nonNull())
 								{
 									if(avatar->entered_vehicle->vehicle_script.isType<Scripting::HoverCarScript>())
 									{
@@ -5723,7 +5676,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 										bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
 										bike_physics_settings.script_settings = bike_script->settings;
 
-										avatar->vehicle_physics = new BikePhysics(avatar->entered_vehicle->physics_object->jolt_body_id, bike_physics_settings, *physics_world);
+										avatar->vehicle_physics = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world);
 										avatar->vehicle_physics->cur_seat_index = avatar->vehicle_seat_index;
 									}
 									else
@@ -5892,8 +5845,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	//TEMP
-	if(test_avatar.nonNull())
+	for(size_t i=0; i<test_avatars.size(); ++i)
 	{
+		AvatarRef test_avatar = test_avatars[i];
+		
 		/*double phase_speed = 0.5;
 		if((int)(cur_time * 0.2) % 2 == 0)
 		{
@@ -5908,11 +5863,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		AnimEvents anim_events;
 		//test_avatar_phase += phase_speed * dt;
-		//const float r = 3;
-		Vec3d pos(0, 0, 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
+		const double r = 20;
+		//Vec3d pos(0, 0, 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
+		const double phase = Maths::get2Pi<double>() * i / test_avatars.size() + cur_time * 0.1;
+		Vec3d pos(r * cos(phase), r * sin(phase), 1.67);//cos(test_avatar_phase) * r, sin(test_avatar_phase) * r, 1.67);
 		const int anim_state = 0;
 		float xyplane_speed_rel_ground = 0;
-		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, Vec3f(0, 1.57, 0),//Vec3f(0, 0, (float)test_avatar_phase + Maths::pi_2<float>()), 
+		test_avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, 
+			Vec3f(0, /*pitch=*/Maths::pi_2<float>(), (float)phase + Maths::pi_2<float>()), 
 			/*use_xyplane_speed_rel_ground_override=*/false, xyplane_speed_rel_ground, test_avatar->avatar_settings.pre_ob_to_world_matrix, anim_state, cur_time, dt, pose_constraint, anim_events);
 		if(anim_events.footstrike)
 		{
@@ -9508,6 +9466,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 	selected_ob = NULL;
 
+	vehicle_physics = NULL;
+
 	active_objects.clear();
 	obs_with_animated_tex.clear();
 	web_view_obs.clear();
@@ -11304,7 +11264,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 									bike_physics_settings.bike_mass = ob->mass;
 									bike_physics_settings.script_settings = bike_script->settings;
 
-									this->vehicle_physics = new BikePhysics(ob->physics_object->jolt_body_id, bike_physics_settings, *physics_world);
+									this->vehicle_physics = new BikePhysics(ob, bike_physics_settings, *physics_world);
 									this->vehicle_physics->cur_seat_index = (uint32)free_seat_index;
 								}
 								else
@@ -12392,53 +12352,71 @@ int main(int argc, char *argv[])
 			// TEMP: make an avatar for testing of animation retargeting etc.
 			if(false)
 			{
-				test_avatar = new Avatar();
-				test_avatar->pos = Vec3d(3,0,2);
-				test_avatar->rotation = Vec3f(1,0,0);
+				const int N = 10;
+				test_avatars.resize(N);
+				for(size_t q=0; q<test_avatars.size(); ++q)
+				{
+					AvatarRef test_avatar = new Avatar();
+					test_avatars[q] = test_avatar;
+					test_avatar->pos = Vec3d(3,0,2);
+					test_avatar->rotation = Vec3f(1,0,0);
 
-				const float EYE_HEIGHT = 1.67f;
-				const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
-				test_avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
+					const float EYE_HEIGHT = 1.67f;
+					const Matrix4f to_z_up(Vec4f(1,0,0,0), Vec4f(0, 0, 1, 0), Vec4f(0, -1, 0, 0), Vec4f(0,0,0,1));
+					test_avatar->avatar_settings.pre_ob_to_world_matrix = Matrix4f::translationMatrix(0, 0, -EYE_HEIGHT) * to_z_up;
 
-				const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
+					const Matrix4f ob_to_world_matrix = obToWorldMatrix(*test_avatar);
 
-				//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
-				//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
-				const std::string path = "D:\\models\\generic dude avatar.glb";
-				const uint64 model_hash = FileChecksum::fileChecksum(path);
-				const std::string original_filename = FileUtils::getFilename(path);
-				const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(original_filename), model_hash);
-				mw.resource_manager->copyLocalFileToResourceDir(path, mesh_URL);
+					//const std::string path = "C:\\Users\\nick\\Downloads\\jokerwithchainPOV.vrm";
+					//const std::string path = "D:\\models\\readyplayerme_nick_tpose.glb";
+					const std::string path = "D:\\models\\generic dude avatar.glb";
+					const uint64 model_hash = FileChecksum::fileChecksum(path);
+					const std::string original_filename = FileUtils::getFilename(path);
+					const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(original_filename), model_hash);
+					mw.resource_manager->copyLocalFileToResourceDir(path, mesh_URL);
 
-				PhysicsShape physics_shape;
-				BatchedMeshRef batched_mesh;
-				Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(mesh_URL, *mw.resource_manager,
-					mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
+					PhysicsShape physics_shape;
+					BatchedMeshRef batched_mesh;
+					Reference<OpenGLMeshRenderData> mesh_data = ModelLoading::makeGLMeshDataAndBatchedMeshForModelURL(mesh_URL, *mw.resource_manager,
+						mw.ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), false, /*build_dynamic_physics_ob=*/false, physics_shape, batched_mesh);
 
-				test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*mw.ui->glWidget->opengl_engine, mesh_data, /*ob_lod_level=*/0, 
-					test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *mw.resource_manager, ob_to_world_matrix);
+					test_avatar->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*mw.ui->glWidget->opengl_engine, mesh_data, /*ob_lod_level=*/0, 
+						test_avatar->avatar_settings.materials, /*lightmap_url=*/std::string(), *mw.resource_manager, ob_to_world_matrix);
 
 				
-				// Load animation data
-				{
-					FileInStream file(cyberspace_base_dir_path + "/resources/extracted_avatar_anim.bin");
-					test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+					// Load animation data
+					{
+						FileInStream file(cyberspace_base_dir_path + "/resources/extracted_avatar_anim.bin");
+						test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.loadAndRetargetAnim(file);
+					}
+
+					test_avatar->graphics.build();
+
+					for(int z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+						test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
+					mw.ui->glWidget->opengl_engine->objectMaterialsUpdated(test_avatar->graphics.skinned_gl_ob);
+
+					for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
+					{
+						conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
+					}
+
+					assignedLoadedOpenGLTexturesToMats(test_avatar.ptr(), *mw.ui->glWidget->opengl_engine, *mw.resource_manager);
+
+					mw.ui->glWidget->opengl_engine->addObject(test_avatar->graphics.skinned_gl_ob);
 				}
+			}
 
-				test_avatar->graphics.build();
+			// TEMP: Load a GLB object directly into the graphics engine for testing.
+			if(false)
+			{
+				ModelLoading::MakeGLObjectResults results;
+				ModelLoading::makeGLObjectForModelFile(*mw.ui->glWidget->opengl_engine, *mw.ui->glWidget->opengl_engine->vert_buf_allocator, 
+					"D:\\models\\readyplayerme_avatar_animation_18.glb", 
+					//"N:\\glare-core\\trunk\\testfiles\\gltf\\BoxAnimated.glb", 
+					results);
 
-				for(int z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
-					test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
-				mw.ui->glWidget->opengl_engine->objectMaterialsUpdated(test_avatar->graphics.skinned_gl_ob);
-
-				for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
-				{
-					conPrint("node " + toString(i) + ": " + test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes[i].name);
-				}
-
-				assignedLoadedOpenGLTexturesToMats(test_avatar.ptr(), *mw.ui->glWidget->opengl_engine, *mw.resource_manager);
-
-				mw.ui->glWidget->opengl_engine->addObject(test_avatar->graphics.skinned_gl_ob);
+				mw.ui->glWidget->opengl_engine->addObject(results.gl_ob);
 			}
 
 
