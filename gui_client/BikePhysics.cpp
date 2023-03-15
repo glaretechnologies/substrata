@@ -81,8 +81,6 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 
 
-	object->freeze_physics_ob = true;
-
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 
 	// Create vehicle body
