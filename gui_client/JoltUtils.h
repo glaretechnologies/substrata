@@ -48,3 +48,12 @@ inline static Quatf toQuat(const JPH::Quat& q)
 {
 	return Quatf(Vec4f(q.mValue.mValue));
 }
+
+
+inline static Matrix4f toMatrix4f(const JPH::Mat44& mat)
+{
+	JPH::Float4 cols[4];
+	mat.StoreFloat4x4(cols);
+
+	return Matrix4f(&cols[0].x);
+}

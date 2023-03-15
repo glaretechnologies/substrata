@@ -48,5 +48,7 @@ public:
 
 	virtual const Scripting::VehicleScriptedSettings& getSettings() const = 0;
 
+	virtual void updateDebugVisObjects(OpenGLEngine& opengl_engine) {}
+
 	uint32 cur_seat_index;
 };

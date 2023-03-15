@@ -647,7 +647,7 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine)
 
 		if(last_force_vec.length() > 1.0e-3f)
 		{
-			righting_force_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(last_force_point) * Matrix4f::constructFromVectorXAxis(normalise(last_force_vec)) * Matrix4f::scaleMatrix(last_force_vec.length() * 0.001f, 1, 1);
+			righting_force_gl_ob->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(/*startpos=*/last_force_point, /*endpos=*/last_force_point + last_force_vec * 0.001f, 1.f);
 		}
 		else
 		{
