@@ -185,14 +185,20 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				{
 					const Matrix4f last_bone_to_object_space = skinned_gl_ob->anim_node_data[left_up_leg_node_i].last_pre_proc_to_object; // last bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_bone_to_object_space);
-					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), 0.07f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), /*to rotate to down=*/Maths::pi<float>() - pose_constraint.upper_leg_rot_angle) * Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), Maths::pi<float>());
+					const Quatf desired_rot_os = /*rotate around thigh bone to move lower leg outwards=*/Quatf::fromAxisAndAngle(Vec4f(0,0,1,0), pose_constraint.upper_leg_rot_around_thigh_bone_angle) * 
+						/*rotate legs outwards=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), pose_constraint.upper_leg_apart_angle) * 
+						Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), /*to rotate to down=*/Maths::pi<float>() - pose_constraint.upper_leg_rot_angle) * Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), Maths::pi<float>());
 					// Note that node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform, so we want to undo the bone-to-object-space rotation last (so it should be on left)
+
 					skinned_gl_ob->anim_node_data[left_up_leg_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
 				{
 					const Matrix4f last_bone_to_object_space = skinned_gl_ob->anim_node_data[right_up_leg_node_i].last_pre_proc_to_object; // last bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = normalise(Quatf::fromMatrix(last_bone_to_object_space));
-					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -0.07f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), /*to rotate to down=*/Maths::pi<float>() - pose_constraint.upper_leg_rot_angle) * Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), Maths::pi<float>());
+					const Quatf desired_rot_os = /*rotate around thigh bone to move lower leg outwards=*/Quatf::fromAxisAndAngle(Vec4f(0,0,1,0), -pose_constraint.upper_leg_rot_around_thigh_bone_angle) * 
+						/*rotate legs outwards=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -pose_constraint.upper_leg_apart_angle) * 
+						Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), /*to rotate to down=*/Maths::pi<float>() - pose_constraint.upper_leg_rot_angle) * Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), Maths::pi<float>());
+
 					skinned_gl_ob->anim_node_data[right_up_leg_node_i].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
 			}
@@ -201,8 +207,8 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				right_knee_node_i >= 0 && right_knee_node_i < (int)skinned_gl_ob->anim_node_data.size())
 			{
 				// Bend lower leg at knee
-				skinned_gl_ob->anim_node_data[left_knee_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
-				skinned_gl_ob->anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
+				skinned_gl_ob->anim_node_data[left_knee_node_i ].procedural_transform = Matrix4f::rotationAroundZAxis(-pose_constraint.rotate_foot_out_angle) * /*move lower leg out=*/Matrix4f::rotationAroundYAxis( pose_constraint.lower_leg_apart_angle) * Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
+				skinned_gl_ob->anim_node_data[right_knee_node_i].procedural_transform = Matrix4f::rotationAroundZAxis( pose_constraint.rotate_foot_out_angle) * /*move lower leg out=*/Matrix4f::rotationAroundYAxis(-pose_constraint.lower_leg_apart_angle) * Matrix4f::rotationAroundXAxis(pose_constraint.lower_leg_rot_angle);
 			}
 
 			// Arms:
@@ -212,14 +218,14 @@ void AvatarGraphics::setOverallTransform(OpenGLEngine& engine, const Vec3d& pos,
 				{
 					const Matrix4f last_left_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[left_arm_node_i].last_pre_proc_to_object; // last left-arm bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_left_arm_bone_to_object_space);
-					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), 0.3f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), 2.1f);
+					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0),  pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle);
 					// Note that node_transform = last_pre_proc_to_object * ob->anim_node_data[node_i].procedural_transform, so we want to undo the bone-to-object-space rotation last (so it should be on left)
 					skinned_gl_ob->anim_node_data[left_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
 				{
 					const Matrix4f last_right_arm_bone_to_object_space = skinned_gl_ob->anim_node_data[right_arm_node_i].last_pre_proc_to_object; // last right-arm bone to object space (y-up) transformation.
 					const Quatf bone_to_object_space_rot = Quatf::fromMatrix(last_right_arm_bone_to_object_space);
-					const Quatf desired_rot_os = Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -0.3f) * Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), 2.1f);
+					const Quatf desired_rot_os = /*rot out=*/Quatf::fromAxisAndAngle(Vec4f(0,1,0,0), -pose_constraint.arm_out_angle) * /*rot down=*/Quatf::fromAxisAndAngle(Vec4f(1,0,0,0), pose_constraint.arm_down_angle);
 					skinned_gl_ob->anim_node_data[right_arm_node_i ].procedural_transform = (bone_to_object_space_rot.conjugate() * desired_rot_os).toMatrix();
 				}
 			}
