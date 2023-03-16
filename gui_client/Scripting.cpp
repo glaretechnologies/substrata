@@ -140,7 +140,13 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
 					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
 					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
+					seat_settings.upper_leg_rot_around_thigh_bone_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_around_thigh_bone_angle", 0.0);
+					seat_settings.upper_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_apart_angle", 0.0);
 					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
+					seat_settings.lower_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_apart_angle", 0.0);
+					seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", 0.0);
+					seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", 2.1);
+					seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", 0.3);
 
 					hover_car_script->settings.seat_settings.push_back(seat_settings);
 				}
@@ -168,7 +174,13 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 					seat_settings.seat_position			= parseVec3(seat_elem, "seat_position").toVec4fPoint();
 					seat_settings.upper_body_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_body_rot_angle", 0.4);
 					seat_settings.upper_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_angle", 1.3);
+					seat_settings.upper_leg_rot_around_thigh_bone_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_rot_around_thigh_bone_angle", 0.27);
+					seat_settings.upper_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "upper_leg_apart_angle", 0.17);
 					seat_settings.lower_leg_rot_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_rot_angle", -0.5);
+					seat_settings.lower_leg_apart_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "lower_leg_apart_angle", 0.1);
+					seat_settings.rotate_foot_out_angle	= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "rotate_foot_out_angle", 0.5);
+					seat_settings.arm_down_angle		= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_down_angle", 2.7);
+					seat_settings.arm_out_angle			= (float)XMLParseUtils::parseDoubleWithDefault(seat_elem, "arm_out_angle", 0.2);
 
 					bike_script->settings.seat_settings.push_back(seat_settings);
 				}

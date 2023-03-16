@@ -47,7 +47,7 @@ struct AnimToPlay
 #endif
 struct PoseConstraint
 {
-	PoseConstraint() : sitting(false) {}
+	PoseConstraint() : sitting(false), upper_leg_rot_around_thigh_bone_angle(0) {}
 
 	// For sitting:
 	Matrix4f seat_to_world; // Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
@@ -55,7 +55,13 @@ struct PoseConstraint
 	Quatf model_to_y_forwards_rot_2;
 	float upper_body_rot_angle; // radians.  Positive number means lean back.
 	float upper_leg_rot_angle; // radians.  Positive number means bend leg forwards at hip.
+	float upper_leg_rot_around_thigh_bone_angle; // radians.  positive number rotates leg around thigh bone to move lower leg outwards
+	float upper_leg_apart_angle; // radians.  
 	float lower_leg_rot_angle; // radians.  Negative number means bend lower leg backwards at knee.  Rotation is relative to upper leg.
+	float lower_leg_apart_angle; // radians.
+	float rotate_foot_out_angle; // radians.
+	float arm_down_angle; // radians.  from overhead
+	float arm_out_angle; // radians. from straight out in front
 
 	bool sitting;
 };

@@ -5647,7 +5647,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								pose_constraint.model_to_y_forwards_rot_2	= vehicle_physics->getSettings().model_to_y_forwards_rot_2;
 								pose_constraint.upper_body_rot_angle		= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].upper_body_rot_angle;
 								pose_constraint.upper_leg_rot_angle			= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].upper_leg_rot_angle;
+								pose_constraint.upper_leg_rot_around_thigh_bone_angle	= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].upper_leg_rot_around_thigh_bone_angle;
+								pose_constraint.upper_leg_apart_angle		= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].upper_leg_apart_angle;
 								pose_constraint.lower_leg_rot_angle			= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].lower_leg_rot_angle;
+								pose_constraint.lower_leg_apart_angle		= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].lower_leg_apart_angle;
+								pose_constraint.rotate_foot_out_angle		= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].rotate_foot_out_angle;
+								pose_constraint.arm_down_angle				= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].arm_down_angle;
+								pose_constraint.arm_out_angle				= vehicle_physics->getSettings().seat_settings[vehicle_physics->cur_seat_index].arm_out_angle;
 							}
 						}
 						else
@@ -5699,7 +5705,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									pose_constraint.model_to_y_forwards_rot_2	= avatar->vehicle_physics->getSettings().model_to_y_forwards_rot_2;
 									pose_constraint.upper_body_rot_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].upper_body_rot_angle;
 									pose_constraint.upper_leg_rot_angle			= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].upper_leg_rot_angle;
+									pose_constraint.upper_leg_rot_around_thigh_bone_angle			= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].upper_leg_rot_around_thigh_bone_angle;
+									pose_constraint.upper_leg_apart_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].upper_leg_apart_angle;
 									pose_constraint.lower_leg_rot_angle			= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].lower_leg_rot_angle;
+									pose_constraint.lower_leg_apart_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].lower_leg_apart_angle;
+									pose_constraint.rotate_foot_out_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].rotate_foot_out_angle;
+									pose_constraint.arm_down_angle				= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].arm_down_angle;
+									pose_constraint.arm_out_angle				= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->cur_seat_index].arm_out_angle;
 								}
 							}
 							else

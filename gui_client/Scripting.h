@@ -23,8 +23,17 @@ struct SeatSettings
 
 	Vec4f seat_position; // in model/object space
 	float upper_body_rot_angle; // radians
+
 	float upper_leg_rot_angle; // radians
+	float upper_leg_rot_around_thigh_bone_angle;
+	float upper_leg_apart_angle;
+
 	float lower_leg_rot_angle; // radians
+	float lower_leg_apart_angle; // radians
+	float rotate_foot_out_angle; // radians
+
+	float arm_down_angle; // radians
+	float arm_out_angle; // radians
 };
 
 
