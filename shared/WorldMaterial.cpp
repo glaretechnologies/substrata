@@ -292,50 +292,51 @@ Reference<WorldMaterial> WorldMaterial::loadFromXMLOnDisk(const std::string& mat
 
 
 
-static void writeColour3fToXML(std::string& xml, const std::string& elem_name, const Colour3f& col)
+static void writeColour3fToXML(std::string& xml, const std::string& elem_name, const Colour3f& col, int tab_depth)
 {
-	xml += "<" + elem_name + ">" + toString(col.r) + " " + toString(col.g) + " " + toString(col.b) + "</" + elem_name + ">\n";
+	xml += std::string(tab_depth, '\t') + "<" + elem_name + ">" + toString(col.r) + " " + toString(col.g) + " " + toString(col.b) + "</" + elem_name + ">\n";
 }
 
-static void writeStringElemToXML(std::string& xml, const std::string& elem_name, const std::string& string_val)
+static void writeStringElemToXML(std::string& xml, const std::string& elem_name, const std::string& string_val, int tab_depth)
 {
-	xml += "<" + elem_name + "><![CDATA[" + string_val + "]]></" + elem_name + ">\n";
+	xml += std::string(tab_depth, '\t') + "<" + elem_name + "><![CDATA[" + string_val + "]]></" + elem_name + ">\n";
 }
 
-static void writeScalarValToXML(std::string& xml, const std::string& elem_name, const ScalarVal& scalar_val)
+static void writeScalarValToXML(std::string& xml, const std::string& elem_name, const ScalarVal& scalar_val, int tab_depth)
 {
-	xml += "<" + elem_name + ">\n";
+	xml += std::string(tab_depth, '\t') + "<" + elem_name + ">\n";
 	
-	xml += "<val>" + toString(scalar_val.val) + "</val>\n";
-	writeStringElemToXML(xml, "texture_url", scalar_val.texture_url);
+	xml += std::string(tab_depth + 1, '\t') + "<val>" + toString(scalar_val.val) + "</val>\n";
+	if(!scalar_val.texture_url.empty())
+		writeStringElemToXML(xml, "texture_url", scalar_val.texture_url, tab_depth + 1);
 
-	xml += "</" + elem_name + ">\n";
+	xml += std::string(tab_depth, '\t') + "</" + elem_name + ">\n";
 }
 
 
-std::string WorldMaterial::serialiseToXML() const
+std::string WorldMaterial::serialiseToXML(int tab_depth) const
 {
 	std::string s;
-	s += "<material>\n";
+	s += std::string(tab_depth, '\t') + "<material>\n";
 
-	writeStringElemToXML(s, "name", name);
+	writeStringElemToXML(s, "name", name, tab_depth + 1);
 
-	writeColour3fToXML(s, "colour_rgb", colour_rgb);
-	writeStringElemToXML(s, "colour_texture_url", colour_texture_url);
+	writeColour3fToXML(s, "colour_rgb", colour_rgb, tab_depth + 1);
+	writeStringElemToXML(s, "colour_texture_url", colour_texture_url, tab_depth + 1);
 
-	writeColour3fToXML(s, "emission_rgb", emission_rgb);
-	writeStringElemToXML(s, "emission_texture_url", emission_texture_url);
+	writeColour3fToXML(s, "emission_rgb", emission_rgb, tab_depth + 1);
+	writeStringElemToXML(s, "emission_texture_url", emission_texture_url, tab_depth + 1);
 
-	writeScalarValToXML(s, "roughness", roughness);
-	writeScalarValToXML(s, "metallic_fraction", metallic_fraction);
-	writeScalarValToXML(s, "opacity", opacity);
+	writeScalarValToXML(s, "roughness", roughness, tab_depth + 1);
+	writeScalarValToXML(s, "metallic_fraction", metallic_fraction, tab_depth + 1);
+	writeScalarValToXML(s, "opacity", opacity, tab_depth + 1);
 
-	s += "<tex_matrix>" + toString(tex_matrix.e[0]) + " " + toString(tex_matrix.e[1]) + " " + toString(tex_matrix.e[2]) + " " + toString(tex_matrix.e[3]) + "</tex_matrix>\n";
+	s += std::string(tab_depth + 1, '\t') + "<tex_matrix>" + toString(tex_matrix.e[0]) + " " + toString(tex_matrix.e[1]) + " " + toString(tex_matrix.e[2]) + " " + toString(tex_matrix.e[3]) + "</tex_matrix>\n";
 
-	s += "<emission_lum_flux_or_lum>" + toString(emission_lum_flux_or_lum) + "</emission_lum_flux_or_lum>\n";
-	s += "<flags>" + toString(flags) + "</flags>\n";
+	s += std::string(tab_depth + 1, '\t') + "<emission_lum_flux_or_lum>" + toString(emission_lum_flux_or_lum) + "</emission_lum_flux_or_lum>\n";
+	s += std::string(tab_depth + 1, '\t') + "<flags>" + toString(flags) + "</flags>\n";
 
-	s += "</material>\n";
+	s += std::string(tab_depth, '\t') + "</material>\n";
 
 	return s;
 }
@@ -343,7 +344,7 @@ std::string WorldMaterial::serialiseToXML() const
 
 void WorldMaterial::writeToXMLOnDisk(const std::string& path) const
 {
-	const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" + serialiseToXML();
+	const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" + serialiseToXML(/*tab_depth=*/0);
 
 	FileUtils::writeEntireFileTextMode(path, xml);
 }

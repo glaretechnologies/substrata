@@ -50,6 +50,8 @@ public:
 
 	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const;
 
+	Vec4f getThirdPersonCamTargetTranslation() const;
+
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const;
 
 

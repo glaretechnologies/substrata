@@ -302,6 +302,12 @@ Vec4f HoverCarPhysics::getFirstPersonCamPos(PhysicsWorld& physics_world) const
 }
 
 
+Vec4f HoverCarPhysics::getThirdPersonCamTargetTranslation() const
+{
+	return Vec4f(0, 0, 0.3f, 0);
+}
+
+
 Matrix4f HoverCarPhysics::getBodyTransform(PhysicsWorld& physics_world) const
 {
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();

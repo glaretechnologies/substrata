@@ -39,6 +39,8 @@ public:
 
 	virtual Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const = 0;
 
+	virtual Vec4f getThirdPersonCamTargetTranslation() const = 0;
+
 	virtual Matrix4f getBodyTransform(PhysicsWorld& physics_world) const = 0;
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)

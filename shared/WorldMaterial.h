@@ -134,7 +134,7 @@ public:
 	static Reference<WorldMaterial> loadFromXMLOnDisk(const std::string& path, bool convert_rel_paths_to_abs_disk_paths);
 	
 
-	std::string serialiseToXML() const;
+	std::string serialiseToXML(int tab_depth) const;
 	void writeToXMLOnDisk(const std::string& path) const;
 	
 
