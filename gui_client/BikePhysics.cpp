@@ -477,6 +477,12 @@ Vec4f BikePhysics::getFirstPersonCamPos(PhysicsWorld& physics_world) const
 }
 
 
+Vec4f BikePhysics::getThirdPersonCamTargetTranslation() const
+{
+	return Vec4f(0, 0, 0, 0);
+}
+
+
 Matrix4f BikePhysics::getBodyTransform(PhysicsWorld& physics_world) const
 {
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();

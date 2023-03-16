@@ -5582,7 +5582,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							use_target_pos = avatar->graphics.getLastHeadPosition();
 						else
 						{
-							const Vec4f vertical_offset = vehicle_physics.nonNull() ? Vec4f(0,0,0.3f,0) : Vec4f(0);
+							const Vec4f vertical_offset = vehicle_physics.nonNull() ? vehicle_physics->getThirdPersonCamTargetTranslation() : Vec4f(0);
 							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + vertical_offset;
 						}
 
@@ -8732,17 +8732,17 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		//TEMP: Save out bike mats
 		ModelLoading::MakeGLObjectResults results;
 		ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, 
-			"D:\\models\\BMWCONCEPTBIKE\\BIKE.glb", 
+			"c:\\models\\BMWCONCEPTBIKE\\BIKE.glb", 
 			//"N:\\glare-core\\trunk\\testfiles\\gltf\\BoxAnimated.glb", 
 			results);
 
 
-		std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<materials>";
+		std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<materials>\n";
 		for(size_t i=0; i<results.materials.size(); ++i)
 		{
 
 			results.materials[i]->convertLocalPathsToURLS(*this->resource_manager);
-			xml += results.materials[i]->serialiseToXML();
+			xml += results.materials[i]->serialiseToXML(/*tab_depth=*/1);
 		}
 		xml += "</materials>";
 
@@ -8811,6 +8811,10 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		//	new_world_object->max_model_lod_level = (loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
 		//}
 
+		const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+			::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 2 +
+			Vec3d(0,0,-1.67);
+
 		new_world_object->model_url = "BIKE_glb_13232164998194517995.bmesh";
 		new_world_object->max_model_lod_level = 2;
 
@@ -8818,7 +8822,7 @@ void MainWindow::on_actionSummon_Bike_triggered()
 
 		new_world_object->uid = UID(0); // A new UID will be assigned by server
 		new_world_object->materials = materials;
-		new_world_object->pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2;
+		new_world_object->pos = pos;
 		new_world_object->axis = Vec3f(1,0,0);
 		new_world_object->angle = Maths::pi_2<float>();
 		new_world_object->scale = Vec3f(0.18f);
