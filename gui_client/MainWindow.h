@@ -149,6 +149,7 @@ private slots:;
 	void on_actionShow_Log_triggered();
 	void on_actionBake_Lightmaps_fast_for_all_objects_in_parcel_triggered();
 	void on_actionBake_lightmaps_high_quality_for_all_objects_in_parcel_triggered();
+	void on_actionSummon_Bike_triggered();
 
 	void applyUndoOrRedoObject(const WorldObjectRef& ob);
 

@@ -253,31 +253,99 @@ static void convertRelPathToAbsolute(const std::string& mat_file_path, std::stri
 }
 
 
-Reference<WorldMaterial> WorldMaterial::loadFromXMLOnDisk(const std::string& mat_file_path)
+Reference<WorldMaterial> WorldMaterial::loadFromXMLElem(const std::string& mat_file_path, bool convert_rel_paths_to_abs_disk_paths, pugi::xml_node material_elem)
+{
+	WorldMaterialRef mat = new WorldMaterial();
+	mat->name = XMLParseUtils::parseString(material_elem, "name");
+
+	mat->colour_rgb = parseColour3fWithDefault(material_elem, "colour_rgb", Colour3f(0.85f));
+	mat->colour_texture_url = XMLParseUtils::parseStringWithDefault(material_elem, "colour_texture_url", "");
+	if(convert_rel_paths_to_abs_disk_paths)
+		convertRelPathToAbsolute(mat_file_path, mat->colour_texture_url); // Assuming colour_texture_url is a local relative path, make local absolute path from it.
+
+	mat->roughness = parseScalarVal(material_elem, "roughness", ScalarVal(0.5f));
+	if(convert_rel_paths_to_abs_disk_paths)
+		convertRelPathToAbsolute(mat_file_path, mat->roughness.texture_url);
+
+	mat->metallic_fraction = parseScalarVal(material_elem, "metallic_fraction", ScalarVal(0.0f));
+	if(convert_rel_paths_to_abs_disk_paths)
+		convertRelPathToAbsolute(mat_file_path, mat->metallic_fraction.texture_url);
+
+	mat->opacity = parseScalarVal(material_elem, "opacity", ScalarVal(1.0f));
+	if(convert_rel_paths_to_abs_disk_paths)
+		convertRelPathToAbsolute(mat_file_path, mat->opacity.texture_url);
+
+	if(material_elem.child("tex_matrix"))
+		mat->tex_matrix = parseMatrix2f(material_elem, "tex_matrix");
+	return mat;
+}
+
+
+Reference<WorldMaterial> WorldMaterial::loadFromXMLOnDisk(const std::string& mat_file_path, bool convert_rel_paths_to_abs_disk_paths)
 {
 	IndigoXMLDoc doc(mat_file_path);
 
 	pugi::xml_node root = doc.getRootElement();
 
-	WorldMaterialRef mat = new WorldMaterial();
-	mat->name = XMLParseUtils::parseString(root, "name");
+	return loadFromXMLElem(mat_file_path, convert_rel_paths_to_abs_disk_paths, root);
+}
 
-	mat->colour_rgb = parseColour3fWithDefault(root, "colour_rgb", Colour3f(0.85f));
-	mat->colour_texture_url = XMLParseUtils::parseStringWithDefault(root, "colour_texture_url", "");
-	convertRelPathToAbsolute(mat_file_path, mat->colour_texture_url); // Assuming colour_texture_url is a local relative path, make local absolute path from it.
 
-	mat->roughness = parseScalarVal(root, "roughness", ScalarVal(0.5f));
-	convertRelPathToAbsolute(mat_file_path, mat->roughness.texture_url);
 
-	mat->metallic_fraction = parseScalarVal(root, "metallic_fraction", ScalarVal(0.0f));
-	convertRelPathToAbsolute(mat_file_path, mat->metallic_fraction.texture_url);
+static void writeColour3fToXML(std::string& xml, const std::string& elem_name, const Colour3f& col)
+{
+	xml += "<" + elem_name + ">" + toString(col.r) + " " + toString(col.g) + " " + toString(col.b) + "</" + elem_name + ">\n";
+}
 
-	mat->opacity = parseScalarVal(root, "opacity", ScalarVal(1.0f));
-	convertRelPathToAbsolute(mat_file_path, mat->opacity.texture_url);
+static void writeStringElemToXML(std::string& xml, const std::string& elem_name, const std::string& string_val)
+{
+	xml += "<" + elem_name + "><![CDATA[" + string_val + "]]></" + elem_name + ">\n";
+}
 
-	if(root.child("tex_matrix"))
-		mat->tex_matrix = parseMatrix2f(root, "tex_matrix");
-	return mat;
+static void writeScalarValToXML(std::string& xml, const std::string& elem_name, const ScalarVal& scalar_val)
+{
+	xml += "<" + elem_name + ">\n";
+	
+	xml += "<val>" + toString(scalar_val.val) + "</val>\n";
+	writeStringElemToXML(xml, "texture_url", scalar_val.texture_url);
+
+	xml += "</" + elem_name + ">\n";
+}
+
+
+std::string WorldMaterial::serialiseToXML() const
+{
+	std::string s;
+	s += "<material>\n";
+
+	writeStringElemToXML(s, "name", name);
+
+	writeColour3fToXML(s, "colour_rgb", colour_rgb);
+	writeStringElemToXML(s, "colour_texture_url", colour_texture_url);
+
+	writeColour3fToXML(s, "emission_rgb", emission_rgb);
+	writeStringElemToXML(s, "emission_texture_url", emission_texture_url);
+
+	writeScalarValToXML(s, "roughness", roughness);
+	writeScalarValToXML(s, "metallic_fraction", metallic_fraction);
+	writeScalarValToXML(s, "opacity", opacity);
+
+	s += "<tex_matrix>" + toString(tex_matrix.e[0]) + " " + toString(tex_matrix.e[1]) + " " + toString(tex_matrix.e[2]) + " " + toString(tex_matrix.e[3]) + "</tex_matrix>\n";
+
+	s += "<emission_lum_flux_or_lum>" + toString(emission_lum_flux_or_lum) + "</emission_lum_flux_or_lum>\n";
+	s += "<flags>" + toString(flags) + "</flags>\n";
+
+	s += "</material>\n";
+
+	return s;
+}
+
+
+void WorldMaterial::writeToXMLOnDisk(const std::string& path) const
+{
+	const std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" + serialiseToXML();
+
+	FileUtils::writeEntireFileTextMode(path, xml);
 }
 
 

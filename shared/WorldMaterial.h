@@ -19,6 +19,7 @@ Copyright Glare Technologies Limited 2016 -
 struct GLObject;
 class PhysicsObject;
 class ResourceManager;
+namespace pugi { class xml_node; }
 
 
 struct ScalarVal
@@ -129,7 +130,13 @@ public:
 
 	void convertLocalPathsToURLS(ResourceManager& resource_manager);
 
-	static Reference<WorldMaterial> loadFromXMLOnDisk(const std::string& path);
+	static Reference<WorldMaterial> loadFromXMLElem(const std::string& mat_file_path, bool convert_rel_paths_to_abs_disk_paths, pugi::xml_node elem); // mat_file_path is used for converting relative paths to absolute.
+	static Reference<WorldMaterial> loadFromXMLOnDisk(const std::string& path, bool convert_rel_paths_to_abs_disk_paths);
+	
+
+	std::string serialiseToXML() const;
+	void writeToXMLOnDisk(const std::string& path) const;
+	
 
 	static void test();
 private:

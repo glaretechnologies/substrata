@@ -101,6 +101,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "../utils/FileOutStream.h"
 #include "../utils/BufferOutStream.h"
 #include "../utils/IncludeXXHash.h"
+#include "../utils/IndigoXMLDoc.h"
 #include "../networking/Networking.h"
 #include "../networking/SMTPClient.h" // Just for testing
 #include "../networking/TLSSocket.h" // Just for testing
@@ -8721,6 +8722,157 @@ void MainWindow::on_actionBake_Lightmaps_fast_for_all_objects_in_parcel_triggere
 void MainWindow::on_actionBake_lightmaps_high_quality_for_all_objects_in_parcel_triggered()
 {
 	bakeLightmapsForAllObjectsInParcel(WorldObject::HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG);
+}
+
+
+void MainWindow::on_actionSummon_Bike_triggered()
+{
+	try
+	{
+		//TEMP: Save out bike mats
+		ModelLoading::MakeGLObjectResults results;
+		ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, 
+			"D:\\models\\BMWCONCEPTBIKE\\BIKE.glb", 
+			//"N:\\glare-core\\trunk\\testfiles\\gltf\\BoxAnimated.glb", 
+			results);
+
+
+		std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<materials>";
+		for(size_t i=0; i<results.materials.size(); ++i)
+		{
+
+			results.materials[i]->convertLocalPathsToURLS(*this->resource_manager);
+			xml += results.materials[i]->serialiseToXML();
+		}
+		xml += "</materials>";
+
+		FileUtils::writeEntireFileTextMode("bike_mats.xml", xml);
+
+
+
+		//return;
+
+
+		// Load materials:
+		
+		IndigoXMLDoc doc("bike_mats.xml");
+
+		pugi::xml_node root = doc.getRootElement();
+
+		std::vector<WorldMaterialRef> materials;
+		for(pugi::xml_node n = root.child("material"); n; n = n.next_sibling("material"))
+		{
+			materials.push_back(WorldMaterial::loadFromXMLElem("bike_mats.xml", /*convert_rel_paths_to_abs_disk_paths=*/false, n));
+		}
+		
+
+
+
+
+		// TOOD: search for existing bike
+
+		WorldObjectRef new_world_object = new WorldObject();
+
+		js::AABBox aabb_os(Vec4f(-1,-1,-1,1), Vec4f(1,1,1,1)); // TEMP HACK
+
+		//if(loaded_mesh.nonNull())
+		//{
+		//	// If the user wants to load a mesh that is not a bmesh file already, convert it to bmesh.
+		//	std::string bmesh_disk_path;
+		//	if(!hasExtension(mesh_path, "bmesh")) 
+		//	{
+		//		// Save as bmesh in temp location
+		//		bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+
+		//		BatchedMesh::WriteOptions write_options;
+		//		write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+		//		// TODO: show 'processing...' dialog while it compresses and saves?
+		//		loaded_mesh->writeToFile(bmesh_disk_path, write_options);
+		//	}
+		//	else
+		//	{
+		//		bmesh_disk_path = mesh_path;
+		//	}
+
+		//	// Compute hash over model
+		//	const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+		//	const std::string original_filename = loaded_mesh_is_image_cube ? "image_cube" : FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
+		//	const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
+
+		//	// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+		//	if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+		//		this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+		//	new_world_object->model_url = mesh_URL;
+
+		//	aabb_os = loaded_mesh->aabb_os;
+
+		//	new_world_object->max_model_lod_level = (loaded_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+		//}
+
+		new_world_object->model_url = "BIKE_glb_13232164998194517995.bmesh";
+		new_world_object->max_model_lod_level = 2;
+
+		new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG;
+
+		new_world_object->uid = UID(0); // A new UID will be assigned by server
+		new_world_object->materials = materials;
+		new_world_object->pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * 2;
+		new_world_object->axis = Vec3f(1,0,0);
+		new_world_object->angle = Maths::pi_2<float>();
+		new_world_object->scale = Vec3f(0.18f);
+
+		new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+
+		new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_bike_script.xml");
+
+		new_world_object->mass = 200;
+
+		setMaterialFlagsForObject(new_world_object.ptr());
+
+
+		// Copy all dependencies (textures etc..) to resources dir.  UploadResourceThread will read from here.
+		//WorldObject::GetDependencyOptions options;
+		//std::set<DependencyURL> paths;
+		//new_world_object->getDependencyURLSetBaseLevel(options, paths);
+		//for(auto it = paths.begin(); it != paths.end(); ++it)
+		//{
+		//	const std::string path = it->URL;
+		//	if(FileUtils::fileExists(path))
+		//	{
+		//		const uint64 hash = FileChecksum::fileChecksum(path);
+		//		const std::string resource_URL = ResourceManager::URLForPathAndHash(path, hash);
+		//		this->resource_manager->copyLocalFileToResourceDir(path, resource_URL);
+		//	}
+		//}
+
+		//// Convert texture paths on the object to URLs
+		//new_world_object->convertLocalPathsToURLS(*this->resource_manager);
+
+		//if(!task_manager)
+		//	task_manager = new glare::TaskManager("mainwindow general task manager", myClamp<size_t>(PlatformUtils::getNumLogicalProcessors() / 2, 1, 8)), // Currently just used for LODGeneration::generateLODTexturesForMaterialsIfNotPresent().
+
+		// Generate LOD textures for materials, if not already present on disk.
+		// Note that server will also generate LOD textures, however the client may want to display a particular LOD texture immediately, so generate on the client as well.
+		//	LODGeneration::generateLODTexturesForMaterialsIfNotPresent(new_world_object->materials, *resource_manager, *task_manager);
+
+		// Send CreateObject message to server
+		{
+			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+			new_world_object->writeToNetworkStream(scratch_packet);
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		showErrorNotification(e.what());
+
+		QMessageBox msgBox;
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
+	}
 }
 
 

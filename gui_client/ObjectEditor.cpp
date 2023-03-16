@@ -599,7 +599,7 @@ void ObjectEditor::materialSelectedInBrowser(const std::string& path)
 	// Load material
 	try
 	{
-		WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(path);
+		WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(path, /*convert_rel_paths_to_abs_disk_paths=*/true);
 
 		if(selected_mat_index >= 0 && selected_mat_index < (int)this->cloned_materials.size())
 		{

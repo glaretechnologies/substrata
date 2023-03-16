@@ -208,7 +208,7 @@ void MaterialBrowser::init(QWidget* parent, const std::string& basedir_path_, co
 				{
 					voxel_ob->materials.resize(1);
 
-					WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(filepaths[i]);
+					WorldMaterialRef mat = WorldMaterial::loadFromXMLOnDisk(filepaths[i], /*convert_rel_paths_to_abs_disk_paths=*/true);
 
 					ModelLoading::setGLMaterialFromWorldMaterialWithLocalPaths(*mat, voxel_ob->materials[0]);
 

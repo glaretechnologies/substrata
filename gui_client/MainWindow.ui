@@ -120,9 +120,16 @@
     </property>
     <addaction name="actionThird_Person_Camera"/>
    </widget>
+   <widget class="QMenu" name="menuVehicles">
+    <property name="title">
+     <string>Vehicles</string>
+    </property>
+    <addaction name="actionSummon_Bike"/>
+   </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuMovement"/>
    <addaction name="menuAvatar"/>
+   <addaction name="menuVehicles"/>
    <addaction name="menuView"/>
    <addaction name="menuGo"/>
    <addaction name="menuTools"/>
@@ -239,7 +246,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>257</height>
+          <height>255</height>
          </rect>
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -336,7 +343,7 @@
           <x>0</x>
           <y>0</y>
           <width>69</width>
-          <height>253</height>
+          <height>255</height>
          </rect>
         </property>
        </widget>
@@ -597,6 +604,11 @@
   <action name="actionGo_To_Start_Location">
    <property name="text">
     <string>Go To Start Location</string>
+   </property>
+  </action>
+  <action name="actionSummon_Bike">
+   <property name="text">
+    <string>Summon Bike</string>
    </property>
   </action>
  </widget>

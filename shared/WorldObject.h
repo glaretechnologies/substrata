@@ -242,6 +242,7 @@ public:
 	static const uint32 LIGHTMAP_NEEDS_COMPUTING_FLAG           = 2; // Does the lightmap for this object need to be built or rebuilt?
 	static const uint32 HIGH_QUAL_LIGHTMAP_NEEDS_COMPUTING_FLAG = 4; // Does a hiqh-quality lightmap for this object need to be built or rebuilt?
 	static const uint32 DYNAMIC_FLAG                            = 8; // Is this object a dynamic object (moving object) from the point of view of the physics engine?
+	static const uint32 SUMMONED_FLAG                           = 16; // Is this object a vehicle object that was summoned by a user?
 	uint32 flags;
 
 	TimeStamp created_time;
