@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <utils/Timer.h>
 #include <utils/HashMapInsertOnly2.h>
 #include <utils/string_view.h>
+#include <utils/RuntimeCheck.h>
 #include <stdarg.h>
 #include <Lock.h>
 #include "JoltUtils.h"
@@ -584,9 +585,66 @@ PhysicsShape PhysicsWorld::createJoltShapeForIndigoMesh(const Indigo::Mesh& mesh
 }
 
 
+inline static Vec4f transformSkinnedVertex(const Vec4f vert_pos, size_t joint_offset_B, size_t weights_offset_B, BatchedMesh::ComponentType joints_component_type, BatchedMesh::ComponentType weights_component_type,
+	const js::Vector<Matrix4f, 16>& joint_matrices, const uint8* src_vertex_data, const size_t vert_size_B, size_t i)
+{
+	// Read joint indices
+	uint32 use_joints[4];
+	if(joints_component_type == BatchedMesh::ComponentType_UInt8)
+	{
+		uint8 joints[4];
+		std::memcpy(joints, &src_vertex_data[i * vert_size_B + joint_offset_B], sizeof(uint8) * 4);
+		for(int z=0; z<4; ++z)
+			use_joints[z] = joints[z];
+	}
+	else
+	{
+		assert(joints_component_type == BatchedMesh::ComponentType_UInt16);
+
+		uint16 joints[4];
+		std::memcpy(joints, &src_vertex_data[i * vert_size_B + joint_offset_B], sizeof(uint16) * 4);
+		for(int z=0; z<4; ++z)
+			use_joints[z] = joints[z];
+	}
+
+	// Read weights
+	float use_weights[4];
+	if(weights_component_type == BatchedMesh::ComponentType_UInt8)
+	{
+		uint8 weights[4];
+		std::memcpy(weights, &src_vertex_data[i * vert_size_B + weights_offset_B], sizeof(uint8) * 4);
+		for(int z=0; z<4; ++z)
+			use_weights[z] = weights[z] * (1.0f / 255.f);
+	}
+	else if(weights_component_type == BatchedMesh::ComponentType_UInt16)
+	{
+		uint16 weights[4];
+		std::memcpy(weights, &src_vertex_data[i * vert_size_B + weights_offset_B], sizeof(uint16) * 4);
+		for(int z=0; z<4; ++z)
+			use_weights[z] = weights[z] * (1.0f / 65535.f);
+	}
+	else
+	{
+		assert(weights_component_type == BatchedMesh::ComponentType_Float);
+
+		std::memcpy(use_weights, &src_vertex_data[i * vert_size_B + weights_offset_B], sizeof(float) * 4);
+	}
+
+	for(int z=0; z<4; ++z)
+		assert(use_joints[z] < (uint32)joint_matrices.size());
+	
+	return
+		joint_matrices[use_joints[0]] * vert_pos * use_weights[0] + // joint indices should have been bound checked in BatchedMesh::checkValidAndSanitiseMesh()
+		joint_matrices[use_joints[1]] * vert_pos * use_weights[1] + 
+		joint_matrices[use_joints[2]] * vert_pos * use_weights[2] + 
+		joint_matrices[use_joints[3]] * vert_pos * use_weights[3];
+}
+
+
+
 PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh, bool build_dynamic_physics_ob)
 {
-	const size_t vert_size = mesh.vertexSize();
+	const size_t vert_size_B = mesh.vertexSize();
 	const size_t num_verts = mesh.numVerts();
 	const size_t num_tris = mesh.numIndices() / 3;
 
@@ -597,6 +655,71 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		throw glare::Exception("Pos attribute must have float type.");
 	const size_t pos_offset = pos_attr->offset_B;
 
+
+	// If mesh has joints and weights, take the skinning transform into account.
+	const AnimationData& anim_data = mesh.animation_data;
+
+	const bool use_skin_transforms = mesh.findAttribute(BatchedMesh::VertAttribute_Joints) && mesh.findAttribute(BatchedMesh::VertAttribute_Weights) &&
+		!anim_data.joint_nodes.empty();
+
+	js::Vector<Matrix4f, 16> joint_matrices;
+
+	size_t joint_offset_B, weights_offset_B;
+	BatchedMesh::ComponentType joints_component_type, weights_component_type;
+	joint_offset_B = weights_offset_B = 0;
+	joints_component_type = weights_component_type = BatchedMesh::ComponentType_UInt8;
+	if(use_skin_transforms)
+	{
+		js::Vector<Matrix4f, 16> node_matrices;
+
+		const size_t num_nodes = anim_data.sorted_nodes.size();
+		node_matrices.resizeNoCopy(num_nodes);
+
+		for(size_t n=0; n<anim_data.sorted_nodes.size(); ++n)
+		{
+			const int node_i = anim_data.sorted_nodes[n];
+			runtimeCheck(node_i >= 0 && node_i < (int)anim_data.nodes.size()); // All these indices should have been bound checked in BatchedMesh::readFromData(), check again anyway.
+			const AnimationNodeData& node_data = anim_data.nodes[node_i];
+			const Vec4f trans = node_data.trans;
+			const Quatf rot = node_data.rot;
+			const Vec4f scale = node_data.scale;
+
+			const Matrix4f rot_mat = rot.toMatrix();
+			const Matrix4f TRS(
+				rot_mat.getColumn(0) * copyToAll<0>(scale),
+				rot_mat.getColumn(1) * copyToAll<1>(scale),
+				rot_mat.getColumn(2) * copyToAll<2>(scale),
+				setWToOne(trans));
+
+			runtimeCheck(node_data.parent_index >= -1 && node_data.parent_index < (int)node_matrices.size());
+			const Matrix4f node_transform = (node_data.parent_index == -1) ? TRS : (node_matrices[node_data.parent_index] * TRS);
+			node_matrices[node_i] = node_transform;
+		}
+
+		joint_matrices.resizeNoCopy(anim_data.joint_nodes.size());
+
+		for(size_t i=0; i<anim_data.joint_nodes.size(); ++i)
+		{
+			const int node_i = anim_data.joint_nodes[i];
+			runtimeCheck(node_i >= 0 && node_i < (int)node_matrices.size() && node_i >= 0 && node_i < (int)anim_data.nodes.size());
+			joint_matrices[i] = node_matrices[node_i] * anim_data.nodes[node_i].inverse_bind_matrix;
+		}
+
+		const BatchedMesh::VertAttribute& joints_attr = mesh.getAttribute(BatchedMesh::VertAttribute_Joints);
+		joint_offset_B = joints_attr.offset_B;
+		joints_component_type = joints_attr.component_type;
+		runtimeCheck(joints_component_type == BatchedMesh::ComponentType_UInt8 || joints_component_type == BatchedMesh::ComponentType_UInt16); // See BatchedMesh::checkValidAndSanitiseMesh().
+		runtimeCheck((num_verts - 1) * vert_size_B + joint_offset_B + BatchedMesh::vertAttributeSize(joints_attr) <= mesh.vertex_data.size());
+
+		const BatchedMesh::VertAttribute& weights_attr = mesh.getAttribute(BatchedMesh::VertAttribute_Weights);
+		weights_offset_B = weights_attr.offset_B;
+		weights_component_type = weights_attr.component_type;
+		runtimeCheck(weights_component_type == BatchedMesh::ComponentType_UInt8 || weights_component_type == BatchedMesh::ComponentType_UInt16 || weights_component_type == BatchedMesh::ComponentType_Float); // See BatchedMesh::checkValidAndSanitiseMesh().
+		runtimeCheck((num_verts - 1) * vert_size_B + weights_offset_B + BatchedMesh::vertAttributeSize(weights_attr) <= mesh.vertex_data.size());
+	}
+
+
+
 	if(build_dynamic_physics_ob)
 	{
 		// Jolt doesn't support dynamic triangles mesh shapes, so we need to convert it to a convex hull shape.
@@ -605,10 +728,13 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		const uint8* src_vertex_data = mesh.vertex_data.data();
 		for(size_t i = 0; i < num_verts; ++i)
 		{
-			Vec3f vert_pos;
-			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size, sizeof(::Vec3f));
+			Vec4f vert_pos(1.f);
+			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size_B, sizeof(::Vec3f));
 
-			points[i] = JPH::Vec3(vert_pos.x, vert_pos.y, vert_pos.z);
+			if(use_skin_transforms)
+				vert_pos = transformSkinnedVertex(vert_pos, joint_offset_B, weights_offset_B, joints_component_type, weights_component_type, joint_matrices, src_vertex_data, vert_size_B, i);
+
+			points[i] = JPH::Vec3(vert_pos[0], vert_pos[1], vert_pos[2]);
 		}
 
 		JPH::Ref<JPH::ConvexHullShapeSettings> hull_shape_settings = new JPH::ConvexHullShapeSettings(
@@ -633,10 +759,13 @@ PhysicsShape PhysicsWorld::createJoltShapeForBatchedMesh(const BatchedMesh& mesh
 		const uint8* src_vertex_data = mesh.vertex_data.data();
 		for(size_t i = 0; i < num_verts; ++i)
 		{
-			Vec3f vert_pos;
-			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size, sizeof(::Vec3f));
+			Vec4f vert_pos(1.f);
+			std::memcpy(&vert_pos, src_vertex_data + pos_offset + i * vert_size_B, sizeof(::Vec3f));
 
-			vertex_list[i] = JPH::Float3(vert_pos.x, vert_pos.y, vert_pos.z);
+			if(use_skin_transforms)
+				vert_pos = transformSkinnedVertex(vert_pos, joint_offset_B, weights_offset_B, joints_component_type, weights_component_type, joint_matrices, src_vertex_data, vert_size_B, i);
+
+			vertex_list[i] = JPH::Float3(vert_pos[0], vert_pos[1], vert_pos[2]);
 		}
 
 		// Copy Triangles
@@ -1077,6 +1206,7 @@ void PhysicsWorld::writeJoltSnapshotToDisk(const std::string& path)
 #include <utils/TestUtils.h>
 #include <utils/StandardPrintOutput.h>
 #include <utils/ShouldCancelCallback.h>
+#include <graphics/FormatDecoderGLTF.h>
 
 
 void PhysicsWorld::test()
@@ -1085,42 +1215,52 @@ void PhysicsWorld::test()
 
 	PhysicsWorld::init();
 
-	BatchedMesh mesh;
-	BatchedMesh::readFromFile("D:\\models\\aphrodite.bmesh", mesh);
-
-
-	glare::TaskManager task_manager(0);
-	StandardPrintOutput print_output;
-	DummyShouldCancelCallback should_cancel_callback;
-
+	try
 	{
+
+		
+		//BatchedMesh::readFromFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", mesh);
+		GLTFLoadedData data;
+		BatchedMeshRef mesh = FormatDecoderGLTF::loadGLBFile(TestUtils::getTestReposDir() + "/testfiles/gltf/concept_bike.glb", data);
+
+
+		glare::TaskManager task_manager(0);
+		StandardPrintOutput print_output;
+		DummyShouldCancelCallback should_cancel_callback;
+
+		/*{
+			double min_time = 1.0e10;
+			for(int i=0; i<1000; ++i)
+			{
+
+				RayMesh raymesh("sdfdsf", false);
+				raymesh.fromBatchedMesh(mesh);
+
+				Timer timer;
+				// Geometry::BuildOptions options;
+				// options.compute_is_planar = false;
+				// raymesh.build(options, should_cancel_callback, print_output, false, task_manager);
+
+				min_time = myMin(min_time, timer.elapsed());
+				conPrint("raymesh.build took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
+			}
+		}*/
+
+
+
+
 		double min_time = 1.0e10;
 		for(int i=0; i<1000; ++i)
 		{
-
-			RayMesh raymesh("sdfdsf", false);
-			raymesh.fromBatchedMesh(mesh);
-
 			Timer timer;
-			// Geometry::BuildOptions options;
-			// options.compute_is_planar = false;
-			// raymesh.build(options, should_cancel_callback, print_output, false, task_manager);
-
+			auto res = createJoltShapeForBatchedMesh(*mesh, /*is dynamic=*/false);
 			min_time = myMin(min_time, timer.elapsed());
-			conPrint("raymesh.build took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
+			conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
 		}
 	}
-
-
-
-
-	double min_time = 1.0e10;
-	for(int i=0; i<1000; ++i)
+	catch(glare::Exception& e)
 	{
-		Timer timer;
-		auto res = createJoltShapeForBatchedMesh(mesh, /*is dynamic=*/false);
-		min_time = myMin(min_time, timer.elapsed());
-		conPrint("createJoltShapeForBatchedMesh took " + timer.elapsedStringNPlaces(4) + ", min time so far: " + doubleToStringNDecimalPlaces(min_time, 4) + " s");
+		failTest(e.what());
 	}
 
 
