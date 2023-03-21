@@ -8774,7 +8774,7 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		{
 			ModelLoading::MakeGLObjectResults results;
 			ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, 
-				"D:\\models\\BMWCONCEPTBIKE\\optimized-dressed_fix7_offset4.glb",
+				"D:\\models\\BMWCONCEPTBIKE\\optimized-dressed_fix7_offset4.glb", // This is exported from Blender from source_resources/bike-optimized-dressed_fix7_offset.blend
 				results);
 
 			std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<materials>\n";
