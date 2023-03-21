@@ -19,6 +19,7 @@ JPH_IMPLEMENT_SERIALIZABLE_VIRTUAL(VehicleConstraintSettings)
 	JPH_ADD_BASE_CLASS(VehicleConstraintSettings, ConstraintSettings)
 
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mUp)
+	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mWorldUp)
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mForward)
 	//JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mMaxPitchRollAngle)
 	JPH_ADD_ATTRIBUTE(VehicleConstraintSettings, mMaxPitchAngle)
@@ -33,6 +34,7 @@ void VehicleConstraintSettings::SaveBinaryState(StreamOut &inStream) const
 	ConstraintSettings::SaveBinaryState(inStream);
 
 	inStream.Write(mUp);
+	inStream.Write(mWorldUp);
 	inStream.Write(mForward);
 	//inStream.Write(mMaxPitchRollAngle);
 	inStream.Write(mMaxPitchAngle);
@@ -57,6 +59,7 @@ void VehicleConstraintSettings::RestoreBinaryState(StreamIn &inStream)
 	ConstraintSettings::RestoreBinaryState(inStream);
 
 	inStream.Read(mUp);
+	inStream.Read(mWorldUp);
 	inStream.Read(mForward);
 	//inStream.Read(mMaxPitchRollAngle);
 	inStream.Read(mMaxPitchAngle);
@@ -87,11 +90,13 @@ VehicleConstraint::VehicleConstraint(Body &inVehicleBody, const VehicleConstrain
 	// Check sanity of incoming settings
 	JPH_ASSERT(inSettings.mForward.IsNormalized());
 	JPH_ASSERT(inSettings.mUp.IsNormalized());
+	JPH_ASSERT(inSettings.mWorldUp.IsNormalized());
 	JPH_ASSERT(!inSettings.mWheels.empty());
 
 	// Store general properties
 	mBody = &inVehicleBody;
 	mUp = inSettings.mUp;
+	mWorldUp = inSettings.mWorldUp;
 	mForward = inSettings.mForward;
 	//SetMaxPitchRollAngle(inSettings.mMaxPitchRollAngle);
 	SetMaxPitchAngle(inSettings.mMaxPitchAngle);
@@ -325,11 +330,11 @@ void VehicleConstraint::CalculatePitchRollConstraintProperties(float inDeltaTime
 	//else
 	//	mPitchRollPart.Deactivate();
 
-	Vec3 vehicle_forward = inBodyTransform.Multiply3x3(mForward);
-	Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
-	Vec3 vehicle_right = vehicle_forward.Cross(vehicle_up);
+	Vec3 vehicle_forward = inBodyTransform.Multiply3x3(mForward); // in world space
+	Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp); // in world space
+	Vec3 vehicle_right = vehicle_forward.Cross(vehicle_up); // in world space
 
-	Vec3 no_roll_vehicle_right = vehicle_forward.Cross(mUp).Normalized();
+	Vec3 no_roll_vehicle_right = vehicle_forward.Cross(mWorldUp).Normalized();
 
 	Vec3 no_roll_vehicle_up = no_roll_vehicle_right.Cross(vehicle_forward).Normalized();
 	if(no_roll_vehicle_right.Dot(vehicle_right) < 0)
@@ -344,12 +349,12 @@ void VehicleConstraint::CalculatePitchRollConstraintProperties(float inDeltaTime
 		//mCosPitchAngle = Cos(pitch); 
 		// Calculate cos of angle between world up vector and vehicle up vector
 		//Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
-		mCosPitchAngle = mUp.Dot(no_roll_vehicle_up);//mUp.Dot(vehicle_up);
+		mCosPitchAngle = mWorldUp.Dot(no_roll_vehicle_up);//mUp.Dot(vehicle_up);
 		if (mCosPitchAngle < mCosMaxPitchAngle)
 		{
 			// Calculate rotation axis to rotate vehicle towards up
 			//Vec3 rotation_axis = mUp.Cross(vehicle_forward); // vehicle_forward.Cross(mUp); //mUp.Cross(vehicle_up);
-			Vec3 rotation_axis = mUp.Cross(no_roll_vehicle_up);
+			Vec3 rotation_axis = mWorldUp.Cross(no_roll_vehicle_up);
 			float len = rotation_axis.Length();
 			if (len > 0.0f)
 				mPitchRotationAxis = rotation_axis / len;
@@ -368,7 +373,7 @@ void VehicleConstraint::CalculatePitchRollConstraintProperties(float inDeltaTime
 		//Vec3 vehicle_forward = inBodyTransform.Multiply3x3(mForward);
 		//Vec3 vehicle_up = inBodyTransform.Multiply3x3(mUp);
 
-		const float cos_theta = vehicle_forward.Dot(mUp); // If vehicle forwards vec is nearly pointing straight up or down, roll becomes undefined.
+		const float cos_theta = vehicle_forward.Dot(mWorldUp); // If vehicle forwards vec is nearly pointing straight up or down, roll becomes undefined.
 		if(cos_theta > -0.9f && cos_theta < 0.9f /*&& vehicle_up.Dot(mUp) > 0*/)
 		{
 

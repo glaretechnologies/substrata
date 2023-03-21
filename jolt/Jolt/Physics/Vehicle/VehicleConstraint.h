@@ -30,6 +30,7 @@ public:
 	virtual void				SaveBinaryState(StreamOut &inStream) const override;
 
 	Vec3						mUp { 0, 1, 0 };							///< Vector indicating the up direction of the vehicle (in local space to the body)
+	Vec3						mWorldUp { 0, 1, 0 };						///< World up vector, in world space.  Used for pitch/roll constraints.
 	Vec3						mForward { 0, 0, 1 };						///< Vector indicating forward direction of the vehicle (in local space to the body)
 	//float						mMaxPitchRollAngle = JPH_PI;				///< Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
 	float						mMaxPitchAngle = JPH_PI;				///< Defines the maximum pitch/roll angle (rad), can be used to avoid the car from getting upside down. The vehicle up direction will stay within a cone centered around the up axis with half top angle mMaxPitchRollAngle, set to pi to turn off.
@@ -155,6 +156,7 @@ private:
 	Body *						mBody;										///< Body of the vehicle
 	Vec3						mForward;									///< Local space forward vector for the vehicle
 	Vec3						mUp;										///< Local space up vector for the vehicle
+	Vec3						mWorldUp;
 	Wheels						mWheels;									///< Wheel states of the vehicle
 	Array<VehicleAntiRollBar>	mAntiRollBars;								///< Anti rollbars of the vehicle
 	VehicleController *			mController;								///< Controls the acceleration / declerration of the vehicle
