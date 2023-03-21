@@ -55,6 +55,11 @@ public:
 
 	virtual ~VehicleScript() {}
 
+	Matrix4f getZUpToModelSpaceTransform() const
+	{
+		return ((settings.model_to_y_forwards_rot_2 * settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+	}
+
 	VehicleScriptedSettings settings;
 };
 

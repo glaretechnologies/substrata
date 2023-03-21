@@ -43,27 +43,35 @@ class HoverCarPhysics : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	HoverCarPhysics(JPH::BodyID car_body_id, HoverCarPhysicsSettings settings);
+	HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id, HoverCarPhysicsSettings settings);
 	~HoverCarPhysics();
 
-	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime);
+	WorldObject* getControlledObject() override { return world_object; }
 
-	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const;
+	void startRightingVehicle() override;
 
-	Vec4f getThirdPersonCamTargetTranslation() const;
+	void userEnteredVehicle(int seat_index) override; // Should set cur_seat_index;
 
-	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const;
+	void userExitedVehicle() override; // Should set cur_seat_index
+
+	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) override;
+
+	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const override;
+
+	Vec4f getThirdPersonCamTargetTranslation() const override;
+
+	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
-	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const;
+	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const override;
 
-	Vec4f getLinearVel(PhysicsWorld& physics_world) const;
+	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
-	const Scripting::VehicleScriptedSettings& getSettings() const { return settings.script_settings; }
+	const Scripting::VehicleScriptedSettings& getSettings() const override { return settings.script_settings; }
 
-
-	HoverCarPhysicsSettings settings;
 private:
+	WorldObject* world_object;
+	HoverCarPhysicsSettings settings;
 	JPH::BodyID car_body_id;
 	float unflip_up_force_time_remaining;
 };

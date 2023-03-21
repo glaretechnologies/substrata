@@ -4,7 +4,7 @@
 		<model_to_y_forwards_rot_1>1.57079 0 0</model_to_y_forwards_rot_1>
 		<model_to_y_forwards_rot_2>0 0 0</model_to_y_forwards_rot_2>
 		<seat>
-			<seat_position>0 -0.3 0.33</seat_position>
+			<seat_position>0 0.33 0.28</seat_position>
 
 			<upper_body_rot_angle>-0.9</upper_body_rot_angle>
 
@@ -16,7 +16,7 @@
 			<lower_leg_apart_angle>0.1</lower_leg_apart_angle>
 			<rotate_foot_out_angle>0.5</rotate_foot_out_angle>
 
-			<arm_down_angle>2.7</arm_down_angle>
+			<arm_down_angle>2.6</arm_down_angle>
 			<arm_out_angle>0.3</arm_out_angle>
 		</seat>
 	</bike>

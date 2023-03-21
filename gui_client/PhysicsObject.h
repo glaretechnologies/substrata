@@ -32,6 +32,8 @@ RayMesh in old code, Jolt shape with Jolt code.
 class PhysicsShape
 {
 public:
+	PhysicsShape() : size_B(0) {}
+
 	js::AABBox getAABBOS() const;
 
 #if USE_JOLT

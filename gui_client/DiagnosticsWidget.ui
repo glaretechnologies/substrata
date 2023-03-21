@@ -43,6 +43,13 @@
     </widget>
    </item>
    <item>
+    <widget class="QCheckBox" name="showVehiclePhysicsVisCheckBox">
+     <property name="text">
+      <string>Show vehicle physics visualisation</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QPlainTextEdit" name="diagnosticsTextEdit">
      <property name="readOnly">
       <bool>true</bool>

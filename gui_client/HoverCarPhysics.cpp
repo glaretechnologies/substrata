@@ -16,8 +16,9 @@ Copyright Glare Technologies Limited 2023 -
 #include <Jolt/Physics/PhysicsSystem.h>
 
 
-HoverCarPhysics::HoverCarPhysics(JPH::BodyID car_body_id_, HoverCarPhysicsSettings settings_)
+HoverCarPhysics::HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_, HoverCarPhysicsSettings settings_)
 {
+	world_object = object.ptr();
 	car_body_id = car_body_id_;
 	settings = settings_;
 	unflip_up_force_time_remaining = -1;
@@ -27,6 +28,26 @@ HoverCarPhysics::HoverCarPhysics(JPH::BodyID car_body_id_, HoverCarPhysicsSettin
 
 HoverCarPhysics::~HoverCarPhysics()
 {
+}
+
+
+void HoverCarPhysics::startRightingVehicle()
+{
+
+}
+
+
+void HoverCarPhysics::userEnteredVehicle(int seat_index) // Should set cur_seat_index
+{
+	assert(seat_index >= 0 && seat_index < (int)getSettings().seat_settings.size());
+
+	cur_seat_index = seat_index;
+}
+
+
+void HoverCarPhysics::userExitedVehicle() // Should set cur_seat_index
+{
+	cur_seat_index = -1;
 }
 
 

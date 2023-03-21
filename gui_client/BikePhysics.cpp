@@ -38,7 +38,6 @@ const bool vertical_front_sus = true; // Just to hack in vertical front suspensi
 
 BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world)
 :	m_opengl_engine(NULL),
-	//last_roll(0),
 	last_roll_error(0)
 {
 	world_object = object.ptr();
@@ -49,10 +48,13 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	cur_target_tilt_angle = 0;
 
 	settings = settings_;
-	unflip_up_force_time_remaining = -1;
-	cur_seat_index = 0;
+	righting_time_remaining = -1;
+	time_since_spawn = 1.0e7f;
+	cur_seat_index = -1;
+	last_desired_up_vec = Vec4f(0,0,0,0);
+	last_force_vec = Vec4f(0,0,0,0);
 
-
+	const Matrix4f z_up_to_model_space = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 	const Vec4f cur_pos = object->physics_object->pos;
 	const Quatf cur_rot = object->physics_object->rot;
@@ -61,24 +63,10 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	// Remove existing bike physics object
 	physics_world.removeObject(object->physics_object);
 
-	//object->physics_object = NULL;
+	const Vec4f box_half_extents_ms = abs(z_up_to_model_space * Vec4f(half_vehicle_width, half_vehicle_length, half_vehicle_height, 0));
 
-	JPH::Ref<JPH::Shape> car_shape = JPH::OffsetCenterOfMassShapeSettings(JPH::Vec3(0, 0, -0.15f), new JPH::BoxShape(JPH::Vec3(half_vehicle_width, half_vehicle_length, half_vehicle_height))).Create().Get();
-
-//	PhysicsShape physics_shape;
-//	physics_shape.jolt_shape = car_shape;
-//	physics_shape.size_B = 10; // TEMP HACK
-//
-//	object->physics_object = new PhysicsObject(true, physics_shape, /*userdata=*/(void*)object.ptr(), /*userdata type=*/0);
-//	object->physics_object->mass = settings_.bike_mass;
-//	object->physics_object->friction = object->friction;
-//	object->physics_object->restitution = object->restitution;
-//	object->physics_object->ob_uid = object->uid;
-//
-//	object->physics_object->pos = cur_pos;
-//	object->physics_object->rot = cur_rot;
-//	object->physics_object->scale = useScaleForWorldOb(object->scale);
-
+	JPH::Ref<JPH::Shape> car_shape = JPH::OffsetCenterOfMassShapeSettings(toJoltVec3(z_up_to_model_space * Vec4f(0,0,-0.15f,0)), // TEMP: hard-coded centre of mass offset.
+		new JPH::BoxShape(toJoltVec3(box_half_extents_ms))).Create().Get();
 
 
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
@@ -112,40 +100,38 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	// Create vehicle constraint
 	JPH::VehicleConstraintSettings vehicle;
 
-
-	vehicle.mUp = JPH::Vec3(0,0,1);
-	vehicle.mForward = JPH::Vec3(0,1,0);
-	//vehicle.mMaxPitchRollAngle = JPH::DegreesToRadians(60.f);
-	//vehicle.mMaxPitchAngle = JPH::DegreesToRadians(180.f);
+	vehicle.mUp			= toJoltVec3(z_up_to_model_space * Vec4f(0,0,1,0));
+	vehicle.mWorldUp	= toJoltVec3(Vec4f(0,0,1,0));
+	vehicle.mForward	= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	vehicle.mMaxRollAngle = JPH::DegreesToRadians(1.f);
 
 
 	// Wheels
 
-	const Vec4f steering_axis = normalise(Vec4f(0, -1.87f, 2.37f, 0)); // = front suspension dir
+	const Vec4f steering_axis_z_up = normalise(Vec4f(0, -1.87f, 2.37f, 0)); // = front suspension dir
 
 	// Front wheel
 	const float handbrake_torque = 10000; // default is 4000.
 	JPH::WheelSettingsWV* front_wheel = new JPH::WheelSettingsWV;
-	front_wheel->mPosition = vertical_front_sus ? toJoltVec3(Vec4f(0, 0.85f, 0.0f, 0)) : toJoltVec3(Vec4f(0, 0.65f, 0.0f, 0)); // suspension attachment point
+	front_wheel->mPosition = vertical_front_sus ? toJoltVec3(z_up_to_model_space * Vec4f(0, 0.85f, 0.0f, 0)) : toJoltVec3(z_up_to_model_space * Vec4f(0, 0.65f, 0.0f, 0)); // suspension attachment point
 	front_wheel->mMaxSteerAngle = max_steering_angle;
 	front_wheel->mMaxHandBrakeTorque = handbrake_torque * 0.02f;
-	front_wheel->mDirection = vertical_front_sus ? toJoltVec3(Vec4f(0,0,-1,0)) : toJoltVec3(-steering_axis); // Direction of the suspension in local space of the body
+	front_wheel->mDirection = vertical_front_sus ? toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)) : toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
 	front_wheel->mRadius = wheel_radius;
 	front_wheel->mWidth = wheel_width;
-	front_wheel->mSuspensionMinLength = vertical_front_sus ? 0.1f : 0.3f;
-	front_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.3f : 0.4f;
+	front_wheel->mSuspensionMinLength = vertical_front_sus ? 0.2f : 0.3f; // NOTE: currently Jolt has a bug with forwards/backwards acceleration if suspension is different heights.  so make it the same with vertical_front_sus.
+	front_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.4f : 0.4f;
 
 	// Rear wheel
 	JPH::WheelSettingsWV* rear_wheel = new JPH::WheelSettingsWV;
-	rear_wheel->mPosition = toJoltVec3(Vec4f(0, -0.85f, 0.0f, 0));
+	rear_wheel->mPosition = toJoltVec3(z_up_to_model_space * Vec4f(0, -0.85f, 0.0f, 0));
 	rear_wheel->mMaxSteerAngle = 0.f;
 	rear_wheel->mMaxHandBrakeTorque = handbrake_torque;
-	rear_wheel->mDirection = toJoltVec3(Vec4f(0,0,-1,0)); // Direction of the suspension in local space of the body
+	rear_wheel->mDirection = toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)); // Direction of the suspension in local space of the body
 	rear_wheel->mRadius = wheel_radius;
 	rear_wheel->mWidth = wheel_width;
-	rear_wheel->mSuspensionMinLength = 0.1f;
-	rear_wheel->mSuspensionMaxLength = 0.3f;
+	rear_wheel->mSuspensionMinLength = vertical_front_sus ? 0.2f : 0.1f;
+	rear_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.4f : 0.3f;
 
 	vehicle.mWheels = { front_wheel, rear_wheel };
 
@@ -187,19 +173,28 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 
 	// Get indices of joint nodes
-	steering_node_i		= -1;
-	back_arm_node_i		= -1;
-	front_wheel_node_i	= -1;
-	back_wheel_node_i	= -1;
-	root_node_i			= -1;
+	steering_node_i				= -1;
+	back_arm_node_i				= -1;
+	front_wheel_node_i			= -1;
+	back_wheel_node_i			= -1;
+	upper_piston_left_node_i	= -1;
+	upper_piston_right_node_i	= -1;
+	lower_piston_left_node_i	= -1;
+	lower_piston_right_node_i	= -1;
 
 	if(object->opengl_engine_ob.nonNull())
 	{
-		steering_node_i     = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("STEERING");
-		back_arm_node_i     = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("BACK ARM");
-		front_wheel_node_i  = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("WHEEL");
-		back_wheel_node_i   = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("WHEEL.001");
-		root_node_i = 17;
+		steering_node_i     = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("Steering bone");
+		back_arm_node_i     = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("back arm bone");
+		
+		front_wheel_node_i  = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("Wheel-Front");
+		back_wheel_node_i  = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("Wheel-back");
+
+		upper_piston_left_node_i  = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("piston upper left");
+		upper_piston_right_node_i = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("piston upper right");
+	
+		lower_piston_left_node_i  = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("piston lower left");
+		lower_piston_right_node_i = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("piston lower right");
 	}
 }
 
@@ -211,35 +206,35 @@ BikePhysics::~BikePhysics()
 	vehicle_constraint = NULL;
 	collision_tester = NULL;
 
-	if(m_opengl_engine)
-	{
-		if(body_gl_ob.nonNull())
-			m_opengl_engine->removeObject(body_gl_ob);
+	removeVisualisationObs();
+}
 
-		for(int i=0; i<2; ++i)
-		{
-			if(wheel_attach_point_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(wheel_attach_point_gl_ob[i]);
 
-			if(wheel_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(wheel_gl_ob[i]);
+void BikePhysics::startRightingVehicle() // TEMP make abstract virtual
+{
+	righting_time_remaining = 2;
+}
 
-			if(coll_tester_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(coll_tester_gl_ob[i]);
-			
-			if(contact_point_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(contact_point_gl_ob[i]);
-			
-			if(contact_laterial_force_gl_ob[i].nonNull())
-				m_opengl_engine->removeObject(contact_laterial_force_gl_ob[i]);
-		}
 
-		if(righting_force_gl_ob.nonNull())
-			m_opengl_engine->removeObject(righting_force_gl_ob);
-		
-		if(desired_bike_up_vec_gl_ob.nonNull())
-			m_opengl_engine->removeObject(desired_bike_up_vec_gl_ob);
-	}
+void BikePhysics::userEnteredVehicle(int seat_index) // Should set cur_seat_index
+{
+	assert(seat_index >= 0 && seat_index < (int)getSettings().seat_settings.size());
+
+	cur_seat_index = seat_index;
+
+	righting_time_remaining = -1; // Stop righting vehicle
+}
+
+
+void BikePhysics::userExitedVehicle() // Should set cur_seat_index
+{
+	cur_seat_index = -1;
+}
+
+
+void BikePhysics::playVehicleSummonedEffects() // To allow playing of special effects for summoning
+{
+	time_since_spawn = 0;
 }
 
 
@@ -249,84 +244,103 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	assert(this->bike_body_id == world_object->physics_object->jolt_body_id);
 
-	if(cur_seat_index == 0)
+	float forward = 0.0f, right = 0.0f, up_input = 0.f, brake = 0.0f, hand_brake = 0.0f;
+	// Determine acceleration and brake
+	if (physics_input.W_down || physics_input.up_down)
+		forward = 0.5f;
+	else if(physics_input.S_down || physics_input.down_down)
+		forward = -0.5f;
+
+	if(physics_input.SHIFT_down) // boost!
+		forward *= 2.f;
+
+
+	// Hand brake will cancel gas pedal
+	if(physics_input.space_down)
 	{
-		float forward = 0.0f, right = 0.0f, up_input = 0.f, brake = 0.0f, hand_brake = 0.0f;
-		// Determine acceleration and brake
-		if (physics_input.W_down || physics_input.up_down)
-			forward = 0.5f;
-		else if(physics_input.S_down || physics_input.down_down)
-			forward = -0.5f;
+		hand_brake = 1.0f;
+		up_input = 1.f;
+	}
 
-		if(physics_input.SHIFT_down) // boost!
-			forward *= 2.f;
+	if(physics_input.C_down || physics_input.CTRL_down)
+		up_input = -1.f;
 
+	// Steering
+	const float STEERING_SPEED = 2.f;
+	if(physics_input.A_down && !physics_input.D_down)
+		cur_steering_right = myClamp(cur_steering_right - STEERING_SPEED * dtime, -max_steering_angle, max_steering_angle);
+	else if(physics_input.D_down && !physics_input.A_down)
+		cur_steering_right = myClamp(cur_steering_right + STEERING_SPEED * dtime, -max_steering_angle, max_steering_angle);
+	else
+	{
+		if(cur_steering_right > 0)
+			cur_steering_right = myMax(cur_steering_right - STEERING_SPEED * dtime, 0.f); // Relax to neutral steering position
+		else if(cur_steering_right < 0)
+			cur_steering_right = myMin(cur_steering_right + STEERING_SPEED * dtime, 0.f); // Relax to neutral steering position
+	}
 
-		// Hand brake will cancel gas pedal
-		if(physics_input.space_down)
-		{
-			hand_brake = 1.0f;
-			up_input = 1.f;
-		}
-
-		if(physics_input.C_down || physics_input.CTRL_down)
-			up_input = -1.f;
-
-		// Steering
-		const float STEERING_SPEED = 2.f;
-		if(physics_input.A_down && !physics_input.D_down)
-			cur_steering_right = myClamp(cur_steering_right - STEERING_SPEED * dtime, -max_steering_angle, max_steering_angle);
-		else if(physics_input.D_down && !physics_input.A_down)
-			cur_steering_right = myClamp(cur_steering_right + STEERING_SPEED * dtime, -max_steering_angle, max_steering_angle);
-		else
-		{
-			if(cur_steering_right > 0)
-				cur_steering_right = myMax(cur_steering_right - STEERING_SPEED * dtime, 0.f); // Relax to neutral steering position
-			else if(cur_steering_right < 0)
-				cur_steering_right = myMin(cur_steering_right + STEERING_SPEED * dtime, 0.f); // Relax to neutral steering position
-		}
-
-		right = cur_steering_right;
+	right = cur_steering_right;
 	
 
-		JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
+	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 
-		// On user input, assure that the car is active
-		if (right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
-			body_interface.ActivateBody(bike_body_id);
-
-
-		// Pass the input on to the constraint
-		JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController());
-		controller->SetDriverInput(forward, right, brake, hand_brake);
+	// On user input, assure that the car is active
+	if (right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
+		body_interface.ActivateBody(bike_body_id);
 
 
-		const JPH::Mat44 transform = body_interface.GetWorldTransform(bike_body_id);
+	// Pass the input on to the constraint
+	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController());
+	controller->SetDriverInput(forward, right, brake, hand_brake);
 
-		JPH::Float4 cols[4];
-		transform.StoreFloat4x4(cols);
 
-		const Matrix4f to_world(&cols[0].x);
+	const JPH::Mat44 transform = body_interface.GetWorldTransform(bike_body_id);
 
-		// Vectors in y-forward space
-		const Vec4f forwards_y_for(0,1,0,0);
-		const Vec4f right_y_for(1,0,0,0);
-		const Vec4f up_y_for(0,0,1,0);
+	JPH::Float4 cols[4];
+	transform.StoreFloat4x4(cols);
 
-		
+	const Matrix4f to_world(&cols[0].x);
+
+	// Vectors in y-forward space
+	const Vec4f forwards_y_for(0,1,0,0);
+	const Vec4f right_y_for(1,0,0,0);
+	const Vec4f up_y_for(0,0,1,0);
+
+	// model/object space to y-forward space = R
+	// y-forward/z-up space to model/object space = R^-1
+
+	// The particular R will depend on the space the modeller chose.
+
+	const JPH::Quat R_quat = toJoltQuat(settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1);
+
+	const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+	const Matrix4f z_up_to_model_space = R_inv;
+
+
+
+	const Vec4f bike_forwards_os = z_up_to_model_space * forwards_y_for;
+	const Vec4f bike_right_os = z_up_to_model_space * right_y_for;
+	const Vec4f bike_up_os = crossProduct(bike_right_os, bike_forwards_os);
+
+	const Vec4f bike_right_vec_ws = to_world * bike_right_os;
+	const Vec4f bike_forward_vec_ws = to_world * bike_forwards_os;
+	const Vec4f bike_up_vec_ws = to_world * bike_up_os;
+
+	const Vec4f up_ws = Vec4f(0,0,1,0);
+	const Vec4f no_roll_vehicle_right_ws = normalise(crossProduct(bike_forward_vec_ws, up_ws));
+	Vec4f no_roll_vehicle_up_ws = normalise(crossProduct(no_roll_vehicle_right_ws, bike_forward_vec_ws));
+	if(dot(no_roll_vehicle_right_ws, bike_right_vec_ws) < 0)
+		no_roll_vehicle_up_ws = -no_roll_vehicle_up_ws;
+
+	if(cur_seat_index == 0)
+	{
+		vehicle_constraint->SetMaxRollAngle(JPH::DegreesToRadians(1.f)); // TEMP
+
 
 		//TEMP make bike float for testing constraints:
 		//const Vec4f up_force = Vec4f(0,0,1,0) * settings.bike_mass * 9.81;
 		//body_interface.AddForce(car_body_id, toJoltVec3(up_force));
 
-
-		const Vec4f bike_forwards_os = forwards_y_for;
-		const Vec4f bike_right_os = right_y_for;
-		const Vec4f bike_up_os = crossProduct(bike_right_os, bike_forwards_os);
-
-		const Vec4f bike_right_vec_ws = to_world * bike_right_os;
-		const Vec4f bike_forward_vec_ws = to_world * bike_forwards_os;
-		const Vec4f bike_up_vec_ws = to_world * bike_up_os;
 
 		// If both wheels are not touching anything, allow pitch control
 		if(!vehicle_constraint->GetWheel(0)->HasContact() && !vehicle_constraint->GetWheel(1)->HasContact())
@@ -334,20 +348,12 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			const Vec4f pitch_control_torque = bike_right_vec_ws * settings.bike_mass * 2.f * up_input;
 			body_interface.AddTorque(bike_body_id, toJoltVec3(pitch_control_torque));
 		}
-
-		const Vec4f up_ws = Vec4f(0,0,1,0);
-		const Vec4f no_roll_vehicle_right_ws = normalise(crossProduct(bike_forward_vec_ws, up_ws));
-		Vec4f no_roll_vehicle_up_ws = normalise(crossProduct(no_roll_vehicle_right_ws, bike_forward_vec_ws));
-		if(dot(no_roll_vehicle_right_ws, bike_right_vec_ws) < 0)
-			no_roll_vehicle_up_ws = -no_roll_vehicle_up_ws;
-
 		
 
 		const bool both_wheels_on_ground = vehicle_constraint->GetWheel(0)->HasContact() && vehicle_constraint->GetWheel(1)->HasContact();
 		float desired_roll_angle = 0;
 		if(both_wheels_on_ground)
 		{
-			//const float total_lateral_lambda = vehicle_constraint->GetWheel(0)->GetLateralLambda() + vehicle_constraint->GetWheel(1)->GetLateralLambda();
 			const Vec4f wheel_friction_lateral_impulse = toVec4fVec(
 				vehicle_constraint->GetWheel(0)->GetContactLateral() * vehicle_constraint->GetWheel(0)->GetLateralLambda() + 
 				vehicle_constraint->GetWheel(0)->GetContactLateral() * vehicle_constraint->GetWheel(1)->GetLateralLambda()
@@ -358,8 +364,6 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			const float use_dt = dtime;
 			const float use_lateral_force = right_impulse / use_dt;
 
-			//printVar(use_lateral_force);
-
 			const float N_mag = 9.81f * settings.bike_mass; // Magnitude of normal force upwards from ground
 			const float f_f_mag = use_lateral_force; // friction force magnitude
 
@@ -369,11 +373,9 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 		const float lerp_factor = myMin(0.1f, dtime * 4.f);
 		smoothed_desired_roll_angle = smoothed_desired_roll_angle * (1 - lerp_factor) + lerp_factor * desired_roll_angle;
-		//printVar(smoothed_desired_roll_angle);
 
 
-		// Save unsmoothed vector for visualisation
-		//this->last_desired_up_vec = no_roll_vehicle_up_ws * cos(desired_roll_angle) + no_roll_vehicle_right_ws * sin(desired_roll_angle);
+		// Save vector for visualisation
 		this->last_desired_up_vec = no_roll_vehicle_up_ws * cos(smoothed_desired_roll_angle) + no_roll_vehicle_right_ws * sin(smoothed_desired_roll_angle);
 
 
@@ -418,7 +420,40 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		// conPrint("engine torque: " + doubleToStringNDecimalPlaces(controller->GetEngine().GetTorque(forward), 1));
 		// conPrint("current gear: " + toString(controller->GetTransmission().GetCurrentGear()));
 
-	} // end if seat == 0
+	}
+	else // Else if cur_seat_index != 0:
+	{
+		vehicle_constraint->SetMaxRollAngle(JPH::JPH_PI); // user is not on bike, so deactivate roll constraint.
+	}
+
+	
+	if(righting_time_remaining > 0) // If currently righting bike:
+	{
+		// Get current rotation, compute the desired rotation, which is a rotation with the current yaw but no pitch or roll, 
+		// compute a rotation to get from current to desired
+		const JPH::Quat current_rot = body_interface.GetRotation(bike_body_id);
+
+		const float current_yaw_angle = std::atan2(no_roll_vehicle_right_ws[1], no_roll_vehicle_right_ws[0]); // = rotation of right vector around the z vector
+
+		const JPH::Quat desired_rot = JPH::Quat::sRotation(JPH::Vec3(0,0,1), current_yaw_angle) * R_quat;
+
+		const JPH::Quat cur_to_desired_rot = desired_rot * current_rot.Conjugated();
+		JPH::Vec3 axis;
+		float angle;
+		cur_to_desired_rot.GetAxisAngle(axis, angle);
+
+		// Choose a desired angular velocity which is proportional in magnitude to how far we need to rotate.
+		// Note that we can't just apply a constant torque in the desired rotation direction, or we get angular oscillations around the desired rotation.
+		const JPH::Vec3 desired_angular_vel = (axis * angle) * 3;
+
+		// Apply a torque to try and match the desired angular velocity.
+		const JPH::Vec3 angular_vel = body_interface.GetAngularVelocity(bike_body_id);
+		const JPH::Vec3 correction_torque = (desired_angular_vel - angular_vel) * settings.bike_mass * 3.5f;
+		body_interface.AddTorque(bike_body_id, correction_torque);
+
+		righting_time_remaining -= dtime;
+	}
+
 	
 	//const float speed_km_h = getLinearVel(physics_world).length() * (3600.0f / 1000.f);
 	//conPrint("speed (km/h): " + doubleToStringNDecimalPlaces(speed_km_h, 1));
@@ -428,11 +463,11 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	GLObject* graphics_ob = world_object->opengl_engine_ob.ptr();
 	if(graphics_ob)
 	{
-		const Vec4f steering_axis = vertical_front_sus ? Vec4f(0,1,0,0) : normalise(Vec4f(0, 2.37f, 1.87f, 0)); // = front suspension dir
+		const Vec4f steering_axis_z_up = vertical_front_sus ? Vec4f(0,1,0,0) : normalise(Vec4f(0, 2.37f, 1.87f, 0)); // = front suspension dir
 
 		if(steering_node_i >= 0 && steering_node_i < (int)graphics_ob->anim_node_data.size())
 		{
-			graphics_ob->anim_node_data[steering_node_i].procedural_transform = Matrix4f::rotationMatrix(steering_axis, -cur_steering_right);
+			graphics_ob->anim_node_data[steering_node_i].procedural_transform = Matrix4f::rotationMatrix(steering_axis_z_up, /*-*/cur_steering_right);
 		}
 
 
@@ -441,30 +476,66 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			const float sus_len = vehicle_constraint->GetWheel(1)->GetSuspensionLength();
 
 			Vec4f to_pivot_trans(0,0,1.35,0);
-			graphics_ob->anim_node_data[back_arm_node_i].procedural_transform = Matrix4f::translationMatrix(-to_pivot_trans) * Matrix4f::rotationAroundXAxis((sus_len - 0.20f) * 3) * Matrix4f::translationMatrix(to_pivot_trans);
+			graphics_ob->anim_node_data[back_arm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis((sus_len - 0.20f) * 3);
 		}
 
 		// Front wheel
 		if(front_wheel_node_i >= 0 && front_wheel_node_i < (int)graphics_ob->anim_node_data.size())
 		{
 			const float front_sus_len = vehicle_constraint->GetWheel(0)->GetSuspensionLength();
-			const Vec4f translation_dir = vertical_front_sus ? Vec4f(1,0,0,0) : normalise(Vec4f(2.37f,0,-1.87f,0)); // x is upwards, z is back
-			const float suspension_offset = vertical_front_sus ? 0.25f : 0.28f;
-			const Vec4f translation = translation_dir * (world_to_ob_scale * (front_sus_len /** 1.5f*/ - suspension_offset)); // 1.5 to compensate for angle of suspension
-			graphics_ob->anim_node_data[front_wheel_node_i].procedural_transform = Matrix4f::translationMatrix(translation) * Matrix4f::rotationAroundYAxis(-vehicle_constraint->GetWheel(0)->GetRotationAngle());
+			//const Vec4f translation_dir = vertical_front_sus ? Vec4f(1,0,0,0) : normalise(Vec4f(2.37f,0,-1.87f,0)); // x is upwards, z is back
+			const Vec4f translation_dir = vertical_front_sus ? Vec4f(0,1,0,0) : normalise(Vec4f(2.37f,0,-1.87f,0)); // y is upwards
+			const float suspension_offset = vertical_front_sus ? 0.222f : 0.28f;
+			const Vec4f translation = translation_dir * -(world_to_ob_scale * (front_sus_len /** 1.5f*/ - suspension_offset)); // 1.5 to compensate for angle of suspension
+			graphics_ob->anim_node_data[front_wheel_node_i].procedural_transform = Matrix4f::translationMatrix(translation) * Matrix4f::rotationAroundXAxis(-vehicle_constraint->GetWheel(0)->GetRotationAngle());
 		}
 
 		// Back wheel
 		if(back_wheel_node_i >= 0 && back_wheel_node_i < (int)graphics_ob->anim_node_data.size())
-			graphics_ob->anim_node_data[back_wheel_node_i].procedural_transform = Matrix4f::rotationAroundYAxis(-vehicle_constraint->GetWheel(1)->GetRotationAngle());
+		{
+			graphics_ob->anim_node_data[back_wheel_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(-vehicle_constraint->GetWheel(1)->GetRotationAngle());
+		}
+
+		// Upper piston rotation
+		if( upper_piston_left_node_i  >= 0 && upper_piston_left_node_i  < (int)graphics_ob->anim_node_data.size() && 
+			upper_piston_right_node_i >= 0 && upper_piston_right_node_i < (int)graphics_ob->anim_node_data.size())
+		{
+			const float sus_len = vehicle_constraint->GetWheel(1)->GetSuspensionLength();
+
+			// HACK: approximate rotation angle with affine function, also clamp max angle or it looks silly.
+			// Proper solution is to solve for angle based on back arm angle, point on back arm etc.
+			const float max_rot = 0.02f;
+			const float rot = myMin(max_rot, (sus_len - 0.26f) * 0.7f);
+
+			graphics_ob->anim_node_data[upper_piston_left_node_i ].procedural_transform = Matrix4f::rotationAroundXAxis(rot);
+			graphics_ob->anim_node_data[upper_piston_right_node_i].procedural_transform = Matrix4f::rotationAroundXAxis(rot);
+		}
 
 
-		// model/object space to y-forward space = R
-		const Matrix4f R = Matrix4f::translationMatrix(0, -1.5f, -1.0f) * (settings.script_settings.model_to_y_forwards_rot_1 * settings.script_settings.model_to_y_forwards_rot_2).toMatrix();
+		// Lower piston compression
+		if( lower_piston_left_node_i  >= 0 && lower_piston_left_node_i  < (int)graphics_ob->anim_node_data.size() && 
+			lower_piston_right_node_i >= 0 && lower_piston_right_node_i < (int)graphics_ob->anim_node_data.size())
+		{
+			const float sus_len = vehicle_constraint->GetWheel(1)->GetSuspensionLength();
 
-		if(root_node_i >= 0 && root_node_i < (int)graphics_ob->anim_node_data.size())
-			graphics_ob->anim_node_data[root_node_i].procedural_transform = R;
+			const float length_scale = 1.f + (sus_len - 0.23f) * 0.7f; // TEMP HACK approximate spring length scale with an affine function.
+			const float offset = -(sus_len - 0.23f) * 0.7f; // Scaling keeps the bottom of the spring fixed, we want the top part of the spring fixed, so offset it up based on scale.
+
+			graphics_ob->anim_node_data[lower_piston_left_node_i].procedural_transform  = Matrix4f::scaleMatrix(1, length_scale, 1) * Matrix4f::translationMatrix(0, offset, 0);
+			graphics_ob->anim_node_data[lower_piston_right_node_i].procedural_transform = Matrix4f::scaleMatrix(1, length_scale, 1) * Matrix4f::translationMatrix(0, offset, 0);
+		}
 	}
+
+	// Set parameters for materialise effect
+	//for(size_t i=0; i<graphics_ob->materials.size(); ++i)
+	//{
+	//	graphics_ob->materials[i].materialise_lower_z = graphics_ob->aabb_ws.min_[2];
+	//	graphics_ob->materials[i].materialise_upper_z = graphics_ob->aabb_ws.max_[2];
+	//	graphics_ob->materials[i].materialise_frac = time_since_spawn;
+	//	graphics_ob->materials[i].materialise_col = Colour3f(0,0.5f,1);
+	//}
+
+	time_since_spawn += dtime * 1.0f;
 
 	return events;
 }
@@ -521,7 +592,7 @@ Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world) const
 	const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 	// Seat to world = object to world * seat to object
-	return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position)/* * R_inv*/;
+	return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
 }
 
 
@@ -532,151 +603,203 @@ Vec4f BikePhysics::getLinearVel(PhysicsWorld& physics_world) const
 }
 
 
-void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine)
+void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show)
 {
 	m_opengl_engine = &opengl_engine;
 
-	//------------------ body ------------------
-	if(body_gl_ob.isNull())
+	if(should_show)
 	{
-		body_gl_ob = opengl_engine.makeAABBObject(Vec4f(-half_vehicle_width, -half_vehicle_length, -half_vehicle_height, 1), Vec4f(half_vehicle_width, half_vehicle_length, half_vehicle_height, 1), Colour4f(1,0,0,0.2));
-		opengl_engine.addObject(body_gl_ob);
-	}
+		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+		const Matrix4f z_up_to_model_space = R_inv;
 
-	body_gl_ob->ob_to_world_matrix = getBodyTransform(*m_physics_world) * 
-		OpenGLEngine::AABBObjectTransform(
-			Vec4f(-half_vehicle_width, -half_vehicle_length, -half_vehicle_height, 1),
-			Vec4f(half_vehicle_width, half_vehicle_length, half_vehicle_height, 1)
-		);
-	opengl_engine.updateObjectTransformData(*body_gl_ob);
-
-	//------------------ wheels ------------------
-	//for(int i=0; i<2; ++i)
-	//{
-	//	if(wheel_gl_ob[i].isNull())
-	//	{
-	//		wheel_gl_ob[i] = opengl_engine.makeSphereObject(wheel_radius, Colour4f(0,1,0,0.2));
-	//		opengl_engine.addObject(wheel_gl_ob[i]);
-	//	}
-	//
-	//	wheel_gl_ob[i]->ob_to_world_matrix = getWheelToWorldTransform(*m_physics_world, /*wheel index=*/i) * Matrix4f::uniformScaleMatrix(wheel_radius);
-	//
-	//	opengl_engine.updateObjectTransformData(*wheel_gl_ob[i]);
-	//}
-
-	//------------------ suspension attachment point ------------------
-	for(int i=0; i<2; ++i)
-	{
-		const float radius = 0.03f;
-		if(wheel_attach_point_gl_ob[i].isNull())
+		//------------------ body ------------------
+		if(body_gl_ob.isNull())
 		{
-			wheel_attach_point_gl_ob[i] = opengl_engine.makeSphereObject(radius, Colour4f(0,0,1,0.5));
-			opengl_engine.addObject(wheel_attach_point_gl_ob[i]);
+			body_gl_ob = opengl_engine.makeAABBObject(Vec4f(-half_vehicle_width, -half_vehicle_length, -half_vehicle_height, 1), Vec4f(half_vehicle_width, half_vehicle_length, half_vehicle_height, 1), Colour4f(1,0,0,0.2));
+			opengl_engine.addObject(body_gl_ob);
 		}
 
-		wheel_attach_point_gl_ob[i]->ob_to_world_matrix = getBodyTransform(*m_physics_world) * Matrix4f::translationMatrix(toVec4fVec(vehicle_constraint->GetWheel(i)->GetSettings()->mPosition)) * Matrix4f::uniformScaleMatrix(radius);
+		body_gl_ob->ob_to_world_matrix = getBodyTransform(*m_physics_world) * z_up_to_model_space * 
+			OpenGLEngine::AABBObjectTransform( // AABB in z-up space
+				Vec4f(-half_vehicle_width, -half_vehicle_length, -half_vehicle_height, 1),
+				Vec4f(half_vehicle_width, half_vehicle_length, half_vehicle_height, 1)
+			);
+		opengl_engine.updateObjectTransformData(*body_gl_ob);
 
-		opengl_engine.updateObjectTransformData(*wheel_attach_point_gl_ob[i]);
-	}
+		//------------------ wheels ------------------
+		//for(int i=0; i<2; ++i)
+		//{
+		//	if(wheel_gl_ob[i].isNull())
+		//	{
+		//		wheel_gl_ob[i] = opengl_engine.makeSphereObject(wheel_radius, Colour4f(0,1,0,0.2));
+		//		opengl_engine.addObject(wheel_gl_ob[i]);
+		//	}
+		//
+		//	wheel_gl_ob[i]->ob_to_world_matrix = getWheelToWorldTransform(*m_physics_world, /*wheel index=*/i) * Matrix4f::uniformScaleMatrix(wheel_radius);
+		//
+		//	opengl_engine.updateObjectTransformData(*wheel_gl_ob[i]);
+		//}
+
+		//------------------ suspension attachment point ------------------
+		for(int i=0; i<2; ++i)
+		{
+			const float radius = 0.03f;
+			if(wheel_attach_point_gl_ob[i].isNull())
+			{
+				wheel_attach_point_gl_ob[i] = opengl_engine.makeSphereObject(radius, Colour4f(0,0,1,0.5));
+				opengl_engine.addObject(wheel_attach_point_gl_ob[i]);
+			}
+
+			wheel_attach_point_gl_ob[i]->ob_to_world_matrix = getBodyTransform(*m_physics_world) * Matrix4f::translationMatrix(toVec4fVec(vehicle_constraint->GetWheel(i)->GetSettings()->mPosition)) * Matrix4f::uniformScaleMatrix(radius);
+
+			opengl_engine.updateObjectTransformData(*wheel_attach_point_gl_ob[i]);
+		}
 	
-	//------------------ wheel-ground contact point ------------------
-	for(int i=0; i<2; ++i)
-	{
-		const float radius = 0.03f;
-		if(contact_point_gl_ob[i].isNull())
+		//------------------ wheel-ground contact point ------------------
+		for(int i=0; i<2; ++i)
 		{
-			contact_point_gl_ob[i] = opengl_engine.makeSphereObject(radius, Colour4f(0,1,0,1));
-			opengl_engine.addObject(contact_point_gl_ob[i]);
+			const float radius = 0.03f;
+			if(contact_point_gl_ob[i].isNull())
+			{
+				contact_point_gl_ob[i] = opengl_engine.makeSphereObject(radius, Colour4f(0,1,0,1));
+				opengl_engine.addObject(contact_point_gl_ob[i]);
+			}
+
+			if(vehicle_constraint->GetWheel(i)->HasContact())
+				contact_point_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(toVec4fVec(vehicle_constraint->GetWheel(i)->GetContactPosition())) * Matrix4f::uniformScaleMatrix(radius);
+			else
+				contact_point_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
+
+			opengl_engine.updateObjectTransformData(*contact_point_gl_ob[i]);
 		}
-
-		if(vehicle_constraint->GetWheel(i)->HasContact())
-			contact_point_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(toVec4fVec(vehicle_constraint->GetWheel(i)->GetContactPosition())) * Matrix4f::uniformScaleMatrix(radius);
-		else
-			contact_point_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
-
-		opengl_engine.updateObjectTransformData(*contact_point_gl_ob[i]);
-	}
 	
-	//------------------ wheel-ground lateral force vectors ------------------
-	for(int i=0; i<2; ++i)
-	{
-		if(contact_laterial_force_gl_ob[i].isNull())
+		//------------------ wheel-ground lateral force vectors ------------------
+		for(int i=0; i<2; ++i)
 		{
-			contact_laterial_force_gl_ob[i] = opengl_engine.makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0.6,0.6,0,1), 1.f);
-			opengl_engine.addObject(contact_laterial_force_gl_ob[i]);
-		}
+			if(contact_laterial_force_gl_ob[i].isNull())
+			{
+				contact_laterial_force_gl_ob[i] = opengl_engine.makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0.6,0.6,0,1), 1.f);
+				opengl_engine.addObject(contact_laterial_force_gl_ob[i]);
+			}
 
-		if(vehicle_constraint->GetWheel(i)->HasContact() && std::fabs(vehicle_constraint->GetWheel(i)->GetLateralLambda()) > 1.0e-3f)
-		{
-			const Vec4f arrow_origin = toVec4fPos(vehicle_constraint->GetWheel(i)->GetContactPosition()) + Vec4f(0,0,0.02f,0); // raise off ground a little to see more easily.
-			contact_laterial_force_gl_ob[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(
-				arrow_origin, 
-				arrow_origin + toVec4fVec(vehicle_constraint->GetWheel(i)->GetContactLateral() * vehicle_constraint->GetWheel(i)->GetLateralLambda() * 0.1f), 1.f);
-		}
-		else
-			contact_laterial_force_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
+			if(vehicle_constraint->GetWheel(i)->HasContact() && std::fabs(vehicle_constraint->GetWheel(i)->GetLateralLambda()) > 1.0e-3f)
+			{
+				const Vec4f arrow_origin = toVec4fPos(vehicle_constraint->GetWheel(i)->GetContactPosition()) + Vec4f(0,0,0.02f,0); // raise off ground a little to see more easily.
+				contact_laterial_force_gl_ob[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(
+					arrow_origin, 
+					arrow_origin + toVec4fVec(vehicle_constraint->GetWheel(i)->GetContactLateral() * vehicle_constraint->GetWheel(i)->GetLateralLambda() * 0.1f), 1.f);
+			}
+			else
+				contact_laterial_force_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
 
-		opengl_engine.updateObjectTransformData(*contact_laterial_force_gl_ob[i]);
-	}
+			opengl_engine.updateObjectTransformData(*contact_laterial_force_gl_ob[i]);
+		}
 	
-	//------------------ wheel collision tester cylinder ------------------
-	for(int i=0; i<2; ++i)
-	{
-		const float radius = wheel_radius;
-		if(coll_tester_gl_ob[i].isNull())
+		//------------------ wheel collision tester cylinder ------------------
+		for(int i=0; i<2; ++i)
 		{
-			coll_tester_gl_ob[i] = opengl_engine.makeCylinderObject(radius, Colour4f(0,0,1,0.5)); // A cylinder from (0,0,0), to (0,0,1) with radius 1;
-			opengl_engine.addObject(coll_tester_gl_ob[i]);
+			const float radius = wheel_radius;
+			if(coll_tester_gl_ob[i].isNull())
+			{
+				coll_tester_gl_ob[i] = opengl_engine.makeCylinderObject(radius, Colour4f(0,0,1,0.5)); // A cylinder from (0,0,0), to (0,0,1) with radius 1;
+				opengl_engine.addObject(coll_tester_gl_ob[i]);
+			}
+
+			Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
+
+			coll_tester_gl_ob[i]->ob_to_world_matrix = 
+				getBodyTransform(*m_physics_world) * 
+				wheel_to_local_transform *
+				Matrix4f::scaleMatrix(radius, radius, vehicle_constraint->GetWheel(i)->GetSettings()->mWidth) * 
+				Matrix4f::translationMatrix(0,0,-0.5f); // centre around origin
+
+			opengl_engine.updateObjectTransformData(*coll_tester_gl_ob[i]);
 		}
-
-		Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
-
-		coll_tester_gl_ob[i]->ob_to_world_matrix = 
-			getBodyTransform(*m_physics_world) * 
-			wheel_to_local_transform *
-			Matrix4f::scaleMatrix(radius, radius, vehicle_constraint->GetWheel(i)->GetSettings()->mWidth) * 
-			Matrix4f::translationMatrix(0,0,-0.5f); // centre around origin
-
-		opengl_engine.updateObjectTransformData(*coll_tester_gl_ob[i]);
-	}
 	
-	//------------------ Visualise righting force with arrow ------------------
-	if(false)
-	{
-		if(righting_force_gl_ob.isNull())
+		//------------------ Visualise righting force with arrow ------------------
+		if(false)
 		{
-			righting_force_gl_ob = opengl_engine.makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,0), Colour4f(0,0,1,0.5), 0.05f);
-			opengl_engine.addObject(righting_force_gl_ob);
-		}
+			if(righting_force_gl_ob.isNull())
+			{
+				righting_force_gl_ob = opengl_engine.makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,0), Colour4f(0,0,1,0.5), 0.05f);
+				opengl_engine.addObject(righting_force_gl_ob);
+			}
 
-		if(last_force_vec.length() > 1.0e-3f)
-		{
-			righting_force_gl_ob->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(/*startpos=*/last_force_point, /*endpos=*/last_force_point + last_force_vec * 0.001f, 1.f);
-		}
-		else
-		{
-			righting_force_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
-		}
+			if(last_force_vec.length() > 1.0e-3f)
+			{
+				righting_force_gl_ob->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(/*startpos=*/last_force_point, /*endpos=*/last_force_point + last_force_vec * 0.001f, 1.f);
+			}
+			else
+			{
+				righting_force_gl_ob->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
+			}
 
-		opengl_engine.updateObjectTransformData(*righting_force_gl_ob);
-	}
+			opengl_engine.updateObjectTransformData(*righting_force_gl_ob);
+		}
 	
-	//------------------ Visualise desired roll angle with arrow ------------------
+		//------------------ Visualise desired roll angle with arrow ------------------
+		{
+			if(desired_bike_up_vec_gl_ob.isNull())
+			{
+				desired_bike_up_vec_gl_ob = opengl_engine.makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0,0,1,0.5), 1.f);
+				opengl_engine.addObject(desired_bike_up_vec_gl_ob);
+			}
+
+			if(last_desired_up_vec.length() > 1.0e-3f)
+			{
+				const Vec4f bike_pos_ws = getBodyTransform(*m_physics_world) * Vec4f(0,0,0,1);
+
+				desired_bike_up_vec_gl_ob->ob_to_world_matrix = //Matrix4f::translationMatrix(bike_pos_ws) * //Matrix4f::constructFromVectorXAxis(normalise(last_desired_up_vec)) * Matrix4f::scaleMatrix(last_desired_up_vec.length(), 1, 1);
+					OpenGLEngine::arrowObjectTransform(/*startpos=*/bike_pos_ws, /*endpos=*/bike_pos_ws + last_desired_up_vec, /*radius scale=*/1.f);
+			}
+
+			opengl_engine.updateObjectTransformData(*desired_bike_up_vec_gl_ob);
+		}
+	}
+	else
 	{
-		if(desired_bike_up_vec_gl_ob.isNull())
+		removeVisualisationObs();
+	}
+}
+
+
+void BikePhysics::removeVisualisationObs()
+{
+	if(m_opengl_engine)
+	{
+		if(body_gl_ob.nonNull())
+			m_opengl_engine->removeObject(body_gl_ob);
+		body_gl_ob = NULL;
+
+		for(int i=0; i<2; ++i)
 		{
-			desired_bike_up_vec_gl_ob = opengl_engine.makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0,0,1,0.5), 1.f);
-			opengl_engine.addObject(desired_bike_up_vec_gl_ob);
+			if(wheel_attach_point_gl_ob[i].nonNull())
+				m_opengl_engine->removeObject(wheel_attach_point_gl_ob[i]);
+			wheel_attach_point_gl_ob[i] = NULL;
+
+			if(wheel_gl_ob[i].nonNull())
+				m_opengl_engine->removeObject(wheel_gl_ob[i]);
+			wheel_gl_ob[i] = NULL;
+
+			if(coll_tester_gl_ob[i].nonNull())
+				m_opengl_engine->removeObject(coll_tester_gl_ob[i]);
+			coll_tester_gl_ob[i] = NULL;
+
+			if(contact_point_gl_ob[i].nonNull())
+				m_opengl_engine->removeObject(contact_point_gl_ob[i]);
+			contact_point_gl_ob[i] = NULL;
+
+			if(contact_laterial_force_gl_ob[i].nonNull())
+				m_opengl_engine->removeObject(contact_laterial_force_gl_ob[i]);
+			contact_laterial_force_gl_ob[i] = NULL;
 		}
 
-		if(last_force_vec.length() > 1.0e-3f)
-		{
-			const Vec4f bike_pos_ws = getBodyTransform(*m_physics_world) * Vec4f(0,0,0,1);
+		if(righting_force_gl_ob.nonNull())
+			m_opengl_engine->removeObject(righting_force_gl_ob);
+		righting_force_gl_ob = NULL;
 
-			desired_bike_up_vec_gl_ob->ob_to_world_matrix = //Matrix4f::translationMatrix(bike_pos_ws) * //Matrix4f::constructFromVectorXAxis(normalise(last_desired_up_vec)) * Matrix4f::scaleMatrix(last_desired_up_vec.length(), 1, 1);
-				OpenGLEngine::arrowObjectTransform(/*startpos=*/bike_pos_ws, /*endpos=*/bike_pos_ws + last_desired_up_vec, /*radius scale=*/1.f);
-		}
-
-		opengl_engine.updateObjectTransformData(*desired_bike_up_vec_gl_ob);
+		if(desired_bike_up_vec_gl_ob.nonNull())
+			m_opengl_engine->removeObject(desired_bike_up_vec_gl_ob);
+		desired_bike_up_vec_gl_ob = NULL;
 	}
 }

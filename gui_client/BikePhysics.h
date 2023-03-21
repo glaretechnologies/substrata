@@ -46,38 +46,46 @@ public:
 	BikePhysics(WorldObjectRef object, BikePhysicsSettings settings, PhysicsWorld& physics_world);
 	~BikePhysics();
 
-	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime);
+	WorldObject* getControlledObject() override { return world_object; }
 
-	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const;
+	void startRightingVehicle() override;
 
-	Vec4f getThirdPersonCamTargetTranslation() const;
+	void userEnteredVehicle(int seat_index) override; // Should set cur_seat_index
 
-	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const;
+	void userExitedVehicle() override; // Should set cur_seat_index
 
+	virtual void playVehicleSummonedEffects() override; // To allow playing of special effects for summoning
 
-	Matrix4f getWheelToWorldTransform(PhysicsWorld& physics_world, int wheel_index) const;
+	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) override;
+
+	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const override;
+
+	Vec4f getThirdPersonCamTargetTranslation() const override;
+
+	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
-	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const;
+	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const override;
 
-	Vec4f getLinearVel(PhysicsWorld& physics_world) const;
+	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
-	virtual const Scripting::VehicleScriptedSettings& getSettings() const { return settings.script_settings; }
+	const Scripting::VehicleScriptedSettings& getSettings() const override { return settings.script_settings; }
 
-	virtual void updateDebugVisObjects(OpenGLEngine& opengl_engine) override;
+	void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) override;
+
+private:
+	Matrix4f getWheelToWorldTransform(PhysicsWorld& physics_world, int wheel_index) const;
+	void removeVisualisationObs();
 
 	BikePhysicsSettings settings;
-	uint32 cur_seat_index;
-	
-private:
 	WorldObject* world_object;
 	PhysicsWorld* m_physics_world;
 	OpenGLEngine* m_opengl_engine;
 	JPH::BodyID bike_body_id;
 
-	float unflip_up_force_time_remaining;
-
-
+	float time_since_spawn; // For spawning special effect
+	float righting_time_remaining;
+	
 	JPH::Ref<JPH::VehicleConstraint>		vehicle_constraint; // The vehicle constraint
 	JPH::Ref<JPH::VehicleCollisionTester>	collision_tester; // Collision testers for the wheel
 
@@ -101,12 +109,14 @@ private:
 	Vec4f last_force_point;
 	Vec4f last_force_vec;
 
-	//float last_roll;
 	float last_roll_error;
 
 	int steering_node_i;
 	int back_arm_node_i;
 	int front_wheel_node_i;
 	int back_wheel_node_i;
-	int root_node_i;
+	int upper_piston_left_node_i;
+	int upper_piston_right_node_i;
+	int lower_piston_left_node_i;
+	int lower_piston_right_node_i;
 };
