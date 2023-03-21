@@ -19,7 +19,8 @@ Copyright Glare Technologies Limited 2022 -
 /*=====================================================================
 WebDataFileWatcherThread
 ------------------------
-Actually just stores a bunch of disk paths currently.
+Watches for changes to files that the webserver is serving, 
+calls loadAndCompressFiles() when a file changes.
 =====================================================================*/
 class WebDataFileWatcherThread : public MessageableThread
 {
