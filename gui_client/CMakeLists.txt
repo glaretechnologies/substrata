@@ -603,7 +603,8 @@ if(WIN32)
 
 	add_definitions(-D__WINDOWS_DS__) # Add directsound config choice define for RTAudio
 	
-	add_definitions(/ZI) # Set debug info format to 'Program Database for Edit & Continue'
+	SET(CMAKE_CXX_FLAGS_DEBUG			"${CMAKE_CXX_FLAGS_DEBUG}			/ZI") # ZI = Set debug info format to 'Program Database for Edit & Continue'  for debug builds.
+	# It slows down the code too much to use for RelWithDebInfo builds.
 	
 	if(BUGSPLAT_SUPPORT)
 		add_definitions(-DBUGSPLAT_SUPPORT=1) # Enable BugSplat support
