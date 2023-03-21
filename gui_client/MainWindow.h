@@ -287,7 +287,9 @@ public:
 	virtual void unloadObject(WorldObjectRef ob);
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
 
-	void tryToMoveObject(const WorldObject& ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
+	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
+	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos);
+	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle);
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
@@ -350,7 +352,6 @@ public:
 	CarPhysics car_physics;
 	Reference<VehiclePhysics> vehicle_physics;
 	double last_vehicle_renewal_msg_time;
-	UID vehicle_object_uid; // UID of vehicle object we are riding.
 
 	Timer time_since_last_timer_ev;
 	Timer time_since_update_packet_sent;

@@ -7,6 +7,7 @@ Copyright Glare Technologies Limited 2023 -
 
 
 #include "PlayerPhysicsInput.h"
+#include "PhysicsObject.h"
 #include "Scripting.h"
 #include "../maths/Vec4f.h"
 #include "../maths/vec3.h"
@@ -21,7 +22,6 @@ struct VehiclePhysicsUpdateEvents
 };
 
 
-
 /*=====================================================================
 VehiclePhysics
 --------------
@@ -32,8 +32,18 @@ class VehiclePhysics : public RefCounted
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	VehiclePhysics() : cur_seat_index(0) {}
+	VehiclePhysics() : cur_seat_index(-1) {}
 	virtual ~VehiclePhysics() {}
+
+	virtual WorldObject* getControlledObject() = 0;
+	
+	virtual void startRightingVehicle() = 0;
+
+	virtual void userEnteredVehicle(int seat_index) = 0; // Should set cur_seat_index
+
+	virtual void userExitedVehicle() = 0; // Should set cur_seat_index
+
+	virtual void playVehicleSummonedEffects() {} // To allow playing of special effects for summoning
 
 	virtual VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) = 0;
 
@@ -50,7 +60,12 @@ public:
 
 	virtual const Scripting::VehicleScriptedSettings& getSettings() const = 0;
 
-	virtual void updateDebugVisObjects(OpenGLEngine& opengl_engine) {}
+	virtual void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) {}
 
-	uint32 cur_seat_index;
+	void setCurrentSeatIndex(int new_seat_index) { cur_seat_index = new_seat_index; }
+	int getCurrentSeatIndex() const { return cur_seat_index; }
+	bool userIsInVehicle() const { return cur_seat_index >= 0; }
+	
+protected:
+	int cur_seat_index;
 };

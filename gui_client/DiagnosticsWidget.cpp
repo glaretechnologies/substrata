@@ -32,6 +32,7 @@ void DiagnosticsWidget::init(QSettings* settings_)
 {
 	settings = settings_;
 	SignalBlocker::setChecked(this->showPhysicsObOwnershipCheckBox, settings->value("diagnostics/show_physics_ob_ownership", false).toBool());
+	SignalBlocker::setChecked(this->showVehiclePhysicsVisCheckBox, settings->value("diagnostics/show_vehicle_physics_vis", false).toBool());
 }
 
 
@@ -40,6 +41,6 @@ void DiagnosticsWidget::settingsChanged()
 	if(settings)
 	{
 		settings->setValue("diagnostics/show_physics_ob_ownership", this->showPhysicsObOwnershipCheckBox->isChecked());
+		settings->setValue("diagnostics/show_vehicle_physics_vis", this->showVehiclePhysicsVisCheckBox->isChecked());
 	}
 }
-

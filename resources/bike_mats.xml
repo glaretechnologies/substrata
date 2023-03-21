@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<materials>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.20655301 0.20655301 0.20655301</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.85714287</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.04653936 0.04653936 0.04653936</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.32059503</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.6832536</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.3999135 0.3999135 0.3999135</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.95238096</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.52657396 0.52657396 0.52657396</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.7</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0 0 0</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0.95107216 0.99999994</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>1</val>
+		</roughness>
+		<metallic_fraction>
+			<val>1</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.039884407 0.039884407 0.039884407</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.039884407 0.039884407 0.039884407</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0 0 0</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0.99999994 0.52146363 0.2743432</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>1</val>
+		</roughness>
+		<metallic_fraction>
+			<val>1</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>200000</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.37322617 0.37322617 0.37322617</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.079864554 0.079864554 0.079864554</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.5</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.21568628</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+	<material>
+		<name><![CDATA[]]></name>
+		<colour_rgb>0.99999994 0.99999994 0.99999994</colour_rgb>
+		<colour_texture_url><![CDATA[]]></colour_texture_url>
+		<emission_rgb>0 0 0</emission_rgb>
+		<emission_texture_url><![CDATA[]]></emission_texture_url>
+		<roughness>
+			<val>0.32059503</val>
+		</roughness>
+		<metallic_fraction>
+			<val>0.6832536</val>
+		</metallic_fraction>
+		<opacity>
+			<val>1</val>
+		</opacity>
+		<tex_matrix>1 0 0 -1</tex_matrix>
+		<emission_lum_flux_or_lum>0</emission_lum_flux_or_lum>
+		<flags>0</flags>
+	</material>
+</materials>
