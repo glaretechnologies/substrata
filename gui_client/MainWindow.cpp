@@ -5033,17 +5033,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				// Process contact events for objects that the player touched.
 				// Take physics ownership of any such object if needed.
-				for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
 				{
-					PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
-					if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
+					Lock world_state_lock(this->world_state->mutex);
+					for(size_t z=0; z<player_physics.contacted_events.size(); ++z)
 					{
-						WorldObject* ob = (WorldObject*)physics_ob->userdata;
-						
-						if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+						PhysicsObject* physics_ob = player_physics.contacted_events[z].ob;
+						if(physics_ob->userdata_type == 0 && physics_ob->userdata != 0) // If userdata type is WorldObject:
 						{
-							// conPrint("==Taking ownership of physics object from avatar physics contact...==");
-							takePhysicsOwnershipOfObject(*ob, global_time);
+							WorldObject* ob = (WorldObject*)physics_ob->userdata;
+						
+							if(!isObjectPhysicsOwnedBySelf(*ob, global_time) && !isObjectVehicleBeingDrivenByOther(*ob))
+							{
+								// conPrint("==Taking ownership of physics object from avatar physics contact...==");
+								takePhysicsOwnershipOfObject(*ob, global_time);
+							}
 						}
 					}
 				}

@@ -288,8 +288,8 @@ public:
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
 
 	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
-	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos);
-	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle);
+	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos) REQUIRES(world_state->mutex);
+	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle) REQUIRES(world_state->mutex);
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
@@ -320,8 +320,8 @@ public:
 	bool isObjectPhysicsOwnedBySelf(WorldObject& ob, double global_time);
 	bool isObjectPhysicsOwnedByOther(WorldObject& ob, double global_time);
 	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
-	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob);
-	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index);
+	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob) REQUIRES(world_state->mutex);
+	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) REQUIRES(world_state->mutex);
 	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	
