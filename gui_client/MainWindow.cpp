@@ -8939,136 +8939,156 @@ void MainWindow::objectEditedSlot()
 			if((selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && 
 				(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 			{
-				// Rebuild physics object
-				const Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
-
-				js::Vector<bool, 16> mat_transparent(selected_ob->materials.size());
-				for(size_t i=0; i<selected_ob->materials.size(); ++i)
-					mat_transparent[i] = selected_ob->materials[i]->opacity.val < 1.f;
-
-				PhysicsShape physics_shape;
-				Indigo::MeshRef indigo_mesh; // not used
-				const int subsample_factor = 1;
-				Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
-					ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
-					physics_shape, indigo_mesh);
-
-				// Remove existing physics object
-				if(selected_ob->physics_object.nonNull())
+				if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr() && this->vehicle_physics->userIsInVehicle())
 				{
-					physics_world->removeObject(selected_ob->physics_object);
-					selected_ob->physics_object = NULL;
+					showErrorNotification("Can't edit vehicle physics properties while in vehicle");
 				}
+				else
+				{
+					// Rebuild physics object
+					const Matrix4f ob_to_world = obToWorldMatrix(*selected_ob);
 
-				// Make new physics object
-				assert(selected_ob->physics_object.isNull());
-				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
-				selected_ob->physics_object->shape = physics_shape;
-				selected_ob->physics_object->userdata = selected_ob.ptr();
-				selected_ob->physics_object->userdata_type = 0;
-				selected_ob->physics_object->ob_uid = selected_ob->uid;
-				selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
-				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
-				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
+					js::Vector<bool, 16> mat_transparent(selected_ob->materials.size());
+					for(size_t i=0; i<selected_ob->materials.size(); ++i)
+						mat_transparent[i] = selected_ob->materials[i]->opacity.val < 1.f;
 
-				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
-				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+					PhysicsShape physics_shape;
+					Indigo::MeshRef indigo_mesh; // not used
+					const int subsample_factor = 1;
+					Reference<OpenGLMeshRenderData> gl_meshdata = ModelLoading::makeModelForVoxelGroup(selected_ob->getDecompressedVoxelGroup(), subsample_factor, ob_to_world,
+						ui->glWidget->opengl_engine->vert_buf_allocator.ptr(), /*do_opengl_stuff=*/true, /*need_lightmap_uvs=*/false, mat_transparent, /*build_dynamic_physics_ob=*/selected_ob->isDynamic(),
+						physics_shape, indigo_mesh);
 
-				selected_ob->physics_object->mass = selected_ob->mass;
-				selected_ob->physics_object->friction = selected_ob->friction;
-				selected_ob->physics_object->restitution = selected_ob->restitution;
+					// Remove existing physics object
+					if(selected_ob->physics_object.nonNull())
+					{
+						if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr())
+							this->vehicle_physics = NULL; // Destroy vehicle controller, as Jolt hits asserts if physics object is swapped out under it.  // TODO: consider other avatar controllers as well
 
-				physics_world->addObject(selected_ob->physics_object);
+						physics_world->removeObject(selected_ob->physics_object);
+						selected_ob->physics_object = NULL;
+					}
 
-				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
-				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED);
+					// Make new physics object
+					assert(selected_ob->physics_object.isNull());
+					selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
+					selected_ob->physics_object->shape = physics_shape;
+					selected_ob->physics_object->userdata = selected_ob.ptr();
+					selected_ob->physics_object->userdata_type = 0;
+					selected_ob->physics_object->ob_uid = selected_ob->uid;
+					selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
+					selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
+					selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
+
+					selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+					selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+
+					selected_ob->physics_object->mass = selected_ob->mass;
+					selected_ob->physics_object->friction = selected_ob->friction;
+					selected_ob->physics_object->restitution = selected_ob->restitution;
+
+					physics_world->addObject(selected_ob->physics_object);
+
+					BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
+					BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED);
+				}
 			}
 
 		
 			if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
 				(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 			{
-				removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
-
-				const std::string mesh_path = FileUtils::fileExists(this->selected_ob->model_url) ? this->selected_ob->model_url : resource_manager->pathForURL(this->selected_ob->model_url);
-
-				ModelLoading::MakeGLObjectResults results;
-				ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, mesh_path,
-					results
-				);
-			
-				this->selected_ob->opengl_engine_ob = results.gl_ob;
-				this->selected_ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*this->selected_ob);
-
-				ui->glWidget->opengl_engine->addObject(this->selected_ob->opengl_engine_ob);
-
-				ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
-
-				if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED))
+				if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr() && this->vehicle_physics->userIsInVehicle())
 				{
-					// If the user selected a mesh that is not a bmesh, convert it to bmesh.
-					std::string bmesh_disk_path;
-					if(!hasExtension(mesh_path, "bmesh")) 
-					{
-						// Save as bmesh in temp location
-						bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
-
-						BatchedMesh::WriteOptions write_options;
-						write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
-						// TODO: show 'processing...' dialog while it compresses and saves?
-						results.batched_mesh->writeToFile(bmesh_disk_path, write_options);
-					}
-					else
-						bmesh_disk_path = mesh_path;
-
-					// Compute hash over model
-					const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
-
-					const std::string original_filename = FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
-					const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
-
-					// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
-					if(!this->resource_manager->isFileForURLPresent(mesh_URL))
-						this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
-
-					this->selected_ob->model_url = mesh_URL;
-					this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-					this->selected_ob->aabb_ws = results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob));
+					showErrorNotification("Can't edit vehicle physics properties while in vehicle");
 				}
 				else
 				{
-//					assert(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED));
+					if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr())
+						this->vehicle_physics = NULL; // Destroy vehicle controller, as Jolt hits asserts if physics object is swapped out under it. // TODO: consider other avatar controllers as well
+
+					removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
+
+					const std::string mesh_path = FileUtils::fileExists(this->selected_ob->model_url) ? this->selected_ob->model_url : resource_manager->pathForURL(this->selected_ob->model_url);
+
+					ModelLoading::MakeGLObjectResults results;
+					ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, mesh_path,
+						results
+					);
+			
+					this->selected_ob->opengl_engine_ob = results.gl_ob;
+					this->selected_ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*this->selected_ob);
+
+					ui->glWidget->opengl_engine->addObject(this->selected_ob->opengl_engine_ob);
+
+					ui->glWidget->opengl_engine->selectObject(this->selected_ob->opengl_engine_ob);
+
+					if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED))
+					{
+						// If the user selected a mesh that is not a bmesh, convert it to bmesh.
+						std::string bmesh_disk_path;
+						if(!hasExtension(mesh_path, "bmesh")) 
+						{
+							// Save as bmesh in temp location
+							bmesh_disk_path = PlatformUtils::getTempDirPath() + "/temp.bmesh";
+
+							BatchedMesh::WriteOptions write_options;
+							write_options.compression_level = 9; // Use a somewhat high compression level, as this mesh is likely to be read many times, and only encoded here.
+							// TODO: show 'processing...' dialog while it compresses and saves?
+							results.batched_mesh->writeToFile(bmesh_disk_path, write_options);
+						}
+						else
+							bmesh_disk_path = mesh_path;
+
+						// Compute hash over model
+						const uint64 model_hash = FileChecksum::fileChecksum(bmesh_disk_path);
+
+						const std::string original_filename = FileUtils::getFilename(mesh_path); // Use the original filename, not 'temp.bmesh'.
+						const std::string mesh_URL = ResourceManager::URLForNameAndExtensionAndHash(original_filename, ::getExtension(bmesh_disk_path), model_hash); // Make a URL like "projectdog_png_5624080605163579508.png"
+
+						// Copy model to local resources dir if not already there.  UploadResourceThread will read from here.
+						if(!this->resource_manager->isFileForURLPresent(mesh_URL))
+							this->resource_manager->copyLocalFileToResourceDir(bmesh_disk_path, mesh_URL);
+
+						this->selected_ob->model_url = mesh_URL;
+						this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
+						this->selected_ob->aabb_ws = results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob));
+					}
+					else
+					{
+//						assert(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED));
+					}
+
+
+					// NOTE: do we want to update materials and scale etc. on object, given that we have a new mesh now?
+
+					// Make new physics object
+					assert(selected_ob->physics_object.isNull());
+					selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
+					selected_ob->physics_object->shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
+					selected_ob->physics_object->userdata = selected_ob.ptr();
+					selected_ob->physics_object->userdata_type = 0;
+					selected_ob->physics_object->ob_uid = selected_ob->uid;
+					selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
+					selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
+					selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
+			
+					selected_ob->physics_object->kinematic = !selected_ob->script.empty();
+					selected_ob->physics_object->dynamic = selected_ob->isDynamic();
+					selected_ob->physics_object->is_sphere = FileUtils::getFilename(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
+					selected_ob->physics_object->is_cube = FileUtils::getFilename(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
+
+					selected_ob->physics_object->mass = selected_ob->mass;
+					selected_ob->physics_object->friction = selected_ob->friction;
+					selected_ob->physics_object->restitution = selected_ob->restitution;
+			
+					physics_world->addObject(selected_ob->physics_object);
+
+
+					BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED);
+					BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
+					BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED);
 				}
-
-
-				// NOTE: do we want to update materials and scale etc. on object, given that we have a new mesh now?
-
-				// Make new physics object
-				assert(selected_ob->physics_object.isNull());
-				selected_ob->physics_object = new PhysicsObject(/*collidable=*/selected_ob->isCollidable());
-				selected_ob->physics_object->shape = PhysicsWorld::createJoltShapeForBatchedMesh(*results.batched_mesh, selected_ob->isDynamic());
-				selected_ob->physics_object->userdata = selected_ob.ptr();
-				selected_ob->physics_object->userdata_type = 0;
-				selected_ob->physics_object->ob_uid = selected_ob->uid;
-				selected_ob->physics_object->pos = selected_ob->pos.toVec4fPoint();
-				selected_ob->physics_object->rot = Quatf::fromAxisAndAngle(normalise(selected_ob->axis), selected_ob->angle);
-				selected_ob->physics_object->scale = useScaleForWorldOb(selected_ob->scale);
-			
-				selected_ob->physics_object->kinematic = !selected_ob->script.empty();
-				selected_ob->physics_object->dynamic = selected_ob->isDynamic();
-				selected_ob->physics_object->is_sphere = FileUtils::getFilename(selected_ob->model_url) == "Icosahedron_obj_136334556484365507.bmesh";
-				selected_ob->physics_object->is_cube = FileUtils::getFilename(selected_ob->model_url) == "Cube_obj_11907297875084081315.bmesh";
-
-				selected_ob->physics_object->mass = selected_ob->mass;
-				selected_ob->physics_object->friction = selected_ob->friction;
-				selected_ob->physics_object->restitution = selected_ob->restitution;
-			
-				physics_world->addObject(selected_ob->physics_object);
-
-
-				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED);
-				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED);
-				BitUtils::zeroBit(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED);
 			}
 
 
@@ -11422,95 +11442,102 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 
 					if(ob->vehicle_script.nonNull() && ob->physics_object.nonNull())
 					{
-						if(vehicle_physics.isNull() || !vehicle_physics->userIsInVehicle())
+						if(ob->isDynamic()) // Make sure object is dynamic, which is needed for vehicles
 						{
-							// Try to enter the vehicle.
-							const Vec4f up_z_up(0,0,1,0);
-							const Vec4f bike_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
-							const Vec4f bike_up_ws = normalise(obToWorldMatrix(*ob) * bike_up_os);
-							const bool upright = dot(bike_up_ws, up_z_up) > 0.5f;
-
-							// See if there are any spare seats
-							int free_seat_index = -1;
-							for(size_t z=0; z<ob->vehicle_script->settings.seat_settings.size(); ++z)
+							if(vehicle_physics.isNull() || !vehicle_physics->userIsInVehicle())
 							{
-								if(!doesVehicleHaveAvatarInSeat(*ob, (uint32)z))
+								// Try to enter the vehicle.
+								const Vec4f up_z_up(0,0,1,0);
+								const Vec4f bike_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
+								const Vec4f bike_up_ws = normalise(obToWorldMatrix(*ob) * bike_up_os);
+								const bool upright = dot(bike_up_ws, up_z_up) > 0.5f;
+
+								// See if there are any spare seats
+								int free_seat_index = -1;
+								for(size_t z=0; z<ob->vehicle_script->settings.seat_settings.size(); ++z)
 								{
-									free_seat_index = (int)z;
-									break;
-								}
-							}
-
-							if(!upright || (free_seat_index >= 0)) // If we want to create a vehicle controller:
-							{
-								// If there is a controller already existing that is controlling the hit object, then use it, otherwise
-								// Create the vehicle controller based on the script:
-								if(ob->vehicle_script.isType<Scripting::HoverCarScript>())
-								{
-									const Scripting::HoverCarScript* hover_car_script = ob->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
-
-									HoverCarPhysicsSettings hover_car_physics_settings;
-									hover_car_physics_settings.hovercar_mass = ob->mass;
-									hover_car_physics_settings.script_settings = hover_car_script->settings;
-
-									this->vehicle_physics = NULL;
-									this->vehicle_physics = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
-								}
-								else if(ob->vehicle_script.isType<Scripting::BikeScript>())
-								{
-									const Scripting::BikeScript* bike_script = ob->vehicle_script.downcastToPtr<Scripting::BikeScript>();
-
-									BikePhysicsSettings bike_physics_settings;
-									bike_physics_settings.bike_mass = ob->mass;
-									bike_physics_settings.script_settings = bike_script->settings;
-
-									if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == ob) // If the vehicle script is already controlling this object:
+									if(!doesVehicleHaveAvatarInSeat(*ob, (uint32)z))
 									{
-										assert(this->vehicle_physics->getCurrentSeatIndex() == -1);
+										free_seat_index = (int)z;
+										break;
+									}
+								}
+
+								if(!upright || (free_seat_index >= 0)) // If we want to create a vehicle controller:
+								{
+									// If there is a controller already existing that is controlling the hit object, then use it, otherwise
+									// Create the vehicle controller based on the script:
+									if(ob->vehicle_script.isType<Scripting::HoverCarScript>())
+									{
+										const Scripting::HoverCarScript* hover_car_script = ob->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
+
+										HoverCarPhysicsSettings hover_car_physics_settings;
+										hover_car_physics_settings.hovercar_mass = ob->mass;
+										hover_car_physics_settings.script_settings = hover_car_script->settings;
+
+										this->vehicle_physics = NULL;
+										this->vehicle_physics = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
+									}
+									else if(ob->vehicle_script.isType<Scripting::BikeScript>())
+									{
+										const Scripting::BikeScript* bike_script = ob->vehicle_script.downcastToPtr<Scripting::BikeScript>();
+
+										BikePhysicsSettings bike_physics_settings;
+										bike_physics_settings.bike_mass = ob->mass;
+										bike_physics_settings.script_settings = bike_script->settings;
+
+										if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == ob) // If the vehicle script is already controlling this object:
+										{
+											assert(this->vehicle_physics->getCurrentSeatIndex() == -1);
+										}
+										else
+										{
+											this->vehicle_physics = NULL;
+											this->vehicle_physics = new BikePhysics(ob, bike_physics_settings, *physics_world);
+										}
 									}
 									else
 									{
-										this->vehicle_physics = NULL;
-										this->vehicle_physics = new BikePhysics(ob, bike_physics_settings, *physics_world);
+										assert(0);
 									}
 								}
-								else
+
+
+								if(upright)
 								{
-									assert(0);
+									if(free_seat_index == -1) // If we did not find an empty seat:
+										showInfoNotification("Vehicle is full, cannot enter");
+									else
+									{
+										runtimeCheck(this->vehicle_physics.nonNull()); // Should have been created above.
+										this->vehicle_physics->userEnteredVehicle(/*seat index=*/free_seat_index);
+								
+										if(free_seat_index == 0) // If taking driver's seat:
+											takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
+
+
+										// Send AvatarEnteredVehicle message to server
+										MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
+										writeToStream(this->client_avatar_uid, scratch_packet);
+										writeToStream(ob->uid, scratch_packet); // Write vehicle object UID
+										scratch_packet.writeUInt32((uint32)free_seat_index); // Seat index.
+										scratch_packet.writeUInt32(0); // Write flags.  Don't set renewal bit.
+										enqueueMessageToSend(*this->client_thread, scratch_packet);
+									}
 								}
-							}
-
-
-							if(upright)
-							{
-								if(free_seat_index == -1) // If we did not find an empty seat:
-									showInfoNotification("Vehicle is full, cannot enter");
-								else
+								else // Else if vehicle is not upright:
 								{
 									runtimeCheck(this->vehicle_physics.nonNull()); // Should have been created above.
-									this->vehicle_physics->userEnteredVehicle(/*seat index=*/free_seat_index);
-								
-									if(free_seat_index == 0) // If taking driver's seat:
-										takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
-
-
-									// Send AvatarEnteredVehicle message to server
-									MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
-									writeToStream(this->client_avatar_uid, scratch_packet);
-									writeToStream(ob->uid, scratch_packet); // Write vehicle object UID
-									scratch_packet.writeUInt32((uint32)free_seat_index); // Seat index.
-									scratch_packet.writeUInt32(0); // Write flags.  Don't set renewal bit.
-									enqueueMessageToSend(*this->client_thread, scratch_packet);
+									assert(this->vehicle_physics->getCurrentSeatIndex() == -1);
+									this->vehicle_physics->startRightingVehicle();
 								}
-							}
-							else // Else if vehicle is not upright:
-							{
-								runtimeCheck(this->vehicle_physics.nonNull()); // Should have been created above.
-								assert(this->vehicle_physics->getCurrentSeatIndex() == -1);
-								this->vehicle_physics->startRightingVehicle();
-							}
 
-							return;
+								return;
+							}
+						}
+						else // else if !ob->isDyanmic():
+						{
+							showErrorNotification("Object dynamic checkbox must be checked to drive");
 						}
 					}
 
