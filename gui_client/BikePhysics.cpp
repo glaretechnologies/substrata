@@ -324,7 +324,6 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	const Vec4f bike_right_vec_ws = to_world * bike_right_os;
 	const Vec4f bike_forward_vec_ws = to_world * bike_forwards_os;
-	const Vec4f bike_up_vec_ws = to_world * bike_up_os;
 
 	const Vec4f up_ws = Vec4f(0,0,1,0);
 	const Vec4f no_roll_vehicle_right_ws = normalise(crossProduct(bike_forward_vec_ws, up_ws));
