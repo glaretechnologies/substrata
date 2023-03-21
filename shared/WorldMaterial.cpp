@@ -263,6 +263,13 @@ Reference<WorldMaterial> WorldMaterial::loadFromXMLElem(const std::string& mat_f
 	if(convert_rel_paths_to_abs_disk_paths)
 		convertRelPathToAbsolute(mat_file_path, mat->colour_texture_url); // Assuming colour_texture_url is a local relative path, make local absolute path from it.
 
+	mat->emission_rgb = parseColour3fWithDefault(material_elem, "emission_rgb", Colour3f(0.f));
+	mat->emission_texture_url = XMLParseUtils::parseStringWithDefault(material_elem, "emission_texture_url", "");
+	if(convert_rel_paths_to_abs_disk_paths)
+		convertRelPathToAbsolute(mat_file_path, mat->emission_texture_url);
+
+	mat->emission_lum_flux_or_lum = (float)XMLParseUtils::parseDoubleWithDefault(material_elem, "emission_lum_flux_or_lum", 0.0);
+
 	mat->roughness = parseScalarVal(material_elem, "roughness", ScalarVal(0.5f));
 	if(convert_rel_paths_to_abs_disk_paths)
 		convertRelPathToAbsolute(mat_file_path, mat->roughness.texture_url);
