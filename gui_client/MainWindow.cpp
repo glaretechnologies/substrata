@@ -8772,6 +8772,12 @@ void MainWindow::on_actionSummon_Bike_triggered()
 {
 	try
 	{
+		if(!this->logged_in_user_id.valid())
+		{
+			showErrorNotification("You must be logged in to summon a bike.");
+			return;
+		}
+
 		//TEMP: Save out bike mats
 		if(false)
 		{
