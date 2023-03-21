@@ -378,6 +378,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShaderFileWatcherThread.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShaderFileWatcherThread.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShadowMapping.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/SSBO.cpp 
