@@ -56,6 +56,9 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 	const float	cCharacterHeightStanding = CYLINDER_HEIGHT;
 	const float	cCharacterRadiusStanding = SPHERE_RAD;
 
+	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
+	const Vec3d use_player_pos = initial_player_pos - Vec3d(0, 0, EYE_HEIGHT);
+
 	// Create virtual character
 	{
 		JPH::RefConst<JPH::Shape> standing_shape = JPH::RotatedTranslatedShapeSettings(
@@ -69,7 +72,7 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 		settings->mSupportingVolume = JPH::Plane(JPH::Vec3(0,0,1), -SPHERE_RAD); // Accept contacts that touch the lower sphere of the capsule
 		settings->mMaxStrength = 1000; // Default pushing force is 100 N, which doesn't seem enough.
 
-		jolt_character = new JPH::CharacterVirtual(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), physics_world.physics_system);
+		jolt_character = new JPH::CharacterVirtual(settings, toJoltVec3(use_player_pos), JPH::Quat::sIdentity(), physics_world.physics_system);
 
 		jolt_character->SetListener(this);
 	}
@@ -90,7 +93,7 @@ void PlayerPhysics::init(PhysicsWorld& physics_world, const Vec3d& initial_playe
 		settings->mShape = standing_shape;
 		settings->mUp = JPH::Vec3(0, 0, 1); // Set world-space up vector
 
-		interaction_character = new JPH::Character(settings, toJoltVec3(initial_player_pos), JPH::Quat::sIdentity(), /*inUserData=*/0, physics_world.physics_system);
+		interaction_character = new JPH::Character(settings, toJoltVec3(use_player_pos), JPH::Quat::sIdentity(), /*inUserData=*/0, physics_world.physics_system);
 		interaction_character->SetUp(JPH::Vec3(0, 0, 1)); // Set world-space up vector
 
 		interaction_character->AddToPhysicsSystem(JPH::EActivation::Activate);
@@ -112,15 +115,16 @@ void PlayerPhysics::shutdown()
 
 void PlayerPhysics::setPosition(const Vec3d& new_player_pos, const Vec4f& linear_vel) // Move discontinuously.  For teleporting etc.
 {
+	// Jolt position is at the bottom of the character controller, substrata position is at eye level.
 	if(jolt_character)
 	{
-		jolt_character->SetPosition(toJoltVec3(new_player_pos));
+		jolt_character->SetPosition(toJoltVec3(new_player_pos - Vec3d(0, 0, EYE_HEIGHT)));
 		jolt_character->SetLinearVelocity(toJoltVec3(linear_vel));
 	}
 
 	if(interaction_character)
 	{
-		interaction_character->SetPosition(toJoltVec3(new_player_pos));
+		interaction_character->SetPosition(toJoltVec3(new_player_pos - Vec3d(0, 0, EYE_HEIGHT)));
 		interaction_character->SetLinearVelocity(toJoltVec3(linear_vel));
 	}
 }
