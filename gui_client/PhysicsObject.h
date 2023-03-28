@@ -64,6 +64,8 @@ public:
 
 	const js::AABBox getAABBoxWS() const;
 
+	const Matrix4f getSmoothedObToWorldMatrix() const;
+	const Matrix4f getSmoothedObToWorldNoScaleMatrix() const;
 	const Matrix4f getObToWorldMatrix() const;
 	const Matrix4f getWorldToObMatrix() const;
 
@@ -81,6 +83,20 @@ public:
 	Vec4f pos;
 	Quatf rot; // Set in PhysicsWorld::think() from Jolt data
 	Vec3f scale;
+
+	/*
+	When we receive a physics snapshot, we set pos and rot instantly to the snapshot values, pos_snap and rot_snap
+	The values used for rendering however are 
+	pos' = smooth_translation + pos_snap
+	and 
+	rot' = smooth_rotation * rot_snap
+	Where smooth_translation = pos_old - pos_snap
+	and smooth_rotation = rot_old * rot_snap^-1
+
+	We then slowly reduce smooth_translation and smooth_rotation over time to zero / identity rotation, until pos' and pos_snap converge.
+	*/
+	Vec4f smooth_translation;
+	Quatf smooth_rotation;
 
 #if USE_JOLT
 	JPH::BodyID jolt_body_id;

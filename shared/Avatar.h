@@ -87,6 +87,7 @@ public:
 	Vec3d pos;
 	Vec3f rotation; // (roll, pitch, heading)
 	uint32 anim_state; // See AvatarGraphics::ANIM_STATE_IN_AIR flag etc..
+	uint32 last_physics_input_bitflags;
 
 	UID selected_object_uid; // Will be set to invalidUID if no object selected.
 
@@ -119,6 +120,8 @@ public:
 
 	Reference<VehiclePhysics> vehicle_physics;
 
+	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.
+	float materialise_effect_start_time;
 #endif
 
 	/*

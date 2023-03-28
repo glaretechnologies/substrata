@@ -48,6 +48,7 @@ WorldObject::WorldObject() noexcept
 	object_type = ObjectType_Generic;
 	from_remote_transform_dirty = false;
 	from_remote_physics_transform_dirty = false;
+	from_remote_summoned_dirty = false;
 	from_remote_other_dirty = false;
 	from_remote_lightmap_url_dirty = false;
 	from_remote_model_url_dirty = false;
@@ -67,6 +68,8 @@ WorldObject::WorldObject() noexcept
 	loaded_model_lod_level = -10;
 	loaded_lod_level = -10;
 	is_path_controlled = false;
+	use_materialise_effect_on_load = false;
+	materialise_effect_start_time = -1000.f;
 
 	waypoint_index = 0;
 	dist_along_segment = 0;
@@ -75,6 +78,7 @@ WorldObject::WorldObject() noexcept
 	next_insertable_snapshot_i = 0;
 	snapshots_are_physics_snapshots = false;
 	//last_snapshot_time = 0;
+	biased_aabb_len = -1;
 
 	translation = Vec4f(0.f);
 
@@ -533,10 +537,13 @@ void readFromStream(InStream& stream, WorldObject& ob)
 
 	if(v >= 14)
 	{
-		stream.readData(ob.aabb_ws.min_.x, sizeof(float) * 3);
-		ob.aabb_ws.min_.x[3] = 1.f;
-		stream.readData(ob.aabb_ws.max_.x, sizeof(float) * 3);
-		ob.aabb_ws.max_.x[3] = 1.f;
+		js::AABBox aabb;
+		stream.readData(aabb.min_.x, sizeof(float) * 3);
+		aabb.min_.x[3] = 1.f;
+		stream.readData(aabb.max_.x, sizeof(float) * 3);
+		aabb.max_.x[3] = 1.f;
+
+		ob.setAABBWS(aabb);
 	}
 
 	if(v >= 15)
@@ -732,10 +739,12 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 
 	ob.creator_name = stream.readStringLengthFirst(10000);
 
-	stream.readData(ob.aabb_ws.min_.x, sizeof(float) * 3);
-	ob.aabb_ws.min_.x[3] = 1.f;
-	stream.readData(ob.aabb_ws.max_.x, sizeof(float) * 3);
-	ob.aabb_ws.max_.x[3] = 1.f;
+	js::AABBox aabb;
+	stream.readData(aabb.min_.x, sizeof(float) * 3);
+	aabb.min_.x[3] = 1.f;
+	stream.readData(aabb.max_.x, sizeof(float) * 3);
+	aabb.max_.x[3] = 1.f;
+	ob.setAABBWS(aabb);
 
 	ob.max_model_lod_level = stream.readInt32();
 

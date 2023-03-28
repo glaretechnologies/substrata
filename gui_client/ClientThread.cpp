@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <opengl/OpenGLMeshRenderData.h>
 #include <graphics/BatchedMesh.h>
 #include "../shared/Protocol.h"
+#include "../shared/ProtocolStructs.h"
 #include "../shared/Parcel.h"
 #include <vec3.h>
 #include <SocketBufferOutStream.h>
@@ -202,7 +203,7 @@ void ClientThread::doRun()
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
 						const Vec3f rotation = readVec3FromStream<float>(msg_buffer);
-						const uint32 anim_state = msg_buffer.readUInt32();
+						const uint32 anim_state_and_input_bitflags = msg_buffer.readUInt32();
 
 						// Look up existing avatar in world state
 						{
@@ -213,7 +214,8 @@ void ClientThread::doRun()
 								Avatar* avatar = res->second.getPointer();
 								avatar->pos = pos;
 								avatar->rotation = rotation;
-								avatar->anim_state = anim_state;
+								avatar->anim_state = anim_state_and_input_bitflags & 0xFF;
+								avatar->last_physics_input_bitflags = anim_state_and_input_bitflags >> 16;
 								avatar->transform_dirty = true;
 
 								//conPrint("updated avatar transform");
@@ -438,8 +440,10 @@ void ClientThread::doRun()
 
 									if(peer_protocol_version >= 34)
 									{
-										ob->aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
-										ob->aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
+										js::AABBox aabb_ws;
+										aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
+										aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
+										ob->setAABBWS(aabb_ws);
 									}
 
 									// If we had physics snapshots, reset snapshots.
@@ -467,6 +471,42 @@ void ClientThread::doRun()
 						else
 						{
 							// conPrint("\tDiscarding ObjectTransformUpdate message, as we sent it.");
+						}
+						break;
+					}
+					case Protocol::SummonObject:
+					{
+						// conPrint("ClientThread: received SummonObject message.");
+
+						SummonObjectMessageServerToClient summon_msg;
+						msg_buffer.readData(&summon_msg, sizeof(SummonObjectMessageServerToClient));
+
+						if(summon_msg.transform_update_avatar_uid != (uint32)this->client_avatar_uid.value()) // Discard SummonObject messages we sent. 
+						{
+							// Look up existing object in world state
+							Lock lock(world_state->mutex);
+							auto res = world_state->objects.find(summon_msg.object_uid);
+							if(res != world_state->objects.end())
+							{
+								WorldObject* ob = res.getValue().ptr();
+#if GUI_CLIENT
+								if(!ob->is_selected) // Don't update the selected object - we will consider the local client control authoritative while the object is selected.
+#endif
+								{
+									ob->setTransformAndHistory(summon_msg.pos, summon_msg.axis, summon_msg.angle);
+									js::AABBox aabb_ws;
+									aabb_ws.min_ = Vec4f(summon_msg.aabb_data[0], summon_msg.aabb_data[1], summon_msg.aabb_data[2], 1.f);
+									aabb_ws.max_ = Vec4f(summon_msg.aabb_data[3], summon_msg.aabb_data[4], summon_msg.aabb_data[5], 1.f);
+									ob->setAABBWS(aabb_ws);
+
+									ob->next_insertable_snapshot_i = 0;
+									ob->next_snapshot_i = 0;
+									ob->snapshots_are_physics_snapshots = false;
+
+									ob->from_remote_summoned_dirty = true;
+									world_state->dirty_from_remote_objects.insert(ob);
+								}
+							}
 						}
 						break;
 					}
@@ -732,10 +772,10 @@ void ClientThread::doRun()
 						if(!ob->axis.isFinite())
 							ob->axis = Vec3f(1,0,0);
 
-						if(ob->aabb_ws.isEmpty() || !ob->aabb_ws.min_.isFinite() || !ob->aabb_ws.max_.isFinite())
-							ob->aabb_ws = js::AABBox(ob->pos.toVec4fPoint() - Vec4f(1,1,1,0), ob->pos.toVec4fPoint() + Vec4f(1,1,1,0)); // HACK FIX
+						if(ob->getAABBWS().isEmpty() || !ob->getAABBWS().min_.isFinite() || !ob->getAABBWS().max_.isFinite())
+							ob->setAABBWS(js::AABBox(ob->pos.toVec4fPoint() - Vec4f(1,1,1,0), ob->pos.toVec4fPoint() + Vec4f(1,1,1,0))); // HACK FIX
 
-						ob->state = WorldObject::State_JustCreated;
+						ob->state = WorldObject::State_InitialSend;
 						ob->from_remote_other_dirty = true;
 						ob->setTransformAndHistory(ob->pos, ob->axis, ob->angle);
 

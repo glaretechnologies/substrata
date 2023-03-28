@@ -286,11 +286,11 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 			TS.setColumn(2, Vec4f(0, 0, use_scale[2], 0));
 			TS.setColumn(3, translation);
 
-			ob->aabb_ws = ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(TS);
+			ob->setAABBWS(ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(TS));
 		}
 		else
 		{
-			ob->aabb_ws = ob->opengl_engine_ob->aabb_ws;
+			ob->setAABBWS(ob->opengl_engine_ob->aabb_ws);
 		}
 
 
@@ -313,7 +313,7 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	// Update audio source for the object, if it has one.
 	if(ob->audio_source.nonNull())
 	{
-		ob->audio_source->pos = ob->aabb_ws.centroid();
+		ob->audio_source->pos = ob->getAABBWS().centroid();
 		audio_engine->sourcePositionUpdated(*ob->audio_source);
 	}
 

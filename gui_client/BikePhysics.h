@@ -54,8 +54,6 @@ public:
 
 	void userExitedVehicle() override; // Should set cur_seat_index
 
-	virtual void playVehicleSummonedEffects() override; // To allow playing of special effects for summoning
-
 	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) override;
 
 	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const override;
@@ -66,6 +64,8 @@ public:
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
 	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const override;
+
+	Matrix4f getSeatToObjectTransform(PhysicsWorld& physics_world) const override;
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
@@ -83,7 +83,6 @@ private:
 	OpenGLEngine* m_opengl_engine;
 	JPH::BodyID bike_body_id;
 
-	float time_since_spawn; // For spawning special effect
 	float righting_time_remaining;
 	
 	JPH::Ref<JPH::VehicleConstraint>		vehicle_constraint; // The vehicle constraint

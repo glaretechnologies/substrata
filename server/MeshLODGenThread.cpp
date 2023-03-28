@@ -153,15 +153,15 @@ static void checkWorldSpaceAABB(ServerAllWorldsState* world_state, ServerWorldSt
 
 			const js::AABBox new_aabb_ws = aabb_os.transformedAABB(to_world);
 
-			const bool updating_aabb_ws = new_aabb_ws != ob->aabb_ws;
+			const bool updating_aabb_ws = new_aabb_ws != ob->getAABBWS();
 
 			if(updating_aabb_ws)
 			{
 				conPrint("Updating voxel ob AABB:");
-				conPrint("Old AABB: "+ ob->aabb_ws.toString());
+				conPrint("Old AABB: "+ ob->getAABBWS().toString());
 				conPrint("New AABB: "+ new_aabb_ws.toString());
 
-				ob->aabb_ws = new_aabb_ws;
+				ob->setAABBWS(new_aabb_ws);
 				world->addWorldObjectAsDBDirty(ob);
 			}
 		}

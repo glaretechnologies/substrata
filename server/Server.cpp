@@ -907,8 +907,8 @@ int main(int argc, char *argv[])
 								// Write aabb_data.  Although this was introduced in protocol version 34, clients using an older protocol version should be able to just ignore this data
 								// since it is at the end of the message and we use sized messages.
 								const float aabb_data[6] = {
-									ob->aabb_ws.min_[0], ob->aabb_ws.min_[1], ob->aabb_ws.min_[2],
-									ob->aabb_ws.max_[0], ob->aabb_ws.max_[1], ob->aabb_ws.max_[2]
+									ob->getAABBWS().min_[0], ob->getAABBWS().min_[1], ob->getAABBWS().min_[2],
+									ob->getAABBWS().max_[0], ob->getAABBWS().max_[1], ob->getAABBWS().max_[2]
 								};
 								scratch_packet.writeData(aabb_data, sizeof(float) * 6);
 

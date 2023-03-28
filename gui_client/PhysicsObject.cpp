@@ -24,7 +24,7 @@ js::AABBox PhysicsShape::getAABBOS() const
 
 
 PhysicsObject::PhysicsObject(bool collidable_)
-:	userdata(NULL), userdata_type(0), collidable(collidable_), /*uniform_dist(NULL), total_surface_area(0), */pos(0.f)//, rot(Quatf::identity()), scale(1.f)
+:	userdata(NULL), userdata_type(0), collidable(collidable_), /*uniform_dist(NULL), total_surface_area(0), */pos(0.f), smooth_translation(0.f), smooth_rotation(Quatf::identity())
 {
 	dynamic = false;
 	kinematic = false;
@@ -40,7 +40,7 @@ PhysicsObject::PhysicsObject(bool collidable_)
 
 
 PhysicsObject::PhysicsObject(bool collidable_, const PhysicsShape& shape_, void* userdata_, int userdata_type_)
-:	shape(shape_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_)/*, uniform_dist(NULL), total_surface_area(0)*/
+:	shape(shape_), collidable(collidable_), userdata(userdata_), userdata_type(userdata_type_), smooth_translation(0.f), smooth_rotation(Quatf::identity())/*, uniform_dist(NULL), total_surface_area(0)*/
 {
 	dynamic = false;
 	kinematic = false;
@@ -66,6 +66,22 @@ const js::AABBox PhysicsObject::getAABBoxWS() const
 	computeToWorldAndToObMatrices(this->pos, this->rot, this->scale.toVec4fVector(), ob_to_world_, world_to_ob);
 
 	return this->shape.getAABBOS().transformedAABBFast(ob_to_world_);
+}
+
+
+const Matrix4f PhysicsObject::getSmoothedObToWorldMatrix() const
+{
+	Matrix4f ob_to_world_, world_to_ob;
+	computeToWorldAndToObMatrices(this->pos + this->smooth_translation, this->smooth_rotation * this->rot, this->scale.toVec4fVector(), ob_to_world_, world_to_ob);
+	return ob_to_world_;
+}
+
+
+const Matrix4f PhysicsObject::getSmoothedObToWorldNoScaleMatrix() const
+{
+	Matrix4f ob_to_world_, world_to_ob;
+	computeToWorldAndToObMatrices(this->pos + this->smooth_translation, this->smooth_rotation * this->rot, /*scale=*/Vec4f(1.f), ob_to_world_, world_to_ob);
+	return ob_to_world_;
 }
 
 

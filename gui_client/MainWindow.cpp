@@ -583,13 +583,23 @@ void MainWindow::afterGLInitInitialise()
 
 MainWindow::~MainWindow()
 {
+	// Kill various threads before we start destroying members of MainWindow they may depend on.
+	// Need to kill DownloadResourcesThread before we destroy the download_queue, which it references, for example.
 	if(task_manager)
 	{
 		delete task_manager;
 		task_manager = NULL;
 	}
 
+	client_thread_manager.killThreadsBlocking();
+	resource_upload_thread_manager.killThreadsBlocking();
+	resource_download_thread_manager.killThreadsBlocking();
+	net_resource_download_thread_manager.killThreadsBlocking();
+	save_resources_db_thread_manager.killThreadsBlocking();
+
+	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 	
+
 
 
 	player_physics.shutdown();
@@ -939,9 +949,9 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.aabb_ws, max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(ob.pos, ob.getAABBWS(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.getAABBWS(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.pos, ob.getAABBWS(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 
 	// Start loading lightmap
@@ -1046,7 +1056,7 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 		ob->physics_object = NULL;
 	}
 
-	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(/*min=*/ob->aabb_ws.min_, /*max=*/ob->aabb_ws.max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(/*min=*/ob->getAABBWS().min_, /*max=*/ob->getAABBWS().max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
 
 	ob->opengl_engine_ob = cube_gl_ob;
 	ui->glWidget->opengl_engine->addObject(cube_gl_ob);
@@ -1111,9 +1121,9 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 				info.use_sRGB = url_info.use_sRGB;
 				info.build_dynamic_physics_ob = ob->isDynamic();
 				info.pos = ob->pos;
-				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws, /*importance_factor=*/1.f);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWS(), /*importance_factor=*/1.f);
 
-				js::AABBox aabb_ws = ob->aabb_ws;
+				js::AABBox aabb_ws = ob->getAABBWS();
 				if(aabb_ws.isEmpty())
 					aabb_ws = js::AABBox(ob->pos.toVec4fPoint(), ob->pos.toVec4fPoint());
 
@@ -1392,7 +1402,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 	
 	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
-	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->aabb_ws.centroid()));
+	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->getAABBWS().centroid()));
 	const float max_dist_for_ob_model_lod_level = max_dist_for_ob_lod_level; // We don't want to clamp with max_model_lod_level.
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
@@ -1430,6 +1440,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				}
 			}
 		}
+
+		const float current_time = (float)Clock::getTimeSinceInit();
+		const bool use_materialise_effect = ob->use_materialise_effect_on_load && (current_time - ob->materialise_effect_start_time < 2.0f);
 
 		
 		bool load_placeholder = false;
@@ -1477,6 +1490,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					}
 				}
 
+				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
+
 
 				ob->opengl_engine_ob = opengl_ob;
 				ob->physics_object = physics_ob;
@@ -1511,6 +1527,9 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 					ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[1], /*lod level=*/ob_lod_level, /*lightmap URL=*/"", *resource_manager, /*open gl mat=*/opengl_ob->materials[0]);
 				else
 					opengl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.85f));
+
+				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
 
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
@@ -1564,6 +1583,8 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				opengl_ob->materials.resize(2);
 				opengl_ob->materials[0].albedo_linear_rgb = Colour3f(1.f);
 				opengl_ob->materials[0].tex_matrix = Matrix2f(1, 0, 0, -1); // OpenGL expects texture data to have bottom left pixel at offset 0, we have top left pixel, so flip
+				opengl_ob->materials[0].materialise_effect = use_materialise_effect;
+				opengl_ob->materials[0].materialise_start_time = ob->materialise_effect_start_time;
 				opengl_ob->ob_to_world_matrix = ob_to_world_matrix;
 
 				ob->opengl_engine_ob = opengl_ob;
@@ -1606,6 +1627,11 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 				{
 					ModelLoading::setMaterialTexPathsForLODLevel(*ob->opengl_engine_ob, ob_lod_level, ob->materials, ob->lightmap_url, *resource_manager);
 					assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+					for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+					{
+						ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
+						ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
+					}
 				}
 			}
 		}
@@ -1670,6 +1696,12 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						ob->mesh_manager_shape_data = physics_shape_data; // Likewise for the physics mesh data.
 
 						assignedLoadedOpenGLTexturesToMats(ob, *ui->glWidget->opengl_engine, *resource_manager);
+						for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+						{
+							ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
+							ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
+						}
+
 
 						ob->loaded_model_lod_level = ob_model_lod_level;
 
@@ -1761,7 +1793,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		{
 			// Load a placeholder object (cube) if we don't have an existing model (e.g. another LOD level) being displayed.
 			// We also need a valid AABB.
-			if(!ob->aabb_ws.isEmpty() && ob->opengl_engine_ob.isNull())
+			if(!ob->getAABBWS().isEmpty() && ob->opengl_engine_ob.isNull())
 				addPlaceholderObjectsForOb(*ob);
 		}
 
@@ -1876,6 +1908,16 @@ void MainWindow::loadModelForAvatar(Avatar* avatar)
 				avatar->graphics.build();
 
 				assignedLoadedOpenGLTexturesToMats(avatar, *ui->glWidget->opengl_engine, *resource_manager);
+
+				// Enable materalise effect if needed
+				const float current_time = (float)Clock::getTimeSinceInit();
+				const bool use_materialise_effect = avatar->use_materialise_effect_on_load && (current_time - avatar->materialise_effect_start_time < 2.0f);
+
+				for(size_t z=0; z<avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+				{
+					avatar->graphics.skinned_gl_ob->materials[z].materialise_effect = use_materialise_effect;
+					avatar->graphics.skinned_gl_ob->materials[z].materialise_start_time = avatar->materialise_effect_start_time;
+				}
 
 				avatar->graphics.loaded_lod_level = ob_lod_level;
 
@@ -2039,7 +2081,7 @@ void MainWindow::loadScriptForObject(WorldObject* ob)
 	{
 		ob->opengl_engine_ob->enableInstancing(*ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * ob->instance_matrices.size());
 
-		ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
+		ui->glWidget->opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob); // Reload mat to enable instancing
 	}
 }
 
@@ -2131,7 +2173,7 @@ void MainWindow::handleScriptLoadedForObUsingScript(ScriptLoadedThreadMessage* l
 			{
 				ob->opengl_engine_ob->enableInstancing(*ui->glWidget->opengl_engine->vert_buf_allocator, ob->instance_matrices.data(), sizeof(Matrix4f) * count);
 						
-				ui->glWidget->opengl_engine->objectMaterialsUpdated(ob->opengl_engine_ob); // Reload mat to enable instancing
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob); // Reload mat to enable instancing
 			}
 		}
 	}
@@ -2184,9 +2226,9 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 					info.use_sRGB = true;
 					info.build_dynamic_physics_ob = false;
 					info.pos = ob->pos;
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->aabb_ws, /*importance factor=*/1.f);
+					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWS(), /*importance factor=*/1.f);
 
-					startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->aabb_ws, info);
+					startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->getAABBWS(), info);
 				}
 
 
@@ -2930,11 +2972,11 @@ void MainWindow::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_
 
 void MainWindow::doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos)
 {
-	doMoveAndRotateObject(ob, new_ob_pos, ob->axis, ob->angle);
+	doMoveAndRotateObject(ob, new_ob_pos, ob->axis, ob->angle, /*summoning_object=*/false);
 }
 
 
-void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle)
+void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, bool summoning_object)
 {
 	GLObjectRef opengl_ob = ob->opengl_engine_ob;
 
@@ -2962,12 +3004,32 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 
 	if(opengl_ob.nonNull())
 	{
-		ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
+		ob->setAABBWS(opengl_ob->aabb_ws); // Was computed above in updateObjectTransformData().
 	}
 
-	// Mark as from-local-dirty to send an object transform updated message to the server
-	ob->from_local_transform_dirty = true;
-	this->world_state->dirty_from_local_objects.insert(ob);
+	
+	if(summoning_object)
+	{
+		// Send a single SummonObject message to server.
+		MessageUtils::initPacket(scratch_packet, Protocol::SummonObject);
+		writeToStream(ob->uid, scratch_packet);
+		writeToStream(Vec3d(ob->pos), scratch_packet);
+		writeToStream(Vec3f(ob->axis), scratch_packet);
+		scratch_packet.writeFloat(ob->angle);
+		const float aabb_data[6] = {
+			ob->getAABBWS().min_[0], ob->getAABBWS().min_[1], ob->getAABBWS().min_[2],
+			ob->getAABBWS().max_[0], ob->getAABBWS().max_[1], ob->getAABBWS().max_[2]
+		};
+		scratch_packet.writeData(aabb_data, sizeof(float) * 6);
+
+		enqueueMessageToSend(*this->client_thread, scratch_packet);
+	}
+	else
+	{
+		// Mark as from-local-dirty to send an object transform updated message to the server
+		ob->from_local_transform_dirty = true;
+		this->world_state->dirty_from_local_objects.insert(ob);
+	}
 
 
 	if(ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*ob, world_state->getCurrentGlobalTime()) && !isObjectVehicleBeingDrivenByOther(*ob))
@@ -2984,7 +3046,7 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 	// Update audio source position in audio engine.
 	if(ob->audio_source.nonNull())
 	{
-		ob->audio_source->pos = ob->aabb_ws.centroid();
+		ob->audio_source->pos = ob->getAABBWS().centroid();
 		audio_engine.sourcePositionUpdated(*ob->audio_source);
 	}
 
@@ -3024,7 +3086,7 @@ void MainWindow::checkForLODChanges()
 		{
 			WorldObject* ob = it.getValue().ptr();
 
-			const float cam_to_ob_d2 = ob->aabb_ws.centroid().getDist2(cam_pos);
+			const float cam_to_ob_d2 = ob->getAABBWS().centroid().getDist2(cam_pos);
 			if(cam_to_ob_d2 > this->load_distance2) 
 			{
 				if(ob->in_proximity) // If an object was in proximity to the camera, and moved out of load distance:
@@ -3237,6 +3299,15 @@ void MainWindow::processLoading()
 											ob->opengl_engine_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, cur_loading_mesh_data, ob_lod_level, ob->materials, ob->lightmap_url,
 												*resource_manager, ob_to_world_matrix);
 
+											const float current_time = (float)Clock::getTimeSinceInit();
+											const bool use_materialise_effect = ob->use_materialise_effect_on_load && (current_time - ob->materialise_effect_start_time < 2.0f);
+
+											for(size_t z=0; z<ob->opengl_engine_ob->materials.size(); ++z)
+											{
+												ob->opengl_engine_ob->materials[z].materialise_effect = use_materialise_effect;
+												ob->opengl_engine_ob->materials[z].materialise_start_time = ob->materialise_effect_start_time;
+											}
+
 											mesh_data->meshDataBecameUsed();
 											ob->mesh_manager_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
@@ -3335,6 +3406,16 @@ void MainWindow::processLoading()
 
 											av->graphics.skinned_gl_ob = ModelLoading::makeGLObjectForMeshDataAndMaterials(*ui->glWidget->opengl_engine, cur_loading_mesh_data, av_lod_level, av->avatar_settings.materials, /*lightmap_url=*/std::string(),
 												*resource_manager, ob_to_world_matrix);
+
+											// Enable materalise effect if needed
+											const float current_time = (float)Clock::getTimeSinceInit();
+											const bool use_materialise_effect = av->use_materialise_effect_on_load && (current_time - av->materialise_effect_start_time < 2.0f);
+
+											for(size_t z=0; z<av->graphics.skinned_gl_ob->materials.size(); ++z)
+											{
+												av->graphics.skinned_gl_ob->materials[z].materialise_effect = use_materialise_effect;
+												av->graphics.skinned_gl_ob->materials[z].materialise_start_time = av->materialise_effect_start_time;
+											}
 
 											mesh_data->meshDataBecameUsed();
 											av->mesh_data = mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
@@ -3445,6 +3526,9 @@ void MainWindow::processLoading()
 								physics_world->addObject(physics_ob);
 							}
 
+							const float current_time = (float)Clock::getTimeSinceInit();
+							const bool use_materialise_effect = voxel_ob->use_materialise_effect_on_load && (current_time - voxel_ob->materialise_effect_start_time < 2.0f);
+
 							GLObjectRef opengl_ob = ui->glWidget->opengl_engine->allocateObject();
 							opengl_ob->mesh_data = cur_loading_mesh_data;
 							opengl_ob->materials.resize(voxel_ob->materials.size());
@@ -3452,6 +3536,9 @@ void MainWindow::processLoading()
 							{
 								ModelLoading::setGLMaterialFromWorldMaterial(*voxel_ob->materials[i], ob_lod_level, voxel_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 								opengl_ob->materials[i].gen_planar_uvs = true;
+
+								opengl_ob->materials[i].materialise_effect = use_materialise_effect;
+								opengl_ob->materials[i].materialise_start_time = voxel_ob->materialise_effect_start_time;
 							}
 							opengl_ob->ob_to_world_matrix = use_ob_to_world_matrix;
 
@@ -3907,12 +3994,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// Update AABB visualisation, if we are showing one.
 	if(aabb_vis_gl_ob.nonNull() && selected_ob.nonNull())
 	{
-		const Vec4f span = selected_ob->aabb_ws.max_ - selected_ob->aabb_ws.min_;
+		const Vec4f span = selected_ob->getAABBWS().max_ - selected_ob->getAABBWS().min_;
 
 		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
 		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
 		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(3, selected_ob->aabb_ws.min_); // set origin
+		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(3, selected_ob->getAABBWS().min_); // set origin
 
 		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_vis_gl_ob);
 	}
@@ -3984,7 +4071,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			msg += std::string("\nSelected object: \n");
 
-			msg += "aabb ws: " + selected_ob->aabb_ws.toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
 
 			msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
 			msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
@@ -4433,7 +4520,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									// Add a looping audio source
 									ob->audio_source = new glare::AudioSource();
 									ob->audio_source->shared_buffer = loaded_msg->audio_buffer;
-									ob->audio_source->pos = ob->aabb_ws.centroid();
+									ob->audio_source->pos = ob->getAABBWS().centroid();
 									ob->audio_source->volume = ob->audio_volume;
 									const double audio_len_s = loaded_msg->audio_buffer->buffer.size() / 44100.0; // TEMP HACK
 									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
@@ -5114,7 +5201,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						if(!ob_picked_up || getPathControllerForOb(*ob)) // Don't update selected object with physics engine state, unless it is path controlled.
 						{
-							const Matrix4f ob_to_world = ob->physics_object->getObToWorldMatrix();
+							const Matrix4f ob_to_world = ob->physics_object->getSmoothedObToWorldMatrix();
 
 							// Update OpenGL object
 							if(ob->opengl_engine_ob.nonNull())
@@ -5129,13 +5216,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								if(ob->opengl_engine_ob->instance_matrix_vbo.nonNull())
 									ob->opengl_engine_ob->aabb_ws = prev_gl_aabb_ws;
 								else
-									ob->aabb_ws = ob->opengl_engine_ob->aabb_ws; // Update object AABB - used for computing LOD level.
+									ob->setAABBWS(ob->opengl_engine_ob->aabb_ws); // Update object AABB - used for computing LOD level.
 							}
 
 							// Update audio source for the object, if it has one.
 							if(ob->audio_source.nonNull())
 							{
-								ob->audio_source->pos = ob->aabb_ws.centroid();
+								ob->audio_source->pos = ob->getAABBWS().centroid();
 								audio_engine.sourcePositionUpdated(*ob->audio_source);
 							}
 
@@ -5149,6 +5236,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								ob->pos = Vec3d(pos.GetX(), pos.GetY(), pos.GetZ());
 								ob->axis = Vec3f(unit_axis);
 								ob->angle = angle;
+
+								// Reduce smooth_translation and smooth_rotation over time to zero / identity rotation.
+								const float smooth_change_factor = (1 - 3.f * myMin(0.1f, (float)dt));
+								physics_ob->smooth_translation *= smooth_change_factor;
+								physics_ob->smooth_rotation = Quatf::nlerp(Quatf::identity(), physics_ob->smooth_rotation, smooth_change_factor);
 							}
 
 							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
@@ -5553,6 +5645,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				{
 					bool reload_opengl_model = false; // load or reload model?
 
+					if(avatar->state == Avatar::State_JustCreated)
+						enableMaterialisationEffectOnAvatar(*avatar); // Enable materialisation effect before we call loadModelForAvatar() below.
+
 					if(avatar->other_dirty)
 					{
 						reload_opengl_model = true;
@@ -5614,7 +5709,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							use_target_pos = avatar->graphics.getLastHeadPosition();
 						else
 						{
-							const Vec4f vertical_offset = vehicle_physics.nonNull() ? vehicle_physics->getThirdPersonCamTargetTranslation() : Vec4f(0);
+							const Vec4f vertical_offset = (vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle()) ? vehicle_physics->getThirdPersonCamTargetTranslation() : Vec4f(0);
 							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + vertical_offset;
 						}
 
@@ -5648,7 +5743,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							//printVar(cam_back_dir);
 
 							// Don't start tracing the ray back immediately or we may hit the car.
-							const float initial_ignore_dist = vehicle_physics.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), 3.f) : 0.f;
+							const float initial_ignore_dist = (vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle()) ? myMin(cam_controller.getThirdPersonCamDist(), 3.f) : 0.f;
 							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 							RayTraceResult trace_results;
@@ -5726,14 +5821,20 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								if(avatar->vehicle_physics.nonNull() && avatar->vehicle_physics->userIsInVehicle()) // If we have an active vehicle physics controller for this other avatar:
 								{
-									// Use empty input to the controller for now:
 									PlayerPhysicsInput other_avatar_physics_input;
 									other_avatar_physics_input.clear();
+									other_avatar_physics_input.setFromBitFlags(avatar->last_physics_input_bitflags);
 
 									avatar->vehicle_physics->update(*physics_world, other_avatar_physics_input, (float)dt); // TEMP Just compute forces for hovercar now
 
+									Matrix4f smoothed_ob_to_world; // With no scaling
+									if(avatar->vehicle_physics->getControlledObject()->physics_object.nonNull())
+										smoothed_ob_to_world = avatar->vehicle_physics->getControlledObject()->physics_object->getSmoothedObToWorldNoScaleMatrix();
+									else
+										smoothed_ob_to_world = avatar->vehicle_physics->getBodyTransform(*this->physics_world);
+
 									pose_constraint.sitting = true;
-									pose_constraint.seat_to_world				= avatar->vehicle_physics->getSeatToWorldTransform(*this->physics_world);
+									pose_constraint.seat_to_world				= smoothed_ob_to_world * avatar->vehicle_physics->getSeatToObjectTransform(*this->physics_world);
 									pose_constraint.model_to_y_forwards_rot_1	= avatar->vehicle_physics->getSettings().model_to_y_forwards_rot_1;
 									pose_constraint.model_to_y_forwards_rot_2	= avatar->vehicle_physics->getSettings().model_to_y_forwards_rot_2;
 									pose_constraint.upper_body_rot_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].upper_body_rot_angle;
@@ -5776,7 +5877,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
 						Vec4f use_nametag_pos;
-						if(avatar->vehicle_physics.nonNull())
+						if(avatar->vehicle_physics.nonNull() && avatar->vehicle_physics->userIsInVehicle())
 							use_nametag_pos = avatar->vehicle_physics->getSeatToWorldTransform(*this->physics_world) * Vec4f(0,0,1.0f,1);
 						else
 							use_nametag_pos = pos.toVec4fPoint();
@@ -5851,8 +5952,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					avatar->other_dirty = false;
 					avatar->transform_dirty = false;
 
+					assert(avatar->state == Avatar::State_JustCreated || avatar->state == Avatar::State_Alive);
+					if(avatar->state == Avatar::State_JustCreated)
+						avatar->state = Avatar::State_Alive;
+
 					++it;
-				}
+				} // End if avatar state != dead.
 			} // end for each avatar
 
 			// Sort avatar positions based on distance from camera
@@ -5874,7 +5979,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
 	// This is so any new player joining the world after we entered the vehicle can receive the information that we are inside it.
-	if(vehicle_physics.nonNull() && ((cur_time - last_vehicle_renewal_msg_time) > 4.0))
+	if(vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle() && ((cur_time - last_vehicle_renewal_msg_time) > 4.0))
 	{
 		// conPrint("sending AvatarEnteredVehicle renewal msg");
 
@@ -5955,8 +6060,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						print("Removing WorldObject.");
 
 						// Remove vehicle controller if its controlling the object we are removing
-						if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == ob)
-							this->vehicle_physics = NULL;
+						destroyVehiclePhysicsControllingObject(ob);
 					
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
@@ -5991,9 +6095,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						//proximity_loader.checkAddObject(ob); // Calls loadModelForObject() and loadAudioForObject() if it is within load distance.
 
-						ob->in_proximity = ob->aabb_ws.centroid().getDist2(campos) < this->load_distance2;
+						if(ob->state == WorldObject::State_JustCreated)
+							enableMaterialisationEffectOnOb(*ob); // Enable materialisation effect before we call loadModelForObject() below.
 
-						if(ob->aabb_ws.centroid().getDist2(campos) < this->load_distance2)
+						ob->in_proximity = ob->getAABBWS().centroid().getDist2(campos) < this->load_distance2;
+
+						if(ob->getAABBWS().centroid().getDist2(campos) < this->load_distance2)
 						{
 							loadModelForObject(ob);
 							loadAudioForObject(ob);
@@ -6029,7 +6136,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						//else
 						//{
 						
-						if(ob->state != WorldObject::State_JustCreated) // Don't reload materials when we just created the object.
+						if((ob->state != WorldObject::State_JustCreated) && (ob->state != WorldObject::State_InitialSend)) // Don't reload materials when we just created the object locally.
 						{
 							// Update transform for object in OpenGL engine
 							if(ob->opengl_engine_ob.nonNull() && (ob != selected_ob.getPointer())) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
@@ -6042,7 +6149,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									if(i < opengl_ob->materials.size())
 										ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 
-								ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
 
 								updateInstancedCopiesOfObject(ob);
 							}
@@ -6072,13 +6179,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30) && !BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG))
 								selectObject(ob, /*selected_mat_index=*/0); // select it
 
-							//if((ob->creator_id == this->logged_in_user_id) && (ob->created_time.numSecondsAgo() < 30) && BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG))
-							//{
-							//	// If we just summoned a vehicle:
-							//	// Create vehicle controller for it, just so we can play summon effect
-							//}
-
-							// Set ephemeral state
+							ob->state = WorldObject::State_Alive;
+						}
+						else if(ob->state == WorldObject::State_InitialSend)
+						{
 							ob->state = WorldObject::State_Alive;
 						}
 
@@ -6099,7 +6203,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						for(size_t i=0; i<ob->materials.size(); ++i)
 							if(i < opengl_ob->materials.size())
 								ModelLoading::setGLMaterialFromWorldMaterial(*ob->materials[i], ob_lod_level, ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
-						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+						ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
 
 					ob->lightmap_baking = false; // Since the lightmap URL has changed, we will assume that means the baking is done for this object.
@@ -6129,6 +6233,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					active_objects.insert(ob); // Add to active_objects: objects that have moved recently and so need interpolation done on them.
 
 					ob->from_remote_physics_transform_dirty = false;
+				}
+
+				if(ob->from_remote_summoned_dirty)
+				{
+					enableMaterialisationEffectOnOb(*ob);
+
+					ob->from_remote_summoned_dirty = false;
 				}
 			}
 
@@ -6282,7 +6393,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								{
 									// conPrint("Inserting physics snapshot " + toString(ob->next_insertable_snapshot_i) + " into physics system at time " + toString(global_time));
 									if(ob->physics_object.nonNull())
+									{
+										const Vec4f old_effective_pos = ob->physics_object->smooth_translation + ob->physics_object->pos;
+										const Quatf old_effective_rot = ob->physics_object->smooth_rotation    * ob->physics_object->rot;
 										physics_world->setNewObToWorldTransform(*ob->physics_object, snapshot.pos, snapshot.rotation, snapshot.linear_vel, snapshot.angular_vel);
+
+										// Compute smoothing translation and rotation transforms that will map the snapshot position to the current effective position.
+										ob->physics_object->smooth_translation = old_effective_pos - snapshot.pos;
+										ob->physics_object->smooth_rotation    = old_effective_rot * snapshot.rotation.conjugate();
+									}
 
 									ob->next_insertable_snapshot_i++;
 								}
@@ -6313,7 +6432,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(ob->audio_source.nonNull())
 							{
 								// Update in audio engine
-								ob->audio_source->pos = ob->aabb_ws.centroid();
+								ob->audio_source->pos = ob->getAABBWS().centroid();
 								audio_engine.sourcePositionUpdated(*ob->audio_source);
 							}
 						}
@@ -6374,11 +6493,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				(player_physics.flyModeEnabled() ? AvatarGraphics::ANIM_STATE_FLYING : 0) |
 				(our_move_impulse_zero ? AvatarGraphics::ANIM_STATE_MOVE_IMPULSE_ZERO : 0);
 
+			const uint32 input_bitmask = physics_input.toBitFlags();
+
 			MessageUtils::initPacket(scratch_packet, Protocol::AvatarTransformUpdate);
 			writeToStream(this->client_avatar_uid, scratch_packet);
 			writeToStream(Vec3d(this->cam_controller.getFirstPersonPosition()), scratch_packet);
 			writeToStream(Vec3f(0, (float)cam_angles.y, (float)cam_angles.x), scratch_packet);
-			scratch_packet.writeUInt32(anim_state);
+			scratch_packet.writeUInt32(anim_state | (input_bitmask << 16));
 
 			enqueueMessageToSend(*this->client_thread, scratch_packet);
 		}
@@ -6414,8 +6535,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					scratch_packet.writeFloat(world_ob->angle);
 
 					const float aabb_data[6] = {
-						world_ob->aabb_ws.min_[0], world_ob->aabb_ws.min_[1], world_ob->aabb_ws.min_[2],
-						world_ob->aabb_ws.max_[0], world_ob->aabb_ws.max_[1], world_ob->aabb_ws.max_[2]
+						world_ob->getAABBWS().min_[0], world_ob->getAABBWS().min_[1], world_ob->getAABBWS().min_[2],
+						world_ob->getAABBWS().max_[0], world_ob->getAABBWS().max_[1], world_ob->getAABBWS().max_[2]
 					};
 					scratch_packet.writeData(aabb_data, sizeof(float) * 6);
 
@@ -6537,6 +6658,24 @@ bool MainWindow::doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index)
 			return true;
 	}
 	return false;
+}
+
+
+// Destroy vehicle controllers that are controlling the world object 'ob', as Jolt hits asserts if physics object is swapped out under it.
+void MainWindow::destroyVehiclePhysicsControllingObject(WorldObject* ob)
+{
+	if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == ob)
+		this->vehicle_physics = NULL; // Destroy vehicle controller, as Jolt hits asserts if physics object is swapped out under it.  // TODO: consider other avatar controllers as well
+
+	{
+		Lock lock(this->world_state->mutex);
+		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
+		{
+			Avatar* avatar = it->second.getPointer();
+			if(avatar->vehicle_physics.nonNull() && avatar->vehicle_physics->getControlledObject() == ob)
+				avatar->vehicle_physics = NULL;
+		}
+	}
 }
 
 
@@ -6680,7 +6819,7 @@ void MainWindow::updateVoxelEditMarkers()
 							should_display_voxel_edit_face_marker = true;
 
 							this->voxel_edit_marker->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.1, 0.9, 0.2));
-							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker);
+							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(*this->voxel_edit_marker);
 
 						}
 						else if(alt_key_down)
@@ -6711,7 +6850,7 @@ void MainWindow::updateVoxelEditMarkers()
 							should_display_voxel_edit_marker = true;
 							
 							this->voxel_edit_marker->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3f(0.9, 0.1, 0.1));
-							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(this->voxel_edit_marker);
+							this->ui->glWidget->opengl_engine->objectMaterialsUpdated(*this->voxel_edit_marker);
 						}
 					}
 				}
@@ -7184,7 +7323,7 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 	new_world_object->angle = angle;
 	new_world_object->scale = scale;
 
-	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 	setMaterialFlagsForObject(new_world_object.ptr());
 
@@ -7323,7 +7462,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	new_world_object->content = "Select the object \nto edit this text";
 
 	const js::AABBox aabb_os = js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
-	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 	// Send CreateObject message to server
 	{
@@ -7373,7 +7512,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 
 	const float fixture_w = 0.1;
 	const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
-	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 
 	// Send CreateObject message to server
@@ -7424,7 +7563,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	new_world_object->materials[1] = new WorldMaterial();
 
 	const js::AABBox aabb_os = this->image_cube_shape.getAABBOS();
-	new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 
 	// Send CreateObject message to server
@@ -7503,7 +7642,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			new_world_object->materials[0] = new WorldMaterial();
 			new_world_object->materials[0]->colour_rgb = Colour3f(1,0,0);
 
-			// Set aabbws
+			// Set aabb_ws
 			
 			/*WorldObject loaded_object;
 			BatchedMeshRef batched_mesh;
@@ -7515,7 +7654,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			}*/
 
 			const js::AABBox aabb_os(Vec4f(-0.25f, -0.25f, -0.5f, 1.0f), Vec4f(0.25f, 0.25f, 0.5f, 1.0f)); // AABB os of capsule.obj
-			new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+			new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 
 			// Send CreateObject message to server
@@ -7568,7 +7707,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	new_world_object->scale = Vec3f(0.5f); // This will be the initial width of the voxels
 	new_world_object->getDecompressedVoxels().push_back(Voxel(Vec3<int>(0, 0, 0), 0)); // Start with a single voxel.
 	new_world_object->compressVoxels();
-	new_world_object->aabb_ws = new_world_object->getDecompressedVoxelGroup().getAABB().transformedAABB(obToWorldMatrix(*new_world_object));
+	new_world_object->setAABBWS(new_world_object->getDecompressedVoxelGroup().getAABB().transformedAABB(obToWorldMatrix(*new_world_object)));
 
 	// Send CreateObject message to server
 	{
@@ -7704,7 +7843,7 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 	new_world_object->axis = Vec3f(0,0,1);
 	new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle, facing camera.
 
-	new_world_object->aabb_ws = batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+	new_world_object->setAABBWS(batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 	new_world_object->model_url = "image_cube_5438347426447337425.bmesh";
 
@@ -7816,7 +7955,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					if(pasted_ob->pos.getDist(this->cam_controller.getFirstPersonPosition()) > 50.0) // If the source object is far from the camera:
 					{
 						// Position pasted object in front of the camera.
-						const float ob_w = pasted_ob->aabb_ws.longestLength();
+						const float ob_w = pasted_ob->getAABBWS().longestLength();
 						new_ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * myMax(2.f, ob_w * 2.0f);
 					}
 					else
@@ -7845,7 +7984,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 
 
 					// We want to compute the world space AABB for the pasted object.  We need the object space AABB to do this.  Try and get from source object.
-					js::AABBox aabb_os = pasted_ob->aabb_ws.transformedAABB(worldToObMatrix(*pasted_ob)); // Get AABB os from AABB ws, before we update position.  NOTE: assuming original AABB ws is correct.
+					js::AABBox aabb_os = pasted_ob->getAABBWS().transformedAABB(worldToObMatrix(*pasted_ob)); // Get AABB os from AABB ws, before we update position.  NOTE: assuming original AABB ws is correct.
 
 					// Try and find source object to get more accurate AABB os from opengl object.
 					{
@@ -7861,7 +8000,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					}
 
 					pasted_ob->pos = new_ob_pos;
-					pasted_ob->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*pasted_ob));
+					pasted_ob->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*pasted_ob)));
 
 					// Check permissions
 					bool ob_pos_in_parcel;
@@ -7969,7 +8108,7 @@ void MainWindow::on_actionCloneObject_triggered()
 
 		// Compute WS AABB of new object, using OS AABB from opengl ob.
 		if(this->selected_ob->opengl_engine_ob.nonNull() && this->selected_ob->opengl_engine_ob->mesh_data.nonNull())
-			new_world_object->aabb_ws = this->selected_ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+			new_world_object->setAABBWS(this->selected_ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 		new_world_object->max_model_lod_level = selected_ob->max_model_lod_level;
 		new_world_object->mass = selected_ob->mass;
@@ -8603,7 +8742,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 							if(i < opengl_ob->materials.size())
 								ModelLoading::setGLMaterialFromWorldMaterial(*in_world_ob->materials[i], ob_lod_level, in_world_ob->lightmap_url, *this->resource_manager, opengl_ob->materials[i]);
 
-						ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+						ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
 					}
 
 					// Update physics object transform
@@ -8616,7 +8755,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					if(in_world_ob->audio_source.nonNull())
 					{
 						// Update in audio engine
-						in_world_ob->audio_source->pos = in_world_ob->aabb_ws.centroid();
+						in_world_ob->audio_source->pos = in_world_ob->getAABBWS().centroid();
 						audio_engine.sourcePositionUpdated(*in_world_ob->audio_source);
 					}
 
@@ -8630,7 +8769,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 
 					// updateInstancedCopiesOfObject(ob); // TODO: enable + test this
 					if(opengl_ob.nonNull())
-						in_world_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
+						in_world_ob->setAABBWS(opengl_ob->aabb_ws); // Was computed above in updateObjectTransformData().
 
 					// Mark as from-local-dirty to send an object updated message to the server
 					in_world_ob->from_local_other_dirty = true;
@@ -8768,6 +8907,50 @@ void MainWindow::on_actionBake_lightmaps_high_quality_for_all_objects_in_parcel_
 }
 
 
+void MainWindow::enableMaterialisationEffectOnOb(WorldObject& ob)
+{
+	// conPrint("MainWindow::enableMaterialisationEffectOnOb()");
+
+	const float materialise_effect_start_time = (float)Clock::getTimeSinceInit();
+
+	if(ob.opengl_engine_ob.nonNull())
+	{
+		for(size_t i=0; i<ob.opengl_engine_ob->materials.size(); ++i)
+		{
+			ob.opengl_engine_ob->materials[i].materialise_effect = true;
+			ob.opengl_engine_ob->materials[i].materialise_start_time = materialise_effect_start_time;
+		}
+
+		ui->glWidget->opengl_engine->objectMaterialsUpdated(*ob.opengl_engine_ob);
+	}
+
+	ob.use_materialise_effect_on_load = true;
+	ob.materialise_effect_start_time = materialise_effect_start_time;
+}
+
+
+void MainWindow::enableMaterialisationEffectOnAvatar(Avatar& avatar)
+{
+	// conPrint("MainWindow::enableMaterialisationEffectOnAvatar()");
+
+	const float materialise_effect_start_time = (float)Clock::getTimeSinceInit();
+
+	if(avatar.graphics.skinned_gl_ob.nonNull())
+	{
+		for(size_t i=0; i<avatar.graphics.skinned_gl_ob->materials.size(); ++i)
+		{
+			avatar.graphics.skinned_gl_ob->materials[i].materialise_effect = true;
+			avatar.graphics.skinned_gl_ob->materials[i].materialise_start_time = materialise_effect_start_time;
+		}
+
+		ui->glWidget->opengl_engine->objectMaterialsUpdated(*avatar.graphics.skinned_gl_ob);
+	}
+
+	avatar.use_materialise_effect_on_load = true;
+	avatar.materialise_effect_start_time = materialise_effect_start_time;
+}
+
+
 void MainWindow::on_actionSummon_Bike_triggered()
 {
 	try
@@ -8823,9 +9006,6 @@ void MainWindow::on_actionSummon_Bike_triggered()
 			{
 				conPrint("Found summoned object, moving to in front of user.");
 
-				if(vehicle_physics.nonNull())
-					vehicle_physics->playVehicleSummonedEffects();
-
 				runtimeCheck(existing_ob_to_summon->vehicle_script.nonNull() && existing_ob_to_summon->vehicle_script.isType<Scripting::BikeScript>());
 
 				// Get desired rotation from script.
@@ -8835,7 +9015,9 @@ void MainWindow::on_actionSummon_Bike_triggered()
 				float angle;
 				rot.toAxisAndAngle(axis, angle);
 
-				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle);
+				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, /*summoning_object=*/true);
+
+				enableMaterialisationEffectOnOb(*existing_ob_to_summon);
 
 				return;
 			}
@@ -8875,7 +9057,7 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		new_world_object->angle = Maths::pi_2<float>();
 		new_world_object->scale = Vec3f(0.18f);
 
-		new_world_object->aabb_ws = aabb_os.transformedAABB(obToWorldMatrix(*new_world_object));
+		new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
 
 		new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_bike_script.xml");
 
@@ -8971,8 +9153,8 @@ void MainWindow::objectEditedSlot()
 					// Remove existing physics object
 					if(selected_ob->physics_object.nonNull())
 					{
-						if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr())
-							this->vehicle_physics = NULL; // Destroy vehicle controller, as Jolt hits asserts if physics object is swapped out under it.  // TODO: consider other avatar controllers as well
+						// Destroy vehicle controllers, as Jolt hits asserts if physics object is swapped out or removed under it.
+						destroyVehiclePhysicsControllingObject(this->selected_ob.ptr());
 
 						physics_world->removeObject(selected_ob->physics_object);
 						selected_ob->physics_object = NULL;
@@ -9013,8 +9195,8 @@ void MainWindow::objectEditedSlot()
 				}
 				else
 				{
-					if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr())
-						this->vehicle_physics = NULL; // Destroy vehicle controller, as Jolt hits asserts if physics object is swapped out under it. // TODO: consider other avatar controllers as well
+					// Destroy vehicle controllers, as Jolt hits asserts if physics object is swapped out or removed under it.
+					destroyVehiclePhysicsControllingObject(this->selected_ob.ptr());
 
 					removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
 
@@ -9061,7 +9243,7 @@ void MainWindow::objectEditedSlot()
 
 						this->selected_ob->model_url = mesh_URL;
 						this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-						this->selected_ob->aabb_ws = results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob));
+						this->selected_ob->setAABBWS(results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob)));
 					}
 					else
 					{
@@ -9177,7 +9359,7 @@ void MainWindow::objectEditedSlot()
 								}
 							}
 
-							ui->glWidget->opengl_engine->objectMaterialsUpdated(opengl_ob);
+							ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
 						}
 						else if(this->selected_ob->object_type == WorldObject::ObjectType_Hypercard)
 						{
@@ -9258,7 +9440,7 @@ void MainWindow::objectEditedSlot()
 
 						updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
-						selected_ob->aabb_ws = opengl_ob->aabb_ws; // Was computed above in updateObjectTransformData().
+						selected_ob->setAABBWS(opengl_ob->aabb_ws); // Was computed above in updateObjectTransformData().
 
 						Lock lock(this->world_state->mutex);
 
@@ -9308,7 +9490,7 @@ void MainWindow::objectEditedSlot()
 
 			if(this->selected_ob->audio_source.nonNull())
 			{
-				this->selected_ob->audio_source->pos = this->selected_ob->aabb_ws.centroid();
+				this->selected_ob->audio_source->pos = this->selected_ob->getAABBWS().centroid();
 				this->audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
 
 				this->selected_ob->audio_source->volume = this->selected_ob->audio_volume;
@@ -9663,6 +9845,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 			Avatar* avatar = it->second.ptr();
 
 			avatar->entered_vehicle = NULL;
+			avatar->vehicle_physics = NULL;
 
 			if(avatar->opengl_engine_nametag_ob.nonNull())
 				ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
@@ -10564,7 +10747,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 		physics_world->addObject(physics_ob);
 
-		ob->aabb_ws = gl_ob->aabb_ws; // gl_ob->aabb_ws will ahve been set in ui->glWidget->addObject() above.
+		ob->setAABBWS(gl_ob->aabb_ws); // gl_ob->aabb_ws will ahve been set in ui->glWidget->addObject() above.
 	}
 
 	// Mark as from-local-dirty to send an object updated message to the server
@@ -11058,7 +11241,7 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 			update_ob_editor_transform_timer->start(/*msec=*/50);
 
 
-		ob->aabb_ws = opengl_ob->aabb_ws; // Will have been set above in updateObjectTransformData().
+		ob->setAABBWS(opengl_ob->aabb_ws); // Will have been set above in updateObjectTransformData().
 
 		// Mark as from-local-dirty to send an object updated message to the server.
 		{
@@ -11192,7 +11375,7 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 	// If diagnostics widget is shown, show an AABB visualisation as well.
 	if(ui->diagnosticsDockWidget->isVisible() && ui->diagnosticsWidget->showObWSAABBCheckBox->isChecked())
 	{
-		this->aabb_vis_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->aabb_ws.min_, this->selected_ob->aabb_ws.max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
+		this->aabb_vis_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->getAABBWS().min_, this->selected_ob->getAABBWS().max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
 		ui->glWidget->opengl_engine->addObject(this->aabb_vis_gl_ob);
 	}
 
@@ -11211,7 +11394,7 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 		for(size_t z=0; z<this->selected_ob->opengl_engine_ob->materials.size(); ++z)
 			this->selected_ob->opengl_engine_ob->materials[z].draw_planar_uv_grid = true;
 
-		ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
+		ui->glWidget->opengl_engine->objectMaterialsUpdated(*this->selected_ob->opengl_engine_ob);
 	}
 
 	const bool have_edit_permissions = objectModificationAllowed(*this->selected_ob);
@@ -11316,7 +11499,7 @@ void MainWindow::deselectObject()
 			for(size_t z=0; z<this->selected_ob->opengl_engine_ob->materials.size(); ++z)
 				this->selected_ob->opengl_engine_ob->materials[z].draw_planar_uv_grid = false;
 
-			ui->glWidget->opengl_engine->objectMaterialsUpdated(this->selected_ob->opengl_engine_ob);
+			ui->glWidget->opengl_engine->objectMaterialsUpdated(*this->selected_ob->opengl_engine_ob);
 		}
 
 		ui->objectEditor->setEnabled(false);
@@ -11398,9 +11581,9 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	}
 	else if(e->key() == Qt::Key::Key_P)
 	{
-		// TEMP HACK: run spawn shader on vehicle
-		if(vehicle_physics.nonNull())
-			vehicle_physics->playVehicleSummonedEffects();
+		// TEMP HACK: play materialise effect on selected object.
+		if(selected_ob.nonNull())
+			enableMaterialisationEffectOnOb(*selected_ob);
 	}
 	else if(e->key() == Qt::Key::Key_E)
 	{
@@ -12652,9 +12835,9 @@ int main(int argc, char *argv[])
 
 					test_avatar->graphics.build();
 
-					for(int z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
+					for(size_t z=0; z<test_avatar->graphics.skinned_gl_ob->materials.size(); ++z)
 						test_avatar->graphics.skinned_gl_ob->materials[z].alpha = 0.5f;
-					mw.ui->glWidget->opengl_engine->objectMaterialsUpdated(test_avatar->graphics.skinned_gl_ob);
+					mw.ui->glWidget->opengl_engine->objectMaterialsUpdated(*test_avatar->graphics.skinned_gl_ob);
 
 					for(size_t i=0; i<test_avatar->graphics.skinned_gl_ob->mesh_data->animation_data.nodes.size(); ++i)
 					{
