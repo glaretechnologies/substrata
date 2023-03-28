@@ -58,8 +58,12 @@ Avatar::Avatar()
 	avatar_settings.pre_ob_to_world_matrix = Matrix4f::identity();
 
 	nametag_z_offset = 0;
+
+	use_materialise_effect_on_load = false;
+	materialise_effect_start_time = -1000.f;
 #endif
 	anim_state = 0;
+	last_physics_input_bitflags = 0;
 }
 
 

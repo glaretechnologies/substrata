@@ -482,7 +482,7 @@ public:
 			// Create a streaming audio source.
 			this->audio_source = new glare::AudioSource(); // Hang on to a reference we can use from the audio stream thread.
 			audio_source->type = glare::AudioSource::SourceType_Streaming;
-			audio_source->pos = ob->aabb_ws.centroid();
+			audio_source->pos = ob->getAABBWS().centroid();
 			audio_source->debugname = "animated tex: " + ob->target_url;
 
 			{
@@ -930,8 +930,8 @@ AnimatedTexObDataProcessStats AnimatedTexObData::process(MainWindow* main_window
 		const float max_mp4_dist = AnimatedTexData::maxVidPlayDist(); // textures <= max_dist are updated
 		const float min_mp4_recip_dist = 1 / max_mp4_dist; // textures >= min_recip_dist are updated
 
-		const float ob_w = largestDim(ob->aabb_ws);
-		const float recip_dist = (ob->aabb_ws.centroid() - main_window->cam_controller.getPosition().toVec4fPoint()).fastApproxRecipLength();
+		const float ob_w = largestDim(ob->getAABBWS());
+		const float recip_dist = (ob->getAABBWS().centroid() - main_window->cam_controller.getPosition().toVec4fPoint()).fastApproxRecipLength();
 		const float proj_len = ob_w * recip_dist;
 
 		large_enough     = (proj_len > 0.01f) && (recip_dist > min_recip_dist);

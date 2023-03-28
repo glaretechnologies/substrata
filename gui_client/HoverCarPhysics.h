@@ -65,6 +65,8 @@ public:
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
 	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const override;
 
+	Matrix4f getSeatToObjectTransform(PhysicsWorld& physics_world) const override;
+
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
 	const Scripting::VehicleScriptedSettings& getSettings() const override { return settings.script_settings; }

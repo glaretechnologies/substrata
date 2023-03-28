@@ -28,7 +28,7 @@ LoadItemQueue::~LoadItemQueue()
 
 void LoadItemQueue::enqueueItem(const WorldObject& ob, const glare::TaskRef& task, float task_max_dist)
 {
-	enqueueItem(ob.aabb_ws.centroid(), LoadItemQueueItem::sizeFactorForAABBWS(ob.aabb_ws, /*importance_factor=*/1.f), task, task_max_dist);
+	enqueueItem(ob.getAABBWS().centroid(), LoadItemQueueItem::sizeFactorForAABBWS(ob.getAABBWS(), /*importance_factor=*/1.f), task, task_max_dist);
 }
 
 

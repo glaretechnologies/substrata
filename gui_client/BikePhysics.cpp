@@ -49,7 +49,6 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	settings = settings_;
 	righting_time_remaining = -1;
-	time_since_spawn = 1.0e7f;
 	cur_seat_index = -1;
 	last_desired_up_vec = Vec4f(0,0,0,0);
 	last_force_vec = Vec4f(0,0,0,0);
@@ -229,12 +228,6 @@ void BikePhysics::userEnteredVehicle(int seat_index) // Should set cur_seat_inde
 void BikePhysics::userExitedVehicle() // Should set cur_seat_index
 {
 	cur_seat_index = -1;
-}
-
-
-void BikePhysics::playVehicleSummonedEffects() // To allow playing of special effects for summoning
-{
-	time_since_spawn = 0;
 }
 
 
@@ -525,17 +518,6 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		}
 	}
 
-	// Set parameters for materialise effect
-	//for(size_t i=0; i<graphics_ob->materials.size(); ++i)
-	//{
-	//	graphics_ob->materials[i].materialise_lower_z = graphics_ob->aabb_ws.min_[2];
-	//	graphics_ob->materials[i].materialise_upper_z = graphics_ob->aabb_ws.max_[2];
-	//	graphics_ob->materials[i].materialise_frac = time_since_spawn;
-	//	graphics_ob->materials[i].materialise_col = Colour3f(0,0.5f,1);
-	//}
-
-	time_since_spawn += dtime * 1.0f;
-
 	return events;
 }
 
@@ -588,10 +570,34 @@ Matrix4f BikePhysics::getWheelToWorldTransform(PhysicsWorld& physics_world, int 
 // Seat_to_world = object_to_world * seat_translation_model_space * R^1
 Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world) const
 { 
-	const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+	if(this->cur_seat_index >= 0 && this->cur_seat_index < (int)settings.script_settings.seat_settings.size())
+	{
+		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
-	// Seat to world = object to world * seat to object
-	return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
+		// Seat to world = object to world * seat to object
+		return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
+	}
+	else
+	{
+		assert(0);
+		return Matrix4f::identity();
+	}
+}
+
+
+Matrix4f BikePhysics::getSeatToObjectTransform(PhysicsWorld& physics_world) const
+{
+	if(this->cur_seat_index >= 0 && this->cur_seat_index < (int)settings.script_settings.seat_settings.size())
+	{
+		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
+
+		return Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
+	}
+	else
+	{
+		assert(0);
+		return Matrix4f::identity();
+	}
 }
 
 

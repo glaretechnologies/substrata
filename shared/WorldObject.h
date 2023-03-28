@@ -206,6 +206,8 @@ public:
 
 	void copyNetworkStateFrom(const WorldObject& other);
 
+	inline void setAABBWS(const js::AABBox& aabb_ws);
+	inline const js::AABBox& getAABBWS() const { return aabb_ws; }
 
 	enum ObjectType
 	{
@@ -219,8 +221,10 @@ public:
 	static std::string objectTypeString(ObjectType t);
 
 	// Group aabb_ws, current_lod_level together in first cache line to make MainWindow::checkForLODChanges() fast.
-
+private:
 	js::AABBox aabb_ws; // World space axis-aligned bounding box.  Not authoritative.  Used to show a box while loading, also for computing LOD levels.
+public:
+	float biased_aabb_len; // aabb_ws.longestLength() * lod_bias_factor.  lod_bias_factor can be something like 2 for voxel objects to push out the transition distances a bit.
 	UID uid;
 	uint32 object_type;
 	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
@@ -268,6 +272,7 @@ public:
 	enum State
 	{
 		State_JustCreated = 0,
+		State_InitialSend,
 		State_Alive,
 		State_Dead
 	};
@@ -275,6 +280,7 @@ public:
 	State state;
 	bool from_remote_transform_dirty; // Transformation has been changed remotely
 	bool from_remote_physics_transform_dirty; // Transformation has been changed remotely
+	bool from_remote_summoned_dirty;  // Object has been summoned remotely, changing transformation.
 	bool from_remote_other_dirty;     // Something else has been changed remotely
 	bool from_remote_lightmap_url_dirty; // Lightmap URL has been changed remotely
 	bool from_remote_model_url_dirty; // Model URL has been changed remotely
@@ -342,6 +348,9 @@ public:
 	//Vec3d last_pos; // Used by proximity loader
 
 	bool lightmap_baking; // Is lightmap baking in progress for this object?
+
+	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.
+	float materialise_effect_start_time;
 
 	Reference<WinterShaderEvaluator> script_evaluator;
 
@@ -476,14 +485,11 @@ int WorldObject::getLODLevel(const Vec3d& campos) const
 int WorldObject::getLODLevel(const Vec4f& campos) const
 {
 	// proj_len = aabb_ws.longestLength() / ||campos - pos||
+	assert(biased_aabb_len >= 0); // Check biased_aabb_len has been computed (should be >= 0 if so, it's set to -1 in constructor).
 
 	const Vec4f use_pos = this->aabb_ws.centroid(); // this->pos.toVec4fVector()
 	const float recip_dist = (campos - use_pos).fastApproxRecipLength();
-	float proj_len = aabb_ws.longestLength() * recip_dist;
-
-	// For voxel objects, push out the transition distances a bit.
-	if(object_type == ObjectType_VoxelGroup)
-		proj_len *= 2;
+	float proj_len = biased_aabb_len * recip_dist;
 
 	if(proj_len > 0.6)
 		return -1;
@@ -509,17 +515,13 @@ lod level 2 if proj_len <= 0.03
 */
 float WorldObject::getMaxDistForLODLevel(int level)
 {
-	float aabb_len = aabb_ws.longestLength();
-	if(object_type == ObjectType_VoxelGroup)
-		aabb_len *= 2;
-
 	const float eps_factor = 1.001f; // Make distance slightly larger to account for fastApproxRecipLength() usage in getLODLevel().
 	if(level == -1)
-		return aabb_len * (eps_factor / 0.6f);
+		return biased_aabb_len * (eps_factor / 0.6f);
 	else if(level == 0)
-		return aabb_len * (eps_factor  / 0.16f);
+		return biased_aabb_len * (eps_factor  / 0.16f);
 	else if(level == 1)
-		return aabb_len * (eps_factor  / 0.03f);
+		return biased_aabb_len * (eps_factor  / 0.03f);
 	else
 		return std::numeric_limits<float>::max();
 }
@@ -527,14 +529,12 @@ float WorldObject::getMaxDistForLODLevel(int level)
 
 int WorldObject::getLODLevel(float cam_to_ob_d2) const
 {
+	assert(biased_aabb_len >= 0); // Check biased_aabb_len has been computed (should be >= 0 if so, it's set to -1 in constructor).
+
 	const float recip_dist = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(cam_to_ob_d2)));
 	//assert(epsEqual(recip_dist, 1 / sqrt(cam_to_ob_d2)));
 
-	float proj_len = aabb_ws.longestLength() * recip_dist;
-
-	// For voxel objects, push out the transition distances a bit.
-	if(object_type == ObjectType_VoxelGroup)
-		proj_len *= 2;
+	float proj_len = biased_aabb_len * recip_dist;
 
 	if(proj_len > 0.6)
 		return -1;
@@ -544,4 +544,18 @@ int WorldObject::getLODLevel(float cam_to_ob_d2) const
 		return 1;
 	else
 		return 2;
+}
+
+
+void WorldObject::setAABBWS(const js::AABBox& new_aabb_ws)
+{
+	aabb_ws = new_aabb_ws;
+	biased_aabb_len = aabb_ws.longestLength();
+
+	// For voxel objects, push out the transition distances a bit.
+	if(object_type == ObjectType_VoxelGroup)
+		biased_aabb_len *= 2;
+
+	if(BitUtils::isBitSet(flags, SUMMONED_FLAG))
+		biased_aabb_len *= 4;
 }

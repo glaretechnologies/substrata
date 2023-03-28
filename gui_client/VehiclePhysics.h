@@ -43,8 +43,6 @@ public:
 
 	virtual void userExitedVehicle() = 0; // Should set cur_seat_index
 
-	virtual void playVehicleSummonedEffects() {} // To allow playing of special effects for summoning
-
 	virtual VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) = 0;
 
 	virtual Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const = 0;
@@ -55,6 +53,8 @@ public:
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
 	virtual Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const = 0;
+
+	virtual Matrix4f getSeatToObjectTransform(PhysicsWorld& physics_world) const = 0;
 
 	virtual Vec4f getLinearVel(PhysicsWorld& physics_world) const = 0;
 

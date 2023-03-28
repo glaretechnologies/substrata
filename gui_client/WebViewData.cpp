@@ -424,7 +424,7 @@ public:
 			// Create a streaming audio source.
 			this->audio_source = new glare::AudioSource(); // Hang on to a reference we can use from the audio stream thread.
 			audio_source->type = glare::AudioSource::SourceType_Streaming;
-			audio_source->pos = ob->aabb_ws.centroid();
+			audio_source->pos = ob->getAABBWS().centroid();
 			audio_source->debugname = "webview: " + ob->target_url;
 
 			{

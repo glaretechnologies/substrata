@@ -65,6 +65,13 @@ layout (std140) uniform PhongUniforms
 	float begin_fade_out_distance;
 	float end_fade_out_distance;
 
+	float materialise_lower_z;
+	float materialise_upper_z;
+	float materialise_start_time;
+	//float materialse_r;
+	//float materialse_g;
+	//float materialse_b;
+
 	int padding6;
 	int padding7;
 	ivec4 light_indices_0; // Can't use light_indices[8] here because of std140's retarded array layout rules.

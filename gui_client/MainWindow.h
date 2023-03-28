@@ -289,7 +289,7 @@ public:
 
 	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
 	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos) REQUIRES(world_state->mutex);
-	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle) REQUIRES(world_state->mutex);
+	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, bool summoning_object) REQUIRES(world_state->mutex);
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
@@ -322,6 +322,7 @@ public:
 	bool isObjectPhysicsOwned(WorldObject& ob, double global_time);
 	bool isObjectVehicleBeingDrivenByOther(WorldObject& ob) REQUIRES(world_state->mutex);
 	bool doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index) REQUIRES(world_state->mutex);
+	void destroyVehiclePhysicsControllingObject(WorldObject* ob);
 	void takePhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	void checkRenewalOfPhysicsOwnershipOfObject(WorldObject& ob, double global_time);
 	
@@ -329,7 +330,8 @@ public:
 	void updateObjectsWithDiagnosticVis();
 
 	void updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mouse_event);
-
+	void enableMaterialisationEffectOnOb(WorldObject& ob);
+	void enableMaterialisationEffectOnAvatar(Avatar& ob);
 	
 
 	//BuildUInt8MapTextureDataScratchState build_uint8_map_scratch_state;
