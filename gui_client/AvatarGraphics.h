@@ -50,7 +50,7 @@ struct PoseConstraint
 	PoseConstraint() : sitting(false), upper_leg_rot_around_thigh_bone_angle(0) {}
 
 	// For sitting:
-	Matrix4f seat_to_world; // Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
+	Matrix4f seat_to_world; // Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0).  Should just have rotation and translation, no scaling.
 	Quatf model_to_y_forwards_rot_1;
 	Quatf model_to_y_forwards_rot_2;
 	float upper_body_rot_angle; // radians.  Positive number means lean back.
