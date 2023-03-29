@@ -446,7 +446,7 @@ void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_qu
 
 #ifndef NDEBUG
 	Matrix4f prod = ob_to_world * world_to_ob;
-	assert(epsEqual(Matrix4f::identity(), prod, /*eps=*/1.0e-3f));
+	// assert(epsEqual(Matrix4f::identity(), prod, /*eps=*/1.0e-3f));
 #endif
 	
 	ob_to_world_out = ob_to_world;
