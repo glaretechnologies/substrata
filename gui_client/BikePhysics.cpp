@@ -43,13 +43,14 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	world_object = object.ptr();
 	m_physics_world = &physics_world;
 
+	user_in_driver_seat = false;
+
 	cur_steering_right = 0;
 	smoothed_desired_roll_angle = 0;
 	cur_target_tilt_angle = 0;
 
 	settings = settings_;
 	righting_time_remaining = -1;
-	cur_seat_index = -1;
 	last_desired_up_vec = Vec4f(0,0,0,0);
 	last_force_vec = Vec4f(0,0,0,0);
 
@@ -219,15 +220,17 @@ void BikePhysics::userEnteredVehicle(int seat_index) // Should set cur_seat_inde
 {
 	assert(seat_index >= 0 && seat_index < (int)getSettings().seat_settings.size());
 
-	cur_seat_index = seat_index;
+	if(seat_index == 0)
+		user_in_driver_seat = true;
 
 	righting_time_remaining = -1; // Stop righting vehicle
 }
 
 
-void BikePhysics::userExitedVehicle() // Should set cur_seat_index
+void BikePhysics::userExitedVehicle(int old_seat_index) // Should set cur_seat_index
 {
-	cur_seat_index = -1;
+	if(old_seat_index == 0)
+		user_in_driver_seat = false;
 }
 
 
@@ -324,7 +327,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	if(dot(no_roll_vehicle_right_ws, bike_right_vec_ws) < 0)
 		no_roll_vehicle_up_ws = -no_roll_vehicle_up_ws;
 
-	if(cur_seat_index == 0)
+	if(user_in_driver_seat)
 	{
 		vehicle_constraint->SetMaxRollAngle(JPH::DegreesToRadians(1.f)); // TEMP
 
@@ -522,9 +525,9 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 }
 
 
-Vec4f BikePhysics::getFirstPersonCamPos(PhysicsWorld& physics_world) const
+Vec4f BikePhysics::getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index) const
 {
-	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world);
+	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world, seat_index);
 	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to appox head position
 }
 
@@ -568,14 +571,14 @@ Matrix4f BikePhysics::getWheelToWorldTransform(PhysicsWorld& physics_world, int 
 //
 // So  
 // Seat_to_world = object_to_world * seat_translation_model_space * R^1
-Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world) const
+Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index) const
 { 
-	if(this->cur_seat_index >= 0 && this->cur_seat_index < (int)settings.script_settings.seat_settings.size())
+	if(seat_index < settings.script_settings.seat_settings.size())
 	{
 		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 		// Seat to world = object to world * seat to object
-		return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
+		return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[seat_index].seat_position) * R_inv;
 	}
 	else
 	{
@@ -585,13 +588,13 @@ Matrix4f BikePhysics::getSeatToWorldTransform(PhysicsWorld& physics_world) const
 }
 
 
-Matrix4f BikePhysics::getSeatToObjectTransform(PhysicsWorld& physics_world) const
+Matrix4f BikePhysics::getSeatToObjectTransform(PhysicsWorld& physics_world, uint32 seat_index) const
 {
-	if(this->cur_seat_index >= 0 && this->cur_seat_index < (int)settings.script_settings.seat_settings.size())
+	if(seat_index < settings.script_settings.seat_settings.size())
 	{
 		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
-		return Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
+		return Matrix4f::translationMatrix(settings.script_settings.seat_settings[seat_index].seat_position) * R_inv;
 	}
 	else
 	{

@@ -3747,6 +3747,11 @@ void MainWindow::updateDiagnosticAABBForObject(WorldObject* ob)
 				ui->glWidget->opengl_engine->removeObject(ob->diagnostics_gl_ob);
 				ob->diagnostics_gl_ob = NULL;
 			}
+			if(ob->diagnostics_unsmoothed_gl_ob.nonNull())
+			{
+				ui->glWidget->opengl_engine->removeObject(ob->diagnostics_unsmoothed_gl_ob);
+				ob->diagnostics_unsmoothed_gl_ob = NULL;
+			}
 
 			if(ob->diagnostic_text_view.nonNull())
 			{
@@ -3757,32 +3762,42 @@ void MainWindow::updateDiagnosticAABBForObject(WorldObject* ob)
 		}
 		else
 		{
-			const Vec4f aabb_min = ob->opengl_engine_ob->aabb_ws.min_;
-			const Vec4f aabb_max = ob->opengl_engine_ob->aabb_ws.max_;
+			const Vec4f aabb_min_ws = ob->opengl_engine_ob->aabb_ws.min_;
+			const Vec4f aabb_max_ws = ob->opengl_engine_ob->aabb_ws.max_;
 
 			const uint64 hashval = XXH64(&ob->physics_owner_id, sizeof(ob->physics_owner_id), 1);
 			const Colour4f col((hashval % 3) / 3.0f, (hashval % 5) / 5.0f, (hashval % 7) / 7.0f, 0.5f);
 
-			const Vec4f span = aabb_max - aabb_min;
-
-			Matrix4f to_world;
-			to_world.setColumn(0, Vec4f(span[0], 0, 0, 0));
-			to_world.setColumn(1, Vec4f(0, span[1], 0, 0));
-			to_world.setColumn(2, Vec4f(0, 0, span[2], 0));
-			to_world.setColumn(3, aabb_min); // set origin
-
-			if(ob->diagnostics_gl_ob.isNull())
+			// Show bounding box with smoothed transformation (OpenGL ob to-world matrix is smoothed)
 			{
-				ob->diagnostics_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(aabb_min, aabb_max, col);
-				ui->glWidget->opengl_engine->addObject(ob->diagnostics_gl_ob);
-			}
-			else
-			{
+				const Matrix4f to_world = ob->opengl_engine_ob->ob_to_world_matrix  * OpenGLEngine::AABBObjectTransform(ob->opengl_engine_ob->mesh_data->aabb_os.min_, ob->opengl_engine_ob->mesh_data->aabb_os.max_);
+
+				if(ob->diagnostics_gl_ob.isNull())
+				{
+					ob->diagnostics_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), col);
+					ui->glWidget->opengl_engine->addObject(ob->diagnostics_gl_ob);
+				}
+			
 				ob->diagnostics_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3(col[0], col[1], col[2]));
 				ob->diagnostics_gl_ob->ob_to_world_matrix = to_world;
-
 				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->diagnostics_gl_ob);
 			}
+
+			// Show bounding box with unsmoothed transformation
+			{
+				const Matrix4f to_world = (ob->physics_object.nonNull() ? ob->physics_object->getObToWorldMatrix() : Matrix4f::identity()) * OpenGLEngine::AABBObjectTransform(ob->opengl_engine_ob->mesh_data->aabb_os.min_, ob->opengl_engine_ob->mesh_data->aabb_os.max_);
+
+				if(ob->diagnostics_unsmoothed_gl_ob.isNull())
+				{
+					ob->diagnostics_unsmoothed_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(Vec4f(0,0,0,1), Vec4f(1,1,1,1), col);
+					ui->glWidget->opengl_engine->addObject(ob->diagnostics_unsmoothed_gl_ob);
+				}
+
+				ob->diagnostics_unsmoothed_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3(col[0] + 0.5f, col[1], col[2]));
+				ob->diagnostics_unsmoothed_gl_ob->ob_to_world_matrix = to_world;
+				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->diagnostics_unsmoothed_gl_ob);
+			}
+
 
 			const std::string diag_text = "physics_owner_id: " + toString(ob->physics_owner_id) + " since " + doubleToStringNSigFigs(world_state->getCurrentGlobalTime() - ob->last_physics_ownership_change_global_time, 2) + " s";
 			const Vec2f dims(0.4f, 0.05f);
@@ -3796,7 +3811,7 @@ void MainWindow::updateDiagnosticAABBForObject(WorldObject* ob)
 				ob->diagnostic_text_view->setText(*this->gl_ui, diag_text);
 
 				Vec2f normed_coords;
-				const bool visible = getGLUICoordsForPoint((aabb_min + aabb_max) * 0.5f, normed_coords);
+				const bool visible = getGLUICoordsForPoint((aabb_min_ws + aabb_max_ws) * 0.5f, normed_coords);
 				if(visible)
 				{
 					Vec2f botleft(normed_coords.x, normed_coords.y);
@@ -5107,10 +5122,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			PERFORMANCEAPI_INSTRUMENT("player physics");
 
-			if(vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle())
+			if(vehicle_controller_inside.nonNull())
 			{
-				vehicle_physics->update(*this->physics_world, physics_input, (float)substep_dt);
-				campos = vehicle_physics->getFirstPersonCamPos(*this->physics_world);
+				vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
+				campos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, this->cur_seat_index);
 			}
 			else
 			{
@@ -5140,10 +5155,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				player_physics.contacted_events.resize(0);
 
 
-				if(vehicle_physics.nonNull() && !vehicle_physics->userIsInVehicle())
+				// Process vehicle controllers for any vehicles we are not inside
+				for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
 				{
-					PlayerPhysicsInput empty_physics_input;
-					vehicle_physics->update(*this->physics_world, empty_physics_input, (float)substep_dt);
+					VehiclePhysics* controller = it->second.ptr();
+					if(controller != vehicle_controller_inside.ptr()) // If this is not the controller for the vehicle we are inside of:
+					{
+						PlayerPhysicsInput controller_physics_input;
+						controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
+						controller->update(*this->physics_world, controller_physics_input, (float)substep_dt);
+					}
 				}
 			}
 		}
@@ -5239,6 +5260,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 								// Reduce smooth_translation and smooth_rotation over time to zero / identity rotation.
 								const float smooth_change_factor = (1 - 3.f * myMin(0.1f, (float)dt));
+								assert(smooth_change_factor >= 0 && smooth_change_factor < 1);
 								physics_ob->smooth_translation *= smooth_change_factor;
 								physics_ob->smooth_rotation = Quatf::nlerp(Quatf::identity(), physics_ob->smooth_rotation, smooth_change_factor);
 							}
@@ -5355,10 +5377,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		}
 
 
-		if(vehicle_physics.nonNull())
+		if(vehicle_controller_inside.nonNull())
 		{
 			const bool should_show = ui->diagnosticsWidget->showVehiclePhysicsVisCheckBox->isChecked();
-			vehicle_physics->updateDebugVisObjects(*ui->glWidget->opengl_engine, should_show);
+			vehicle_controller_inside->updateDebugVisObjects(*ui->glWidget->opengl_engine, should_show);
 		}
 
 		//--------------------------- Car controller and graphics -------------------------------
@@ -5709,7 +5731,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							use_target_pos = avatar->graphics.getLastHeadPosition();
 						else
 						{
-							const Vec4f vertical_offset = (vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle()) ? vehicle_physics->getThirdPersonCamTargetTranslation() : Vec4f(0);
+							const Vec4f vertical_offset = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getThirdPersonCamTargetTranslation() : Vec4f(0);
 							use_target_pos = cam_controller.getFirstPersonPosition().toVec4fPoint() + vertical_offset;
 						}
 
@@ -5743,7 +5765,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							//printVar(cam_back_dir);
 
 							// Don't start tracing the ray back immediately or we may hit the car.
-							const float initial_ignore_dist = (vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle()) ? myMin(cam_controller.getThirdPersonCamDist(), 3.f) : 0.f;
+							const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), 3.f) : 0.f;
 							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 							RayTraceResult trace_results;
@@ -5767,90 +5789,139 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						pose_constraint.sitting = false;
 						if(our_avatar)
 						{
-							if(vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle())
+							if(vehicle_controller_inside.nonNull())
 							{
-								pose_constraint.sitting = true;
-								pose_constraint.seat_to_world							= vehicle_physics->getSeatToWorldTransform(*this->physics_world);
-								pose_constraint.model_to_y_forwards_rot_1				= vehicle_physics->getSettings().model_to_y_forwards_rot_1;
-								pose_constraint.model_to_y_forwards_rot_2				= vehicle_physics->getSettings().model_to_y_forwards_rot_2;
-								pose_constraint.upper_body_rot_angle					= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].upper_body_rot_angle;
-								pose_constraint.upper_leg_rot_angle						= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].upper_leg_rot_angle;
-								pose_constraint.upper_leg_rot_around_thigh_bone_angle	= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].upper_leg_rot_around_thigh_bone_angle;
-								pose_constraint.upper_leg_apart_angle					= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].upper_leg_apart_angle;
-								pose_constraint.lower_leg_rot_angle						= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].lower_leg_rot_angle;
-								pose_constraint.lower_leg_apart_angle					= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].lower_leg_apart_angle;
-								pose_constraint.rotate_foot_out_angle					= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].rotate_foot_out_angle;
-								pose_constraint.arm_down_angle							= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].arm_down_angle;
-								pose_constraint.arm_out_angle							= vehicle_physics->getSettings().seat_settings[vehicle_physics->getCurrentSeatIndex()].arm_out_angle;
+								if(cur_seat_index < vehicle_controller_inside->getSettings().seat_settings.size())
+								{
+									pose_constraint.sitting = true;
+									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, cur_seat_index);
+									pose_constraint.model_to_y_forwards_rot_1				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_1;
+									pose_constraint.model_to_y_forwards_rot_2				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_2;
+									pose_constraint.upper_body_rot_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_body_rot_angle;
+									pose_constraint.upper_leg_rot_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_rot_angle;
+									pose_constraint.upper_leg_rot_around_thigh_bone_angle	= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_rot_around_thigh_bone_angle;
+									pose_constraint.upper_leg_apart_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_leg_apart_angle;
+									pose_constraint.lower_leg_rot_angle						= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_leg_rot_angle;
+									pose_constraint.lower_leg_apart_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].lower_leg_apart_angle;
+									pose_constraint.rotate_foot_out_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].rotate_foot_out_angle;
+									pose_constraint.arm_down_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_down_angle;
+									pose_constraint.arm_out_angle							= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].arm_out_angle;
+								}
+								else
+								{
+									assert(0); // Invalid seat index
+								}
 							}
 						}
 						else
 						{
-							if(avatar->entered_vehicle.nonNull()) // If the other avatar is in a vehicle:
+							if(avatar->pending_vehicle_transition == Avatar::EnterVehicle)
 							{
-								// Create HoverCarPhysics for avatar if needed
-								if(avatar->vehicle_physics.isNull() && avatar->entered_vehicle->physics_object.nonNull() && avatar->entered_vehicle->opengl_engine_ob.nonNull() && avatar->entered_vehicle->vehicle_script.nonNull())
+								assert(avatar->entered_vehicle.nonNull());
+								if(avatar->entered_vehicle.nonNull()) // If the other avatar is, or should be in a vehicle:
 								{
-									if(avatar->entered_vehicle->vehicle_script.isType<Scripting::HoverCarScript>())
+									// If the physics object, opengl object and script are all loaded:
+									if(avatar->entered_vehicle->physics_object.nonNull() && avatar->entered_vehicle->opengl_engine_ob.nonNull() && avatar->entered_vehicle->vehicle_script.nonNull())
 									{
-										const Scripting::HoverCarScript* hover_car_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
+										const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr());
+										if(controller_res == vehicle_controllers.end()) // if there is no vehicle controller for this object :
+										{
+											// Create Vehicle controller
+											Reference<VehiclePhysics> new_controller;
+											if(avatar->entered_vehicle->vehicle_script.isType<Scripting::HoverCarScript>())
+											{
+												const Scripting::HoverCarScript* hover_car_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
 
-										HoverCarPhysicsSettings hover_car_physics_settings;
-										hover_car_physics_settings.hovercar_mass = avatar->entered_vehicle->mass;
-										hover_car_physics_settings.script_settings = hover_car_script->settings;
+												HoverCarPhysicsSettings hover_car_physics_settings;
+												hover_car_physics_settings.hovercar_mass = avatar->entered_vehicle->mass;
+												hover_car_physics_settings.script_settings = hover_car_script->settings;
 
-										avatar->vehicle_physics = new HoverCarPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, hover_car_physics_settings);
-										avatar->vehicle_physics->setCurrentSeatIndex(avatar->vehicle_seat_index);
+												new_controller = new HoverCarPhysics(avatar->entered_vehicle, avatar->entered_vehicle->physics_object->jolt_body_id, hover_car_physics_settings);
+											}
+											else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BikeScript>())
+											{
+												const Scripting::BikeScript* bike_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BikeScript>();
+
+												BikePhysicsSettings bike_physics_settings;
+												bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
+												bike_physics_settings.script_settings = bike_script->settings;
+
+												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world);
+											}
+											else
+											{
+												assert(0);
+											}
+
+											if(new_controller.nonNull())
+											{
+												vehicle_controllers.insert(std::make_pair(avatar->entered_vehicle.ptr(), new_controller));
+												new_controller->userEnteredVehicle(avatar->vehicle_seat_index);
+
+												conPrint("Avatar entered vehicle with new physics controller in seat " + toString(avatar->vehicle_seat_index));
+											}
+										}
+										else // Else if there is already a vehicle controller for the object:
+										{
+											conPrint("Avatar entered vehicle with existing physics controller in seat " + toString(avatar->vehicle_seat_index));
+
+											VehiclePhysics* controller = controller_res->second.ptr();
+											controller->userEnteredVehicle(avatar->vehicle_seat_index);
+										}
+
+										avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
 									}
-									else if(avatar->entered_vehicle->vehicle_script.isType<Scripting::BikeScript>())
-									{
-										const Scripting::BikeScript* bike_script = avatar->entered_vehicle->vehicle_script.downcastToPtr<Scripting::BikeScript>();
-
-										BikePhysicsSettings bike_physics_settings;
-										bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
-										bike_physics_settings.script_settings = bike_script->settings;
-
-										avatar->vehicle_physics = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world);
-										avatar->vehicle_physics->setCurrentSeatIndex(avatar->vehicle_seat_index);
-									}
-									else
-									{
-										assert(0);
-									}
-								}
-
-								if(avatar->vehicle_physics.nonNull() && avatar->vehicle_physics->userIsInVehicle()) // If we have an active vehicle physics controller for this other avatar:
-								{
-									PlayerPhysicsInput other_avatar_physics_input;
-									other_avatar_physics_input.clear();
-									other_avatar_physics_input.setFromBitFlags(avatar->last_physics_input_bitflags);
-
-									avatar->vehicle_physics->update(*physics_world, other_avatar_physics_input, (float)dt); // TEMP Just compute forces for hovercar now
-
-									Matrix4f smoothed_ob_to_world; // With no scaling
-									if(avatar->vehicle_physics->getControlledObject()->physics_object.nonNull())
-										smoothed_ob_to_world = avatar->vehicle_physics->getControlledObject()->physics_object->getSmoothedObToWorldNoScaleMatrix();
-									else
-										smoothed_ob_to_world = avatar->vehicle_physics->getBodyTransform(*this->physics_world);
-
-									pose_constraint.sitting = true;
-									pose_constraint.seat_to_world				= smoothed_ob_to_world * avatar->vehicle_physics->getSeatToObjectTransform(*this->physics_world);
-									pose_constraint.model_to_y_forwards_rot_1	= avatar->vehicle_physics->getSettings().model_to_y_forwards_rot_1;
-									pose_constraint.model_to_y_forwards_rot_2	= avatar->vehicle_physics->getSettings().model_to_y_forwards_rot_2;
-									pose_constraint.upper_body_rot_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].upper_body_rot_angle;
-									pose_constraint.upper_leg_rot_angle			= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].upper_leg_rot_angle;
-									pose_constraint.upper_leg_rot_around_thigh_bone_angle			= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].upper_leg_rot_around_thigh_bone_angle;
-									pose_constraint.upper_leg_apart_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].upper_leg_apart_angle;
-									pose_constraint.lower_leg_rot_angle			= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].lower_leg_rot_angle;
-									pose_constraint.lower_leg_apart_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].lower_leg_apart_angle;
-									pose_constraint.rotate_foot_out_angle		= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].rotate_foot_out_angle;
-									pose_constraint.arm_down_angle				= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].arm_down_angle;
-									pose_constraint.arm_out_angle				= avatar->vehicle_physics->getSettings().seat_settings[avatar->vehicle_physics->getCurrentSeatIndex()].arm_out_angle;
 								}
 							}
-							else
+
+
+							if(avatar->entered_vehicle.nonNull()) // If the other avatar is, or should be in a vehicle:
 							{
-								avatar->vehicle_physics = NULL; // Destroy physics controller if it exists.
+								const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
+								if(controller_res != vehicle_controllers.end())
+								{
+									VehiclePhysics* controller = controller_res->second.ptr();
+
+									if(avatar->vehicle_seat_index == 0) // If avatar is driving vehicle:
+										controller->last_physics_input_bitflags = avatar->last_physics_input_bitflags; // Pass last physics input flags to the controller.
+
+									if(avatar->vehicle_seat_index < controller->getSettings().seat_settings.size())
+									{
+										Matrix4f smoothed_ob_to_world; // With no scaling
+										if(controller->getControlledObject()->physics_object.nonNull())
+											smoothed_ob_to_world = controller->getControlledObject()->physics_object->getSmoothedObToWorldNoScaleMatrix();
+										else
+											smoothed_ob_to_world = controller->getBodyTransform(*this->physics_world);
+
+										pose_constraint.sitting = true;
+										pose_constraint.seat_to_world							= smoothed_ob_to_world * controller->getSeatToObjectTransform(*this->physics_world, avatar->vehicle_seat_index);
+										pose_constraint.model_to_y_forwards_rot_1				= controller->getSettings().model_to_y_forwards_rot_1;
+										pose_constraint.model_to_y_forwards_rot_2				= controller->getSettings().model_to_y_forwards_rot_2;
+										pose_constraint.upper_body_rot_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_body_rot_angle;
+										pose_constraint.upper_leg_rot_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_rot_angle;
+										pose_constraint.upper_leg_rot_around_thigh_bone_angle	= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_rot_around_thigh_bone_angle;
+										pose_constraint.upper_leg_apart_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_leg_apart_angle;
+										pose_constraint.lower_leg_rot_angle						= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_leg_rot_angle;
+										pose_constraint.lower_leg_apart_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].lower_leg_apart_angle;
+										pose_constraint.rotate_foot_out_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].rotate_foot_out_angle;
+										pose_constraint.arm_down_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_down_angle;
+										pose_constraint.arm_out_angle							= controller->getSettings().seat_settings[avatar->vehicle_seat_index].arm_out_angle;
+									}
+									else
+									{
+										assert(0); // Seat index was invalid.
+									}
+								}
+
+
+								if(avatar->pending_vehicle_transition == Avatar::ExitVehicle)
+								{
+									conPrint("Avatar exited vehicle from seat " + toString(avatar->vehicle_seat_index));
+									if(controller_res != vehicle_controllers.end())
+										controller_res->second->userExitedVehicle(avatar->vehicle_seat_index);
+									avatar->entered_vehicle = NULL;
+									avatar->pending_vehicle_transition = Avatar::VehicleNoChange;
+								}
 							}
 						}
 						 
@@ -5876,11 +5947,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					if(avatar->opengl_engine_nametag_ob.nonNull())
 					{
 						// If the avatar is in a vehicle, use the vehicle transform, which can be somewhat different from the avatar location due to different interpolation methods.
-						Vec4f use_nametag_pos;
-						if(avatar->vehicle_physics.nonNull() && avatar->vehicle_physics->userIsInVehicle())
-							use_nametag_pos = avatar->vehicle_physics->getSeatToWorldTransform(*this->physics_world) * Vec4f(0,0,1.0f,1);
-						else
-							use_nametag_pos = pos.toVec4fPoint();
+						Vec4f use_nametag_pos = pos.toVec4fPoint();
+						if(avatar->entered_vehicle.nonNull())
+						{
+							const auto controller_res = vehicle_controllers.find(avatar->entered_vehicle.ptr()); // Find a vehicle controller for the avatar 'entered_vehicle' object.
+							if(controller_res != vehicle_controllers.end())
+							{
+								VehiclePhysics* controller = controller_res->second.ptr();
+								Matrix4f smoothed_ob_to_world; // With no scaling
+								if(controller->getControlledObject()->physics_object.nonNull())
+									smoothed_ob_to_world = controller->getControlledObject()->physics_object->getSmoothedObToWorldNoScaleMatrix();
+								else
+									smoothed_ob_to_world = controller->getBodyTransform(*this->physics_world);
+
+								const Matrix4f seat_to_world = smoothed_ob_to_world * controller->getSeatToObjectTransform(*this->physics_world, avatar->vehicle_seat_index);
+
+								use_nametag_pos = seat_to_world * Vec4f(0,0,1.0f,1);
+							}
+						}
 
 						// We want to rotate the nametag towards the camera.
 						Vec4f to_cam = normalise(use_nametag_pos - this->cam_controller.getPosition().toVec4fPoint());
@@ -5979,15 +6063,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
 	// This is so any new player joining the world after we entered the vehicle can receive the information that we are inside it.
-	if(vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle() && ((cur_time - last_vehicle_renewal_msg_time) > 4.0))
+	if(vehicle_controller_inside.nonNull() && ((cur_time - last_vehicle_renewal_msg_time) > 4.0))
 	{
 		// conPrint("sending AvatarEnteredVehicle renewal msg");
 
 		// Send AvatarEnteredVehicle message to server
 		MessageUtils::initPacket(scratch_packet, Protocol::AvatarEnteredVehicle);
 		writeToStream(this->client_avatar_uid, scratch_packet);
-		writeToStream(this->vehicle_physics->getControlledObject()->uid, scratch_packet); // Write vehicle object UID
-		scratch_packet.writeUInt32((uint32)vehicle_physics->getCurrentSeatIndex()); // Seat index.
+		writeToStream(this->vehicle_controller_inside->getControlledObject()->uid, scratch_packet); // Write vehicle object UID
+		scratch_packet.writeUInt32(this->cur_seat_index); // Seat index.
 		scratch_packet.writeUInt32(1); // Write flags.  Set renewal bit.
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -6664,18 +6748,10 @@ bool MainWindow::doesVehicleHaveAvatarInSeat(WorldObject& ob, uint32 seat_index)
 // Destroy vehicle controllers that are controlling the world object 'ob', as Jolt hits asserts if physics object is swapped out under it.
 void MainWindow::destroyVehiclePhysicsControllingObject(WorldObject* ob)
 {
-	if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == ob)
-		this->vehicle_physics = NULL; // Destroy vehicle controller, as Jolt hits asserts if physics object is swapped out under it.  // TODO: consider other avatar controllers as well
+	vehicle_controllers.erase(ob);
 
-	{
-		Lock lock(this->world_state->mutex);
-		for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end(); ++it)
-		{
-			Avatar* avatar = it->second.getPointer();
-			if(avatar->vehicle_physics.nonNull() && avatar->vehicle_physics->getControlledObject() == ob)
-				avatar->vehicle_physics = NULL;
-		}
-	}
+	if(vehicle_controller_inside.nonNull() && vehicle_controller_inside->getControlledObject() == ob)
+		vehicle_controller_inside = NULL;
 }
 
 
@@ -9130,9 +9206,9 @@ void MainWindow::objectEditedSlot()
 			if((selected_ob->object_type == WorldObject::ObjectType_VoxelGroup) && 
 				(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 			{
-				if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr() && this->vehicle_physics->userIsInVehicle())
+				if(vehicle_controllers.find(selected_ob.ptr()) != vehicle_controllers.end()) // If there is a vehicle controller for selected_ob:
 				{
-					showErrorNotification("Can't edit vehicle physics properties while in vehicle");
+					showErrorNotification("Can't edit vehicle physics properties while user is in vehicle");
 				}
 				else
 				{
@@ -9189,9 +9265,9 @@ void MainWindow::objectEditedSlot()
 			if(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::MODEL_URL_CHANGED) || 
 				(BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::DYNAMIC_CHANGED) || BitUtils::isBitSet(this->selected_ob->changed_flags, WorldObject::PHYSICS_VALUE_CHANGED)))
 			{
-				if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == this->selected_ob.ptr() && this->vehicle_physics->userIsInVehicle())
+				if(vehicle_controllers.find(selected_ob.ptr()) != vehicle_controllers.end()) // If there is a vehicle controller for selected_ob:
 				{
-					showErrorNotification("Can't edit vehicle physics properties while in vehicle");
+					showErrorNotification("Can't edit vehicle physics properties while user is in vehicle");
 				}
 				else
 				{
@@ -9845,7 +9921,6 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 			Avatar* avatar = it->second.ptr();
 
 			avatar->entered_vehicle = NULL;
-			avatar->vehicle_physics = NULL;
 
 			if(avatar->opengl_engine_nametag_ob.nonNull())
 				ui->glWidget->opengl_engine->removeObject(avatar->opengl_engine_nametag_ob);
@@ -9859,7 +9934,9 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 	selected_ob = NULL;
 
-	vehicle_physics = NULL;
+	vehicle_controller_inside = NULL;
+	vehicle_controllers.clear();
+	
 
 	active_objects.clear();
 	obs_with_animated_tex.clear();
@@ -10987,7 +11064,7 @@ void MainWindow::updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mo
 						}
 					}
 
-					if(ob->vehicle_script.nonNull() && (vehicle_physics.isNull() || !vehicle_physics->userIsInVehicle())) // If this is a vehicle, and we are not already in a vehicle:
+					if(ob->vehicle_script.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
 					{
 						const Vec4f up_z_up(0,0,1,0);
 						const Vec4f vehicle_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
@@ -11588,15 +11665,16 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 	else if(e->key() == Qt::Key::Key_E)
 	{
 		// If we are controlling a vehicle, exit it
-		if(vehicle_physics.nonNull() && vehicle_physics->userIsInVehicle())
+		if(vehicle_controller_inside.nonNull())
 		{
-			const Vec4f last_hover_car_pos = vehicle_physics->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
-			const Vec4f last_hover_car_linear_vel = vehicle_physics->getLinearVel(*this->physics_world);
+			const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
+			const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
 
-			const Vec4f last_hover_car_right_ws = vehicle_physics->getSeatToWorldTransform(*this->physics_world) * Vec4f(-1,0,0,0); // TEMP HACK: offset to left by 1m.
+			const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index) * Vec4f(-1,0,0,0); // TEMP HACK: offset to left by 1m.
 			// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
 
-			vehicle_physics->userExitedVehicle();
+			vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
+			vehicle_controller_inside = NULL; // Null out vehicle_controller_inside reference.  Note that the controller will still exist and be referenced from vehicle_controllers.
 
 			Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2;
 			new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
@@ -11636,7 +11714,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 					{
 						if(ob->isDynamic()) // Make sure object is dynamic, which is needed for vehicles
 						{
-							if(vehicle_physics.isNull() || !vehicle_physics->userIsInVehicle())
+							if(vehicle_controller_inside.isNull()) // If we are not in a vehicle already:
 							{
 								// Try to enter the vehicle.
 								const Vec4f up_z_up(0,0,1,0);
@@ -11655,42 +11733,43 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 									}
 								}
 
-								if(!upright || (free_seat_index >= 0)) // If we want to create a vehicle controller:
+								Reference<VehiclePhysics> controller_for_ob;
+								if(!upright || (free_seat_index >= 0)) // If we want to have a vehicle controller (for righting vehicle or entering it)
 								{
-									// If there is a controller already existing that is controlling the hit object, then use it, otherwise
-									// Create the vehicle controller based on the script:
-									if(ob->vehicle_script.isType<Scripting::HoverCarScript>())
+									// If there is not a controller already existing that is controlling the hit object, create the vehicle controller based on the script:
+									const auto controller_res = vehicle_controllers.find(ob);
+									if(controller_res == vehicle_controllers.end()) // If there is not a vehicle controller for this object yet:
 									{
-										const Scripting::HoverCarScript* hover_car_script = ob->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
-
-										HoverCarPhysicsSettings hover_car_physics_settings;
-										hover_car_physics_settings.hovercar_mass = ob->mass;
-										hover_car_physics_settings.script_settings = hover_car_script->settings;
-
-										this->vehicle_physics = NULL;
-										this->vehicle_physics = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
-									}
-									else if(ob->vehicle_script.isType<Scripting::BikeScript>())
-									{
-										const Scripting::BikeScript* bike_script = ob->vehicle_script.downcastToPtr<Scripting::BikeScript>();
-
-										BikePhysicsSettings bike_physics_settings;
-										bike_physics_settings.bike_mass = ob->mass;
-										bike_physics_settings.script_settings = bike_script->settings;
-
-										if(this->vehicle_physics.nonNull() && this->vehicle_physics->getControlledObject() == ob) // If the vehicle script is already controlling this object:
+										if(ob->vehicle_script.isType<Scripting::HoverCarScript>())
 										{
-											assert(this->vehicle_physics->getCurrentSeatIndex() == -1);
+											const Scripting::HoverCarScript* hover_car_script = ob->vehicle_script.downcastToPtr<Scripting::HoverCarScript>();
+
+											HoverCarPhysicsSettings hover_car_physics_settings;
+											hover_car_physics_settings.hovercar_mass = ob->mass;
+											hover_car_physics_settings.script_settings = hover_car_script->settings;
+
+											controller_for_ob = new HoverCarPhysics(ob, ob->physics_object->jolt_body_id, hover_car_physics_settings);
+											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
+										}
+										else if(ob->vehicle_script.isType<Scripting::BikeScript>())
+										{
+											const Scripting::BikeScript* bike_script = ob->vehicle_script.downcastToPtr<Scripting::BikeScript>();
+
+											BikePhysicsSettings bike_physics_settings;
+											bike_physics_settings.bike_mass = ob->mass;
+											bike_physics_settings.script_settings = bike_script->settings;
+
+											controller_for_ob = new BikePhysics(ob, bike_physics_settings, *physics_world);
+											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
 										}
 										else
 										{
-											this->vehicle_physics = NULL;
-											this->vehicle_physics = new BikePhysics(ob, bike_physics_settings, *physics_world);
+											assert(0);
 										}
 									}
-									else
+									else // Else if there is already a vehicle controller for this object:
 									{
-										assert(0);
+										controller_for_ob = controller_res->second;
 									}
 								}
 
@@ -11701,8 +11780,13 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 										showInfoNotification("Vehicle is full, cannot enter");
 									else
 									{
-										runtimeCheck(this->vehicle_physics.nonNull()); // Should have been created above.
-										this->vehicle_physics->userEnteredVehicle(/*seat index=*/free_seat_index);
+										// Enter vehicle
+										runtimeCheck(controller_for_ob.nonNull()); // Should have been created above if was null, as free_seat_index >= 0
+										
+										this->cur_seat_index = (uint32)free_seat_index;
+										
+										this->vehicle_controller_inside = controller_for_ob;
+										this->vehicle_controller_inside->userEnteredVehicle(/*seat index=*/free_seat_index);
 								
 										if(free_seat_index == 0) // If taking driver's seat:
 											takePhysicsOwnershipOfObject(*ob, world_state->getCurrentGlobalTime());
@@ -11719,9 +11803,8 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 								}
 								else // Else if vehicle is not upright:
 								{
-									runtimeCheck(this->vehicle_physics.nonNull()); // Should have been created above.
-									assert(this->vehicle_physics->getCurrentSeatIndex() == -1);
-									this->vehicle_physics->startRightingVehicle();
+									runtimeCheck(controller_for_ob.nonNull()); // Should have been created above if was null, as upright == false.
+									controller_for_ob->startRightingVehicle();
 								}
 
 								return;

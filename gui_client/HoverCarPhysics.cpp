@@ -22,7 +22,6 @@ HoverCarPhysics::HoverCarPhysics(WorldObjectRef object, JPH::BodyID car_body_id_
 	car_body_id = car_body_id_;
 	settings = settings_;
 	unflip_up_force_time_remaining = -1;
-	cur_seat_index = 0;
 }
 
 
@@ -40,14 +39,11 @@ void HoverCarPhysics::startRightingVehicle()
 void HoverCarPhysics::userEnteredVehicle(int seat_index) // Should set cur_seat_index
 {
 	assert(seat_index >= 0 && seat_index < (int)getSettings().seat_settings.size());
-
-	cur_seat_index = seat_index;
 }
 
 
-void HoverCarPhysics::userExitedVehicle() // Should set cur_seat_index
+void HoverCarPhysics::userExitedVehicle(int old_seat_index) // Should set cur_seat_index
 {
-	cur_seat_index = -1;
 }
 
 
@@ -69,7 +65,7 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 {
 	VehiclePhysicsUpdateEvents events;
 
-	if(cur_seat_index == 0)
+	//if(cur_seat_index == 0)
 	{
 		float forward = 0.0f, right = 0.0f, up = 0.f, brake = 0.0f, hand_brake = 0.0f;
 		// Determine acceleration and brake
@@ -316,9 +312,9 @@ VehiclePhysicsUpdateEvents HoverCarPhysics::update(PhysicsWorld& physics_world, 
 }
 
 
-Vec4f HoverCarPhysics::getFirstPersonCamPos(PhysicsWorld& physics_world) const
+Vec4f HoverCarPhysics::getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index) const
 {
-	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world);
+	const Matrix4f seat_to_world = getSeatToWorldTransform(physics_world, seat_index);
 	return seat_to_world * Vec4f(0,0,0.6f,1); // Raise camera position to appox head position
 }
 
@@ -351,14 +347,14 @@ Matrix4f HoverCarPhysics::getBodyTransform(PhysicsWorld& physics_world) const
 //
 // So  
 // Seat_to_world = object_to_world * seat_translation_model_space * R^1
-Matrix4f HoverCarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world) const
+Matrix4f HoverCarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index) const
 { 
-	if(this->cur_seat_index >= 0 && this->cur_seat_index < (int)settings.script_settings.seat_settings.size())
+	if(seat_index < settings.script_settings.seat_settings.size())
 	{
 		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
 		// Seat to world = object to world * seat to object
-		return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
+		return getBodyTransform(physics_world) * Matrix4f::translationMatrix(settings.script_settings.seat_settings[seat_index].seat_position) * R_inv;
 	}
 	else
 	{
@@ -368,13 +364,13 @@ Matrix4f HoverCarPhysics::getSeatToWorldTransform(PhysicsWorld& physics_world) c
 }
 
 
-Matrix4f HoverCarPhysics::getSeatToObjectTransform(PhysicsWorld& physics_world) const
+Matrix4f HoverCarPhysics::getSeatToObjectTransform(PhysicsWorld& physics_world, uint32 seat_index) const
 {
-	if(this->cur_seat_index >= 0 && this->cur_seat_index < (int)settings.script_settings.seat_settings.size())
+	if(seat_index < settings.script_settings.seat_settings.size())
 	{
 		const Matrix4f R_inv = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
-		return Matrix4f::translationMatrix(settings.script_settings.seat_settings[this->cur_seat_index].seat_position) * R_inv;
+		return Matrix4f::translationMatrix(settings.script_settings.seat_settings[seat_index].seat_position) * R_inv;
 	}
 	else
 	{

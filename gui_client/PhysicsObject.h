@@ -67,6 +67,7 @@ public:
 	const Matrix4f getSmoothedObToWorldMatrix() const;
 	const Matrix4f getSmoothedObToWorldNoScaleMatrix() const;
 	const Matrix4f getObToWorldMatrix() const;
+	const Matrix4f getObToWorldMatrixNoScale() const;
 	const Matrix4f getWorldToObMatrix() const;
 
 public:

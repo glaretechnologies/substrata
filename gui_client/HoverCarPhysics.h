@@ -52,20 +52,20 @@ public:
 
 	void userEnteredVehicle(int seat_index) override; // Should set cur_seat_index;
 
-	void userExitedVehicle() override; // Should set cur_seat_index
+	void userExitedVehicle(int old_seat_index) override; // Should set cur_seat_index
 
 	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) override;
 
-	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world) const override;
+	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index) const override;
 
 	Vec4f getThirdPersonCamTargetTranslation() const override;
 
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
-	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world) const override;
+	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index) const override;
 
-	Matrix4f getSeatToObjectTransform(PhysicsWorld& physics_world) const override;
+	Matrix4f getSeatToObjectTransform(PhysicsWorld& physics_world, uint32 seat_index) const override;
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 

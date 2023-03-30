@@ -115,10 +115,16 @@ public:
 
 	Reference<MeshData> mesh_data; // Hang on to a reference to the mesh data, so when object-uses of it are removed, it can be removed from the MeshManager with meshDataBecameUnused().
 
-	Reference<WorldObject> entered_vehicle; // Reference to vehicle that the avatar has entered (e.g. is driving or a passenger)
-	uint32 vehicle_seat_index;
+	Reference<WorldObject> entered_vehicle; // Reference to vehicle object that the avatar has entered, or should enter (e.g. is driving or a passenger)
+	uint32 vehicle_seat_index; // The index of the seat the avatar is sitting in, or will sit in, or was sitting in if the avatar has just exited the vehicle.
+	enum PendingVehicleTransition
+	{
+		VehicleNoChange,
+		EnterVehicle, // The avatar should enter the vehicle 'entered_vehicle' as soon as possible (i.e. when the physics object has been loaded)
+		ExitVehicle // The avatar should exit the vehicle as soon as possible.
+	};
+	PendingVehicleTransition pending_vehicle_transition;
 
-	Reference<VehiclePhysics> vehicle_physics;
 
 	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.
 	float materialise_effect_start_time;
