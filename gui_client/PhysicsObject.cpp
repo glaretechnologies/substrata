@@ -93,6 +93,14 @@ const Matrix4f PhysicsObject::getObToWorldMatrix() const
 }
 
 
+const Matrix4f PhysicsObject::getObToWorldMatrixNoScale() const
+{
+	Matrix4f ob_to_world_, world_to_ob;
+	computeToWorldAndToObMatrices(this->pos, this->rot, /*scale=*/Vec4f(1.f), ob_to_world_, world_to_ob);
+	return ob_to_world_;
+}
+
+
 const Matrix4f PhysicsObject::getWorldToObMatrix() const
 {
 	Matrix4f ob_to_world_, world_to_ob;

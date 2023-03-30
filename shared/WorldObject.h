@@ -320,7 +320,9 @@ public:
 	Reference<GLLight> opengl_light;
 	Reference<PhysicsObject> physics_object;
 
+
 	Reference<GLObject> diagnostics_gl_ob; // For diagnostics visualisation
+	Reference<GLObject> diagnostics_unsmoothed_gl_ob; // For diagnostics visualisation
 
 	Reference<GLUITextView> diagnostic_text_view; // For diagnostics visualisation
 

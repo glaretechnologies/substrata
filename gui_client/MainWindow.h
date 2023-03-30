@@ -352,7 +352,11 @@ public:
 
 	PlayerPhysics player_physics;
 	CarPhysics car_physics;
-	Reference<VehiclePhysics> vehicle_physics;
+
+	std::map<WorldObject*, Reference<VehiclePhysics>> vehicle_controllers; // Map from controlled object to vehicle controller for that object.
+	Reference<VehiclePhysics> vehicle_controller_inside; // Vehicle controller that is controlling the vehicle the user is currently inside of.
+	uint32 cur_seat_index; // Current vehicle seat index.
+
 	double last_vehicle_renewal_msg_time;
 
 	Timer time_since_last_timer_ev;

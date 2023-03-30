@@ -360,7 +360,7 @@ void ClientThread::doRun()
 						const uint32 seat_index = msg_buffer.readUInt32();
 						/*const uint32 flags =*/ msg_buffer.readUInt32();
 
-
+						if(avatar_uid != this->client_avatar_uid) // Discard AvatarEnteredVehicle messages we sent. 
 						{
 							Lock lock(world_state->mutex);
 							auto res = world_state->avatars.find(avatar_uid);
@@ -371,8 +371,12 @@ void ClientThread::doRun()
 								auto res2 = world_state->objects.find(vehicle_ob_uid);
 								if(res2 != world_state->objects.end())
 								{
-									avatar->entered_vehicle = res2.getValue();
-									avatar->vehicle_seat_index = seat_index;
+									if(avatar->entered_vehicle != res2.getValue()) // If this avatar is not already in the vehicle (AvatarEnteredVehicle messages are sent repeatedly)
+									{
+										avatar->entered_vehicle = res2.getValue();
+										avatar->vehicle_seat_index = seat_index;
+										avatar->pending_vehicle_transition = Avatar::EnterVehicle;
+									}
 								}
 							}
 						}
@@ -385,14 +389,14 @@ void ClientThread::doRun()
 
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 
+						if(avatar_uid != this->client_avatar_uid) // Discard AvatarExitedVehicle messages we sent. 
 						{
 							Lock lock(world_state->mutex);
 							auto res = world_state->avatars.find(avatar_uid);
 							if(res != world_state->avatars.end())
 							{
 								Avatar* avatar = res->second.getPointer();
-								avatar->entered_vehicle = NULL;
-								avatar->vehicle_seat_index = 0;
+								avatar->pending_vehicle_transition = Avatar::ExitVehicle;
 							}
 						}
 

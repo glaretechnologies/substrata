@@ -61,6 +61,9 @@ Avatar::Avatar()
 
 	use_materialise_effect_on_load = false;
 	materialise_effect_start_time = -1000.f;
+
+	vehicle_seat_index = 0;
+	pending_vehicle_transition = VehicleNoChange;
 #endif
 	anim_state = 0;
 	last_physics_input_bitflags = 0;
