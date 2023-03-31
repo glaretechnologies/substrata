@@ -5122,10 +5122,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 			PERFORMANCEAPI_INSTRUMENT("player physics");
 
-			if(vehicle_controller_inside.nonNull())
+			if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 			{
-				vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
-				campos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, this->cur_seat_index);
+				if(this->cur_seat_index == 0) // If we are driving it:
+					vehicle_controller_inside->update(*this->physics_world, physics_input, (float)substep_dt);
 			}
 			else
 			{
@@ -5155,11 +5155,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				player_physics.contacted_events.resize(0);
 
 
-				// Process vehicle controllers for any vehicles we are not inside
+				// Process vehicle controllers for any vehicles we are not driving:
 				for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
 				{
 					VehiclePhysics* controller = it->second.ptr();
-					if(controller != vehicle_controller_inside.ptr()) // If this is not the controller for the vehicle we are inside of:
+					if((controller != vehicle_controller_inside.ptr()) || (this->cur_seat_index != 0)) // If this is not the controller for the vehicle we are inside of, or if we are not driving it:
 					{
 						PlayerPhysicsInput controller_physics_input;
 						controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
@@ -5171,8 +5171,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	player_physics.zeroMoveDesiredVel();
-
-	this->cam_controller.setPosition(toVec3d(campos));
 
 	if(physics_world.nonNull())
 	{
@@ -5209,6 +5207,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 #endif
 					WorldObject* ob = (WorldObject*)physics_ob->userdata;
+					assert(ob->physics_object == physics_ob);
 					
 					// Scripted objects have their opengl transform set directly in evalObjectScript(), so we don't need to set it from the physics object.
 					// We will set the opengl transform in Scripting::evalObjectScript() as it should be slightly more efficient (due to computing ob_to_world_inv_transpose directly).
@@ -5222,7 +5221,27 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 						if(!ob_picked_up || getPathControllerForOb(*ob)) // Don't update selected object with physics engine state, unless it is path controlled.
 						{
-							const Matrix4f ob_to_world = ob->physics_object->getSmoothedObToWorldMatrix();
+							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
+							// We will also reduce smooth_translation and smooth_rotation over time here.
+							if(physics_ob->dynamic)
+							{
+								Vec4f unit_axis;
+								float angle;
+								physics_ob->rot.toAxisAndAngle(unit_axis, angle);
+
+								ob->pos = Vec3d(pos.GetX(), pos.GetY(), pos.GetZ());
+								ob->axis = Vec3f(unit_axis);
+								ob->angle = angle;
+
+								// Reduce smooth_translation and smooth_rotation over time to zero / identity rotation.  NOTE: This is deliberately before the getSmoothedObToWorldMatrix() call below,
+								// so that getSmoothedObToWorldMatrix() result is unchanged over the rest of this frame.
+								const float smooth_change_factor = (1 - 3.f * myMin(0.1f, (float)dt));
+								assert(smooth_change_factor >= 0 && smooth_change_factor < 1);
+								physics_ob->smooth_translation *= smooth_change_factor;
+								physics_ob->smooth_rotation = Quatf::nlerp(Quatf::identity(), physics_ob->smooth_rotation, smooth_change_factor);
+							}
+
+							const Matrix4f ob_to_world = physics_ob->getSmoothedObToWorldMatrix();
 
 							// Update OpenGL object
 							if(ob->opengl_engine_ob.nonNull())
@@ -5245,24 +5264,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								ob->audio_source->pos = ob->getAABBWS().centroid();
 								audio_engine.sourcePositionUpdated(*ob->audio_source);
-							}
-
-							// Set object world state.  We want to do this for dynamic objects, so that if they are reloaded on LOD changes, the position is correct.
-							if(physics_ob->dynamic)
-							{
-								Vec4f unit_axis;
-								float angle;
-								ob->physics_object->rot.toAxisAndAngle(unit_axis, angle);
-
-								ob->pos = Vec3d(pos.GetX(), pos.GetY(), pos.GetZ());
-								ob->axis = Vec3f(unit_axis);
-								ob->angle = angle;
-
-								// Reduce smooth_translation and smooth_rotation over time to zero / identity rotation.
-								const float smooth_change_factor = (1 - 3.f * myMin(0.1f, (float)dt));
-								assert(smooth_change_factor >= 0 && smooth_change_factor < 1);
-								physics_ob->smooth_translation *= smooth_change_factor;
-								physics_ob->smooth_rotation = Quatf::nlerp(Quatf::identity(), physics_ob->smooth_rotation, smooth_change_factor);
 							}
 
 							// For dynamic objects that we are physics-owner of, get some extra state needed for physics snaphots
@@ -5327,6 +5328,18 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			physics_world->newly_activated_obs.clear();
 
 		} // End activated_obs_mutex scope
+
+
+		// Get camera position, if we are in a vehicle.
+		if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+		{
+			// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that camera position is consistent with the vehicle model.
+			const bool use_smoothed_network_transform = cur_seat_index != 0;
+			campos = vehicle_controller_inside->getFirstPersonCamPos(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
+		}
+
+		this->cam_controller.setPosition(toVec3d(campos));
+
 
 		// Update debug player-physics visualisation spheres
 		if(false)
@@ -5793,8 +5806,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							{
 								if(cur_seat_index < vehicle_controller_inside->getSettings().seat_settings.size())
 								{
+									// If we are driving the vehicle, use local physics transform, otherwise use smoothed network transformation, so that the avatar position is consistent with the vehicle model.
+									const bool use_smoothed_network_transform = cur_seat_index != 0;
 									pose_constraint.sitting = true;
-									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, cur_seat_index);
+									pose_constraint.seat_to_world							= vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, cur_seat_index, use_smoothed_network_transform);
 									pose_constraint.model_to_y_forwards_rot_1				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_1;
 									pose_constraint.model_to_y_forwards_rot_2				= vehicle_controller_inside->getSettings().model_to_y_forwards_rot_2;
 									pose_constraint.upper_body_rot_angle					= vehicle_controller_inside->getSettings().seat_settings[cur_seat_index].upper_body_rot_angle;
@@ -5887,14 +5902,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 									if(avatar->vehicle_seat_index < controller->getSettings().seat_settings.size())
 									{
-										Matrix4f smoothed_ob_to_world; // With no scaling
-										if(controller->getControlledObject()->physics_object.nonNull())
-											smoothed_ob_to_world = controller->getControlledObject()->physics_object->getSmoothedObToWorldNoScaleMatrix();
-										else
-											smoothed_ob_to_world = controller->getBodyTransform(*this->physics_world);
-
 										pose_constraint.sitting = true;
-										pose_constraint.seat_to_world							= smoothed_ob_to_world * controller->getSeatToObjectTransform(*this->physics_world, avatar->vehicle_seat_index);
+										pose_constraint.seat_to_world							= controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
 										pose_constraint.model_to_y_forwards_rot_1				= controller->getSettings().model_to_y_forwards_rot_1;
 										pose_constraint.model_to_y_forwards_rot_2				= controller->getSettings().model_to_y_forwards_rot_2;
 										pose_constraint.upper_body_rot_angle					= controller->getSettings().seat_settings[avatar->vehicle_seat_index].upper_body_rot_angle;
@@ -5954,13 +5963,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(controller_res != vehicle_controllers.end())
 							{
 								VehiclePhysics* controller = controller_res->second.ptr();
-								Matrix4f smoothed_ob_to_world; // With no scaling
-								if(controller->getControlledObject()->physics_object.nonNull())
-									smoothed_ob_to_world = controller->getControlledObject()->physics_object->getSmoothedObToWorldNoScaleMatrix();
-								else
-									smoothed_ob_to_world = controller->getBodyTransform(*this->physics_world);
-
-								const Matrix4f seat_to_world = smoothed_ob_to_world * controller->getSeatToObjectTransform(*this->physics_world, avatar->vehicle_seat_index);
+								const Matrix4f seat_to_world = controller->getSeatToWorldTransform(*this->physics_world, avatar->vehicle_seat_index, /*use_smoothed_network_transform=*/true);
 
 								use_nametag_pos = seat_to_world * Vec4f(0,0,1.0f,1);
 							}
@@ -9085,7 +9088,7 @@ void MainWindow::on_actionSummon_Bike_triggered()
 				runtimeCheck(existing_ob_to_summon->vehicle_script.nonNull() && existing_ob_to_summon->vehicle_script.isType<Scripting::BikeScript>());
 
 				// Get desired rotation from script.
-				const Quatf rot = existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_1 * existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_2;
+				const Quatf rot = existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_2 * existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_1;
 
 				Vec4f axis;
 				float angle;
@@ -9138,6 +9141,141 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_bike_script.xml");
 
 		new_world_object->mass = 200;
+
+		setMaterialFlagsForObject(new_world_object.ptr());
+
+		// Send CreateObject message to server
+		{
+			MessageUtils::initPacket(scratch_packet, Protocol::CreateObject);
+			new_world_object->writeToNetworkStream(scratch_packet);
+
+			enqueueMessageToSend(*this->client_thread, scratch_packet);
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		showErrorNotification(e.what());
+
+		QMessageBox msgBox;
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
+	}
+}
+
+
+void MainWindow::on_actionSummon_Hovercar_triggered()
+{
+	try
+	{
+		if(!this->logged_in_user_id.valid())
+		{
+			showErrorNotification("You must be logged in to summon a hovercar.");
+			return;
+		}
+
+		//TEMP: Save out hovercar mats
+		if(false)
+		{
+			ModelLoading::MakeGLObjectResults results;
+			ModelLoading::makeGLObjectForModelFile(*ui->glWidget->opengl_engine, *ui->glWidget->opengl_engine->vert_buf_allocator, 
+				"D:\\models\\peugot_closed.glb",
+				results);
+
+			std::string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<materials>\n";
+			for(size_t i=0; i<results.materials.size(); ++i)
+			{
+				results.materials[i]->convertLocalPathsToURLS(*this->resource_manager);
+				xml += results.materials[i]->serialiseToXML(/*tab_depth=*/1);
+			}
+			xml += "</materials>";
+			FileUtils::writeEntireFileTextMode("hovercar_mats.xml", xml);
+		}
+
+
+		const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
+			::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
+			Vec3d(0,0,-1.67) + // Move down by eye height to ground
+			Vec3d(0, 0, 0.0493f); // Move up off ground.  TEMP HARDCODED
+
+		// Search for existing summoned hovercar, if we find it, move it to in front of user.
+		{
+			Lock lock(world_state->mutex);
+
+			WorldObject* existing_ob_to_summon = NULL;
+			for(auto it = world_state->objects.valuesBegin(); it != world_state->objects.valuesEnd(); ++it)
+			{
+				WorldObject* ob = it.getValue().ptr();
+				if(ob->creator_id == logged_in_user_id && // If we created this object
+					//BitUtils::isBitSet(ob->flags, WorldObject::SUMMONED_FLAG) && // And this object was summoned
+					ob->vehicle_script.nonNull() && ob->vehicle_script.isType<Scripting::HoverCarScript>()) // And it has a hovercar script
+				{
+					if((existing_ob_to_summon == NULL) || (ob->uid.value() > existing_ob_to_summon->uid.value())) // Summon object with greatest UID
+						existing_ob_to_summon = ob;
+				}
+			}
+
+			if(existing_ob_to_summon)
+			{
+				conPrint("Found summoned object, moving to in front of user.");
+
+				runtimeCheck(existing_ob_to_summon->vehicle_script.nonNull());
+
+				// Get desired rotation from script.
+				const Quatf rot = existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_2 * existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_1;
+
+				//const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // TEMP HACK
+
+				Vec4f axis;
+				float angle;
+				rot.toAxisAndAngle(axis, angle);
+
+				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, /*summoning_object=*/true);
+
+				enableMaterialisationEffectOnOb(*existing_ob_to_summon);
+
+				return;
+			}
+		}
+
+		conPrint("Creating new hovercar object...");
+
+
+
+
+		// Load materials:
+		IndigoXMLDoc doc(this->base_dir_path + "/resources/hovercar_mats.xml");
+
+		pugi::xml_node root = doc.getRootElement();
+
+		std::vector<WorldMaterialRef> materials;
+		for(pugi::xml_node n = root.child("material"); n; n = n.next_sibling("material"))
+		{
+			materials.push_back(WorldMaterial::loadFromXMLElem("hovercar_mats.xml", /*convert_rel_paths_to_abs_disk_paths=*/false, n));
+		}
+
+
+
+		WorldObjectRef new_world_object = new WorldObject();
+
+		const js::AABBox aabb_os(Vec4f(-1.053, -0.058, -2.163, 1), Vec4f(1.053, 1.284, 2.225, 1)); // Got from diagnostics widget after setting transform to identity.
+
+		new_world_object->model_url = "peugot_closed_glb_2887717763908023194.bmesh";
+		new_world_object->max_model_lod_level = 2;
+
+		new_world_object->flags = WorldObject::COLLIDABLE_FLAG | WorldObject::DYNAMIC_FLAG | WorldObject::SUMMONED_FLAG;
+
+		new_world_object->uid = UID(0); // A new UID will be assigned by server
+		new_world_object->materials = materials;
+		new_world_object->pos = pos;
+		new_world_object->axis = Vec3f(1,0,0);
+		new_world_object->angle = Maths::pi_2<float>();
+		new_world_object->scale = Vec3f(1.f);
+
+		new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+
+		new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_hovercar_script.xml");
+
+		new_world_object->mass = 1000;
 
 		setMaterialFlagsForObject(new_world_object.ptr());
 
@@ -11066,12 +11204,13 @@ void MainWindow::updateInfoUIForMousePosition(const QPoint& pos, QMouseEvent* mo
 
 					if(ob->vehicle_script.nonNull() && vehicle_controller_inside.isNull()) // If this is a vehicle, and we are not already in a vehicle:
 					{
+						// If the vehicle is rightable (e.g. bike), display righting message if the vehicle is upside down.  Otherwise just display enter message.
 						const Vec4f up_z_up(0,0,1,0);
 						const Vec4f vehicle_up_os = ob->vehicle_script->getZUpToModelSpaceTransform() * up_z_up;
 						const Vec4f vehicle_up_ws = normalise(obToWorldMatrix(*ob) * vehicle_up_os);
 						const bool upright = dot(vehicle_up_ws, up_z_up) > 0.5f;
 
-						if(upright)
+						if(upright || !ob->vehicle_script->isRightable())
 							ob_info_ui.showMessage("Press [E] to enter vehicle", gl_coords);
 						else
 							ob_info_ui.showMessage("Press [E] to right vehicle", gl_coords);
@@ -11670,7 +11809,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 			const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
 			const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
 
-			const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index) * Vec4f(-1,0,0,0); // TEMP HACK: offset to left by 1m.
+			const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0); // TEMP HACK: offset to left by 1m.
 			// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
 
 			vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
@@ -11734,7 +11873,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 								}
 
 								Reference<VehiclePhysics> controller_for_ob;
-								if(!upright || (free_seat_index >= 0)) // If we want to have a vehicle controller (for righting vehicle or entering it)
+								if((ob->vehicle_script->isRightable() && !upright) || (free_seat_index >= 0)) // If we want to have a vehicle controller (for righting vehicle or entering it)
 								{
 									// If there is not a controller already existing that is controlling the hit object, create the vehicle controller based on the script:
 									const auto controller_res = vehicle_controllers.find(ob);
@@ -11774,7 +11913,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 								}
 
 
-								if(upright)
+								if(!ob->vehicle_script->isRightable() || upright)
 								{
 									if(free_seat_index == -1) // If we did not find an empty seat:
 										showInfoNotification("Vehicle is full, cannot enter");

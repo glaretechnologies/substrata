@@ -56,16 +56,14 @@ public:
 
 	VehiclePhysicsUpdateEvents update(PhysicsWorld& physics_world, const PlayerPhysicsInput& physics_input, float dtime) override;
 
-	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index) const override;
+	Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
 
 	Vec4f getThirdPersonCamTargetTranslation() const override;
 
 	Matrix4f getBodyTransform(PhysicsWorld& physics_world) const override;
 
 	// Sitting position is (0,0,0) in seat space, forwards is (0,1,0), right is (1,0,0)
-	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index) const override;
-
-	Matrix4f getSeatToObjectTransform(PhysicsWorld& physics_world, uint32 seat_index) const override;
+	Matrix4f getSeatToWorldTransform(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const override;
 
 	Vec4f getLinearVel(PhysicsWorld& physics_world) const override;
 
@@ -76,4 +74,5 @@ private:
 	HoverCarPhysicsSettings settings;
 	JPH::BodyID car_body_id;
 	float unflip_up_force_time_remaining;
+	bool user_in_driver_seat;
 };
