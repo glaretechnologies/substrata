@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<script>
+	<hover_car> 
+		<model_to_y_forwards_rot_1>1.57079632679 0 0</model_to_y_forwards_rot_1>
+		<model_to_y_forwards_rot_2>0 0 3.1415926535897932384626433832795</model_to_y_forwards_rot_2>
+
+		<seat>
+			<seat_position>0.45 0.43 -0.2</seat_position>
+			<upper_body_rot_angle>0.2</upper_body_rot_angle>
+			<upper_leg_rot_angle>1.9</upper_leg_rot_angle>
+			<lower_leg_rot_angle>-0.5</lower_leg_rot_angle>
+		</seat>
+
+		<seat>
+			<seat_position>-0.45 0.43 -0.2</seat_position>
+			<upper_body_rot_angle>0.2</upper_body_rot_angle>
+			<upper_leg_rot_angle>1.9</upper_leg_rot_angle>
+			<lower_leg_rot_angle>-0.5</lower_leg_rot_angle>
+		</seat>
+	</hover_car>
+</script>

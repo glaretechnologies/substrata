@@ -55,6 +55,8 @@ public:
 
 	virtual ~VehicleScript() {}
 
+	virtual bool isRightable() const = 0;
+
 	Matrix4f getZUpToModelSpaceTransform() const
 	{
 		return ((settings.model_to_y_forwards_rot_2 * settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
@@ -68,6 +70,8 @@ class HoverCarScript : public VehicleScript
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
+
+	virtual bool isRightable() const override { return false; }
 };
 
 
@@ -75,6 +79,8 @@ class BikeScript : public VehicleScript
 {
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
+
+	virtual bool isRightable() const override { return true; }
 };
 
 

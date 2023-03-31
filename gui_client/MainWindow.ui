@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1099</width>
+    <width>1182</width>
     <height>763</height>
    </rect>
   </property>
@@ -34,7 +34,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1099</width>
+     <width>1182</width>
      <height>21</height>
     </rect>
    </property>
@@ -125,6 +125,7 @@
      <string>Vehicles</string>
     </property>
     <addaction name="actionSummon_Bike"/>
+    <addaction name="actionSummon_Hovercar"/>
    </widget>
    <addaction name="menuEdit"/>
    <addaction name="menuMovement"/>
@@ -609,6 +610,11 @@
   <action name="actionSummon_Bike">
    <property name="text">
     <string>Summon Bike</string>
+   </property>
+  </action>
+  <action name="actionSummon_Hovercar">
+   <property name="text">
+    <string>Summon Hovercar</string>
    </property>
   </action>
  </widget>
