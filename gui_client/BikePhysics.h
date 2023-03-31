@@ -88,7 +88,7 @@ private:
 	JPH::Ref<JPH::VehicleConstraint>		vehicle_constraint; // The vehicle constraint
 	JPH::Ref<JPH::VehicleCollisionTester>	collision_tester; // Collision testers for the wheel
 
-	float cur_steering_right;
+	float cur_steering_right; // in [-1, 1], a magnitude of one corresponding to max steering angle.
 
 	float smoothed_desired_roll_angle;
 
