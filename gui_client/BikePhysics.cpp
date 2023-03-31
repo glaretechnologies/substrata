@@ -29,12 +29,12 @@ const float world_to_ob_scale = 1 / ob_to_world_scale;
 const float wheel_radius =  3.856f / 2 * ob_to_world_scale;
 const float wheel_width = 0.94f * ob_to_world_scale;
 const float half_vehicle_width = 1.7f/*2.f*/ / 2 * ob_to_world_scale;
-const float half_vehicle_length = 10.f / 2 * ob_to_world_scale;
-const float half_vehicle_height = 3.5f / 2 * ob_to_world_scale;
+const float half_vehicle_length = 9.f/*10.f*/ / 2 * ob_to_world_scale;
+const float half_vehicle_height = 3.2f/*3.5f*/ / 2 * ob_to_world_scale;
 const float max_steering_angle = JPH::DegreesToRadians(30);
 
 
-const bool vertical_front_sus = true; // Just to hack in vertical front suspension since sloped suspension is still buggy.
+const bool vertical_front_sus = false; // Just to hack in vertical front suspension since sloped suspension is still buggy.
 
 BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world)
 :	m_opengl_engine(NULL),
@@ -119,12 +119,13 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	front_wheel->mDirection = vertical_front_sus ? toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)) : toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
 	front_wheel->mRadius = wheel_radius;
 	front_wheel->mWidth = wheel_width;
-	front_wheel->mSuspensionMinLength = vertical_front_sus ? 0.2f : 0.3f; // NOTE: currently Jolt has a bug with forwards/backwards acceleration if suspension is different heights.  so make it the same with vertical_front_sus.
-	front_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.4f : 0.4f;
+	front_wheel->mSuspensionMinLength = vertical_front_sus ? 0.2f : 0.25f; // NOTE: currently Jolt has a bug with forwards/backwards acceleration if suspension is different heights.  so make it the same with vertical_front_sus.
+	front_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.4f : 0.32f;
+	front_wheel->mSuspensionFrequency = 3.f; // Make the suspension a bit stiffer than default
 
 	// Rear wheel
 	JPH::WheelSettingsWV* rear_wheel = new JPH::WheelSettingsWV;
-	rear_wheel->mPosition = toJoltVec3(z_up_to_model_space * Vec4f(0, -0.85f, 0.0f, 0));
+	rear_wheel->mPosition = toJoltVec3(z_up_to_model_space * Vec4f(0, -0.88f, 0.0f, 0));
 	rear_wheel->mMaxSteerAngle = 0.f;
 	rear_wheel->mMaxHandBrakeTorque = handbrake_torque;
 	rear_wheel->mDirection = toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)); // Direction of the suspension in local space of the body
@@ -132,6 +133,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	rear_wheel->mWidth = wheel_width;
 	rear_wheel->mSuspensionMinLength = vertical_front_sus ? 0.2f : 0.1f;
 	rear_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.4f : 0.3f;
+	rear_wheel->mSuspensionFrequency = 3.f; // Make the suspension a bit stiffer than default
 
 	vehicle.mWheels = { front_wheel, rear_wheel };
 
@@ -156,7 +158,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	controller_settings->mDifferentials[0].mRightWheel = -1; // no right wheel.
 	controller_settings->mDifferentials[0].mLeftRightSplit = 0; // Apply all torque to 'left' (front) wheel.
 
-	controller_settings->mEngine.mMaxTorque = 200;
+	controller_settings->mEngine.mMaxTorque = 230; // Approximately the smallest value that allows wheelies.
 	controller_settings->mEngine.mMaxRPM = 30000; // If only 1 gear, allow a higher max RPM
 	controller_settings->mEngine.mInertia = 0.05; // If only 1 gear, allow a higher max RPM
 
@@ -240,6 +242,8 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	assert(this->bike_body_id == world_object->physics_object->jolt_body_id);
 
+	const float speed = getLinearVel(physics_world).length();
+
 	float forward = 0.0f, right = 0.0f, up_input = 0.f, brake = 0.0f, hand_brake = 0.0f;
 	// Determine acceleration and brake
 	if (physics_input.W_down || physics_input.up_down)
@@ -262,17 +266,19 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		up_input = -1.f;
 
 	// Steering
-	const float STEERING_SPEED = 2.f;
+	const float max_steering = myClamp(20.f / speed, 0.f, 1.f);
+	const float steering_speed = 2.f;
+
 	if(physics_input.A_down && !physics_input.D_down)
-		cur_steering_right = myClamp(cur_steering_right - STEERING_SPEED * dtime, -max_steering_angle, max_steering_angle);
+		cur_steering_right = myClamp(cur_steering_right - steering_speed * dtime, -max_steering, max_steering);
 	else if(physics_input.D_down && !physics_input.A_down)
-		cur_steering_right = myClamp(cur_steering_right + STEERING_SPEED * dtime, -max_steering_angle, max_steering_angle);
+		cur_steering_right = myClamp(cur_steering_right + steering_speed * dtime, -max_steering, max_steering);
 	else
 	{
 		if(cur_steering_right > 0)
-			cur_steering_right = myMax(cur_steering_right - STEERING_SPEED * dtime, 0.f); // Relax to neutral steering position
+			cur_steering_right = myMax(cur_steering_right - steering_speed * dtime, 0.f); // Relax to neutral steering position
 		else if(cur_steering_right < 0)
-			cur_steering_right = myMin(cur_steering_right + STEERING_SPEED * dtime, 0.f); // Relax to neutral steering position
+			cur_steering_right = myMin(cur_steering_right + steering_speed * dtime, 0.f); // Relax to neutral steering position
 	}
 
 	right = cur_steering_right;
@@ -377,7 +383,8 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		//---------- Roll constraint -----------------
 
 		// Smooth cur_target_tile_angle towards smoothed_desired_roll_angle
-		cur_target_tilt_angle = cur_target_tilt_angle * (1 - lerp_factor) + lerp_factor * smoothed_desired_roll_angle;
+		// cur_target_tilt_angle = cur_target_tilt_angle * (1 - lerp_factor) + lerp_factor * smoothed_desired_roll_angle;
+		cur_target_tilt_angle = smoothed_desired_roll_angle;
 
 		vehicle_constraint->SetTiltAngle(cur_target_tilt_angle);
 
@@ -458,11 +465,12 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	GLObject* graphics_ob = world_object->opengl_engine_ob.ptr();
 	if(graphics_ob)
 	{
-		const Vec4f steering_axis_z_up = vertical_front_sus ? Vec4f(0,1,0,0) : normalise(Vec4f(0, 2.37f, 1.87f, 0)); // = front suspension dir
+		const Vec4f steering_axis = Vec4f(0,1,0,0);
 
 		if(steering_node_i >= 0 && steering_node_i < (int)graphics_ob->anim_node_data.size())
 		{
-			graphics_ob->anim_node_data[steering_node_i].procedural_transform = Matrix4f::rotationMatrix(steering_axis_z_up, /*-*/cur_steering_right);
+			const float steering_angle = cur_steering_right * max_steering_angle;
+			graphics_ob->anim_node_data[steering_node_i].procedural_transform = Matrix4f::rotationMatrix(steering_axis, steering_angle);
 		}
 
 
@@ -478,9 +486,8 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		if(front_wheel_node_i >= 0 && front_wheel_node_i < (int)graphics_ob->anim_node_data.size())
 		{
 			const float front_sus_len = vehicle_constraint->GetWheel(0)->GetSuspensionLength();
-			//const Vec4f translation_dir = vertical_front_sus ? Vec4f(1,0,0,0) : normalise(Vec4f(2.37f,0,-1.87f,0)); // x is upwards, z is back
-			const Vec4f translation_dir = vertical_front_sus ? Vec4f(0,1,0,0) : normalise(Vec4f(2.37f,0,-1.87f,0)); // y is upwards
-			const float suspension_offset = vertical_front_sus ? 0.222f : 0.28f;
+			const Vec4f translation_dir = vertical_front_sus ? Vec4f(0,1,0,0) : normalise(Vec4f(0, 2.37f, 1.87f,0)); // y is upwards
+			const float suspension_offset = vertical_front_sus ? 0.222f : 0.29f;
 			const Vec4f translation = translation_dir * -(world_to_ob_scale * (front_sus_len /** 1.5f*/ - suspension_offset)); // 1.5 to compensate for angle of suspension
 			graphics_ob->anim_node_data[front_wheel_node_i].procedural_transform = Matrix4f::translationMatrix(translation) * Matrix4f::rotationAroundXAxis(-vehicle_constraint->GetWheel(0)->GetRotationAngle());
 		}
@@ -693,7 +700,7 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should
 			opengl_engine.updateObjectTransformData(*contact_laterial_force_gl_ob[i]);
 		}
 	
-		//------------------ wheel collision tester cylinder ------------------
+		//------------------ wheels (wheel collision tester cylinder) ------------------
 		for(int i=0; i<2; ++i)
 		{
 			const float radius = wheel_radius;
