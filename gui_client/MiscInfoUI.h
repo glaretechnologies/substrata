@@ -33,6 +33,9 @@ public:
 
 	void showServerAdminMessage(const std::string& msg);
 
+	void showVehicleSpeed(float speed_km_per_h);
+	void hideVehicleSpeed();
+
 	void viewportResized(int w, int h);
 
 	virtual void eventOccurred(GLUICallbackEvent& event) override; // From GLUICallbackHandler
@@ -43,6 +46,8 @@ private:
 	MainWindow* main_window;
 
 	GLUITextViewRef admin_msg_text_view;
+
+	GLUITextViewRef speed_text_view;
 
 	GLUIRef gl_ui;
 
