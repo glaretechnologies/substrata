@@ -2961,7 +2961,9 @@ void MainWindow::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_
 		}
 		//----------- End display edge markers -----------
 
-		doMoveObject(ob, new_ob_pos);
+		runtimeCheck(opengl_ob.nonNull() && opengl_ob->mesh_data.nonNull());
+
+		doMoveObject(ob, new_ob_pos, opengl_ob->mesh_data->aabb_os);
 	} 
 	else // else if new transfrom not valid
 	{
@@ -2970,18 +2972,20 @@ void MainWindow::tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_
 }
 
 
-void MainWindow::doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos)
+void MainWindow::doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const js::AABBox& aabb_os)
 {
-	doMoveAndRotateObject(ob, new_ob_pos, ob->axis, ob->angle, /*summoning_object=*/false);
+	doMoveAndRotateObject(ob, new_ob_pos, ob->axis, ob->angle, aabb_os, /*summoning_object=*/false);
 }
 
 
-void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, bool summoning_object)
+void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object)
 {
 	GLObjectRef opengl_ob = ob->opengl_engine_ob;
 
 	// Set world object pos
 	ob->setTransformAndHistory(new_ob_pos, new_axis, new_angle);
+
+	ob->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*ob)));
 
 	// Set graphics object pos and update in opengl engine.
 	const Matrix4f new_to_world = obToWorldMatrix(*ob);
@@ -2993,7 +2997,8 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 	}
 
 	// Update physics object
-	physics_world->setNewObToWorldTransform(*ob->physics_object, new_ob_pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle), useScaleForWorldOb(ob->scale).toVec4fVector());
+	if(ob->physics_object.nonNull())
+		physics_world->setNewObToWorldTransform(*ob->physics_object, new_ob_pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle), useScaleForWorldOb(ob->scale).toVec4fVector());
 
 	// Update in Indigo view
 	ui->indigoView->objectTransformChanged(*ob);
@@ -3001,11 +3006,6 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 	// Set a timer to call updateObjectEditorObTransformSlot() later. Not calling this every frame avoids stutters with webviews playing back videos interacting with Qt updating spinboxes.
 	if(!update_ob_editor_transform_timer->isActive())
 		update_ob_editor_transform_timer->start(/*msec=*/50);
-
-	if(opengl_ob.nonNull())
-	{
-		ob->setAABBWS(opengl_ob->aabb_ws); // Was computed above in updateObjectTransformData().
-	}
 
 	
 	if(summoning_object)
@@ -6337,6 +6337,23 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				{
 					enableMaterialisationEffectOnOb(*ob);
 
+					// Set physics and object transforms here explictly instead of relying on interpolation or whatever.
+					// This is because summoning moves objects discontinuously, so we don't want to interpolate.
+					if(ob->physics_object.nonNull())
+					{
+						physics_world->setNewObToWorldTransform(*ob->physics_object, ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(ob->axis), ob->angle), 
+							Vec4f(0), Vec4f(0));
+
+						ob->physics_object->smooth_rotation = Quatf::identity(); // We don't want to smooth the transformation change.
+						ob->physics_object->smooth_translation = Vec4f(0);
+					}
+
+					if(ob->opengl_engine_ob.nonNull())
+					{
+						ob->opengl_engine_ob->ob_to_world_matrix = obToWorldMatrix(*ob);
+						ui->glWidget->opengl_engine->updateObjectTransformData(*ob->opengl_engine_ob);
+					}
+
 					ob->from_remote_summoned_dirty = false;
 				}
 			}
@@ -9075,6 +9092,15 @@ void MainWindow::on_actionSummon_Bike_triggered()
 			Vec3d(0,0,-1.67) + // Move down by eye height to ground
 			Vec3d(0, 0, 0.55f); // Move up off ground.  TEMP HARDCODED
 
+		const js::AABBox aabb_os(Vec4f(-2.432, -3.09, -4.352, 1), Vec4f(2.431, 4.994, 2.432, 1)); // Got from diagnostics widget after setting transform to identity.
+
+		// Get desired rotation
+		const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // NOTE: from bike script
+		const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x);
+		Vec4f axis;
+		float angle;
+		(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
+
 		// Search for existing summoned bike, if we find it, move it to in front of user.
 		{
 			Lock lock(world_state->mutex);
@@ -9098,16 +9124,7 @@ void MainWindow::on_actionSummon_Bike_triggered()
 
 				runtimeCheck(existing_ob_to_summon->vehicle_script.nonNull() && existing_ob_to_summon->vehicle_script.isType<Scripting::BikeScript>());
 
-				// Get desired rotation from script.
-				const Quatf rot = existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_2 * existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_1;
-
-				const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x/* - Maths::pi_2<float>()*/);
-
-				Vec4f axis;
-				float angle;
-				(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
-
-				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, /*summoning_object=*/true);
+				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, aabb_os, /*summoning_object=*/true);
 
 				enableMaterialisationEffectOnOb(*existing_ob_to_summon);
 
@@ -9135,8 +9152,6 @@ void MainWindow::on_actionSummon_Bike_triggered()
 
 		WorldObjectRef new_world_object = new WorldObject();
 
-		const js::AABBox aabb_os(Vec4f(-2.432, -3.09, -4.352, 1), Vec4f(2.431, 4.994, 2.432, 1)); // Got from diagnostics widget after setting transform to identity.
-
 		new_world_object->model_url = "optimized_dressed_fix7_offset4_glb_4474648345850208925.bmesh";
 		new_world_object->max_model_lod_level = 2;
 
@@ -9145,8 +9160,8 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		new_world_object->uid = UID(0); // A new UID will be assigned by server
 		new_world_object->materials = materials;
 		new_world_object->pos = pos;
-		new_world_object->axis = Vec3f(1,0,0);
-		new_world_object->angle = Maths::pi_2<float>();
+		new_world_object->axis = Vec3f(axis);
+		new_world_object->angle = angle;
 		new_world_object->scale = Vec3f(0.18f);
 
 		new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
@@ -9204,11 +9219,21 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 			FileUtils::writeEntireFileTextMode("hovercar_mats.xml", xml);
 		}
 
+		const js::AABBox aabb_os(Vec4f(-1.053, -0.058, -2.163, 1), Vec4f(1.053, 1.284, 2.225, 1)); // Got from diagnostics widget after setting transform to identity.
 
 		const Vec3d pos = this->cam_controller.getFirstPersonPosition() + 
 			::removeComponentInDir(this->cam_controller.getForwardsVec(), Vec3d(0,0,1)) * 3 +
 			Vec3d(0,0,-1.67) + // Move down by eye height to ground
 			Vec3d(0, 0, 0.0493f); // Move up off ground.  TEMP HARDCODED
+
+		// Get desired rotation from script.
+		const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>()) * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // NOTE: from hovercar script
+
+		const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x);
+
+		Vec4f axis;
+		float angle;
+		(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
 
 		// Search for existing summoned hovercar, if we find it, move it to in front of user.
 		{
@@ -9233,16 +9258,7 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 
 				runtimeCheck(existing_ob_to_summon->vehicle_script.nonNull());
 
-				// Get desired rotation from script.
-				const Quatf rot = existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_2 * existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_1;
-
-				const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x/* - Maths::pi_2<float>()*/);
-
-				Vec4f axis;
-				float angle;
-				(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
-
-				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, /*summoning_object=*/true);
+				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, aabb_os, /*summoning_object=*/true);
 
 				enableMaterialisationEffectOnOb(*existing_ob_to_summon);
 
@@ -9270,8 +9286,6 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 
 		WorldObjectRef new_world_object = new WorldObject();
 
-		const js::AABBox aabb_os(Vec4f(-1.053, -0.058, -2.163, 1), Vec4f(1.053, 1.284, 2.225, 1)); // Got from diagnostics widget after setting transform to identity.
-
 		new_world_object->model_url = "peugot_closed_glb_2887717763908023194.bmesh";
 		new_world_object->max_model_lod_level = 2;
 
@@ -9280,8 +9294,8 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 		new_world_object->uid = UID(0); // A new UID will be assigned by server
 		new_world_object->materials = materials;
 		new_world_object->pos = pos;
-		new_world_object->axis = Vec3f(1,0,0);
-		new_world_object->angle = Maths::pi_2<float>();
+		new_world_object->axis = Vec3f(axis);
+		new_world_object->angle = angle;
 		new_world_object->scale = Vec3f(1.f);
 
 		new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
