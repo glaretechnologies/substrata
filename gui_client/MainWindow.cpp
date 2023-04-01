@@ -5340,6 +5340,17 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 		this->cam_controller.setPosition(toVec3d(campos));
 
+		// Show vehicle speed on UI: Disabled until we can not create a zillion textures for this.
+		if(false)
+		{
+			if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
+			{
+				const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
+				misc_info_ui.showVehicleSpeed(speed_km_h);
+			}
+			else
+				misc_info_ui.hideVehicleSpeed();
+		}
 
 		// Update debug player-physics visualisation spheres
 		if(false)
