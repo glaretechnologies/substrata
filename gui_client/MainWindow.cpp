@@ -9101,9 +9101,11 @@ void MainWindow::on_actionSummon_Bike_triggered()
 				// Get desired rotation from script.
 				const Quatf rot = existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_2 * existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_1;
 
+				const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x/* - Maths::pi_2<float>()*/);
+
 				Vec4f axis;
 				float angle;
-				rot.toAxisAndAngle(axis, angle);
+				(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
 
 				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, /*summoning_object=*/true);
 
@@ -9234,11 +9236,11 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 				// Get desired rotation from script.
 				const Quatf rot = existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_2 * existing_ob_to_summon->vehicle_script->settings.model_to_y_forwards_rot_1;
 
-				//const Quatf rot = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>()); // TEMP HACK
+				const Quatf to_face_camera_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)this->cam_controller.getAngles().x/* - Maths::pi_2<float>()*/);
 
 				Vec4f axis;
 				float angle;
-				rot.toAxisAndAngle(axis, angle);
+				(to_face_camera_rot * rot).toAxisAndAngle(axis, angle);
 
 				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, /*summoning_object=*/true);
 
