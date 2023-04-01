@@ -289,8 +289,8 @@ public:
 	virtual void newCellInProximity(const Vec3<int>& cell_coords);
 
 	void tryToMoveObject(WorldObjectRef ob, /*const Matrix4f& tentative_new_to_world*/const Vec4f& desired_new_ob_pos);
-	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos) REQUIRES(world_state->mutex);
-	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, bool summoning_object) REQUIRES(world_state->mutex);
+	void doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const js::AABBox& aabb_os) REQUIRES(world_state->mutex);
+	void doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object) REQUIRES(world_state->mutex);
 
 	void updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& ob);
 
