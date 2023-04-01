@@ -26,15 +26,13 @@ const float ob_to_world_scale = 0.18f; // For particular concept bike model expo
 const float world_to_ob_scale = 1 / ob_to_world_scale;
 
 
-const float wheel_radius =  3.856f / 2 * ob_to_world_scale;
+const float wheel_radius =  3.856f / 2 * ob_to_world_scale; // = 0.34704 m
 const float wheel_width = 0.94f * ob_to_world_scale;
 const float half_vehicle_width = 1.7f/*2.f*/ / 2 * ob_to_world_scale;
 const float half_vehicle_length = 9.f/*10.f*/ / 2 * ob_to_world_scale;
 const float half_vehicle_height = 3.2f/*3.5f*/ / 2 * ob_to_world_scale;
 const float max_steering_angle = JPH::DegreesToRadians(30);
 
-
-const bool vertical_front_sus = false; // Just to hack in vertical front suspension since sloped suspension is still buggy.
 
 BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world)
 :	m_opengl_engine(NULL),
@@ -113,15 +111,21 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	// Front wheel
 	const float handbrake_torque = 10000; // default is 4000.
 	JPH::WheelSettingsWV* front_wheel = new JPH::WheelSettingsWV;
-	front_wheel->mPosition = vertical_front_sus ? toJoltVec3(z_up_to_model_space * Vec4f(0, 0.85f, 0.0f, 0)) : toJoltVec3(z_up_to_model_space * Vec4f(0, 0.65f, 0.0f, 0)); // suspension attachment point
+	front_wheel->mPosition = toJoltVec3(z_up_to_model_space * Vec4f(0, 0.65f, 0.0f, 0)); // suspension attachment point
 	front_wheel->mMaxSteerAngle = max_steering_angle;
 	front_wheel->mMaxHandBrakeTorque = handbrake_torque * 0.02f;
-	front_wheel->mDirection = vertical_front_sus ? toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)) : toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
+	front_wheel->mDirection =  toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
 	front_wheel->mRadius = wheel_radius;
 	front_wheel->mWidth = wheel_width;
-	front_wheel->mSuspensionMinLength = vertical_front_sus ? 0.2f : 0.25f; // NOTE: currently Jolt has a bug with forwards/backwards acceleration if suspension is different heights.  so make it the same with vertical_front_sus.
-	front_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.4f : 0.32f;
+	front_wheel->mSuspensionMinLength = 0.1f;/*0.25f*/;
+	front_wheel->mSuspensionMaxLength = 0.32f;
 	front_wheel->mSuspensionFrequency = 3.f; // Make the suspension a bit stiffer than default
+	// Typical front wheel weight without tire is 6kg (https://www.amazon.com/Arashi-Z900-Z650-Ninja-650/dp/B0952XBB4V), front tire is 8.8 lb (4kg) (https://www.amazon.com/Pirelli-Diablo-Rosso-70ZR-17-D-Spec/dp/B06X6J4LXM)
+	// Using solid cylinder moment of inertia for front wheel: 1/2 * 6 kg * 0.3 m^2 = 0.27 kg m^2
+	// Front tire: Using hoop moment of inertia gives M * R^2 = 4 * 0.3^2 = 0.36 kg m^2
+	front_wheel->mInertia = 0.63f; // Total = 0.27 kg m^2 + 0.36 kg m^2
+
+	
 
 	// Rear wheel
 	JPH::WheelSettingsWV* rear_wheel = new JPH::WheelSettingsWV;
@@ -131,9 +135,11 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	rear_wheel->mDirection = toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)); // Direction of the suspension in local space of the body
 	rear_wheel->mRadius = wheel_radius;
 	rear_wheel->mWidth = wheel_width;
-	rear_wheel->mSuspensionMinLength = vertical_front_sus ? 0.2f : 0.1f;
-	rear_wheel->mSuspensionMaxLength = vertical_front_sus ? 0.4f : 0.3f;
+	rear_wheel->mSuspensionMinLength = 0.1f;
+	rear_wheel->mSuspensionMaxLength = 0.3f;
 	rear_wheel->mSuspensionFrequency = 3.f; // Make the suspension a bit stiffer than default
+	// rear tire is e.g. 13lb, see https://www.amazon.com/Pirelli-Diablo-Rosso-Rear-55ZR-17/dp/B01AZ5T50K?th=1
+
 
 	vehicle.mWheels = { front_wheel, rear_wheel };
 
@@ -266,13 +272,22 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		up_input = -1.f;
 
 	// Steering
-	const float max_steering = myClamp(20.f / speed, 0.f, 1.f);
+	/*const float v = speed;
+	const float g = 9.81f;
+	const float l = 0.85f * 2; // approx
+	const float max_lean_angle = JPH::DegreesToRadians(45.f);
+	const float max_steer_angle_for_max_lean = std::atan(std::tan(max_lean_angle) * l * g / (v*v));
+	const float max_steering_input = myClamp(max_steer_angle_for_max_lean / max_steering_angle, 0.f, 1.f);   //myClamp(20.f / speed, 0.f, 1.f);    // steering_angle = steering_input * max_steering_angle, so steering_input = steering_angle / max_steering_angle
+	printVar(max_steer_angle_for_max_lean);
+	printVar(max_steering_input);
+	*/
+	const float max_steering_input = myClamp(20.f / speed, 0.f, 1.f);
 	const float steering_speed = 2.f;
 
 	if(physics_input.A_down && !physics_input.D_down)
-		cur_steering_right = myClamp(cur_steering_right - steering_speed * dtime, -max_steering, max_steering);
+		cur_steering_right = myClamp(cur_steering_right - steering_speed * dtime, -max_steering_input, max_steering_input);
 	else if(physics_input.D_down && !physics_input.A_down)
-		cur_steering_right = myClamp(cur_steering_right + steering_speed * dtime, -max_steering, max_steering);
+		cur_steering_right = myClamp(cur_steering_right + steering_speed * dtime, -max_steering_input, max_steering_input);
 	else
 	{
 		if(cur_steering_right > 0)
@@ -291,7 +306,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		body_interface.ActivateBody(bike_body_id);
 
 
-	// Pass the input on to the constraint
+	// Pass the input on to the constraint 
 	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController());
 	controller->SetDriverInput(forward, right, brake, hand_brake);
 
@@ -335,7 +350,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	if(user_in_driver_seat)
 	{
-		vehicle_constraint->SetMaxRollAngle(JPH::DegreesToRadians(1.f)); // TEMP
+		vehicle_constraint->SetMaxRollAngle(JPH::DegreesToRadians(0.f));
 
 
 		//TEMP make bike float for testing constraints:
@@ -479,15 +494,15 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			const float sus_len = vehicle_constraint->GetWheel(1)->GetSuspensionLength();
 
 			Vec4f to_pivot_trans(0,0,1.35,0);
-			graphics_ob->anim_node_data[back_arm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis((sus_len - 0.20f) * 3);
+			graphics_ob->anim_node_data[back_arm_node_i].procedural_transform = Matrix4f::rotationAroundXAxis((sus_len - 0.225f) * 3);
 		}
 
 		// Front wheel
 		if(front_wheel_node_i >= 0 && front_wheel_node_i < (int)graphics_ob->anim_node_data.size())
 		{
 			const float front_sus_len = vehicle_constraint->GetWheel(0)->GetSuspensionLength();
-			const Vec4f translation_dir = vertical_front_sus ? Vec4f(0,1,0,0) : normalise(Vec4f(0, 2.37f, 1.87f,0)); // y is upwards
-			const float suspension_offset = vertical_front_sus ? 0.222f : 0.29f;
+			const Vec4f translation_dir = normalise(Vec4f(0, 2.37f, 1.87f,0)); // y is upwards
+			const float suspension_offset = 0.29f;
 			const Vec4f translation = translation_dir * -(world_to_ob_scale * (front_sus_len /** 1.5f*/ - suspension_offset)); // 1.5 to compensate for angle of suspension
 			graphics_ob->anim_node_data[front_wheel_node_i].procedural_transform = Matrix4f::translationMatrix(translation) * Matrix4f::rotationAroundXAxis(-vehicle_constraint->GetWheel(0)->GetRotationAngle());
 		}
