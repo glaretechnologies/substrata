@@ -5513,7 +5513,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		if(player_physics.onGroundRecently() && our_move_impulse_zero && !player_physics.flyModeEnabled()) // Suppress footsteps when on ground and not trying to move (walk anims should not be played in this case)
 			xyplane_speed = 0;
 
-		if(xyplane_speed > 0.1f)
+		if((xyplane_speed > 0.1f) && vehicle_controller_inside.isNull()) // Don't play footstep sounds if sitting in vehicle.
 		{
 			ui->indigoView->cameraUpdated(this->cam_controller);
 
@@ -5949,7 +5949,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						avatar->graphics.setOverallTransform(*ui->glWidget->opengl_engine, pos, rotation, use_xyplane_speed_rel_ground_override, xyplane_speed_rel_ground_override,
 							avatar->avatar_settings.pre_ob_to_world_matrix, avatar->anim_state, cur_time, dt, pose_constraint, anim_events);
 						
-						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike) // If avatar is on ground, and the anim played a footstrike
+						if(!BitUtils::isBitSet(avatar->anim_state, AvatarGraphics::ANIM_STATE_IN_AIR) && anim_events.footstrike && !pose_constraint.sitting) // If avatar is on ground, and the anim played a footstrike
 						{
 							//const int rnd_src_i = rng.nextUInt((uint32)footstep_sources.size());
 							//footstep_sources[rnd_src_i]->cur_read_i = 0;
