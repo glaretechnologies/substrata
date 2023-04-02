@@ -1017,6 +1017,8 @@ void MainWindow::removeAndDeleteGLAndPhysicsObjectsForOb(WorldObject& ob)
 {
 	removeAndDeleteGLObjectsForOb(ob);
 
+	destroyVehiclePhysicsControllingObject(&ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
+
 	if(ob.physics_object.nonNull())
 	{
 		physics_world->removeObject(ob.physics_object);
@@ -1050,6 +1052,8 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 	if(ob->opengl_light.nonNull())
 		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
 	
+	destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
+
 	if(ob->physics_object.nonNull())
 	{
 		physics_world->removeObject(ob->physics_object);
@@ -1682,6 +1686,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 						// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
 						if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
 						{
+							destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
 							physics_world->removeObject(ob->physics_object);
 							ob->physics_object = NULL;
 						}
@@ -3289,6 +3294,7 @@ void MainWindow::processLoading()
 											// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
 											if(ob->physics_object.nonNull() && (ob->using_placeholder_model || !(ob->physics_object->dynamic || ob->physics_object->kinematic)))
 											{
+												destroyVehiclePhysicsControllingObject(ob); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
 												physics_world->removeObject(ob->physics_object);
 												ob->physics_object = NULL;
 											}
@@ -3496,6 +3502,7 @@ void MainWindow::processLoading()
 							// Remove previous physics object. If this is a dynamic or kinematic object, don't delete old object though, unless it's a placeholder.
 							if(voxel_ob->physics_object.nonNull() && (voxel_ob->using_placeholder_model || !(voxel_ob->physics_object->dynamic || voxel_ob->physics_object->kinematic)))
 							{
+								destroyVehiclePhysicsControllingObject(voxel_ob.ptr()); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies, which we can't leave dangling.
 								physics_world->removeObject(voxel_ob->physics_object);
 								voxel_ob->physics_object = NULL;
 							}
@@ -5111,8 +5118,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	// We advance both together, otherwise if there is a large dt, the physics engine can advance objects past what the player physics can keep up with.
 	// This prevents stuff like the player falling off the back of a train when loading stutters occur.
 	const double MAX_SUBSTEP_DT = 1.0 / 60.0;
-	const int num_substeps = myMin(60, (int)std::ceil(dt / MAX_SUBSTEP_DT));
-	const double substep_dt = dt / num_substeps;
+	const int unclamped_num_substeps = (int)std::ceil(dt / MAX_SUBSTEP_DT); // May get very large.
+	const int num_substeps  = myMin(unclamped_num_substeps, 60); // Only do up to 60 steps
+	const double substep_dt = myMin(dt / num_substeps, MAX_SUBSTEP_DT); // Don't make the substep time > 1/60s.
 
 	for(int i=0; i<num_substeps; ++i)
 	{
@@ -6157,9 +6165,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						print("Removing WorldObject.");
 
-						// Remove vehicle controller if its controlling the object we are removing
-						destroyVehiclePhysicsControllingObject(ob);
-					
 						removeAndDeleteGLAndPhysicsObjectsForOb(*ob);
 
 						//proximity_loader.removeObject(ob);
@@ -9394,9 +9399,6 @@ void MainWindow::objectEditedSlot()
 					// Remove existing physics object
 					if(selected_ob->physics_object.nonNull())
 					{
-						// Destroy vehicle controllers, as Jolt hits asserts if physics object is swapped out or removed under it.
-						destroyVehiclePhysicsControllingObject(this->selected_ob.ptr());
-
 						physics_world->removeObject(selected_ob->physics_object);
 						selected_ob->physics_object = NULL;
 					}
@@ -9436,9 +9438,6 @@ void MainWindow::objectEditedSlot()
 				}
 				else
 				{
-					// Destroy vehicle controllers, as Jolt hits asserts if physics object is swapped out or removed under it.
-					destroyVehiclePhysicsControllingObject(this->selected_ob.ptr());
-
 					removeAndDeleteGLAndPhysicsObjectsForOb(*this->selected_ob); // Remove old opengl and physics objects
 
 					const std::string mesh_path = FileUtils::fileExists(this->selected_ob->model_url) ? this->selected_ob->model_url : resource_manager->pathForURL(this->selected_ob->model_url);
@@ -10037,6 +10036,9 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 	deselectObject();
 
+	vehicle_controller_inside = NULL;
+	vehicle_controllers.clear();
+
 	// Remove all objects, parcels, avatars etc.. from OpenGL engine and physics engine
 	if(world_state.nonNull())
 	{
@@ -10099,9 +10101,6 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 
 	selected_ob = NULL;
 
-	vehicle_controller_inside = NULL;
-	vehicle_controllers.clear();
-	
 
 	active_objects.clear();
 	obs_with_animated_tex.clear();
@@ -10925,6 +10924,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 	if(ob->opengl_light.nonNull())
 		ui->glWidget->opengl_engine->removeLight(ob->opengl_light);
 
+	destroyVehiclePhysicsControllingObject(ob.ptr()); // Destroy any vehicle controller controlling this object, as vehicle controllers have pointers to physics bodies.
 	if(ob->physics_object.nonNull())
 	{
 		physics_world->removeObject(ob->physics_object);
