@@ -85,8 +85,7 @@ private:
 
 	float righting_time_remaining;
 	
-	JPH::Ref<JPH::VehicleConstraint>		vehicle_constraint; // The vehicle constraint
-	JPH::Ref<JPH::VehicleCollisionTester>	collision_tester; // Collision testers for the wheel
+	JPH::Ref<JPH::VehicleConstraint> vehicle_constraint; // The vehicle constraint
 
 	float cur_steering_right; // in [-1, 1], a magnitude of one corresponding to max steering angle.
 
