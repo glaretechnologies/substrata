@@ -100,6 +100,7 @@
     <addaction name="actionTake_Screenshot"/>
     <addaction name="actionShow_Screenshot_Folder"/>
     <addaction name="actionShow_Log"/>
+    <addaction name="actionMute_Audio"/>
     <addaction name="actionOptions"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
@@ -615,6 +616,17 @@
   <action name="actionSummon_Hovercar">
    <property name="text">
     <string>Summon Hovercar</string>
+   </property>
+  </action>
+  <action name="actionMute_Audio">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Mute Audio</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+M</string>
    </property>
   </action>
  </widget>

@@ -64,6 +64,8 @@ public:
 	void setMuteVolumeFactorImmediately(float factor);
 	inline float getMuteVolumeFactor() const { return mute_volume_factor; }
 
+	void updateDopplerEffectFactor(const Vec4f& source_linear_vel, const Vec4f& listener_linear_vel, const Vec4f& listener_pos);
+
 	int resonance_handle; // Set in AudioEngine::addSource().
 	
 	// Audio data can either be in buffer or shared_buffer.
@@ -84,6 +86,7 @@ private:
 	float mute_vol_fac_start; // mute_volume_factor at start of transition period.
 	float mute_vol_fac_end; // mute_volume_factor at end of transition period.
 public:
+	float doppler_factor;
 
 	Vec4f pos;
 
@@ -159,6 +162,9 @@ public:
 
 	uint32 getSampleRate() const { return sample_rate; }
 	
+	void setMasterVolume(float volume);
+
+	SoundFileRef getOrLoadSoundFile(const std::string& sound_file_path);
 
 	static void test();
 private:

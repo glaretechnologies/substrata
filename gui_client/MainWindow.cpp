@@ -5161,24 +5161,36 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					}
 				}
 				player_physics.contacted_events.resize(0);
+			}
 
 
-				// Process vehicle controllers for any vehicles we are not driving:
-				for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
+			// Process vehicle controllers for any vehicles we are not driving:
+			for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
+			{
+				VehiclePhysics* controller = it->second.ptr();
+				if((controller != vehicle_controller_inside.ptr()) || (this->cur_seat_index != 0)) // If this is not the controller for the vehicle we are inside of, or if we are not driving it:
 				{
-					VehiclePhysics* controller = it->second.ptr();
-					if((controller != vehicle_controller_inside.ptr()) || (this->cur_seat_index != 0)) // If this is not the controller for the vehicle we are inside of, or if we are not driving it:
-					{
-						PlayerPhysicsInput controller_physics_input;
-						controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
-						controller->update(*this->physics_world, controller_physics_input, (float)substep_dt);
-					}
+					PlayerPhysicsInput controller_physics_input;
+					controller_physics_input.setFromBitFlags(controller->last_physics_input_bitflags);
+					controller->update(*this->physics_world, controller_physics_input, (float)substep_dt);
 				}
 			}
 		}
 	}
 
 	player_physics.zeroMoveDesiredVel();
+
+
+	// Compute Doppler-effect factor for vehicle controllers.
+	{
+		const Vec4f listener_linear_vel = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getLinearVel(*this->physics_world) : player_physics.getLinearVel();
+		for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
+		{
+			VehiclePhysics* controller = it->second.ptr();
+			controller->updateDopplerEffect(/*listener linear vel=*/listener_linear_vel, /*listener pos=*/cam_controller.getFirstPersonPosition().toVec4fPoint());
+		}
+	}
+
 
 	if(physics_world.nonNull())
 	{
@@ -5880,7 +5892,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 												bike_physics_settings.bike_mass = avatar->entered_vehicle->mass;
 												bike_physics_settings.script_settings = bike_script->settings;
 
-												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world);
+												new_controller = new BikePhysics(avatar->entered_vehicle, bike_physics_settings, *physics_world, &audio_engine, base_dir_path);
 											}
 											else
 											{
@@ -9330,6 +9342,19 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 }
 
 
+void MainWindow::on_actionMute_Audio_toggled(bool checked)
+{
+	if(checked)
+	{
+		audio_engine.setMasterVolume(0.f);
+	}
+	else
+	{	
+		audio_engine.setMasterVolume(1.f);
+	}
+}
+
+
 void MainWindow::sendChatMessageSlot()
 {
 	//conPrint("MainWindow::sendChatMessageSlot()");
@@ -11925,7 +11950,7 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 											bike_physics_settings.bike_mass = ob->mass;
 											bike_physics_settings.script_settings = bike_script->settings;
 
-											controller_for_ob = new BikePhysics(ob, bike_physics_settings, *physics_world);
+											controller_for_ob = new BikePhysics(ob, bike_physics_settings, *physics_world, &audio_engine, base_dir_path);
 											vehicle_controllers.insert(std::make_pair(ob, controller_for_ob));
 										}
 										else

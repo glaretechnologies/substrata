@@ -26,7 +26,7 @@ namespace glare
 
 AudioSource::AudioSource()
 :	cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
-	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0)
+	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1)
 {}
 
 
@@ -83,6 +83,24 @@ void AudioSource::setMuteVolumeFactorImmediately(float factor)
 { 
 	mute_change_end_time = -1;
 	mute_volume_factor = factor;
+}
+
+
+void AudioSource::updateDopplerEffectFactor(const Vec4f& source_linear_vel, const Vec4f& listener_linear_vel, const Vec4f& listener_pos)
+{
+	const Vec4f source_to_listener = listener_pos - pos;
+	assert(source_to_listener[3] == 0);
+
+	const Vec4f projected_source_vel = projectOntoDir(source_linear_vel, source_to_listener);
+
+	const Vec4f projected_listener_vel = projectOntoDir(listener_linear_vel, source_to_listener);
+
+	const float v_s = projected_source_vel.length()   * Maths::sign(dot(projected_source_vel,   source_to_listener));
+	const float v_l = projected_listener_vel.length() * Maths::sign(dot(projected_listener_vel, source_to_listener));
+
+	const float c = 343.f; // Speed of sound in air.
+
+	this->doppler_factor = (c - v_l) / (c - v_s);
 }
 
 
@@ -592,6 +610,15 @@ void AudioEngine::setCurentRoomDimensions(const js::AABBox& room_aabb)
 }
 
 
+void AudioEngine::setMasterVolume(float volume)
+{
+	if(!initialised)
+		return;
+
+	resonance->SetMasterVolume(volume);
+}
+
+
 void AudioEngine::shutdown()
 {
 	thread_manager.killThreadsBlocking();
@@ -726,6 +753,23 @@ SoundFileRef AudioEngine::loadSoundFile(const std::string& sound_file_path)
 }
 
 
+SoundFileRef AudioEngine::getOrLoadSoundFile(const std::string& sound_file_path)
+{
+	auto res = sound_files.find(sound_file_path);
+	if(res == sound_files.end())
+	{
+		// Load the sound
+		SoundFileRef sound = loadSoundFile(sound_file_path);
+		sound_files.insert(std::make_pair(sound_file_path, sound));
+		return sound;
+	}
+	else
+	{
+		return res->second;
+	}
+}
+
+
 void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec4f& pos)
 {
 	if(!initialised)
@@ -736,16 +780,7 @@ void AudioEngine::playOneShotSound(const std::string& sound_file_path, const Vec
 
 	try
 	{
-		SoundFileRef sound;
-		auto res = sound_files.find(sound_file_path);
-		if(res == sound_files.end())
-		{
-			// Load the sound
-			sound = loadSoundFile(sound_file_path);
-			sound_files.insert(std::make_pair(sound_file_path, sound));
-		}
-		else
-			sound = res->second;
+		SoundFileRef sound = getOrLoadSoundFile(sound_file_path);
 
 		// Make a new audio source
 		AudioSourceRef source = new AudioSource();
