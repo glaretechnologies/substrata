@@ -407,6 +407,17 @@ void PhysicsWorld::setNewObToWorldTransform(PhysicsObject& object, const Vec4f& 
 }
 
 
+void PhysicsWorld::setLinearAndAngularVelToZero(PhysicsObject& object)
+{
+	if(!object.jolt_body_id.IsInvalid()) // If we are updating Jolt state, and this object has a corresponding Jolt object:
+	{
+		JPH::BodyInterface& body_interface = physics_system->GetBodyInterface();
+
+		body_interface.SetLinearAndAngularVelocity(object.jolt_body_id, /*vel=*/toJoltVec3(Vec4f(0.f)), /*ang vel=*/toJoltVec3(Vec4f(0.f)));
+	}
+}
+
+
 void computeToWorldAndToObMatrices(const Vec4f& translation, const Quatf& rot_quat, const Vec4f& scale, Matrix4f& ob_to_world_out, Matrix4f& world_to_ob_out)
 {
 	// Don't use a zero scale component, because it makes the matrix uninvertible, which breaks various things, including picking and normals.

@@ -238,6 +238,15 @@ BikePhysics::~BikePhysics()
 }
 
 
+void BikePhysics::vehicleSummoned() // Set engine revs to zero etc.
+{
+	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController());
+	controller->GetEngine().SetCurrentRPM(0);
+	
+	vehicle_constraint->GetWheel(0)->SetAngularVelocity(0);
+}
+
+
 void BikePhysics::startRightingVehicle() // TEMP make abstract virtual
 {
 	righting_time_remaining = 2;

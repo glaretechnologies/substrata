@@ -49,6 +49,8 @@ public:
 
 	WorldObject* getControlledObject() override { return world_object; }
 
+	void vehicleSummoned() override; // Set engine revs to zero etc.
+
 	void startRightingVehicle() override;
 
 	void userEnteredVehicle(int seat_index) override; // Should set cur_seat_index
