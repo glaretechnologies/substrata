@@ -65,6 +65,8 @@ public:
 
 	Vec3f getLastXYPlaneVelRelativeToGround() const { return last_xy_plane_vel_rel_ground; }
 
+	Vec4f getLinearVel() const;
+
 	bool isRunPressed() const { return last_runpressed; }
 
 	void debugGetCollisionSpheres(const Vec4f& campos, std::vector<js::BoundingSphere>& spheres_out);

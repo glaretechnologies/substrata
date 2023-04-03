@@ -13,6 +13,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <StringUtils.h>
 #include <ConPrint.h>
 #include <PlatformUtils.h>
+#include "../audio/AudioFileReader.h"
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
@@ -38,12 +39,17 @@ static const float max_steering_angle = JPH::DegreesToRadians(30);
 static const bool vertical_front_sus = false; // Just to hack in vertical front suspension since sloped suspension is still buggy.
 
 
-BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world)
+BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path)
 :	m_opengl_engine(NULL),
 	last_roll_error(0)
 {
 	world_object = object.ptr();
 	m_physics_world = &physics_world;
+	m_audio_engine = audio_engine;
+
+	engine_mid_audio_sound_file_i = 0;
+	engine_low_audio_sound_file_i = 0;
+	engine_high_audio_sound_file_i = 0;
 
 	user_in_driver_seat = false;
 
@@ -55,6 +61,11 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	righting_time_remaining = -1;
 	last_desired_up_vec = Vec4f(0,0,0,0);
 	last_force_vec = Vec4f(0,0,0,0);
+
+
+	engine_low_audio_sound_file  = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Slow_Idle_Steady_01_44100_hz_mono.mp3");
+	engine_mid_audio_sound_file  = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Medium_Speed_Steady_01_44100hz_mono.mp3");
+	engine_high_audio_sound_file = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_High_Speed_Steady_01_44100hz_mono.mp3");
 
 	const Matrix4f z_up_to_model_space = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
@@ -101,7 +112,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	const Vec4f steering_axis_z_up = normalise(Vec4f(0, -1.87f, 2.37f, 0)); // = front suspension dir
 
 	// Front wheel
-	const float handbrake_torque = 10000; // default is 4000.
+	const float handbrake_torque = 2000; // default is 4000.
 	JPH::WheelSettingsWV* front_wheel = new JPH::WheelSettingsWV;
 	front_wheel->mPosition = vertical_front_sus ? toJoltVec3(z_up_to_model_space * Vec4f(0, 0.85f, 0.0f, 0)) : toJoltVec3(z_up_to_model_space * Vec4f(0, 0.65f, 0.0f, 0)); // suspension attachment point
 	front_wheel->mMaxSteerAngle = max_steering_angle;
@@ -157,12 +168,16 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	controller_settings->mDifferentials[0].mRightWheel = -1; // no right wheel.
 	controller_settings->mDifferentials[0].mLeftRightSplit = 0; // Apply all torque to 'left' (front) wheel.
 
-	controller_settings->mEngine.mMaxTorque = 230; // Approximately the smallest value that allows wheelies.
+	controller_settings->mEngine.mMaxTorque = 290; // Approximately the smallest value that allows wheelies.
 	controller_settings->mEngine.mMaxRPM = 30000; // If only 1 gear, allow a higher max RPM
-	controller_settings->mEngine.mInertia = 0.05; // If only 1 gear, allow a higher max RPM
+	controller_settings->mEngine.mInertia = 0.2;
 
 	//controller_settings->mTransmission.mMode = JPH::ETransmissionMode::Manual;
 	controller_settings->mTransmission.mGearRatios = JPH::Array<float>(1, 2.66f); // Use a single forwards gear
+
+	//controller_settings->mTransmission.mShiftDownRPM = 2000.0f;
+	//controller_settings->mTransmission.mShiftUpRPM = 9000.0f;
+	//controller_settings->mTransmission.mGearRatios = { 2.27f, 1.63f, 1.3f, 1.09f, 0.96f, 0.88f }; // From: https://www.blocklayer.com/rpm-gear-bikes
 
 
 	vehicle_constraint = new JPH::VehicleConstraint(*bike_body, vehicle);
@@ -198,11 +213,23 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 		lower_piston_left_node_i  = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("piston lower left");
 		lower_piston_right_node_i = object->opengl_engine_ob->mesh_data->animation_data.getNodeIndex("piston lower right");
 	}
+
+
+	engine_audio_source = new glare::AudioSource();
+	engine_audio_source->type = glare::AudioSource::SourceType_Streaming;
+	engine_audio_source->pos = object->getAABBWS().centroid();
+	engine_audio_source->debugname = "bike engine";
+	engine_audio_source->volume = 5.f;
+		
+	audio_engine->addSource(engine_audio_source);
 }
 
 
 BikePhysics::~BikePhysics()
 {
+	m_audio_engine->removeSource(engine_audio_source);
+	engine_audio_source = NULL;
+
 	m_physics_world->physics_system->RemoveConstraint(vehicle_constraint);
 	m_physics_world->physics_system->RemoveStepListener(vehicle_constraint);
 	vehicle_constraint = NULL;
@@ -549,6 +576,93 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 		}
 	}
 
+
+
+
+	// ---------------------------------- audio -----------------------------------
+	{
+		Lock lock(m_audio_engine->mutex);
+
+		while(engine_audio_source->buffer.size() < 1000)
+		{
+			const float current_RPM = controller->GetEngine().GetCurrentRPM();
+			const float cur_engine_freq = current_RPM / 60.f;
+			//printVar(current_RPM);
+
+			const float low_source_freq = 43.f; // From Audacity spectrum analysis
+			const float low_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / low_source_freq;
+
+			const float mid_source_freq = 72.f;
+			const float mid_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / mid_source_freq;
+
+			const float high_source_freq = 122.f;
+			const float high_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / high_source_freq;
+
+			//printVar(mid_source_delta);
+			//printVar(low_source_delta);
+			//printVar(high_source_delta);
+
+			float high_intensity_factor = Maths::smoothStep(90.f, 122.f, cur_engine_freq);
+			float low_intensity_factor = (1 - Maths::smoothStep(43.f, 70.f, cur_engine_freq) * 0.8f) * (1 - high_intensity_factor);
+			float mid_intensity_factor = (1 - low_intensity_factor) * (1 - high_intensity_factor);
+			
+			// Intensity = amplitude^2, amplitude = sqrt(intensity)
+			float low_factor  = std::sqrt(myMax(0.f, low_intensity_factor));
+			float mid_factor  = std::sqrt(myMax(0.f, mid_intensity_factor)); 
+			float high_factor = std::sqrt(myMax(0.f, high_intensity_factor));
+
+			//printVar(low_intensity_factor);
+			//printVar(mid_intensity_factor);
+			//printVar(high_intensity_factor);
+
+			//printVar(doppler_factor);
+
+			const int N = 1000;
+			for(int i=0; i<N; ++i)
+			{
+				float mixed_sample = 0;
+				{
+					engine_low_audio_sound_file_i += low_source_delta;
+
+					const size_t index   = (size_t)engine_low_audio_sound_file_i % engine_low_audio_sound_file->buf->buffer.size();
+					const size_t index_1 = (index + 1)                           % engine_low_audio_sound_file->buf->buffer.size();
+					const float frac = (float)(engine_low_audio_sound_file_i - (size_t)engine_low_audio_sound_file_i);
+
+					const float sample = engine_low_audio_sound_file->buf->buffer[index] * (1 - frac) + engine_low_audio_sound_file->buf->buffer[index_1] * frac;
+					mixed_sample += sample * low_factor;
+				}
+
+				{
+					engine_mid_audio_sound_file_i += mid_source_delta;
+
+					const size_t index   = (size_t)engine_mid_audio_sound_file_i % engine_mid_audio_sound_file->buf->buffer.size();
+					const size_t index_1 = (index + 1)                           % engine_mid_audio_sound_file->buf->buffer.size();
+					const float frac = (float)(engine_mid_audio_sound_file_i - (size_t)engine_mid_audio_sound_file_i);
+
+					const float sample = engine_mid_audio_sound_file->buf->buffer[index] * (1 - frac) + engine_mid_audio_sound_file->buf->buffer[index_1] * frac;
+					mixed_sample += sample * mid_factor;
+				}
+				
+				{
+					engine_high_audio_sound_file_i += high_source_delta;
+
+					const size_t index   = (size_t)engine_high_audio_sound_file_i % engine_high_audio_sound_file->buf->buffer.size();
+					const size_t index_1 = (index + 1)                            % engine_high_audio_sound_file->buf->buffer.size();
+					const float frac = (float)(engine_high_audio_sound_file_i - (size_t)engine_high_audio_sound_file_i);
+
+					const float sample = engine_high_audio_sound_file->buf->buffer[index] * (1 - frac) + engine_high_audio_sound_file->buf->buffer[index_1] * frac;
+					mixed_sample += sample * high_factor;
+				}
+
+				engine_audio_source->buffer.push_back(mixed_sample);
+			}
+		}
+
+		engine_audio_source->pos = to_world * Vec4f(0,0,0,1);
+		m_audio_engine->sourcePositionUpdated(*engine_audio_source);
+	}
+
+
 	return events;
 }
 
@@ -626,6 +740,16 @@ Vec4f BikePhysics::getLinearVel(PhysicsWorld& physics_world) const
 {
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
 	return toVec4fVec(body_interface.GetLinearVelocity(bike_body_id));
+}
+
+
+void BikePhysics::updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos)
+{
+	if(engine_audio_source.nonNull())
+		engine_audio_source->updateDopplerEffectFactor(
+			getLinearVel(*m_physics_world), // source linear vel,
+			listener_linear_vel, listener_pos
+		);
 }
 
 

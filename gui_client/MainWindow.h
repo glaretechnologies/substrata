@@ -151,6 +151,7 @@ private slots:;
 	void on_actionBake_lightmaps_high_quality_for_all_objects_in_parcel_triggered();
 	void on_actionSummon_Bike_triggered();
 	void on_actionSummon_Hovercar_triggered();
+	void on_actionMute_Audio_toggled(bool checked);
 
 	void applyUndoOrRedoObject(const WorldObjectRef& ob);
 

@@ -11,6 +11,7 @@ Copyright Glare Technologies Limited 2023 -
 #include "PhysicsObject.h"
 #include "PlayerPhysicsInput.h"
 #include "Scripting.h"
+#include "../audio/AudioEngine.h"
 #include "../physics/jscol_boundingsphere.h"
 #include "../maths/Vec4f.h"
 #include "../maths/vec3.h"
@@ -43,7 +44,7 @@ class BikePhysics : public VehiclePhysics
 public:
 	GLARE_ALIGNED_16_NEW_DELETE
 
-	BikePhysics(WorldObjectRef object, BikePhysicsSettings settings, PhysicsWorld& physics_world);
+	BikePhysics(WorldObjectRef object, BikePhysicsSettings settings, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path);
 	~BikePhysics();
 
 	WorldObject* getControlledObject() override { return world_object; }
@@ -71,6 +72,8 @@ public:
 
 	void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) override;
 
+	virtual void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) override;
+
 private:
 	Matrix4f getWheelToWorldTransform(PhysicsWorld& physics_world, int wheel_index) const;
 	void removeVisualisationObs();
@@ -79,7 +82,16 @@ private:
 	WorldObject* world_object;
 	PhysicsWorld* m_physics_world;
 	OpenGLEngine* m_opengl_engine;
+	glare::AudioEngine* m_audio_engine;
 	JPH::BodyID bike_body_id;
+
+	Reference<glare::AudioSource> engine_audio_source;
+	glare::SoundFileRef engine_low_audio_sound_file;
+	glare::SoundFileRef engine_mid_audio_sound_file;
+	glare::SoundFileRef engine_high_audio_sound_file;
+	double engine_mid_audio_sound_file_i;
+	double engine_low_audio_sound_file_i;
+	double engine_high_audio_sound_file_i;
 
 	bool user_in_driver_seat;
 

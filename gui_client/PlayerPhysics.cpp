@@ -413,6 +413,12 @@ UpdateEvents PlayerPhysics::update(PhysicsWorld& physics_world, const PlayerPhys
 }
 
 
+Vec4f PlayerPhysics::getLinearVel() const
+{
+	return toVec4fVec(jolt_character->GetLinearVelocity());
+}
+
+
 bool PlayerPhysics::isMoveDesiredVelNonZero()
 {
 	return move_desired_vel.length2() != 0;
