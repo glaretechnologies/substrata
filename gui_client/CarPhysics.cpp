@@ -69,8 +69,8 @@ void CarPhysics::init(PhysicsWorld& physics_world)
 	vehicle.mUp = JPH::Vec3(0,0,1);
 	vehicle.mForward = JPH::Vec3(0,1,0);
 	//vehicle.mDrawConstraintSize = 0.1f;
-	vehicle.mMaxPitchAngle = JPH::DegreesToRadians(60.0f);
-	vehicle.mMaxRollAngle = JPH::DegreesToRadians(60.f);
+	//vehicle.mMaxPitchAngle = JPH::DegreesToRadians(60.0f);
+	//vehicle.mMaxRollAngle = JPH::DegreesToRadians(60.f);
 //	vehicle.mMaxPitchRollAngle = JPH::DegreesToRadians(5.0f);
 
 	// Wheels
@@ -105,7 +105,7 @@ void CarPhysics::init(PhysicsWorld& physics_world)
 		w->mSuspensionMinLength = suspension_min_length;
 		w->mSuspensionMaxLength = suspension_max_length;
 
-		w->mDirection = JPH::Vec3(0,0,-1); // Direction of the suspension in local space of the body
+		//w->mDirection = JPH::Vec3(0,0,-1); // Direction of the suspension in local space of the body
 
 		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[0].mY *= 2.;
 		dynamic_cast<JPH::WheelSettingsWV*>(w)->mLongitudinalFriction.mPoints[1].mY *= 2.;

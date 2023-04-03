@@ -5127,6 +5127,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	const int num_substeps  = myMin(unclamped_num_substeps, 60); // Only do up to 60 steps
 	const double substep_dt = myMin(dt / num_substeps, MAX_SUBSTEP_DT); // Don't make the substep time > 1/60s.
 
+	assert(substep_dt <= MAX_SUBSTEP_DT);
+	//printVar(num_substeps);
+	//conPrint("substep_dt: " + doubleToStringMaxNDecimalPlaces(substep_dt * 1000.0, 3) + " ms");
+
 	for(int i=0; i<num_substeps; ++i)
 	{
 		if(physics_world.nonNull())
