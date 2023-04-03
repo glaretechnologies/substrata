@@ -5578,15 +5578,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 	const Vec3d cam_angles = this->cam_controller.getAngles();
 
-	// Resonance seems to want a to-world transformation
-	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
-
-	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)cam_angles.x - Maths::pi_2<float>());
-	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
-	const Quatf q = z_axis_rot_q * x_axis_rot_q;
-	audio_engine.setHeadTransform(campos, q);
-
-
 	// Find out which parcel we are in, if any.
 	ParcelID in_parcel_id = ParcelID::invalidParcelID();
 	bool mute_outside_audio = false;
@@ -6102,6 +6093,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			print("Error while Updating avatar graphics: " + e.what());
 		}
 	}
+
+
+	// Resonance seems to want a to-world transformation
+	// It also seems to use the OpenGL camera convention (x = right, y = up, -z = forwards)
+
+	const Quatf z_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(0,0,1), (float)cam_angles.x - Maths::pi_2<float>());
+	const Quatf x_axis_rot_q = Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi<float>() - (float)cam_angles.y);
+	const Quatf q = z_axis_rot_q * x_axis_rot_q;
+	audio_engine.setHeadTransform(cam_controller.thirdPersonEnabled() ? this->cam_controller.third_person_cam_position.toVec4fPoint() : this->cam_controller.getFirstPersonPosition().toVec4fPoint(), q);
 
 
 	// Send a AvatarEnteredVehicle to server with renewal bit set, occasionally.
