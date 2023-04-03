@@ -167,6 +167,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	controller_settings->mLeanSpringConstant = 2000.f;
 	controller_settings->mLeanSpringDamping = 400.f; // This seems to cause the instability
+	controller_settings->mMaxLeanAngle = JPH::DegreesToRadians(60.f);
 
 	// Front wheel drive:
 	controller_settings->mDifferentials.resize(1);
@@ -181,7 +182,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	//controller_settings->mTransmission.mMode = JPH::ETransmissionMode::Manual;
 	//controller_settings->mTransmission.mGearRatios = JPH::Array<float>(1, 2.66f); // Use a single forwards gear
 
-	controller_settings->mTransmission.mShiftDownRPM = 2000.0f;
+	controller_settings->mTransmission.mShiftDownRPM = 5000.0f;
 	controller_settings->mTransmission.mShiftUpRPM = 9000.0f;
 	controller_settings->mTransmission.mGearRatios = { 2.27f, 1.63f, 1.3f, 1.09f, 0.96f, 0.88f }; // From: https://www.blocklayer.com/rpm-gear-bikes
 
