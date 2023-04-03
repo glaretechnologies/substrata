@@ -36,6 +36,8 @@ public:
 	virtual ~VehiclePhysics() {}
 
 	virtual WorldObject* getControlledObject() = 0;
+
+	virtual void vehicleSummoned() {} // Set engine revs to zero etc.
 	
 	virtual void startRightingVehicle() = 0;
 

@@ -2983,6 +2983,7 @@ void MainWindow::doMoveObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const 
 }
 
 
+// Sets object velocity to zero also.
 void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_pos, const Vec3f& new_axis, float new_angle, const js::AABBox& aabb_os, bool summoning_object)
 {
 	GLObjectRef opengl_ob = ob->opengl_engine_ob;
@@ -3003,7 +3004,11 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 
 	// Update physics object
 	if(ob->physics_object.nonNull())
+	{
 		physics_world->setNewObToWorldTransform(*ob->physics_object, new_ob_pos.toVec4fPoint(), Quatf::fromAxisAndAngle(normalise(ob->axis.toVec4fVector()), ob->angle), useScaleForWorldOb(ob->scale).toVec4fVector());
+
+		physics_world->setLinearAndAngularVelToZero(*ob->physics_object);
+	}
 
 	// Update in Indigo view
 	ui->indigoView->objectTransformChanged(*ob);
@@ -9144,6 +9149,13 @@ void MainWindow::on_actionSummon_Bike_triggered()
 				doMoveAndRotateObject(existing_ob_to_summon, pos, /*axis=*/Vec3f(axis), /*angle=*/angle, aabb_os, /*summoning_object=*/true);
 
 				enableMaterialisationEffectOnOb(*existing_ob_to_summon);
+
+				// Tell controller its vehicle has been summoned, to reset engine revs etc.
+				const auto res = vehicle_controllers.find(existing_ob_to_summon);
+				if(res != vehicle_controllers.end())
+				{
+					res->second->vehicleSummoned();
+				}
 
 				return;
 			}
