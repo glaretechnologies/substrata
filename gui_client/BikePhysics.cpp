@@ -44,10 +44,6 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	m_physics_world = &physics_world;
 	m_audio_engine = audio_engine;
 
-	engine_mid_audio_sound_file_i = 0;
-	engine_low_audio_sound_file_i = 0;
-	engine_high_audio_sound_file_i = 0;
-
 	user_in_driver_seat = false;
 
 	cur_steering_right = 0;
@@ -59,10 +55,6 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	last_desired_up_vec = Vec4f(0,0,0,0);
 	last_force_vec = Vec4f(0,0,0,0);
 
-
-	engine_low_audio_sound_file  = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Slow_Idle_Steady_01_44100_hz_mono.mp3");
-	engine_mid_audio_sound_file  = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Medium_Speed_Steady_01_44100hz_mono.mp3");
-	engine_high_audio_sound_file = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_High_Speed_Steady_01_44100hz_mono.mp3");
 
 	const Matrix4f z_up_to_model_space = ((settings.script_settings.model_to_y_forwards_rot_2 * settings.script_settings.model_to_y_forwards_rot_1).conjugate()).toMatrix();
 
@@ -227,6 +219,10 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	engine_audio_source->pos = object->getAABBWS().centroid();
 	engine_audio_source->debugname = "bike engine";
 	engine_audio_source->volume = 5.f;
+	engine_audio_source->mix_sources.resize(3);
+	engine_audio_source->mix_sources[0].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Slow_Idle_Steady_01_44100_hz_mono.mp3");
+	engine_audio_source->mix_sources[1].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Medium_Speed_Steady_01_44100hz_mono.mp3");
+	engine_audio_source->mix_sources[2].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_High_Speed_Steady_01_44100hz_mono.mp3");
 
 	glare::SoundFileRef tire_squeal_sound = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/tires_squal_loop_44100.wav");
 
@@ -623,137 +619,101 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 
 	// ---------------------------------- audio -----------------------------------
+
+	// Set mix parameters for the engine sound.  Actual mixing will get done in the ResonanceThread.
 	{
 		Lock lock(m_audio_engine->mutex);
 
-		while(engine_audio_source->buffer.size() < 1000)
-		{
-			const float current_RPM = controller->GetEngine().GetCurrentRPM();
-			const float cur_engine_freq = current_RPM / 60.f;
-			//printVar(current_RPM);
+		const float current_RPM = controller->GetEngine().GetCurrentRPM();
+		const float cur_engine_freq = current_RPM / 60.f;
+		//printVar(current_RPM);
 
-			const float low_source_freq = 43.f / 2; // From Audacity spectrum analysis
-			const float low_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / low_source_freq * ((float)engine_low_audio_sound_file->sample_rate / m_audio_engine->getSampleRate());
+		const float low_source_freq = 43.f / 2; // From Audacity spectrum analysis
+		const float low_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / low_source_freq * ((float)/*engine_low_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
 
-			const float mid_source_freq = 72.f;
-			const float mid_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / mid_source_freq * ((float)engine_mid_audio_sound_file->sample_rate / m_audio_engine->getSampleRate());
+		const float mid_source_freq = 72.f;
+		const float mid_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / mid_source_freq * ((float)/*engine_mid_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
 
-			const float high_source_freq = 122.f;
-			const float high_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / high_source_freq * ((float)engine_high_audio_sound_file->sample_rate / m_audio_engine->getSampleRate());
+		const float high_source_freq = 122.f;
+		const float high_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / high_source_freq * ((float)/*engine_high_audio_sound_file->sample_rate*/48000.f / m_audio_engine->getSampleRate());
 
-			//printVar(mid_source_delta);
-			//printVar(low_source_delta);
-			//printVar(high_source_delta);
+		//printVar(mid_source_delta);
+		//printVar(low_source_delta);
+		//printVar(high_source_delta);
 
-			float high_intensity_factor = 0.9f * Maths::smoothStep(mid_source_freq * 0.6f, high_source_freq, cur_engine_freq);
-			float low_intensity_factor = (1 - Maths::smoothStep(low_source_freq, mid_source_freq, cur_engine_freq) * 0.8f) * (1 - high_intensity_factor);
-			float mid_intensity_factor = (1 - low_intensity_factor) * (1 - high_intensity_factor);
+		float high_intensity_factor = 0.9f * Maths::smoothStep(mid_source_freq * 0.6f, high_source_freq, cur_engine_freq);
+		float low_intensity_factor = (1 - Maths::smoothStep(low_source_freq, mid_source_freq, cur_engine_freq) * 0.8f) * (1 - high_intensity_factor);
+		float mid_intensity_factor = (1 - low_intensity_factor) * (1 - high_intensity_factor);
 			
-			// Intensity = amplitude^2, amplitude = sqrt(intensity)
-			float low_factor  = std::sqrt(myMax(0.f, low_intensity_factor));
-			float mid_factor  = std::sqrt(myMax(0.f, mid_intensity_factor)); 
-			float high_factor = std::sqrt(myMax(0.f, high_intensity_factor));
+		// Intensity = amplitude^2, amplitude = sqrt(intensity)
+		float low_factor  = std::sqrt(myMax(0.f, low_intensity_factor));
+		float mid_factor  = std::sqrt(myMax(0.f, mid_intensity_factor)); 
+		float high_factor = std::sqrt(myMax(0.f, high_intensity_factor));
 
-			//printVar(low_intensity_factor);
-			//printVar(mid_intensity_factor);
-			//printVar(high_intensity_factor);
+		//printVar(low_intensity_factor);
+		//printVar(mid_intensity_factor);
+		//printVar(high_intensity_factor);
+		//printVar(doppler_factor);
 
-			//printVar(doppler_factor);
+		engine_audio_source->mix_sources[0].source_delta = low_source_delta;
+		engine_audio_source->mix_sources[1].source_delta = mid_source_delta;
+		engine_audio_source->mix_sources[2].source_delta = high_source_delta;
 
-			const int N = 1000;
-			for(int i=0; i<N; ++i)
-			{
-				float mixed_sample = 0;
-				{
-					engine_low_audio_sound_file_i += low_source_delta;
-
-					const size_t index   = (size_t)engine_low_audio_sound_file_i % engine_low_audio_sound_file->buf->buffer.size();
-					const size_t index_1 = (index + 1)                           % engine_low_audio_sound_file->buf->buffer.size();
-					const float frac = (float)(engine_low_audio_sound_file_i - (size_t)engine_low_audio_sound_file_i);
-
-					const float sample = engine_low_audio_sound_file->buf->buffer[index] * (1 - frac) + engine_low_audio_sound_file->buf->buffer[index_1] * frac;
-					mixed_sample += sample * low_factor;
-				}
-
-				{
-					engine_mid_audio_sound_file_i += mid_source_delta;
-
-					const size_t index   = (size_t)engine_mid_audio_sound_file_i % engine_mid_audio_sound_file->buf->buffer.size();
-					const size_t index_1 = (index + 1)                           % engine_mid_audio_sound_file->buf->buffer.size();
-					const float frac = (float)(engine_mid_audio_sound_file_i - (size_t)engine_mid_audio_sound_file_i);
-
-					const float sample = engine_mid_audio_sound_file->buf->buffer[index] * (1 - frac) + engine_mid_audio_sound_file->buf->buffer[index_1] * frac;
-					mixed_sample += sample * mid_factor;
-				}
-				
-				{
-					engine_high_audio_sound_file_i += high_source_delta;
-
-					const size_t index   = (size_t)engine_high_audio_sound_file_i % engine_high_audio_sound_file->buf->buffer.size();
-					const size_t index_1 = (index + 1)                            % engine_high_audio_sound_file->buf->buffer.size();
-					const float frac = (float)(engine_high_audio_sound_file_i - (size_t)engine_high_audio_sound_file_i);
-
-					const float sample = engine_high_audio_sound_file->buf->buffer[index] * (1 - frac) + engine_high_audio_sound_file->buf->buffer[index_1] * frac;
-					mixed_sample += sample * high_factor;
-				}
-
-				engine_audio_source->buffer.push_back(mixed_sample);
-			}
-		}
-
-		engine_audio_source->pos = to_world * Vec4f(0,0,0,1);
-		m_audio_engine->sourcePositionUpdated(*engine_audio_source);
-
-		// Set volume for tire squeal sounds
-		for(int i=0; i<2; ++i)
-		{
-			if(vehicle_constraint->GetWheel(i)->HasContact())
-			{
-				// See WheelWV::Update() in Jolt\Physics\Vehicle\WheeledVehicleController.cpp
-				JPH::Vec3 relative_velocity = body_interface.GetPointVelocity(bike_body_id, vehicle_constraint->GetWheel(i)->GetContactPosition()) - vehicle_constraint->GetWheel(i)->GetContactPointVelocity();
-
-				// Cancel relative velocity in the normal plane
-				relative_velocity -= vehicle_constraint->GetWheel(i)->GetContactNormal().Dot(relative_velocity) * vehicle_constraint->GetWheel(i)->GetContactNormal();
-
-				const float relative_longitudinal_velocity = relative_velocity.Dot(vehicle_constraint->GetWheel(i)->GetContactLongitudinal());
-
-				const float longitudinal_vel_diff = vehicle_constraint->GetWheel(i)->GetAngularVelocity() * wheel_radius - relative_longitudinal_velocity;
-
-				const float relative_lateral_vel = relative_velocity.Dot(vehicle_constraint->GetWheel(i)->GetContactLateral());
-
-				const float sidewards_skid_speed = std::fabs(relative_lateral_vel);
-				const float forwards_skid_speed = std::fabs(longitudinal_vel_diff); 
-				const float skid_speed = forwards_skid_speed + sidewards_skid_speed;
-
-				// Compute wheel contact position.  Use getBodyTransform and GetWheelLocalTransform instead of GetContactPosition() since that lags behind the actual contact position a bit.
-				//const Vec4f contact_point_ws = toVec4fPos(vehicle_constraint->GetWheel(i)->GetContactPosition()); // getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
-				JPH::Vec3 wheel_forward_os, wheel_up_os, wheel_right_os;
-				vehicle_constraint->GetWheelLocalBasis(vehicle_constraint->GetWheel(i), wheel_forward_os, wheel_up_os, wheel_right_os);
-				const Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
-				const Vec4f contact_point_ws = getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
-
-				const float skid_volume = myMin(4.f, skid_speed);
-
-				wheel_audio_source[i]->pos = contact_point_ws;
-				if(wheel_audio_source[i]->volume != skid_volume)
-				{
-					wheel_audio_source[i]->volume = skid_volume;
-					m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
-				}
-				m_audio_engine->sourcePositionUpdated(*wheel_audio_source[i]);
-			}
-			else // Else if wheel is not in contact with ground, set volume to zero.
-			{
-				if(wheel_audio_source[i]->volume != 0.f)
-				{
-					wheel_audio_source[i]->volume = 0.f;
-					m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
-				}
-			}
-		}
-
+		engine_audio_source->mix_sources[0].mix_factor = low_factor;
+		engine_audio_source->mix_sources[1].mix_factor = mid_factor;
+		engine_audio_source->mix_sources[2].mix_factor = high_factor;
 	}
 
+	engine_audio_source->pos = to_world * Vec4f(0,0,0,1);
+	m_audio_engine->sourcePositionUpdated(*engine_audio_source);
+
+	// Set volume for tire squeal sounds
+	for(int i=0; i<2; ++i)
+	{
+		if(vehicle_constraint->GetWheel(i)->HasContact())
+		{
+			// See WheelWV::Update() in Jolt\Physics\Vehicle\WheeledVehicleController.cpp
+			JPH::Vec3 relative_velocity = body_interface.GetPointVelocity(bike_body_id, vehicle_constraint->GetWheel(i)->GetContactPosition()) - vehicle_constraint->GetWheel(i)->GetContactPointVelocity();
+
+			// Cancel relative velocity in the normal plane
+			relative_velocity -= vehicle_constraint->GetWheel(i)->GetContactNormal().Dot(relative_velocity) * vehicle_constraint->GetWheel(i)->GetContactNormal();
+
+			const float relative_longitudinal_velocity = relative_velocity.Dot(vehicle_constraint->GetWheel(i)->GetContactLongitudinal());
+
+			const float longitudinal_vel_diff = vehicle_constraint->GetWheel(i)->GetAngularVelocity() * wheel_radius - relative_longitudinal_velocity;
+
+			const float relative_lateral_vel = relative_velocity.Dot(vehicle_constraint->GetWheel(i)->GetContactLateral());
+
+			const float sidewards_skid_speed = std::fabs(relative_lateral_vel);
+			const float forwards_skid_speed = std::fabs(longitudinal_vel_diff); 
+			const float skid_speed = forwards_skid_speed + sidewards_skid_speed;
+
+			// Compute wheel contact position.  Use getBodyTransform and GetWheelLocalTransform instead of GetContactPosition() since that lags behind the actual contact position a bit.
+			//const Vec4f contact_point_ws = toVec4fPos(vehicle_constraint->GetWheel(i)->GetContactPosition()); // getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
+			JPH::Vec3 wheel_forward_os, wheel_up_os, wheel_right_os;
+			vehicle_constraint->GetWheelLocalBasis(vehicle_constraint->GetWheel(i), wheel_forward_os, wheel_up_os, wheel_right_os);
+			const Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
+			const Vec4f contact_point_ws = getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
+
+			const float skid_volume = myMin(4.f, skid_speed);
+
+			wheel_audio_source[i]->pos = contact_point_ws;
+			if(wheel_audio_source[i]->volume != skid_volume)
+			{
+				wheel_audio_source[i]->volume = skid_volume;
+				m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
+			}
+			m_audio_engine->sourcePositionUpdated(*wheel_audio_source[i]);
+		}
+		else // Else if wheel is not in contact with ground, set volume to zero.
+		{
+			if(wheel_audio_source[i]->volume != 0.f)
+			{
+				wheel_audio_source[i]->volume = 0.f;
+				m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
+			}
+		}
+	}
 
 	return events;
 }

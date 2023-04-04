@@ -361,35 +361,66 @@ public:
 						}
 						else if(source->type == AudioSource::SourceType_Streaming)
 						{
-							if(source->buffer.size() >= frames_per_buffer) // If there is sufficient data in the circular buffer:
+							if(!source->mix_sources.empty())
 							{
-								if(source->buffer.getFirstSegmentSize() >= frames_per_buffer) // See if all the data we need is contiguous in the circular buffer (doesn't wrap)
+								// Mix together the audio sources, applying pitch shift factor and volume factor.
+								for(size_t i=0; i<frames_per_buffer; ++i)
+									buf[i] = 0.f;
+
+								for(size_t z=0; z<source->mix_sources.size(); ++z)
 								{
-									// Directly copy data from the circular buffer to the resonance buffer.
-									const float* bufptr = &(*source->buffer.beginIt());
+									MixSource& mix_source = source->mix_sources[z];
+									const size_t src_buffer_size  = mix_source.soundfile->buf->buffer.size();
+									const float* const src_buffer = mix_source.soundfile->buf->buffer.data();
 
-									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+									for(size_t i=0; i<frames_per_buffer; ++i)
+									{
+										mix_source.sound_file_i += mix_source.source_delta; // Advance floating-point read index (index into source buffer)
 
-									source->buffer.popFrontNItems(frames_per_buffer);
+										const size_t index   = (size_t)mix_source.sound_file_i % src_buffer_size;
+										const size_t index_1 = (index + 1)                     % src_buffer_size;
+										const float frac = (float)(mix_source.sound_file_i - (size_t)mix_source.sound_file_i);
+
+										const float sample = src_buffer[index] * (1 - frac) + src_buffer[index_1] * frac;
+										buf[i] += sample * mix_source.mix_factor;
+									}
+								}
+
+								const float* bufptr = buf;
+								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+							}
+							else
+							{
+								if(source->buffer.size() >= frames_per_buffer) // If there is sufficient data in the circular buffer:
+								{
+									if(source->buffer.getFirstSegmentSize() >= frames_per_buffer) // See if all the data we need is contiguous in the circular buffer (doesn't wrap)
+									{
+										// Directly copy data from the circular buffer to the resonance buffer.
+										const float* bufptr = &(*source->buffer.beginIt());
+
+										resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+
+										source->buffer.popFrontNItems(frames_per_buffer);
+									}
+									else
+									{
+										// Copy from the circular buffer to a temporary contiguous buffer (temp_buf).
+										source->buffer.popFrontNItems(temp_buf.data(), frames_per_buffer);
+
+										const float* bufptr = temp_buf.data();
+										resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
+									}
 								}
 								else
 								{
-									// Copy from the circular buffer to a temporary contiguous buffer (temp_buf).
-									source->buffer.popFrontNItems(temp_buf.data(), frames_per_buffer);
+									//conPrint("Ran out of data for streaming audio src!");
+
+									for(size_t i=0; i<frames_per_buffer; ++i)
+										temp_buf[i] = 0.f;
 
 									const float* bufptr = temp_buf.data();
 									resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 								}
-							}
-							else
-							{
-								//conPrint("Ran out of data for streaming audio src!");
-
-								for(size_t i=0; i<frames_per_buffer; ++i)
-									temp_buf[i] = 0.f;
-
-								const float* bufptr = temp_buf.data();
-								resonance->SetPlanarBuffer(source->resonance_handle, &bufptr, /*num channels=*/1, frames_per_buffer);
 							}
 						}
 
