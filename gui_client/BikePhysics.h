@@ -88,13 +88,6 @@ private:
 	JPH::BodyID bike_body_id;
 
 	Reference<glare::AudioSource> engine_audio_source;
-	glare::SoundFileRef engine_low_audio_sound_file;
-	glare::SoundFileRef engine_mid_audio_sound_file;
-	glare::SoundFileRef engine_high_audio_sound_file;
-	double engine_mid_audio_sound_file_i;
-	double engine_low_audio_sound_file_i;
-	double engine_high_audio_sound_file_i;
-
 	Reference<glare::AudioSource> wheel_audio_source[2];
 
 	bool user_in_driver_seat;

@@ -31,7 +31,7 @@ namespace glare
 
 class AudioEngine;
 class MP3AudioStreamer;
-
+struct SoundFile;
 
 struct AudioBuffer : public ThreadSafeRefCounted
 {
@@ -39,6 +39,17 @@ struct AudioBuffer : public ThreadSafeRefCounted
 };
 typedef Reference<AudioBuffer> AudioBufferRef;
 typedef VRef<AudioBuffer> AudioBufferVRef;
+
+
+struct MixSource
+{
+	MixSource() : sound_file_i(0), source_delta(1), mix_factor(1) {}
+
+	Reference<SoundFile> soundfile;
+	double sound_file_i; // Current (floating-point) index into soundfile buffer.
+	double source_delta; // Every sample, we advance this much in the soundfile buffer.
+	float mix_factor; // Volume mixing factor.
+};
 
 
 class AudioSource : public ThreadSafeRefCounted
@@ -73,6 +84,8 @@ public:
 
 	AudioBufferRef shared_buffer; // Used for SourceType_Looping and SourceType_OneShot types only.
 	size_t cur_read_i; // Current read index in shared_buffer.
+
+	std::vector<MixSource> mix_sources; // If this is non-empty, this audio source mixes pitch-shifted and volume-scaled sounds together.  Used for type SourceType_Streaming.
 
 	SourceType type;
 	bool remove_on_finish; // for SourceType_OneShot
