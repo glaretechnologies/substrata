@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/OffsetCenterOfMassShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 
 
 static const float ob_to_world_scale = 0.18f; // For particular concept bike model exported from Blender
@@ -67,8 +68,33 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	const Vec4f box_half_extents_ms = abs(z_up_to_model_space * Vec4f(half_vehicle_width, half_vehicle_length, half_vehicle_height, 0));
 
+	// Instead of a box, use a convex hull, with some extra points on the sides, and one on the top.
+	// The problem with a box is that it gets stuck lying with a side or the top on the ground.
+	// With the right convex hull the bike will right itself.
+	convex_hull_pts.push_back(JPH::Vec3( box_half_extents_ms[0],  box_half_extents_ms[1],  box_half_extents_ms[2]));
+	convex_hull_pts.push_back(JPH::Vec3( box_half_extents_ms[0],  box_half_extents_ms[1], -box_half_extents_ms[2]));
+	convex_hull_pts.push_back(JPH::Vec3( box_half_extents_ms[0], -box_half_extents_ms[1],  box_half_extents_ms[2]));
+	convex_hull_pts.push_back(JPH::Vec3( box_half_extents_ms[0], -box_half_extents_ms[1], -box_half_extents_ms[2]));
+	convex_hull_pts.push_back(JPH::Vec3(-box_half_extents_ms[0],  box_half_extents_ms[1],  box_half_extents_ms[2]));
+	convex_hull_pts.push_back(JPH::Vec3(-box_half_extents_ms[0],  box_half_extents_ms[1], -box_half_extents_ms[2]));
+	convex_hull_pts.push_back(JPH::Vec3(-box_half_extents_ms[0], -box_half_extents_ms[1],  box_half_extents_ms[2]));
+	convex_hull_pts.push_back(JPH::Vec3(-box_half_extents_ms[0], -box_half_extents_ms[1], -box_half_extents_ms[2]));
+
+	// Add side points
+	convex_hull_pts.push_back(toJoltVec3(z_up_to_model_space * Vec4f(-half_vehicle_width - 0.1f, 0, 0.1f, 0)));
+	convex_hull_pts.push_back(toJoltVec3(z_up_to_model_space * Vec4f( half_vehicle_width + 0.1f, 0, 0.1f, 0)));
+
+	// Add top point
+	convex_hull_pts.push_back(toJoltVec3(z_up_to_model_space * Vec4f(0, 0, half_vehicle_height + 0.05f, 0)));
+
+	JPH::Ref<JPH::ConvexHullShapeSettings> hull_shape_settings = new JPH::ConvexHullShapeSettings(
+		convex_hull_pts
+	);
+	JPH::Ref<JPH::Shape> convex_hull_shape = hull_shape_settings->Create().Get();
+
 	JPH::Ref<JPH::Shape> bike_body_shape = JPH::OffsetCenterOfMassShapeSettings(toJoltVec3(z_up_to_model_space * Vec4f(0,0,-0.15f,0)), // TEMP: hard-coded centre of mass offset.
-		new JPH::BoxShape(toJoltVec3(box_half_extents_ms))).Create().Get();
+		convex_hull_shape
+	).Create().Get();
 
 
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
@@ -158,7 +184,8 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	vehicle.mController = controller_settings;
 
 	controller_settings->mLeanSpringConstant = 2000.f;
-	controller_settings->mLeanSpringDamping = 400.f; // This seems to cause the instability
+	controller_settings->mLeanSpringDamping = 500.f; // This seems to cause the instability
+	controller_settings->mLeanSmoothingFactor = 0.9f;
 	controller_settings->mMaxLeanAngle = JPH::DegreesToRadians(60.f);
 
 	// Front wheel drive:
@@ -841,6 +868,24 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should
 		//
 		//	opengl_engine.updateObjectTransformData(*wheel_gl_ob[i]);
 		//}
+
+		//------------------ convex hull points ------------------
+		{
+			convex_hull_pts_gl_obs.resize(convex_hull_pts.size());
+			for(size_t i=0; i<convex_hull_pts_gl_obs.size(); ++i)
+			{
+				const float radius = 0.03f;
+				if(convex_hull_pts_gl_obs[i].isNull())
+				{
+					convex_hull_pts_gl_obs[i] = opengl_engine.makeSphereObject(radius, Colour4f(1,0,0,0.5));
+					opengl_engine.addObject(convex_hull_pts_gl_obs[i]);
+				}
+
+				convex_hull_pts_gl_obs[i]->ob_to_world_matrix = getBodyTransform(*m_physics_world) * Matrix4f::translationMatrix(toVec4fPos(convex_hull_pts[i])) * Matrix4f::uniformScaleMatrix(radius);
+
+				opengl_engine.updateObjectTransformData(*convex_hull_pts_gl_obs[i]);
+			}
+		}
 
 		//------------------ suspension attachment point ------------------
 		for(int i=0; i<2; ++i)

@@ -102,6 +102,9 @@ private:
 
 	float cur_target_tilt_angle;
 
+
+	JPH::Array<JPH::Vec3> convex_hull_pts; // convex hull points, object space
+
 	// Debug vis:
 	Reference<GLObject> body_gl_ob;
 	Reference<GLObject> wheel_attach_point_gl_ob[2];
@@ -111,6 +114,8 @@ private:
 	Reference<GLObject> contact_laterial_force_gl_ob[2];
 	Reference<GLObject> righting_force_gl_ob;
 	Reference<GLObject> desired_bike_up_vec_gl_ob;
+
+	std::vector<Reference<GLObject>> convex_hull_pts_gl_obs;
 	
 	Vec4f last_desired_up_vec;
 	Vec4f last_force_point;
