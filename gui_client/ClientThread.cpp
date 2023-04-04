@@ -353,7 +353,7 @@ void ClientThread::doRun()
 					}
 				case Protocol::AvatarEnteredVehicle:
 					{
-						conPrint("AvatarEnteredVehicle");
+						// conPrint("AvatarEnteredVehicle");
 
 						const UID avatar_uid = readUIDFromStream(msg_buffer);
 						const UID vehicle_ob_uid = readUIDFromStream(msg_buffer);
