@@ -95,6 +95,8 @@ private:
 	double engine_low_audio_sound_file_i;
 	double engine_high_audio_sound_file_i;
 
+	Reference<glare::AudioSource> wheel_audio_source[2];
+
 	bool user_in_driver_seat;
 
 	float righting_time_remaining;

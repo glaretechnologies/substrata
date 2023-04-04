@@ -227,8 +227,26 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	engine_audio_source->pos = object->getAABBWS().centroid();
 	engine_audio_source->debugname = "bike engine";
 	engine_audio_source->volume = 5.f;
+
+	glare::SoundFileRef tire_squeal_sound = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/tires_squal_loop_44100.wav");
+
+	wheel_audio_source[0] = new glare::AudioSource();
+	wheel_audio_source[0]->type = glare::AudioSource::SourceType_Looping;
+	wheel_audio_source[0]->pos = object->getAABBWS().centroid();
+	wheel_audio_source[0]->debugname = "front wheel";
+	wheel_audio_source[0]->volume = 0.f;
+	wheel_audio_source[0]->shared_buffer = tire_squeal_sound->buf;
+	
+	wheel_audio_source[1] = new glare::AudioSource();
+	wheel_audio_source[1]->type = glare::AudioSource::SourceType_Looping;
+	wheel_audio_source[1]->pos = object->getAABBWS().centroid();
+	wheel_audio_source[1]->debugname = "rear wheel";
+	wheel_audio_source[1]->volume = 0.f;
+	wheel_audio_source[1]->shared_buffer = tire_squeal_sound->buf;
 		
 	audio_engine->addSource(engine_audio_source);
+	audio_engine->addSource(wheel_audio_source[0]);
+	audio_engine->addSource(wheel_audio_source[1]);
 }
 
 
@@ -236,6 +254,12 @@ BikePhysics::~BikePhysics()
 {
 	m_audio_engine->removeSource(engine_audio_source);
 	engine_audio_source = NULL;
+	
+	m_audio_engine->removeSource(wheel_audio_source[0]);
+	wheel_audio_source[0] = NULL;
+
+	m_audio_engine->removeSource(wheel_audio_source[1]);
+	wheel_audio_source[1] = NULL;
 
 	m_physics_world->physics_system->RemoveConstraint(vehicle_constraint);
 	m_physics_world->physics_system->RemoveStepListener(vehicle_constraint);
@@ -609,20 +633,20 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			//printVar(current_RPM);
 
 			const float low_source_freq = 43.f / 2; // From Audacity spectrum analysis
-			const float low_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / low_source_freq;
+			const float low_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / low_source_freq * ((float)engine_low_audio_sound_file->sample_rate / m_audio_engine->getSampleRate());
 
 			const float mid_source_freq = 72.f;
-			const float mid_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / mid_source_freq;
+			const float mid_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / mid_source_freq * ((float)engine_mid_audio_sound_file->sample_rate / m_audio_engine->getSampleRate());
 
 			const float high_source_freq = 122.f;
-			const float high_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / high_source_freq;
+			const float high_source_delta = engine_audio_source->doppler_factor * cur_engine_freq / high_source_freq * ((float)engine_high_audio_sound_file->sample_rate / m_audio_engine->getSampleRate());
 
 			//printVar(mid_source_delta);
 			//printVar(low_source_delta);
 			//printVar(high_source_delta);
 
-			float high_intensity_factor = 0.9f * Maths::smoothStep(90.f, 122.f, cur_engine_freq);
-			float low_intensity_factor = (1 - Maths::smoothStep(43.f / 2, 70.f, cur_engine_freq) * 0.8f) * (1 - high_intensity_factor);
+			float high_intensity_factor = 0.9f * Maths::smoothStep(mid_source_freq * 0.6f, high_source_freq, cur_engine_freq);
+			float low_intensity_factor = (1 - Maths::smoothStep(low_source_freq, mid_source_freq, cur_engine_freq) * 0.8f) * (1 - high_intensity_factor);
 			float mid_intensity_factor = (1 - low_intensity_factor) * (1 - high_intensity_factor);
 			
 			// Intensity = amplitude^2, amplitude = sqrt(intensity)
@@ -679,6 +703,55 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 		engine_audio_source->pos = to_world * Vec4f(0,0,0,1);
 		m_audio_engine->sourcePositionUpdated(*engine_audio_source);
+
+		// Set volume for tire squeal sounds
+		for(int i=0; i<2; ++i)
+		{
+			if(vehicle_constraint->GetWheel(i)->HasContact())
+			{
+				// See WheelWV::Update() in Jolt\Physics\Vehicle\WheeledVehicleController.cpp
+				JPH::Vec3 relative_velocity = body_interface.GetPointVelocity(bike_body_id, vehicle_constraint->GetWheel(i)->GetContactPosition()) - vehicle_constraint->GetWheel(i)->GetContactPointVelocity();
+
+				// Cancel relative velocity in the normal plane
+				relative_velocity -= vehicle_constraint->GetWheel(i)->GetContactNormal().Dot(relative_velocity) * vehicle_constraint->GetWheel(i)->GetContactNormal();
+
+				const float relative_longitudinal_velocity = relative_velocity.Dot(vehicle_constraint->GetWheel(i)->GetContactLongitudinal());
+
+				const float longitudinal_vel_diff = vehicle_constraint->GetWheel(i)->GetAngularVelocity() * wheel_radius - relative_longitudinal_velocity;
+
+				const float relative_lateral_vel = relative_velocity.Dot(vehicle_constraint->GetWheel(i)->GetContactLateral());
+
+				const float sidewards_skid_speed = std::fabs(relative_lateral_vel);
+				const float forwards_skid_speed = std::fabs(longitudinal_vel_diff); 
+				const float skid_speed = forwards_skid_speed + sidewards_skid_speed;
+
+				// Compute wheel contact position.  Use getBodyTransform and GetWheelLocalTransform instead of GetContactPosition() since that lags behind the actual contact position a bit.
+				//const Vec4f contact_point_ws = toVec4fPos(vehicle_constraint->GetWheel(i)->GetContactPosition()); // getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
+				JPH::Vec3 wheel_forward_os, wheel_up_os, wheel_right_os;
+				vehicle_constraint->GetWheelLocalBasis(vehicle_constraint->GetWheel(i), wheel_forward_os, wheel_up_os, wheel_right_os);
+				const Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
+				const Vec4f contact_point_ws = getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
+
+				const float skid_volume = myMin(4.f, skid_speed);
+
+				wheel_audio_source[i]->pos = contact_point_ws;
+				if(wheel_audio_source[i]->volume != skid_volume)
+				{
+					wheel_audio_source[i]->volume = skid_volume;
+					m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
+				}
+				m_audio_engine->sourcePositionUpdated(*wheel_audio_source[i]);
+			}
+			else // Else if wheel is not in contact with ground, set volume to zero.
+			{
+				if(wheel_audio_source[i]->volume != 0.f)
+				{
+					wheel_audio_source[i]->volume = 0.f;
+					m_audio_engine->sourceVolumeUpdated(*wheel_audio_source[i]);
+				}
+			}
+		}
+
 	}
 
 
