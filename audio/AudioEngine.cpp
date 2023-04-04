@@ -652,6 +652,7 @@ void AudioEngine::addSource(AudioSourceRef source)
 	if(source->pos.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
 	{
 		resonance->SetSourcePosition(source->resonance_handle, source->pos[0], source->pos[1], source->pos[2]);
+		resonance->SetSourceVolume(source->resonance_handle, source->volume * source->getMuteVolumeFactor());
 	}
 
 	Lock lock(mutex);

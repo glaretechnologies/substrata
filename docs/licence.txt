@@ -1216,3 +1216,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 ================================================ Zapsplat ================================================
 
 Sound effects obtained from https://www.zapsplat.com
+
+================================================ OpenGameArt ================================================
+
+https://opengameart.org/content/car-tire-squeal-skid-loop by audible-edge (Tom Haigh)
