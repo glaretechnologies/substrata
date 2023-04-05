@@ -611,6 +611,7 @@ public:
 	//std::vector<glare::AudioSourceRef> test_srcs;
 
 	//std::vector<AudioSourceRef> footstep_sources;
+	glare::AudioSourceRef wind_audio_source;
 
 	Timer last_footstep_timer;
 	int last_foostep_side;

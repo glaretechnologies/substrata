@@ -489,8 +489,22 @@ void MainWindow::initialise()
 	try
 	{
 		audio_engine.init();
+
+		// Load a wind sound and create a non-spatial audio source, to use for a rushing effect when the player moves fast.
+		// TODO: Load wind noise off main thread. (Take about 11ms to load on my 5950x).
+		//Timer timer;
+		glare::SoundFileRef sound = audio_engine.getOrLoadSoundFile(base_dir_path + "/resources/sounds/wind_noise.mp3");
+		//conPrint("Loading wind sound took " + timer.elapsedString());
+
+		wind_audio_source = new glare::AudioSource();
+		wind_audio_source->type = glare::AudioSource::SourceType_Looping;
+		wind_audio_source->spatial_type = glare::AudioSource::SourceSpatialType_NonSpatial;
+		wind_audio_source->shared_buffer = sound->buf;
+		wind_audio_source->volume = 0;
+
+		audio_engine.addSource(wind_audio_source);
 	}
-	catch(glare::Exception& e)
+	catch(glare::Exception& e) 
 	{
 		logMessage("Audio engine could not be initialised: " + e.what());
 	}
@@ -600,6 +614,9 @@ MainWindow::~MainWindow()
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete();
 	
 
+
+	audio_engine.removeSource(wind_audio_source);
+	wind_audio_source = NULL;
 
 
 	player_physics.shutdown();
@@ -5190,14 +5207,24 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	player_physics.zeroMoveDesiredVel();
 
 
-	// Compute Doppler-effect factor for vehicle controllers.
+	// Compute Doppler-effect factor for vehicle controllers, also set wind audio source volume.
 	{
 		const Vec4f listener_linear_vel = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getLinearVel(*this->physics_world) : player_physics.getLinearVel();
+
 		for(auto it = vehicle_controllers.begin(); it != vehicle_controllers.end(); ++it)
 		{
 			VehiclePhysics* controller = it->second.ptr();
 			controller->updateDopplerEffect(/*listener linear vel=*/listener_linear_vel, /*listener pos=*/cam_controller.getFirstPersonPosition().toVec4fPoint());
 		}
+
+
+		const float old_volume = wind_audio_source->volume;
+
+		// Increase wind volume as speed increases, but only once we exceed a certain speed, since we don't really want wind sounds playing when we run + jump around (approx < 20 m/s).
+		wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.03f, 0.f, 2.f);
+
+		if(wind_audio_source->volume != old_volume)
+			audio_engine.sourceVolumeUpdated(*wind_audio_source);
 	}
 
 
@@ -5809,8 +5836,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 							//printVar(cam_back_dir);
 
-							// Don't start tracing the ray back immediately or we may hit the car.
-							const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), 3.f) : 0.f;
+							// Don't start tracing the ray back immediately or we may hit the vehicle.
+							const float initial_ignore_dist = vehicle_controller_inside.nonNull() ? myMin(cam_controller.getThirdPersonCamDist(), vehicle_controller_inside->getThirdPersonCamTraceSelfAvoidanceDist()) : 0.f;
 							// We want to make sure the 3rd-person camera view is not occluded by objects behind the avatar's head (walls etc..)
 							// So trace a ray backwards, and position the camera on the ray path before it hits the wall.
 							RayTraceResult trace_results;

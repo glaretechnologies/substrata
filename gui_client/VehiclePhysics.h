@@ -49,7 +49,9 @@ public:
 
 	virtual Vec4f getFirstPersonCamPos(PhysicsWorld& physics_world, uint32 seat_index, bool use_smoothed_network_transform) const = 0;
 
-	virtual Vec4f getThirdPersonCamTargetTranslation() const = 0;
+	virtual Vec4f getThirdPersonCamTargetTranslation() const = 0; // A vector to translate from getFirstPersonCamPos() to where the third person camera should look at.
+
+	virtual float getThirdPersonCamTraceSelfAvoidanceDist() const = 0; // How far to ignore hits for when tracing backwards.
 
 	virtual Matrix4f getBodyTransform(PhysicsWorld& physics_world) const = 0;
 
