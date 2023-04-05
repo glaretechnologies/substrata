@@ -34,6 +34,7 @@ public:
 	void showServerAdminMessage(const std::string& msg);
 
 	void showVehicleSpeed(float speed_km_per_h);
+	void showVehicleInfo(const std::string& info);
 	void hideVehicleSpeed();
 
 	void viewportResized(int w, int h);

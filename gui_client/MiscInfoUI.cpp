@@ -98,6 +98,24 @@ void MiscInfoUI::showVehicleSpeed(float speed_km_per_h)
 }
 
 
+void MiscInfoUI::showVehicleInfo(const std::string& msg)
+{
+	if(speed_text_view.isNull())
+	{
+		speed_text_view = new GLUITextView();
+		speed_text_view->create(*gl_ui, opengl_engine, msg, /*botleft=*/Vec2f(0.1f, 0.9f), /*dims=*/Vec2f(0.1f, 0.1f), /*tooltip=*/""); // Create off-screen
+		speed_text_view->setColour(Colour3f(1.0f, 1.0f, 1.0f));
+		speed_text_view->handler = this;
+		gl_ui->addWidget(speed_text_view);
+	}
+
+	speed_text_view->setText(*gl_ui, msg);
+
+	updateWidgetPositions();
+}
+
+
+
 void MiscInfoUI::hideVehicleSpeed()
 {
 	// Destroy/remove speed_text_view

@@ -74,7 +74,9 @@ public:
 
 	void updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show) override;
 
-	virtual void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) override;
+	void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) override;
+
+	std::string getUIInfoMsg() override;
 
 private:
 	Matrix4f getWheelToWorldTransform(PhysicsWorld& physics_world, int wheel_index) const;

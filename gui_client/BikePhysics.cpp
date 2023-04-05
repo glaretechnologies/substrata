@@ -132,6 +132,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	front_wheel->mPosition				= toJoltVec3(z_up_to_model_space * Vec4f(0, 0.65f, 0.0f, 0)); // suspension attachment point
 	//front_wheel->mDirection			=  toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body, should point down
 	front_wheel->mSuspensionDirection	= toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body
+	front_wheel->mSteeringAxis			= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	front_wheel->mWheelUp				= toJoltVec3(z_up_to_model_space *  steering_axis_z_up);
 	front_wheel->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	front_wheel->mSuspensionMinLength	= 0.1f;/*0.25f*/;
@@ -153,6 +154,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	rear_wheel->mPosition = toJoltVec3(z_up_to_model_space * Vec4f(0, -0.88f, 0.0f, 0));
 	//rear_wheel->mDirection			= toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)); // Direction of the suspension in local space of the body, should point down
 	rear_wheel->mSuspensionDirection	= toJoltVec3(z_up_to_model_space * Vec4f(0,0,-1,0)); // Direction of the suspension in local space of the body
+	rear_wheel->mSteeringAxis			= toJoltVec3(z_up_to_model_space * Vec4f(0,0,1,0));
 	rear_wheel->mWheelUp				= toJoltVec3(z_up_to_model_space * Vec4f(0,0,1,0));
 	rear_wheel->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	rear_wheel->mSuspensionMinLength	= 0.1f;
@@ -583,8 +585,8 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 		if(steering_node_i >= 0 && steering_node_i < (int)graphics_ob->anim_node_data.size())
 		{
-			const float steering_angle = cur_steering_right * max_steering_angle;
-			graphics_ob->anim_node_data[steering_node_i].procedural_transform = Matrix4f::rotationMatrix(steering_axis, steering_angle);
+			const float steering_angle = vehicle_constraint->GetWheel(0)->GetSteerAngle();
+			graphics_ob->anim_node_data[steering_node_i].procedural_transform = Matrix4f::rotationMatrix(steering_axis, -steering_angle);
 		}
 
 
@@ -832,6 +834,23 @@ void BikePhysics::updateDopplerEffect(const Vec4f& listener_linear_vel, const Ve
 }
 
 
+std::string BikePhysics::getUIInfoMsg()
+{
+	const float speed_km_per_h = getLinearVel(*m_physics_world).length() * (3600.0f / 1000.f);
+
+	assert(dynamic_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController()));
+	this->last_desired_up_vec = toVec4fVec(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean);
+
+
+	const float target_lean_angle_deg = JPH::RadiansToDegrees(std::acos(static_cast<const JPH::MotorcycleController*>(vehicle_constraint->GetController())->mTargetLean.Normalized().GetZ()));
+
+	const float actual_lean_angle_deg = JPH::RadiansToDegrees(std::acos(normalise(getBodyTransform(*m_physics_world) * Vec4f(0,1,0,0))[2]));
+
+	return doubleToStringMaxNDecimalPlaces(speed_km_per_h, 0) + " km/h, target_lean_angle: " + doubleToStringNDecimalPlaces(target_lean_angle_deg, 1) + 
+		", actual_lean_angle: " + doubleToStringNDecimalPlaces(actual_lean_angle_deg, 1);
+}
+
+
 void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should_show)
 {
 	m_opengl_engine = &opengl_engine;
@@ -952,13 +971,12 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should
 				opengl_engine.addObject(coll_tester_gl_ob[i]);
 			}
 
-			Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
+			const Matrix4f wheel_to_world_transform = toMatrix4f(vehicle_constraint->GetWheelWorldTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
 
 			coll_tester_gl_ob[i]->ob_to_world_matrix = 
-				getBodyTransform(*m_physics_world) * 
-				wheel_to_local_transform *
-				Matrix4f::scaleMatrix(radius, radius, vehicle_constraint->GetWheel(i)->GetSettings()->mWidth) * 
-				Matrix4f::translationMatrix(0,0,-0.5f); // centre around origin
+				wheel_to_world_transform *
+				Matrix4f::scaleMatrix(radius, radius, vehicle_constraint->GetWheel(i)->GetSettings()->mWidth) * // scale cylinder
+				Matrix4f::translationMatrix(0,0,-0.5f); // centre cylinder around origin
 
 			opengl_engine.updateObjectTransformData(*coll_tester_gl_ob[i]);
 		}
