@@ -25,7 +25,7 @@ namespace glare
 
 
 AudioSource::AudioSource()
-:	cur_read_i(0), type(SourceType_Looping), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
+:	cur_read_i(0), type(SourceType_Looping), spatial_type(SourceSpatialType_Spatial), remove_on_finish(true), volume(1.f), mute_volume_factor(1.f), mute_change_start_time(-2), mute_change_end_time(-1), mute_vol_fac_start(1.f),
 	mute_vol_fac_end(1.f), pos(0,0,0,1), num_occlusions(0), userdata_1(0), doppler_factor(1)
 {}
 
@@ -678,11 +678,19 @@ void AudioEngine::addSource(AudioSourceRef source)
 	if(!initialised)
 		return;
 
-	source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
-
-	if(source->pos.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
+	if(source->spatial_type == AudioSource::SourceSpatialType_Spatial)
 	{
-		resonance->SetSourcePosition(source->resonance_handle, source->pos[0], source->pos[1], source->pos[2]);
+		source->resonance_handle = resonance->CreateSoundObjectSource(vraudio::RenderingMode::kBinauralHighQuality);
+
+		if(source->pos.isFinite()) // Avoid crash in Resonance with NaN or Inf position coords.
+		{
+			resonance->SetSourcePosition(source->resonance_handle, source->pos[0], source->pos[1], source->pos[2]);
+			resonance->SetSourceVolume(source->resonance_handle, source->volume * source->getMuteVolumeFactor());
+		}
+	}
+	else if(source->spatial_type == AudioSource::SourceSpatialType_NonSpatial)
+	{
+		source->resonance_handle = resonance->CreateStereoSource(/*num channels=*/2);
 		resonance->SetSourceVolume(source->resonance_handle, source->volume * source->getMuteVolumeFactor());
 	}
 

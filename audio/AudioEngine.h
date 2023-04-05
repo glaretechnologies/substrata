@@ -64,9 +64,14 @@ public:
 		SourceType_Streaming // Audio data is streamed from e.g. a video, into the circular buffer.
 	};
 
+	enum SourceSpatialType
+	{
+		SourceSpatialType_Spatial,
+		SourceSpatialType_NonSpatial
+	};
+
 	AudioSource();
 	~AudioSource();
-
 
 	void startMuting(double cur_time, double transition_period);
 	void startUnmuting(double cur_time, double transition_period);
@@ -88,6 +93,7 @@ public:
 	std::vector<MixSource> mix_sources; // If this is non-empty, this audio source mixes pitch-shifted and volume-scaled sounds together.  Used for type SourceType_Streaming.
 
 	SourceType type;
+	SourceSpatialType spatial_type; // Default is SourceSpatialType_Spatial
 	bool remove_on_finish; // for SourceType_OneShot
 
 	float volume; // 1 = default

@@ -247,7 +247,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	engine_audio_source->type = glare::AudioSource::SourceType_Streaming;
 	engine_audio_source->pos = object->getAABBWS().centroid();
 	engine_audio_source->debugname = "bike engine";
-	engine_audio_source->volume = 5.f;
+	engine_audio_source->volume = 2.5f;
 	engine_audio_source->mix_sources.resize(3);
 	engine_audio_source->mix_sources[0].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Slow_Idle_Steady_01_44100_hz_mono.mp3");
 	engine_audio_source->mix_sources[1].soundfile = audio_engine->getOrLoadSoundFile(base_dir_path + "/resources/sounds/smartsound_TRANSPORTATION_MOTORCYCLE_Engine_Medium_Speed_Steady_01_44100hz_mono.mp3");
@@ -724,7 +724,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			const Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
 			const Vec4f contact_point_ws = getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
 
-			const float skid_volume = myMin(4.f, skid_speed);
+			const float skid_volume = myMin(2.f, skid_speed * 0.5f);
 
 			wheel_audio_source[i]->pos = contact_point_ws;
 			if(wheel_audio_source[i]->volume != skid_volume)
@@ -1066,5 +1066,9 @@ void BikePhysics::removeVisualisationObs()
 		if(desired_bike_up_vec_gl_ob.nonNull())
 			m_opengl_engine->removeObject(desired_bike_up_vec_gl_ob);
 		desired_bike_up_vec_gl_ob = NULL;
+
+		for(size_t i=0; i<convex_hull_pts_gl_obs.size(); ++i)
+			m_opengl_engine->removeObject(convex_hull_pts_gl_obs[i]);
+		convex_hull_pts_gl_obs.clear();
 	}
 }
