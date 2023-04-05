@@ -5374,8 +5374,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			if(vehicle_controller_inside.nonNull()) // If we are inside a vehicle:
 			{
-				const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
-				misc_info_ui.showVehicleSpeed(speed_km_h);
+				//const float speed_km_h = vehicle_controller_inside->getLinearVel(*this->physics_world).length() * (3600.0f / 1000.f);
+				//misc_info_ui.showVehicleSpeed(speed_km_h);
+				misc_info_ui.showVehicleInfo(vehicle_controller_inside->getUIInfoMsg());
 			}
 			else
 				misc_info_ui.hideVehicleSpeed();

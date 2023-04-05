@@ -65,6 +65,8 @@ public:
 
 	virtual void updateDopplerEffect(const Vec4f& listener_linear_vel, const Vec4f& listener_pos) {}
 
+	virtual std::string getUIInfoMsg() { return std::string(); }
+
 	uint32 last_physics_input_bitflags;
 protected:
 };
