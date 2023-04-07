@@ -127,7 +127,6 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	const Vec4f steering_axis_z_up = normalise(Vec4f(0, -1.87f, 2.37f, 0)); // = front suspension dir
 
 	// Front wheel
-	const float handbrake_torque = 2000; // default is 4000.
 	JPH::WheelSettingsWV* front_wheel = new JPH::WheelSettingsWV;
 	front_wheel->mPosition				= toJoltVec3(z_up_to_model_space * Vec4f(0, 0.65f, 0.0f, 0)); // suspension attachment point
 	//front_wheel->mDirection			=  toJoltVec3(z_up_to_model_space * -steering_axis_z_up); // Direction of the suspension in local space of the body, should point down
@@ -141,7 +140,8 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	front_wheel->mRadius				= wheel_radius;
 	front_wheel->mWidth					= wheel_width;
 	front_wheel->mMaxSteerAngle			= max_steering_angle;
-	front_wheel->mMaxHandBrakeTorque	= handbrake_torque * 0.02f;
+	front_wheel->mMaxHandBrakeTorque	= 0;
+	front_wheel->mMaxBrakeTorque		= 500.f;
 	// Typical front wheel weight without tire is 6kg (https://www.amazon.com/Arashi-Z900-Z650-Ninja-650/dp/B0952XBB4V), front tire is 8.8 lb (4kg) (https://www.amazon.com/Pirelli-Diablo-Rosso-70ZR-17-D-Spec/dp/B06X6J4LXM)
 	// Using solid cylinder moment of inertia for front wheel: 1/2 * 6 kg * 0.3 m^2 = 0.27 kg m^2
 	// Front tire: Using hoop moment of inertia gives M * R^2 = 4 * 0.3^2 = 0.36 kg m^2
@@ -162,9 +162,10 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	rear_wheel->mSuspensionFrequency	= 2.5f; // Make the suspension a bit stiffer than default
 	// rear tire is e.g. 13lb, see https://www.amazon.com/Pirelli-Diablo-Rosso-Rear-55ZR-17/dp/B01AZ5T50K?th=1
 	rear_wheel->mRadius					= wheel_radius;
-	rear_wheel->mWidth					 = wheel_width;
-	rear_wheel->mMaxSteerAngle = 0.f;
-	rear_wheel->mMaxHandBrakeTorque = handbrake_torque;
+	rear_wheel->mWidth					= wheel_width;
+	rear_wheel->mMaxSteerAngle			= 0.f;
+	rear_wheel->mMaxHandBrakeTorque		= 0;
+	rear_wheel->mMaxBrakeTorque			= 700.f;
 
 
 	vehicle.mWheels = { front_wheel, rear_wheel };
@@ -335,22 +336,24 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 
 	const float speed = getLinearVel(physics_world).length();
 
-	float forward = 0.0f, right = 0.0f, up_input = 0.f, brake = 0.0f, hand_brake = 0.0f;
+	float forward = 0.0f, right = 0.0f, up_input = 0.f, brake = 0.0f;
 	// Determine acceleration and brake
 	if (physics_input.W_down || physics_input.up_down)
 		forward = 0.5f;
 	else if(physics_input.S_down || physics_input.down_down)
 		forward = -0.5f;
 
-	if(physics_input.SHIFT_down) // boost!
-		forward *= 2.f;
-
-
 	// Hand brake will cancel gas pedal
 	if(physics_input.space_down)
 	{
-		hand_brake = 1.0f;
+		brake = 1.f;
 		up_input = 1.f;
+	}
+
+	if(physics_input.SHIFT_down) // boost!
+	{
+		forward *= 2.f;
+		brake *= 2.f;
 	}
 
 	if(physics_input.C_down || physics_input.CTRL_down)
@@ -388,26 +391,40 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	}
 
 	right = cur_steering_right;
+
 	
-
+	
 	JPH::BodyInterface& body_interface = physics_world.physics_system->GetBodyInterface();
-
-	// On user input, assure that the car is active
-	if (right != 0.0f || forward != 0.0f || brake != 0.0f || hand_brake != 0.0f)
-		body_interface.ActivateBody(bike_body_id);
-
-
-	// Pass the input on to the constraint 
-	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController());
-	controller->SetDriverInput(forward, right, brake, hand_brake);
-
-
+	
 	const JPH::Mat44 transform = body_interface.GetWorldTransform(bike_body_id);
 
 	JPH::Float4 cols[4];
 	transform.StoreFloat4x4(cols);
 
 	const Matrix4f to_world(&cols[0].x);
+
+	// When leaned, we don't want to use the brakes fully as we'll spin out (See Jolt\Physics\Vehicle\MotorcycleController.cpp)
+	if((brake > 0.0f) && !physics_input.SHIFT_down) // Don't avoid spinning out if shift key is down.
+	{
+		JPH::Vec3 world_up = -m_physics_world->physics_system->GetGravity().Normalized();
+		JPH::Vec3 up  = transform.Multiply3x3(vehicle_constraint->GetLocalUp());
+		JPH::Vec3 fwd = transform.Multiply3x3(vehicle_constraint->GetLocalForward());
+		float sin_lean_angle = abs(world_up.Cross(up).Dot(fwd));
+		float brake_multiplier = JPH::Square(1.0f - sin_lean_angle);
+		brake *= brake_multiplier;
+	}
+	
+
+	// On user input, assure that the car is active
+	if (right != 0.0f || forward != 0.0f || brake != 0.0f)
+		body_interface.ActivateBody(bike_body_id);
+
+
+	// Pass the input on to the constraint 
+	JPH::WheeledVehicleController* controller = static_cast<JPH::WheeledVehicleController*>(vehicle_constraint->GetController());
+	controller->SetDriverInput(forward, right, brake, /*hand_brake=*/0.f);
+
+
 
 	// Vectors in y-forward space
 	const Vec4f forwards_y_for(0,1,0,0);
@@ -724,7 +741,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 			const Matrix4f wheel_to_local_transform = toMatrix4f(vehicle_constraint->GetWheelLocalTransform(i, /*inWheelRight=*/JPH::Vec3::sAxisZ(), /*inWheelUp=*/JPH::Vec3::sAxisX()));
 			const Vec4f contact_point_ws = getBodyTransform(*m_physics_world) * (wheel_to_local_transform * Vec4f(0, 0, 0, 1) - toVec4fVec(wheel_up_os) * wheel_radius);
 
-			const float skid_volume = myMin(2.f, skid_speed * 0.5f);
+			const float skid_volume = myMin(3.f, skid_speed * 1.f);
 
 			wheel_audio_source[i]->pos = contact_point_ws;
 			if(wheel_audio_source[i]->volume != skid_volume)
