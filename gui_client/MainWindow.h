@@ -214,7 +214,7 @@ private:
 	void showInfoNotification(const std::string& message);
 	void startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_level);
 	void startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level, bool our_avatar);
-	void startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
+	void startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, DownloadingResourceInfo& resouce_info); // For every resource that the object uses (model, textures etc..), if the resource is not present locally, start downloading it.
 	void evalObjectScript(WorldObject* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out);
 	void evalObjectInstanceScript(InstanceInfo* ob, float use_global_time, double dt, Matrix4f& ob_to_world_out);
 	void updateStatusBar();
@@ -274,7 +274,7 @@ public:
 	bool checkAddScriptToProcessingSet(const std::string& script_content); // returns true if was not in processed set (and hence this call added it), false if it was.
 
 
-	void startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB);
+	void startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB);
 	void startLoadingTexturesForObject(const WorldObject& ob, int ob_lod_level, float max_dist_for_ob_lod_level);
 	void startLoadingTexturesForAvatar(const Avatar& ob, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar);
 	void removeAndDeleteGLObjectsForOb(WorldObject& ob);
@@ -463,7 +463,8 @@ public:
 	Reference<GLObject> ob_denied_move_marker; // Prototype object
 	std::vector<Reference<GLObject> > ob_denied_move_markers;
 
-	GLObjectRef aabb_vis_gl_ob; // Used for visualising the AABB of the selected object.
+	GLObjectRef aabb_os_vis_gl_ob; // Used for visualising the object-space AABB of the selected object.
+	GLObjectRef aabb_ws_vis_gl_ob; // Used for visualising the world-space AABB of the selected object.
 	std::vector<GLObjectRef> selected_ob_vis_gl_obs; // Used for visualising paths for path-controlled objects.
 
 	static const int NUM_AXIS_ARROWS = 3;

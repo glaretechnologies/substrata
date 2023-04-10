@@ -754,7 +754,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	voxel_edit_face_marker = NULL;
 	ob_denied_move_marker = NULL;
 	ob_denied_move_markers.clear();
-	aabb_vis_gl_ob = NULL;
+	aabb_os_vis_gl_ob = NULL;
+	aabb_ws_vis_gl_ob = NULL;
 	selected_ob_vis_gl_obs.clear();
 	for(int i=0; i<NUM_AXIS_ARROWS; ++i)
 		axis_arrow_objects[i] = NULL;
@@ -832,7 +833,7 @@ void MainWindow::onIndigoViewDockWidgetVisibilityChanged(bool visible)
 }*/
 
 
-void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& pos_ws, const js::AABBox& ob_aabb_ws, DownloadingResourceInfo& resource_info)
+void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& centroid_ws, float aabb_ws_longest_len, DownloadingResourceInfo& resource_info)
 {
 	//conPrint("-------------------MainWindow::startDownloadingResource()-------------------\nURL: " + url);
 	//if(shouldStreamResourceViaHTTP(url))
@@ -865,8 +866,8 @@ void MainWindow::startDownloadingResource(const std::string& url, const Vec4f& p
 		else
 		{
 			DownloadQueueItem item;
-			item.pos = ob_aabb_ws.centroid();
-			item.size_factor = DownloadQueueItem::sizeFactorForAABBWS(ob_aabb_ws);
+			item.pos = centroid_ws;
+			item.size_factor = DownloadQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len);
 			item.URL = url;
 			this->download_queue.enqueueItem(item);
 		}
@@ -939,7 +940,7 @@ static inline bool isValidLightMapURL(const std::string& URL)
 }
 
 
-void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox& aabb_ws, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
+void MainWindow::startLoadingTextureForObject(const Vec4f& centroid_ws, float aabb_ws_longest_len, float max_dist_for_ob_lod_level, float importance_factor, const WorldMaterial& world_mat, int ob_lod_level, const std::string& texture_url, bool tex_has_alpha, bool use_sRGB)
 {
 	if(isValidImageTextureURL(texture_url))
 	{
@@ -954,7 +955,7 @@ void MainWindow::startLoadingTextureForObject(const Vec3d& pos, const js::AABBox
 			{
 				const bool just_added = checkAddTextureToProcessingSet(tex_path); // If not being loaded already:
 				if(just_added)
-					load_item_queue.enqueueItem(aabb_ws.centroid(), aabb_ws, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level, importance_factor);
+					load_item_queue.enqueueItem(centroid_ws, aabb_ws_longest_len, new LoadTextureTask(ui->glWidget->opengl_engine, this->texture_server, &this->msg_queue, tex_path, /*use_sRGB=*/use_sRGB), max_dist_for_ob_lod_level, importance_factor);
 			}
 		}
 	}
@@ -966,9 +967,9 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<ob.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(ob.pos, ob.getAABBWS(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.getAABBWS(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(ob.pos, ob.getAABBWS(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->colour_texture_url, ob.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(ob.getCentroidWS(), ob.getAABBWSLongestLength(), max_dist_for_ob_lod_level, /*importance factor=*/1.f, *ob.materials[i], ob_lod_level, ob.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 
 	// Start loading lightmap
@@ -994,21 +995,15 @@ void MainWindow::startLoadingTexturesForObject(const WorldObject& ob, int ob_lod
 
 void MainWindow::startLoadingTexturesForAvatar(const Avatar& av, int ob_lod_level, float max_dist_for_ob_lod_level, bool our_avatar)
 {
-	// approx AABB of avatar
-	const js::AABBox aabb_ws( 
-		av.pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, 2.f, 0),
-		av.pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
-	);
-
 	// Prioritise laoding our avatar first.
 	const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
 	// Process model materials - start loading any textures that are present on disk, and not already loaded and processed:
 	for(size_t i=0; i<av.avatar_settings.materials.size(); ++i)
 	{
-		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
-		startLoadingTextureForObject(av.pos, aabb_ws, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->colour_texture_url, av.avatar_settings.materials[i]->colourTexHasAlpha(), /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->emission_texture_url, /*has_alpha=*/false, /*use_sRGB=*/true);
+		startLoadingTextureForObject(av.pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, max_dist_for_ob_lod_level, our_avatar_importance_factor, *av.avatar_settings.materials[i], ob_lod_level, av.avatar_settings.materials[i]->roughness.texture_url, /*has_alpha=*/false, /*use_sRGB=*/false);
 	}
 }
 
@@ -1077,7 +1072,8 @@ void MainWindow::addPlaceholderObjectsForOb(WorldObject& ob_)
 		ob->physics_object = NULL;
 	}
 
-	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(/*min=*/ob->getAABBWS().min_, /*max=*/ob->getAABBWS().max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+	GLObjectRef cube_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(/*min=*/ob->getAABBOS().min_, /*max=*/ob->getAABBOS().max_, Colour4f(0.6f, 0.2f, 0.2, 0.5f));
+	cube_gl_ob->ob_to_world_matrix = ob->obToWorldMatrix() * OpenGLEngine::AABBObjectTransform(/*min=*/ob->getAABBOS().min_, /*max=*/ob->getAABBOS().max_);
 
 	ob->opengl_engine_ob = cube_gl_ob;
 	ui->glWidget->opengl_engine->addObject(cube_gl_ob);
@@ -1142,13 +1138,9 @@ void MainWindow::startDownloadingResourcesForObject(WorldObject* ob, int ob_lod_
 				info.use_sRGB = url_info.use_sRGB;
 				info.build_dynamic_physics_ob = ob->isDynamic();
 				info.pos = ob->pos;
-				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWS(), /*importance_factor=*/1.f);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance_factor=*/1.f);
 
-				js::AABBox aabb_ws = ob->getAABBWS();
-				if(aabb_ws.isEmpty())
-					aabb_ws = js::AABBox(ob->pos.toVec4fPoint(), ob->pos.toVec4fPoint());
-
-				startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
+				startDownloadingResource(url, ob->getCentroidWS(), ob->getAABBWSLongestLength(), info);
 			}
 		}
 	}
@@ -1179,21 +1171,15 @@ void MainWindow::startDownloadingResourcesForAvatar(Avatar* ob, int ob_lod_level
 
 			if(in_range && !resource_manager->isFileForURLPresent(url))// && !stream)
 			{
-				const js::AABBox aabb_ws( // approx AABB
-					ob->pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, 2.f, 0),
-					ob->pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
-				);
-
 				const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
 				DownloadingResourceInfo info;
 				info.use_sRGB = url_info.use_sRGB;
 				info.build_dynamic_physics_ob = false;
 				info.pos = ob->pos;
-				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws, our_avatar_importance_factor);
+				info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor);
 
-
-				startDownloadingResource(url, ob->pos.toVec4fPoint(), aabb_ws, info);
+				startDownloadingResource(url, ob->pos.toVec4fPoint(), /*aabb_ws_longest_len=*/1.8f, info);
 			}
 		}
 	}
@@ -1423,7 +1409,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 	const int ob_model_lod_level = myClamp(ob_lod_level, 0, ob->max_model_lod_level);
 	
 	const float max_dist_for_ob_lod_level = ob->getMaxDistForLODLevel(ob_lod_level);
-	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->getAABBWS().centroid()));
+	assert(max_dist_for_ob_lod_level >= campos.getDist(ob->getCentroidWS()));
 	const float max_dist_for_ob_model_lod_level = max_dist_for_ob_lod_level; // We don't want to clamp with max_model_lod_level.
 
 	// If we have a model loaded, that is not the placeholder model, and it has the correct LOD level, we don't need to do anything.
@@ -1815,7 +1801,7 @@ void MainWindow::loadModelForObject(WorldObject* ob)
 		{
 			// Load a placeholder object (cube) if we don't have an existing model (e.g. another LOD level) being displayed.
 			// We also need a valid AABB.
-			if(!ob->getAABBWS().isEmpty() && ob->opengl_engine_ob.isNull())
+			if(!ob->getAABBOS().isEmpty() && ob->opengl_engine_ob.isNull())
 				addPlaceholderObjectsForOb(*ob);
 		}
 
@@ -2248,9 +2234,9 @@ void MainWindow::doBiomeScatteringForObject(WorldObject* ob)
 					info.use_sRGB = true;
 					info.build_dynamic_physics_ob = false;
 					info.pos = ob->pos;
-					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWS(), /*importance factor=*/1.f);
+					info.size_factor = LoadItemQueueItem::sizeFactorForAABBWS(ob->getAABBWSLongestLength(), /*importance factor=*/1.f);
 
-					startDownloadingResource(URL, ob->pos.toVec4fPoint(), ob->getAABBWS(), info);
+					startDownloadingResource(URL, ob->getCentroidWS(), ob->getAABBWSLongestLength(), info);
 				}
 
 
@@ -3008,7 +2994,7 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 	// Set world object pos
 	ob->setTransformAndHistory(new_ob_pos, new_axis, new_angle);
 
-	ob->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*ob)));
+	ob->transformChanged();
 
 	// Set graphics object pos and update in opengl engine.
 	const Matrix4f new_to_world = obToWorldMatrix(*ob);
@@ -3043,11 +3029,6 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 		writeToStream(Vec3d(ob->pos), scratch_packet);
 		writeToStream(Vec3f(ob->axis), scratch_packet);
 		scratch_packet.writeFloat(ob->angle);
-		const float aabb_data[6] = {
-			ob->getAABBWS().min_[0], ob->getAABBWS().min_[1], ob->getAABBWS().min_[2],
-			ob->getAABBWS().max_[0], ob->getAABBWS().max_[1], ob->getAABBWS().max_[2]
-		};
-		scratch_packet.writeData(aabb_data, sizeof(float) * 6);
 
 		enqueueMessageToSend(*this->client_thread, scratch_packet);
 	}
@@ -3073,7 +3054,7 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 	// Update audio source position in audio engine.
 	if(ob->audio_source.nonNull())
 	{
-		ob->audio_source->pos = ob->getAABBWS().centroid();
+		ob->audio_source->pos = ob->getCentroidWS();
 		audio_engine.sourcePositionUpdated(*ob->audio_source);
 	}
 
@@ -3103,6 +3084,7 @@ void MainWindow::checkForLODChanges()
 		Lock lock(this->world_state->mutex);
 
 		const Vec4f cam_pos = cam_controller.getPosition().toVec4fPoint();
+		const float load_distance2_ = this->load_distance2;
 
 		//const int slice = num_frames_since_fps_timer_reset % 8; // TEMP HACK
 		//const int begin_i = Maths::roundedUpDivide((int)this->world_state->objects.size(), 8) * slice;
@@ -3113,8 +3095,8 @@ void MainWindow::checkForLODChanges()
 		{
 			WorldObject* ob = it.getValue().ptr();
 
-			const float cam_to_ob_d2 = ob->getAABBWS().centroid().getDist2(cam_pos);
-			if(cam_to_ob_d2 > this->load_distance2) 
+			const float cam_to_ob_d2 = ob->getCentroidWS().getDist2(cam_pos);
+			if(cam_to_ob_d2 > load_distance2_) // If object is out of load distance:
 			{
 				if(ob->in_proximity) // If an object was in proximity to the camera, and moved out of load distance:
 				{
@@ -3122,10 +3104,8 @@ void MainWindow::checkForLODChanges()
 					ob->in_proximity = false;
 				}
 			}
-			else
+			else // Else if object is within load distance:
 			{
-				// Object is within load distance:
-
 				const int lod_level = ob->getLODLevel(cam_to_ob_d2);
 
 				if((lod_level != ob->current_lod_level)/* || ob->opengl_engine_ob.isNull()*/)
@@ -4036,16 +4016,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	}
 
 	// Update AABB visualisation, if we are showing one.
-	if(aabb_vis_gl_ob.nonNull() && selected_ob.nonNull())
+	if(aabb_os_vis_gl_ob.nonNull() && selected_ob.nonNull())
 	{
-		const Vec4f span = selected_ob->getAABBWS().max_ - selected_ob->getAABBWS().min_;
-
-		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(0, Vec4f(span[0], 0, 0, 0));
-		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(1, Vec4f(0, span[1], 0, 0));
-		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(2, Vec4f(0, 0, span[2], 0));
-		aabb_vis_gl_ob->ob_to_world_matrix.setColumn(3, selected_ob->getAABBWS().min_); // set origin
-
-		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_vis_gl_ob);
+		aabb_os_vis_gl_ob->ob_to_world_matrix = selected_ob->obToWorldMatrix() * OpenGLEngine::AABBObjectTransform(selected_ob->getAABBOS().min_, selected_ob->getAABBOS().max_);
+		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_os_vis_gl_ob);
+	}
+	if(aabb_ws_vis_gl_ob.nonNull() && selected_ob.nonNull())
+	{
+		aabb_ws_vis_gl_ob->ob_to_world_matrix = OpenGLEngine::AABBObjectTransform(selected_ob->getAABBWS().min_, selected_ob->getAABBWS().max_);
+		ui->glWidget->opengl_engine->updateObjectTransformData(*aabb_ws_vis_gl_ob);
 	}
 
 	if(ui->diagnosticsDockWidget->isVisible() && (num_frames_since_fps_timer_reset == 1))
@@ -4115,7 +4094,12 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		{
 			msg += std::string("\nSelected object: \n");
 
-			msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "pos: " + selected_ob->pos.toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "centroid: " + selected_ob->getCentroidWS().toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "aabb os: " + selected_ob->getAABBOS().toStringMaxNDecimalPlaces(3) + "\n";
+			//msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "aabb_ws_longest_len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getAABBWSLongestLength(), 2) + "\n";
+			msg += "biased aabb longest len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getBiasedAABBLength(), 2) + "\n";
 
 			msg += "max_model_lod_level: " + toString(selected_ob->max_model_lod_level) + "\n";
 			msg += "current_lod_level: " + toString(selected_ob->current_lod_level) + "\n";
@@ -4564,7 +4548,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 									// Add a looping audio source
 									ob->audio_source = new glare::AudioSource();
 									ob->audio_source->shared_buffer = loaded_msg->audio_buffer;
-									ob->audio_source->pos = ob->getAABBWS().centroid();
+									ob->audio_source->pos = ob->getCentroidWS();
 									ob->audio_source->volume = ob->audio_volume;
 									const double audio_len_s = loaded_msg->audio_buffer->buffer.size() / 44100.0; // TEMP HACK
 									const double source_time_offset = Maths::doubleMod(global_time, audio_len_s);
@@ -5312,13 +5296,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 								if(ob->opengl_engine_ob->instance_matrix_vbo.nonNull())
 									ob->opengl_engine_ob->aabb_ws = prev_gl_aabb_ws;
 								else
-									ob->setAABBWS(ob->opengl_engine_ob->aabb_ws); // Update object AABB - used for computing LOD level.
+								{
+									ob->doTransformChanged(ob_to_world, ob->scale.toVec4fVector()); // Update info used for computing LOD level.
+								}
 							}
 
 							// Update audio source for the object, if it has one.
 							if(ob->audio_source.nonNull())
 							{
-								ob->audio_source->pos = ob->getAABBWS().centroid();
+								ob->audio_source->pos = ob->getCentroidWS();
 								audio_engine.sourcePositionUpdated(*ob->audio_source);
 							}
 
@@ -6250,9 +6236,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						if(ob->state == WorldObject::State_JustCreated)
 							enableMaterialisationEffectOnOb(*ob); // Enable materialisation effect before we call loadModelForObject() below.
 
-						ob->in_proximity = ob->getAABBWS().centroid().getDist2(campos) < this->load_distance2;
+						ob->in_proximity = ob->getCentroidWS().getDist2(campos) < this->load_distance2;
 
-						if(ob->getAABBWS().centroid().getDist2(campos) < this->load_distance2)
+						if(ob->getCentroidWS().getDist2(campos) < this->load_distance2)
 						{
 							loadModelForObject(ob);
 							loadAudioForObject(ob);
@@ -6601,7 +6587,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 							if(ob->audio_source.nonNull())
 							{
 								// Update in audio engine
-								ob->audio_source->pos = ob->getAABBWS().centroid();
+								ob->audio_source->pos = ob->getCentroidWS();
 								audio_engine.sourcePositionUpdated(*ob->audio_source);
 							}
 						}
@@ -6702,12 +6688,6 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					writeToStream(Vec3d(world_ob->pos), scratch_packet);
 					writeToStream(Vec3f(world_ob->axis), scratch_packet);
 					scratch_packet.writeFloat(world_ob->angle);
-
-					const float aabb_data[6] = {
-						world_ob->getAABBWS().min_[0], world_ob->getAABBWS().min_[1], world_ob->getAABBWS().min_[2],
-						world_ob->getAABBWS().max_[0], world_ob->getAABBWS().max_[1], world_ob->getAABBWS().max_[2]
-					};
-					scratch_packet.writeData(aabb_data, sizeof(float) * 6);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -7483,8 +7463,7 @@ void MainWindow::createObject(const std::string& mesh_path, BatchedMeshRef loade
 	new_world_object->axis = axis;
 	new_world_object->angle = angle;
 	new_world_object->scale = scale;
-
-	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+	new_world_object->setAABBOS(aabb_os);
 
 	setMaterialFlagsForObject(new_world_object.ptr());
 
@@ -7621,9 +7600,7 @@ void MainWindow::on_actionAddHypercard_triggered()
 	new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle.
 	new_world_object->scale = Vec3f(0.4f);
 	new_world_object->content = "Select the object \nto edit this text";
-
-	const js::AABBox aabb_os = js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1));
-	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+	new_world_object->setAABBOS(js::AABBox(Vec4f(0,0,0,1), Vec4f(1,0,1,1)));
 
 	// Send CreateObject message to server
 	{
@@ -7673,7 +7650,7 @@ void MainWindow::on_actionAdd_Spotlight_triggered()
 
 	const float fixture_w = 0.1;
 	const js::AABBox aabb_os = js::AABBox(Vec4f(-fixture_w/2, -fixture_w/2, 0,1), Vec4f(fixture_w/2,  fixture_w/2, 0,1));
-	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+	new_world_object->setAABBOS(aabb_os);
 
 
 	// Send CreateObject message to server
@@ -7724,7 +7701,7 @@ void MainWindow::on_actionAdd_Web_View_triggered()
 	new_world_object->materials[1] = new WorldMaterial();
 
 	const js::AABBox aabb_os = this->image_cube_shape.getAABBOS();
-	new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+	new_world_object->setAABBOS(aabb_os);
 
 
 	// Send CreateObject message to server
@@ -7815,7 +7792,7 @@ void MainWindow::on_actionAdd_Audio_Source_triggered()
 			}*/
 
 			const js::AABBox aabb_os(Vec4f(-0.25f, -0.25f, -0.5f, 1.0f), Vec4f(0.25f, 0.25f, 0.5f, 1.0f)); // AABB os of capsule.obj
-			new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+			new_world_object->setAABBOS(aabb_os);
 
 
 			// Send CreateObject message to server
@@ -7868,7 +7845,7 @@ void MainWindow::on_actionAdd_Voxels_triggered()
 	new_world_object->scale = Vec3f(0.5f); // This will be the initial width of the voxels
 	new_world_object->getDecompressedVoxels().push_back(Voxel(Vec3<int>(0, 0, 0), 0)); // Start with a single voxel.
 	new_world_object->compressVoxels();
-	new_world_object->setAABBWS(new_world_object->getDecompressedVoxelGroup().getAABB().transformedAABB(obToWorldMatrix(*new_world_object)));
+	new_world_object->setAABBOS(new_world_object->getDecompressedVoxelGroup().getAABB());
 
 	// Send CreateObject message to server
 	{
@@ -8004,7 +7981,7 @@ void MainWindow::createImageObjectForWidthAndHeight(const std::string& local_ima
 	new_world_object->axis = Vec3f(0,0,1);
 	new_world_object->angle = Maths::roundToMultipleFloating((float)this->cam_controller.getAngles().x - Maths::pi_2<float>(), Maths::pi_4<float>()); // Round to nearest 45 degree angle, facing camera.
 
-	new_world_object->setAABBWS(batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+	new_world_object->setAABBOS(batched_mesh->aabb_os);
 
 	new_world_object->model_url = "image_cube_5438347426447337425.bmesh";
 
@@ -8116,7 +8093,7 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 					if(pasted_ob->pos.getDist(this->cam_controller.getFirstPersonPosition()) > 50.0) // If the source object is far from the camera:
 					{
 						// Position pasted object in front of the camera.
-						const float ob_w = pasted_ob->getAABBWS().longestLength();
+						const float ob_w = pasted_ob->getAABBWSLongestLength();
 						new_ob_pos = this->cam_controller.getFirstPersonPosition() + this->cam_controller.getForwardsVec() * myMax(2.f, ob_w * 2.0f);
 					}
 					else
@@ -8143,25 +8120,8 @@ void MainWindow::handlePasteOrDropMimeData(const QMimeData* mime_data)
 						}
 					}
 
-
-					// We want to compute the world space AABB for the pasted object.  We need the object space AABB to do this.  Try and get from source object.
-					js::AABBox aabb_os = pasted_ob->getAABBWS().transformedAABB(worldToObMatrix(*pasted_ob)); // Get AABB os from AABB ws, before we update position.  NOTE: assuming original AABB ws is correct.
-
-					// Try and find source object to get more accurate AABB os from opengl object.
-					{
-						Lock lock(world_state->mutex);
-
-						auto res = world_state->objects.find(pasted_ob->uid);
-						if(res != world_state->objects.end())
-						{
-							WorldObject* src_ob = res.getValue().ptr();
-							if(src_ob->opengl_engine_ob.nonNull() && src_ob->opengl_engine_ob->mesh_data.nonNull())
-								aabb_os = src_ob->opengl_engine_ob->mesh_data->aabb_os;
-						}
-					}
-
 					pasted_ob->pos = new_ob_pos;
-					pasted_ob->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*pasted_ob)));
+					pasted_ob->transformChanged();
 
 					// Check permissions
 					bool ob_pos_in_parcel;
@@ -8266,10 +8226,7 @@ void MainWindow::on_actionCloneObject_triggered()
 		new_world_object->getCompressedVoxels() = selected_ob->getCompressedVoxels();
 		new_world_object->audio_source_url = selected_ob->audio_source_url;
 		new_world_object->audio_volume = selected_ob->audio_volume;
-
-		// Compute WS AABB of new object, using OS AABB from opengl ob.
-		if(this->selected_ob->opengl_engine_ob.nonNull() && this->selected_ob->opengl_engine_ob->mesh_data.nonNull())
-			new_world_object->setAABBWS(this->selected_ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+		new_world_object->setAABBOS(this->selected_ob->getAABBOS());
 
 		new_world_object->max_model_lod_level = selected_ob->max_model_lod_level;
 		new_world_object->mass = selected_ob->mass;
@@ -8916,7 +8873,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					if(in_world_ob->audio_source.nonNull())
 					{
 						// Update in audio engine
-						in_world_ob->audio_source->pos = in_world_ob->getAABBWS().centroid();
+						in_world_ob->audio_source->pos = in_world_ob->getCentroidWS();
 						audio_engine.sourcePositionUpdated(*in_world_ob->audio_source);
 					}
 
@@ -8929,8 +8886,7 @@ void MainWindow::applyUndoOrRedoObject(const WorldObjectRef& restored_ob)
 					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
 					// updateInstancedCopiesOfObject(ob); // TODO: enable + test this
-					if(opengl_ob.nonNull())
-						in_world_ob->setAABBWS(opengl_ob->aabb_ws); // Was computed above in updateObjectTransformData().
+					in_world_ob->transformChanged();
 
 					// Mark as from-local-dirty to send an object updated message to the server
 					in_world_ob->from_local_other_dirty = true;
@@ -9224,8 +9180,7 @@ void MainWindow::on_actionSummon_Bike_triggered()
 		new_world_object->axis = Vec3f(axis);
 		new_world_object->angle = angle;
 		new_world_object->scale = Vec3f(0.18f);
-
-		new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+		new_world_object->setAABBOS(aabb_os);
 
 		new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_bike_script.xml");
 
@@ -9358,8 +9313,7 @@ void MainWindow::on_actionSummon_Hovercar_triggered()
 		new_world_object->axis = Vec3f(axis);
 		new_world_object->angle = angle;
 		new_world_object->scale = Vec3f(1.f);
-
-		new_world_object->setAABBWS(aabb_os.transformedAABB(obToWorldMatrix(*new_world_object)));
+		new_world_object->setAABBOS(aabb_os);
 
 		new_world_object->script = FileUtils::readEntireFileTextMode(this->base_dir_path + "/resources/summoned_hovercar_script.xml");
 
@@ -9552,7 +9506,7 @@ void MainWindow::objectEditedSlot()
 
 						this->selected_ob->model_url = mesh_URL;
 						this->selected_ob->max_model_lod_level = (results.batched_mesh->numVerts() <= 4 * 6) ? 0 : 2; // If this is a very small model (e.g. a cuboid), don't generate LOD versions of it.
-						this->selected_ob->setAABBWS(results.batched_mesh->aabb_os.transformedAABB(obToWorldMatrix(*this->selected_ob)));
+						this->selected_ob->setAABBOS(results.batched_mesh->aabb_os);
 					}
 					else
 					{
@@ -9749,7 +9703,7 @@ void MainWindow::objectEditedSlot()
 
 						updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
 
-						selected_ob->setAABBWS(opengl_ob->aabb_ws); // Was computed above in updateObjectTransformData().
+						selected_ob->transformChanged();
 
 						Lock lock(this->world_state->mutex);
 
@@ -9799,7 +9753,7 @@ void MainWindow::objectEditedSlot()
 
 			if(this->selected_ob->audio_source.nonNull())
 			{
-				this->selected_ob->audio_source->pos = this->selected_ob->getAABBWS().centroid();
+				this->selected_ob->audio_source->pos = this->selected_ob->getCentroidWS();
 				this->audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
 
 				this->selected_ob->audio_source->volume = this->selected_ob->audio_volume;
@@ -11058,7 +11012,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 		physics_world->addObject(physics_ob);
 
-		ob->setAABBWS(gl_ob->aabb_ws); // gl_ob->aabb_ws will ahve been set in ui->glWidget->addObject() above.
+		ob->setAABBOS(gl_meshdata->aabb_os);
 	}
 
 	// Mark as from-local-dirty to send an object updated message to the server
@@ -11552,8 +11506,7 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 		if(!update_ob_editor_transform_timer->isActive())
 			update_ob_editor_transform_timer->start(/*msec=*/50);
 
-
-		ob->setAABBWS(opengl_ob->aabb_ws); // Will have been set above in updateObjectTransformData().
+		ob->transformChanged();
 
 		// Mark as from-local-dirty to send an object updated message to the server.
 		{
@@ -11685,10 +11638,16 @@ void MainWindow::selectObject(const WorldObjectRef& ob, int selected_mat_index)
 
 
 	// If diagnostics widget is shown, show an AABB visualisation as well.
-	if(ui->diagnosticsDockWidget->isVisible() && ui->diagnosticsWidget->showObWSAABBCheckBox->isChecked())
+	if(ui->diagnosticsDockWidget->isVisible() && ui->diagnosticsWidget->showObAABBsCheckBox->isChecked())
 	{
-		this->aabb_vis_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->getAABBWS().min_, this->selected_ob->getAABBWS().max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
-		ui->glWidget->opengl_engine->addObject(this->aabb_vis_gl_ob);
+		// Add object-space AABB visualisation gl ob.
+		this->aabb_os_vis_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->getAABBOS().min_, this->selected_ob->getAABBOS().max_, Colour4f(0.3f, 0.7f, 0.3f, 0.5f));
+		aabb_os_vis_gl_ob->ob_to_world_matrix = selected_ob->obToWorldMatrix() * OpenGLEngine::AABBObjectTransform(selected_ob->getAABBOS().min_, selected_ob->getAABBOS().max_);
+		ui->glWidget->opengl_engine->addObject(this->aabb_os_vis_gl_ob);
+
+		// Add world-space AABB visualisation gl ob.
+		this->aabb_ws_vis_gl_ob = ui->glWidget->opengl_engine->makeAABBObject(this->selected_ob->getAABBWS().min_, this->selected_ob->getAABBWS().max_, Colour4f(0.7f, 0.3f, 0.3f, 0.5f));
+		ui->glWidget->opengl_engine->addObject(this->aabb_ws_vis_gl_ob);
 	}
 
 	createPathControlledPathVisObjects(*this->selected_ob);
@@ -11790,10 +11749,15 @@ void MainWindow::deselectObject()
 		}
 
 		// Remove visualisation objects
-		if(this->aabb_vis_gl_ob.nonNull())
+		if(this->aabb_os_vis_gl_ob.nonNull())
 		{
-			ui->glWidget->opengl_engine->removeObject(this->aabb_vis_gl_ob);
-			this->aabb_vis_gl_ob = NULL;
+			ui->glWidget->opengl_engine->removeObject(this->aabb_os_vis_gl_ob);
+			this->aabb_os_vis_gl_ob = NULL;
+		}
+		if(this->aabb_ws_vis_gl_ob.nonNull())
+		{
+			ui->glWidget->opengl_engine->removeObject(this->aabb_ws_vis_gl_ob);
+			this->aabb_ws_vis_gl_ob = NULL;
 		}
 
 		for(size_t i=0; i<selected_ob_vis_gl_obs.size(); ++i)

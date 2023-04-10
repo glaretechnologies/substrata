@@ -280,17 +280,11 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 		// The AABB will be somewhat wrong, but hopefully it shouldn't matter too much.
 		if(ob->script_evaluator->jitted_evalRotation)
 		{
-			Matrix4f TS;
-			TS.setColumn(0, Vec4f(use_scale[0], 0, 0, 0));
-			TS.setColumn(1, Vec4f(0, use_scale[1], 0, 0));
-			TS.setColumn(2, Vec4f(0, 0, use_scale[2], 0));
-			TS.setColumn(3, translation);
-
-			ob->setAABBWS(ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(TS));
+			ob->doTransformChangedIgnoreRotation(translation, use_scale);
 		}
 		else
 		{
-			ob->setAABBWS(ob->opengl_engine_ob->aabb_ws);
+			ob->doTransformChanged(ob_to_world, use_scale);
 		}
 
 
@@ -313,7 +307,7 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	// Update audio source for the object, if it has one.
 	if(ob->audio_source.nonNull())
 	{
-		ob->audio_source->pos = ob->getAABBWS().centroid();
+		ob->audio_source->pos = ob->getCentroidWS();
 		audio_engine->sourcePositionUpdated(*ob->audio_source);
 	}
 
