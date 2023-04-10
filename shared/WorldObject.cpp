@@ -393,7 +393,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 18;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 19;
 /*
 Version history:
 9: introduced voxels
@@ -406,6 +406,7 @@ Version history:
 16: Added audio_source_url, audio_volume
 17: Added mass, friction, restitution
 18: Storing aabb_os instead of aabb_ws.
+19: Added last_modified_time
 */
 
 
@@ -440,6 +441,7 @@ void WorldObject::writeToStream(OutStream& stream) const
 	::writeToStream(scale, stream);
 
 	created_time.writeToStream(stream); // new in v5
+	last_modified_time.writeToStream(stream); // new in v19
 	::writeToStream(creator_id, stream); // new in v5
 
 	stream.writeUInt32(flags); // new in v11
@@ -530,6 +532,10 @@ void readFromStream(InStream& stream, WorldObject& ob)
 	if(v >= 5)
 	{
 		ob.created_time.readFromStream(stream);
+		if(v >= 19)
+			ob.last_modified_time.readFromStream(stream);
+		else
+			ob.last_modified_time = ob.created_time;
 		ob.creator_id = readUserIDFromStream(stream);
 	}
 	else
@@ -642,6 +648,7 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 	::writeToStream(scale, stream);
 
 	created_time.writeToStream(stream); // new in v5
+	last_modified_time.writeToStream(stream); // new in v19
 	::writeToStream(creator_id, stream); // new in v5
 
 	stream.writeUInt32(flags); // new in v11
@@ -694,6 +701,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 	scale = other.scale;
 
 	created_time = other.created_time;
+	last_modified_time = other.last_modified_time;
 	creator_id = other.creator_id;
 
 	flags = other.flags;
@@ -767,6 +775,7 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 		ob.scale = readVec3FromStream<float>(stream);
 
 	ob.created_time.readFromStream(stream);
+	ob.last_modified_time.readFromStream(stream);
 	ob.creator_id = readUserIDFromStream(stream);
 
 	ob.flags = stream.readUInt32();

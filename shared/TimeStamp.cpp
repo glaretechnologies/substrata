@@ -162,7 +162,11 @@ const std::string TimeStamp::timeAgoDescription() const // Returns a string like
 {
 	int diff_s = (int)(currentTime().time - this->time); // Get num seconds ago
 	
-	if(diff_s < 3600) // If less than 1 hour ago:
+	if(diff_s < 60) // If less than 1 minute ago:
+	{
+		return diff_s == 1 ? "1 second ago" : toString(diff_s) + " seconds ago";
+	}
+	else if(diff_s < 3600) // If less than 1 hour ago:
 	{
 		int diff_m = diff_s / 60;
 		return diff_m == 1 ? "1 minute ago" : toString(diff_m) + " minutes ago";
