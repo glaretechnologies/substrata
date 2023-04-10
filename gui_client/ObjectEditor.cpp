@@ -114,8 +114,11 @@ ObjectEditor::~ObjectEditor()
 }
 
 
-void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
+void ObjectEditor::updateInfoLabel(const WorldObject& ob)
 {
+	const std::string creator_name = !ob.creator_name.empty() ? ob.creator_name :
+		(ob.creator_id.valid() ? ("user id: " + ob.creator_id.toString()) : "[Unknown]");
+
 	std::string ob_type;
 	switch(ob.object_type)
 	{
@@ -126,21 +129,28 @@ void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
 	case WorldObject::ObjectType_WebView: ob_type = "Web View"; break;
 	}
 
+	std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
+	
+	// Show last-modified time only if it differs from created_time.
+	if(ob.created_time.time != ob.last_modified_time.time)
+		info_text += ", last modified " + ob.last_modified_time.timeAgoDescription();
+
+	this->infoLabel->setText(QtUtils::toQString(info_text));
+}
+
+
+void ObjectEditor::setFromObject(const WorldObject& ob, int selected_mat_index_)
+{
 	//this->objectTypeLabel->setText(QtUtils::toQString(ob_type + " (UID: " + ob.uid.toString() + ")"));
 
 	this->cloned_materials.resize(ob.materials.size());
 	for(size_t i=0; i<ob.materials.size(); ++i)
 		this->cloned_materials[i] = ob.materials[i]->clone();
 
-	const std::string creator_name = !ob.creator_name.empty() ? ob.creator_name :
-		(ob.creator_id.valid() ? ("user id: " + ob.creator_id.toString()) : "[Unknown]");
-
 	//this->createdByLabel->setText(QtUtils::toQString(creator_name));
 	//this->createdTimeLabel->setText(QtUtils::toQString(ob.created_time.timeAgoDescription()));
 
-	const std::string info_text = ob_type + " (UID: " + ob.uid.toString() + "), \ncreated by '" + creator_name + "' " + ob.created_time.timeAgoDescription();
-
-	this->infoLabel->setText(QtUtils::toQString(info_text));
+	updateInfoLabel(ob);
 
 	this->selected_mat_index = selected_mat_index_;
 
@@ -290,6 +300,8 @@ void ObjectEditor::setTransformFromObject(const WorldObject& ob)
 	SignalBlocker::setValue(this->rotAxisXDoubleSpinBox, angles.x * 360 / Maths::get2Pi<float>());
 	SignalBlocker::setValue(this->rotAxisYDoubleSpinBox, angles.y * 360 / Maths::get2Pi<float>());
 	SignalBlocker::setValue(this->rotAxisZDoubleSpinBox, angles.z * 360 / Maths::get2Pi<float>());
+
+	updateInfoLabel(ob); // Update info label, which includes last-modified time.
 }
 
 
@@ -393,6 +405,8 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 void ObjectEditor::objectModelURLUpdated(const WorldObject& ob)
 {
 	this->modelFileSelectWidget->setFilename(QtUtils::toQString(ob.model_url));
+
+	updateInfoLabel(ob); // Update info label, which includes last-modified time.
 }
 
 
@@ -408,6 +422,8 @@ void ObjectEditor::objectLightmapURLUpdated(const WorldObject& ob)
 	{
 		lightmapBakeStatusLabel->setText("Lightmap baked.");
 	}
+
+	updateInfoLabel(ob); // Update info label, which includes last-modified time.
 }
 
 

@@ -2996,6 +2996,8 @@ void MainWindow::doMoveAndRotateObject(WorldObjectRef ob, const Vec3d& new_ob_po
 
 	ob->transformChanged();
 
+	ob->last_modified_time = TimeStamp::currentTime(); // Gets set on server as well, this is just for updating the local display.
+
 	// Set graphics object pos and update in opengl engine.
 	const Matrix4f new_to_world = obToWorldMatrix(*ob);
 
@@ -9385,6 +9387,9 @@ void MainWindow::objectEditedSlot()
 				undo_buffer.startWorldObjectEdit(*this->selected_ob);
 
 			ui->objectEditor->toObject(*this->selected_ob); // Sets changed_flags on object as well.
+			
+			this->selected_ob->last_modified_time = TimeStamp::currentTime(); // Gets set on server as well, this is just for updating the local display.
+			ui->objectEditor->objectLastModifiedUpdated(*this->selected_ob);
 
 			if(start_new_edit)
 				undo_buffer.finishWorldObjectEdit(*this->selected_ob);
@@ -10936,6 +10941,7 @@ void MainWindow::updateObjectModelForChangedDecompressedVoxels(WorldObjectRef& o
 
 	ob->compressVoxels();
 
+	ob->last_modified_time = TimeStamp::currentTime(); // Gets set on server as well, this is just for updating the local display.
 
 	// Clear lightmap URL, since the lightmap will be invalid now the voxels (and hence the UV map) will have changed.
 	ob->lightmap_url = "";
@@ -11507,6 +11513,8 @@ void MainWindow::rotateObject(WorldObjectRef ob, const Vec4f& axis, float angle)
 			update_ob_editor_transform_timer->start(/*msec=*/50);
 
 		ob->transformChanged();
+
+		ob->last_modified_time = TimeStamp::currentTime(); // Gets set on server as well, this is just for updating the local display.
 
 		// Mark as from-local-dirty to send an object updated message to the server.
 		{

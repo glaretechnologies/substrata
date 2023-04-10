@@ -1299,8 +1299,8 @@ void WorkerThread::doRun()
 											ob->pos = pos;
 											ob->axis = axis;
 											ob->angle = angle;
-
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
+											ob->last_modified_time = TimeStamp::currentTime();
 
 											ob->from_remote_transform_dirty = true;
 											cur_world_state->addWorldObjectAsDBDirty(ob);
@@ -1358,6 +1358,7 @@ void WorkerThread::doRun()
 												ob->axis  = summon_msg.axis;
 												ob->angle = summon_msg.angle;
 												ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
+												ob->last_modified_time = TimeStamp::currentTime();
 
 												cur_world_state->addWorldObjectAsDBDirty(ob); // Object state has changed, so save to DB.
 												world_state->markAsChanged();
@@ -1440,6 +1441,8 @@ void WorkerThread::doRun()
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 											ob->last_transform_client_time = client_cur_time;
 
+											ob->last_modified_time = TimeStamp::currentTime();
+
 											ob->from_remote_physics_transform_dirty = true;
 											cur_world_state->addWorldObjectAsDBDirty(ob);
 											cur_world_state->dirty_from_remote_objects.insert(ob);
@@ -1492,6 +1495,8 @@ void WorkerThread::doRun()
 										{
 											ob->copyNetworkStateFrom(temp_ob);
 
+											ob->last_modified_time = TimeStamp::currentTime();
+
 											ob->from_remote_other_dirty = true;
 											cur_world_state->addWorldObjectAsDBDirty(ob);
 											cur_world_state->dirty_from_remote_objects.insert(ob);
@@ -1530,6 +1535,7 @@ void WorkerThread::doRun()
 									if(!world_state->isInReadOnlyMode())
 									{
 										ob->lightmap_url = new_lightmap_url;
+										ob->last_modified_time = TimeStamp::currentTime();
 
 										ob->from_remote_lightmap_url_dirty = true;
 										cur_world_state->addWorldObjectAsDBDirty(ob);
@@ -1558,6 +1564,7 @@ void WorkerThread::doRun()
 									if(!world_state->isInReadOnlyMode())
 									{
 										ob->model_url = new_model_url;
+										ob->last_modified_time = TimeStamp::currentTime();
 
 										ob->from_remote_model_url_dirty = true;
 										cur_world_state->addWorldObjectAsDBDirty(ob);
@@ -1586,6 +1593,7 @@ void WorkerThread::doRun()
 									if(!world_state->isInReadOnlyMode())
 									{
 										ob->flags = flags; // Copy flags
+										ob->last_modified_time = TimeStamp::currentTime();
 
 										ob->from_remote_flags_dirty = true;
 										cur_world_state->addWorldObjectAsDBDirty(ob);
@@ -1662,6 +1670,7 @@ void WorkerThread::doRun()
 							{
 								new_ob->creator_id = client_user_id;
 								new_ob->created_time = TimeStamp::currentTime();
+								new_ob->last_modified_time = new_ob->created_time;
 								new_ob->creator_name = client_user_name;
 
 								std::set<DependencyURL> URLs;

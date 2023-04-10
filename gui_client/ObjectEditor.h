@@ -33,6 +33,8 @@ public:
 	void setFromObject(const WorldObject& ob, int selected_mat_index);
 	void setTransformFromObject(const WorldObject& ob);
 
+	void objectLastModifiedUpdated(const WorldObject& ob) { updateInfoLabel(ob); }
+
 	void toObject(WorldObject& ob_out);
 
 	// Object details were updated from outside of the editor, for example due to an update message from the server.
@@ -82,6 +84,7 @@ private slots:
 	void on_spotlightColourPushButton_clicked(bool checked);
 
 private:
+	void updateInfoLabel(const WorldObject& ob);
 	void updateSpotlightColourButton();
 	// Store a cloned copy of the materials.
 	// The reason for having this is so if the user selected another material,
