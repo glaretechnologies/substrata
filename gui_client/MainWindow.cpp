@@ -332,6 +332,7 @@ MainWindow::MainWindow(const std::string& base_dir_path_, const std::string& app
 	connect(ui->glWidget, SIGNAL(viewportResizedSignal(int, int)), this, SLOT(glWidgetViewportResized(int, int)));
 	connect(ui->glWidget, SIGNAL(copyShortcutActivated()), this, SLOT(on_actionCopy_Object_triggered()));
 	connect(ui->glWidget, SIGNAL(pasteShortcutActivated()), this, SLOT(on_actionPaste_Object_triggered()));
+	connect(ui->objectEditor, SIGNAL(objectTransformChanged()), this, SLOT(objectTransformEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(objectChanged()), this, SLOT(objectEditedSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmap()), this, SLOT(bakeObjectLightmapSlot()));
 	connect(ui->objectEditor, SIGNAL(bakeObjectLightmapHighQual()), this, SLOT(bakeObjectLightmapHighQualSlot()));
@@ -6278,12 +6279,16 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						
 						if((ob->state != WorldObject::State_JustCreated) && (ob->state != WorldObject::State_InitialSend)) // Don't reload materials when we just created the object locally.
 						{
-							// Update transform for object in OpenGL engine
+							// Update transform for object and object materials in OpenGL engine
 							if(ob->opengl_engine_ob.nonNull() && (ob != selected_ob.getPointer())) // Don't update the selected object based on network messages, we will consider the local transform for it authoritative.
 							{
-								// Update materials in opengl engine.
 								GLObjectRef opengl_ob = ob->opengl_engine_ob;
 
+								// Update transform
+								opengl_ob->ob_to_world_matrix = ob->obToWorldMatrix();
+								ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+								// Update materials in opengl engine.
 								const int ob_lod_level = ob->getLODLevel(cam_controller.getPosition());
 								for(size_t i=0; i<ob->materials.size(); ++i)
 									if(i < opengl_ob->materials.size())
@@ -6690,6 +6695,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					writeToStream(Vec3d(world_ob->pos), scratch_packet);
 					writeToStream(Vec3f(world_ob->axis), scratch_packet);
 					scratch_packet.writeFloat(world_ob->angle);
+					writeToStream(Vec3f(world_ob->scale), scratch_packet);
 
 					enqueueMessageToSend(*this->client_thread, scratch_packet);
 
@@ -9371,7 +9377,116 @@ void MainWindow::sendChatMessageSlot()
 }
 
 
-// Object has been edited, e.g. by the object editor.
+// Object transform has been edited, e.g. by the object editor.
+void MainWindow::objectTransformEditedSlot()
+{
+	try
+	{
+		if(this->selected_ob.nonNull())
+		{
+			// Multiple edits using the object editor, in a short timespan, will be merged together,
+			// unless force_new_undo_edit is true (is set when undo or redo is issued).
+			const bool start_new_edit = force_new_undo_edit || (time_since_object_edited.elapsed() > 5.0);
+
+			if(start_new_edit)
+				undo_buffer.startWorldObjectEdit(*this->selected_ob);
+
+			ui->objectEditor->writeTransformMembersToObject(*this->selected_ob);
+
+			this->selected_ob->last_modified_time = TimeStamp::currentTime(); // Gets set on server as well, this is just for updating the local display.
+			ui->objectEditor->objectLastModifiedUpdated(*this->selected_ob);
+
+			if(start_new_edit)
+				undo_buffer.finishWorldObjectEdit(*this->selected_ob);
+			else
+				undo_buffer.replaceFinishWorldObjectEdit(*this->selected_ob);
+
+			time_since_object_edited.reset();
+			force_new_undo_edit = false;
+
+			Matrix4f new_ob_to_world_matrix = obToWorldMatrix(*this->selected_ob); // Tentative new transform before it is possibly constrained to a parcel.
+
+			GLObjectRef opengl_ob = selected_ob->opengl_engine_ob;
+			if(opengl_ob.nonNull())
+			{
+				ui->glWidget->makeCurrent();
+
+				js::Vector<EdgeMarker, 16> edge_markers;
+				Vec3d new_ob_pos;
+				const bool valid = clampObjectPositionToParcelForNewTransform(
+					*this->selected_ob,
+					opengl_ob,
+					this->selected_ob->pos, 
+					new_ob_to_world_matrix,
+					edge_markers, 
+					new_ob_pos);
+				if(valid)
+				{
+					new_ob_to_world_matrix.setColumn(3, new_ob_pos.toVec4fPoint());
+					selected_ob->setTransformAndHistory(new_ob_pos, this->selected_ob->axis, this->selected_ob->angle);
+
+					// Update spotlight data in opengl engine.
+					if(this->selected_ob->object_type == WorldObject::ObjectType_Spotlight)
+					{
+						GLLightRef light = this->selected_ob->opengl_light;
+						if(light.nonNull())
+						{
+							light->gpu_data.dir = normalise(new_ob_to_world_matrix * Vec4f(0, 0, -1, 0));
+							ui->glWidget->opengl_engine->setLightPos(light, new_ob_pos.toVec4fPoint());
+						}
+					}
+
+					// Update transform of OpenGL object
+					opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+					ui->glWidget->opengl_engine->updateObjectTransformData(*opengl_ob);
+
+					// Update physics object transform
+					physics_world->setNewObToWorldTransform(*selected_ob->physics_object, selected_ob->pos.toVec4fVector(), Quatf::fromAxisAndAngle(normalise(selected_ob->axis.toVec4fVector()), selected_ob->angle),
+						useScaleForWorldOb(selected_ob->scale).toVec4fVector());
+
+					updateSelectedObjectPlacementBeam(); // Has to go after physics world update due to ray-trace needed.
+
+					selected_ob->transformChanged(); // Recompute centroid_ws, biased_aabb_len etc..
+
+					Lock lock(this->world_state->mutex);
+
+					if(this->selected_ob->isDynamic() && !isObjectPhysicsOwnedBySelf(*this->selected_ob, world_state->getCurrentGlobalTime()) && !isObjectVehicleBeingDrivenByOther(*this->selected_ob))
+					{
+						// conPrint("==Taking ownership of physics object in objectEditedSlot()...==");
+						takePhysicsOwnershipOfObject(*this->selected_ob, world_state->getCurrentGlobalTime());
+					}
+
+					// Mark as from-local-dirty to send an object updated message to the server
+					this->selected_ob->from_local_transform_dirty = true;
+					this->world_state->dirty_from_local_objects.insert(this->selected_ob);
+
+					// Update any instanced copies of object
+					updateInstancedCopiesOfObject(this->selected_ob.ptr());
+				}
+				else // Else if new transform is not valid
+				{
+					showErrorNotification("New object transform is not valid - Object must be entirely in a parcel that you have write permissions for.");
+				}
+			}
+
+			if(this->selected_ob->audio_source.nonNull())
+			{
+				this->selected_ob->audio_source->pos = this->selected_ob->getCentroidWS();
+				this->audio_engine.sourcePositionUpdated(*this->selected_ob->audio_source);
+			}
+		}
+	}
+	catch(glare::Exception& e)
+	{
+		QMessageBox msgBox;
+		msgBox.setWindowTitle("Error");
+		msgBox.setText(QtUtils::toQString(e.what()));
+		msgBox.exec();
+	}
+}
+
+
+// Object property (that is not a transform property) has been edited, e.g. by the object editor.
 void MainWindow::objectEditedSlot()
 {
 	try

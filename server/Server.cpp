@@ -903,6 +903,7 @@ int main(int argc, char *argv[])
 								writeToStream(ob->pos, scratch_packet);
 								writeToStream(ob->axis, scratch_packet);
 								scratch_packet.writeFloat(ob->angle);
+								writeToStream(ob->scale, scratch_packet);
 
 								scratch_packet.writeUInt32(ob->last_transform_update_avatar_uid);
 

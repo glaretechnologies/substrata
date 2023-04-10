@@ -30,6 +30,7 @@ CyberspaceProtocolVersion
 36: Sending position at start of QueryObjects and QueryObjectsInAABB messages.
 37: Not sending aabb_ws with various messages, sending aabb_os in WorldObject.
 	Added last_modified_time to WorldObject.
+	Added scale to ObjectTransformUpdate message.
 */
 namespace Protocol
 {
