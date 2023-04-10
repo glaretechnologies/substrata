@@ -42,6 +42,10 @@ InstanceInfo::~InstanceInfo()
 
 WorldObject::WorldObject() noexcept
 {
+	static_assert(offsetof(WorldObject, centroid_ws) == 0);
+	static_assert(offsetof(WorldObject, aabb_ws_longest_len) == 16);
+	static_assert(offsetof(WorldObject, aabb_os) == 32);
+
 	creator_id = UserID::invalidUserID();
 	flags = COLLIDABLE_FLAG;
 	
@@ -78,13 +82,14 @@ WorldObject::WorldObject() noexcept
 	next_insertable_snapshot_i = 0;
 	snapshots_are_physics_snapshots = false;
 	//last_snapshot_time = 0;
+	aabb_ws_longest_len = -1;
 	biased_aabb_len = -1;
 
 	translation = Vec4f(0.f);
 
 	max_load_dist2 = 1000000000;
 
-	aabb_ws = js::AABBox::emptyAABBox();
+	aabb_os = js::AABBox::emptyAABBox();
 
 	max_model_lod_level = 0;
 
@@ -388,7 +393,7 @@ std::string WorldObject::objectTypeString(ObjectType t)
 }
 
 
-static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 17;
+static const uint32 WORLD_OBJECT_SERIALISATION_VERSION = 18;
 /*
 Version history:
 9: introduced voxels
@@ -400,6 +405,7 @@ Version history:
 15: Added max_lod_level
 16: Added audio_source_url, audio_volume
 17: Added mass, friction, restitution
+18: Storing aabb_os instead of aabb_ws.
 */
 
 
@@ -438,8 +444,8 @@ void WorldObject::writeToStream(OutStream& stream) const
 
 	stream.writeUInt32(flags); // new in v11
 
-	stream.writeData(aabb_ws.min_.x, sizeof(float) * 3); // new in v14
-	stream.writeData(aabb_ws.max_.x, sizeof(float) * 3);
+	stream.writeData(aabb_os.min_.x, sizeof(float) * 3); // new in v14.  v18: write aabb_os instead of aabb_ws.
+	stream.writeData(aabb_os.max_.x, sizeof(float) * 3);
 
 	stream.writeInt32(max_model_lod_level); // new in v15
 
@@ -543,7 +549,28 @@ void readFromStream(InStream& stream, WorldObject& ob)
 		stream.readData(aabb.max_.x, sizeof(float) * 3);
 		aabb.max_.x[3] = 1.f;
 
-		ob.setAABBWS(aabb);
+		if(!aabb.min_.isFinite() || !aabb.max_.isFinite())
+			aabb = js::AABBox(Vec4f(0,0,0,1), Vec4f(0,0,0,1));
+
+		if(v >= 18)
+		{
+			ob.setAABBOS(aabb);
+		}
+		else
+		{
+			if(ob.axis.isFinite() && isFinite(ob.angle) && ob.scale.isFinite() && ob.translation.isFinite())
+			{
+				// Get approx aabb os from aabb ws.
+				const js::AABBox aabb_os = aabb.transformedAABBFast(ob.worldToObMatrix());
+				ob.setAABBOS(aabb_os);
+			}
+			else
+			{
+				// Can't call setAABBOS() because it will hit an assert in transformChanged() when computing the transformation matrix.
+				// conPrint("Invalid transform");
+				ob.zeroAABBOS();
+			}
+		}
 	}
 
 	if(v >= 15)
@@ -621,8 +648,8 @@ void WorldObject::writeToNetworkStream(OutStream& stream) const // Write without
 
 	stream.writeStringLengthFirst(creator_name);
 
-	stream.writeData(aabb_ws.min_.x, sizeof(float) * 3); // new in v14
-	stream.writeData(aabb_ws.max_.x, sizeof(float) * 3);
+	stream.writeData(aabb_os.min_.x, sizeof(float) * 3); // new in v14
+	stream.writeData(aabb_os.max_.x, sizeof(float) * 3);
 
 	stream.writeInt32(max_model_lod_level); // new in v15
 
@@ -675,7 +702,7 @@ void WorldObject::copyNetworkStateFrom(const WorldObject& other)
 
 	compressed_voxels = other.compressed_voxels;
 
-	aabb_ws = other.aabb_ws;
+	aabb_os = other.aabb_os;
 
 	max_model_lod_level = other.max_model_lod_level;
 
@@ -729,6 +756,13 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 	ob.axis = readVec3FromStream<float>(stream);
 	ob.angle = stream.readFloat();
 
+	if(!ob.pos.isFinite())
+		ob.pos = Vec3d(0,0,0);
+	if(!ob.axis.isFinite())
+		ob.axis = Vec3f(1,0,0);
+	if(!isFinite(ob.angle))
+		ob.angle = 0;
+
 	//if(v >= 3)
 		ob.scale = readVec3FromStream<float>(stream);
 
@@ -744,7 +778,11 @@ void readWorldObjectFromNetworkStreamGivenUID(InStream& stream, WorldObject& ob)
 	aabb.min_.x[3] = 1.f;
 	stream.readData(aabb.max_.x, sizeof(float) * 3);
 	aabb.max_.x[3] = 1.f;
-	ob.setAABBWS(aabb);
+
+	if(!aabb.min_.isFinite() || !aabb.max_.isFinite())
+		aabb = js::AABBox(Vec4f(0,0,0,1), Vec4f(0,0,0,1));
+
+	ob.setAABBOS(aabb);
 
 	ob.max_model_lod_level = stream.readInt32();
 
@@ -1040,6 +1078,31 @@ void WorldObject::clearDecompressedVoxels()
 {
 	this->voxel_group.voxels.clearAndFreeMem();
 	//this->voxel_group.voxels = std::vector<Voxel>();
+}
+
+
+void WorldObject::setAABBOS(const js::AABBox& aabb_os_)
+{
+	this->aabb_os = aabb_os_;
+	
+	transformChanged();
+}
+
+
+void WorldObject::zeroAABBOS()
+{
+	this->aabb_os = js::AABBox(Vec4f(0,0,0,1), Vec4f(0,0,0,1));
+	this->centroid_ws = Vec4f(0,0,0,1);
+	this->aabb_ws_longest_len = 0;
+	this->biased_aabb_len = 0;
+}
+
+
+void WorldObject::transformChanged() // Rebuild centroid_ws, biased_aabb_len
+{
+	const Matrix4f ob_to_world = this->obToWorldMatrix();
+
+	doTransformChanged(ob_to_world, this->scale.toVec4fVector());
 }
 
 

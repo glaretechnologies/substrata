@@ -28,28 +28,22 @@ LoadItemQueue::~LoadItemQueue()
 
 void LoadItemQueue::enqueueItem(const WorldObject& ob, const glare::TaskRef& task, float task_max_dist)
 {
-	enqueueItem(ob.getAABBWS().centroid(), LoadItemQueueItem::sizeFactorForAABBWS(ob.getAABBWS(), /*importance_factor=*/1.f), task, task_max_dist);
+	enqueueItem(ob.getCentroidWS(), LoadItemQueueItem::sizeFactorForAABBWS(ob.getAABBWSLongestLength(), /*importance_factor=*/1.f), task, task_max_dist);
 }
 
 
 void LoadItemQueue::enqueueItem(const Avatar& ob, const glare::TaskRef& task, float task_max_dist, bool our_avatar)
 {
-	// approx AABB of avatar
-	const js::AABBox aabb_ws(
-		ob.pos.toVec4fPoint() - Vec4f(0.3f, 0.3f, 2.f, 0),
-		ob.pos.toVec4fPoint() + Vec4f(0.3f, 0.3f, 0.2f, 0)
-	);
-
 	// Prioritise laoding our avatar first
 	const float our_avatar_importance_factor = our_avatar ? 1.0e4f : 1.f;
 
-	enqueueItem(ob.pos.toVec4fPoint(), LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws, our_avatar_importance_factor), task, task_max_dist);
+	enqueueItem(ob.pos.toVec4fPoint(), LoadItemQueueItem::sizeFactorForAABBWS(/*aabb_ws_longest_len=*/1.8f, our_avatar_importance_factor), task, task_max_dist);
 }
 
 
-void LoadItemQueue::enqueueItem(const Vec4f& pos, const js::AABBox aabb_ws, const glare::TaskRef& task, float task_max_dist, float importance_factor)
+void LoadItemQueue::enqueueItem(const Vec4f& pos, float aabb_ws_longest_len, const glare::TaskRef& task, float task_max_dist, float importance_factor)
 {
-	enqueueItem(pos, LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws, importance_factor), task, task_max_dist);
+	enqueueItem(pos, LoadItemQueueItem::sizeFactorForAABBWS(aabb_ws_longest_len, importance_factor), task, task_max_dist);
 }
 
 

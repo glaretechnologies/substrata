@@ -206,8 +206,23 @@ public:
 
 	void copyNetworkStateFrom(const WorldObject& other);
 
-	inline void setAABBWS(const js::AABBox& aabb_ws);
-	inline const js::AABBox& getAABBWS() const { return aabb_ws; }
+	void setAABBOS(const js::AABBox& aabb_os); // Sets object-space AABB, also calls transformChanged().
+	void zeroAABBOS();
+	inline const js::AABBox& getAABBOS() const { return aabb_os; }
+	inline       js::AABBox  getAABBWS() const;
+
+	inline const Vec4f getCentroidWS() const { return centroid_ws; }
+
+	inline const Matrix4f obToWorldMatrix() const;
+	inline const Matrix4f worldToObMatrix() const;
+
+	inline float getAABBWSLongestLength() const { assert(aabb_ws_longest_len >= 0); return aabb_ws_longest_len; }	// == getAABBWS().longestLength()
+	inline float getBiasedAABBLength() const    { assert(biased_aabb_len >= 0);     return biased_aabb_len; }		// == getAABBWS().longestLength() * lod_bias_factor.  lod_bias_factor can be something like 2 for voxel objects to push out the transition distances a bit.
+
+	void transformChanged(); // Rebuild centroid_ws, aabb_ws_longest_len, biased_aabb_len
+	inline void doTransformChanged(const Matrix4f& ob_to_world, const Vec4f& use_scale); // Rebuild centroid_ws, aabb_ws_longest_len, biased_aabb_len
+	inline void doTransformChangedIgnoreRotation(const Vec4f& position, const Vec4f& use_scale); // Rebuild centroid_ws, aabb_ws_longest_len, biased_aabb_len
+
 
 	enum ObjectType
 	{
@@ -220,14 +235,19 @@ public:
 
 	static std::string objectTypeString(ObjectType t);
 
-	// Group aabb_ws, current_lod_level together in first cache line to make MainWindow::checkForLODChanges() fast.
 private:
-	js::AABBox aabb_ws; // World space axis-aligned bounding box.  Not authoritative.  Used to show a box while loading, also for computing LOD levels.
+	// Group centroid_ws, current_lod_level, biased_aabb_len and in_proximity together in first cache line (64 B) to make MainWindow::checkForLODChanges() fast.
+	Vec4f centroid_ws; // Object-space AABB centroid transformed to world space.
+	float aabb_ws_longest_len;	// == getAABBWS().longestLength()
+	float biased_aabb_len;		// == getAABBWS().longestLength() * lod_bias_factor.  lod_bias_factor can be something like 2 for voxel objects to push out the transition distances a bit.
 public:
-	float biased_aabb_len; // aabb_ws.longestLength() * lod_bias_factor.  lod_bias_factor can be something like 2 for voxel objects to push out the transition distances a bit.
+	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
+	bool in_proximity; // Is the object currently in load proximity to camera?
+private:
+	js::AABBox aabb_os; // Object-space AABB
+public:
 	UID uid;
 	uint32 object_type;
-	int current_lod_level; // LOD level as a function of distance from camera etc.. Kept up to date.
 
 	//std::string name;
 	std::string model_url;
@@ -344,8 +364,6 @@ public:
 	//Reference<Indigo::SceneNodeModel> indigo_model_node;
 
 	bool is_selected;
-
-	bool in_proximity; // Used by proximity loader
 
 	//Vec3d last_pos; // Used by proximity loader
 
@@ -469,6 +487,10 @@ const Vec3f useScaleForWorldOb(const Vec3f& scale); // Don't use a zero scale co
 void checkTransformOK(const WorldObject* ob);
 
 
+const Matrix4f WorldObject::obToWorldMatrix() const { return ::obToWorldMatrix(*this); }
+const Matrix4f WorldObject::worldToObMatrix() const { return ::worldToObMatrix(*this); }
+
+
 struct WorldObjectRefHash
 {
 	size_t operator() (const WorldObjectRef& ob) const
@@ -488,16 +510,16 @@ int WorldObject::getLODLevel(const Vec4f& campos) const
 {
 	// proj_len = aabb_ws.longestLength() / ||campos - pos||
 	assert(biased_aabb_len >= 0); // Check biased_aabb_len has been computed (should be >= 0 if so, it's set to -1 in constructor).
+	assert(this->centroid_ws[3] == 1.f);
 
-	const Vec4f use_pos = this->aabb_ws.centroid(); // this->pos.toVec4fVector()
-	const float recip_dist = (campos - use_pos).fastApproxRecipLength();
-	float proj_len = biased_aabb_len * recip_dist;
+	const float recip_dist = (campos - this->centroid_ws).fastApproxRecipLength();
+	const float proj_len = biased_aabb_len * recip_dist;
 
-	if(proj_len > 0.6)
+	if(proj_len > 0.6f)
 		return -1;
-	else if(proj_len > 0.16)
+	else if(proj_len > 0.16f)
 		return 0;
-	else if(proj_len > 0.03)
+	else if(proj_len > 0.03f)
 		return 1;
 	else
 		return 2;
@@ -536,28 +558,59 @@ int WorldObject::getLODLevel(float cam_to_ob_d2) const
 	const float recip_dist = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(cam_to_ob_d2)));
 	//assert(epsEqual(recip_dist, 1 / sqrt(cam_to_ob_d2)));
 
-	float proj_len = biased_aabb_len * recip_dist;
+	const float proj_len = biased_aabb_len * recip_dist;
 
-	if(proj_len > 0.6)
+	if(proj_len > 0.6f)
 		return -1;
-	else if(proj_len > 0.16)
+	else if(proj_len > 0.16f)
 		return 0;
-	else if(proj_len > 0.03)
+	else if(proj_len > 0.03f)
 		return 1;
 	else
 		return 2;
 }
 
 
-void WorldObject::setAABBWS(const js::AABBox& new_aabb_ws)
+js::AABBox WorldObject::getAABBWS() const
 {
-	aabb_ws = new_aabb_ws;
-	biased_aabb_len = aabb_ws.longestLength();
+	return this->aabb_os.transformedAABBFast(this->obToWorldMatrix());
+}
+
+
+void WorldObject::doTransformChanged(const Matrix4f& ob_to_world, const Vec4f& use_scale) // Rebuild centroid_ws, aabb_ws_longest_len, biased_aabb_len
+{
+	this->centroid_ws = ob_to_world * aabb_os.centroid();
+
+	// Translations and rotations don't change the longest AABB side length, just scaling.
+	this->aabb_ws_longest_len = horizontalMax(((aabb_os.max_ - aabb_os.min_) * use_scale).v);
+
+	this->biased_aabb_len = this->aabb_ws_longest_len;
 
 	// For voxel objects, push out the transition distances a bit.
 	if(object_type == ObjectType_VoxelGroup)
-		biased_aabb_len *= 2;
+		this->biased_aabb_len *= 2;
 
 	if(BitUtils::isBitSet(flags, SUMMONED_FLAG))
-		biased_aabb_len *= 4;
+		this->biased_aabb_len *= 4;
+}
+
+
+// Rebuild centroid_ws, aabb_ws_longest_len, biased_aabb_len, ignoring rotation part of object-to-world transformation.
+// See evalObjectScript() in Scripting.cpp
+void WorldObject::doTransformChangedIgnoreRotation(const Vec4f& use_position, const Vec4f& use_scale) 
+{
+	assert(use_scale[3] == 0);
+	assert(use_position[3] == 1);
+	this->centroid_ws = aabb_os.centroid() * use_scale + use_position;
+
+	this->aabb_ws_longest_len = horizontalMax(((aabb_os.max_ - aabb_os.min_) * use_scale).v);
+
+	this->biased_aabb_len = this->aabb_ws_longest_len;
+
+	// For voxel objects, push out the transition distances a bit.
+	if(object_type == ObjectType_VoxelGroup)
+		this->biased_aabb_len *= 2;
+
+	if(BitUtils::isBitSet(flags, SUMMONED_FLAG))
+		this->biased_aabb_len *= 4;
 }

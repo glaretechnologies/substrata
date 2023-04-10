@@ -1271,15 +1271,6 @@ void WorkerThread::doRun()
 							const Vec3f axis = readVec3FromStream<float>(msg_buffer);
 							const float angle = msg_buffer.readFloat();
 
-							float aabb_data[6];
-							if(client_protocol_version >= 34) // AABB in ObjectTransformUpdate was added in protocol version 34.
-								msg_buffer.readData(aabb_data, sizeof(float)*6);
-							else
-							{
-								aabb_data[0] = 0; aabb_data[1] = 0; aabb_data[2] = 0;
-								aabb_data[3] = 1; aabb_data[4] = 1; aabb_data[5] = 1;
-							}
-
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
 							{
@@ -1308,13 +1299,6 @@ void WorkerThread::doRun()
 											ob->pos = pos;
 											ob->axis = axis;
 											ob->angle = angle;
-											if(client_protocol_version >= 34)
-											{
-												js::AABBox aabb_ws;
-												aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
-												aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
-												ob->setAABBWS(aabb_ws);
-											}
 
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 
@@ -1373,10 +1357,6 @@ void WorkerThread::doRun()
 												ob->pos   = summon_msg.pos;
 												ob->axis  = summon_msg.axis;
 												ob->angle = summon_msg.angle;
-												js::AABBox aabb_ws;
-												aabb_ws.min_ = Vec4f(summon_msg.aabb_data[0], summon_msg.aabb_data[1], summon_msg.aabb_data[2], 1.f);
-												aabb_ws.max_ = Vec4f(summon_msg.aabb_data[3], summon_msg.aabb_data[4], summon_msg.aabb_data[5], 1.f);
-												ob->setAABBWS(aabb_ws);
 												ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 
 												cur_world_state->addWorldObjectAsDBDirty(ob); // Object state has changed, so save to DB.
@@ -1453,13 +1433,6 @@ void WorkerThread::doRun()
 											rot.toAxisAndAngle(axis, angle);
 											ob->axis = Vec3f(axis);
 											ob->angle = angle;
-
-											// TODO: Update AABB?
-											//if(client_protocol_version >= 34)
-											//{
-											//	ob->aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
-											//	ob->aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
-											//}
 
 											ob->linear_vel = linear_vel;
 											ob->angular_vel = angular_vel;

@@ -116,6 +116,7 @@ private:
 	Reference<GLObject> coll_tester_gl_ob[2];
 	Reference<GLObject> contact_point_gl_ob[2];
 	Reference<GLObject> contact_laterial_force_gl_ob[2];
+	Reference<GLObject> contact_suspension_force_gl_ob[2];
 	Reference<GLObject> righting_force_gl_ob;
 	Reference<GLObject> desired_bike_up_vec_gl_ob;
 

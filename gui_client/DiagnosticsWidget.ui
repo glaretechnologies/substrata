@@ -29,9 +29,9 @@
     </widget>
    </item>
    <item>
-    <widget class="QCheckBox" name="showObWSAABBCheckBox">
+    <widget class="QCheckBox" name="showObAABBsCheckBox">
      <property name="text">
-      <string>Show object world space AABB</string>
+      <string>Show selected object AABBs</string>
      </property>
     </widget>
    </item>

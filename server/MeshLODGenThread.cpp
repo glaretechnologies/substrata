@@ -78,13 +78,16 @@ struct MeshLODGenThreadTexInfo
 
 
 // Set object world space AABB if not set yet, or if it's incorrect.
-static void checkWorldSpaceAABB(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob)
+static void checkObjectSpaceAABB(ServerAllWorldsState* world_state, ServerWorldState* world, WorldObject* ob)
 {
 	try
 	{
 		// conPrint("computing AABB for object " + ob->uid.toString() + "...");
 
-		// First get object space AABB
+
+		checkTransformOK(ob); // Throws glare::Exception if not ok.
+
+		// Get object space AABB
 		js::AABBox aabb_os = js::AABBox::emptyAABBox();
 
 		if(ob->object_type == WorldObject::ObjectType_Hypercard)
@@ -108,14 +111,14 @@ static void checkWorldSpaceAABB(ServerAllWorldsState* world_state, ServerWorldSt
 				WorldObject::decompressVoxelGroup(ob->getCompressedVoxels().data(), ob->getCompressedVoxels().size(), voxel_group);
 				aabb_os = voxel_group.getAABB();
 
-				const int new_max_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
+				/*const int new_max_lod_level = (voxel_group.voxels.size() > 256) ? 2 : 0;
 				if(new_max_lod_level != ob->max_model_lod_level)
 				{
 					Lock lock(world_state->mutex);
 					world->addWorldObjectAsDBDirty(ob);
 				}
 
-				ob->max_model_lod_level = new_max_lod_level;
+				ob->max_model_lod_level = new_max_lod_level;*/
 			}
 			catch(glare::Exception& e)
 			{
@@ -142,26 +145,14 @@ static void checkWorldSpaceAABB(ServerAllWorldsState* world_state, ServerWorldSt
 		{
 			Lock lock(world_state->mutex);
 
-			//TEMP
-			if(!isFinite(ob->angle))
-				ob->angle = 0;
-
-			if(!isFinite(ob->angle) || !ob->axis.isFinite())
-				throw glare::Exception("Invalid angle or axis");
-
-			const Matrix4f to_world = obToWorldMatrix(*ob);
-
-			const js::AABBox new_aabb_ws = aabb_os.transformedAABB(to_world);
-
-			const bool updating_aabb_ws = new_aabb_ws != ob->getAABBWS();
-
+			const bool updating_aabb_ws = !(approxEq(aabb_os.min_, ob->getAABBOS().min_) && approxEq(aabb_os.max_, ob->getAABBOS().max_)); //aabb_os != ob->getAABBOS();
 			if(updating_aabb_ws)
 			{
-				conPrint("Updating voxel ob AABB:");
-				conPrint("Old AABB: "+ ob->getAABBWS().toString());
-				conPrint("New AABB: "+ new_aabb_ws.toString());
+				conPrint("Updating object AABB_os:");
+				conPrint("Old AABB_os: "+ ob->getAABBOS().toString());
+				conPrint("New AABB_os: "+ aabb_os.toString());
 
-				ob->setAABBWS(new_aabb_ws);
+				ob->setAABBOS(aabb_os);
 				world->addWorldObjectAsDBDirty(ob);
 			}
 		}
@@ -512,8 +503,8 @@ void MeshLODGenThread::doRun()
 							WorldObject* ob = it->second.ptr();
 							try
 							{
-								if(false)
-									checkWorldSpaceAABB(world_state, world, ob);
+								if(true)
+									checkObjectSpaceAABB(world_state, world, ob);
 
 								if(false)
 									checkMaterialFlags(world_state, world, ob, tex_info);

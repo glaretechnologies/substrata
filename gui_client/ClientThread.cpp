@@ -410,10 +410,6 @@ void ClientThread::doRun()
 						const Vec3f axis = readVec3FromStream<float>(msg_buffer);
 						const float angle = msg_buffer.readFloat();
 
-						float aabb_data[6];
-						if(peer_protocol_version >= 34) // AABB in ObjectTransformUpdate was added in protocol version 34.
-							msg_buffer.readData(aabb_data, sizeof(float)*6);
-
 						// Read transform_update_avatar_uid, added during protocol version 36.
 						uint32 transform_update_avatar_uid = std::numeric_limits<uint32>::max();
 						if(!msg_buffer.endOfStream())
@@ -441,14 +437,6 @@ void ClientThread::doRun()
 									ob->pos = pos;
 									ob->axis = axis;
 									ob->angle = angle;
-
-									if(peer_protocol_version >= 34)
-									{
-										js::AABBox aabb_ws;
-										aabb_ws.min_ = Vec4f(aabb_data[0], aabb_data[1], aabb_data[2], 1.f);
-										aabb_ws.max_ = Vec4f(aabb_data[3], aabb_data[4], aabb_data[5], 1.f);
-										ob->setAABBWS(aabb_ws);
-									}
 
 									// If we had physics snapshots, reset snapshots.
 									if(ob->snapshots_are_physics_snapshots)
@@ -498,10 +486,7 @@ void ClientThread::doRun()
 #endif
 								{
 									ob->setTransformAndHistory(summon_msg.pos, summon_msg.axis, summon_msg.angle);
-									js::AABBox aabb_ws;
-									aabb_ws.min_ = Vec4f(summon_msg.aabb_data[0], summon_msg.aabb_data[1], summon_msg.aabb_data[2], 1.f);
-									aabb_ws.max_ = Vec4f(summon_msg.aabb_data[3], summon_msg.aabb_data[4], summon_msg.aabb_data[5], 1.f);
-									ob->setAABBWS(aabb_ws);
+									ob->transformChanged();
 
 									ob->next_insertable_snapshot_i = 0;
 									ob->next_snapshot_i = 0;
@@ -775,9 +760,6 @@ void ClientThread::doRun()
 							ob->angle = 0;
 						if(!ob->axis.isFinite())
 							ob->axis = Vec3f(1,0,0);
-
-						if(ob->getAABBWS().isEmpty() || !ob->getAABBWS().min_.isFinite() || !ob->getAABBWS().max_.isFinite())
-							ob->setAABBWS(js::AABBox(ob->pos.toVec4fPoint() - Vec4f(1,1,1,0), ob->pos.toVec4fPoint() + Vec4f(1,1,1,0))); // HACK FIX
 
 						ob->state = WorldObject::State_InitialSend;
 						ob->from_remote_other_dirty = true;

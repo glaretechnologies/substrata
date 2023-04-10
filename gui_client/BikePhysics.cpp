@@ -246,7 +246,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	engine_audio_source = new glare::AudioSource();
 	engine_audio_source->type = glare::AudioSource::SourceType_Streaming;
-	engine_audio_source->pos = object->getAABBWS().centroid();
+	engine_audio_source->pos = object->getCentroidWS();
 	engine_audio_source->debugname = "bike engine";
 	engine_audio_source->volume = 2.5f;
 	engine_audio_source->mix_sources.resize(3);
@@ -258,14 +258,14 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 
 	wheel_audio_source[0] = new glare::AudioSource();
 	wheel_audio_source[0]->type = glare::AudioSource::SourceType_Looping;
-	wheel_audio_source[0]->pos = object->getAABBWS().centroid();
+	wheel_audio_source[0]->pos = object->getCentroidWS();
 	wheel_audio_source[0]->debugname = "front wheel";
 	wheel_audio_source[0]->volume = 0.f;
 	wheel_audio_source[0]->shared_buffer = tire_squeal_sound->buf;
 	
 	wheel_audio_source[1] = new glare::AudioSource();
 	wheel_audio_source[1]->type = glare::AudioSource::SourceType_Looping;
-	wheel_audio_source[1]->pos = object->getAABBWS().centroid();
+	wheel_audio_source[1]->pos = object->getCentroidWS();
 	wheel_audio_source[1]->debugname = "rear wheel";
 	wheel_audio_source[1]->volume = 0.f;
 	wheel_audio_source[1]->shared_buffer = tire_squeal_sound->buf;
@@ -956,6 +956,7 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should
 			opengl_engine.updateObjectTransformData(*contact_point_gl_ob[i]);
 		}
 	
+		const float FORCE_VECTOR_SCALE = 0.2f;
 		//------------------ wheel-ground lateral force vectors ------------------
 		for(int i=0; i<2; ++i)
 		{
@@ -970,12 +971,33 @@ void BikePhysics::updateDebugVisObjects(OpenGLEngine& opengl_engine, bool should
 				const Vec4f arrow_origin = toVec4fPos(vehicle_constraint->GetWheel(i)->GetContactPosition()) + Vec4f(0,0,0.02f,0); // raise off ground a little to see more easily.
 				contact_laterial_force_gl_ob[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(
 					arrow_origin, 
-					arrow_origin + toVec4fVec(vehicle_constraint->GetWheel(i)->GetContactLateral() * vehicle_constraint->GetWheel(i)->GetLateralLambda() * 0.1f), 1.f);
+					arrow_origin + toVec4fVec(vehicle_constraint->GetWheel(i)->GetContactLateral() * vehicle_constraint->GetWheel(i)->GetLateralLambda() * FORCE_VECTOR_SCALE), 1.f);
 			}
 			else
 				contact_laterial_force_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
 
 			opengl_engine.updateObjectTransformData(*contact_laterial_force_gl_ob[i]);
+		}
+		//------------------ wheel-ground suspension force vectors ------------------
+		for(int i=0; i<2; ++i)
+		{
+			if(contact_suspension_force_gl_ob[i].isNull())
+			{
+				contact_suspension_force_gl_ob[i] = opengl_engine.makeArrowObject(Vec4f(0,0,0,1), Vec4f(1,0,0,1), Colour4f(0.6,0.6,0,1), 1.f);
+				opengl_engine.addObject(contact_suspension_force_gl_ob[i]);
+			}
+
+			if(vehicle_constraint->GetWheel(i)->HasContact() && std::fabs(vehicle_constraint->GetWheel(i)->GetSuspensionLambda()) > 1.0e-3f)
+			{
+				const Vec4f arrow_origin = toVec4fPos(vehicle_constraint->GetWheel(i)->GetContactPosition());
+				contact_suspension_force_gl_ob[i]->ob_to_world_matrix = OpenGLEngine::arrowObjectTransform(
+					arrow_origin, 
+					arrow_origin + toVec4fVec(vehicle_constraint->GetWheel(i)->GetContactNormal() * vehicle_constraint->GetWheel(i)->GetSuspensionLambda() * FORCE_VECTOR_SCALE), 1.f);
+			}
+			else
+				contact_suspension_force_gl_ob[i]->ob_to_world_matrix = Matrix4f::translationMatrix(0,0,-1000); // hide
+
+			opengl_engine.updateObjectTransformData(*contact_suspension_force_gl_ob[i]);
 		}
 	
 		//------------------ wheels (wheel collision tester cylinder) ------------------
@@ -1074,6 +1096,10 @@ void BikePhysics::removeVisualisationObs()
 			if(contact_laterial_force_gl_ob[i].nonNull())
 				m_opengl_engine->removeObject(contact_laterial_force_gl_ob[i]);
 			contact_laterial_force_gl_ob[i] = NULL;
+
+			if(contact_suspension_force_gl_ob[i].nonNull())
+				m_opengl_engine->removeObject(contact_suspension_force_gl_ob[i]);
+			contact_suspension_force_gl_ob[i] = NULL;
 		}
 
 		if(righting_force_gl_ob.nonNull())
