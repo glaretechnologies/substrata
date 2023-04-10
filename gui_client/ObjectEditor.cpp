@@ -62,17 +62,17 @@ ObjectEditor::ObjectEditor(QWidget *parent)
 	connect(this->audioFileWidget,			SIGNAL(filenameChanged(QString&)),	this, SIGNAL(objectChanged()));
 	connect(this->volumeDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
 
-	connect(this->posXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	connect(this->posYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	connect(this->posZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->posXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectTransformChanged()));
+	connect(this->posYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectTransformChanged()));
+	connect(this->posZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SIGNAL(objectTransformChanged()));
 
 	connect(this->scaleXDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(xScaleChanged(double)));
 	connect(this->scaleYDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(yScaleChanged(double)));
 	connect(this->scaleZDoubleSpinBox,		SIGNAL(valueChanged(double)),		this, SLOT(zScaleChanged(double)));
 	
-	connect(this->rotAxisXDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	connect(this->rotAxisYDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
-	connect(this->rotAxisZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectChanged()));
+	connect(this->rotAxisXDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectTransformChanged()));
+	connect(this->rotAxisYDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectTransformChanged()));
+	connect(this->rotAxisZDoubleSpinBox,	SIGNAL(valueChanged(double)),		this, SIGNAL(objectTransformChanged()));
 
 	connect(this->collidableCheckBox,		SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
 	connect(this->dynamicCheckBox,			SIGNAL(toggled(bool)),				this, SIGNAL(objectChanged()));
@@ -320,32 +320,8 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 	ob_out.content    = QtUtils::toIndString(this->contentTextEdit->toPlainText());
 	ob_out.target_url    = QtUtils::toIndString(this->targetURLLineEdit->text());
 
-	ob_out.pos.x = this->posXDoubleSpinBox->value();
-	ob_out.pos.y = this->posYDoubleSpinBox->value();
-	ob_out.pos.z = this->posZDoubleSpinBox->value();
-
-	ob_out.scale.x = (float)this->scaleXDoubleSpinBox->value();
-	ob_out.scale.y = (float)this->scaleYDoubleSpinBox->value();
-	ob_out.scale.z = (float)this->scaleZDoubleSpinBox->value();
-
-	const Vec3f angles(
-		(float)(this->rotAxisXDoubleSpinBox->value() / 360 * Maths::get2Pi<double>()),
-		(float)(this->rotAxisYDoubleSpinBox->value() / 360 * Maths::get2Pi<double>()),
-		(float)(this->rotAxisZDoubleSpinBox->value() / 360 * Maths::get2Pi<double>())
-	);
-
-	// Convert angles to rotation matrix, then the rotation matrix to axis-angle.
-
-	const Matrix3f rot_matrix = Matrix3f::fromAngles(angles);
-
-	rot_matrix.rotationMatrixToAxisAngle(/*unit axis out=*/ob_out.axis, /*angle out=*/ob_out.angle);
-
-	if(ob_out.axis.length() < 1.0e-5f)
-	{
-		ob_out.axis = Vec3f(0,0,1);
-		ob_out.angle = 0;
-	}
-
+	writeTransformMembersToObject(ob_out); // Set ob_out transform members
+	
 	ob_out.setCollidable(this->collidableCheckBox->isChecked());
 	const bool new_dynamic = this->dynamicCheckBox->isChecked();
 	if(new_dynamic != ob_out.isDynamic())
@@ -399,6 +375,36 @@ void ObjectEditor::toObject(WorldObject& ob_out)
 		ob_out.changed_flags |= WorldObject::AUDIO_SOURCE_URL_CHANGED;
 	ob_out.audio_source_url = new_audio_source_url;
 	ob_out.audio_volume = volumeDoubleSpinBox->value();
+}
+
+
+void ObjectEditor::writeTransformMembersToObject(WorldObject& ob_out)
+{
+	ob_out.pos.x = this->posXDoubleSpinBox->value();
+	ob_out.pos.y = this->posYDoubleSpinBox->value();
+	ob_out.pos.z = this->posZDoubleSpinBox->value();
+
+	ob_out.scale.x = (float)this->scaleXDoubleSpinBox->value();
+	ob_out.scale.y = (float)this->scaleYDoubleSpinBox->value();
+	ob_out.scale.z = (float)this->scaleZDoubleSpinBox->value();
+
+	const Vec3f angles(
+		(float)(this->rotAxisXDoubleSpinBox->value() / 360 * Maths::get2Pi<double>()),
+		(float)(this->rotAxisYDoubleSpinBox->value() / 360 * Maths::get2Pi<double>()),
+		(float)(this->rotAxisZDoubleSpinBox->value() / 360 * Maths::get2Pi<double>())
+	);
+
+	// Convert angles to rotation matrix, then the rotation matrix to axis-angle.
+
+	const Matrix3f rot_matrix = Matrix3f::fromAngles(angles);
+
+	rot_matrix.rotationMatrixToAxisAngle(/*unit axis out=*/ob_out.axis, /*angle out=*/ob_out.angle);
+
+	if(ob_out.axis.length() < 1.0e-5f)
+	{
+		ob_out.axis = Vec3f(0,0,1);
+		ob_out.angle = 0;
+	}
 }
 
 
@@ -658,7 +664,7 @@ void ObjectEditor::xScaleChanged(double new_x)
 		this->last_x_scale_over_y_scale = new_x / scaleYDoubleSpinBox->value();
 	}
 
-	emit objectChanged();
+	emit objectTransformChanged();
 }
 
 
@@ -686,7 +692,7 @@ void ObjectEditor::yScaleChanged(double new_y)
 		this->last_y_scale_over_z_scale = new_y / scaleZDoubleSpinBox->value();
 	}
 
-	emit objectChanged();
+	emit objectTransformChanged();
 }
 
 
@@ -715,7 +721,7 @@ void ObjectEditor::zScaleChanged(double new_z)
 		this->last_y_scale_over_z_scale = scaleYDoubleSpinBox->value() / new_z;
 	}
 
-	emit objectChanged();
+	emit objectTransformChanged();
 }
 
 

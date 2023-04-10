@@ -409,6 +409,7 @@ void ClientThread::doRun()
 						const Vec3d pos = readVec3FromStream<double>(msg_buffer);
 						const Vec3f axis = readVec3FromStream<float>(msg_buffer);
 						const float angle = msg_buffer.readFloat();
+						const Vec3f scale = readVec3FromStream<float>(msg_buffer);
 
 						// Read transform_update_avatar_uid, added during protocol version 36.
 						uint32 transform_update_avatar_uid = std::numeric_limits<uint32>::max();
@@ -437,6 +438,7 @@ void ClientThread::doRun()
 									ob->pos = pos;
 									ob->axis = axis;
 									ob->angle = angle;
+									ob->scale = scale;
 
 									// If we had physics snapshots, reset snapshots.
 									if(ob->snapshots_are_physics_snapshots)

@@ -169,6 +169,7 @@ private slots:;
 	void playerMoveKeyPressed();
 	void onIndigoViewDockWidgetVisibilityChanged(bool v);
 
+	void objectTransformEditedSlot();
 	void objectEditedSlot();
 	void parcelEditedSlot();
 	void bakeObjectLightmapSlot(); // Bake the currently selected object lightmap

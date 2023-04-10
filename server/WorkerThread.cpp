@@ -1270,6 +1270,7 @@ void WorkerThread::doRun()
 							const Vec3d pos = readVec3FromStream<double>(msg_buffer);
 							const Vec3f axis = readVec3FromStream<float>(msg_buffer);
 							const float angle = msg_buffer.readFloat();
+							const Vec3f scale = readVec3FromStream<float>(msg_buffer);
 
 							// If client is not logged in, refuse object modification.
 							if(!client_user_id.valid())
@@ -1299,6 +1300,7 @@ void WorkerThread::doRun()
 											ob->pos = pos;
 											ob->axis = axis;
 											ob->angle = angle;
+											ob->scale = scale;
 											ob->last_transform_update_avatar_uid = (uint32)client_avatar_uid.value();
 											ob->last_modified_time = TimeStamp::currentTime();
 

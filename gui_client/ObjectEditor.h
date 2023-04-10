@@ -36,6 +36,7 @@ public:
 	void objectLastModifiedUpdated(const WorldObject& ob) { updateInfoLabel(ob); }
 
 	void toObject(WorldObject& ob_out);
+	void writeTransformMembersToObject(WorldObject& ob_out);
 
 	// Object details were updated from outside of the editor, for example due to an update message from the server.
 	void objectModelURLUpdated(const WorldObject& ob);
@@ -59,6 +60,7 @@ public:
 protected:
 
 signals:;
+	void objectTransformChanged();
 	void objectChanged();
 	void bakeObjectLightmap();
 	void bakeObjectLightmapHighQual();
