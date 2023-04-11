@@ -4659,6 +4659,14 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				this->connection_state = ServerConnectionState_Connecting;
 				updateStatusBar();
 			}
+			else if(dynamic_cast<const ClientProtocolTooOldMessage*>(msg.getPointer()))
+			{
+				QMessageBox msgBox;
+				msgBox.setWindowTitle("Client too old");
+				msgBox.setTextFormat(Qt::RichText);
+				msgBox.setText("<p>Sorry, your Substrata client is too old.</p><p>Please download and install an updated client from <a href=\"https://substrata.info/\">substrata.info</a></p>");
+				msgBox.exec();
+			}
 			else if(dynamic_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer()))
 			{
 				const ClientDisconnectedFromServerMessage* m = static_cast<const ClientDisconnectedFromServerMessage*>(msg.getPointer());
