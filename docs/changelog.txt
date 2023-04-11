@@ -1,3 +1,24 @@
+0.99
+====
+Added bike and hovercar vehicles.
+Added 'summon bike' and 'summon hovercar' menu commands.
+Added materialise shader effect for just-created and summoned objects, as well as new avatars.
+Avoid discontinuous jumps in physics object visible transformations.
+Taking skinning transformation into account when creating physics mesh.
+Adjusting for eye height properly, fixes player spawning a few metres off the ground.
+Added mute audio action in Tools menu.
+Using third person camera position, if applicable, for audio listener position.
+Added a rushing wind sound effect when the player moves fast.
+Added last_modified_time to WorldObject.
+Storing object-space AABB in WorldObject instead of world-space AABB.
+Fixed object transform updates not displaying on other clients sometimes.
+Bumped required protocol version to 37.
+Improved colour handling for OBJ import:
+	Assume colours in MTL files are linear.
+	Add the ambient and diffuse colours together to get the final colour, otherwise the result can be too dark.
+Fixed bug with imported GLTF constant material colours having incorrect gamma.
+Added FPS limit option to options dialog.
+
 0.98
 ====
 Added initial implementation of networked physics for dynamic objects.
