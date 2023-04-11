@@ -111,7 +111,9 @@ void ClientThread::doRun()
 		// Read protocol version response from server
 		const uint32 protocol_response = socket->readUInt32();
 		if(protocol_response == Protocol::ClientProtocolTooOld)
-		{
+		{		
+			out_msg_queue->enqueue(new ClientProtocolTooOldMessage());
+
 			const std::string msg = socket->readStringLengthFirst(MAX_STRING_LEN);
 			throw glare::Exception(msg);
 		}

@@ -785,11 +785,13 @@ void WorkerThread::doRun()
 		// Read protocol version
 		const uint32 client_protocol_version = socket->readUInt32();
 		conPrintIfNotFuzzing("client protocol version: " + toString(client_protocol_version));
-		if(client_protocol_version < 35) // We can't handle protocol versions < 35 (before version 35 with 'Added emission_rgb and emission_texture_url to WorldMaterial')
+		if(client_protocol_version < 37) // We can't handle protocol versions < 37
 		{
 			socket->writeUInt32(Protocol::ClientProtocolTooOld);
-			socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_protocol_version) + ") is too old, require version " + 
-				toString(Protocol::CyberspaceProtocolVersion) + ".  Please update your client at substrata.info.");
+			socket->writeStringLengthFirst("Sorry, your Substrata client is too old. Please download and install an updated client from https://substrata.info/.");
+
+			//socket->writeStringLengthFirst("Sorry, your client protocol version (" + toString(client_protocol_version) + ") is too old, require version " + 
+			//	toString(Protocol::CyberspaceProtocolVersion) + ".  Please install an updated client from https://substrata.info/.");
 		}
 		else if(client_protocol_version > Protocol::CyberspaceProtocolVersion)
 		{

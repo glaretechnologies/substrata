@@ -117,6 +117,13 @@ class ClientConnectingToServerMessage : public ThreadMessage
 };
 
 
+class ClientProtocolTooOldMessage : public ThreadMessage
+{
+public:
+	ClientProtocolTooOldMessage() {}
+};
+
+
 class ClientDisconnectedFromServerMessage : public ThreadMessage
 {
 public:
