@@ -46,14 +46,15 @@ export class WorldObject {
 	scale: Vec3f;
 
 	created_time: bigint;
+	last_modified_time: bigint;
 	creator_id: number;
 
 	flags: number;
 
 	creator_name: string;
 
-	aabb_ws_min: Vec3f;
-	aabb_ws_max: Vec3f;
+	aabb_os_min: Vec3f;
+	aabb_os_max: Vec3f;
 
 	max_model_lod_level: number;
 
@@ -78,6 +79,9 @@ export class WorldObject {
 	in_proximity: boolean; // Used by proximity loader
 
 	cached_aabb_longest_len: number;
+	cached_centroid_ws_x: number;
+	cached_centroid_ws_y: number;
+	cached_centroid_ws_z: number;
 
 	constructor() {
 		this.mesh_state = MESH_NOT_LOADED;
@@ -90,10 +94,38 @@ export class WorldObject {
 
 	computeCachedData() { 
 		this.cached_aabb_longest_len = Math.max(
-			this.aabb_ws_max.x - this.aabb_ws_min.x,
-			this.aabb_ws_max.y - this.aabb_ws_min.y,
-			this.aabb_ws_max.z - this.aabb_ws_min.z
+			(this.aabb_os_max.x - this.aabb_os_min.x) * this.scale.x,
+			(this.aabb_os_max.y - this.aabb_os_min.y) * this.scale.y,
+			(this.aabb_os_max.z - this.aabb_os_min.z) * this.scale.z
 		);
+
+		// Compute centroid_ws
+		const axis = new THREE.Vector3(this.axis.x, this.axis.y, this.axis.z);
+		axis.normalize();
+		const rot_matrix = new THREE.Matrix4();
+		rot_matrix.makeRotationAxis(axis, this.angle);
+
+		const scale_matrix = new THREE.Matrix4();
+		scale_matrix.makeScale(this.scale.x, this.scale.y, this.scale.z);
+
+		const trans_matrix = new THREE.Matrix4();
+		trans_matrix.makeTranslation(this.pos.x, this.pos.y, this.pos.z);
+
+		// T R S
+		this.objectToWorld = trans_matrix;
+		this.objectToWorld.multiply(rot_matrix);
+		this.objectToWorld.multiply(scale_matrix);
+
+		let centroid_ws = new THREE.Vector3(
+			(this.aabb_os_min.x + this.aabb_os_max.x) * 0.5,
+			(this.aabb_os_min.y + this.aabb_os_max.y) * 0.5,
+			(this.aabb_os_min.z + this.aabb_os_max.z) * 0.5
+		);
+		centroid_ws.applyMatrix4(this.objectToWorld);
+
+		this.cached_centroid_ws_x = centroid_ws.x;
+		this.cached_centroid_ws_y = centroid_ws.y;
+		this.cached_centroid_ws_z = centroid_ws.z;
 	}
 
 	AABBLongestLength(): number {
@@ -102,14 +134,10 @@ export class WorldObject {
 
 	getLODLevel(campos: THREE.Vector3): number {
 
-		const centroid_x = (this.aabb_ws_min.x + this.aabb_ws_max.x) * 0.5;
-		const centroid_y = (this.aabb_ws_min.y + this.aabb_ws_max.y) * 0.5;
-		const centroid_z = (this.aabb_ws_min.z + this.aabb_ws_max.z) * 0.5;
-
 		const cam_to_ob_d2 =
-			(centroid_x - campos.x) * (centroid_x - campos.x) +
-			(centroid_y - campos.y) * (centroid_y - campos.y) +
-			(centroid_z - campos.z) * (centroid_z - campos.z);
+			(this.cached_centroid_ws_x - campos.x) * (this.cached_centroid_ws_x - campos.x) +
+			(this.cached_centroid_ws_y - campos.y) * (this.cached_centroid_ws_y - campos.y) +
+			(this.cached_centroid_ws_z - campos.z) * (this.cached_centroid_ws_z - campos.z);
 
 		const dist = Math.sqrt(cam_to_ob_d2);
 		let proj_len = this.AABBLongestLength() / dist;
@@ -197,14 +225,15 @@ export function readWorldObjectFromNetworkStreamGivenUID(buffer_in: BufferIn) {
 	ob.scale = readVec3fFromStream(buffer_in);
 
 	ob.created_time = readTimeStampFromStream(buffer_in);
+	ob.last_modified_time = readTimeStampFromStream(buffer_in);
 	ob.creator_id = readUserIDFromStream(buffer_in);
 
 	ob.flags = readUInt32(buffer_in);
 
 	ob.creator_name = readStringFromStream(buffer_in);
 
-	ob.aabb_ws_min = readVec3fFromStream(buffer_in);
-	ob.aabb_ws_max = readVec3fFromStream(buffer_in);
+	ob.aabb_os_min = readVec3fFromStream(buffer_in);
+	ob.aabb_os_max = readVec3fFromStream(buffer_in);
 
 	ob.max_model_lod_level = readInt32(buffer_in);
 

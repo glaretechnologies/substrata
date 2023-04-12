@@ -8,7 +8,7 @@ import BVH from './bvh.js';
 import * as THREE from '../build/three.module.js';
 import type { WorldObject } from '../worldobject.js';
 import Caster from './caster.js';
-import { makeAABB, spherePathToAABB, testAABB } from '../maths/geometry.js';
+import { makeAABB, transformAABB, spherePathToAABB, testAABB } from '../maths/geometry.js';
 import { applyMatrix4, len3, mulScalar3, transformDirection } from '../maths/vec3.js';
 import { clearSphereTraceResult, DIST, makeRay, makeSphereTraceResult, SphereTraceResult } from './types.js';
 import { PlayerPhysics } from './player.js';
@@ -137,8 +137,9 @@ export default class PhysicsWorld {
 		obj.worldToObject.multiply(rot_matrix);
 		obj.worldToObject.multiply(inv_trans_matrix);
 
-
-		obj.world_aabb = makeAABB(obj.aabb_ws_min, obj.aabb_ws_max);
+		let aabb_os = makeAABB(obj.aabb_os_min, obj.aabb_os_max);
+		obj.world_aabb = new Float32Array(6);
+		transformAABB(obj.objectToWorld, aabb_os, obj.world_aabb);
 		obj.collidable = collidable;
 
 		const bvh = this.getModelBVH(bvhKey);

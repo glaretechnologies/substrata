@@ -107,7 +107,7 @@ const STATE_READ_CLIENT_AVATAR_UID = 3;
 
 let protocol_state = 0;
 
-const CyberspaceProtocolVersion = 36;
+const CyberspaceProtocolVersion = 37;
 const CyberspaceHello = 1357924680;
 const ClientProtocolOK = 10000;
 const ClientProtocolTooOld = 10001;
@@ -731,9 +731,9 @@ function loadModelForObject(world_ob: WorldObject) {
 
 			const aabb_longest_len = world_ob.AABBLongestLength();
 			const centroid = new Float32Array([
-				(world_ob.aabb_ws_min[0] + world_ob.aabb_ws_max[0]) * 0.5,
-				(world_ob.aabb_ws_min[1] + world_ob.aabb_ws_max[1]) * 0.5,
-				(world_ob.aabb_ws_min[2] + world_ob.aabb_ws_max[2]) * 0.5
+				world_ob.cached_centroid_ws_x,
+				world_ob.cached_centroid_ws_y,
+				world_ob.cached_centroid_ws_z
 			]);
 
 			load_item_queue.enqueueItem(new LoadItemQueueItem({
@@ -757,17 +757,17 @@ function loadModelForObject(world_ob: WorldObject) {
 	}
 	else {
 
-		const xspan = world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x;
-		const yspan = world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y;
-		const zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
-
-		const geometry = new THREE.BoxGeometry();
-		const material = new CustomStandardMaterial({ color: 0xaaaaaa });
-
-		const cube = new THREE.Mesh(geometry, material);
-		cube.position.copy(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
-		cube.scale.copy(new THREE.Vector3(xspan, yspan, zspan));
-		scene.add(cube);
+		// const xspan = world_ob.aabb_ws_max.x - world_ob.aabb_ws_min.x;
+		// const yspan = world_ob.aabb_ws_max.y - world_ob.aabb_ws_min.y;
+		// const zspan = world_ob.aabb_ws_max.z - world_ob.aabb_ws_min.z;
+		// 
+		// const geometry = new THREE.BoxGeometry();
+		// const material = new CustomStandardMaterial({ color: 0xaaaaaa });
+		// 
+		// const cube = new THREE.Mesh(geometry, material);
+		// cube.position.copy(new THREE.Vector3(world_ob.aabb_ws_min.x + xspan / 2, world_ob.aabb_ws_min.y + yspan / 2, world_ob.aabb_ws_min.z + zspan / 2));
+		// cube.scale.copy(new THREE.Vector3(xspan, yspan, zspan));
+		// scene.add(cube);
 	}
 }
 
@@ -1878,9 +1878,9 @@ function checkForLODChanges()
 	// Currently do this with a loop over all objects, so try and make this code fast and with minimal garbage generated.
 	for (const ob of world_objects.values()) {
 
-		const centroid_x = (ob.aabb_ws_min.x + ob.aabb_ws_max.x) * 0.5;
-		const centroid_y = (ob.aabb_ws_min.y + ob.aabb_ws_max.y) * 0.5;
-		const centroid_z = (ob.aabb_ws_min.z + ob.aabb_ws_max.z) * 0.5;
+		const centroid_x = ob.cached_centroid_ws_x;
+		const centroid_y = ob.cached_centroid_ws_y;
+		const centroid_z = ob.cached_centroid_ws_z;
 
 		const cam_to_ob_d2 =
 			(centroid_x - cam_pos_x) * (centroid_x - cam_pos_x) +
