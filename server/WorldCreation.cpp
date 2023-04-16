@@ -259,15 +259,16 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 {
 	// Find an object using room model to copy from
 	WorldObjectRef room1_ob = findObWithModelURL(world_state, "room1_show_noBeam_glb_5590447676997932357.bmesh");
-	WorldObjectRef room2_ob = findObWithModelURL(world_state, "room2_show_noBeam_glb_1795516260724484756_bmesh_1795516260724484756.bmesh");
-	WorldObjectRef room3_ob = findObWithModelURL(world_state, "room3_WindowsFLAT_betterbetter__1__glb_6861542893337376895.bmesh");
+	WorldObjectRef room2_ob = findObWithModelURL(world_state, "room2_WindowsFLAT_glb_13600392068904710101.bmesh");
+	WorldObjectRef room3_ob = findObWithModelURL(world_state, "room3_WindowsFLAT_2_glb_12220979663580597788.bmesh");
 
-	WorldObjectRef platform1_ob = findObWithModelURL(world_state, "PlatformFinal__1__glb_6209101633263662392.bmesh");
-	WorldObjectRef platform2_ob = findObWithModelURL(world_state, "PlatformFinalLEFT__2__glb_2715111425173727191.bmesh");
+	WorldObjectRef platform1_ob = findObWithModelURL(world_state, "PlatformFinal_glb_6209101633263662392.bmesh");
+	WorldObjectRef platform2_ob = findObWithModelURL(world_state, "PlatformFinalLEFT_glb_2715111425173727191.bmesh");
 
 	WorldObjectRef couch1_ob = findObWithModelURL(world_state, "VoxCouch__Final_grey_glb_3629570434401678297.bmesh");
 	WorldObjectRef couch2_ob = findObWithModelURL(world_state, "Couch_Holz_Grau_glb_10451238764035445915.bmesh");
 	WorldObjectRef couch3_ob = findObWithModelURL(world_state, "grey_Gustav_glb_14897620384736448070.bmesh");
+	WorldObjectRef couch4_ob = findObWithModelURL(world_state, "VoxSeat__Final_grey_glb_6666984473320402552.bmesh");
 
 	WorldObjectRef table1_ob = findObWithModelURL(world_state, "60_tisch_glb_11656912686065707806.bmesh");
 	WorldObjectRef table2_ob = findObWithModelURL(world_state, "couch_table_Geschwungen_glb_3686631209284750062.bmesh");
@@ -280,7 +281,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 
 	std::vector<WorldObjectRef> room_obs({room1_ob, room2_ob, room3_ob});
 	std::vector<WorldObjectRef> platform_obs({platform1_ob, platform2_ob});
-	std::vector<WorldObjectRef> couch_obs({couch1_ob, couch2_ob, couch3_ob});
+	std::vector<WorldObjectRef> couch_obs({couch1_ob, couch2_ob, couch3_ob, couch4_ob});
 	std::vector<WorldObjectRef> table_obs({table1_ob, table2_ob, table3_ob});
 	std::vector<WorldObjectRef> carpet_obs({carpet1_ob, carpet2_ob});
 	std::vector<WorldObjectRef> lamp_obs({lamp_ob});
