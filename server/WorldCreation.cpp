@@ -931,7 +931,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 
 	
 	// TEMP: Delete parcels newer than id 1221.
-	for(auto it = world_state->getRootWorldState()->parcels.begin(); it != world_state->getRootWorldState()->parcels.end();)
+	/*for(auto it = world_state->getRootWorldState()->parcels.begin(); it != world_state->getRootWorldState()->parcels.end();)
 	{
 		if(it->first.value() > 1221)
 			it = world_state->getRootWorldState()->parcels.erase(it);
@@ -945,7 +945,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	{
 		const Parcel* parcel = it->second.ptr();
 		max_parcel_id = myMax(max_parcel_id, parcel->id);
-	}
+	}*/
 
 	// TEMP: remove any objects with 'tower' content
 	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end();)
@@ -958,11 +958,12 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	
 
 
-	if(max_parcel_id.value() == 1221)
+	//if(max_parcel_id.value() == 1221)
 	{
 		try
 		{
-			conPrint("Adding north-east district parcels!");
+			//conPrint("Adding north-east district parcels!");
+			conPrint("Rebuilding tower furniture!");
 
 			const int initial_next_id = 1222;
 			int next_id = initial_next_id;
@@ -970,42 +971,43 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 			const double parcel_width = 14;
 			const double block_width = parcel_width * 3 + 8;
 			PCG32 rng(1);
-			for(int x=0; x<5; ++x)
-				for(int y=0; y<4; ++y)
-				{
-					if(
-						(x == 1 && y == 2) || // tower block
-						(x == 1 && y == 1) ||
-						(x == 2 && y == 0) || // tower block
-						(x == 3 && y == 2) || // tower block
-						(x == 3 && y == 1) ||
-						(x == 3 && y == 0) ||
-						(x == 5 && y == 0) ||
-						(x == 5 && y == 2) ||
-						(x == 7 && y == 1) ||
-						(x == 9 && y == 2)
-						)
-					{
-						// Make empty space for park/square or tower
-					}
-					else
-						makeBlock(/*botleft=*/Vec2d(335 + x * block_width, 335 + y * block_width), rng, next_id, world_state->getRootWorldState(), /*parcel_w=*/parcel_width,
-							/*parcel_max_z=*/18 /*+ rng.unitRandom() * 8*/);
-				}
+			//for(int x=0; x<5; ++x)
+			//	for(int y=0; y<4; ++y)
+			//	{
+			//		if(
+			//			(x == 1 && y == 2) || // tower block
+			//			(x == 1 && y == 1) ||
+			//			(x == 2 && y == 0) || // tower block
+			//			(x == 3 && y == 2) || // tower block
+			//			(x == 3 && y == 1) ||
+			//			(x == 3 && y == 0) ||
+			//			(x == 5 && y == 0) ||
+			//			(x == 5 && y == 2) ||
+			//			(x == 7 && y == 1) ||
+			//			(x == 9 && y == 2)
+			//			)
+			//		{
+			//			// Make empty space for park/square or tower
+			//		}
+			//		else
+			//			makeBlock(/*botleft=*/Vec2d(335 + x * block_width, 335 + y * block_width), rng, next_id, world_state->getRootWorldState(), /*parcel_w=*/parcel_width,
+			//				/*parcel_max_z=*/18 /*+ rng.unitRandom() * 8*/);
+			//	}
 
 			const double padding = 0.3;
 			const double tower_parcel_w = 14 + padding * 2; // Large enough to hold the story 3d models
-			makeTowerParcels(/*botleft=*/Vec2d(335 + 3 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/24);
+			//makeTowerParcels(/*botleft=*/Vec2d(335 + 3 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/24);
 			makeTowerObjects(/*botleft=*/Vec2d(335 + 3 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state, rng, /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/24);
 
-			makeTowerParcels(/*botleft=*/Vec2d(335 + 1 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/22);
+			//makeTowerParcels(/*botleft=*/Vec2d(335 + 1 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/22);
 			makeTowerObjects(/*botleft=*/Vec2d(335 + 1 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state, rng, /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/22);
 
-			makeTowerParcels(/*botleft=*/Vec2d(335 + 2 * block_width + parcel_width - padding, 335 + 0 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/20);
+			//makeTowerParcels(/*botleft=*/Vec2d(335 + 2 * block_width + parcel_width - padding, 335 + 0 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/20);
 			makeTowerObjects(/*botleft=*/Vec2d(335 + 2 * block_width + parcel_width - padding, 335 + 0 * block_width + parcel_width - padding), next_id, world_state, rng, /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/20);
 
 			world_state->markAsChanged();
-			conPrint("Num parcels added: " + toString(next_id - initial_next_id));
+			//conPrint("Num parcels added: " + toString(next_id - initial_next_id));
+			conPrint("Tower furniture rebuilt.");
 		}
 		catch(glare::Exception& e)
 		{
