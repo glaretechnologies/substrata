@@ -209,6 +209,355 @@ static void makeBlock(const Vec2d& botleft, PCG32& rng, int& next_id, Reference<
 }
 
 
+static void makeTowerParcels(const Vec2d& botleft, int& next_id, Reference<ServerWorldState> world_state, double parcel_w, double story_height, int num_stories)
+{
+	for(int i=0; i<num_stories; ++i)
+	{
+		const ParcelID parcel_id(next_id++);
+		ParcelRef test_parcel = new Parcel();
+		test_parcel->state = Parcel::State_Alive;
+		test_parcel->id = parcel_id;
+		test_parcel->owner_id = UserID(0);
+		test_parcel->admin_ids.push_back(UserID(0));
+		test_parcel->writer_ids.push_back(UserID(0));
+		test_parcel->created_time = TimeStamp::currentTime();
+
+		test_parcel->zbounds = Vec2d(i * story_height - 0.5, (i + 1) * story_height - 0.5);
+
+		const int xi = 0;
+		const int yi = 0;
+		test_parcel->verts[0] = botleft + Vec2d(xi *     parcel_w,     yi * parcel_w);
+		test_parcel->verts[1] = botleft + Vec2d((xi+1) * parcel_w,     yi * parcel_w);
+		test_parcel->verts[2] = botleft + Vec2d((xi+1) * parcel_w, (yi+1) * parcel_w);
+		test_parcel->verts[3] = botleft + Vec2d((xi) *   parcel_w, (yi+1) * parcel_w);
+		test_parcel->build();
+
+		world_state->parcels[parcel_id] = test_parcel;
+		world_state->addParcelAsDBDirty(test_parcel);
+	}
+}
+
+
+
+static WorldObjectRef findObWithModelURL(Reference<ServerAllWorldsState> world_state, const std::string& URL)
+{
+	WorldObjectRef ob;
+	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end(); ++it)
+	{
+		if(it->second->model_url == URL)
+			ob = it->second;
+	}
+	
+	if(ob.isNull())
+		throw glare::Exception("Could not find an object using model URL '" + URL + "'.");
+	else
+		return ob;
+}
+
+
+static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<ServerAllWorldsState> world_state, PCG32& rng, double parcel_w, double story_height, int num_stories)
+{
+	// Find an object using room model to copy from
+	WorldObjectRef room1_ob = findObWithModelURL(world_state, "room1_show_noBeam_glb_5590447676997932357.bmesh");
+	WorldObjectRef room2_ob = findObWithModelURL(world_state, "room2_show_noBeam_glb_1795516260724484756_bmesh_1795516260724484756.bmesh");
+	WorldObjectRef room3_ob = findObWithModelURL(world_state, "room3_WindowsFLAT_betterbetter__1__glb_6861542893337376895.bmesh");
+
+	WorldObjectRef platform1_ob = findObWithModelURL(world_state, "PlatformFinal__1__glb_6209101633263662392.bmesh");
+	WorldObjectRef platform2_ob = findObWithModelURL(world_state, "PlatformFinalLEFT__2__glb_2715111425173727191.bmesh");
+
+	WorldObjectRef couch1_ob = findObWithModelURL(world_state, "VoxCouch__Final_grey_glb_3629570434401678297.bmesh");
+	WorldObjectRef couch2_ob = findObWithModelURL(world_state, "Couch_Holz_Grau_glb_10451238764035445915.bmesh");
+	WorldObjectRef couch3_ob = findObWithModelURL(world_state, "grey_Gustav_glb_14897620384736448070.bmesh");
+
+	WorldObjectRef table1_ob = findObWithModelURL(world_state, "60_tisch_glb_11656912686065707806.bmesh");
+	WorldObjectRef table2_ob = findObWithModelURL(world_state, "couch_table_Geschwungen_glb_3686631209284750062.bmesh");
+	WorldObjectRef table3_ob = findObWithModelURL(world_state, "CouchTisch_Holz_Grau_glb_6583257170939054006.bmesh");
+
+	WorldObjectRef carpet1_ob = findObWithModelURL(world_state, "Carpet_Yellow_2_glb_10610072849682925808.bmesh");
+	WorldObjectRef carpet2_ob = findObWithModelURL(world_state, "Carpet_grey_2_glb_16725751618769902725.bmesh");
+
+	WorldObjectRef lamp_ob = findObWithModelURL(world_state, "Lampe_Kaiser_glb_6366364697719938472.bmesh");
+
+	std::vector<WorldObjectRef> room_obs({room1_ob, room2_ob, room3_ob});
+	std::vector<WorldObjectRef> platform_obs({platform1_ob, platform2_ob});
+	std::vector<WorldObjectRef> couch_obs({couch1_ob, couch2_ob, couch3_ob});
+	std::vector<WorldObjectRef> table_obs({table1_ob, table2_ob, table3_ob});
+	std::vector<WorldObjectRef> carpet_obs({carpet1_ob, carpet2_ob});
+	std::vector<WorldObjectRef> lamp_obs({lamp_ob});
+
+	for(int i=0; i<num_stories; ++i)
+	{
+		const double floor_z = i * story_height;
+
+		{
+			WorldObjectRef source_ob = room_obs[/*i % room_obs.size()*/rng.nextUInt((uint32)room_obs.size())];
+
+			WorldObjectRef new_object = new WorldObject();
+			new_object->creator_id = UserID(0);
+			new_object->created_time = TimeStamp::currentTime();
+			new_object->last_modified_time = TimeStamp::currentTime();
+			new_object->state = WorldObject::State_Alive;
+			new_object->uid = world_state->getNextObjectUID();
+			new_object->pos = Vec3d(botleft.x + parcel_w/2, botleft.y + parcel_w/2, floor_z);
+			new_object->angle = Maths::pi_2<float>();
+			new_object->axis = Vec3f(1,0,0);
+			new_object->model_url = source_ob->model_url;
+			new_object->scale = Vec3f(1.0);
+			new_object->setAABBOS(source_ob->getAABBOS());
+			new_object->content = "tower prefab";
+			new_object->max_model_lod_level = 2;
+
+			new_object->materials.resize(source_ob->materials.size());
+			for(size_t z=0; z<new_object->materials.size(); ++z)
+				new_object->materials[z] = source_ob->materials[z]->clone();
+
+			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+		}
+
+
+
+		// Make platform object
+		if((i % 4 == 0) && (i >= 3))
+		{
+			const int platform_i = (i / 4) % 2;
+			WorldObjectRef source_ob = platform_obs[platform_i];
+
+			// second platform model needs a pi rotation around z axis.
+			const Quatf rot = (platform_i == 0 ? Quatf::identity() : Quatf::fromAxisAndAngle(Vec3f(0,0,1), Maths::pi<float>())) * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+			Vec4f axis;
+			float angle;
+			rot.toAxisAndAngle(axis, angle);
+
+			WorldObjectRef new_object = new WorldObject();
+			new_object->creator_id = UserID(0);
+			new_object->created_time = TimeStamp::currentTime();
+			new_object->last_modified_time = TimeStamp::currentTime();
+			new_object->state = WorldObject::State_Alive;
+			new_object->uid = world_state->getNextObjectUID();
+			new_object->pos = Vec3d(botleft.x + parcel_w/2, botleft.y + parcel_w/2, floor_z);
+			new_object->angle = angle;
+			new_object->axis = Vec3f(axis);
+			new_object->model_url = source_ob->model_url;
+			new_object->scale = Vec3f(1.0);
+			new_object->setAABBOS(source_ob->getAABBOS());
+			new_object->content = "tower platform";
+			new_object->max_model_lod_level = 2;
+
+			new_object->materials.resize(source_ob->materials.size());
+			for(size_t z=0; z<new_object->materials.size(); ++z)
+				new_object->materials[z] = source_ob->materials[z]->clone();
+
+			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+		}
+
+		// Make couches etc..
+
+		// Where coffee table will go, where couches are arranged around
+		Vec3d lounge_focus_pos = Vec3d(
+			botleft.x + parcel_w - (4.5 + rng.unitRandom() * 3), 
+			botleft.y + 3 + rng.unitRandom() * 6, 
+			floor_z
+		);
+
+		Quatf z_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), rng.unitRandom() < 0.5 ? 0 : -Maths::pi_2<float>());
+
+
+		// Add table
+		{
+			const int table_i = rng.nextUInt((uint32)table_obs.size());
+			WorldObjectRef source_ob = table_obs[table_i];
+
+			//Quatf z_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), rng.unitRandom() < 0.5 ? 0 : -Maths::pi_2<float>());
+
+			Vec3d table_pos = lounge_focus_pos;
+
+			const Quatf rot = z_rot * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+			Vec4f axis;
+			float angle;
+			rot.toAxisAndAngle(axis, angle);
+
+			WorldObjectRef new_object = new WorldObject();
+			new_object->creator_id = UserID(0);
+			new_object->created_time = TimeStamp::currentTime();
+			new_object->last_modified_time = TimeStamp::currentTime();
+			new_object->state = WorldObject::State_Alive;
+			new_object->uid = world_state->getNextObjectUID();
+			new_object->pos = Vec3d(table_pos.x, table_pos.y, floor_z);
+			new_object->angle = angle;
+			new_object->axis = Vec3f(axis);
+			new_object->model_url = source_ob->model_url;
+			new_object->scale = Vec3f(1.0);
+			new_object->setAABBOS(source_ob->getAABBOS());
+			new_object->content = "tower furniture";
+			new_object->max_model_lod_level = 2;
+
+			new_object->materials.resize(source_ob->materials.size());
+			for(size_t z=0; z<new_object->materials.size(); ++z)
+				new_object->materials[z] = source_ob->materials[z]->clone();
+
+			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+		}
+
+		// Add carpet
+		//if(rng.unitRandom() < 0.6f)
+		{
+			const int carpet_i = rng.nextUInt((uint32)carpet_obs.size());
+			WorldObjectRef source_ob = carpet_obs[carpet_i];
+
+			Vec3d carpet_pos = lounge_focus_pos;
+
+			const Quatf rot = z_rot * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+			Vec4f axis;
+			float angle;
+			rot.toAxisAndAngle(axis, angle);
+
+			WorldObjectRef new_object = new WorldObject();
+			new_object->creator_id = UserID(0);
+			new_object->created_time = TimeStamp::currentTime();
+			new_object->last_modified_time = TimeStamp::currentTime();
+			new_object->state = WorldObject::State_Alive;
+			new_object->uid = world_state->getNextObjectUID();
+			new_object->pos = Vec3d(carpet_pos.x, carpet_pos.y, floor_z);
+			new_object->angle = angle;
+			new_object->axis = Vec3f(axis);
+			new_object->model_url = source_ob->model_url;
+			new_object->scale = Vec3f(1.0);
+			new_object->setAABBOS(source_ob->getAABBOS());
+			new_object->content = "tower furniture";
+			new_object->max_model_lod_level = 2;
+
+			new_object->materials.resize(source_ob->materials.size());
+			for(size_t z=0; z<new_object->materials.size(); ++z)
+				new_object->materials[z] = source_ob->materials[z]->clone();
+
+			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+		}
+
+		// Add couch 1
+		{
+			const int couch_i = rng.nextUInt((uint32)couch_obs.size());
+			WorldObjectRef source_ob = couch_obs[couch_i];
+
+			Vec4f couch_forwards_ws = z_rot.rotateVector(Vec4f(0,-1,0,0));
+
+			Vec3d couch_pos = lounge_focus_pos - Vec3d(couch_forwards_ws) * 2.0;
+
+			const Quatf rot = z_rot * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+			Vec4f axis;
+			float angle;
+			rot.toAxisAndAngle(axis, angle);
+
+			WorldObjectRef new_object = new WorldObject();
+			new_object->creator_id = UserID(0);
+			new_object->created_time = TimeStamp::currentTime();
+			new_object->last_modified_time = TimeStamp::currentTime();
+			new_object->state = WorldObject::State_Alive;
+			new_object->uid = world_state->getNextObjectUID();
+			new_object->pos = Vec3d(couch_pos.x, couch_pos.y, floor_z);
+			new_object->angle = angle;
+			new_object->axis = Vec3f(axis);
+			new_object->model_url = source_ob->model_url;
+			new_object->scale = Vec3f(1.0);
+			new_object->setAABBOS(source_ob->getAABBOS());
+			new_object->content = "tower furniture";
+			new_object->max_model_lod_level = 2;
+
+			new_object->materials.resize(source_ob->materials.size());
+			for(size_t z=0; z<new_object->materials.size(); ++z)
+				new_object->materials[z] = source_ob->materials[z]->clone();
+
+			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+		}
+
+		// Add couch 2
+		{
+			const int couch_i = rng.nextUInt((uint32)couch_obs.size());
+			WorldObjectRef source_ob = couch_obs[couch_i];
+
+			Quatf extra_z_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), -Maths::pi_2<float>());
+
+			Vec4f couch_forwards_ws = (extra_z_rot * z_rot).rotateVector(Vec4f(0,-1,0,0));
+
+			Vec3d couch_pos = lounge_focus_pos - Vec3d(couch_forwards_ws) * 3.0;
+
+			const Quatf rot = extra_z_rot * z_rot * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+			Vec4f axis;
+			float angle;
+			rot.toAxisAndAngle(axis, angle);
+
+			WorldObjectRef new_object = new WorldObject();
+			new_object->creator_id = UserID(0);
+			new_object->created_time = TimeStamp::currentTime();
+			new_object->last_modified_time = TimeStamp::currentTime();
+			new_object->state = WorldObject::State_Alive;
+			new_object->uid = world_state->getNextObjectUID();
+			new_object->pos = Vec3d(couch_pos.x, couch_pos.y, floor_z);
+			new_object->angle = angle;
+			new_object->axis = Vec3f(axis);
+			new_object->model_url = source_ob->model_url;
+			new_object->scale = Vec3f(1.0);
+			new_object->setAABBOS(source_ob->getAABBOS());
+			new_object->content = "tower furniture";
+			new_object->max_model_lod_level = 2;
+
+			new_object->materials.resize(source_ob->materials.size());
+			for(size_t z=0; z<new_object->materials.size(); ++z)
+				new_object->materials[z] = source_ob->materials[z]->clone();
+
+			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+		}
+
+		// Add lamp
+		{
+			const int lamp_i = rng.nextUInt((uint32)lamp_obs.size());
+			WorldObjectRef source_ob = lamp_obs[lamp_i];
+
+			Vec4f lounge_forwards = z_rot.rotateVector(Vec4f(0,-1,0,0));
+			Vec4f lounge_left     = z_rot.rotateVector(Vec4f(1,0,0,0));
+
+			Quatf extra_z_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), -1.f);
+
+			Vec4f lamp_forwards_ws = (extra_z_rot * z_rot).rotateVector(Vec4f(0,-1,0,0));
+
+			Vec3d lamp_pos = lounge_focus_pos - Vec3d(lounge_forwards) * 3.0 + Vec3d(lounge_left) * 4.0;
+
+			const Quatf rot = extra_z_rot * z_rot * Quatf::fromAxisAndAngle(Vec3f(1,0,0), Maths::pi_2<float>());
+			Vec4f axis;
+			float angle;
+			rot.toAxisAndAngle(axis, angle);
+
+			WorldObjectRef new_object = new WorldObject();
+			new_object->creator_id = UserID(0);
+			new_object->created_time = TimeStamp::currentTime();
+			new_object->last_modified_time = TimeStamp::currentTime();
+			new_object->state = WorldObject::State_Alive;
+			new_object->uid = world_state->getNextObjectUID();
+			new_object->pos = Vec3d(lamp_pos.x, lamp_pos.y, floor_z);
+			new_object->angle = angle;
+			new_object->axis = Vec3f(axis);
+			new_object->model_url = source_ob->model_url;
+			new_object->scale = Vec3f(1.0);
+			new_object->setAABBOS(source_ob->getAABBOS());
+			new_object->content = "tower furniture";
+			new_object->max_model_lod_level = 2;
+
+			new_object->materials.resize(source_ob->materials.size());
+			for(size_t z=0; z<new_object->materials.size(); ++z)
+				new_object->materials[z] = source_ob->materials[z]->clone();
+
+			world_state->getRootWorldState()->objects[new_object->uid] = new_object; // Insert into world
+			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
+		}
+	}
+}
+
+
 static void makeRoad(ServerAllWorldsState& world_state, const Vec3d& pos, const Vec3f& scale, float rotation_angle)
 {
 	WorldObjectRef test_object = new WorldObject();
@@ -579,6 +928,91 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 		conPrint("Num parcels added: " + toString(next_id - initial_next_id));
 	}
 
+	/*
+	// TEMP: Delete parcels newer than id 1221.
+	for(auto it = world_state->getRootWorldState()->parcels.begin(); it != world_state->getRootWorldState()->parcels.end();)
+	{
+		if(it->first.value() > 1221)
+			it = world_state->getRootWorldState()->parcels.erase(it);
+		else
+			it++;
+	}
+
+	// TEMP: Recompute max_parcel_id
+	max_parcel_id = ParcelID(0);
+	for(auto it = world_state->getRootWorldState()->parcels.begin(); it != world_state->getRootWorldState()->parcels.end(); ++it)
+	{
+		const Parcel* parcel = it->second.ptr();
+		max_parcel_id = myMax(max_parcel_id, parcel->id);
+	}
+
+	// TEMP: remove any objects with 'tower' content
+	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end();)
+	{
+		if(it->second->content == "tower" || it->second->content == "tower prefab" || it->second->content == "tower platform" || it->second->content == "tower furniture")
+			it = world_state->getRootWorldState()->objects.erase(it);
+		else
+			it++;
+	}
+	*/
+
+
+	if(max_parcel_id.value() == 1221)
+	{
+		try
+		{
+			conPrint("Adding north-east district parcels!");
+
+			const int initial_next_id = 1222;
+			int next_id = initial_next_id;
+
+			const double parcel_width = 14;
+			const double block_width = parcel_width * 3 + 8;
+			PCG32 rng(1);
+			for(int x=0; x<5; ++x)
+				for(int y=0; y<4; ++y)
+				{
+					if(
+						(x == 1 && y == 2) || // tower block
+						(x == 1 && y == 1) ||
+						(x == 2 && y == 0) || // tower block
+						(x == 3 && y == 2) || // tower block
+						(x == 3 && y == 1) ||
+						(x == 3 && y == 0) ||
+						(x == 5 && y == 0) ||
+						(x == 5 && y == 2) ||
+						(x == 7 && y == 1) ||
+						(x == 9 && y == 2)
+						)
+					{
+						// Make empty space for park/square or tower
+					}
+					else
+						makeBlock(/*botleft=*/Vec2d(335 + x * block_width, 335 + y * block_width), rng, next_id, world_state->getRootWorldState(), /*parcel_w=*/parcel_width,
+							/*parcel_max_z=*/18 /*+ rng.unitRandom() * 8*/);
+				}
+
+			const double padding = 0.3;
+			const double tower_parcel_w = 14 + padding * 2; // Large enough to hold the story 3d models
+			makeTowerParcels(/*botleft=*/Vec2d(335 + 3 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/24);
+			makeTowerObjects(/*botleft=*/Vec2d(335 + 3 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state, rng, /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/24);
+
+			makeTowerParcels(/*botleft=*/Vec2d(335 + 1 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/22);
+			makeTowerObjects(/*botleft=*/Vec2d(335 + 1 * block_width + parcel_width - padding, 335 + 2 * block_width + parcel_width - padding), next_id, world_state, rng, /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/22);
+
+			makeTowerParcels(/*botleft=*/Vec2d(335 + 2 * block_width + parcel_width - padding, 335 + 0 * block_width + parcel_width - padding), next_id, world_state->getRootWorldState(), /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/20);
+			makeTowerObjects(/*botleft=*/Vec2d(335 + 2 * block_width + parcel_width - padding, 335 + 0 * block_width + parcel_width - padding), next_id, world_state, rng, /*parcel_w=*/tower_parcel_w, /*story height=*/9.0, /*num stories=*/20);
+
+			world_state->markAsChanged();
+			conPrint("Num parcels added: " + toString(next_id - initial_next_id));
+		}
+		catch(glare::Exception& e)
+		{
+			conPrint("Error while adding tower parcels and furniture: " + e.what());
+		}
+	}
+
+
 
 	// Add road objects
 	if(false)
@@ -771,3 +1205,62 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 		}
 	}
 }
+
+
+void WorldCreation::createPhysicsTest(ServerAllWorldsState& all_worlds_state)
+{
+	conPrint("creating blocks...");
+
+	const int N = 30000;
+	double phase = 0;
+	double r = 4;
+	for(int i=0; i<N; ++i)
+	{
+		const double block_height = 0.6;
+
+		
+		/*const double r = 4.0 + (double)i / N * 100.0;
+
+		const double phase = (double)i / N * Maths::get2Pi<double>() * 20000 / r;
+
+		const Vec3d pos(200 + cos(phase) * r, sin(phase) * r, block_height/2);*/
+
+		const Vec3d pos(200 + cos(phase) * r, sin(phase) * r, block_height/2);
+
+		
+
+
+		WorldObjectRef test_object = new WorldObject();
+		test_object->creator_id = UserID(0);
+		test_object->state = WorldObject::State_Alive;
+		test_object->uid = UID(10000 + i); // all_worlds_state.getNextObjectUID();//  world_state->UID(road_uid++);
+		test_object->pos = pos;
+		test_object->angle = (float)phase;
+		test_object->axis = Vec3f(0,0,1);
+		test_object->model_url = "Cube_obj_11907297875084081315.bmesh";
+		test_object->scale = Vec3f(0.2, 0.05, block_height);
+		test_object->materials.push_back(new WorldMaterial());
+
+		test_object->mass = 1;
+		test_object->setDynamic(true);
+
+		// Set tex matrix based on scale
+		test_object->materials[0]->tex_matrix = Matrix2f(1, 0, 0, 1);
+		test_object->materials[0]->colour_texture_url = "stone_floor_jpg_6978110256346892991.jpg";
+
+		//all_worlds_state.getRootWorldState()->objects[test_object->uid] = test_object;
+		all_worlds_state.getRootWorldState()->objects.erase(test_object->uid);
+		//all_worlds_state.getRootWorldState()->addWorldObjectAsDBDirty(test_object);
+
+
+		// we want to move ahead by distance d = r * theta
+		const float d = 0.5f;
+		const double theta = d / r;
+		phase += theta;
+
+		const double num_dominoes_per_circle = Maths::get2Pi<double>() / theta;
+		r += 1.5 / num_dominoes_per_circle; // increase radius so when we have done 1 circle we have gone x metres out.
+	}
+
+}
+

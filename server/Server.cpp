@@ -78,41 +78,62 @@ static bool isParcelInCurrentAuction(ServerAllWorldsState& world_state, const Pa
 }
 
 
+static bool isTowerParcel(const ParcelID& parcel_id)
+{
+	return parcel_id.value() >= 1320 && parcel_id.value() <= 1385;
+}
+
+
 static void updateParcelSales(ServerAllWorldsState& world_state)
 {
-	conPrint("updateParcelSales()");
-
-	PCG32 rng((uint64)Clock::getSecsSince1970() + (uint64)(Clock::getTimeSinceInit() * 1000.0)); // Poor seeding but not too important
+	// conPrint("updateParcelSales()");
 
 	{
 		Lock lock(world_state.mutex);
 
+		// Work out the number of current auctions
 		int num_for_sale = 0;
+		int num_tower_for_sale = 0;
 		TimeStamp now = TimeStamp::currentTime();
 		for(auto it = world_state.parcel_auctions.begin(); it != world_state.parcel_auctions.end(); ++it)
 		{
-			ParcelAuction* auction = it->second.ptr();
+			const ParcelAuction* auction = it->second.ptr();
 			if(auction->currentlyForSale(now))
+			{
 				num_for_sale++;
+				if(isTowerParcel(auction->parcel_id))
+					num_tower_for_sale++;
+			}
 		}
 
-		const int target_num_for_sale = 9;
+		const int target_num_for_sale = 2;
 		if(num_for_sale < target_num_for_sale)
 		{
 			// We have less than the desired number of parcels up for sale, so list some:
 
+			PCG32 rng((uint64)Clock::getSecsSince1970() + (uint64)(Clock::getTimeSinceInit() * 1000.0)); // Poor seeding but not too important
+
 			// Get list of sellable parcels
-			std::vector<Parcel*> sellable_parcels;
+			//std::vector<Parcel*> sellable_parcels;
+			std::vector<Parcel*> sellable_tower_parcels;
+			std::vector<Parcel*> sellable_nontower_parcels;
 			for(auto pit = world_state.getRootWorldState()->parcels.begin(); pit != world_state.getRootWorldState()->parcels.end(); ++pit)
 			{
 				Parcel* parcel = pit->second.ptr();
-				if((parcel->owner_id == UserID(0)) && (parcel->id.value() >= 90) && // If owned my MrAdmin, and not on the blocks by the central square (so ID >= 90)
+				if((parcel->owner_id == UserID(0)) && // If owned my MrAdmin
+					(parcel->id.value() >= 90) && // and not on the blocks by the central square (so ID >= 90)
 					!isParcelInCurrentAuction(world_state, parcel, now) && // And not already in a currently running auction
 					(parcel->nft_status == Parcel::NFTStatus_NotNFT) && // And not minted as an NFT (For example like parcels that were auctioned on OpenSea, which may not be claimed yet)
 					(!(parcel->id.value() >= 426 && parcel->id.value() < 430)) && // Don't auction off new park parcels (parcels 426...429)
-					(!(parcel->id.value() >= 954 && parcel->id.value() <= 955)) // Don't auction of Zombot's parcels
+					(!(parcel->id.value() >= 954 && parcel->id.value() <= 955)) // Don't auction off Zombot's parcels
 					)
-					sellable_parcels.push_back(parcel);
+				{
+					// sellable_parcels.push_back(parcel);
+					if(isTowerParcel(parcel->id))
+						sellable_tower_parcels.push_back(parcel);
+					else
+						sellable_nontower_parcels.push_back(parcel);
+				}
 			}
 
 			// Permute parcels (Fisher-Yates shuffle).  NOTE: kinda slow if we have lots of sellable parcels.
@@ -122,12 +143,30 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				mySwap(sellable_parcels[i], sellable_parcels[k]);
 			}*/
 
-			const int desired_num_to_add = target_num_for_sale - num_for_sale;
-			assert(desired_num_to_add > 0);
-			const int num_to_add = myMin(desired_num_to_add, (int)sellable_parcels.size());
-			for(int i=0; i<num_to_add; ++i)
+			//const int desired_num_to_add = target_num_for_sale - num_for_sale;
+			//assert(desired_num_to_add > 0);
+			//const int num_to_add = myMin(desired_num_to_add, (int)sellable_parcels.size());
+
+			std::vector<Parcel*> new_auction_parcels;
+
+			// Add any tower sales needed
+			if((num_tower_for_sale < 1) && !sellable_tower_parcels.empty())
 			{
-				Parcel* parcel = sellable_parcels[i];
+				new_auction_parcels.push_back(sellable_tower_parcels[rng.nextUInt((uint32)sellable_tower_parcels.size())]);
+			}
+
+			// Add any non-tower sales needed
+			const int num_nontower_for_sale = num_for_sale - num_tower_for_sale;
+			if((num_nontower_for_sale < 1) && !sellable_nontower_parcels.empty())
+			{
+				new_auction_parcels.push_back(sellable_nontower_parcels[rng.nextUInt((uint32)sellable_nontower_parcels.size())]);
+			}
+
+
+
+			for(size_t i=0; i<new_auction_parcels.size(); ++i)
+			{
+				Parcel* parcel = new_auction_parcels[i];
 
 				conPrint("updateParcelSales(): Putting parcel " + parcel->id.toString() + " up for auction");
 
@@ -143,8 +182,17 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				}
 				else
 				{
-					auction_start_price = 4000; // EUR
-					auction_end_price = 400; // EUR
+					// If parcel is a tower parcel in the top few floors of a tower block, use higher prices.
+					if((parcel->id.value() >= 1362 && parcel->id.value() <= 1365) || (parcel->id.value() >= 1382 && parcel->id.value() <= 1385) || (parcel->id.value() >= 1337 && parcel->id.value() <= 1343))
+					{
+						auction_start_price = 4000; // EUR
+						auction_end_price = 400; // EUR
+					}
+					else
+					{
+						auction_start_price = 2000; // EUR
+						auction_end_price = 200; // EUR
+					}
 				}
 
 				//TEMP: scan over all ParcelAuctions and find highest used ID.
@@ -206,7 +254,7 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 				world_state.addParcelAuctionAsDBDirty(auction);
 			}
 
-			conPrint("updateParcelSales(): Put " + toString(num_to_add) + " parcels up for auction.");
+			conPrint("updateParcelSales(): Put " + toString(new_auction_parcels.size()) + " parcels up for auction.");
 		}
 	} // End lock scope
 }
@@ -516,8 +564,9 @@ int main(int argc, char *argv[])
 			server.world_state->createNewDatabase(server_state_path);
 
 
-		WorldCreation::removeHypercardMaterials(*server.world_state);
+		WorldCreation::createParcelsAndRoads(server.world_state);
 
+		// WorldCreation::removeHypercardMaterials(*server.world_state);
 
 		updateMapTiles(*server.world_state);
 
@@ -1037,18 +1086,20 @@ int main(int argc, char *argv[])
 			}
 
 
-			if((loop_iter % 128) == 0) // Approx every 10 s.
+			if((loop_iter % 512) == 0) // Approx every 50 s.
 			{
-				// Want want to list new parcels (to bring the total number being listed up to our target number) every day at midnight UTC.
-				int hour, day, year;
-				Clock::getHourDayOfYearAndYear(Clock::getSecsSince1970(), hour, day, year);
+				updateParcelSales(*server.world_state);
 
+				// Want want to list new parcels (to bring the total number being listed up to our target number) every day at midnight UTC.
+				/*int hour, day, year;
+				Clock::getHourDayOfYearAndYear(Clock::getSecsSince1970(), hour, day, year);
+				
 				const bool different_day = 
 					server.world_state->last_parcel_update_info.last_parcel_sale_update_year != year ||
 					server.world_state->last_parcel_update_info.last_parcel_sale_update_day != day;
-
+				
 				const bool initial_listing = server.world_state->last_parcel_update_info.last_parcel_sale_update_year == 0;
-
+				
 				if(initial_listing || different_day)
 				{
 					updateParcelSales(*server.world_state);
@@ -1058,7 +1109,7 @@ int main(int argc, char *argv[])
 					
 					server.world_state->last_parcel_update_info.db_dirty = true; // Save to DB
 					server.world_state->markAsChanged();
-				}
+				}*/
 			}
 
 
