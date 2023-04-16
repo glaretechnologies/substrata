@@ -945,7 +945,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	{
 		const Parcel* parcel = it->second.ptr();
 		max_parcel_id = myMax(max_parcel_id, parcel->id);
-	}*/
+	}
 
 	// TEMP: remove any objects with 'tower' content
 	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end();)
@@ -954,11 +954,12 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 			it = world_state->getRootWorldState()->objects.erase(it);
 		else
 			it++;
-	}
+	}*/
 	
 
 
 	//if(max_parcel_id.value() == 1221)
+	if(false)
 	{
 		try
 		{
