@@ -948,18 +948,30 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 	}
 
 	// TEMP: remove any objects with 'tower' content
-	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end();)
+	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end(); ++it)
 	{
 		if(it->second->content == "tower" || it->second->content == "tower prefab" || it->second->content == "tower platform" || it->second->content == "tower furniture")
 			it = world_state->getRootWorldState()->objects.erase(it);
 		else
 			it++;
 	}*/
+
+	// TEMP: remove any objects with 'tower' content
+	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end(); ++it)
+	{
+		WorldObject* ob = it->second.ptr();
+		if(ob->content == "tower" || ob->content == "tower prefab" || ob->content == "tower platform" || ob->content == "tower furniture")
+		{
+			ob->state = WorldObject::State_Dead;
+			ob->from_remote_other_dirty = true;
+			world_state->getRootWorldState()->dirty_from_remote_objects.insert(ob);
+		}
+	}
 	
 
 
 	//if(max_parcel_id.value() == 1221)
-	if(false)
+	if(true)
 	{
 		try
 		{
