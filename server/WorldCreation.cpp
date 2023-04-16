@@ -267,8 +267,9 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 
 	WorldObjectRef couch1_ob = findObWithModelURL(world_state, "VoxCouch__Final_grey_glb_3629570434401678297.bmesh");
 	WorldObjectRef couch2_ob = findObWithModelURL(world_state, "Couch_Holz_Grau_glb_10451238764035445915.bmesh");
-	WorldObjectRef couch3_ob = findObWithModelURL(world_state, "grey_Gustav_glb_14897620384736448070.bmesh");
-	WorldObjectRef couch4_ob = findObWithModelURL(world_state, "VoxSeat__Final_grey_glb_6666984473320402552.bmesh");
+
+	WorldObjectRef seat1_ob = findObWithModelURL(world_state, "grey_Gustav_glb_14897620384736448070.bmesh");
+	WorldObjectRef seat2_ob = findObWithModelURL(world_state, "VoxSeat__Final_grey_glb_6666984473320402552.bmesh");
 
 	WorldObjectRef table1_ob = findObWithModelURL(world_state, "60_tisch_glb_11656912686065707806.bmesh");
 	WorldObjectRef table2_ob = findObWithModelURL(world_state, "couch_table_Geschwungen_glb_3686631209284750062.bmesh");
@@ -281,7 +282,8 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 
 	std::vector<WorldObjectRef> room_obs({room1_ob, room2_ob, room3_ob});
 	std::vector<WorldObjectRef> platform_obs({platform1_ob, platform2_ob});
-	std::vector<WorldObjectRef> couch_obs({couch1_ob, couch2_ob, couch3_ob, couch4_ob});
+	std::vector<WorldObjectRef> couch_obs({couch1_ob, couch2_ob});
+	std::vector<WorldObjectRef> seat_obs({seat1_ob, seat2_ob});
 	std::vector<WorldObjectRef> table_obs({table1_ob, table2_ob, table3_ob});
 	std::vector<WorldObjectRef> carpet_obs({carpet1_ob, carpet2_ob});
 	std::vector<WorldObjectRef> lamp_obs({lamp_ob});
@@ -358,7 +360,7 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 		// Where coffee table will go, where couches are arranged around
 		Vec3d lounge_focus_pos = Vec3d(
 			botleft.x + parcel_w - (4.5 + rng.unitRandom() * 3), 
-			botleft.y + 3 + rng.unitRandom() * 6, 
+			botleft.y + 3.7 + rng.unitRandom() * 6, 
 			floor_z
 		);
 
@@ -475,10 +477,10 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			world_state->getRootWorldState()->addWorldObjectAsDBDirty(new_object);
 		}
 
-		// Add couch 2
+		// Add seat
 		{
-			const int couch_i = rng.nextUInt((uint32)couch_obs.size());
-			WorldObjectRef source_ob = couch_obs[couch_i];
+			const int seat_i = rng.nextUInt((uint32)seat_obs.size());
+			WorldObjectRef source_ob = seat_obs[seat_i];
 
 			Quatf extra_z_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), -Maths::pi_2<float>());
 
@@ -523,8 +525,6 @@ static void makeTowerObjects(const Vec2d& botleft, int& next_id, Reference<Serve
 			Vec4f lounge_left     = z_rot.rotateVector(Vec4f(1,0,0,0));
 
 			Quatf extra_z_rot = Quatf::fromAxisAndAngle(Vec3f(0,0,1), -1.f);
-
-			Vec4f lamp_forwards_ws = (extra_z_rot * z_rot).rotateVector(Vec4f(0,-1,0,0));
 
 			Vec3d lamp_pos = lounge_focus_pos - Vec3d(lounge_forwards) * 3.0 + Vec3d(lounge_left) * 4.0;
 
@@ -929,7 +929,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 		conPrint("Num parcels added: " + toString(next_id - initial_next_id));
 	}
 
-	/*
+	
 	// TEMP: Delete parcels newer than id 1221.
 	for(auto it = world_state->getRootWorldState()->parcels.begin(); it != world_state->getRootWorldState()->parcels.end();)
 	{
@@ -955,7 +955,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 		else
 			it++;
 	}
-	*/
+	
 
 
 	if(max_parcel_id.value() == 1221)
