@@ -20,4 +20,6 @@ public:
 	static void createParcelsAndRoads(Reference<ServerAllWorldsState> world_state);
 
 	static void removeHypercardMaterials(ServerAllWorldsState& all_worlds_state);
+
+	static void createPhysicsTest(ServerAllWorldsState& all_worlds_state);
 };
