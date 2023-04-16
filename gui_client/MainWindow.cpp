@@ -4100,7 +4100,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			msg += "pos: " + selected_ob->pos.toStringMaxNDecimalPlaces(3) + "\n";
 			msg += "centroid: " + selected_ob->getCentroidWS().toStringMaxNDecimalPlaces(3) + "\n";
 			msg += "aabb os: " + selected_ob->getAABBOS().toStringMaxNDecimalPlaces(3) + "\n";
-			//msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
+			msg += "aabb ws: " + selected_ob->getAABBWS().toStringMaxNDecimalPlaces(3) + "\n";
 			msg += "aabb_ws_longest_len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getAABBWSLongestLength(), 2) + "\n";
 			msg += "biased aabb longest len: " + doubleToStringMaxNDecimalPlaces(selected_ob->getBiasedAABBLength(), 2) + "\n";
 
@@ -4439,6 +4439,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	// Update URL Bar
+	// NOTE: use doubleToStringNDecimalPlaces instead of doubleToStringMaxNDecimalPlaces, as the latter is distracting due to flickering URL length when moving.
 	if(this->url_widget->shouldBeUpdated())
 		this->url_widget->setURL("sub://" + server_hostname + "/" + server_worldname +
 			"?x=" + doubleToStringNDecimalPlaces(this->cam_controller.getFirstPersonPosition().x, 1) + 
@@ -12238,7 +12239,10 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 
 	if(e->key() == Qt::Key::Key_F5)
 	{
-		this->connectToServer("sub://" + this->server_hostname + "/" + this->server_worldname);
+		this->connectToServer("sub://" + this->server_hostname + "/" + this->server_worldname +
+			"?x=" + doubleToStringMaxNDecimalPlaces(this->cam_controller.getPosition().x, 2) + 
+			"&y=" + doubleToStringMaxNDecimalPlaces(this->cam_controller.getPosition().y, 2) + 
+			"&z=" + doubleToStringMaxNDecimalPlaces(this->cam_controller.getPosition().z, 2));
 	}
 }
 
