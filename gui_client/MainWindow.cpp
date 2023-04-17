@@ -12001,13 +12001,13 @@ void MainWindow::glWidgetKeyPressed(QKeyEvent* e)
 			const Vec4f last_hover_car_pos = vehicle_controller_inside->getBodyTransform(*this->physics_world) * Vec4f(0,0,0,1);
 			const Vec4f last_hover_car_linear_vel = vehicle_controller_inside->getLinearVel(*this->physics_world);
 
-			const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0); // TEMP HACK: offset to left by 1m.
+			const Vec4f last_hover_car_right_ws = vehicle_controller_inside->getSeatToWorldTransform(*this->physics_world, this->cur_seat_index, /*use_smoothed_network_transform=*/true) * Vec4f(-1,0,0,0);
 			// TODO: make this programmatically the same side as the seat, or make the exit position scriptable?
 
 			vehicle_controller_inside->userExitedVehicle(this->cur_seat_index);
 			vehicle_controller_inside = NULL; // Null out vehicle_controller_inside reference.  Note that the controller will still exist and be referenced from vehicle_controllers.
 
-			Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2;
+			Vec4f new_player_pos = last_hover_car_pos + last_hover_car_right_ws * 2 + Vec4f(0,0,1.7f,0);
 			new_player_pos[2] = myMax(new_player_pos[2], 1.67f); // Make sure above ground
 
 			player_physics.setPosition(Vec3d(new_player_pos), /*linear vel=*/last_hover_car_linear_vel);
