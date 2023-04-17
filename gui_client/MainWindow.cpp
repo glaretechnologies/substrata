@@ -5217,7 +5217,8 @@ void MainWindow::timerEvent(QTimerEvent* event)
 		const float old_volume = wind_audio_source->volume;
 
 		// Increase wind volume as speed increases, but only once we exceed a certain speed, since we don't really want wind sounds playing when we run + jump around (approx < 20 m/s).
-		wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.03f, 0.f, 2.f);
+		const float WIND_VOLUME_FACTOR = 1.2f;
+		wind_audio_source->volume = myClamp((listener_linear_vel.length() - 20.f) * 0.015f * WIND_VOLUME_FACTOR, 0.f, WIND_VOLUME_FACTOR);
 
 		if(wind_audio_source->volume != old_volume)
 			audio_engine.sourceVolumeUpdated(*wind_audio_source);
