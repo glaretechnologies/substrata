@@ -21,12 +21,15 @@ URLParseResults URLParser::parseURL(const std::string& URL)
 	Parser parser(URL);
 
 	// Parse protocol
-	string_view protocol;
-	parser.parseAlphaToken(protocol);
-	if(protocol != "sub")
-		throw glare::Exception("Unhandled protocol scheme '" + toString(protocol) + "'.");
-	if(!parser.parseString("://"))
-		throw glare::Exception("Expected '://' after protocol scheme.");
+	if(URL.find_first_of(':') != std::string::npos) // Allow user to skip protocol prefix: If there is no ':' character in string, assume protocol prefix is missing and skip it.
+	{
+		string_view protocol;
+		parser.parseAlphaToken(protocol);
+		if(protocol != "sub")
+			throw glare::Exception("Unhandled protocol scheme '" + toString(protocol) + "'.");
+		if(!parser.parseString("://"))
+			throw glare::Exception("Expected '://' after protocol scheme.");
+	}
 
 	// Parse hostname and userpath
 	std::string hostname;
