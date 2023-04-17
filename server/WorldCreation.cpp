@@ -954,7 +954,7 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 			it = world_state->getRootWorldState()->objects.erase(it);
 		else
 			it++;
-	}*/
+	}
 
 	// TEMP: remove any objects with 'tower' content
 	for(auto it = world_state->getRootWorldState()->objects.begin(); it != world_state->getRootWorldState()->objects.end(); ++it)
@@ -966,12 +966,12 @@ void WorldCreation::createParcelsAndRoads(Reference<ServerAllWorldsState> world_
 			ob->from_remote_other_dirty = true;
 			world_state->getRootWorldState()->dirty_from_remote_objects.insert(ob);
 		}
-	}
+	}*/
 	
 
 
 	//if(max_parcel_id.value() == 1221)
-	if(true)
+	if(false)
 	{
 		try
 		{
