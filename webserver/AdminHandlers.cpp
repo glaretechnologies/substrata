@@ -810,8 +810,15 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 
 				world_state.parcel_auctions[auction->id] = auction;
 
+
+				if(parcel->screenshot_ids.size() < 2)
+					throw glare::Exception("Parcel does not have at least 2 screenshots already");
+
+				auction->screenshot_ids = parcel->screenshot_ids;
+
 				// Make new screenshot (request) for parcel auction
 
+				/*
 				uint64 next_shot_id = world_state.getNextScreenshotUID();
 
 				// Close-in screenshot
@@ -847,6 +854,7 @@ void createParcelAuctionPost(ServerAllWorldsState& world_state, const web::Reque
 
 				if(!request.fuzzing)
 					conPrint("Created screenshots for auction");
+				*/
 				
 				parcel->parcel_auction_ids.push_back(auction->id);
 
