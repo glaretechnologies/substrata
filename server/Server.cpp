@@ -211,40 +211,49 @@ static void updateParcelSales(ServerAllWorldsState& world_state)
 
 				world_state.parcel_auctions[auction->id] = auction;
 
-				// Make new screenshot (request) for parcel auction
-				uint64 next_shot_id = world_state.getNextScreenshotUID();
-
-				// Close-in screenshot
+				// Set screenshot ids for parcel auction
+				// If the parcel already has screenshots, just use those.
+				if(parcel->screenshot_ids.size() >= 2)
 				{
-					ScreenshotRef shot = new Screenshot();
-					shot->id = next_shot_id++;
-					parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
-					shot->width_px = 650;
-					shot->highlight_parcel_id = (int)parcel->id.value();
-					shot->created_time = TimeStamp::currentTime();
-					shot->state = Screenshot::ScreenshotState_notdone;
-
-					world_state.screenshots[shot->id] = shot;
-
-					auction->screenshot_ids.push_back(shot->id);
-
-					world_state.addScreenshotAsDBDirty(shot);
+					auction->screenshot_ids = parcel->screenshot_ids; // Use the parcel screenshots
 				}
-				// Zoomed-out screenshot
+				else
 				{
-					ScreenshotRef shot = new Screenshot();
-					shot->id = next_shot_id++;
-					parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
-					shot->width_px = 650;
-					shot->highlight_parcel_id = (int)parcel->id.value();
-					shot->created_time = TimeStamp::currentTime();
-					shot->state = Screenshot::ScreenshotState_notdone;
+					// Make new screenshots
+					uint64 next_shot_id = world_state.getNextScreenshotUID();
 
-					world_state.screenshots[shot->id] = shot;
+					// Close-in screenshot
+					{
+						ScreenshotRef shot = new Screenshot();
+						shot->id = next_shot_id++;
+						parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+						shot->width_px = 650;
+						shot->highlight_parcel_id = (int)parcel->id.value();
+						shot->created_time = TimeStamp::currentTime();
+						shot->state = Screenshot::ScreenshotState_notdone;
 
-					auction->screenshot_ids.push_back(shot->id);
+						world_state.screenshots[shot->id] = shot;
 
-					world_state.addScreenshotAsDBDirty(shot);
+						auction->screenshot_ids.push_back(shot->id);
+
+						world_state.addScreenshotAsDBDirty(shot);
+					}
+					// Zoomed-out screenshot
+					{
+						ScreenshotRef shot = new Screenshot();
+						shot->id = next_shot_id++;
+						parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
+						shot->width_px = 650;
+						shot->highlight_parcel_id = (int)parcel->id.value();
+						shot->created_time = TimeStamp::currentTime();
+						shot->state = Screenshot::ScreenshotState_notdone;
+
+						world_state.screenshots[shot->id] = shot;
+
+						auction->screenshot_ids.push_back(shot->id);
+
+						world_state.addScreenshotAsDBDirty(shot);
+					}
 				}
 
 				parcel->parcel_auction_ids.push_back(auction->id);
