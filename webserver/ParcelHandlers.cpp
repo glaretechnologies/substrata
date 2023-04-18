@@ -144,17 +144,21 @@ void renderParcelPage(ServerAllWorldsState& world_state, const web::RequestInfo&
 
 			const Vec3d span = parcel->aabb_max - parcel->aabb_min;
 			const double area = span.x * span.y;
-			page += "<p>Dimensions: " + doubleToStringNSigFigs(span.x, 3) + " m x " + doubleToStringNSigFigs(span.y, 3) + " m (area: " + 
-				doubleToStringNSigFigs(area, 3) + " m<sup>2</sup>), height: " + doubleToStringNSigFigs(parcel->aabb_max.z, 3) + " m.</p>   \n";
+			page += "<p>Dimensions: " + doubleToStringMaxNDecimalPlaces(span.x, 1) + " m x " + doubleToStringMaxNDecimalPlaces(span.y, 1) + " m (area: " + 
+				doubleToStringNSigFigs(area, 3) + " m<sup>2</sup>), height: " + doubleToStringMaxNDecimalPlaces(parcel->aabb_max.z - parcel->aabb_min.z, 1) + " m.</p>   \n";
 
 
 			if(parcel->id.value() >= 430 && parcel->id.value() <= 726) // If this is a market parcel:
 				page += "<p><b>This is a small parcel in the market region. (e.g. a market stall)</b></p>";
 
+			if(parcel->id.value() >= 1320 && parcel->id.value() <= 1385) // If this is a tower parcel
+				page += "<p>This is single level in a tower.</p>";
+
 			const Vec3d centre = (parcel->aabb_max + parcel->aabb_min) * 0.5;
 			const double dist_from_orig = centre.getDist(Vec3d(0, 0, 0));
 
-			page += "<p>Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin)</p>  \n";
+			page += "<p>Location: x: " + toString((int)centre.x) + ", y: " + toString((int)centre.y) + " (" + doubleToStringNSigFigs(dist_from_orig, 2) + " m from the origin), " + 
+				doubleToStringMaxNDecimalPlaces(parcel->aabb_min.z, 1) + " m above ground level</p>  \n";
 
 
 			page += WebServerResponseUtils::getMapEmbedCode(world_state, /*highlighted_parcel_id=*/parcel->id);
