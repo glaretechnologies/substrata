@@ -277,6 +277,7 @@ int main(int argc, char* argv[])
 								conPrint("Sending screenshot " + screenshot_path + " to server.");
 								socket->writeUInt64(screenshot_data.length());
 								socket->writeData(screenshot_data.data(), screenshot_data.length());
+								conPrint("Sent screenshot to server.");
 							}
 							else
 							{

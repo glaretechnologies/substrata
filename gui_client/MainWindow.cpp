@@ -2779,6 +2779,7 @@ void MainWindow::setUpForScreenshot()
 			this->selected_parcel = res->second;
 			ui->glWidget->opengl_engine->selectObject(selected_parcel->opengl_engine_ob);
 			ui->glWidget->opengl_engine->setSelectionOutlineColour(PARCEL_OUTLINE_COLOUR);
+			ui->glWidget->opengl_engine->setSelectionOutlineWidth(6.0f);
 		}
 	}
 
@@ -5204,6 +5205,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 
 	// Compute Doppler-effect factor for vehicle controllers, also set wind audio source volume.
+	if(physics_world.nonNull())
 	{
 		const Vec4f listener_linear_vel = vehicle_controller_inside.nonNull() ? vehicle_controller_inside->getLinearVel(*this->physics_world) : player_physics.getLinearVel();
 
@@ -10227,7 +10229,10 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 			Parcel* parcel = it->second.ptr();
 
 			if(parcel->opengl_engine_ob.nonNull())
+			{
 				ui->glWidget->opengl_engine->removeObject(parcel->opengl_engine_ob);
+				parcel->opengl_engine_ob = NULL;
+			}
 
 			if(parcel->physics_object.nonNull())
 			{
@@ -10253,6 +10258,7 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 		biome_manager->clear(*ui->glWidget->opengl_engine, *physics_world);
 
 	selected_ob = NULL;
+	selected_parcel = NULL;
 
 
 	active_objects.clear();
