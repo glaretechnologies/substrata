@@ -1,4 +1,5 @@
 
+<br/>
 
 <h2>Winter Scripting</h2>
 
@@ -34,9 +35,14 @@ For example, the rotating wind turbine blades use the following script:<p><code>
 which defines a spatial translation from the usual position of an object (as placed by a user or entered in the object editor).  
 The translation can be a function of time  to allow object movement.</p><p>For example, this script makes an object move back and forth along the x axis by a total of 1.6 metres:
 </p>
+
+<p>
 <code>def evalTranslation(float time, WinterEnv env) vec3 : vec3(sin(time * 1.5) * 0.8, 0, 0)</code>
+</p>
 
-
+<br/>
+<hr/>
+<br/>
 
 <h2>XML Scripting: Follow Path Script</h2>
 
@@ -67,16 +73,20 @@ The following is a script that makes an object continuously follow a square shap
 <p>The &lt;speed&gt;3&lt;/speed&gt; tag also sets the default speed of the object along the path, although this can be overridden for each waypoint.
 </p>
 
+<br/>
+<hr/>
+<br/>
+
 <h2>Hovercar</h2>
 
-<p>This is an XML script, that allows any object in the world to behave like a hovercar, than can be entered and driven by a user.</p>
+<p>This is an XML script, that allows any object in the world to behave like a hovercar, that can be entered and driven by a user.</p>
 <code>
 <pre>
 &lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
 &lt;script&gt;
 	&lt;hover_car&gt; 
 		&lt;model_to_y_forwards_rot_1&gt;1.57079632679 0 0&lt;/model_to_y_forwards_rot_1&gt;
-		&lt;model_to_y_forwards_rot_2&gt;0 0 3.1415926535897932384626433832795&lt;/model_to_y_forwards_rot_2&gt;
+		&lt;model_to_y_forwards_rot_2&gt;0 0 3.141592653&lt;/model_to_y_forwards_rot_2&gt;
 
 		&lt;seat&gt;
 			&lt;seat_position&gt;0.45 0.43 -0.2&lt;/seat_position&gt;
@@ -101,6 +111,8 @@ The following is a script that makes an object continuously follow a square shap
 <p>The world coordinates have the following convention: the z-axis is up, the x-axis is right, and the y-axis is forwards.</p>
 <p>The length of the model_to_y_forwards_rot_1 vector is the angle of rotation in radians, counterclockwise around the vector.</p>
 
+<p>In the example above we rotate around the x axis by 90 degrees, to transform from y-up to z-up.</p>
+
 <p><b>model_to_y_forwards_rot_2</b> allows defining a second rotation.  In the example above the second rotation rotates around the z-axis by 180 degrees (pi radians).</p>
 
 <p>The overall rotation is given by model_to_y_forwards_rot_2 * model_to_y_forwards_rot_1.  This means the model_to_y_forwards_rot_1 rotation is applied first, then model_to_y_forwards_rot_2</p>
@@ -117,7 +129,7 @@ be aware that the Blender GLTF importer changes the coordinate space from y-up o
 <p><b>upper_leg_rot_angle</b>: This is the rotation, in radians, of the leg around the hip joint, from the default vertical orientation.  
 A positive angle means the upper leg will rotate forwards toward the chest.
 
-<p><b>lower_leg_rot_angle</b>: This is the rotation, in radians, of the lower leg around the knee joint, from the default vertical orientation.  
+<p><b>lower_leg_rot_angle</b>: This is the rotation, in radians, of the lower leg around the knee joint.
 A negative angle means the lower leg will rotate backwards toward the heel.
 
 <h3>Applying the hovercar script</h3>
@@ -135,8 +147,9 @@ in your personal world.
 <li>You will need to check the <b>dynamic</b> checkbox in the object editor to make the object into a simulated physics object that can move.</li>
 </ul>
 
-
-
+<br/>
+<hr/>
+<br/>
 
 <h2>Future Scripting</h2>
 <p>We may allow server-side scripting in the future, using a language like Javascript, and with some way of maintaining state.
