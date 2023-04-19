@@ -534,59 +534,6 @@ void ServerAllWorldsState::readFromDisk(const std::string& path)
 		}
 	}
 
-	//TEMP: create screenshots for parcels if not already done.
-#if 0
-	{
-		//TEMP: scan over all screenshots and find highest used ID. 
-		uint64 highest_shot_id = 0;
-		for(auto it = screenshots.begin(); it != screenshots.end(); ++it)
-			highest_shot_id = myMax(highest_shot_id, it->first);
-
-		uint64 next_shot_id = highest_shot_id + 1;
-		for(auto world_it = world_states.begin(); world_it != world_states.end(); ++world_it)
-		{
-			Reference<ServerWorldState> world_state = world_it->second;
-			for(auto it = world_state->parcels.begin(); it != world_state->parcels.end(); ++it)
-			{
-				Parcel* parcel = it->second.ptr();
-
-				if(parcel->screenshot_ids.size() < 2)
-				{
-					// Create close-in screenshot
-					{
-						ScreenshotRef shot = new Screenshot();
-						shot->id = next_shot_id++;
-						parcel->getScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
-						shot->width_px = 650;
-						shot->highlight_parcel_id = (int)parcel->id.value();
-						shot->created_time = TimeStamp::currentTime();
-						shot->state = Screenshot::ScreenshotState_notdone;
-
-						screenshots[shot->id] = shot;
-
-						parcel->screenshot_ids.push_back(shot->id);
-					}
-					// Zoomed-out screenshot
-					{
-						ScreenshotRef shot = new Screenshot();
-						shot->id = next_shot_id++;
-						parcel->getFarScreenShotPosAndAngles(shot->cam_pos, shot->cam_angles);
-						shot->width_px = 650;
-						shot->highlight_parcel_id = (int)parcel->id.value();
-						shot->created_time = TimeStamp::currentTime();
-						shot->state = Screenshot::ScreenshotState_notdone;
-
-						screenshots[shot->id] = shot;
-
-						parcel->screenshot_ids.push_back(shot->id);
-					}
-				}
-			}
-		}
-	}
-#endif
-
-
 	//conPrint("min_next_nonce: " + toString(eth_info.min_next_nonce));
 	conPrint("Loaded " + toString(num_obs) + " object(s), " + toString(user_id_to_users.size()) + " user(s), " +
 		toString(num_parcels) + " parcel(s), " + toString(resource_manager->getResourcesForURL().size()) + " resource(s), " + toString(num_orders) + " order(s), " + 
