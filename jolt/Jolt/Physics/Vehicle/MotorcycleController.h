@@ -54,6 +54,7 @@ protected:
 	virtual void				Draw(DebugRenderer *inRenderer) const override;
 #endif // JPH_DEBUG_RENDERER
 
+public: // NICK NEW
 	// Configuration properties
 	float						mMaxLeanAngle;
 	float						mLeanSpringConstant;
@@ -61,7 +62,7 @@ protected:
 	float						mLeanSmoothingFactor;
 
 	// Run-time calculated target lean vector
-public: // NICK NEW
+
 	Vec3						mTargetLean = Vec3::sZero();
 
 	// Run-time total angular impulse applied to turn the cycle towards the target lean angle

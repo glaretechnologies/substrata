@@ -36,6 +36,9 @@ static const float half_vehicle_length = 9.f/*10.f*/ / 2 * ob_to_world_scale;
 static const float half_vehicle_height = 3.2f/*3.5f*/ / 2 * ob_to_world_scale;
 static const float max_steering_angle = JPH::DegreesToRadians(30);
 
+static const float lean_spring_constant = 2000.f;
+static const float lean_spring_damping = 500.f; // This seems to cause the instability
+
 
 BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, PhysicsWorld& physics_world, glare::AudioEngine* audio_engine, const std::string& base_dir_path)
 :	m_opengl_engine(NULL),
@@ -186,8 +189,8 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	JPH::MotorcycleControllerSettings* controller_settings = new JPH::MotorcycleControllerSettings();
 	vehicle.mController = controller_settings;
 
-	controller_settings->mLeanSpringConstant = 2000.f;
-	controller_settings->mLeanSpringDamping = 500.f; // This seems to cause the instability
+	controller_settings->mLeanSpringConstant = lean_spring_constant;
+	controller_settings->mLeanSpringDamping = lean_spring_damping;
 	controller_settings->mLeanSmoothingFactor = 0.9f;
 	controller_settings->mMaxLeanAngle = JPH::DegreesToRadians(60.f);
 
@@ -207,6 +210,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	controller_settings->mTransmission.mShiftDownRPM = 5000.0f;
 	controller_settings->mTransmission.mShiftUpRPM = 9000.0f;
 	controller_settings->mTransmission.mGearRatios = { 2.27f, 1.63f, 1.3f, 1.09f, 0.96f, 0.88f }; // From: https://www.blocklayer.com/rpm-gear-bikes
+	controller_settings->mTransmission.mSwitchTime = 0.2f;
 
 
 	vehicle_constraint = new JPH::VehicleConstraint(*bike_body, vehicle);
@@ -459,6 +463,9 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	if(user_in_driver_seat)
 	{
 		//vehicle_constraint->SetMaxRollAngle(JPH::DegreesToRadians(0.f));
+		assert(dynamic_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController()));
+		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringConstant = lean_spring_constant;
+		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringDamping = lean_spring_damping;
 
 
 		//TEMP make bike float for testing constraints:
@@ -559,6 +566,9 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	else // Else if cur_seat_index != 0:
 	{
 		//vehicle_constraint->SetMaxRollAngle(JPH::JPH_PI); // user is not on bike, so deactivate roll constraint.
+		assert(dynamic_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController()));
+		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringConstant = 0;
+		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringDamping = 0;
 	}
 
 	
