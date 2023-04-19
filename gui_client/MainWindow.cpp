@@ -2714,7 +2714,8 @@ bool MainWindow::objectModificationAllowed(const WorldObject& ob)
 	}
 	else
 	{
-		return (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id) ||
+		return (this->logged_in_user_id == ob.creator_id) || // If the logged in user created the object,
+			isGodUser(this->logged_in_user_id) || // Or the user is the 'god' (superadmin) user,
 			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)) || // If this is the personal world of the user:
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob);
 	}
@@ -2738,7 +2739,8 @@ bool MainWindow::objectModificationAllowedWithMsg(const WorldObject& ob, const s
 	}
 	else
 	{
-		const bool logged_in_user_can_modify = (this->logged_in_user_id == ob.creator_id) || isGodUser(this->logged_in_user_id) ||
+		const bool logged_in_user_can_modify = (this->logged_in_user_id == ob.creator_id) || // If the logged in user created the object
+			isGodUser(this->logged_in_user_id) || // Or the user is the 'god' (superadmin) user,
 			(!server_worldname.empty() && (server_worldname == this->logged_in_user_name)) || // If this is the personal world of the user:
 			objectIsInParcelForWhichLoggedInUserHasWritePerms(ob); // Can modify objects owned by other people if they are in parcels you have write permissions for.
 		
@@ -5651,7 +5653,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			if(dist2 < Maths::square(MAX_AUDIO_DIST)) // Only do tracing for nearby objects
 			{
 				const float dist = std::sqrt(dist2);
-				const Vec4f trace_dir = (source->pos - campos) / dist; // Trace from camera to source position
+				const Vec4f trace_dir = (dist == 0) ? Vec4f(1,0,0,0) : ((source->pos - campos) / dist); // Trace from camera to source position
 				assert(trace_dir.isUnitLength());
 
 				const float use_dist = myMax(0.f, dist - 1.f); // Ignore intersections with x metres of the source.  This is so meshes that contain the source (e.g. speaker models)
@@ -7293,9 +7295,9 @@ bool MainWindow::clampObjectPositionToParcelForNewTransform(const WorldObject& o
 	Vec3d parcel_aabb_min;
 	Vec3d parcel_aabb_max;
 
-	// If god user, or if this is the personal world of the user:
-	if(isGodUser(this->logged_in_user_id) || (server_worldname != "" && server_worldname == this->logged_in_user_name) ||
-		(BitUtils::isBitSet(logged_in_user_flags, User::WORLD_GARDENER_FLAG) && (ob.creator_id == this->logged_in_user_id)))
+	if(isGodUser(this->logged_in_user_id) || (server_worldname != "" && server_worldname == this->logged_in_user_name) || // If god user, or if this is the personal world of the user:
+		(BitUtils::isBitSet(logged_in_user_flags, User::WORLD_GARDENER_FLAG) && (ob.creator_id == this->logged_in_user_id)) || // Or if the user is a world-gardener, and they created this object
+		((ob.creator_id == this->logged_in_user_id) && BitUtils::isBitSet(ob.flags, WorldObject::SUMMONED_FLAG))) // Or if the user created this object by summoning it (e.g. this is their bike or hovercar).
 	{
 		const Vec4f newpos = tentative_to_world_matrix.getColumn(3);
 		new_ob_pos_out = Vec3d(newpos[0], newpos[1], newpos[2]); // New object position
