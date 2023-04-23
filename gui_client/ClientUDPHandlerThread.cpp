@@ -62,6 +62,7 @@ struct AvatarVoiceStreamInfo
 {
 	Reference<glare::AudioSource> avatar_audio_source;
 	OpusDecoder* opus_decoder;
+	uint32 sampling_rate;
 };
 
 
@@ -79,6 +80,7 @@ void ClientUDPHandlerThread::doRun()
 
 		std::vector<uint8> packet_buf(4096);
 		std::vector<float> pcm_buffer(480);
+		std::vector<float> resampled_pcm_buffer(480);
 
 		uint32 next_seq_num_expected = 0;
 
@@ -101,18 +103,20 @@ void ClientUDPHandlerThread::doRun()
 					// If there is an avatar not in our avatar_stream_info map, that has an audio source, add it to our map.
 					if(av->audio_source.nonNull() && (avatar_stream_info.count((uint32)av->uid.value()) == 0))
 					{
-						conPrint("Creating Opus decoder for avatar");
+						const uint32 sampling_rate = av->audio_stream_sampling_rate; // TODO: sanity check? audio_stream_sampling_rate is remote user-controlled data
+
+						conPrint("Creating Opus decoder for avatar, sampling_rate: " + toString(sampling_rate));
 
 						int opus_error = 0;
 						OpusDecoder* opus_decoder = opus_decoder_create(
-							48000, // sampling rate
+							sampling_rate, // sampling rate
 							1, // channels
 							&opus_error
 						);
 						if(opus_error != OPUS_OK)
 							throw glare::Exception("opus_decoder_create failed.");
 
-						avatar_stream_info[(uint32)av->uid.value()] = AvatarVoiceStreamInfo({av->audio_source, opus_decoder});
+						avatar_stream_info[(uint32)av->uid.value()] = AvatarVoiceStreamInfo({av->audio_source, opus_decoder, sampling_rate});
 					}
 				}
 
@@ -194,31 +198,57 @@ void ClientUDPHandlerThread::doRun()
 									const int num_samples_decoded = opus_decode_float(stream_info->opus_decoder, packet_buf.data() + packet_header_size_B, (int32)opus_packet_len, pcm_buffer.data(), (int)pcm_buffer.size(), 
 										0 // decode_fec
 									);
-									if(num_samples_decoded < 0)
-									{
-										conPrint("Opus decoding failed: " + toString(num_samples_decoded));
-									}
+
+									if(num_samples_decoded != stream_info->sampling_rate / 100)
+										conPrint("Unexpected number of samples");
 									else
 									{
-										// Append to audio source buffer
-										Lock lock(audio_engine->mutex);
-
-										// If too much data is queued up for this audio source:
-										if(stream_info->avatar_audio_source->buffer.size() > 4096) // 4096 samples ~= 85 ms at 48 khz
+										const float* final_pcm_data;
+										if(stream_info->sampling_rate != 48000)
 										{
-											// Pop all but 2048 items from the buffer.
-											const size_t num_samples_to_remove = stream_info->avatar_audio_source->buffer.size() - 2048;
-											conPrint("Audio source buffer too full, removing " + toString(num_samples_to_remove) + " samples");
+											conPrint("Resampling");
 
-											stream_info->avatar_audio_source->buffer.popFrontNItems(num_samples_to_remove);
+											// Resample to 48000 hz.  TODO: use better resampling?
+
+											const int ratio = 48000 / stream_info->sampling_rate;
+
+											for(int i=0; i<480; ++i)
+												resampled_pcm_buffer[i] = pcm_buffer[i / ratio];
+
+											final_pcm_data = resampled_pcm_buffer.data();
+										}
+										else
+										{
+											final_pcm_data = pcm_buffer.data();
 										}
 
-										stream_info->avatar_audio_source->buffer.pushBackNItems(pcm_buffer.data(), num_samples_decoded);
+
+										if(num_samples_decoded < 0)
+										{
+											conPrint("Opus decoding failed: " + toString(num_samples_decoded));
+										}
+										else
+										{
+											// Append to audio source buffer
+											Lock lock(audio_engine->mutex);
+
+											// If too much data is queued up for this audio source:
+											if(stream_info->avatar_audio_source->buffer.size() > 4096) // 4096 samples ~= 85 ms at 48 khz
+											{
+												// Pop all but 2048 items from the buffer.
+												const size_t num_samples_to_remove = stream_info->avatar_audio_source->buffer.size() - 2048;
+												conPrint("Audio source buffer too full, removing " + toString(num_samples_to_remove) + " samples");
+
+												stream_info->avatar_audio_source->buffer.popFrontNItems(num_samples_to_remove);
+											}
+
+											stream_info->avatar_audio_source->buffer.pushBackNItems(final_pcm_data, 480);
+										}
+
+										// conPrint("ClientUDPHandlerThread: decoded " + toString(num_samples_decoded) + " samples.");
+
+										next_seq_num_expected++;
 									}
-
-									// conPrint("ClientUDPHandlerThread: decoded " + toString(num_samples_decoded) + " samples.");
-
-									next_seq_num_expected++;
 								}
 							}
 							else

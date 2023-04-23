@@ -4707,8 +4707,52 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
 
 
-				Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port);
+				Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(&this->msg_queue, this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port);
 				mic_read_thread_manager.addThread(mic_read_thread);
+			}
+			else if(dynamic_cast<const AudioStreamToServerStartedMessage*>(msg.getPointer()))
+			{
+				// Sent by MicReadThread
+
+				const AudioStreamToServerStartedMessage* m = static_cast<const AudioStreamToServerStartedMessage*>(msg.getPointer());
+
+				// Make AudioStreamToServerStarted packet and enqueue to send
+				MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
+				scratch_packet.writeUInt32(m->sampling_rate);
+
+				enqueueMessageToSend(*this->client_thread, scratch_packet);
+			}
+			else if(dynamic_cast<const RemoteClientAudioStreamToServerStarted*>(msg.getPointer()))
+			{
+				// Sent by ClientThread after receiving message from server.
+
+				const RemoteClientAudioStreamToServerStarted* m = static_cast<const RemoteClientAudioStreamToServerStarted*>(msg.getPointer());
+
+				const UID avatar_uid = m->avatar_uid;
+				if(world_state.nonNull())
+				{
+					Lock lock(this->world_state->mutex);
+
+					auto res = this->world_state->avatars.find(m->avatar_uid);
+					if(res != this->world_state->avatars.end())
+					{
+						Avatar* avatar = res->second.getPointer();
+
+						if(avatar->audio_source.isNull() && !avatar->isOurAvatar())
+						{
+							avatar->audio_stream_sampling_rate = m->sampling_rate;
+
+							// Add audio source for voice chat
+							avatar->audio_source = new glare::AudioSource();
+							avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
+							avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+
+							audio_engine.addSource(avatar->audio_source);
+
+							world_state->avatars_changed = 1; // Inform ClientUDPHandlerThread
+						}
+					}
+				}
 			}
 			else if(dynamic_cast<const ClientProtocolTooOldMessage*>(msg.getPointer()))
 			{
@@ -5795,15 +5839,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						enableMaterialisationEffectOnAvatar(*avatar); // Enable materialisation effect before we call loadModelForAvatar() below.
 
-						// Add audio source for voice chat
-						if(!our_avatar)
-						{
-							avatar->audio_source = new glare::AudioSource();
-							avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
-							avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+						//// Add audio source for voice chat
+						//if(!our_avatar)
+						//{
+						//	avatar->audio_source = new glare::AudioSource();
+						//	avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
+						//	avatar->audio_source->pos = avatar->pos.toVec4fPoint();
 
-							audio_engine.addSource(avatar->audio_source);
-						}
+						//	audio_engine.addSource(avatar->audio_source);
+						//}
 					}
 
 					if(avatar->other_dirty)

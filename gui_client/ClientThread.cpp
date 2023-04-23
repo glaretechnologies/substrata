@@ -224,6 +224,17 @@ void ClientThread::doRun()
 						this->all_objects_received = true;
 						break;
 					}
+				case Protocol::AudioStreamToServerStarted:
+					{
+						conPrint("ClientThread: received Protocol::AudioStreamToServerStarted");
+
+						const UID avatar_uid = readUIDFromStream(msg_buffer);
+						const uint32 sampling_rate = msg_buffer.readUInt32();
+
+						out_msg_queue->enqueue(new RemoteClientAudioStreamToServerStarted(avatar_uid, sampling_rate)); // Inform MainWindow
+
+						break;
+					}
 				case Protocol::AvatarTransformUpdate:
 					{
 						//conPrint("AvatarTransformUpdate");

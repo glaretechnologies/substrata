@@ -22,6 +22,7 @@ Copyright Glare Technologies Limited 2023 -
 #include <Functiondiscoverykeys_devpkey.h>
 #endif
 #include <opus.h>
+#include <Timer.h>
 
 
 #if defined(_WIN32)
@@ -37,8 +38,8 @@ namespace glare
 {
 
 
-MicReadThread::MicReadThread(Reference<UDPSocket> udp_socket_, UID client_avatar_uid_, const std::string& server_hostname_, int server_port_)
-:	udp_socket(udp_socket_), client_avatar_uid(client_avatar_uid_), server_hostname(server_hostname_), server_port(server_port_)
+MicReadThread::MicReadThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, Reference<UDPSocket> udp_socket_, UID client_avatar_uid_, const std::string& server_hostname_, int server_port_)
+:	out_msg_queue(out_msg_queue_), udp_socket(udp_socket_), client_avatar_uid(client_avatar_uid_), server_hostname(server_hostname_), server_port(server_port_)
 {
 }
 
@@ -165,7 +166,8 @@ void MicReadThread::doRun()
 			NULL);
 		throwOnError(hr);
 
-		printVar((uint32)((WAVEFORMATEX*)format)->nSamplesPerSec);
+		const uint32 sampling_rate = (uint32)((WAVEFORMATEX*)format)->nSamplesPerSec;
+		printVar(sampling_rate);
 
 		// Get the size of the allocated buffer.
 		UINT32 bufferFrameCount;
@@ -186,9 +188,14 @@ void MicReadThread::doRun()
 		//----------------------------------------------------------------------------------------
 
 		//-------------------------------------- Opus init --------------------------------------------------
+
+		// TODO: resample instead of throwing an error, if sampling rate is not supported.
+		if(!((sampling_rate == 8000) || (sampling_rate == 12000) || (sampling_rate == 16000) || (sampling_rate == 24000) ||(sampling_rate == 48000))) // Sampling rates Opus encoder supports.
+			throw glare::Exception("Microphone device used an unsupported sampling rate: " + toString(sampling_rate) + " hz.");
+
 		int opus_error = 0;
 		OpusEncoder* opus_encoder = opus_encoder_create(
-			48000, // sampling rate
+			sampling_rate, // sampling rate
 			1, // channels
 			OPUS_APPLICATION_VOIP, // application
 			&opus_error
@@ -201,6 +208,8 @@ void MicReadThread::doRun()
 		//if(ret != OPUS_OK)
 		//	throw glare::Exception("opus_encoder_ctl failed.");
 		//-------------------------------------- Opus init --------------------------------------------------
+
+		out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(sampling_rate));
 
 		//-------------------------------------- UDP socket init --------------------------------------------------
 
@@ -217,9 +226,19 @@ void MicReadThread::doRun()
 
 		uint32 seq_num = 0;
 
+		Timer time_since_last_stream_to_server_msg_sent;
+
 		//------------------------ Process audio output stream ------------------------
 		while(die == 0) // Keep reading audio until we are told to quit
 		{
+			if(time_since_last_stream_to_server_msg_sent.elapsed() > 2.0)
+			{
+				// Re-send, in case other clients connect
+				out_msg_queue->enqueue(new AudioStreamToServerStartedMessage(sampling_rate));
+				time_since_last_stream_to_server_msg_sent.reset();
+			}
+
+
 			while(die == 0) // Loop while there is data to be read immediately:
 			{
 				// Get the available data in the shared buffer.
@@ -258,13 +277,17 @@ void MicReadThread::doRun()
 					}
 				}
 
+				// "To encode a frame, opus_encode() or opus_encode_float() must be called with exactly one frame (2.5, 5, 10, 20, 40 or 60 ms) of audio data:"
+				// We will use 10ms frames.
+				const size_t samples_per_frame = sampling_rate / 100;
+
 				// Encode the PCM data with Opus.  Writes to encoded_data.
-				while(write_index >= 480)
+				while(write_index >= samples_per_frame)
 				{
 					const opus_int32 encoded_B = opus_encode_float(
 						opus_encoder,
 						pcm_buffer.data(),
-						480, // frame size (in samples)
+						(int)samples_per_frame, // frame size (in samples)
 						encoded_data.data(), // data
 						(opus_int32)encoded_data.size() // max_data_bytes
 					);
@@ -272,11 +295,11 @@ void MicReadThread::doRun()
 					if(encoded_B < 0)
 						throw glare::Exception("opus_encode failed: " + toString(encoded_B));
 
-					// Remove first 480 samples from pcm_buffer, copy remaining data to front of buffer
-					for(size_t z=480; z<write_index; ++z)
-						pcm_buffer[z - 480] = pcm_buffer[z];
+					// Remove first samples_per_frame samples from pcm_buffer, copy remaining data to front of buffer
+					for(size_t z=samples_per_frame; z<write_index; ++z)
+						pcm_buffer[z - samples_per_frame] = pcm_buffer[z];
 
-					write_index -= 480;
+					write_index -= samples_per_frame;
 
 					// Form packet
 					const size_t header_size_B = sizeof(uint32) * 3;
