@@ -88,6 +88,15 @@ public:
 };
 
 
+class RemoteClientAudioStreamToServerStarted : public ThreadMessage
+{
+public:
+	RemoteClientAudioStreamToServerStarted(UID avatar_uid_, const uint32 sampling_rate_) : avatar_uid(avatar_uid_), sampling_rate(sampling_rate_) {}
+	UID avatar_uid;
+	uint32 sampling_rate;
+};
+
+
 class UserSelectedObjectMessage : public ThreadMessage
 {
 public:

@@ -13,6 +13,15 @@ Copyright Glare Technologies Limited 2023 -
 #include <utils/Vector.h>
 
 
+class AudioStreamToServerStartedMessage : public ThreadMessage
+{
+public:
+	AudioStreamToServerStartedMessage(uint32 sampling_rate_) : sampling_rate(sampling_rate_) {}
+	
+	uint32 sampling_rate;
+};
+
+
 namespace glare
 {
 
@@ -28,7 +37,7 @@ Reads audio from microphone, encodes with Opus, streams to server over UDP conne
 class MicReadThread : public MessageableThread
 {
 public:
-	MicReadThread(Reference<UDPSocket> udp_socket, UID client_avatar_uid, const std::string& server_hostname, int server_port);
+	MicReadThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue, Reference<UDPSocket> udp_socket, UID client_avatar_uid, const std::string& server_hostname, int server_port);
 	~MicReadThread();
 
 	virtual void doRun() override;
@@ -36,6 +45,7 @@ public:
 	virtual void kill() override { die = 1; }
 
 private:
+	ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue;
 	glare::AtomicInt die;
 	Reference<UDPSocket> udp_socket;
 	UID client_avatar_uid;

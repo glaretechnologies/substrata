@@ -44,6 +44,8 @@ const uint32 ClientProtocolTooNew	= 10002;
 const uint32 CyberspaceGoodbye		= 10010;
 const uint32 ClientUDPSocketOpen	= 10003;
 
+const uint32 AudioStreamToServerStarted			= 10020;
+
 const uint32 ConnectionTypeUpdates				= 500;
 const uint32 ConnectionTypeUploadResource		= 501;
 const uint32 ConnectionTypeDownloadResources	= 502;

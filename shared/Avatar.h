@@ -134,6 +134,7 @@ public:
 	float materialise_effect_start_time;
 
 	Reference<glare::AudioSource> audio_source;
+	uint32 audio_stream_sampling_rate; // NOTE: remote-user controlled data.
 #endif
 
 	/*

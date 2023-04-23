@@ -1045,8 +1045,26 @@ void WorkerThread::doRun()
 					case Protocol::ClientUDPSocketOpen:
 						{
 							conPrint("WorkerThread: received Protocol::ClientUDPSocketOpen");
-							const int client_UDP_port = msg_buffer.readUInt32();
+							const uint32 client_UDP_port = msg_buffer.readUInt32();
 							server->clientUDPPortOpen(this, socket->getOtherEndIPAddress(), client_UDP_port);
+							break;
+						}
+					case Protocol::AudioStreamToServerStarted:
+						{
+							conPrint("WorkerThread: received Protocol::AudioStreamToServerStarted");
+
+							const uint32 sampling_rate = msg_buffer.readUInt32();
+
+							// Send message to all clients
+							{
+								MessageUtils::initPacket(scratch_packet, Protocol::AudioStreamToServerStarted);
+								writeToStream(client_avatar_uid, scratch_packet); // Send client avatar UID as well.
+								scratch_packet.writeUInt32(sampling_rate);
+								MessageUtils::updatePacketLengthField(scratch_packet);
+
+								enqueuePacketToBroadcast(scratch_packet, server);
+							}
+
 							break;
 						}
 					case Protocol::AvatarTransformUpdate:
