@@ -5761,7 +5761,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			for(auto it = this->world_state->avatars.begin(); it != this->world_state->avatars.end();)
 			{
 				Avatar* avatar = it->second.getPointer();
-				const bool our_avatar = avatar->uid == this->client_avatar_uid;
+				const bool our_avatar = avatar->isOurAvatar();
 
 				if(avatar->state == Avatar::State_Dead)
 				{
@@ -5795,11 +5795,15 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					{
 						enableMaterialisationEffectOnAvatar(*avatar); // Enable materialisation effect before we call loadModelForAvatar() below.
 
-						avatar->audio_source = new glare::AudioSource();
-						avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
-						avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+						// Add audio source for voice chat
+						if(!our_avatar)
+						{
+							avatar->audio_source = new glare::AudioSource();
+							avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
+							avatar->audio_source->pos = avatar->pos.toVec4fPoint();
 
-						audio_engine.addSource(avatar->audio_source);
+							audio_engine.addSource(avatar->audio_source);
+						}
 					}
 
 					if(avatar->other_dirty)

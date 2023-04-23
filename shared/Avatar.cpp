@@ -54,6 +54,8 @@ Avatar::Avatar()
 	selected_object_uid = UID::invalidUID();
 
 #if GUI_CLIENT
+	our_avatar = false;
+
 	name_colour = Colour3f(0.8f);
 
 	avatar_settings.pre_ob_to_world_matrix = Matrix4f::identity();

@@ -79,6 +79,9 @@ public:
 
 	void copyNetworkStateFrom(const Avatar& other);
 
+#if GUI_CLIENT
+	bool isOurAvatar() const { return our_avatar; }
+#endif
 	
 
 	UID uid;
@@ -105,6 +108,7 @@ public:
 
 	//Reference<GLObject> opengl_engine_ob;
 #if GUI_CLIENT
+	bool our_avatar;
 
 	Colour3f name_colour;
 
