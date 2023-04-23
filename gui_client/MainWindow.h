@@ -47,6 +47,7 @@ Copyright Glare Technologies Limited 2018 -
 #include <unordered_set>
 #include <unordered_map>
 #include <deque>
+class UDPSocket;
 class ArgumentParser;
 namespace Ui { class MainWindow; }
 class TextureServer;
@@ -365,8 +366,12 @@ public:
 	Timer time_since_last_timer_ev;
 	Timer time_since_update_packet_sent;
 
+	Reference<UDPSocket> udp_socket;
+
 	Reference<ClientThread> client_thread;
 	ThreadManager client_thread_manager;
+	ThreadManager client_udp_handler_thread_manager;
+	ThreadManager mic_read_thread_manager;
 	ThreadManager resource_upload_thread_manager;
 	ThreadManager resource_download_thread_manager;
 	ThreadManager net_resource_download_thread_manager;

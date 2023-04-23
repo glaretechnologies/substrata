@@ -14,6 +14,7 @@ Generated at 2016-01-12 12:24:54 +1300
 #include "../gui_client/MeshManager.h"
 #include "../gui_client/AvatarGraphics.h"
 #include "../gui_client/HoverCarPhysics.h"
+#include "../audio/AudioEngine.h"
 #endif
 #include <utils/ConPrint.h>
 #include <utils/StringUtils.h>

@@ -35,6 +35,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "GoToParcelDialog.h"
 #include "ResetPasswordDialog.h"
 #include "ChangePasswordDialog.h"
+#include "ClientUDPHandlerThread.h"
 #include "URLWidget.h"
 #include "URLWhitelist.h"
 #include "URLParser.h"
@@ -43,6 +44,7 @@ Copyright Glare Technologies Limited 2020 -
 #include "LoadTextureTask.h"
 #include "LoadAudioTask.h"
 #include "../audio/MP3AudioFileReader.h"
+#include "../audio/MicReadThread.h"
 #include "MakeHypercardTextureTask.h"
 #include "SaveResourcesDBThread.h"
 #include "CameraController.h"
@@ -162,7 +164,8 @@ Copyright Glare Technologies Limited 2020 -
 #endif
 
 
-const int server_port = 7600;
+static const int server_port = 7600;
+static const int server_UDP_port = 7601;
 
 
 static const double ground_quad_w = 2000.f; // TEMP was 1000, 2000 is for CV rendering
@@ -607,6 +610,8 @@ MainWindow::~MainWindow()
 	}
 
 	client_thread_manager.killThreadsBlocking();
+	client_udp_handler_thread_manager.killThreadsBlocking();
+	mic_read_thread_manager.killThreadsBlocking();
 	resource_upload_thread_manager.killThreadsBlocking();
 	resource_download_thread_manager.killThreadsBlocking();
 	net_resource_download_thread_manager.killThreadsBlocking();
@@ -4614,6 +4619,49 @@ void MainWindow::timerEvent(QTimerEvent* event)
 				// If the script is unloaded, then this will allow it to be reprocessed and reloaded.
 				script_content_processing.erase(loaded_msg->script);
 			}
+			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
+			{
+				this->connection_state = ServerConnectionState_Connecting;
+				updateStatusBar();
+
+				const IPAddress server_ip_addr = static_cast<const ClientConnectingToServerMessage*>(msg.getPointer())->server_ip;
+
+				// Now that we have the server IP address, start UDP thread.
+				try
+				{
+					logAndConPrintMessage("Creating UDP socket...");
+
+					udp_socket = new UDPSocket();
+					udp_socket->createClientSocket(/*use_IPv6=*/server_ip_addr.getVersion() == IPAddress::Version_6);
+
+					// Send dummy packet to server to make the OS bind the socket to a local port.
+					uint32 dummy_type = 6;
+					udp_socket->sendPacket(&dummy_type, sizeof(dummy_type), server_ip_addr, server_UDP_port);
+
+					const int local_UDP_port = udp_socket->getThisEndPort(); // UDP socket should be bound now; get port.
+
+					logAndConPrintMessage("Created UDP socket, local_UDP_port: " + toString(local_UDP_port));
+
+					// Create ClientUDPHandlerThread for handling incoming UDP messages from server
+					Reference<ClientUDPHandlerThread> udp_handler_thread = new ClientUDPHandlerThread(udp_socket, server_hostname, this->world_state.ptr(), &this->audio_engine);
+					client_udp_handler_thread_manager.addThread(udp_handler_thread);
+
+					// Send ClientUDPSocketOpen message - inform the server what UDP port we are listening on.
+					{
+						MessageUtils::initPacket(scratch_packet, Protocol::ClientUDPSocketOpen);
+						scratch_packet.writeUInt32(local_UDP_port);
+						enqueueMessageToSend(*this->client_thread, scratch_packet);
+					}
+				}
+				catch(glare::Exception& e)
+				{
+					conPrint(e.what());
+					QMessageBox msgBox;
+					msgBox.setText(QtUtils::toQString(e.what()));
+					msgBox.exec();
+					return;
+				}
+			}
 			else if(dynamic_cast<const ClientConnectedToServerMessage*>(msg.getPointer()))
 			{
 				this->connection_state = ServerConnectionState_Connected;
@@ -4657,11 +4705,10 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 				audio_engine.playOneShotSound(base_dir_path + "/resources/sounds/462089__newagesoup__ethereal-woosh_normalised_mono.wav", 
 					(this->cam_controller.getFirstPersonPosition() + Vec3d(0, 0, -1)).toVec4fPoint());
-			}
-			else if(dynamic_cast<const ClientConnectingToServerMessage*>(msg.getPointer()))
-			{
-				this->connection_state = ServerConnectionState_Connecting;
-				updateStatusBar();
+
+
+				Reference<glare::MicReadThread> mic_read_thread = new glare::MicReadThread(this->udp_socket, this->client_avatar_uid, server_hostname, server_UDP_port);
+				mic_read_thread_manager.addThread(mic_read_thread);
 			}
 			else if(dynamic_cast<const ClientProtocolTooOldMessage*>(msg.getPointer()))
 			{
@@ -5737,13 +5784,23 @@ void MainWindow::timerEvent(QTimerEvent* event)
 					this->world_state->avatars.erase(old_avatar_iterator);
 
 					updateOnlineUsersList();
+
+					world_state->avatars_changed = 1;
 				}
 				else
 				{
 					bool reload_opengl_model = false; // load or reload model?
 
 					if(avatar->state == Avatar::State_JustCreated)
+					{
 						enableMaterialisationEffectOnAvatar(*avatar); // Enable materialisation effect before we call loadModelForAvatar() below.
+
+						avatar->audio_source = new glare::AudioSource();
+						avatar->audio_source->type = glare::AudioSource::SourceType_Streaming;
+						avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+
+						audio_engine.addSource(avatar->audio_source);
+					}
 
 					if(avatar->other_dirty)
 					{
@@ -6065,6 +6122,13 @@ void MainWindow::timerEvent(QTimerEvent* event)
 						ui->glWidget->opengl_engine->updateObjectTransformData(*avatar->opengl_engine_nametag_ob); // Update transform in 3d engine
 					}
 
+					// Update avatar audio source position
+					if(avatar->audio_source.nonNull())
+					{
+						avatar->audio_source->pos = avatar->pos.toVec4fPoint();
+						audio_engine.sourcePositionUpdated(*avatar->audio_source);
+					}
+
 					// Update selected object beam for the avatar, if it has an object selected
 					// TEMP: Disabled this code as it was messing with objects being edited.
 					/*if(avatar->selected_object_uid.valid())
@@ -6103,7 +6167,11 @@ void MainWindow::timerEvent(QTimerEvent* event)
 
 					assert(avatar->state == Avatar::State_JustCreated || avatar->state == Avatar::State_Alive);
 					if(avatar->state == Avatar::State_JustCreated)
+					{
 						avatar->state = Avatar::State_Alive;
+
+						world_state->avatars_changed = 1;
+					}
 
 					++it;
 				} // End if avatar state != dead.
@@ -10145,6 +10213,8 @@ void MainWindow::visitSubURL(const std::string& URL) // Visit a substrata 'sub:/
 
 void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObjectRefs held by MainWindow.
 {
+	udp_socket = NULL;
+
 	load_item_queue.clear();
 	model_and_texture_loader_task_manager.cancelAndWaitForTasksToComplete(); 
 	model_loaded_messages_to_process.clear();
@@ -10154,6 +10224,8 @@ void MainWindow::disconnectFromServerAndClearAllObjects() // Remove any WorldObj
 	resource_download_thread_manager.killThreadsBlocking();
 	net_resource_download_thread_manager.killThreadsBlocking();
 	resource_upload_thread_manager.killThreadsBlocking();
+	client_udp_handler_thread_manager.killThreadsBlocking();
+	mic_read_thread_manager.killThreadsBlocking();
 
 	if(client_thread.nonNull())
 	{
@@ -12794,7 +12866,7 @@ int main(int argc, char *argv[])
 		std::setlocale(LC_ALL, "C");
 
 		Clock::init();
-		Networking::createInstance();
+		Networking::init();
 		Winter::VirtualMachine::init();
 		TLSSocket::initTLS();
 
@@ -13325,7 +13397,7 @@ int main(int argc, char *argv[])
 #endif
 		OpenSSL::shutdown();
 		Winter::VirtualMachine::shutdown();
-		Networking::destroyInstance();
+		Networking::shutdown();
 #if defined(_WIN32)
 		if(com_init_success) WMFVideoReader::shutdownCOM();
 #endif
