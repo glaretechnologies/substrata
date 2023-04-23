@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 	try
 	{
 		Clock::init();
-		Networking::createInstance();
+		Networking::init();
 		PlatformUtils::ignoreUnixSignals();
 		TLSSocket::initTLS();
 

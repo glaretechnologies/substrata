@@ -39,6 +39,9 @@ public:
 
 	std::map<UID, Reference<Avatar>> avatars GUARDED_BY(mutex);
 
+	glare::AtomicInt avatars_changed;
+
+
 	glare::FastIterMap<UID, WorldObjectRef, UIDHasher> objects GUARDED_BY(mutex);
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_remote_objects GUARDED_BY(mutex);
 	std::unordered_set<WorldObjectRef, WorldObjectRefHash> dirty_from_local_objects GUARDED_BY(mutex);

@@ -49,6 +49,7 @@ Copyright Glare Technologies Limited 2021 -
 #include "../ethereum/Infura.h"
 #include <WebWorkerThreadTests.h>//TEMP for testing
 #include <WebListenerThread.h>
+#include "UDPHandlerThread.h"
 #if USE_GLARE_PARCEL_AUCTION_CODE
 #include "../webserver/CoinbasePollerThread.h"
 #include "../webserver/OpenSeaPollerThread.h"
@@ -409,7 +410,7 @@ static ServerConfig parseServerConfig(const std::string& config_path)
 int main(int argc, char *argv[])
 {
 	Clock::init();
-	Networking::createInstance();
+	Networking::init();
 	PlatformUtils::ignoreUnixSignals();
 	TLSSocket::initTLS();
 
@@ -792,6 +793,8 @@ int main(int argc, char *argv[])
 
 		//thread_manager.addThread(new ChunkGenThread(server.world_state.ptr()));
 
+		server.udp_handler_thread_manager.addThread(new UDPHandlerThread(&server));
+
 		Timer save_state_timer;
 
 		// A map from world name to a vector of packets to send to clients connected to that world.
@@ -1155,7 +1158,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	Networking::destroyInstance();
+	Networking::shutdown();
 	return 0;
 }
 
@@ -1169,4 +1172,31 @@ Server::Server()
 double Server::getCurrentGlobalTime() const
 {
 	return Clock::getTimeSinceInit();
+}
+
+
+void Server::clientUDPPortOpen(WorkerThread* worker_thread, const IPAddress& ip_addr, int client_UDP_port)
+{
+	conPrint("Server::clientUDPPortOpen(): worker_thread: 0x" + toHexString((uint64)worker_thread) + ", ip_addr: " + ip_addr.toString() + ", port: " + toString(client_UDP_port));
+
+	{
+		Lock lock(connected_clients_mutex);
+		if(connected_clients.count(worker_thread) == 0)
+		{
+			connected_clients.insert(std::make_pair(worker_thread, ServerConnectedClientInfo({ip_addr, /*client_UDP_port=*/client_UDP_port})));
+			connected_clients_changed = 1;
+		}
+	}
+}
+
+
+void Server::clientDisconnected(WorkerThread* worker_thread)
+{
+	conPrint("Server::clientDisconnected(): worker_thread: 0x" + toHexString((uint64)worker_thread));
+
+	{
+		Lock lock(connected_clients_mutex);
+		connected_clients.erase(worker_thread);
+		connected_clients_changed = 1;
+	}
 }

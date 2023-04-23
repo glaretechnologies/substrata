@@ -229,6 +229,8 @@ SET(audio
 ../audio/StreamerThread.h
 ../audio/WavAudioFileReader.cpp
 ../audio/WavAudioFileReader.h
+../audio/MicReadThread.cpp
+../audio/MicReadThread.h
 )
 
 include_directories(${GLARE_CORE_TRUNK_DIR_ENV}/webserver)
@@ -483,6 +485,15 @@ include_directories(../resonance-audio/third_party/eigen)
 include_directories(../resonance-audio/third_party/pffft)
 
 
+
+#============== Opus ==============
+
+set(OPUS_ROOT "${CMAKE_SOURCE_DIR}/opus/opus-1.3.1")
+include(../opus/opus.cmake)
+
+include_directories(${OPUS_ROOT}/include)
+
+
 include_directories(${cef_binary_dist_dir}/include)
 include_directories(${cef_binary_dist_dir})
 
@@ -515,6 +526,7 @@ SOURCE_GROUP(rtaudio FILES ${rtaudio})
 SOURCE_GROUP(audio FILES ${audio})
 SOURCE_GROUP(resonance-audio FILES ${resonance})
 SOURCE_GROUP(meshoptimizer FILES ${meshoptimizer})
+SOURCE_GROUP(opus FILES ${opus_src})
 
 
 if(WIN32)
@@ -592,6 +604,7 @@ ${resonance}
 ${meshoptimizer}
 ${rc_stuff}
 ${natvis_files}
+${opus_src}
 )
 
 add_definitions(-DGUI_CLIENT=1)
@@ -669,6 +682,8 @@ if(WIN32)
 		
 		# Jolt physics
 		Jolt
+		
+		Opus
 	)
 	
 	# Chromium embedded framework
@@ -717,6 +732,7 @@ elseif(APPLE)
 			debug     	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 			optimized 	${cef_binary_dist_dir}/libcef_dll_build/libcef_dll_wrapper/libcef_dll_wrapper.a
 			Jolt # Jolt physics
+			Opus
 			)
 	endif()
 
@@ -750,6 +766,7 @@ else() # linux
 		pulse # PulseAudio lib required by RTAudio
 		pulse-simple # PulseAudio lib required by RTAudio
 		Jolt # Jolt physics
+		Opus
 	)
 	
 	if(CEF_SUPPORT)

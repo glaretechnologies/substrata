@@ -15,6 +15,7 @@ Copyright Glare Technologies Limited 2022 -
 #include "../shared/Protocol.h"
 #include "../shared/ProtocolStructs.h"
 #include "../shared/Parcel.h"
+#include <networking/Networking.h>
 #include <vec3.h>
 #include <SocketBufferOutStream.h>
 #include <Exception.h>
@@ -23,6 +24,7 @@ Copyright Glare Technologies Limited 2022 -
 #include <ConPrint.h>
 #include <Clock.h>
 #include <PoolAllocator.h>
+#include <Timer.h>
 
 
 ClientThread::ClientThread(ThreadSafeQueue<Reference<ThreadMessage> >* out_msg_queue_, const std::string& hostname_, int port_,
@@ -56,10 +58,27 @@ void ClientThread::kill()
 }
 
 
+// This executes in the ClientThread context.
+// We call ungracefulShutdown() on the socket.  This results in any current blocking call returning with WSAEINTR ('blocking operation was interrupted by a call to WSACancelBlockingCall')
+static void asyncProcedure(uint64 data)
+{
+	ClientThread* client_thread = (ClientThread*)data;
+	if(client_thread->socket.nonNull())
+		client_thread->socket->ungracefulShutdown();
+
+	client_thread->decRefCount();
+}
+
+
 void ClientThread::killConnection()
 {
+#if defined(_WIN32)
+	this->incRefCount();
+	QueueUserAPC(asyncProcedure, this->getHandle(), /*data=*/(ULONG_PTR)this);
+#else
 	if(socket.nonNull())
 		socket->ungracefulShutdown();
+#endif
 }
 
 
@@ -81,13 +100,19 @@ void ClientThread::doRun()
 
 	try
 	{
+		// Do DNS resolution of server hostname
+		//Timer timer;
+		const std::vector<IPAddress> server_ips = Networking::doDNSLookup(hostname);
+		//conPrint("DNS resolution of '" + hostname + "' took " + timer.elapsedString());
+		const IPAddress server_ip = server_ips[0];
+
 		// Do initial query-response part of protocol
 
 		conPrint("ClientThread Connecting to " + hostname + ":" + toString(port) + "...");
 
-		out_msg_queue->enqueue(new ClientConnectingToServerMessage());
+		out_msg_queue->enqueue(new ClientConnectingToServerMessage(server_ip));
 
-		socket.downcast<MySocket>()->connect(hostname, port);
+		socket.downcast<MySocket>()->connect(server_ip, hostname, port);
 
 		socket = new TLSSocket(socket.downcast<MySocket>(), config, hostname);
 

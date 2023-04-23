@@ -114,6 +114,9 @@ public:
 
 class ClientConnectingToServerMessage : public ThreadMessage
 {
+public:
+	ClientConnectingToServerMessage(const IPAddress& server_ip_) : server_ip(server_ip_) {}
+	IPAddress server_ip;
 };
 
 
@@ -216,7 +219,9 @@ private:
 	EventFD event_fd;
 	std::string hostname;
 	int port;
+public:
 	SocketInterfaceRef socket;
+private:
 	std::string avatar_URL;
 	std::string world_name;
 	struct tls_config* config;

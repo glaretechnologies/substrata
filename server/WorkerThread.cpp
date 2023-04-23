@@ -1042,6 +1042,13 @@ void WorkerThread::doRun()
 							keep_looping = false;
 							break;
 						}
+					case Protocol::ClientUDPSocketOpen:
+						{
+							conPrint("WorkerThread: received Protocol::ClientUDPSocketOpen");
+							const int client_UDP_port = msg_buffer.readUInt32();
+							server->clientUDPPortOpen(this, socket->getOtherEndIPAddress(), client_UDP_port);
+							break;
+						}
 					case Protocol::AvatarTransformUpdate:
 						{
 							//conPrint("AvatarTransformUpdate");
@@ -2377,6 +2384,7 @@ void WorkerThread::doRun()
 	if(write_trace)
 		socket.downcastToPtr<RecordingSocket>()->writeRecordBufToDisk("traces/worker_thread_trace_" + ::toString(Clock::getTimeSinceInit()) + ".bin");
 
+	server->clientDisconnected(this);
 	
 	// Mark avatar corresponding to client as dead.  Note that we want to do this after catching any exceptions, so avatar is removed on broken connections etc.
 	if(cur_world_state.nonNull())

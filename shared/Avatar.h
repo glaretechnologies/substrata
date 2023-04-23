@@ -25,7 +25,7 @@ class AvatarGraphics;
 struct MeshData;
 class WorldObject;
 class VehiclePhysics;
-
+namespace glare { class AudioSource; }
 
 
 #ifdef _WIN32
@@ -128,6 +128,8 @@ public:
 
 	bool use_materialise_effect_on_load; // When the opengl object is loaded, enable materialise effect on the materials.
 	float materialise_effect_start_time;
+
+	Reference<glare::AudioSource> audio_source;
 #endif
 
 	/*

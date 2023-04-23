@@ -526,7 +526,8 @@ void AudioEngine::init()
 	if(!info.isDefaultOutput)
 		throw glare::Exception("Failed to find output audio device");
 
-	unsigned int desired_sample_rate = 44100;// info.preferredSampleRate;
+	//unsigned int desired_sample_rate = 44100;// info.preferredSampleRate;
+	unsigned int desired_sample_rate = 48000;// info.preferredSampleRate;
 
 	RtAudio::StreamParameters parameters;
 	parameters.deviceId = audio->getDefaultOutputDevice();
@@ -545,7 +546,7 @@ void AudioEngine::init()
 
 	this->sample_rate = audio->getStreamSampleRate(); // Get actual sample rate used.
 
-	// conPrint("Using sample rate of " + toString(sample_rate) + " hz");
+	conPrint("Using sample rate of " + toString(sample_rate) + " hz");
 	
 
 	// Resonance audio
