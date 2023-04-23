@@ -90,6 +90,7 @@ void ClientUDPHandlerThread::doRun()
 
 			// conPrint("ClientUDPHandlerThread: Received packet of length " + toString(packet_len) + " from " + sender_ip_addr.toString() + ", port " + toString(sender_port));
 
+			// See if the local avatar list has changed.
 			if(world_state->avatars_changed)
 			{
 				Lock lock(world_state->mutex);
@@ -97,7 +98,8 @@ void ClientUDPHandlerThread::doRun()
 				for(auto it = world_state->avatars.begin(); it != world_state->avatars.end(); ++it)
 				{
 					Avatar* av = it->second.ptr();
-					if(avatar_stream_info.find((uint32)av->uid.value()) == avatar_stream_info.end())
+					// If there is an avatar not in our avatar_stream_info map, that has an audio source, add it to our map.
+					if(av->audio_source.nonNull() && (avatar_stream_info.count((uint32)av->uid.value()) == 0))
 					{
 						conPrint("Creating Opus decoder for avatar");
 
@@ -221,7 +223,7 @@ void ClientUDPHandlerThread::doRun()
 							}
 							else
 							{
-								conPrint("Received voice packet for avatar without streaming context. UID: " + toString(avatar_id));
+								// conPrint("Received voice packet for avatar without streaming context. UID: " + toString(avatar_id));
 							}
 						}
 					}

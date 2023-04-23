@@ -296,6 +296,7 @@ void ClientThread::doRun()
 								// Avatar for UID not already created, create it now.
 								AvatarRef avatar = new Avatar();
 								avatar->uid = avatar_uid;
+								avatar->our_avatar = this->client_avatar_uid == avatar_uid;
 								avatar->copyNetworkStateFrom(temp_avatar);
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
@@ -326,6 +327,7 @@ void ClientThread::doRun()
 								// Avatar for UID not already created, create it now.
 								AvatarRef avatar = new Avatar();
 								avatar->uid = avatar_uid;
+								avatar->our_avatar = this->client_avatar_uid == avatar_uid;
 								avatar->copyNetworkStateFrom(temp_avatar);
 								avatar->state = Avatar::State_JustCreated;
 								avatar->other_dirty = true;
