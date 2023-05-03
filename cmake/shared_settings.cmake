@@ -205,6 +205,8 @@ ${UTILS_DIR}/ReferenceTest.h
 ${UTILS_DIR}/SHA256.cpp
 ${UTILS_DIR}/SHA256.h
 ${UTILS_DIR}/Singleton.h
+${UTILS_DIR}/SmallArray.cpp
+${UTILS_DIR}/SmallArray.h
 ${UTILS_DIR}/SmallVector.cpp
 ${UTILS_DIR}/SmallVector.h
 ${UTILS_DIR}/SocketBufferOutStream.cpp
@@ -378,6 +380,8 @@ ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.cpp
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLProgram.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLShader.h
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLCircularBuffer.cpp 
+${GLARE_CORE_TRUNK_DIR_ENV}/opengl/OpenGLCircularBuffer.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShaderFileWatcherThread.cpp 
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShaderFileWatcherThread.h
 ${GLARE_CORE_TRUNK_DIR_ENV}/opengl/ShadowMapping.cpp 
