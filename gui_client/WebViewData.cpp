@@ -851,6 +851,8 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 							OpenGLTexture::Filtering_Bilinear);
 
 						ob->opengl_engine_ob->materials[0].fresnel_scale = 0; // Remove specular reflections, reduces washed-out look.
+
+						opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 					}
 
 					browser = createBrowser(/*this, */ob->target_url, ob->opengl_engine_ob->materials[0].albedo_texture, main_window, ob);
@@ -864,6 +866,7 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 
 						assert(!showing_click_to_load_text);
 						ob->opengl_engine_ob->materials[0].albedo_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url); // TEMP
+						opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 						showing_click_to_load_text = true;
 					}
 				}
@@ -906,6 +909,7 @@ void WebViewData::process(MainWindow* main_window, OpenGLEngine* opengl_engine, 
 
 					user_clicked_to_load = false;
 					ob->opengl_engine_ob->materials[0].albedo_texture = makeTextTexture(opengl_engine, "Click below to load " + ob->target_url);
+					opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
 					showing_click_to_load_text = true;
 				}
 
