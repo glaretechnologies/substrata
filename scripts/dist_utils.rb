@@ -171,9 +171,9 @@ end
 def copyBugSplatRedist(dist_dir)
 
 	bugsplat_dir = getAndCheckEnvVar('INDIGO_LIBS') + "/BugSplat"
-	FileUtils.copy(bugsplat_dir + "/bin64/BsSndRpt64.exe",   "#{dist_dir}/", :verbose => true)
-	FileUtils.copy(bugsplat_dir + "/bin64/BugSplat64.dll",   "#{dist_dir}/", :verbose => true)
-	FileUtils.copy(bugsplat_dir + "/bin64/BugSplatRc64.dll", "#{dist_dir}/", :verbose => true)
+	FileUtils.copy(bugsplat_dir + "/BugSplat/x64/Release/BsSndRpt64.exe",   "#{dist_dir}/", :verbose => true)
+	FileUtils.copy(bugsplat_dir + "/BugSplat/x64/Release/BugSplat64.dll",   "#{dist_dir}/", :verbose => true)
+	FileUtils.copy(bugsplat_dir + "/BugSplat/x64/Release/BugSplatRc64.dll", "#{dist_dir}/", :verbose => true)
 end
 
 
