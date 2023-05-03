@@ -857,6 +857,8 @@ void AnimatedTexObData::processMP4AnimatedTex(MainWindow* main_window, OpenGLEng
 			else
 				mat.emission_texture = new_tex;
 
+			opengl_engine->objectMaterialsUpdated(*ob->opengl_engine_ob);
+
 			ResourceRef resource = main_window->resource_manager->getExistingResourceForURL(tex_path);
 
 			// if the resource is downloaded already, read video off disk:

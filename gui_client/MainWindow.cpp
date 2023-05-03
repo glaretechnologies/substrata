@@ -1243,9 +1243,14 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		{
 			try
 			{
+				const OpenGLTexture* prev_tex = opengl_mat.albedo_texture.ptr();
+				
 				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
 				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
 					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine); // Try and use a different LOD level of the texture, that is actually loaded.
+				
+				if(opengl_mat.albedo_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1257,9 +1262,14 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		{
 			try
 			{
+				const OpenGLTexture* prev_tex = opengl_mat.emission_texture.ptr();
+
 				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path), /*use_sRGB=*/true);
 				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, opengl_engine);
+
+				if(opengl_mat.emission_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1271,9 +1281,14 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		{
 			try
 			{
+				const OpenGLTexture* prev_tex = opengl_mat.metallic_roughness_texture.ptr();
+
 				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
 				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+
+				if(opengl_mat.metallic_roughness_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1285,9 +1300,14 @@ static void assignedLoadedOpenGLTexturesToMats(WorldObject* ob, OpenGLEngine& op
 		{
 			try
 			{
+				const OpenGLTexture* prev_tex = opengl_mat.lightmap_texture.ptr();
+
 				opengl_mat.lightmap_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.lightmap_path), /*use_sRGB=*/true, /*use mipmaps=*/false);
 				if(opengl_mat.lightmap_texture.isNull()) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.lightmap_texture = getBestLightmapLOD(resource_manager.pathForURL(ob->lightmap_url), opengl_engine); // Try and use a different LOD level of the lightmap, that is actually loaded.
+
+				if(opengl_mat.lightmap_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*ob->opengl_engine_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1316,9 +1336,14 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 		{
 			try
 			{
+				const OpenGLTexture* prev_tex = opengl_mat.albedo_texture.ptr();
+
 				opengl_mat.albedo_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.tex_path), /*use_sRGB=*/true);
 				if(opengl_mat.albedo_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine, and the corresponding world object material is valid:
 					opengl_mat.albedo_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->colour_texture_url), world_mat->colourTexHasAlpha(), /*use_sRGB=*/true, opengl_engine);
+
+				if(opengl_mat.albedo_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1330,9 +1355,14 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 		{
 			try
 			{
+				const OpenGLTexture* prev_tex = opengl_mat.emission_texture.ptr();
+
 				opengl_mat.emission_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.emission_tex_path), /*use_sRGB=*/true);
 				if(opengl_mat.emission_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.emission_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->emission_texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/true, opengl_engine);
+
+				if(opengl_mat.emission_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
 			{
@@ -1344,9 +1374,14 @@ static void assignedLoadedOpenGLTexturesToMats(Avatar* av, OpenGLEngine& opengl_
 		{
 			try
 			{
+				const OpenGLTexture* prev_tex = opengl_mat.metallic_roughness_texture.ptr();
+
 				opengl_mat.metallic_roughness_texture = opengl_engine.getTextureIfLoaded(OpenGLTextureKey(opengl_mat.metallic_roughness_tex_path), /*use_sRGB=*/false);
 				if(opengl_mat.metallic_roughness_texture.isNull() && world_mat) // If this texture is not loaded into the OpenGL engine:
 					opengl_mat.metallic_roughness_texture = getBestTextureLOD(*world_mat, resource_manager.pathForURL(world_mat->roughness.texture_url), /*tex_has_alpha=*/false, /*use_sRGB=*/false, opengl_engine);
+
+				if(opengl_mat.metallic_roughness_texture.ptr() != prev_tex)
+					opengl_engine.materialTextureChanged(*gl_ob, opengl_mat);
 			}
 			catch(glare::Exception& e)
 			{
@@ -4120,7 +4155,9 @@ void MainWindow::timerEvent(QTimerEvent* event)
 			{
 				msg += 
 					"num tris: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumTris()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUIndicesMemUsage()) + ")\n" + 
-					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n";
+					"num verts: " + toString(selected_ob->opengl_engine_ob->mesh_data->getNumVerts()) + " (" + getNiceByteSize(selected_ob->opengl_engine_ob->mesh_data->GPUVertMemUsage()) + ")\n" +
+					"num batches (draw calls): " + toString(selected_ob->opengl_engine_ob->mesh_data->batches.size()) + "\n" +
+					"num materials: " + toString(selected_ob->opengl_engine_ob->materials.size()) + "\n";
 
 				if(!selected_ob->opengl_engine_ob->materials.empty() && !selected_ob->materials.empty())
 				{
@@ -5732,6 +5769,7 @@ void MainWindow::timerEvent(QTimerEvent* event)
 	//printVar(in_parcel_id.value());
 
 	// Set audio source occlusions and check for muting audio sources not in current parcel.
+	if(physics_world.nonNull())
 	{
 		PERFORMANCEAPI_INSTRUMENT("audio occlusions");
 
@@ -9905,6 +9943,8 @@ void MainWindow::objectEditedSlot()
 								}
 
 								opengl_ob->ob_to_world_matrix = new_ob_to_world_matrix;
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
+
 								selected_ob->opengl_engine_ob = opengl_ob;
 
 								selected_ob->loaded_content = selected_ob->content;

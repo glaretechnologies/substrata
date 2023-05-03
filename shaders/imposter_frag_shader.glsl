@@ -47,6 +47,8 @@ layout (std140) uniform PhongUniforms
 	sampler2D metallic_roughness_tex;
 	sampler2D lightmap_tex;
 	sampler2D emission_tex;
+	sampler2D backface_albedo_tex;
+	sampler2D transmission_tex;
 #else
 	float padding0;
 	float padding1;
@@ -56,6 +58,10 @@ layout (std140) uniform PhongUniforms
 	float padding5;
 	float padding6;
 	float padding7;
+	float padding8;
+	float padding9;
+	float padding10;
+	float padding11;
 #endif
 
 	int flags;

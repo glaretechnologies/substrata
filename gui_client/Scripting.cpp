@@ -267,11 +267,13 @@ void evalObjectScript(WorldObject* ob, float use_global_time, double dt, OpenGLE
 	ob_to_world_inv_transpose.setColumn(3, Vec4f(0, 0, 0, 1));
 
 	// Update transform in 3d engine.
-	if(ob->opengl_engine_ob.nonNull())
+	GLObject* gl_ob = ob->opengl_engine_ob.ptr();
+	if(gl_ob)
 	{
-		ob->opengl_engine_ob->ob_to_world_matrix = ob_to_world;
-		ob->opengl_engine_ob->ob_to_world_inv_transpose_matrix = ob_to_world_inv_transpose;
-		ob->opengl_engine_ob->aabb_ws = ob->opengl_engine_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
+		gl_ob->ob_to_world_matrix = ob_to_world;
+		gl_ob->ob_to_world_inv_transpose_matrix = ob_to_world_inv_transpose;
+		gl_ob->aabb_ws = gl_ob->mesh_data->aabb_os.transformedAABBFast(ob_to_world);
+		opengl_engine->objectTransformDataChanged(*gl_ob);
 
 		// Update object world space AABB (used for computing LOD level).
 		// For objects with animated rotation, we want to compute an AABB without rotation, otherwise we can get a world-space AABB
