@@ -1252,7 +1252,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 
 	if(num_merged_verts < 128)
 	{
-		mesh_data->index_type = GL_UNSIGNED_BYTE;
+		mesh_data->setIndexType(GL_UNSIGNED_BYTE);
 
 		mesh_data->vert_index_buffer_uint8.resize(num_indices);
 
@@ -1262,7 +1262,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	}
 	else if(num_merged_verts < 32768)
 	{
-		mesh_data->index_type = GL_UNSIGNED_SHORT;
+		mesh_data->setIndexType(GL_UNSIGNED_SHORT);
 
 		mesh_data->vert_index_buffer_uint16.resize(num_indices);
 
@@ -1276,7 +1276,7 @@ static Reference<OpenGLMeshRenderData> buildVoxelOpenGLMeshData(const Indigo::Me
 	}
 	else
 	{
-		mesh_data->index_type = GL_UNSIGNED_INT;
+		mesh_data->setIndexType(GL_UNSIGNED_INT);
 
 		mesh_data->vert_index_buffer.resize(num_indices);
 
@@ -1393,17 +1393,17 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeModelForVoxelGroup(const Voxel
 		if(!mesh_data->vert_index_buffer_uint8.empty())
 		{
 			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint8.data(), mesh_data->vert_index_buffer_uint8.dataSizeBytes());
-			assert(mesh_data->index_type == GL_UNSIGNED_BYTE);
+			assert(mesh_data->getIndexType() == GL_UNSIGNED_BYTE);
 		}
 		else if(!mesh_data->vert_index_buffer_uint16.empty())
 		{
 			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer_uint16.data(), mesh_data->vert_index_buffer_uint16.dataSizeBytes());
-			assert(mesh_data->index_type == GL_UNSIGNED_SHORT);
+			assert(mesh_data->getIndexType() == GL_UNSIGNED_SHORT);
 		}
 		else
 		{
 			mesh_data->indices_vbo_handle = vert_buf_allocator->allocateIndexData(mesh_data->vert_index_buffer.data(), mesh_data->vert_index_buffer.dataSizeBytes());
-			assert(mesh_data->index_type == GL_UNSIGNED_INT);
+			assert(mesh_data->getIndexType() == GL_UNSIGNED_INT);
 		}
 
 		mesh_data->vbo_handle = vert_buf_allocator->allocate(mesh_data->vertex_spec, mesh_data->vert_data.data(), mesh_data->vert_data.dataSizeBytes());
