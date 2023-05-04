@@ -997,6 +997,8 @@ Reference<OpenGLMeshRenderData> ModelLoading::makeGLMeshDataAndBatchedMeshForMod
 
 	batched_mesh->checkValidAndSanitiseMesh(); // Throws glare::Exception on invalid mesh.
 
+	batched_mesh->optimise(); // Merge batches sharing the same material.
+
 	if(hasExtension(model_path, "gltf") || hasExtension(model_path, "glb") || hasExtension(model_path, "vrm"))
 		if(batched_mesh->animation_data.vrm_data.nonNull())
 			rotateVRMMesh(*batched_mesh);
