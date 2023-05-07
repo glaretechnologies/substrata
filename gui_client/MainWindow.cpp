@@ -3837,6 +3837,7 @@ void MainWindow::updateDiagnosticAABBForObject(WorldObject* ob)
 				}
 			
 				ob->diagnostics_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3(col[0], col[1], col[2]));
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(*ob->diagnostics_gl_ob);
 				ob->diagnostics_gl_ob->ob_to_world_matrix = to_world;
 				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->diagnostics_gl_ob);
 			}
@@ -3852,6 +3853,7 @@ void MainWindow::updateDiagnosticAABBForObject(WorldObject* ob)
 				}
 
 				ob->diagnostics_unsmoothed_gl_ob->materials[0].albedo_linear_rgb = toLinearSRGB(Colour3(col[0] + 0.5f, col[1], col[2]));
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(*ob->diagnostics_gl_ob);
 				ob->diagnostics_unsmoothed_gl_ob->ob_to_world_matrix = to_world;
 				ui->glWidget->opengl_engine->updateObjectTransformData(*ob->diagnostics_unsmoothed_gl_ob);
 			}
@@ -9982,6 +9984,8 @@ void MainWindow::objectEditedSlot()
 									opengl_ob->materials[1].emission_linear_rgb = toLinearSRGB(this->selected_ob->materials[0]->colour_rgb);
 									opengl_ob->materials[1].emission_scale = scale;
 								}
+
+								ui->glWidget->opengl_engine->objectMaterialsUpdated(*opengl_ob);
 							}
 						}
 
@@ -11757,10 +11761,16 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 
 			// Set grab controls to default colours
 			for(int i=0; i<NUM_AXIS_ARROWS; ++i)
+			{
 				axis_arrow_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i % 3]);
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(*axis_arrow_objects[i]);
+			}
 
 			for(int i=0; i<3; ++i)
+			{
 				rot_handle_arc_objects[i]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_default_cols[i]);
+				ui->glWidget->opengl_engine->objectMaterialsUpdated(*rot_handle_arc_objects[i]);
+			}
 
 			//if(!mouse_trace_hit_selected_ob)
 			{
@@ -11768,12 +11778,16 @@ void MainWindow::glWidgetMouseMoved(QMouseEvent* e)
 				const int axis = mouseOverAxisArrowOrRotArc(Vec2f((float)e->pos().x(), (float)e->pos().y()), dummy_grabbed_point_ws);
 		
 				if(axis >= 0 && axis < NUM_AXIS_ARROWS)
+				{
 					axis_arrow_objects[axis]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_mouseover_cols[axis % 3]);
+					ui->glWidget->opengl_engine->objectMaterialsUpdated(*axis_arrow_objects[axis]);
+				}
 
 				if(axis >= NUM_AXIS_ARROWS && axis < NUM_AXIS_ARROWS + 3)
 				{
 					const int grabbed_rot_axis = axis - NUM_AXIS_ARROWS;
 					rot_handle_arc_objects[grabbed_rot_axis]->materials[0].albedo_linear_rgb = toLinearSRGB(axis_arrows_mouseover_cols[grabbed_rot_axis]);
+					ui->glWidget->opengl_engine->objectMaterialsUpdated(*rot_handle_arc_objects[grabbed_rot_axis]);
 				}
 			}
 		}
