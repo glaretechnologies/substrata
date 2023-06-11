@@ -115,9 +115,11 @@ void PhysicsSystem::RemoveStepListener(PhysicsStepListener *inListener)
 	mStepListeners.pop_back();
 }
 
-void PhysicsSystem::Update(float inDeltaTime, int inCollisionSteps, int inIntegrationSubSteps, TempAllocator *inTempAllocator, JobSystem *inJobSystem)
+EPhysicsUpdateError PhysicsSystem::Update(float inDeltaTime, int inCollisionSteps, int inIntegrationSubSteps, TempAllocator *inTempAllocator, JobSystem *inJobSystem)
 {	
 	JPH_PROFILE_FUNCTION();
+
+	JPH_DET_LOG("PhysicsSystem::Update: dt: " << inDeltaTime << " steps: " << inCollisionSteps << " substeps: " << inIntegrationSubSteps);
 
 	JPH_ASSERT(inDeltaTime >= 0.0f);
 	JPH_ASSERT(inIntegrationSubSteps <= PhysicsUpdateContext::cMaxSubSteps);
@@ -141,7 +143,7 @@ void PhysicsSystem::Update(float inDeltaTime, int inCollisionSteps, int inIntegr
 		mContactManager.FinalizeContactCacheAndCallContactPointRemovedCallbacks(0, 0);
 
 		mBodyManager.UnlockAllBodies();
-		return;
+		return EPhysicsUpdateError::None;
 	}
 
 	// Calculate ratio between current and previous frame delta time to scale initial constraint forces
@@ -623,6 +625,11 @@ void PhysicsSystem::Update(float inDeltaTime, int inCollisionSteps, int inIntegr
 
 	// Unlock step listeners
 	mStepListenersMutex.unlock();
+
+	// Return any errors
+	EPhysicsUpdateError errors = static_cast<EPhysicsUpdateError>(context.mErrors.load(memory_order_acquire));
+	JPH_ASSERT(errors == EPhysicsUpdateError::None, "An error occured during the physics update, see EPhysicsUpdateError for more information");
+	return errors;
 }
 
 void PhysicsSystem::JobStepListeners(PhysicsUpdateContext::Step *ioStep)
@@ -806,6 +813,16 @@ void PhysicsSystem::TrySpawnJobFindCollisions(PhysicsUpdateContext::Step *ioStep
 	}
 }
 
+static void sFinalizeContactAllocator(PhysicsUpdateContext::Step &ioStep, const ContactConstraintManager::ContactAllocator &inAllocator)
+{
+	// Atomically accumulate the number of found manifolds and body pairs
+	ioStep.mNumBodyPairs.fetch_add(inAllocator.mNumBodyPairs, memory_order_relaxed);
+	ioStep.mNumManifolds.fetch_add(inAllocator.mNumManifolds, memory_order_relaxed);
+
+	// Combine update errors
+	ioStep.mContext->mErrors.fetch_or((uint32)inAllocator.mErrors, memory_order_relaxed);
+}
+
 void PhysicsSystem::JobFindCollisions(PhysicsUpdateContext::Step *ioStep, int inJobIndex)
 {
 #ifdef JPH_ENABLE_ASSERTS
@@ -908,9 +925,8 @@ void PhysicsSystem::JobFindCollisions(PhysicsUpdateContext::Step *ioStep, int in
 					// If we're back at the first queue, we've looked at all of them and found nothing
 					if (read_queue_idx == first_read_queue_idx)
 					{
-						// Atomically accumulate the number of found manifolds and body pairs
-						ioStep->mNumBodyPairs += contact_allocator.mNumBodyPairs;
-						ioStep->mNumManifolds += contact_allocator.mNumManifolds;
+						// Collect information from the contact allocator and accumulate it in the step.
+						sFinalizeContactAllocator(*ioStep, contact_allocator);
 
 						// Mark this job as inactive
 						ioStep->mActiveFindCollisionJobs.fetch_and(~PhysicsUpdateContext::JobMask(1 << inJobIndex));
@@ -1772,7 +1788,7 @@ void PhysicsSystem::JobFindCCDContacts(const PhysicsUpdateContext *ioContext, Ph
 							}
 
 							// Update early out fraction
-							CastShapeCollector::UpdateEarlyOutFraction(fraction_plus_slop);
+							UpdateEarlyOutFraction(fraction_plus_slop);
 						}
 					}
 				}
@@ -1847,7 +1863,7 @@ void PhysicsSystem::JobFindCCDContacts(const PhysicsUpdateContext *ioContext, Ph
 				bounds.mMin -= mBody1Extent;
 				bounds.mMax += mBody1Extent;
 				float hit_fraction = RayAABox(Vec3(mShapeCast.mCenterOfMassStart.GetTranslation()), RayInvDirection(direction), bounds.mMin, bounds.mMax);
-				if (hit_fraction > max(FLT_MIN, GetEarlyOutFraction())) // If early out fraction <= 0, we have the possibility of finding a deeper hit so we need to clamp the early out fraction
+				if (hit_fraction > GetPositiveEarlyOutFraction()) // If early out fraction <= 0, we have the possibility of finding a deeper hit so we need to clamp the early out fraction
 					return;
 
 				// Reset collector (this is a new body pair)
@@ -1914,9 +1930,8 @@ void PhysicsSystem::JobFindCCDContacts(const PhysicsUpdateContext *ioContext, Ph
 		}
 	}
 
-	// Atomically accumulate the number of found manifolds and body pairs
-	ioSubStep->mStep->mNumBodyPairs += contact_allocator.mNumBodyPairs;
-	ioSubStep->mStep->mNumManifolds += contact_allocator.mNumManifolds;
+	// Collect information from the contact allocator and accumulate it in the step.
+	sFinalizeContactAllocator(*ioSubStep->mStep, contact_allocator);
 }
 
 void PhysicsSystem::JobResolveCCDContacts(PhysicsUpdateContext *ioContext, PhysicsUpdateContext::SubStep *ioSubStep)
@@ -2022,7 +2037,7 @@ void PhysicsSystem::JobResolveCCDContacts(PhysicsUpdateContext *ioContext, Physi
 
 					// Solve contact constraint
 					AxisConstraintPart contact_constraint;
-					contact_constraint.CalculateConstraintProperties(ioContext->mSubStepDeltaTime, body1, r1_plus_u, body2, r2, ccd_body->mContactNormal, normal_velocity_bias);
+					contact_constraint.CalculateConstraintProperties(body1, r1_plus_u, body2, r2, ccd_body->mContactNormal, normal_velocity_bias);
 					contact_constraint.SolveVelocityConstraint(body1, body2, ccd_body->mContactNormal, -FLT_MAX, FLT_MAX);
 
 					// Apply friction
@@ -2034,11 +2049,11 @@ void PhysicsSystem::JobResolveCCDContacts(PhysicsUpdateContext *ioContext, Physi
 						float max_lambda_f = ccd_body->mContactSettings.mCombinedFriction * contact_constraint.GetTotalLambda();
 
 						AxisConstraintPart friction1;
-						friction1.CalculateConstraintProperties(ioContext->mSubStepDeltaTime, body1, r1_plus_u, body2, r2, tangent1, 0.0f);
+						friction1.CalculateConstraintProperties(body1, r1_plus_u, body2, r2, tangent1);
 						friction1.SolveVelocityConstraint(body1, body2, tangent1, -max_lambda_f, max_lambda_f);
 
 						AxisConstraintPart friction2;
-						friction2.CalculateConstraintProperties(ioContext->mSubStepDeltaTime, body1, r1_plus_u, body2, r2, tangent2, 0.0f);
+						friction2.CalculateConstraintProperties(body1, r1_plus_u, body2, r2, tangent2);
 						friction2.SolveVelocityConstraint(body1, body2, tangent2, -max_lambda_f, max_lambda_f);
 					}
 
@@ -2219,7 +2234,9 @@ void PhysicsSystem::CheckSleepAndUpdateBounds(uint32 inIslandIndex, const Physic
 			all_can_sleep &= int(body.UpdateSleepStateInternal(ioContext->mSubStepDeltaTime, max_movement, time_before_sleep));
 
 			// Reset force and torque
-			body.GetMotionProperties()->ResetForceAndTorqueInternal();
+			MotionProperties *mp = body.GetMotionProperties();
+			mp->ResetForce();
+			mp->ResetTorque();
 		}
 
 		// If all bodies indicate they can sleep we can deactivate them
