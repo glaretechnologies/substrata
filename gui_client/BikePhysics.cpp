@@ -139,7 +139,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	front_wheel->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	front_wheel->mSuspensionMinLength	= 0.1f;/*0.25f*/;
 	front_wheel->mSuspensionMaxLength	= 0.35f;
-	front_wheel->mSuspensionFrequency	= 2.0f; // Make the suspension a bit stiffer than default
+	front_wheel->mSuspensionSpring.mFrequency = 2.0f; // Make the suspension a bit stiffer than default
 	front_wheel->mRadius				= wheel_radius;
 	front_wheel->mWidth					= wheel_width;
 	front_wheel->mMaxSteerAngle			= max_steering_angle;
@@ -162,7 +162,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	rear_wheel->mWheelForward			= toJoltVec3(z_up_to_model_space * Vec4f(0,1,0,0));
 	rear_wheel->mSuspensionMinLength	= 0.1f;
 	rear_wheel->mSuspensionMaxLength	= 0.3f;
-	rear_wheel->mSuspensionFrequency	= 2.5f; // Make the suspension a bit stiffer than default
+	rear_wheel->mSuspensionSpring.mFrequency = 2.5f; // Make the suspension a bit stiffer than default
 	// rear tire is e.g. 13lb, see https://www.amazon.com/Pirelli-Diablo-Rosso-Rear-55ZR-17/dp/B01AZ5T50K?th=1
 	rear_wheel->mRadius					= wheel_radius;
 	rear_wheel->mWidth					= wheel_width;
@@ -190,6 +190,7 @@ BikePhysics::BikePhysics(WorldObjectRef object, BikePhysicsSettings settings_, P
 	vehicle.mController = controller_settings;
 
 	controller_settings->mLeanSpringConstant = lean_spring_constant;
+	controller_settings->mLeanSpringIntegrationCoefficient = 2000.f;
 	controller_settings->mLeanSpringDamping = lean_spring_damping;
 	controller_settings->mLeanSmoothingFactor = 0.9f;
 	controller_settings->mMaxLeanAngle = JPH::DegreesToRadians(60.f);
@@ -464,8 +465,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	{
 		//vehicle_constraint->SetMaxRollAngle(JPH::DegreesToRadians(0.f));
 		assert(dynamic_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController()));
-		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringConstant = lean_spring_constant;
-		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringDamping = lean_spring_damping;
+		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->EnableLeanController(true);
 
 
 		//TEMP make bike float for testing constraints:
@@ -567,8 +567,7 @@ VehiclePhysicsUpdateEvents BikePhysics::update(PhysicsWorld& physics_world, cons
 	{
 		//vehicle_constraint->SetMaxRollAngle(JPH::JPH_PI); // user is not on bike, so deactivate roll constraint.
 		assert(dynamic_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController()));
-		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringConstant = 0;
-		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->mLeanSpringDamping = 0;
+		static_cast<JPH::MotorcycleController*>(vehicle_constraint->GetController())->EnableLeanController(false);
 	}
 
 	
