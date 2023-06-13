@@ -78,6 +78,11 @@ void renderMainAdminPage(ServerAllWorldsState& world_state, const web::RequestIn
 		page_out += "</form>";
 	} // End Lock scope
 
+	page_out += "<br/><br/>";
+	page_out += "<form action=\"/admin_force_dyn_tex_update_post\" method=\"post\">";
+	page_out += "<input type=\"submit\" value=\"Force dynamic texture update checker to run\" onclick=\"return confirm('Are you sure you want to force the dynamic texture update checker to run?');\" >";
+	page_out += "</form>";
+
 	web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, page_out);
 }
 
@@ -1789,6 +1794,32 @@ void handleSetReadOnlyModePost(ServerAllWorldsState& world_state, const web::Req
 	{
 		if(!request.fuzzing)
 			conPrint("handleSetReadOnlyModePost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
+}
+
+
+void handleForceDynTexUpdatePost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		{ // Lock scope
+			Lock lock(world_state.mutex);
+			world_state.force_dyn_tex_update = true;
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin");
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleForceDynTexUpdatePost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
 }

@@ -42,6 +42,8 @@ ServerAllWorldsState::ServerAllWorldsState()
 	server_admin_message_changed = false;
 
 	read_only_mode = false;
+
+	force_dyn_tex_update = false;
 }
 
 
