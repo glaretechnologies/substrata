@@ -220,6 +220,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetUserAsWorldGardenerPost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_set_user_allow_dyn_tex_update_post")
+		{
+			AdminHandlers::handleSetUserAllowDynTexUpdatePost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/regenerate_parcel_screenshots")
 		{
 			ParcelHandlers::handleRegenerateParcelScreenshots(*this->world_state, request, reply_info);

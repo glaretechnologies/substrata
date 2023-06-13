@@ -77,7 +77,7 @@ void parseXMLScript(WorldObjectRef ob, const std::string& script, double global_
 	{
 		IndigoXMLDoc doc(script.c_str(), script.size());
 
-		pugi::xml_node root_elem = doc.getRootElement();
+		pugi::xml_node root_elem = doc.getRootElement(); // Expected to be 'script'.  TODO: check?
 
 		pugi::xml_node follow_path_elem = root_elem.child("follow_path");
 		if(follow_path_elem)

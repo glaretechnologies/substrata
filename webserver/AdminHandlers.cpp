@@ -178,6 +178,14 @@ void renderAdminUserPage(ServerAllWorldsState& world_state, const web::RequestIn
 			page_out += "<input type=\"number\" name=\"gardener\" value=\"" + toString(BitUtils::isBitSet(user->flags, User::WORLD_GARDENER_FLAG) ? 1 : 0) + "\">";
 			page_out += "<input type=\"submit\" value=\"Set as world gardener (1 / 0)\" onclick=\"return confirm('Are you sure you want set as world gardener?');\" >";
 			page_out += "</form>";
+
+			page_out += "</p>    \n";
+
+			page_out += "<form action=\"/admin_set_user_allow_dyn_tex_update_post\" method=\"post\">";
+			page_out += "<input type=\"hidden\" name=\"user_id\" value=\"" + toString(user_id) + "\">";
+			page_out += "<input type=\"number\" name=\"allow\" value=\"" + toString(BitUtils::isBitSet(user->flags, User::ALLOW_DYN_TEX_UPDATE_CHECKING) ? 1 : 0) + "\">";
+			page_out += "<input type=\"submit\" value=\"Allow user to do dynamic texture update checking (1 / 0)\" onclick=\"return confirm('Are you sure you want to allow user to do dynamic texture update checking?');\" >";
+			page_out += "</form>";
 		}
 	} // End Lock scope
 
@@ -1823,7 +1831,46 @@ void handleSetUserAsWorldGardenerPost(ServerAllWorldsState& world_state, const w
 			conPrint("handleSetUserAsWorldGardenerPost error: " + e.what());
 		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
 	}
+}
 
+
+void handleSetUserAllowDynTexUpdatePost(ServerAllWorldsState& world_state, const web::RequestInfo& request, web::ReplyInfo& reply_info)
+{
+	if(!LoginHandlers::loggedInUserHasAdminPrivs(world_state, request))
+	{
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Access denied sorry.");
+		return;
+	}
+
+	try
+	{
+		const int user_id = request.getPostIntField("user_id");
+		const int allow = request.getPostIntField("allow");
+
+		{ // Lock scope
+
+			Lock lock(world_state.mutex);
+
+			// Lookup user
+			const auto res = world_state.user_id_to_users.find(UserID(user_id));
+			if(res != world_state.user_id_to_users.end())
+			{
+				User* user = res->second.ptr();
+
+				BitUtils::setOrZeroBit(user->flags, User::ALLOW_DYN_TEX_UPDATE_CHECKING, allow != 0);
+
+				world_state.addUserAsDBDirty(user);
+			}
+		} // End lock scope
+
+		web::ResponseUtils::writeRedirectTo(reply_info, "/admin_user/" + toString(user_id));
+	}
+	catch(glare::Exception& e)
+	{
+		if(!request.fuzzing)
+			conPrint("handleSetUserAllowDynTexUpdatePost error: " + e.what());
+		web::ResponseUtils::writeHTTPOKHeaderAndData(reply_info, "Error: " + e.what());
+	}
 }
 
 
