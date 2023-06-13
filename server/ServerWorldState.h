@@ -191,6 +191,9 @@ public:
 	// Ephemeral state - is the server in read-only mode?  When true, clients can't make changes to objects etc.
 	bool read_only_mode GUARDED_BY(mutex);
 
+	// Ephemeral state - do we want to force the DynamicTextureUpdaterThread to do a run?
+	bool force_dyn_tex_update GUARDED_BY(mutex);
+
 	std::map<UserID, std::string> user_web_messages GUARDED_BY(mutex); // For displaying an informational or error message on the next webpage served to a user.
 
 	// Sets of objects that should be written to (updated) in the database.

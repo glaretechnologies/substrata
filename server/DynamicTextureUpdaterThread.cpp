@@ -65,14 +65,14 @@ static void checkForDynamicTextureToCheck(const std::string& world_name, WorldOb
 					}
 					else
 					{
-						conPrint("User '" + user->name + "' must have ALLOW_DYN_TEX_UPDATE_CHECKING flag set to allow checking for dynamic textures.");
+						conPrint("\tDynamicTextureUpdaterThread: User '" + user->name + "' must have ALLOW_DYN_TEX_UPDATE_CHECKING flag set to allow checking for dynamic textures.");
 					}
 				}
 			}
 		}
 		catch(glare::Exception& e)
 		{
-			conPrint("Excep while parsing XML script: " + e.what());
+			conPrint("\tDynamicTextureUpdaterThread: Excep while parsing XML script: " + e.what());
 		}
 	}
 }
@@ -90,7 +90,7 @@ static std::string sanitiseString(const std::string& s)
 
 struct DynTextureFetchResults
 {
-	std::string substrata_URL;
+	std::string substrata_URL; // Set to empty string if exception occurred or download failed.
 };
 
 
@@ -182,7 +182,7 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 		}
 		catch(glare::Exception& e)
 		{
-			conPrint("\tException in fetchFileForURLAndAddAsResource() for URL '" + base_URL + "': " + e.what());
+			conPrint("\tDynamicTextureUpdaterThread: Excep fetching URL '" + base_URL + "': " + e.what());
 			fetch_results_map[base_URL] = DynTextureFetchResults({""});
 		}
 	}
@@ -193,7 +193,7 @@ static void checkDynamicTexture(const ObWithDynamicTexture& ob_with_dyn_tex, Ser
 	if(fetch_results.substrata_URL.empty())
 	{
 		// We already tried to fetch from this URL, and it failed.
-		conPrint("\tFetch for URL '" + base_URL + "' failed, skipping");
+		conPrint("\tDynamicTextureUpdaterThread: Fetch for URL '" + base_URL + "' failed, skipping");
 	}
 	else
 	{
@@ -266,15 +266,26 @@ void DynamicTextureUpdaterThread::doRun()
 		{
 			Timer time_since_last_scan;
 
+			//-------------------------------------------  Wait until we have a kill message, or N seconds have elapsed, or the force-update flag is set ------------------------------------------- 
 			while(time_since_last_scan.elapsed() < 3600.0)
 			{
 				// Block for a while, or until we have a message
 				ThreadMessageRef msg;
-				const bool got_msg = getMessageQueue().dequeueWithTimeout(1.0, msg);
+				const bool got_msg = getMessageQueue().dequeueWithTimeout(/*wait_time_seconds=*/4.0, msg);
 				if(got_msg)
 				{
 					if(dynamic_cast<KillThreadMessage*>(msg.ptr()))
 						return;
+				}
+
+				// Check if the force-update flag is set (can be set in admin web interface).  If so, abort wait.
+				{
+					Lock lock(world_state->mutex);
+					if(world_state->force_dyn_tex_update)
+					{
+						world_state->force_dyn_tex_update = false;
+						break;
+					}
 				}
 			}
 

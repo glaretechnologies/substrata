@@ -200,6 +200,10 @@ void WebServerRequestHandler::handleRequest(const web::RequestInfo& request, web
 		{
 			AdminHandlers::handleSetReadOnlyModePost(*this->world_state, request, reply_info);
 		}
+		else if(request.path == "/admin_force_dyn_tex_update_post")
+		{
+			AdminHandlers::handleForceDynTexUpdatePost(*this->world_state, request, reply_info);
+		}
 		else if(request.path == "/admin_delete_transaction_post")
 		{
 			AdminHandlers::handleDeleteTransactionPost(*this->world_state, request, reply_info);
